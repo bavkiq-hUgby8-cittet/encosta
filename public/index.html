@@ -1005,7 +1005,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas></div>
   <div class="const-empty hidden" id="constEmpty">
     <div class="const-empty-icon">✦</div>
-    <div class="const-empty-text">Nenhum encontro ainda.<br>Encoste em alguém para começar sua constelação.</div>
+    <div class="const-empty-text">Nenhum encontro ainda.<br>Dê um touch em alguém para começar sua constelação.</div>
   </div>
   <div class="const-detail" id="constDetail" onclick="hideConstDetail()">
     <div class="const-detail-avatar" id="constDetailAvatar"></div>
@@ -1174,7 +1174,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket=null,state={userId:localStorage.getItem('encosta_userId'),userName:localStorage.getItem('encosta_userName'),userColor:localStorage.getItem('encosta_userColor')||'',currentSession:null,currentRelation:null,timerInterval:null};
+let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',currentSession:null,currentRelation:null,timerInterval:null};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ FIREBASE AUTH ═══
@@ -1210,9 +1210,9 @@ async function linkFirebaseToEncosta(user){
       state.userId=d.userId;
       state.userName=d.user.nickname||d.user.name;
       state.userColor=d.user.color||'';
-      localStorage.setItem('encosta_userId',d.userId);
-      localStorage.setItem('encosta_userName',state.userName);
-      localStorage.setItem('encosta_userColor',state.userColor);
+      localStorage.setItem('touch_userId',d.userId);
+      localStorage.setItem('touch_userName',state.userName);
+      localStorage.setItem('touch_userColor',state.userColor);
       // If user still needs to set nickname/birthdate, show register
       if(!d.user.birthdate){
         $('regNick').value=state.userName||'';
@@ -1274,7 +1274,7 @@ function toggleLoginMode(){
 async function doLogout(){
   try{
     if(firebaseAuthInstance)await firebaseAuthInstance.signOut();
-    localStorage.removeItem('encosta_userId');localStorage.removeItem('encosta_userName');localStorage.removeItem('encosta_userColor');
+    localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');localStorage.removeItem('touch_userColor');
     state.userId=null;state.userName=null;state.userColor='';fbUser=null;
     if(socket){socket.disconnect();socket=null}
     showScreen('login');
@@ -1305,7 +1305,7 @@ function updateOnbDots() {
   for (let i = 0; i < dots.length; i++) dots[i].className = 'onb-dot' + (i === onbSlide ? ' active' : '');
 }
 function skipOnboarding() {
-  localStorage.setItem('encosta_onboarded', '1');
+  localStorage.setItem('touch_onboarded', '1');
   showScreen('login');
 }
 function showManual(){
@@ -1384,7 +1384,7 @@ function initSocket(){
   socket.on('gift-address-accepted',({giftName})=>{showToast('Presente aceito! '+giftName+' será entregue.');haptic([50,30,50])});
   socket.on('gift-address-declined',({giftName})=>{showToast('Presente recusado: '+giftName);haptic([30])});
   socket.on('encosta-request',data=>showEncostaRequest(data));
-  socket.on('encosta-declined',()=>{showToast('Pedido de encosta recusado.');haptic([30])});
+  socket.on('encosta-declined',()=>{showToast('Pedido de touch recusado.');haptic([30])});
   socket.on('contact-request',data=>showContactRequest(data));
   socket.on('contact-shared',({relationId,contactType,value})=>{
     // Save contact info as persistent message in chat
@@ -1501,7 +1501,7 @@ async function doRegister(){
     if(d.error)return showToast(d.error);
     if(d.userId){
       state.userId=d.userId;state.userName=nick;state.userColor=d.user.color;
-      localStorage.setItem('encosta_userId',d.userId);localStorage.setItem('encosta_userName',nick);localStorage.setItem('encosta_userColor',d.user.color||'');
+      localStorage.setItem('touch_userId',d.userId);localStorage.setItem('touch_userName',nick);localStorage.setItem('touch_userColor',d.user.color||'');
       // Link with Firebase if signed in
       if(fbUser&&firebaseAuthInstance){
         try{await linkFirebaseToEncosta(fbUser)}catch(e){}
@@ -2862,7 +2862,7 @@ const HOME_PHRASES=[
   'O encontro\né o começo.',
   'Hoje é feito\nde gestos.',
   'A conexão\nvive no toque.',
-  'Não espere.\nEncosta.',
+  'Não espere.\nTouch.',
   'Cada encontro\ndeixa marca.',
   'O melhor momento\né o presente.',
   'Proximidade\nmuda tudo.'
@@ -3259,7 +3259,7 @@ async function encostaFromLocation(targetId){
     if(d2.error)return showToast(d2.error);
     showToast(i18n('evt_encosta_ok'));haptic([80,40,80,40,80]);
     goHome();refreshHome();
-  }catch(e){showToast('Erro ao encostar.')}
+  }catch(e){showToast('Erro ao conectar.')}
 }
 
 // ═══ i18n ═══
@@ -3383,11 +3383,11 @@ es:{
   hist_title:'Constelación',hist_empty:'Sin encuentros aún.',hist_save:'Guardar',hist_share:'Compartir'
 }
 };
-let currentLang=localStorage.getItem('encosta_lang')||'pt';
+let currentLang=localStorage.getItem('touch_lang')||'pt';
 function i18n(key){return (LANG[currentLang]&&LANG[currentLang][key])||LANG.pt[key]||key}
 function setLang(lang){
   currentLang=lang;
-  localStorage.setItem('encosta_lang',lang);
+  localStorage.setItem('touch_lang',lang);
   document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim().toLowerCase()===lang));
   applyLang();
 }
@@ -3720,7 +3720,7 @@ async function validateUser(){
   if(!state.userId)return false;
   try{
     const r=await fetch('/api/user/'+state.userId);
-    if(!r.ok){localStorage.removeItem('encosta_userId');localStorage.removeItem('encosta_userName');state.userId=null;state.userName=null;return false}
+    if(!r.ok){localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');state.userId=null;state.userName=null;return false}
     return true;
   }catch(e){return false}
 }
@@ -3737,7 +3737,7 @@ window.addEventListener('load',()=>{
       refreshHome();
     }else{
       // Show onboarding for first-time users, login for returning
-      if(!localStorage.getItem('encosta_onboarded')){
+      if(!localStorage.getItem('touch_onboarded')){
         initOnboarding();
         showScreen('onboarding');
       }else{
