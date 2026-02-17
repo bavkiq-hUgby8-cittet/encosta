@@ -2747,19 +2747,19 @@ async function showHistory(){
     const now=Date.now();
     const nodeCount=data.nodes.length;
     // Fewer nodes → more spread so they don't cluster
-    const fewBonus=nodeCount<6?(6-nodeCount)*40:0;
+    const fewBonus=nodeCount<6?(6-nodeCount)*32:0;
     const nodes=data.nodes.map((n,i)=>{
       const angle=(i/nodeCount)*Math.PI*2-Math.PI/2;
       const lastMs=n.lastDate?now-new Date(n.lastDate).getTime():999999999;
       const hrs=lastMs/3600000;
       let zDepth;
-      if(hrs<1)zDepth=60+Math.random()*40;           // <1h → close but not on top
-      else if(hrs<6)zDepth=120+Math.random()*60;      // <6h → medium
-      else if(hrs<12)zDepth=200+Math.random()*80;     // <12h → medium-far
-      else if(hrs<24)zDepth=320+Math.random()*100;    // <24h → far
-      else zDepth=450+Math.min(300,hrs*1.5)+Math.random()*80; // >24h → very far
-      // Wide XY spread — scales with depth + bonus for few nodes
-      const spread=160+fewBonus+zDepth*0.7+(Math.random()-.5)*60;
+      if(hrs<1)zDepth=48+Math.random()*32;            // <1h → close
+      else if(hrs<6)zDepth=96+Math.random()*48;       // <6h → medium
+      else if(hrs<12)zDepth=160+Math.random()*64;     // <12h → medium-far
+      else if(hrs<24)zDepth=256+Math.random()*80;     // <24h → far
+      else zDepth=360+Math.min(240,hrs*1.2)+Math.random()*64; // >24h → very far
+      // XY spread — 20% reduced, scales with depth + bonus for few nodes
+      const spread=128+fewBonus+zDepth*0.56+(Math.random()-.5)*48;
       const sizeByEnc=Math.min(22,6+Math.log2(1+(n.encounters||1))*5);
       return{...n,
         x3d:Math.cos(angle)*spread+(Math.random()-.5)*50,
@@ -2837,14 +2837,9 @@ function initConstCanvas(){
   };
   canvas.onpointermove=e=>{
     if(!constState.dragging||!constState.lastTouch)return;
+    if(constState.fpMode)return; // FP mode: only accelerometer, no drag
     const dx=e.clientX-constState.lastTouch.x,dy=e.clientY-constState.lastTouch.y;
-    if(constState.fpMode){
-      // In FP mode, drag controls look direction
-      constState.fpYaw+=-dx*0.004;constState.fpPitch+=dy*0.003;
-      constState.fpPitch=Math.max(-0.8,Math.min(0.8,constState.fpPitch));
-    }else{
-      constState.cam.x+=dx/constState.cam.zoom;constState.cam.y+=dy/constState.cam.zoom;
-    }
+    constState.cam.x+=dx/constState.cam.zoom;constState.cam.y+=dy/constState.cam.zoom;
     constState.lastTouch={x:e.clientX,y:e.clientY};
   };
   canvas.onpointerup=e=>{
@@ -2857,7 +2852,6 @@ function initConstCanvas(){
   };
   canvas.ontouchstart=e=>{
     if(e.touches.length===2){
-      if(constState.fpMode)exitConstFP(); // pinch exits FP
       pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
       pinchZoom=constState.cam.zoom;
       touches2Start={mx:(e.touches[0].clientX+e.touches[1].clientX)/2,my:(e.touches[0].clientY+e.touches[1].clientY)/2,cx:constState.cam.x,cy:constState.cam.y};
@@ -2875,7 +2869,7 @@ function initConstCanvas(){
       }
     }
   };
-  canvas.onwheel=e=>{e.preventDefault();if(constState.fpMode)exitConstFP();constState.cam.zoom=Math.max(.08,Math.min(50,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
+  canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.08,Math.min(50,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
 
   // ── Particles system ──
   const particles=Array.from({length:120},()=>({
@@ -2967,13 +2961,12 @@ function initConstCanvas(){
     const camX=constState.cam.x+tiltOffX;
     const camY=constState.cam.y+tiltOffY;
 
-    // ── FP mode: yaw/pitch from accelerometer + drag ──
-    let fpYaw=constState.fpYaw||0;
-    let fpPitch=constState.fpPitch||0;
+    // ── FP mode: accelerometer-only look direction ──
+    let fpYaw=0,fpPitch=0;
     if(isFP){
-      // Accelerometer drives look direction in FP
-      fpYaw=constState.fpYaw+tiltX*1.2;
-      fpPitch=constState.fpPitch+tiltY*0.8;
+      // Accelerometer directly drives look direction — wide range
+      fpYaw=tiltX*2.0;   // gamma tilt → horizontal look
+      fpPitch=tiltY*1.4;  // beta tilt → vertical look
     }
     const cosY=Math.cos(fpYaw),sinY=Math.sin(fpYaw);
     const cosP=Math.cos(fpPitch),sinP=Math.sin(fpPitch);
@@ -3000,8 +2993,8 @@ function initConstCanvas(){
       const rz=n.x3d*sinY+n.z3d*cosY;
       const ry=n.y3d*cosP-rz*sinP;
       const rz2=n.y3d*sinP+rz*cosP;
-      // Only render nodes in front of camera
-      const fpZ=Math.max(10,rz2);
+      // All nodes visible — behind camera wraps to far distance
+      const fpZ=rz2<5?300+Math.abs(rz2)*5:rz2;
       const fpScale=FP_FOV/fpZ;
       const fpSx=W/2+rx*fpScale;
       const fpSy=H*0.45+ry*fpScale;
@@ -3012,14 +3005,13 @@ function initConstCanvas(){
       const bs=normalP.scale*(1-fpBlend)+fpScale*fpBlend;
       const bz=n.z3d*(1-fpBlend)+fpZ*fpBlend;
       n._px=bx;n._py=by;n._pscale=bs;
-      return{n,sx:bx,sy:by,scale:bs,z3d:bz,behind:rz2<5&&fpBlend>0.5};
+      return{n,sx:bx,sy:by,scale:bs,z3d:bz};
     });
     projected.sort((a,b)=>b.z3d-a.z3d);
 
     // ── Draw connections — solid LED-glow lines (thickness capped) ──
     const MAX_LINE=3; // max pixel thickness for LED core
-    projected.forEach(({n,sx,sy,scale,behind})=>{
-      if(behind)return; // behind camera in FP mode
+    projected.forEach(({n,sx,sy,scale})=>{
       const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const lineColor=lineBothVerified?'0,220,130':'100,140,255';
       const depthAlpha=Math.max(0.03,scale*0.8);
@@ -3053,8 +3045,7 @@ function initConstCanvas(){
 
     // ── Draw nodes back-to-front ──
     const MAX_NODE_R=28; // fixed max pixel size — zoom only spreads nodes apart
-    projected.forEach(({n,sx,sy,scale,z3d,behind})=>{
-      if(behind)return;
+    projected.forEach(({n,sx,sy,scale,z3d})=>{
       const pulse=1+Math.sin(t*1.5+n.pulsePhase)*.06;
       const rawR=n.baseRadius*scale*pulse;
       const r=Math.min(rawR,MAX_NODE_R);
@@ -3154,7 +3145,7 @@ function initConstCanvas(){
       if(fpBlend>0.8){
         ctx.save();ctx.globalAlpha=0.35;
         ctx.fillStyle='#fff';ctx.font='400 10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
-        ctx.fillText('incline o celular para explorar · pinch para voltar',W/2,H-16);
+        ctx.fillText('incline o celular para explorar · toque no centro para voltar',W/2,H-16);
         ctx.restore();
       }
     }
@@ -3193,14 +3184,16 @@ function initConstCanvas(){
 }
 
 function handleConstTap(tx,ty,W,H){
-  // Check if tapping center node → enter first-person mode
-  if(!constState.fpMode&&constState._mcx!==undefined){
+  // Tap center → toggle first-person mode
+  if(constState._mcx!==undefined){
     const dCenter=Math.hypot(tx-constState._mcx,ty-constState._mcy);
     if(dCenter<40){
-      enterConstFP();haptic([20,40,20]);return;
+      if(constState.fpMode){exitConstFP();haptic([15])}
+      else{enterConstFP();haptic([20,40,20])}
+      return;
     }
   }
-  // In FP mode, tap on a node → show detail, or tap empty → exit
+  // In FP mode, tap on a node → show detail
   if(constState.fpMode){
     let hit=null,minD=Infinity;
     constState.nodes.forEach(n=>{
