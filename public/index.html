@@ -97,6 +97,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .home-user-info{display:flex;flex-direction:column;gap:.15rem}
 .hg{font-size:1rem;color:var(--t1);font-weight:600;letter-spacing:-.01em;line-height:1.2}
 .hg .hg-nick{color:var(--ac);font-weight:700}
+.home-realname{font-size:.65rem;color:var(--t3);font-weight:400;letter-spacing:.02em;line-height:1}
 .home-user-meta{display:flex;align-items:center;gap:.5rem;font-size:.68rem}
 .home-icons{display:flex;gap:.5rem;align-items:center}
 /* Center section — takes all available space, centers the button */
@@ -385,7 +386,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rlh{display:flex;align-items:center;gap:.8rem;padding:1rem 1.2rem;background:linear-gradient(180deg,var(--s1) 0%,var(--bg) 100%);border-bottom:1px solid rgba(255,255,255,.04);padding-top:max(env(safe-area-inset-top),1rem)}
 .rlh h2{font-size:1.15rem;font-weight:700;letter-spacing:-.01em}
 .rlh-sub{font-size:.7rem;color:var(--t3);font-weight:400;margin-left:auto}
-.rll{flex:1;overflow-y:auto;padding:.6rem .8rem}
+.rll{flex:1;overflow-y:auto;padding:.6rem .8rem;padding-bottom:5rem}
+.float-history-btn{position:absolute;bottom:1.5rem;right:1.2rem;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;font-size:1.4rem;border:none;box-shadow:0 4px 20px rgba(255,107,53,.35);cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;transition:transform .2s}
 .rc{display:flex;align-items:center;gap:.9rem;padding:1rem;margin-bottom:.6rem;background:linear-gradient(135deg,var(--s1),rgba(26,26,36,.8));border:1px solid rgba(255,255,255,.06);border-radius:18px;cursor:pointer;transition:all .2s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
 .rc::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,var(--ac),var(--pk));border-radius:3px 0 0 3px;opacity:.4;transition:opacity .2s}
 .rc:active{background:var(--s2);transform:scale(.975);border-color:rgba(255,107,53,.25)}.rc:active::before{opacity:1}
@@ -932,12 +934,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="si-text">Encoste os <em>alto-falantes</em><br>um no outro</div>
     </div>
   </div>
-  <!-- TOP: perfil+nick+estrelas à esquerda, msgs à direita -->
+  <!-- TOP: perfil+nick+nome real à esquerda, chat+rede à direita -->
   <div class="home-top">
     <div class="home-user" onclick="showMyProfileSheet()">
       <div class="home-avatar" id="homeAvatar"></div>
       <div class="home-user-info">
         <div class="hg" id="homeGreeting">Olá</div>
+        <div class="home-realname" id="homeRealName"></div>
         <div class="home-user-meta"><div class="cd" id="connDot"></div></div>
       </div>
     </div>
@@ -963,17 +966,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
     <div class="daily-counter hidden" id="dailyCounter">Hoje: <strong id="dailyNum">0</strong> encontros</div>
   </div>
-  <!-- BOTTOM: tab bar -->
+  <!-- BOTTOM: minimal — only location + tutorial -->
   <div class="home-bottom">
     <div class="home-nav">
-      <button class="hn-btn" onclick="showHistory()"><span class="hn-ico">✦</span><span class="hn-lbl">Rede</span></button>
-      <button class="hn-btn" onclick="showEncounterLog()"><span class="hn-ico">📋</span><span class="hn-lbl">Histórico</span></button>
       <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico">📍</span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
-      <button class="hn-btn" onclick="showMoreMenu()"><span class="hn-ico">☰</span><span class="hn-lbl">Mais</span></button>
+      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico">❓</span><span class="hn-lbl">Ajuda</span></button>
     </div>
     <div class="home-brand-row">
       <span class="home-brand" id="homeBrand">Touch?</span>
-      <div class="lang-sw"><button class="lang-btn active" onclick="setLang('pt')">PT</button><button class="lang-btn" onclick="setLang('en')">EN</button><button class="lang-btn" onclick="setLang('es')">ES</button></div>
     </div>
   </div>
 </div>
@@ -1117,6 +1117,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="relations" class="screen">
   <div class="rlh"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Conexões ativas</h2><span class="rlh-sub" id="relSubtitle"></span></div>
   <div class="rll" id="relationsList"></div>
+  <button class="float-history-btn" onclick="showHistory()" title="Histórico">✦</button>
 </div>
 
 <div id="history" class="screen">
@@ -1446,6 +1447,7 @@ function skipOnboarding() {
   localStorage.setItem('touch_onboarded', '1');
   showScreen('login');
 }
+function showTutorial(){showManual()}
 function showManual(){
   // Re-show onboarding as manual
   onbSlide=0;
@@ -1539,20 +1541,28 @@ function initSocket(){
   });
   socket.on('identity-revealed',({fromUserId,realName,profilePhoto,instagram,bio})=>{
     haptic([80,40,80]);playSound('connect');
-    // Store revealed state
+    // Store revealed state — preserve _iRevealed if already set
     if(!state.revealedIds)state.revealedIds={};
-    state.revealedIds[fromUserId]={realName,profilePhoto};
+    const prev=state.revealedIds[fromUserId]||{};
+    state.revealedIds[fromUserId]={realName,profilePhoto,_iRevealed:prev._iRevealed||false};
     // Refresh relations so photos show on home/relations screens
     refreshRelations();
     // Update chat if open with this person
-    if(state.currentRelation&&(state.currentRelation.partnerName||'').length){
+    if(state.currentPartnerId===fromUserId&&state.currentRelation){
       const chatName=$('chatPartner');
+      const pNick=state.currentRelation.partnerName||'';
       if(chatName&&realName){
         chatName.textContent=realName;
-        const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ ID revelado</span>';
+        const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ ID revelado</span> · @'+esc(pNick);
       }
-      // Hide ID bar
-      const idBar=$('chatIdBar');if(idBar)idBar.style.display='none';
+      // Check both directions — hide entire bar if both revealed
+      const iRevealed=!!(state.revealedIds[fromUserId]._iRevealed);
+      const idBar=$('chatIdBar');
+      const reqBtn=$('requestIdBtn');if(reqBtn)reqBtn.style.display='none';
+      if(idBar){
+        if(iRevealed){idBar.style.display='none'}
+        else{idBar.style.display='flex';const revBtn=$('revealIdBtn');if(revBtn)revBtn.style.display=''}
+      }
       appendSystemMsg((realName||'Alguém')+' revelou sua identidade real para você! 🪪');
       // Show ID card in chat
       const box=$('chatMessages');
@@ -1562,8 +1572,8 @@ function initSocket(){
         card.innerHTML=(profilePhoto?'<img src="'+profilePhoto+'" alt="">':'')+'<div><div class="id-name">'+(realName||'?')+'</div>'+(bio?'<div class="id-bio">'+esc(bio)+'</div>':'')+(instagram?'<div class="id-bio">'+esc(instagram)+'</div>':'')+'</div>';
         box.appendChild(card);box.scrollTop=box.scrollHeight;
       }
-      // Hide request button
-      const rBtn=$('requestIdBtn');if(rBtn)rBtn.style.display='none';
+      // Update chat header avatar with revealed photo
+      if(profilePhoto){const chatAv=$('chatPartnerAvatar');if(chatAv)chatAv.innerHTML='<img src="'+profilePhoto+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">'}
     }else{
       showToast((realName||'Alguém')+' revelou quem é de verdade! 🪪');
     }
@@ -1618,6 +1628,16 @@ function goHome(){showScreen('home');refreshHome()}
 async function refreshHome(){
   refreshRelations();
   setHomeMotivation();
+  // Fetch user profile to get latest photo + real name
+  if(state.userId){
+    try{
+      const mp=await fetch('/api/myprofile/'+state.userId).then(r=>r.json());
+      if(mp.profilePhoto){state.userPhoto=mp.profilePhoto;localStorage.setItem('touch_userPhoto',mp.profilePhoto)}
+      state.userRealName=mp.realName||null;
+      const rnEl=$('homeRealName');
+      if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
+    }catch(e){}
+  }
   // Set homeAvatar
   if(state.userName){
     const av=$('homeAvatar');
@@ -2451,8 +2471,21 @@ async function openChat(rel){
     $('chatPartner').textContent=pNick;
     $('chatSub').textContent='nickname';
   }
-  // Show/hide ID action buttons
-  const idBar=$('chatIdBar');if(idBar){idBar.style.display=(pRealName&&pRealName!==pNick)?'none':'flex'}
+  // Show/hide ID action buttons — check BOTH directions of reveal
+  const idBar=$('chatIdBar');
+  const reqBtn=$('requestIdBtn');
+  const revBtn=$('revealIdBtn');
+  if(idBar){
+    const partnerRevealed=!!(pRealName&&pRealName!==pNick);
+    // Check if I already revealed — from rel API data or local state
+    const iRevealed=!!(rel.iRevealedToPartner||(state.revealedIds&&state.revealedIds[state.currentPartnerId]&&state.revealedIds[state.currentPartnerId]._iRevealed));
+    // Hide individual buttons as needed
+    if(reqBtn){reqBtn.style.display=partnerRevealed?'none':'';reqBtn.disabled=false;reqBtn.style.opacity='1';reqBtn.textContent='🔓 Pedir ID'}
+    if(revBtn){revBtn.style.display=iRevealed?'none':''}
+    // Hide entire bar if both already revealed
+    if(partnerRevealed&&iRevealed){idBar.style.display='none'}
+    else{idBar.style.display='flex'}
+  }
   $('chatPhrase').textContent=rel.phrase;
   closePlusMenu();hideTyping();
   const mc=$('chatMessages'),ti=$('typingIndicator');mc.innerHTML='';mc.appendChild(ti);
@@ -2726,7 +2759,7 @@ async function showRelations(){
       const nameHtml='<div class="rn">'+esc(displayName)+(isRevealed?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>'+(isRevealed?'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">@'+esc(r.partnerName)+'</div>':'');
       card.innerHTML=photoHtml+'<div class="ri">'+nameHtml+'<div class="rp">"'+esc(r.phrase)+'"</div></div><div class="rtm-wrap"><div class="rtm '+tc+'">'+h+'h '+m+'m</div><div class="rtm-label">'+timeLabel+'</div></div>';
       const rpid=r.userA===state.userId?r.userB:r.userA;
-      card.addEventListener('click',()=>openChat({relationId:r.id,phrase:r.phrase,expiresAt:r.expiresAt,partnerName:r.partnerName,partnerId:rpid,userA:{id:r.userA,nickname:r.userA===state.userId?state.userName:r.partnerName,realName:r.userA===state.userId?null:r.partnerRealName},userB:{id:r.userB,nickname:r.userB===state.userId?state.userName:r.partnerName,realName:r.userB===state.userId?null:r.partnerRealName}}));
+      card.addEventListener('click',()=>openChat({relationId:r.id,phrase:r.phrase,expiresAt:r.expiresAt,partnerName:r.partnerName,partnerId:rpid,iRevealedToPartner:r.iRevealedToPartner,partnerRevealedToMe:r.partnerRevealedToMe,userA:{id:r.userA,nickname:r.userA===state.userId?state.userName:r.partnerName,realName:r.userA===state.userId?null:r.partnerRealName},userB:{id:r.userB,nickname:r.userB===state.userId?state.userName:r.partnerName,realName:r.userB===state.userId?null:r.partnerRealName}}));
       list.appendChild(card);
     })}
     showScreen('relations');
@@ -3118,8 +3151,20 @@ async function revealIdentity(targetUserId){
     if(d.error)return showToast(d.error);
     showToast('Identidade revelada! 🪪');haptic([40,20,60]);
     appendSystemMsg('Você revelou sua identidade real para '+esc(state.currentRelation.partnerName||'essa pessoa')+'.');
-    // Hide reveal button, show that it's revealed
-    const btn=$('revealIdBtn');if(btn){btn.style.display='none'}
+    // Mark local state so buttons sync immediately
+    if(!state.revealedIds)state.revealedIds={};
+    if(!state.revealedIds[targetUserId])state.revealedIds[targetUserId]={};
+    state.revealedIds[targetUserId]._iRevealed=true;
+    // Hide reveal button
+    const revBtn=$('revealIdBtn');if(revBtn)revBtn.style.display='none';
+    // Check if partner already revealed to me — if so hide entire ID bar
+    const partnerRevealed=!!(state.revealedIds[targetUserId]?.realName);
+    const idBar=$('chatIdBar');
+    if(idBar&&partnerRevealed){idBar.style.display='none'}
+    // Update chat subtitle
+    const sub=$('chatSub');if(sub&&!partnerRevealed){sub.innerHTML='<span style="color:var(--ok)">✓ Seu ID revelado</span>'}
+    // Refresh relations to update home/relations screens
+    refreshRelations();
   }catch(e){showToast('Complete seu perfil antes de revelar.')}
 }
 async function requestIdentity(){

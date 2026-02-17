@@ -889,10 +889,14 @@ app.get('/api/relations/:userId', (req, res) => {
   res.json(active.map(r => {
     const pid = r.userA === userId ? r.userB : r.userA, p = db.users[pid];
     const isRevealed = p?.revealedTo?.includes(userId);
+    const me = db.users[userId];
+    const iRevealed = me?.revealedTo?.includes(pid);
     return { ...r, partnerName: p?.nickname || p?.name || '?', partnerColor: p?.color || '#ff6b35', timeLeft: r.expiresAt - now,
       partnerPhoto: isRevealed ? (p?.profilePhoto || p?.photoURL || null) : null,
       partnerRealName: isRevealed ? (p?.realName || null) : null,
-      partnerNickname: p?.nickname || '?'
+      partnerNickname: p?.nickname || '?',
+      iRevealedToPartner: !!iRevealed,
+      partnerRevealedToMe: !!isRevealed
     };
   }));
 });
