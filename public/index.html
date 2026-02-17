@@ -1119,7 +1119,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="relations" class="screen">
   <div class="rlh"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Conexões ativas</h2><span class="rlh-sub" id="relSubtitle"></span></div>
   <div class="rll" id="relationsList"></div>
-  <button class="float-history-btn" onclick="showHistory()" title="Histórico">✦</button>
+  <button class="float-history-btn" onclick="showEncounterLog()" title="Histórico de encontros">📋</button>
 </div>
 
 <div id="history" class="screen">
@@ -3213,6 +3213,11 @@ function appendSystemMsg(text){
 }
 
 // ═══ BOARDING PASS ═══
+async function showBoardingPassWithQR(){
+  await showBoardingPass();
+  // Auto-show QR code
+  setTimeout(()=>{const area=$('touchQRArea');if(area&&area.style.display==='none')showTouchQR()},400);
+}
 async function showBoardingPass(){
   haptic([30]);
   try{
@@ -3220,7 +3225,9 @@ async function showBoardingPass(){
     $('bpName').textContent=d.name;
     const bpColor=d.color||nickColor(d.name||'??');
     const bpInitials=(d.name||'??').slice(0,2).toUpperCase();
-    $('bpAvatar').innerHTML='';$('bpAvatar').textContent=bpInitials;$('bpAvatar').style.background=bpColor;$('bpAvatar').style.fontSize='1.4rem';$('bpAvatar').style.fontWeight='800';$('bpAvatar').style.color='#fff';
+    $('bpAvatar').innerHTML='';
+    if(state.userPhoto&&state.userPhoto.length>10){$('bpAvatar').style.background='none';$('bpAvatar').innerHTML='<img src="'+state.userPhoto+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">'}
+    else{$('bpAvatar').textContent=bpInitials;$('bpAvatar').style.background=bpColor;$('bpAvatar').style.fontSize='1.4rem';$('bpAvatar').style.fontWeight='800';$('bpAvatar').style.color='#fff'}
     const since=new Date(d.memberSince);
     const months=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     $('bpSince').textContent='membro desde '+months[since.getMonth()]+' '+since.getFullYear();
@@ -3398,17 +3405,30 @@ function showMyProfileSheet(){
   const color=state.userColor||nickColor(state.userName||'??');
   const initials=(state.userName||'??').slice(0,2).toUpperCase();
   const email=fbUser?(fbUser.email||fbUser.displayName||''):'';
+  // Avatar: use real photo if available
+  const hasPhoto=state.userPhoto&&state.userPhoto.length>10;
+  const avatarHtml=hasPhoto
+    ?'<div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.12);flex-shrink:0"><img src="'+state.userPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>'
+    :'<div style="width:56px;height:56px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.12);flex-shrink:0">'+esc(initials)+'</div>';
+  // Cadastro tag: check if profile is mostly complete
+  const profileMostlyComplete=hasPhoto&&state.userRealName;
+  const cadastroLabel=profileMostlyComplete?'Cadastro':'Cadastro';
+  const cadastroTag=profileMostlyComplete?'':'<span class="my-pf-tag">completar</span>';
+  // Real name line
+  const realNameLine=state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.1rem">'+esc(state.userRealName)+'</div>':'';
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.8rem 1.5rem">'
     +'<div class="more-menu-handle"></div>'
     +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.2rem">'
-    +'<div style="width:56px;height:56px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.12);flex-shrink:0">'+esc(initials)+'</div>'
+    +avatarHtml
     +'<div style="flex:1"><div style="font-size:1.1rem;font-weight:700;color:var(--t1)">'+esc(state.userName||'??')+'</div>'
+    +realNameLine
     +(email?'<div style="font-size:.68rem;color:var(--t3);margin-top:.15rem">'+esc(email)+'</div>':'')
     +'<div style="font-size:.62rem;color:var(--ac2);margin-top:.2rem;font-style:italic">nickname — visível para todos</div></div></div>'
     +'<div style="display:flex;flex-direction:column;gap:.5rem">'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showProfile()"><span class="my-pf-ico">⭐</span>Ver meu perfil</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">✏️</span>Completar cadastro<span class="my-pf-tag">nome real, foto, bio</span></button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPass()"><span class="my-pf-ico">🪪</span>Touch? Pass</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">🪪</span>Touch? Pass</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">✏️</span>'+cadastroLabel+cadastroTag+'</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">📋</span>Histórico</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">❓</span>Tutorial</button>'
     +'<div style="height:1px;background:var(--b1);margin:.3rem 0"></div>'
     +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">🚪</span>Sair da conta</button>'
     +'</div></div>';
