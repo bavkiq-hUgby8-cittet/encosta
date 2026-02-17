@@ -1303,7 +1303,7 @@ async function linkFirebaseToEncosta(user){
         showScreen('register');
         return;
       }
-      initSocket();
+      initSocket();requestAccelPermission();
       showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
       const _ha=$('homeAvatar');
@@ -1578,6 +1578,17 @@ function showScreen(id){
 function showPhase(id){document.querySelectorAll('.ep').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function goHome(){showScreen('home');refreshHome()}
 
+// ── Request accelerometer permission (iOS requires user gesture) ──
+let _accelPermGranted=false;
+function requestAccelPermission(){
+  if(_accelPermGranted)return;
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(p=>{
+      if(p==='granted')_accelPermGranted=true;
+    }).catch(()=>{});
+  }else{_accelPermGranted=true}
+}
+
 async function refreshHome(){
   refreshRelations();
   setHomeMotivation();
@@ -1756,7 +1767,7 @@ async function doRegister(){
       if(fbUser&&firebaseAuthInstance){
         try{await linkFirebaseToEncosta(fbUser)}catch(e){}
       }
-      initSocket();showScreen('home');
+      initSocket();requestAccelPermission();showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
       const _ha=$('homeAvatar');if(_ha){
         if(state.userPhoto){_ha.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';_ha.style.background=d.user.color||nickColor(nick);_ha.style.overflow='hidden'}
@@ -2972,15 +2983,16 @@ function initConstCanvas(){
     const cosP=Math.cos(fpPitch),sinP=Math.sin(fpPitch);
 
     // ── Project nodes ──
-    // Normal mode: standard 3D projection from outside
-    // FP mode: camera at center, looking outward, nodes positioned around
+    // Normal: 3D from outside. FP: center at bottom, nodes fan out upward/sides
     const meProj=project(0,0,0,camX,camY,z,0,0);
-    // Blend center position: normal → screen center for FP
-    const mcx=meProj.sx*(1-fpBlend)+W/2*fpBlend;
-    const mcy=meProj.sy*(1-fpBlend)+H*0.45*fpBlend;
+    // Blend center position: normal center → bottom-center for FP
+    const fpCenterX=W/2;
+    const fpCenterY=H*0.88; // center node goes to bottom
+    const mcx=meProj.sx*(1-fpBlend)+fpCenterX*fpBlend;
+    const mcy=meProj.sy*(1-fpBlend)+fpCenterY*fpBlend;
     constState._mcx=mcx;constState._mcy=mcy;
 
-    const FP_FOV=220; // wider FOV for FP immersion
+    const FP_FOV=180; // wider FOV for immersive fan-out
     const projected=constState.nodes.map(n=>{
       if(fpBlend<0.01){
         // Pure normal mode
@@ -2988,16 +3000,18 @@ function initConstCanvas(){
         n._px=p.sx;n._py=p.sy;n._pscale=p.scale;
         return{n,sx:p.sx,sy:p.sy,scale:p.scale,z3d:p.z3d};
       }
-      // FP projection: rotate node position by yaw/pitch
+      // FP: fan-out from bottom center
+      // Use accelerometer to rotate the 3D space around viewer
       const rx=n.x3d*cosY-n.z3d*sinY;
       const rz=n.x3d*sinY+n.z3d*cosY;
       const ry=n.y3d*cosP-rz*sinP;
       const rz2=n.y3d*sinP+rz*cosP;
-      // All nodes visible — behind camera wraps to far distance
+      // All nodes visible — behind wraps to far
       const fpZ=rz2<5?300+Math.abs(rz2)*5:rz2;
       const fpScale=FP_FOV/fpZ;
-      const fpSx=W/2+rx*fpScale;
-      const fpSy=H*0.45+ry*fpScale;
+      // Fan outward: X spreads horizontally, Y goes UPWARD from bottom
+      const fpSx=fpCenterX+rx*fpScale;
+      const fpSy=fpCenterY-(Math.abs(ry)+rz2*0.4)*fpScale; // push upward
       // Blend between normal and FP
       const normalP=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
       const bx=normalP.sx*(1-fpBlend)+fpSx*fpBlend;
@@ -3101,10 +3115,9 @@ function initConstCanvas(){
     });
     ctx.textBaseline='alphabetic';
 
-    // ── Center node (me) — fades out in FP mode (you ARE the center) ──
-    const meAlpha=1-fpBlend; // fade out during FP transition
-    if(meAlpha>0.02){
-      ctx.save();ctx.globalAlpha=meAlpha;
+    // ── Center node (me) — stays visible, slides to bottom in FP ──
+    {
+      ctx.save();
       const MAX_MY_R=32;
       const myR=Math.min(16*z,MAX_MY_R);
       // Outer scan ring
@@ -3131,23 +3144,12 @@ function initConstCanvas(){
       ctx.restore();
     }
 
-    // ── FP mode HUD: subtle crosshair + hint ──
-    if(fpBlend>0.3){
-      ctx.save();ctx.globalAlpha=fpBlend*0.4;
-      // Crosshair dot
-      ctx.beginPath();ctx.arc(W/2,H*0.45,3,0,Math.PI*2);
-      ctx.fillStyle='rgba(255,107,53,.6)';ctx.fill();
-      // Subtle ring
-      ctx.beginPath();ctx.arc(W/2,H*0.45,12,0,Math.PI*2);
-      ctx.strokeStyle='rgba(255,107,53,.2)';ctx.lineWidth=0.5;ctx.stroke();
+    // ── FP mode HUD: hint at top ──
+    if(fpBlend>0.6){
+      ctx.save();ctx.globalAlpha=fpBlend*0.3;
+      ctx.fillStyle='#fff';ctx.font='400 10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.fillText('incline o celular para explorar · toque no centro para voltar',W/2,12);
       ctx.restore();
-      // Hint text at bottom
-      if(fpBlend>0.8){
-        ctx.save();ctx.globalAlpha=0.35;
-        ctx.fillStyle='#fff';ctx.font='400 10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
-        ctx.fillText('incline o celular para explorar · toque no centro para voltar',W/2,H-16);
-        ctx.restore();
-      }
     }
 
     // ── Floating legend pill (hidden in FP mode) ──
@@ -4756,7 +4758,7 @@ window.addEventListener('load',()=>{
   const qr=new URLSearchParams(location.search).get('code');
   setTimeout(async()=>{
     if(state.userId&&await validateUser()){
-      initSocket();
+      initSocket();requestAccelPermission();
       // Set home avatar
       const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
       if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
