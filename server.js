@@ -253,8 +253,12 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical') {
   const uA = db.users[userAId], uB = db.users[userBId];
   const now = Date.now();
   const today = new Date(now).toISOString().slice(0, 10);
-  const trace = { with: userBId, withName: uB?.nickname || uB?.name || '?', withColor: uB?.color, phrase, timestamp: now, date: today, type };
-  const traceB = { with: userAId, withName: uA?.nickname || uA?.name || '?', withColor: uA?.color, phrase, timestamp: now, date: today, type };
+  const encA = (db.encounters[userAId] || []).filter(e => e.with === userBId);
+  const isRePre = encA.length > 0;
+  const pointTypePre = isRePre ? 're_' + type : type;
+  const pts = POINT_VALUES[pointTypePre] || POINT_VALUES[type] || 1;
+  const trace = { with: userBId, withName: uB?.nickname || uB?.name || '?', withColor: uB?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24 };
+  const traceB = { with: userAId, withName: uA?.nickname || uA?.name || '?', withColor: uA?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24 };
   if (!db.encounters[userAId]) db.encounters[userAId] = [];
   if (!db.encounters[userBId]) db.encounters[userBId] = [];
   db.encounters[userAId].push(trace);
@@ -1181,11 +1185,45 @@ app.post('/api/respond-contact', (req, res) => {
   if (!rel) return res.status(400).json({ error: 'Relação não encontrada.' });
   const fromUserId = rel.userA === toUserId ? rel.userB : rel.userA;
   if (accepted && value) {
+    // Save contact info as persistent message in chat history
+    const labels = { instagram: '📸 Instagram', whatsapp: '💬 WhatsApp', x: '𝕏 X', email: '📧 Email' };
+    const contactMsg = {
+      userId: 'system',
+      text: (labels[contactType] || contactType) + ': ' + value,
+      timestamp: Date.now(),
+      type: 'contact'
+    };
+    if (!db.messages[relationId]) db.messages[relationId] = [];
+    db.messages[relationId].push(contactMsg);
+    saveDB();
     io.to(`user:${fromUserId}`).emit('contact-shared', { relationId, contactType, value, from: toUserId });
   } else {
     io.to(`user:${fromUserId}`).emit('contact-declined', { relationId, contactType, from: toUserId });
   }
   res.json({ ok: true });
+});
+
+// Horoscope interaction — zodiac phrase for both users
+app.get('/api/horoscope/:relationId/:userId', (req, res) => {
+  const rel = db.relations[req.params.relationId];
+  if (!rel) return res.status(400).json({ error: 'Relação não encontrada.' });
+  const userA = db.users[rel.userA];
+  const userB = db.users[rel.userB];
+  if (!userA || !userB) return res.json({ error: 'Usuários não encontrados.' });
+  const signA = getZodiacSign(userA.birthdate);
+  const signB = getZodiacSign(userB.birthdate);
+  const infoA = signA ? ZODIAC_INFO[signA] : null;
+  const infoB = signB ? ZODIAC_INFO[signB] : null;
+  const phrase = getZodiacPhrase(signA, signB);
+  if (!phrase) return res.json({ error: 'Signos não disponíveis.' });
+  const nameA = userA.nickname || userA.name;
+  const nameB = userB.nickname || userB.name;
+  const emojiA = infoA ? infoA.emoji : '✨';
+  const emojiB = infoB ? infoB.emoji : '✨';
+  res.json({
+    phrase: emojiA + ' ' + (signA || '?') + ' × ' + emojiB + ' ' + (signB || '?') + ' — ' + phrase,
+    signA, signB, emojiA, emojiB
+  });
 });
 
 // Save selfie for relation
