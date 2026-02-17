@@ -2732,7 +2732,8 @@ async function showRelations(){
 }
 
 // ═══ CONSTELLATION ═══
-let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,animFrame:null,selectedNode:null};
+let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,animFrame:null,selectedNode:null,
+  fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0};
 const CONST_FEEDBACK=['Um novo ponto surgiu.','Sua rede cresceu hoje.','Um encontro deixou rastro.','Um elo foi reforçado.','Algo ficou marcado.','A constelação se expandiu.'];
 
 async function showHistory(){
@@ -2837,7 +2838,13 @@ function initConstCanvas(){
   canvas.onpointermove=e=>{
     if(!constState.dragging||!constState.lastTouch)return;
     const dx=e.clientX-constState.lastTouch.x,dy=e.clientY-constState.lastTouch.y;
-    constState.cam.x+=dx/constState.cam.zoom;constState.cam.y+=dy/constState.cam.zoom;
+    if(constState.fpMode){
+      // In FP mode, drag controls look direction
+      constState.fpYaw+=-dx*0.004;constState.fpPitch+=dy*0.003;
+      constState.fpPitch=Math.max(-0.8,Math.min(0.8,constState.fpPitch));
+    }else{
+      constState.cam.x+=dx/constState.cam.zoom;constState.cam.y+=dy/constState.cam.zoom;
+    }
     constState.lastTouch={x:e.clientX,y:e.clientY};
   };
   canvas.onpointerup=e=>{
@@ -2850,6 +2857,7 @@ function initConstCanvas(){
   };
   canvas.ontouchstart=e=>{
     if(e.touches.length===2){
+      if(constState.fpMode)exitConstFP(); // pinch exits FP
       pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
       pinchZoom=constState.cam.zoom;
       touches2Start={mx:(e.touches[0].clientX+e.touches[1].clientX)/2,my:(e.touches[0].clientY+e.touches[1].clientY)/2,cx:constState.cam.x,cy:constState.cam.y};
@@ -2867,7 +2875,7 @@ function initConstCanvas(){
       }
     }
   };
-  canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.08,Math.min(50,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
+  canvas.onwheel=e=>{e.preventDefault();if(constState.fpMode)exitConstFP();constState.cam.zoom=Math.max(.08,Math.min(50,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
 
   // ── Particles system ──
   const particles=Array.from({length:120},()=>({
@@ -2910,24 +2918,37 @@ function initConstCanvas(){
 
   if(constState.animFrame)cancelAnimationFrame(constState.animFrame);
 
+  // FP mode transition smoothing
+  let fpBlend=0; // 0=normal, 1=full FP
+
   function draw(){
     constState.animFrame=requestAnimationFrame(draw);
     ctx.clearRect(0,0,W,H);
     const t=Date.now()/1000;
     // Lerp tilt
     tiltX+=(rawTX-tiltX)*0.08;tiltY+=(rawTY-tiltY)*0.08;
+
+    // ── FP transition blend ──
+    const fpTarget=constState.fpMode?1:0;
+    fpBlend+=(fpTarget-fpBlend)*0.06; // smooth ~16 frames
+    if(Math.abs(fpBlend-fpTarget)<0.005)fpBlend=fpTarget;
+    const isFP=fpBlend>0.01;
+
+    const z=constState.cam.zoom;
     // Tilt scales with zoom — more zoom = more parallax movement
     const tiltMul=Math.min(3,1+Math.log2(Math.max(1,z))*0.6);
-    const tiltOffX=tiltX*40*tiltMul;const tiltOffY=tiltY*28*tiltMul;
+    const tiltOffX=tiltX*40*tiltMul*(1-fpBlend);
+    const tiltOffY=tiltY*28*tiltMul*(1-fpBlend);
 
     // ── Subtle hex grid ──
-    ctx.save();ctx.globalAlpha=0.03;ctx.strokeStyle='#4488ff';ctx.lineWidth=.5;
+    const gridAlpha=0.03*(1-fpBlend*0.7);
+    ctx.save();ctx.globalAlpha=gridAlpha;ctx.strokeStyle='#4488ff';ctx.lineWidth=.5;
     for(let gx=-gridSpacing;gx<W+gridSpacing;gx+=gridSpacing){
-      const ox=gx+tiltOffX*.3+(constState.cam.x*constState.cam.zoom*.1)%gridSpacing;
+      const ox=gx+tiltOffX*.3+(constState.cam.x*z*.1)%gridSpacing;
       ctx.beginPath();ctx.moveTo(ox,0);ctx.lineTo(ox,H);ctx.stroke();
     }
     for(let gy=-gridSpacing;gy<H+gridSpacing;gy+=gridSpacing){
-      const oy=gy+tiltOffY*.3+(constState.cam.y*constState.cam.zoom*.1)%gridSpacing;
+      const oy=gy+tiltOffY*.3+(constState.cam.y*z*.1)%gridSpacing;
       ctx.beginPath();ctx.moveTo(0,oy);ctx.lineTo(W,oy);ctx.stroke();
     }
     ctx.restore();
@@ -2943,47 +2964,85 @@ function initConstCanvas(){
     });
 
     if(!constState.nodes.length)return;
-    const z=constState.cam.zoom;
     const camX=constState.cam.x+tiltOffX;
     const camY=constState.cam.y+tiltOffY;
 
-    // ── Project center node (me) at z=0 ──
+    // ── FP mode: yaw/pitch from accelerometer + drag ──
+    let fpYaw=constState.fpYaw||0;
+    let fpPitch=constState.fpPitch||0;
+    if(isFP){
+      // Accelerometer drives look direction in FP
+      fpYaw=constState.fpYaw+tiltX*1.2;
+      fpPitch=constState.fpPitch+tiltY*0.8;
+    }
+    const cosY=Math.cos(fpYaw),sinY=Math.sin(fpYaw);
+    const cosP=Math.cos(fpPitch),sinP=Math.sin(fpPitch);
+
+    // ── Project nodes ──
+    // Normal mode: standard 3D projection from outside
+    // FP mode: camera at center, looking outward, nodes positioned around
     const meProj=project(0,0,0,camX,camY,z,0,0);
-    const mcx=meProj.sx,mcy=meProj.sy;
+    // Blend center position: normal → screen center for FP
+    const mcx=meProj.sx*(1-fpBlend)+W/2*fpBlend;
+    const mcy=meProj.sy*(1-fpBlend)+H*0.45*fpBlend;
+    constState._mcx=mcx;constState._mcy=mcy;
 
-    // ── Project all nodes and sort by z (back-to-front) ──
+    const FP_FOV=220; // wider FOV for FP immersion
     const projected=constState.nodes.map(n=>{
-      const p=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
-      // Store projected coords for tap detection
-      n._px=p.sx;n._py=p.sy;n._pscale=p.scale;
-      return{n,sx:p.sx,sy:p.sy,scale:p.scale,z3d:p.z3d};
+      if(fpBlend<0.01){
+        // Pure normal mode
+        const p=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
+        n._px=p.sx;n._py=p.sy;n._pscale=p.scale;
+        return{n,sx:p.sx,sy:p.sy,scale:p.scale,z3d:p.z3d};
+      }
+      // FP projection: rotate node position by yaw/pitch
+      const rx=n.x3d*cosY-n.z3d*sinY;
+      const rz=n.x3d*sinY+n.z3d*cosY;
+      const ry=n.y3d*cosP-rz*sinP;
+      const rz2=n.y3d*sinP+rz*cosP;
+      // Only render nodes in front of camera
+      const fpZ=Math.max(10,rz2);
+      const fpScale=FP_FOV/fpZ;
+      const fpSx=W/2+rx*fpScale;
+      const fpSy=H*0.45+ry*fpScale;
+      // Blend between normal and FP
+      const normalP=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
+      const bx=normalP.sx*(1-fpBlend)+fpSx*fpBlend;
+      const by=normalP.sy*(1-fpBlend)+fpSy*fpBlend;
+      const bs=normalP.scale*(1-fpBlend)+fpScale*fpBlend;
+      const bz=n.z3d*(1-fpBlend)+fpZ*fpBlend;
+      n._px=bx;n._py=by;n._pscale=bs;
+      return{n,sx:bx,sy:by,scale:bs,z3d:bz,behind:rz2<5&&fpBlend>0.5};
     });
-    projected.sort((a,b)=>b.z3d-a.z3d); // far first (back-to-front)
+    projected.sort((a,b)=>b.z3d-a.z3d);
 
-    // ── Draw connections — solid LED-glow lines ──
-    projected.forEach(({n,sx,sy,scale})=>{
+    // ── Draw connections — solid LED-glow lines (thickness capped) ──
+    const MAX_LINE=3; // max pixel thickness for LED core
+    projected.forEach(({n,sx,sy,scale,behind})=>{
+      if(behind)return; // behind camera in FP mode
       const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const lineColor=lineBothVerified?'0,220,130':'100,140,255';
       const depthAlpha=Math.max(0.03,scale*0.8);
-      const thick=Math.min(2.5,0.3+Math.log2(1+(n.encounters||1))*0.4)*scale;
+      const rawThick=(0.3+Math.log2(1+(n.encounters||1))*0.4)*scale;
+      const thick=Math.min(rawThick,MAX_LINE);
       const lineAlpha=depthAlpha*(0.1+n.intensity*.2);
       ctx.save();
       // Outer glow layer (wide, soft)
       ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
       ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.3).toFixed(3)+')';
-      ctx.lineWidth=Math.max(1,thick*4);ctx.stroke();
+      ctx.lineWidth=Math.min(thick*4,10);ctx.stroke();
       // Mid glow
       ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
       ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.6).toFixed(3)+')';
-      ctx.lineWidth=Math.max(0.5,thick*2);ctx.stroke();
+      ctx.lineWidth=Math.min(thick*2,6);ctx.stroke();
       // Core bright line (LED center)
       ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
       ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*1.2).toFixed(3)+')';
-      ctx.lineWidth=Math.max(0.3,thick*0.8);ctx.stroke();
+      ctx.lineWidth=Math.min(thick*0.8,MAX_LINE);ctx.stroke();
       // Traveling energy pulse
       const pulsePos=(t*0.4+n.pulsePhase)%1;
       const px=mcx+(sx-mcx)*pulsePos,py=mcy+(sy-mcy)*pulsePos;
-      const pSize=Math.max(2,6*scale);
+      const pSize=Math.max(2,Math.min(8,6*scale));
       const pg=ctx.createRadialGradient(px,py,0,px,py,pSize);
       pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.7).toFixed(3)+')');
       pg.addColorStop(0.4,'rgba('+lineColor+','+(depthAlpha*0.3).toFixed(3)+')');
@@ -2994,7 +3053,8 @@ function initConstCanvas(){
 
     // ── Draw nodes back-to-front ──
     const MAX_NODE_R=28; // fixed max pixel size — zoom only spreads nodes apart
-    projected.forEach(({n,sx,sy,scale,z3d})=>{
+    projected.forEach(({n,sx,sy,scale,z3d,behind})=>{
+      if(behind)return;
       const pulse=1+Math.sin(t*1.5+n.pulsePhase)*.06;
       const rawR=n.baseRadius*scale*pulse;
       const r=Math.min(rawR,MAX_NODE_R);
@@ -3050,36 +3110,61 @@ function initConstCanvas(){
     });
     ctx.textBaseline='alphabetic';
 
-    // ── Center node (me) — drawn LAST so it's always on top ──
-    const MAX_MY_R=32; // fixed max size for center node
-    const myR=Math.min(16*z,MAX_MY_R);
-    // Outer scan ring
-    const scanAngle=(t*0.5)%(Math.PI*2);
-    ctx.save();ctx.beginPath();ctx.arc(mcx,mcy,myR*2.5,scanAngle,scanAngle+Math.PI*.6);
-    ctx.strokeStyle='rgba(255,107,53,.15)';ctx.lineWidth=1;ctx.stroke();ctx.restore();
-    // Glow
-    const myGlow=ctx.createRadialGradient(mcx,mcy,0,mcx,mcy,myR*3);
-    myGlow.addColorStop(0,'rgba(255,107,53,.2)');myGlow.addColorStop(.5,'rgba(255,107,53,.05)');myGlow.addColorStop(1,'transparent');
-    ctx.beginPath();ctx.arc(mcx,mcy,myR*3,0,Math.PI*2);ctx.fillStyle=myGlow;ctx.fill();
-    // Photo or initials
-    if(constState._myImg&&constState._myImgLoaded){
-      drawCroppedImage(constState._myImg,mcx,mcy,myR);
-    }else{
-      ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
-      ctx.fillStyle='#fff';ctx.font='bold '+Math.min(9*z,14)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),mcx,mcy);
+    // ── Center node (me) — fades out in FP mode (you ARE the center) ──
+    const meAlpha=1-fpBlend; // fade out during FP transition
+    if(meAlpha>0.02){
+      ctx.save();ctx.globalAlpha=meAlpha;
+      const MAX_MY_R=32;
+      const myR=Math.min(16*z,MAX_MY_R);
+      // Outer scan ring
+      const scanAngle=(t*0.5)%(Math.PI*2);
+      ctx.beginPath();ctx.arc(mcx,mcy,myR*2.5,scanAngle,scanAngle+Math.PI*.6);
+      ctx.strokeStyle='rgba(255,107,53,.15)';ctx.lineWidth=1;ctx.stroke();
+      // Glow
+      const myGlow=ctx.createRadialGradient(mcx,mcy,0,mcx,mcy,myR*3);
+      myGlow.addColorStop(0,'rgba(255,107,53,.2)');myGlow.addColorStop(.5,'rgba(255,107,53,.05)');myGlow.addColorStop(1,'transparent');
+      ctx.beginPath();ctx.arc(mcx,mcy,myR*3,0,Math.PI*2);ctx.fillStyle=myGlow;ctx.fill();
+      // Photo or initials
+      if(constState._myImg&&constState._myImgLoaded){
+        drawCroppedImage(constState._myImg,mcx,mcy,myR);
+      }else{
+        ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
+        ctx.fillStyle='#fff';ctx.font='bold '+Math.min(9*z,14)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),mcx,mcy);
+      }
+      // Orange ring
+      ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=Math.min(2*z,3);ctx.stroke();
+      // Label
+      ctx.fillStyle='rgba(255,255,255,.4)';ctx.font=Math.min(8*z,12)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.fillText('VOCÊ',mcx,mcy+myR+4);
+      ctx.restore();
     }
-    // Orange ring
-    ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=Math.min(2*z,3);ctx.stroke();
-    // Label
-    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font=Math.min(8*z,12)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.fillText('VOCÊ',mcx,mcy+myR+4);
 
-    // ── Floating legend pill ──
+    // ── FP mode HUD: subtle crosshair + hint ──
+    if(fpBlend>0.3){
+      ctx.save();ctx.globalAlpha=fpBlend*0.4;
+      // Crosshair dot
+      ctx.beginPath();ctx.arc(W/2,H*0.45,3,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,107,53,.6)';ctx.fill();
+      // Subtle ring
+      ctx.beginPath();ctx.arc(W/2,H*0.45,12,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,107,53,.2)';ctx.lineWidth=0.5;ctx.stroke();
+      ctx.restore();
+      // Hint text at bottom
+      if(fpBlend>0.8){
+        ctx.save();ctx.globalAlpha=0.35;
+        ctx.fillStyle='#fff';ctx.font='400 10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillText('incline o celular para explorar · pinch para voltar',W/2,H-16);
+        ctx.restore();
+      }
+    }
+
+    // ── Floating legend pill (hidden in FP mode) ──
+    if(fpBlend>0.7)return; // skip pill in full FP
     const verified=constState.nodes.filter(n=>(n.partnerRevealedToMe&&n.iRevealedToPartner)||((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed)))).length;
     const anon=constState.nodes.length-verified;
     const pillW=Math.min(W-24,260),pillH=32,pillX=(W-pillW)/2,pillY=H-48;
-    ctx.save();
+    ctx.save();ctx.globalAlpha=1-fpBlend;
     ctx.beginPath();
     const pillR=pillH/2;
     ctx.moveTo(pillX+pillR,pillY);ctx.lineTo(pillX+pillW-pillR,pillY);
@@ -3108,15 +3193,41 @@ function initConstCanvas(){
 }
 
 function handleConstTap(tx,ty,W,H){
-  // Use pre-computed projected 2D coordinates from draw loop
+  // Check if tapping center node → enter first-person mode
+  if(!constState.fpMode&&constState._mcx!==undefined){
+    const dCenter=Math.hypot(tx-constState._mcx,ty-constState._mcy);
+    if(dCenter<40){
+      enterConstFP();haptic([20,40,20]);return;
+    }
+  }
+  // In FP mode, tap on a node → show detail, or tap empty → exit
+  if(constState.fpMode){
+    let hit=null,minD=Infinity;
+    constState.nodes.forEach(n=>{
+      if(n._px===undefined)return;
+      const d=Math.hypot(tx-n._px,ty-n._py);
+      if(d<(n.baseRadius*(n._pscale||1)*1.8+16)&&d<minD){minD=d;hit=n}
+    });
+    if(hit){showConstDetail(hit)}else{hideConstDetail()}
+    return;
+  }
+  // Normal mode tap
   let hit=null,minD=Infinity;
   constState.nodes.forEach(n=>{
     if(n._px===undefined)return;
     const d=Math.hypot(tx-n._px,ty-n._py);
-    const hitR=n.baseRadius*(n._pscale||1)*1.8+12;// generous tap target
+    const hitR=n.baseRadius*(n._pscale||1)*1.8+12;
     if(d<hitR&&d<minD){minD=d;hit=n}
   });
   if(hit){showConstDetail(hit)}else{hideConstDetail()}
+}
+function enterConstFP(){
+  constState.fpMode=true;constState.fpTransition=0;constState.fpYaw=0;constState.fpPitch=0;
+  hideConstDetail();
+}
+function exitConstFP(){
+  if(!constState.fpMode)return;
+  constState.fpMode=false;constState.fpTransition=1;// will animate back
 }
 function showConstDetail(node){
   constState.selectedNode=node;
