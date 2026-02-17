@@ -1299,7 +1299,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',currentSession:null,currentRelation:null,timerInterval:null};
+let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',userPhoto:localStorage.getItem('touch_userPhoto')||null,currentSession:null,currentRelation:null,timerInterval:null};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ FIREBASE AUTH ═══
@@ -1335,9 +1335,11 @@ async function linkFirebaseToEncosta(user){
       state.userId=d.userId;
       state.userName=d.user.nickname||d.user.name;
       state.userColor=d.user.color||'';
+      state.userPhoto=d.user.profilePhoto||d.user.photoURL||null;
       localStorage.setItem('touch_userId',d.userId);
       localStorage.setItem('touch_userName',state.userName);
       localStorage.setItem('touch_userColor',state.userColor);
+      if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
       // If user still needs to set nickname/birthdate, show register
       if(!d.user.birthdate){
         $('regNick').value=state.userName||'';
@@ -1347,7 +1349,11 @@ async function linkFirebaseToEncosta(user){
       initSocket();
       showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
-      const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
+      const _ha=$('homeAvatar');
+      if(_ha&&state.userName){
+        if(state.userPhoto){_ha.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.remove();this.parentElement.textContent=\''+esc((state.userName||'??').slice(0,2).toUpperCase())+'\'">';_ha.style.background=state.userColor||nickColor(state.userName);_ha.style.overflow='hidden'}
+        else{_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
+      }
       refreshHome();
     }
   }catch(e){console.error('Link Firebase erro:',e)}
@@ -1536,6 +1542,8 @@ function initSocket(){
     // Store revealed state
     if(!state.revealedIds)state.revealedIds={};
     state.revealedIds[fromUserId]={realName,profilePhoto};
+    // Refresh relations so photos show on home/relations screens
+    refreshRelations();
     // Update chat if open with this person
     if(state.currentRelation&&(state.currentRelation.partnerName||'').length){
       const chatName=$('chatPartner');
@@ -1613,7 +1621,14 @@ async function refreshHome(){
   // Set homeAvatar
   if(state.userName){
     const av=$('homeAvatar');
-    if(av){av.textContent=(state.userName||'??').slice(0,2).toUpperCase();av.style.background=state.userColor||nickColor(state.userName)}
+    if(av){
+      if(state.userPhoto){
+        av.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.remove();this.parentElement.textContent=\''+esc((state.userName||'??').slice(0,2).toUpperCase())+'\'">';
+        av.style.background=state.userColor||nickColor(state.userName);av.style.overflow='hidden';
+      }else{
+        av.textContent=(state.userName||'??').slice(0,2).toUpperCase();av.style.background=state.userColor||nickColor(state.userName);
+      }
+    }
   }
   try{
     const [d,cn]=await Promise.all([
@@ -1667,14 +1682,19 @@ async function doRegister(){
     if(d.error)return showToast(d.error);
     if(d.userId){
       state.userId=d.userId;state.userName=nick;state.userColor=d.user.color;
+      state.userPhoto=d.user.profilePhoto||d.user.photoURL||null;
       localStorage.setItem('touch_userId',d.userId);localStorage.setItem('touch_userName',nick);localStorage.setItem('touch_userColor',d.user.color||'');
+      if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
       // Link with Firebase if signed in
       if(fbUser&&firebaseAuthInstance){
         try{await linkFirebaseToEncosta(fbUser)}catch(e){}
       }
       initSocket();showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
-      const _ha=$('homeAvatar');if(_ha){_ha.textContent=nick.slice(0,2).toUpperCase();_ha.style.background=d.user.color||nickColor(nick)}
+      const _ha=$('homeAvatar');if(_ha){
+        if(state.userPhoto){_ha.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';_ha.style.background=d.user.color||nickColor(nick);_ha.style.overflow='hidden'}
+        else{_ha.textContent=nick.slice(0,2).toUpperCase();_ha.style.background=d.user.color||nickColor(nick)}
+      }
       haptic([80]);
     }
   }catch(e){showToast('Erro ao registrar.')}
@@ -2747,6 +2767,12 @@ async function showHistory(){
     constState.nodes=nodes;
     constState.cam={x:0,y:0,zoom:1};
     constState.selectedNode=null;
+    // Pre-load user's own photo for center node
+    if(state.userPhoto&&!constState._myImgLoaded){
+      const mi=new Image();mi.crossOrigin='anonymous';mi.src=state.userPhoto;
+      constState._myImg=mi;constState._myImgLoaded=false;
+      mi.onload=()=>{constState._myImgLoaded=true};
+    }
     hideConstDetail();
     showScreen('history');
     // Wait for screen to become visible before measuring canvas
@@ -2838,15 +2864,24 @@ function initConstCanvas(){
       grad.addColorStop(1,'rgba(255,107,53,'+(n.intensity*.4).toFixed(2)+')');
       ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(nx,ny);ctx.strokeStyle=grad;ctx.lineWidth=thick;ctx.stroke();
     });
-    // Draw center node (me)
-    const myR=10*z;
+    // Draw center node (me) — show photo if available
+    const myR=12*z;
     const myGlow=ctx.createRadialGradient(cx,cy,0,cx,cy,myR*3);
-    myGlow.addColorStop(0,'rgba(255,107,53,.2)');myGlow.addColorStop(1,'transparent');
+    myGlow.addColorStop(0,'rgba(255,107,53,.25)');myGlow.addColorStop(1,'transparent');
     ctx.beginPath();ctx.arc(cx,cy,myR*3,0,Math.PI*2);ctx.fillStyle=myGlow;ctx.fill();
+    if(constState._myImg&&constState._myImgLoaded){
+      ctx.save();ctx.beginPath();ctx.arc(cx,cy,myR,0,Math.PI*2);ctx.clip();
+      ctx.drawImage(constState._myImg,cx-myR,cy-myR,myR*2,myR*2);
+      ctx.restore();
+    }else{
+      ctx.beginPath();ctx.arc(cx,cy,myR,0,Math.PI*2);
+      ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='bold '+(8*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),cx,cy);
+    }
+    // Border ring
     ctx.beginPath();ctx.arc(cx,cy,myR,0,Math.PI*2);
-    ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
-    ctx.fillStyle='#fff';ctx.font='bold '+(8*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),cx,cy);
+    ctx.strokeStyle='rgba(255,107,53,.5)';ctx.lineWidth=1.5;ctx.stroke();
     // Draw people nodes
     constState.nodes.forEach(n=>{
       const nx=cx+n.x*z,ny=cy+n.y*z;
@@ -3066,6 +3101,8 @@ async function saveCompleteProfile(){
     const r=await fetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
+    // Update local state with new photo
+    if(data.profilePhoto){state.userPhoto=data.profilePhoto;localStorage.setItem('touch_userPhoto',data.profilePhoto);constState._myImgLoaded=false}
     showToast('Perfil salvo!');haptic([40,20,40]);
     goHome();
   }catch(e){showToast('Erro ao salvar.')}
