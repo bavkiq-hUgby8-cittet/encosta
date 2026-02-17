@@ -57,17 +57,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .home-top{display:flex;justify-content:space-between;align-items:center;width:100%;position:relative;z-index:2;flex-shrink:0}
 .home-brand{font-size:.75rem;font-weight:800;letter-spacing:.35em;color:var(--ac);opacity:.7}
 .home-icons{display:flex;gap:.6rem;align-items:center}
-.hc{text-align:center;display:flex;flex-direction:column;align-items:center;gap:.9rem;flex:1;justify-content:center;position:relative;z-index:1}
+.hc{text-align:center;display:flex;flex-direction:column;align-items:center;gap:.7rem;flex:1;justify-content:center;position:relative;z-index:1}
 .hg{font-size:1.5rem;color:var(--t1);font-weight:600;letter-spacing:-.01em;line-height:1.3}
 .hg .hg-nick{color:var(--ac);font-weight:800;font-size:1.7rem}
 .hm{font-size:1rem;color:var(--t3);font-weight:300;font-style:italic;line-height:1.7;max-width:290px}
 .daily-counter{font-size:.85rem;color:var(--t2);font-weight:400;padding:.45rem 1rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:20px}
 .daily-counter strong{color:var(--ac);font-weight:700}
 /* Main ENCOSTAR button — large, central, energized */
-.be{width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff8f65,#ff6b35 50%,#e05520);border:none;color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 50px var(--gw),0 0 100px rgba(255,107,53,.08),inset 0 1px 0 rgba(255,255,255,.15);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem}
+.be{width:clamp(140px,40vw,180px);height:clamp(140px,40vw,180px);border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff8f65,#ff6b35 50%,#e05520);border:none;color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 50px var(--gw),0 0 100px rgba(255,107,53,.08),inset 0 1px 0 rgba(255,255,255,.15);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem}
 .be:active{transform:scale(.92)}
-.be .be-icon{font-size:1.8rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
-.be .be-text{font-size:.75rem;font-weight:800;letter-spacing:.25em}
+.be .be-icon{font-size:2.2rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+.be .be-text{font-size:.8rem;font-weight:800;letter-spacing:.25em}
 .be::before{content:'';position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,var(--ac),var(--pk),#9333ea,var(--ac));z-index:-1;animation:rs 4s linear infinite;opacity:.5;filter:blur(2px)}
 .be::after{content:'';position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.08),transparent 70%);z-index:-2;animation:bb 3s ease-in-out infinite}
 /* Energized state — when sonic is active */
@@ -495,6 +495,25 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-btn-enter{padding:.75rem 2rem;background:linear-gradient(135deg,var(--ac),var(--pk));border:none;border-radius:14px;color:#fff;font-size:.92rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.06em;box-shadow:0 4px 15px rgba(255,107,53,.3)}
 .rv-btn-enter:active{transform:scale(.96)}
 
+/* CONNECTING OVERLAY — after sonic match, before reveal */
+.connecting-overlay{position:fixed;inset:0;z-index:150;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;opacity:0;pointer-events:none;transition:opacity .3s}
+.connecting-overlay.active{opacity:1;pointer-events:auto}
+.connecting-phones{position:relative;width:120px;height:80px}
+.connecting-phone{width:36px;height:60px;border:2px solid var(--ac);border-radius:8px;position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,107,53,.06)}
+.connecting-phone.left{left:0;animation:phone-approach-l 1.5s ease-in-out forwards}
+.connecting-phone.right{right:0;animation:phone-approach-r 1.5s ease-in-out forwards}
+.connecting-phone::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:var(--ac);opacity:.5}
+@keyframes phone-approach-l{0%{left:0}70%{left:calc(50% - 20px)}100%{left:calc(50% - 20px)}}
+@keyframes phone-approach-r{0%{right:0}70%{right:calc(50% - 20px)}100%{right:calc(50% - 20px)}}
+.connecting-spark{position:absolute;top:50%;left:50%;width:0;height:0;transform:translate(-50%,-50%);border-radius:50%;background:var(--ac);opacity:0;animation:connect-spark 1.5s ease 1.2s forwards}
+@keyframes connect-spark{0%{width:0;height:0;opacity:0}40%{width:30px;height:30px;opacity:1;background:var(--ac)}100%{width:200px;height:200px;opacity:0;background:var(--pk)}}
+.connecting-text{font-size:1rem;color:var(--t2);font-weight:300;letter-spacing:.1em;animation:fi 1s ease .3s both}
+.connecting-dots{display:flex;gap:6px}
+.connecting-dots span{width:6px;height:6px;border-radius:50%;background:var(--ac);animation:conn-dot 1.2s ease-in-out infinite}
+.connecting-dots span:nth-child(2){animation-delay:.2s}
+.connecting-dots span:nth-child(3){animation-delay:.4s}
+@keyframes conn-dot{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+
 /* UTILS */
 .hidden{display:none!important}
 .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);padding:.6rem 1.4rem;background:var(--s2);border:1px solid var(--b1);border-radius:20px;color:var(--t1);font-size:.82rem;z-index:9999;animation:tin .3s ease;pointer-events:none;backdrop-filter:blur(10px)}
@@ -503,6 +522,16 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </style>
 </head>
 <body>
+
+<div class="connecting-overlay" id="connectingOverlay">
+  <div class="connecting-phones">
+    <div class="connecting-phone left"></div>
+    <div class="connecting-phone right"></div>
+    <div class="connecting-spark"></div>
+  </div>
+  <div class="connecting-text">Conectando...</div>
+  <div class="connecting-dots"><span></span><span></span><span></span></div>
+</div>
 
 <div id="splash" class="screen active">
   <div class="logo">ENCOSTA</div>
@@ -831,7 +860,17 @@ function initSocket(){
     if(homeSonicActive)stopHomeSonic();
     if(sonicActive)stopSonicMode();
     state.currentRelation=d;haptic([100,50,100,50,100]);playSound('connect');
-    showScreen('reveal');doReveal(d);
+    // Show connecting animation for 2.5s, then reveal
+    const co=$('connectingOverlay');
+    if(co){
+      co.classList.add('active');
+      setTimeout(()=>{
+        co.classList.remove('active');
+        showScreen('reveal');doReveal(d);
+      },2500);
+    }else{
+      showScreen('reveal');doReveal(d);
+    }
   });
   socket.on('new-message',({relationId,message})=>{
     if(state.currentRelation?.relationId===relationId){appendMessage(message);playSound('receive');hideTyping()}
@@ -952,47 +991,89 @@ function startEncounter(){haptic([40]);showScreen('encounter');showPhase('phaseC
 
 // ═══ MAIN BUTTON — sonic first, code fallback ═══
 let homeSonicActive=false;
-function handleMainButton(){
+async function handleMainButton(){
   if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
-  if(homeSonicActive){
-    stopHomeSonic();
-    return;
-  }
-  if(!socket||!socket.connected){showToast('Sem conexão com servidor. Aguarde...');return}
+  if(homeSonicActive){stopHomeSonic();return}
+  if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
   haptic([40]);
   homeSonicActive=true;
   sonicActive=true;sonicMyFreq=0;
-  const btn=$('mainBtn'),txt=$('mainBtnText'),status=$('sonicHomeStatus'),fb=$('sonicFallback');
+  const btn=$('mainBtn'),txt=$('mainBtnText'),sts=$('sonicHomeStatus'),fb=$('sonicFallback');
   const barsL=$('sonicBarsL'),barsR=$('sonicBarsR'),fire=$('fireOverlay');
   btn.classList.add('energized');
   txt.textContent='ATIVANDO...';
-  status.textContent='Pedindo permissão do microfone...';
-  status.classList.add('active');
+  sts.textContent='Pedindo microfone...';sts.classList.add('active');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
 
-  // Request mic FIRST (triggers browser permission), then ask server for freq
-  startSonicListen().then(()=>{
-    txt.textContent='BUSCANDO...';
-    status.textContent='Emitindo som ultrassônico...';
+  try{
+    // 1. Mic permission
+    sonicStream=await requestMic();
+    if(!homeSonicActive)return;
+    sts.textContent='Conectando ao servidor...';
+
+    // 2. Get frequency from server
     socket.emit('sonic-start',{userId:state.userId});
-    socket.once('sonic-assigned',({freq})=>{
-      sonicMyFreq=freq;
-      startSonicEmit(freq);
-      txt.textContent='ENCOSTANDO...';
-      status.textContent='Aproxime os celulares...';
-      setTimeout(()=>{
-        if(homeSonicActive){
-          fb.classList.add('active');
-          status.textContent='Aproxime ou use código';
-        }
-      },8000);
+    const freq=await new Promise((resolve,reject)=>{
+      const t=setTimeout(()=>reject(new Error('Timeout')),5000);
+      socket.once('sonic-assigned',({freq})=>{clearTimeout(t);resolve(freq)});
     });
-  }).catch(err=>{
-    console.error('Mic error:',err);
-    status.textContent='Microfone negado. Use código.';
+    if(!homeSonicActive)return;
+    sonicMyFreq=freq;
+
+    // 3. Emit ultrasonic
+    sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+    sonicOsc=sonicEmitCtx.createOscillator();
+    sonicOsc.type='sine';
+    sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
+    const gain=sonicEmitCtx.createGain();
+    gain.gain.setValueAtTime(0.8,sonicEmitCtx.currentTime);
+    sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
+    sonicOsc.start();
+
+    // 4. Start detection
+    sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const source=sonicMicCtx.createMediaStreamSource(sonicStream);
+    sonicAnalyser=sonicMicCtx.createAnalyser();
+    sonicAnalyser.fftSize=SONIC_FFT_SIZE;
+    sonicAnalyser.smoothingTimeConstant=0.3;
+    source.connect(sonicAnalyser);
+    const bufLen=sonicAnalyser.frequencyBinCount;
+    const dataArr=new Uint8Array(bufLen);
+    const sampleRate=sonicMicCtx.sampleRate;
+    const freqPerBin=sampleRate/SONIC_FFT_SIZE;
+
+    txt.textContent='ENCOSTANDO...';
+    sts.textContent='Aproxime os celulares...';
+    setTimeout(()=>{if(homeSonicActive){fb.classList.add('active');sts.textContent='Aproxime ou use código'}},10000);
+
+    let confirmHits=0,lastSnapped=0;
+    function detect(){
+      if(!sonicActive)return;
+      sonicAnalyser.getByteFrequencyData(dataArr);
+      const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
+      let peakVal=0,peakBin=0;
+      for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}}
+      if(peakVal>=SONIC_DETECT_THRESHOLD){
+        const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
+        if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
+          if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
+          if(confirmHits>=SONIC_CONFIRM_COUNT){
+            haptic([100,30,100]);
+            txt.textContent='CONECTOU!';sts.textContent='Encontramos alguém!';
+            socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
+            sonicActive=false;return;
+          }
+        }
+      }else if(confirmHits>0)confirmHits=Math.max(0,confirmHits-1);
+      sonicAnimFrame=requestAnimationFrame(detect);
+    }
+    detect();
+  }catch(e){
+    console.error('Sonic error:',e);
+    sts.textContent=e.name==='NotAllowedError'?'Microfone negado.':'Erro: '+e.message;
     fb.classList.add('active');
-  });
+  }
 }
 
 function stopHomeSonic(){
@@ -1032,9 +1113,15 @@ function generateQR(code){
 }
 
 // ═══ SONIC — ultrasonic phone-to-phone ═══
-let sonicActive=false,sonicCtx=null,sonicOsc=null,sonicStream=null,sonicAnalyser=null,sonicAnimFrame=null,sonicMyFreq=0;
-const SONIC_FFT_SIZE=8192; // high resolution for frequency detection
-const SONIC_DETECT_THRESHOLD=140; // amplitude threshold (0-255)
+let sonicActive=false,sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null,sonicMyFreq=0;
+const SONIC_FFT_SIZE=8192;
+const SONIC_DETECT_THRESHOLD=80; // lowered: phone mics pick up 18kHz weakly
+const SONIC_CONFIRM_COUNT=3; // need 3 consecutive detections to confirm (anti false-positive)
+
+// Request mic permission and return stream (reusable)
+async function requestMic(){
+  return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+}
 
 function startSonicMode(){
   if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
@@ -1044,93 +1131,104 @@ function startSonicMode(){
   circle.className='bump-circle';label.textContent='PREPARANDO...';
   status.textContent='Pedindo microfone...';
   sonicActive=true;sonicMyFreq=0;
-
-  // Request mic FIRST, then ask server for freq
-  startSonicListen().then(()=>{
-    status.textContent='Emitindo som...';
-    socket.emit('sonic-start',{userId:state.userId});
-    socket.once('sonic-assigned',({freq})=>{
-      sonicMyFreq=freq;
-      startSonicEmit(freq);
-      circle.classList.add('listening');
-      label.textContent='ENCOSTE';
-      status.textContent='Aproxime os celulares...';
-    });
-  }).catch(err=>{
-    console.error('Mic error:',err);
-    status.textContent='Microfone negado. Volte e use código.';
-    sonicActive=false;
-  });
+  initSonic(label,status,circle);
 }
 
-function startSonicEmit(freq){
+async function initSonic(label,status,circle){
   try{
-    sonicCtx=new(window.AudioContext||window.webkitAudioContext)();
-    sonicOsc=sonicCtx.createOscillator();
+    // 1. Get mic permission first
+    sonicStream=await requestMic();
+    if(status)status.textContent='Microfone OK. Conectando...';
+
+    // 2. Ask server for frequency
+    socket.emit('sonic-start',{userId:state.userId});
+    const freq=await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>reject(new Error('Server timeout')),5000);
+      socket.once('sonic-assigned',({freq})=>{clearTimeout(timeout);resolve(freq)});
+    });
+    if(!sonicActive)return; // user may have cancelled
+    sonicMyFreq=freq;
+
+    // 3. Start emitting (louder for phone speakers)
+    sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+    sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
-    sonicOsc.frequency.setValueAtTime(freq,sonicCtx.currentTime);
-    // Low volume — just enough for nearby phone to detect
-    const gain=sonicCtx.createGain();
-    gain.gain.setValueAtTime(0.15,sonicCtx.currentTime);
+    sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
+    const gain=sonicEmitCtx.createGain();
+    gain.gain.setValueAtTime(0.8,sonicEmitCtx.currentTime); // louder! phones need it
     sonicOsc.connect(gain);
-    gain.connect(sonicCtx.destination);
+    gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
-  }catch(e){
-    $('bumpStatus').textContent='Erro ao iniciar áudio.';
-  }
-}
 
-async function startSonicListen(){
-  sonicStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
-  const micCtx=new(window.AudioContext||window.webkitAudioContext)();
-  const source=micCtx.createMediaStreamSource(sonicStream);
-  sonicAnalyser=micCtx.createAnalyser();
-  sonicAnalyser.fftSize=SONIC_FFT_SIZE;
-  source.connect(sonicAnalyser);
-  const bufLen=sonicAnalyser.frequencyBinCount;
-  const dataArr=new Uint8Array(bufLen);
-  const sampleRate=micCtx.sampleRate;
-  const freqPerBin=sampleRate/SONIC_FFT_SIZE;
+    // 4. Start listening with confirmed detection
+    sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const source=sonicMicCtx.createMediaStreamSource(sonicStream);
+    sonicAnalyser=sonicMicCtx.createAnalyser();
+    sonicAnalyser.fftSize=SONIC_FFT_SIZE;
+    sonicAnalyser.smoothingTimeConstant=0.3; // less smoothing = faster response
+    source.connect(sonicAnalyser);
+    const bufLen=sonicAnalyser.frequencyBinCount;
+    const dataArr=new Uint8Array(bufLen);
+    const sampleRate=sonicMicCtx.sampleRate;
+    const freqPerBin=sampleRate/SONIC_FFT_SIZE;
 
-  function detect(){
-    if(!sonicActive)return;
-    sonicAnalyser.getByteFrequencyData(dataArr);
-    // Scan ultrasonic range: 18000-20000Hz
-    const minBin=Math.floor(18000/freqPerBin);
-    const maxBin=Math.ceil(20000/freqPerBin);
-    let peakVal=0,peakBin=0;
-    for(let i=minBin;i<=maxBin&&i<bufLen;i++){
-      if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}
-    }
-    if(peakVal>=SONIC_DETECT_THRESHOLD){
-      const detectedFreq=Math.round(peakBin*freqPerBin);
-      // Snap to nearest 100Hz slot
-      const snapped=Math.round(detectedFreq/100)*100;
-      // Ignore own frequency
-      if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
-        haptic([100,30,100]);
-        const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
-        if(circle){circle.classList.remove('listening');circle.classList.add('bumped')}
-        if(label)label.textContent='CONECTOU!';
-        if(status)status.textContent='Encontrou alguém!';
-        socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-        sonicActive=false;
-        return;
+    if(circle)circle.classList.add('listening');
+    if(label)label.textContent='ENCOSTE';
+    if(status)status.textContent='Aproxime os celulares...';
+
+    let confirmHits=0,lastSnapped=0;
+
+    function detect(){
+      if(!sonicActive)return;
+      sonicAnalyser.getByteFrequencyData(dataArr);
+      const minBin=Math.floor(18000/freqPerBin);
+      const maxBin=Math.ceil(20000/freqPerBin);
+      let peakVal=0,peakBin=0;
+      for(let i=minBin;i<=maxBin&&i<bufLen;i++){
+        if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}
       }
+      if(peakVal>=SONIC_DETECT_THRESHOLD){
+        const detectedFreq=Math.round(peakBin*freqPerBin);
+        const snapped=Math.round(detectedFreq/100)*100;
+        // Ignore own frequency and out-of-range
+        if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
+          if(snapped===lastSnapped){confirmHits++}else{confirmHits=1;lastSnapped=snapped}
+          if(confirmHits>=SONIC_CONFIRM_COUNT){
+            // Confirmed detection!
+            haptic([100,30,100]);
+            if(circle){circle.classList.remove('listening');circle.classList.add('bumped')}
+            if(label)label.textContent='CONECTOU!';
+            if(status)status.textContent='Conectando...';
+            socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
+            sonicActive=false;
+            return;
+          }
+        }
+      }else{
+        // Reset if signal lost
+        if(confirmHits>0)confirmHits=Math.max(0,confirmHits-1);
+      }
+      sonicAnimFrame=requestAnimationFrame(detect);
     }
-    sonicAnimFrame=requestAnimationFrame(detect);
+    detect();
+
+  }catch(e){
+    console.error('Sonic init error:',e);
+    if(status)status.textContent=e.name==='NotAllowedError'?'Microfone negado. Use código.':'Erro: '+e.message;
+    sonicActive=false;
+    const fb=$('sonicFallback');if(fb)fb.classList.add('active');
   }
-  detect();
 }
 
 function stopSonicMode(){
   sonicActive=false;
   if(sonicOsc){try{sonicOsc.stop()}catch(e){}}
-  if(sonicCtx){try{sonicCtx.close()}catch(e){}}
+  if(sonicEmitCtx){try{sonicEmitCtx.close()}catch(e){}}
+  if(sonicMicCtx){try{sonicMicCtx.close()}catch(e){}}
   if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop())}
   if(sonicAnimFrame)cancelAnimationFrame(sonicAnimFrame);
-  sonicOsc=null;sonicCtx=null;sonicStream=null;sonicAnalyser=null;sonicAnimFrame=null;
-  socket.emit('sonic-stop',{userId:state.userId});
+  sonicOsc=null;sonicEmitCtx=null;sonicMicCtx=null;sonicStream=null;sonicAnalyser=null;sonicAnimFrame=null;sonicMyFreq=0;
+  if(socket&&socket.connected)socket.emit('sonic-stop',{userId:state.userId});
 }
 
 // ═══ REVEAL — cinematographic ═══
