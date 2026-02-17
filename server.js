@@ -888,7 +888,12 @@ app.get('/api/relations/:userId', (req, res) => {
   const active = Object.values(db.relations).filter(r => (r.userA === userId || r.userB === userId) && r.expiresAt > now);
   res.json(active.map(r => {
     const pid = r.userA === userId ? r.userB : r.userA, p = db.users[pid];
-    return { ...r, partnerName: p?.nickname || p?.name || '?', partnerColor: p?.color || '#ff6b35', timeLeft: r.expiresAt - now };
+    const isRevealed = p?.revealedTo?.includes(userId);
+    return { ...r, partnerName: p?.nickname || p?.name || '?', partnerColor: p?.color || '#ff6b35', timeLeft: r.expiresAt - now,
+      partnerPhoto: isRevealed ? (p?.profilePhoto || p?.photoURL || null) : null,
+      partnerRealName: isRevealed ? (p?.realName || null) : null,
+      partnerNickname: p?.nickname || '?'
+    };
   }));
 });
 
@@ -901,7 +906,12 @@ app.get('/api/session/:id', (req, res) => {
 // Encounter trace (personal history)
 app.get('/api/encounters/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
-  res.json(list.slice().reverse()); // newest first
+  const enriched = list.slice().reverse().map(e => {
+    const other = db.users[e.with];
+    const isRevealed = other?.revealedTo?.includes(req.params.userId);
+    return { ...e, realName: isRevealed ? (other?.realName || null) : null, profilePhoto: isRevealed ? (other?.profilePhoto || other?.photoURL || null) : null };
+  });
+  res.json(enriched); // newest first
 });
 
 // Daily counter
@@ -962,7 +972,8 @@ app.get('/api/constellation/:userId', (req, res) => {
       realName: isRevealed ? p.realName : null,
       profilePhoto: isRevealed ? p.profilePhoto : null,
       tipsGiven: p.tipsGiven,
-      tipsTotal: p.tipsTotal
+      tipsTotal: p.tipsTotal,
+      hasActiveRelation: !!Object.values(db.relations).find(r => ((r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)) && r.expiresAt > Date.now())
     };
   });
   // Sort by most recent encounter
@@ -1236,6 +1247,39 @@ app.post('/api/profile/update', (req, res) => {
   user.profileComplete = !!(user.realName && user.profilePhoto);
   saveDB();
   res.json({ ok: true, user });
+});
+
+// ── Request real identity from another user ──
+app.post('/api/identity/request', (req, res) => {
+  const { userId, relationId, targetUserId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  const user = db.users[userId];
+  const fromName = user.nickname || user.name || '?';
+  // Find relation — either by relationId or by targetUserId (for constellation)
+  let rel = null, partnerId = null;
+  if (relationId) {
+    rel = db.relations[relationId];
+    if (!rel) return res.status(400).json({ error: 'Conexão não encontrada.' });
+    partnerId = rel.userA === userId ? rel.userB : rel.userA;
+  } else if (targetUserId) {
+    // Find active relation between these two
+    const now = Date.now();
+    rel = Object.values(db.relations).find(r =>
+      ((r.userA === userId && r.userB === targetUserId) || (r.userA === targetUserId && r.userB === userId)) && r.expiresAt > now
+    );
+    if (!rel) return res.status(400).json({ error: 'Só pode pedir durante as 24h da conexão.' });
+    partnerId = targetUserId;
+  } else {
+    return res.status(400).json({ error: 'Falta relationId ou targetUserId.' });
+  }
+  // Check relation is still active
+  if (rel.expiresAt <= Date.now()) return res.status(400).json({ error: 'Conexão expirou.' });
+  // Notify target via socket
+  const targetSocket = Object.values(io.sockets.sockets).find(s => s.encUserId === partnerId);
+  if (targetSocket) {
+    targetSocket.emit('identity-request', { relationId: rel.id || Object.keys(db.relations).find(k => db.relations[k] === rel), fromName });
+  }
+  res.json({ ok: true });
 });
 
 // ── Reveal real identity to a specific user ──
