@@ -385,7 +385,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .const-detail.visible{opacity:1;transform:translateY(0);pointer-events:auto}
 .const-detail-avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.1)}
 .const-detail-nick{font-size:1rem;font-weight:600;color:var(--t1)}
+.const-detail-sub{font-size:.7rem;color:var(--ac2);font-weight:400;margin-top:-.1rem}
 .const-detail-text{font-size:.72rem;color:var(--t3);font-style:italic;font-weight:300}
+.const-detail-tip-btn{margin-top:.5rem;padding:.5rem 1.2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:#fff;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:.03em}
+.const-detail-tip-btn:active{transform:scale(.97)}
 .const-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;z-index:5;padding:2rem}
 .const-empty-icon{font-size:2rem;opacity:.2}
 .const-empty-text{font-size:.8rem;color:var(--t3);font-weight:300;text-align:center;line-height:1.7;max-width:220px}
@@ -603,6 +606,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-btn-photo{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;padding:.7rem 1.2rem;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:14px;color:var(--t3);font-size:.75rem;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.03em}
 .rv-btn-photo:active{background:rgba(255,255,255,.04);transform:scale(.97)}
 .rv-btn-photo .rv-ico{font-size:.9rem}
+.rv-btn-tip{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.85rem 1.2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:14px;color:#fff;font-size:.82rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.04em;box-shadow:0 4px 16px rgba(34,197,94,.3);margin-top:.3rem}
+.rv-btn-tip:active{transform:scale(.97);opacity:.9}
+.rv-btn-tip .rv-ico{font-size:1rem}
 
 /* CONNECTING OVERLAY — after sonic match, before reveal */
 /* Connecting overlay — organic cosmos birth */
@@ -757,6 +763,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico">📍</span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
       <button class="hn-btn" onclick="showHistory()"><span class="hn-ico">✦</span><span class="hn-lbl">Rede</span></button>
       <button class="hn-btn" onclick="showBoardingPass()"><span class="hn-ico">🪪</span><span class="hn-lbl">ID</span></button>
+      <button class="hn-btn" onclick="showPrestadorRegister()"><span class="hn-ico">💼</span><span class="hn-lbl">Prestador</span></button>
       <button class="hn-btn" onclick="showManual()"><span class="hn-ico">❓</span><span class="hn-lbl">Manual</span></button>
     </div>
     <div class="home-brand-row">
@@ -838,6 +845,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="rv-actions" id="revealActions">
       <button type="button" class="rv-btn-enter" onclick="enterChat()">Abrir a conexão</button>
       <button type="button" class="rv-btn-photo" id="selfieCapBtn" onclick="revealCaptureSelfie()"><span class="rv-ico">✦</span> Guardar esse momento</button>
+      <button type="button" class="rv-btn-tip hidden" id="revealTipBtn" onclick="openTipFromReveal()"><span class="rv-ico">💰</span> <span id="revealTipLabel">Dar gorjeta</span></button>
     </div>
   </div>
 </div>
@@ -897,7 +905,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-detail" id="constDetail" onclick="hideConstDetail()">
     <div class="const-detail-avatar" id="constDetailAvatar"></div>
     <div class="const-detail-nick" id="constDetailNick"></div>
-    <div class="const-detail-text">Vocês estiveram juntos.</div>
+    <div class="const-detail-sub" id="constDetailSub"></div>
+    <div class="const-detail-text" id="constDetailText">Vocês estiveram juntos.</div>
+    <button class="const-detail-tip-btn hidden" id="constTipBtn" onclick="event.stopPropagation();constTipAction()">💰 Dar gorjeta</button>
   </div>
 </div>
 
@@ -1150,6 +1160,14 @@ function initSocket(){
     showToast('⭐ Nova estrela! '+reason+' (Total: '+total+')');
   });
   socket.on('streak-unlock',data=>showStreakUnlock(data));
+  socket.on('tip-received',({amount,from,status})=>{
+    if(status==='approved'){
+      haptic([100,50,100,50,100]);playSound('connect');
+      showToast('💰 Gorjeta recebida! R$'+amount.toFixed(2).replace('.',',')+' de '+from);
+    }else if(status==='pending'||status==='in_process'){
+      showToast('⏳ Gorjeta de R$'+amount.toFixed(2).replace('.',',')+' em processamento.');
+    }
+  });
 }
 function updateConn(s){const d=$('connDot');if(d)d.className='cd'+(s!=='online'?' '+s:'')}
 
@@ -1566,6 +1584,24 @@ function doReveal(data){
   const capBtn=$('selfieCapBtn');
   if(capBtn){capBtn.innerHTML='<span class="rv-ico">✦</span> Guardar esse momento';capBtn.disabled=false}
   $('revealActions').style.opacity='';
+
+  // 12. Gorjeta button — show if the other person is a prestador
+  const tipBtn=$('revealTipBtn');
+  if(tipBtn){
+    if(them.isPrestador){
+      tipBtn.classList.remove('hidden');
+      tipBtn.dataset.receiverId=them.id;
+      const lbl=$('revealTipLabel');
+      if(lbl)lbl.textContent='Dar gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
+    }else{
+      tipBtn.classList.add('hidden');
+    }
+  }
+}
+
+function openTipFromReveal(){
+  const btn=$('revealTipBtn');
+  if(btn&&btn.dataset.receiverId) showTipScreen(btn.dataset.receiverId);
 }
 
 // ═══ CHAT ═══
@@ -2008,10 +2044,26 @@ function showConstDetail(node){
   av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();
   av.style.background=node.color;
   $('constDetailNick').textContent=node.nickname;
+  // Sub info: service label or encounters
+  const sub=$('constDetailSub');
+  if(node.isPrestador&&node.serviceLabel) sub.textContent=node.serviceLabel;
+  else sub.textContent='';
+  // Text: encounter message + tip info
+  const txt=$('constDetailText');
+  if(node._tipsTotal>0) txt.textContent='Vocês estiveram juntos. Gorjeta: R$'+node._tipsTotal.toFixed(2).replace('.',',');
+  else txt.textContent='Vocês estiveram juntos.';
+  // Tip button
+  const tipBtn=$('constTipBtn');
+  if(node.isPrestador){tipBtn.classList.remove('hidden');tipBtn.dataset.receiverId=node.id}
+  else tipBtn.classList.add('hidden');
   $('constDetail').classList.add('visible');
   haptic([15]);
 }
 function hideConstDetail(){$('constDetail').classList.remove('visible');constState.selectedNode=null}
+function constTipAction(){
+  const btn=$('constTipBtn');
+  if(btn&&btn.dataset.receiverId){hideConstDetail();showTipScreen(btn.dataset.receiverId)}
+}
 
 // ═══ BOARDING PASS ═══
 async function showBoardingPass(){

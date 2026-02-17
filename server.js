@@ -547,8 +547,8 @@ app.post('/api/touch-link/connect', (req, res) => {
   const zodiacPhrase = getZodiacPhrase(signOwner, signVisitor);
   const responseData = {
     relationId: existing ? existing.id : relationId, phrase, expiresAt, renewed: !!existing,
-    userA: { id: owner.id, name: owner.nickname, color: owner.color, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null },
-    userB: { id: visitor.id, name: visitor.nickname, color: visitor.color, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null },
+    userA: { id: owner.id, name: owner.nickname, color: owner.color, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '' },
+    userB: { id: visitor.id, name: visitor.nickname, color: visitor.color, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '' },
     zodiacPhrase
   };
   io.to(`user:${owner.id}`).emit('relation-created', responseData);
@@ -718,8 +718,8 @@ app.post('/api/session/join', (req, res) => {
 
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
-    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA },
-    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB },
+    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
   };
 
@@ -765,22 +765,29 @@ app.get('/api/constellation/:userId', (req, res) => {
   // Group by person
   const byPerson = {};
   list.forEach(e => {
-    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp };
+    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0 };
     byPerson[e.with].encounters++;
+    if (e.tipAmount && e.tipStatus === 'approved') { byPerson[e.with].tipsGiven++; byPerson[e.with].tipsTotal += e.tipAmount; }
     if (e.timestamp < byPerson[e.with].firstDate) byPerson[e.with].firstDate = e.timestamp;
     if (e.timestamp > byPerson[e.with].lastDate) byPerson[e.with].lastDate = e.timestamp;
   });
-  const nodes = Object.values(byPerson).map(p => ({
+  const nodes = Object.values(byPerson).map(p => {
+    const other = db.users[p.id];
+    return {
     id: p.id,
     nickname: p.nickname,
     color: p.color,
     // intensity: 0-1, based on encounters (1=first, grows logarithmically)
     intensity: Math.min(1, 0.3 + Math.log2(p.encounters) * 0.25),
+    isPrestador: !!(other && other.isPrestador),
+    serviceLabel: (other && other.serviceLabel) || '',
     // internal data (not displayed, for future use)
     _encounters: p.encounters,
     _firstDate: p.firstDate,
-    _lastDate: p.lastDate
-  }));
+    _lastDate: p.lastDate,
+    _tipsGiven: p.tipsGiven,
+    _tipsTotal: p.tipsTotal
+  }});
   res.json({ nodes, total: nodes.length });
 });
 
@@ -1197,8 +1204,8 @@ app.post('/api/event/encosta-accept', (req, res) => {
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing, type: 'digital', eventName: ev ? ev.name : '',
     lastEncounter: lastEnc ? { phrase: lastEnc.phrase, timestamp: lastEnc.timestamp } : null,
-    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length },
-    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length }
+    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' }
   };
   io.to(`user:${fromUserId}`).emit('relation-created', responseData);
   io.to(`user:${userId}`).emit('relation-created', responseData);
@@ -1334,8 +1341,8 @@ function createSonicConnection(userIdA, userIdB) {
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
     sonicMatch: true,
-    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null },
-    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null },
+    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
   };
   // Clean both from queue
@@ -1592,9 +1599,24 @@ function handlePaymentResult(result, payerId, receiverId, amount, fee, res) {
     receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
     receiver.tipsTotal = (receiver.tipsTotal || 0) + amount;
   }
+  // Link tip to most recent encounter between payer and receiver
+  const payerEnc = db.encounters[payerId] || [];
+  const recentEnc = payerEnc.filter(e => e.with === receiverId).sort((a, b) => b.timestamp - a.timestamp)[0];
+  if (recentEnc) {
+    recentEnc.tipAmount = amount;
+    recentEnc.tipId = tipId;
+    recentEnc.tipStatus = result.status;
+  }
+  // Also mark on receiver side
+  const recEnc = (db.encounters[receiverId] || []).filter(e => e.with === payerId).sort((a, b) => b.timestamp - a.timestamp)[0];
+  if (recEnc) {
+    recEnc.tipAmount = amount;
+    recEnc.tipId = tipId;
+    recEnc.tipStatus = result.status;
+  }
   saveDB();
   // Notify receiver via socket
-  io.to(`user:${receiverId}`).emit('tip-received', { amount, from: db.users[payerId]?.nickname || '?' });
+  io.to(`user:${receiverId}`).emit('tip-received', { amount, tipId, from: db.users[payerId]?.nickname || '?', status: result.status });
   res.json({ status: result.status, tipId, statusDetail: result.status_detail });
 }
 
