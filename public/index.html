@@ -2946,8 +2946,8 @@ function initConstCanvas(){
     // ── Neural connections (animated data flow lines) ──
     constState.nodes.forEach(n=>{
       const nx=cx+n.x*z,ny=cy+n.y*z;
-      const isRevealed=!!(n.realName&&n.realName!==n.nickname);
-      const lineColor=isRevealed?'0,220,130':'100,140,255';
+      const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
+      const lineColor=lineBothVerified?'0,220,130':'100,140,255';
       const thick=Math.min(2.5,0.3+Math.log2(1+(n.encounters||1))*0.4)*z;
       // Animated dashed line
       ctx.save();
@@ -2994,9 +2994,9 @@ function initConstCanvas(){
       const nx=cx+n.x*z,ny=cy+n.y*z;
       const pulse=1+Math.sin(t*1.5+n.pulsePhase)*.06;
       const r=n.baseRadius*z*pulse;
-      const isRevealed=!!(n.realName&&n.realName!==n.nickname);
-      const ringColor=isRevealed?'#00dc82':'#ff4466';
-      const glowRGB=isRevealed?'0,220,130':'255,68,102';
+      const bothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
+      const ringColor=bothVerified?'#00dc82':'#ff4466';
+      const glowRGB=bothVerified?'0,220,130':'255,68,102';
 
       // Outer glow
       const glow=ctx.createRadialGradient(nx,ny,0,nx,ny,r*3);
@@ -3014,10 +3014,10 @@ function initConstCanvas(){
         ctx.fillStyle=nGrad;ctx.fill();
       }
 
-      // Ring: GREEN = ID revealed, RED = still anonymous
-      ctx.beginPath();ctx.arc(nx,ny,r+1.5*z,0,Math.PI*2);
-      ctx.strokeStyle=ringColor;ctx.lineWidth=2*z;
-      ctx.shadowColor=ringColor;ctx.shadowBlur=8*z;ctx.stroke();ctx.shadowBlur=0;
+      // Ring: GREEN = verified, RED = anonymous (minimal stroke)
+      ctx.beginPath();ctx.arc(nx,ny,r+0.8*z,0,Math.PI*2);
+      ctx.strokeStyle=ringColor;ctx.lineWidth=0.8*z;
+      ctx.shadowColor=ringColor;ctx.shadowBlur=6*z;ctx.stroke();ctx.shadowBlur=0;
 
       // Rotating scan arc for selected node
       if(constState.selectedNode&&constState.selectedNode.id===n.id){
@@ -3041,15 +3041,39 @@ function initConstCanvas(){
     });
     ctx.textBaseline='alphabetic';
 
-    // ── HUD overlay ──
-    ctx.save();ctx.fillStyle='rgba(255,255,255,.12)';ctx.font='500 9px Inter,sans-serif';ctx.textAlign='left';
-    ctx.fillText('NODES: '+constState.nodes.length,12,H-12);
-    const revealed=constState.nodes.filter(n=>n.realName&&n.realName!==n.nickname).length;
-    ctx.fillStyle='rgba(0,220,130,.3)';ctx.fillText('VERIFIED: '+revealed,12,H-24);
-    ctx.fillStyle='rgba(255,68,102,.3)';ctx.fillText('ANON: '+(constState.nodes.length-revealed),12,H-36);
-    ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.fillText('ZOOM: '+(z).toFixed(1)+'x',W-12,H-12);
+    // ── Floating legend pill ──
+    const verified=constState.nodes.filter(n=>(n.partnerRevealedToMe&&n.iRevealedToPartner)||((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed)))).length;
+    const anon=constState.nodes.length-verified;
+    const pillW=Math.min(W-24,260),pillH=32,pillX=(W-pillW)/2,pillY=H-48;
+    // Pill background
+    ctx.save();
+    ctx.beginPath();
+    const pillR=pillH/2;
+    ctx.moveTo(pillX+pillR,pillY);ctx.lineTo(pillX+pillW-pillR,pillY);
+    ctx.arc(pillX+pillW-pillR,pillY+pillR,pillR,-Math.PI/2,Math.PI/2);
+    ctx.lineTo(pillX+pillR,pillY+pillH);ctx.arc(pillX+pillR,pillY+pillR,pillR,Math.PI/2,-Math.PI/2);
+    ctx.closePath();
+    ctx.fillStyle='rgba(10,10,25,.65)';ctx.fill();
+    ctx.strokeStyle='rgba(100,160,255,.12)';ctx.lineWidth=0.5;ctx.stroke();
+    // Content inside pill
+    const midY=pillY+pillH/2;
+    let tx=pillX+14;
+    // Green dot + Verificados
+    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#00dc82';ctx.fill();
+    tx+=10;
+    ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='500 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText('Verificados: '+verified,tx,midY);
+    // Red dot + Anônimos
+    tx+=ctx.measureText('Verificados: '+verified).width+16;
+    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#ff4466';ctx.fill();
+    tx+=10;
+    ctx.fillStyle='rgba(255,255,255,.55)';
+    ctx.fillText('Anônimos: '+anon,tx,midY);
+    // Total on right
+    ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='400 9px Inter,sans-serif';
+    ctx.fillText(constState.nodes.length+' conexões',pillX+pillW-14,midY);
     ctx.restore();
+    ctx.textBaseline='alphabetic';
   }
   draw();
 }
@@ -3102,17 +3126,18 @@ function showConstDetail(node){
   const tipBtn=$('constTipBtn');
   if(node.isPrestador){tipBtn.classList.remove('hidden');tipBtn.dataset.receiverId=node.id}
   else tipBtn.classList.add('hidden');
-  // ID action button — show if active relation AND IDs not yet exchanged
+  // ID action button — show if active relation AND IDs not yet exchanged BOTH ways
   const idActions=$('constIdActions');
   window._constDetailNodeId=node.id;
-  const alreadyRevealed=!!(node.realName&&node.realName!==node.nickname);
-  const iAlreadyRevealed=!!(state.revealedIds&&state.revealedIds[node.id]&&state.revealedIds[node.id]._iRevealed);
-  if(node.hasActiveRelation&&!(alreadyRevealed&&iAlreadyRevealed)){
+  const partnerRevealed=!!(node.partnerRevealedToMe||(node.realName&&node.realName!==node.nickname));
+  const iRevealed=!!(node.iRevealedToPartner||(state.revealedIds&&state.revealedIds[node.id]&&state.revealedIds[node.id]._iRevealed));
+  const bothRevealed=partnerRevealed&&iRevealed;
+  if(node.hasActiveRelation&&!bothRevealed){
     idActions.classList.remove('hidden');
     const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='🪪 Trocar IDs';cBtn.disabled=false;cBtn.style.opacity='1'}
   }else{
     idActions.classList.add('hidden');
-    if(alreadyRevealed){$('constDetailText').textContent='🪪 IDs trocados'}
+    if(bothRevealed){$('constDetailText').textContent='🪪 IDs trocados'}
   }
   $('constDetail').classList.add('visible');
   haptic([15]);
@@ -3323,6 +3348,11 @@ function syncRevealUI(partnerId,realName,profilePhoto){
     if(chatName&&realName)chatName.textContent=realName;
     const pNick=state.currentRelation?.partnerName||'';
     const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ IDs trocados</span>'+(pNick?' · @'+esc(pNick):'');
+  }
+  // 3. Update constellation node flags in real-time
+  if(constState.nodes){
+    const cNode=constState.nodes.find(n=>n.id===partnerId);
+    if(cNode){cNode.iRevealedToPartner=true;cNode.partnerRevealedToMe=true;if(realName)cNode.realName=realName;if(profilePhoto)cNode.profilePhoto=profilePhoto}
   }
 }
 function appendSystemMsg(text){

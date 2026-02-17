@@ -974,7 +974,9 @@ app.get('/api/constellation/:userId', (req, res) => {
   });
   const nodes = Object.values(byPerson).map(p => {
     const other = db.users[p.id];
-    const isRevealed = p.revealedTo && p.revealedTo.includes(req.params.userId);
+    const me = db.users[req.params.userId];
+    const partnerRevealedToMe = p.revealedTo && p.revealedTo.includes(req.params.userId);
+    const iRevealedToPartner = me && me.revealedTo && me.revealedTo.includes(p.id);
     return {
       id: p.id,
       nickname: p.nickname,
@@ -986,10 +988,12 @@ app.get('/api/constellation/:userId', (req, res) => {
       lastSelfie: p.lastSelfie,
       lastDate: p.lastDate,
       firstDate: p.firstDate,
-      realName: isRevealed ? p.realName : null,
-      profilePhoto: isRevealed ? p.profilePhoto : null,
+      realName: partnerRevealedToMe ? p.realName : null,
+      profilePhoto: partnerRevealedToMe ? p.profilePhoto : null,
       tipsGiven: p.tipsGiven,
       tipsTotal: p.tipsTotal,
+      iRevealedToPartner: !!iRevealedToPartner,
+      partnerRevealedToMe: !!partnerRevealedToMe,
       hasActiveRelation: !!Object.values(db.relations).find(r => ((r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)) && r.expiresAt > Date.now())
     };
   });
