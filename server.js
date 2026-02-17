@@ -921,29 +921,52 @@ app.get('/api/constellation/:userId', (req, res) => {
   // Group by person
   const byPerson = {};
   list.forEach(e => {
-    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0 };
+    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0, lastSelfie: null };
     byPerson[e.with].encounters++;
     if (e.tipAmount && e.tipStatus === 'approved') { byPerson[e.with].tipsGiven++; byPerson[e.with].tipsTotal += e.tipAmount; }
     if (e.timestamp < byPerson[e.with].firstDate) byPerson[e.with].firstDate = e.timestamp;
     if (e.timestamp > byPerson[e.with].lastDate) byPerson[e.with].lastDate = e.timestamp;
   });
+  // Enrich with selfie from last relation and real identity if revealed
+  Object.values(byPerson).forEach(p => {
+    // Find last relation between these two to get selfie
+    const rels = Object.values(db.relations).filter(r =>
+      (r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)
+    ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    if (rels.length > 0 && rels[0].selfie) {
+      // Get the other person's selfie
+      p.lastSelfie = rels[0].selfie[p.id] || null;
+    }
+    const other = db.users[p.id];
+    if (other) {
+      // If user has revealed real identity, use real name/photo
+      p.realName = other.realName || null;
+      p.profilePhoto = other.profilePhoto || other.photoURL || null;
+      p.revealedTo = other.revealedTo || [];
+    }
+  });
   const nodes = Object.values(byPerson).map(p => {
     const other = db.users[p.id];
+    const isRevealed = p.revealedTo && p.revealedTo.includes(req.params.userId);
     return {
-    id: p.id,
-    nickname: p.nickname,
-    color: p.color,
-    // intensity: 0-1, based on encounters (1=first, grows logarithmically)
-    intensity: Math.min(1, 0.3 + Math.log2(p.encounters) * 0.25),
-    isPrestador: !!(other && other.isPrestador),
-    serviceLabel: (other && other.serviceLabel) || '',
-    // internal data (not displayed, for future use)
-    _encounters: p.encounters,
-    _firstDate: p.firstDate,
-    _lastDate: p.lastDate,
-    _tipsGiven: p.tipsGiven,
-    _tipsTotal: p.tipsTotal
-  }});
+      id: p.id,
+      nickname: p.nickname,
+      color: p.color,
+      encounters: p.encounters,
+      intensity: Math.min(1, 0.3 + Math.log2(p.encounters) * 0.25),
+      isPrestador: !!(other && other.isPrestador),
+      serviceLabel: (other && other.serviceLabel) || '',
+      lastSelfie: p.lastSelfie,
+      lastDate: p.lastDate,
+      firstDate: p.firstDate,
+      realName: isRevealed ? p.realName : null,
+      profilePhoto: isRevealed ? p.profilePhoto : null,
+      tipsGiven: p.tipsGiven,
+      tipsTotal: p.tipsTotal
+    };
+  });
+  // Sort by most recent encounter
+  nodes.sort((a, b) => b.lastDate - a.lastDate);
   res.json({ nodes, total: nodes.length });
 });
 
@@ -1177,6 +1200,8 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
   const gifts = (db.gifts[req.params.userId] || []).filter(g => !g._role && g.status !== 'declined').map(g => ({
     id: g.id, giftName: g.giftName, emoji: g.emoji, fromName: g.fromName, fromColor: g.fromColor, message: g.message, createdAt: g.createdAt
   }));
+  // Check if identity was revealed to viewer
+  const isRevealed = (user.revealedTo || []).includes(viewerId);
   res.json({
     nickname: user.nickname || user.name,
     color: user.color,
@@ -1188,7 +1213,65 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     memberSince: user.createdAt,
     declarations: decls.slice(-50),
     gifts: gifts.slice(-50),
-    canInteract: true
+    canInteract: true,
+    // Real identity if revealed
+    realName: isRevealed ? (user.realName || null) : null,
+    profilePhoto: isRevealed ? (user.profilePhoto || null) : null,
+    instagram: isRevealed ? (user.instagram || null) : null,
+    bio: isRevealed ? (user.bio || null) : null
+  });
+});
+
+// ── Update full profile ──
+app.post('/api/profile/update', (req, res) => {
+  const { userId, realName, phone, instagram, twitter, bio, profilePhoto } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  const user = db.users[userId];
+  if (realName !== undefined) user.realName = realName;
+  if (phone !== undefined) user.phone = phone;
+  if (instagram !== undefined) user.instagram = instagram;
+  if (twitter !== undefined) user.twitter = twitter;
+  if (bio !== undefined) user.bio = bio;
+  if (profilePhoto !== undefined) user.profilePhoto = profilePhoto; // base64
+  user.profileComplete = !!(user.realName && user.profilePhoto);
+  saveDB();
+  res.json({ ok: true, user });
+});
+
+// ── Reveal real identity to a specific user ──
+app.post('/api/identity/reveal', (req, res) => {
+  const { userId, targetUserId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
+  const user = db.users[userId];
+  if (!user.realName && !user.profilePhoto) return res.status(400).json({ error: 'Complete seu perfil antes de revelar.' });
+  if (!user.revealedTo) user.revealedTo = [];
+  if (!user.revealedTo.includes(targetUserId)) user.revealedTo.push(targetUserId);
+  saveDB();
+  // Notify target via socket
+  const targetSocket = Object.values(io.sockets.sockets).find(s => s.encUserId === targetUserId);
+  if (targetSocket) {
+    targetSocket.emit('identity-revealed', {
+      fromUserId: userId,
+      realName: user.realName,
+      profilePhoto: user.profilePhoto,
+      instagram: user.instagram,
+      bio: user.bio
+    });
+  }
+  res.json({ ok: true, revealed: { realName: user.realName, profilePhoto: user.profilePhoto } });
+});
+
+// ── Get own full profile data ──
+app.get('/api/myprofile/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  res.json({
+    nickname: user.nickname, realName: user.realName || '',
+    phone: user.phone || '', instagram: user.instagram || '',
+    twitter: user.twitter || '', bio: user.bio || '',
+    profilePhoto: user.profilePhoto || '', profileComplete: !!user.profileComplete,
+    email: user.email || ''
   });
 });
 

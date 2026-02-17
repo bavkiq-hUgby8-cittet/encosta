@@ -407,12 +407,43 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Node detail overlay */
 .const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,transparent 0%,rgba(5,5,8,.95) 40%);padding:2rem 1.5rem;padding-bottom:max(env(safe-area-inset-bottom),2rem);display:flex;flex-direction:column;align-items:center;gap:.5rem;opacity:0;transform:translateY(20px);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none}
 .const-detail.visible{opacity:1;transform:translateY(0);pointer-events:auto}
-.const-detail-avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.1)}
+.const-detail-avatar{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.15);overflow:hidden;position:relative}
+.const-detail-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
 .const-detail-nick{font-size:1rem;font-weight:600;color:var(--t1)}
-.const-detail-sub{font-size:.7rem;color:var(--ac2);font-weight:400;margin-top:-.1rem}
+.const-detail-realname{font-size:.78rem;color:var(--ac2);font-weight:400;margin-top:-.15rem}
+.const-detail-sub{font-size:.7rem;color:var(--t2);font-weight:400;margin-top:-.1rem}
+.const-detail-meta{font-size:.68rem;color:var(--t3);display:flex;gap:1rem;align-items:center}
+.const-detail-selfie{width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.1);margin-top:.3rem}
 .const-detail-text{font-size:.72rem;color:var(--t3);font-style:italic;font-weight:300}
 .const-detail-tip-btn{margin-top:.5rem;padding:.5rem 1.2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:#fff;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:.03em}
 .const-detail-tip-btn:active{transform:scale(.97)}
+
+/* COMPLETE PROFILE */
+#completeProfile{padding:1.5rem;overflow-y:auto}
+.cp-header{text-align:center;margin-bottom:1.5rem;padding-top:env(safe-area-inset-top,1rem)}
+.cp-header h2{font-size:1.2rem;font-weight:700;color:var(--t1)}
+.cp-header p{font-size:.75rem;color:var(--t2);margin-top:.3rem}
+.cp-photo-wrap{display:flex;flex-direction:column;align-items:center;gap:.6rem;margin-bottom:1.5rem}
+.cp-photo{width:100px;height:100px;border-radius:50%;background:var(--s2);border:2px solid var(--b1);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.cp-photo img{width:100%;height:100%;object-fit:cover}
+.cp-photo-label{font-size:.7rem;color:var(--ac);cursor:pointer}
+.cp-field{margin-bottom:1.2rem}
+.cp-field label{display:block;font-size:.68rem;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem;font-weight:600}
+.cp-field input,.cp-field textarea{width:100%;padding:.75rem .9rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s}
+.cp-field input:focus,.cp-field textarea:focus{border-color:var(--ac)}
+.cp-field textarea{resize:none;height:70px}
+.cp-note{font-size:.65rem;color:var(--t3);margin-top:.3rem}
+.cp-actions{display:flex;gap:.8rem;margin-top:1.5rem;padding-bottom:2rem}
+.cp-actions .bp{flex:1}
+.cp-actions .bs{flex:0}
+
+/* REVEAL IDENTITY */
+.reveal-id-btn{padding:.5rem 1rem;background:var(--s1);border:1px solid var(--ac);border-radius:12px;color:var(--ac);font-size:.75rem;font-family:inherit;cursor:pointer;transition:all .2s}
+.reveal-id-btn:active{transform:scale(.97);background:var(--ac);color:#fff}
+.id-revealed-card{background:var(--s1);border:1px solid var(--ac);border-radius:14px;padding:.8rem;display:flex;align-items:center;gap:.8rem;margin:.5rem 0}
+.id-revealed-card img{width:44px;height:44px;border-radius:50%;object-fit:cover}
+.id-revealed-card .id-name{font-size:.9rem;font-weight:600;color:var(--t1)}
+.id-revealed-card .id-bio{font-size:.7rem;color:var(--t2)}
 .const-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;z-index:5;padding:2rem}
 .const-empty-icon{font-size:2rem;opacity:.2}
 .const-empty-text{font-size:.8rem;color:var(--t3);font-weight:300;text-align:center;line-height:1.7;max-width:220px}
@@ -808,7 +839,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <button class="hn-btn" onclick="showHistory()"><span class="hn-ico">✦</span><span class="hn-lbl">Rede</span></button>
       <button class="hn-btn" onclick="showBoardingPass()"><span class="hn-ico">🪪</span><span class="hn-lbl">ID</span></button>
       <button class="hn-btn" onclick="showPrestadorRegister()"><span class="hn-ico">💼</span><span class="hn-lbl">Prestador</span></button>
-      <button class="hn-btn" onclick="showManual()"><span class="hn-ico">❓</span><span class="hn-lbl">Manual</span></button>
+      <button class="hn-btn" onclick="openCompleteProfile()"><span class="hn-ico">👤</span><span class="hn-lbl">Perfil+</span></button>
     </div>
     <div class="home-brand-row">
       <span class="home-brand" id="homeBrand">ENCOSTA</span>
@@ -916,6 +947,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <button class="ca-btn" onclick="openDeclModal()" type="button"><span class="ca-ico">&#x1F4DD;</span> Declarar</button>
       <button class="ca-btn" onclick="sendPulse()" type="button" id="pulseBtn"><span class="ca-ico">&#x1F49F;</span> Pulsar</button>
       <button class="ca-btn" onclick="getHoroscope()" type="button" id="horoscopeBtn"><span class="ca-ico">&#x2728;</span> Horóscopo</button>
+      <button class="ca-btn reveal-id-btn" onclick="revealIdentity(state.currentPartnerId)" type="button" id="revealIdBtn"><span class="ca-ico">🪪</span> Revelar ID</button>
     </div>
     <div class="plus-menu" id="plusMenu">
       <button class="pm-item" onclick="pickPhoto()" type="button"><div class="pm-ico" style="background:rgba(88,166,255,.15);color:#58a6ff">&#x1F4F7;</div><span class="pm-label">Foto</span></button>
@@ -950,7 +982,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-detail" id="constDetail" onclick="hideConstDetail()">
     <div class="const-detail-avatar" id="constDetailAvatar"></div>
     <div class="const-detail-nick" id="constDetailNick"></div>
+    <div class="const-detail-realname hidden" id="constDetailRealName"></div>
     <div class="const-detail-sub" id="constDetailSub"></div>
+    <div class="const-detail-meta" id="constDetailMeta"></div>
+    <img class="const-detail-selfie hidden" id="constDetailSelfie" alt="selfie">
     <div class="const-detail-text" id="constDetailText">Vocês estiveram juntos.</div>
     <button class="const-detail-tip-btn hidden" id="constTipBtn" onclick="event.stopPropagation();constTipAction()">💰 Dar gorjeta</button>
   </div>
@@ -1063,6 +1098,30 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <button class="bp" id="pregSubmitBtn" onclick="registerPrestador()" style="margin-bottom:.8rem">Criar conta de prestador</button>
   <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" style="display:none;margin-bottom:.8rem;width:100%">🔗 Conectar MercadoPago</button>
   <button class="bs" onclick="goHome()" style="width:100%;margin-bottom:2rem;opacity:.6">← Voltar</button>
+</div>
+
+<div id="completeProfile" class="screen">
+  <div class="cp-header">
+    <button class="chb" onclick="goHome()" style="position:absolute;left:1rem;top:1.2rem">&#x2190;</button>
+    <h2>Perfil completo</h2>
+    <p>Opcional — preencha para poder revelar sua identidade</p>
+  </div>
+  <div class="cp-photo-wrap">
+    <div class="cp-photo" id="cpPhotoPreview" onclick="$('cpPhotoInput').click()">
+      <span id="cpPhotoPlaceholder" style="font-size:2rem;color:var(--t3)">📷</span>
+    </div>
+    <div class="cp-photo-label" onclick="$('cpPhotoInput').click()">Adicionar foto real</div>
+    <input type="file" id="cpPhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
+  </div>
+  <div class="cp-field"><label>Nome real</label><input type="text" id="cpRealName" placeholder="Seu nome completo" maxlength="60"></div>
+  <div class="cp-field"><label>Bio</label><textarea id="cpBio" placeholder="Conte algo sobre você..." maxlength="200"></textarea></div>
+  <div class="cp-field"><label>Telefone</label><input type="tel" id="cpPhone" placeholder="+55 11 99999-9999" maxlength="20"><div class="cp-note">Opcional — não será mostrado publicamente</div></div>
+  <div class="cp-field"><label>Instagram</label><input type="text" id="cpInstagram" placeholder="@seuuser" maxlength="30"></div>
+  <div class="cp-field"><label>X (Twitter)</label><input type="text" id="cpTwitter" placeholder="@seuuser" maxlength="30"></div>
+  <div class="cp-actions">
+    <button class="bs" onclick="goHome()">Voltar</button>
+    <button class="bp" onclick="saveCompleteProfile()">Salvar</button>
+  </div>
 </div>
 
 <div id="profile" class="screen">
@@ -1320,6 +1379,18 @@ function initSocket(){
     }else if(status==='pending'||status==='in_process'){
       showToast('⏳ Gorjeta de R$'+amount.toFixed(2).replace('.',',')+' em processamento.');
     }
+  });
+  socket.on('identity-revealed',({fromUserId,realName,profilePhoto,instagram,bio})=>{
+    haptic([60,30,60]);
+    // Show card in chat
+    const box=$('chatMessages');
+    if(box){
+      const card=document.createElement('div');
+      card.className='id-revealed-card';
+      card.innerHTML=(profilePhoto?'<img src="'+profilePhoto+'" alt="">':'')+'<div><div class="id-name">'+(realName||'?')+'</div>'+(bio?'<div class="id-bio">'+esc(bio)+'</div>':'')+(instagram?'<div class="id-bio">'+esc(instagram)+'</div>':'')+'</div>';
+      box.appendChild(card);box.scrollTop=box.scrollHeight;
+    }
+    showToast('🪪 '+realName+' revelou sua identidade!');
   });
 }
 function updateConn(s){const d=$('connDot');if(d)d.className='cd'+(s!=='online'?' '+s:'')}
@@ -2070,8 +2141,21 @@ async function showHistory(){
     const nodes=data.nodes.map((n,i)=>{
       const angle=(i/data.nodes.length)*Math.PI*2-Math.PI/2;
       const radius=80+Math.random()*60+i*12;
+      // Node size grows with encounters: min 6px, grows logarithmically, max ~22px
+      const sizeByEnc=Math.min(22,6+Math.log2(1+(n.encounters||1))*5);
       return{...n,x:Math.cos(angle)*radius+(Math.random()-.5)*30,y:Math.sin(angle)*radius+(Math.random()-.5)*30,
-        color:n.color||nickColor(n.nickname||'?'),baseRadius:6+n.intensity*8,pulsePhase:Math.random()*Math.PI*2};
+        color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByEnc,pulsePhase:Math.random()*Math.PI*2};
+    });
+    // Pre-load images for nodes with photos
+    nodes.forEach(n=>{
+      const src=n.profilePhoto||n.lastSelfie;
+      if(src){
+        const img=new Image();
+        img.crossOrigin='anonymous';
+        img.src=src;
+        n._img=img;n._imgLoaded=false;
+        img.onload=()=>{n._imgLoaded=true};
+      }
     });
     constState.nodes=nodes;
     constState.cam={x:0,y:0,zoom:1};
@@ -2158,13 +2242,14 @@ function initConstCanvas(){
     const cx=W/2+constState.cam.x*constState.cam.zoom;
     const cy=H*0.45+constState.cam.y*constState.cam.zoom;
     const z=constState.cam.zoom;
-    // Draw elos (lines from center to each node)
+    // Draw elos (lines from center to each node) with thickness by encounters
     constState.nodes.forEach(n=>{
       const nx=cx+n.x*z,ny=cy+n.y*z;
+      const thick=Math.min(3,0.5+Math.log2(1+(n.encounters||1))*0.5)*z;
       const grad=ctx.createLinearGradient(cx,cy,nx,ny);
-      grad.addColorStop(0,'rgba(255,107,53,'+(n.intensity*.15).toFixed(2)+')');
-      grad.addColorStop(1,'rgba(255,107,53,'+(n.intensity*.35).toFixed(2)+')');
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(nx,ny);ctx.strokeStyle=grad;ctx.lineWidth=.8*z;ctx.stroke();
+      grad.addColorStop(0,'rgba(255,107,53,'+(n.intensity*.12).toFixed(2)+')');
+      grad.addColorStop(1,'rgba(255,107,53,'+(n.intensity*.4).toFixed(2)+')');
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(nx,ny);ctx.strokeStyle=grad;ctx.lineWidth=thick;ctx.stroke();
     });
     // Draw center node (me)
     const myR=10*z;
@@ -2185,15 +2270,24 @@ function initConstCanvas(){
       glow.addColorStop(0,'rgba(255,255,255,'+(n.intensity*.12).toFixed(2)+')');
       glow.addColorStop(1,'transparent');
       ctx.beginPath();ctx.arc(nx,ny,r*2.5,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
-      // Node
-      ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);ctx.fillStyle=n.color;ctx.globalAlpha=.4+n.intensity*.6;ctx.fill();ctx.globalAlpha=1;
-      // Border
-      ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,'+(n.intensity*.3).toFixed(2)+')';ctx.lineWidth=1;ctx.stroke();
-      // Nickname (only when zoomed enough)
+      // Node: show photo if available and big enough, else solid color
+      if(n._imgLoaded&&n._img&&r>8*z){
+        ctx.save();ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);ctx.clip();
+        ctx.globalAlpha=.5+n.intensity*.5;
+        ctx.drawImage(n._img,nx-r,ny-r,r*2,r*2);
+        ctx.globalAlpha=1;ctx.restore();
+      }else{
+        ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);ctx.fillStyle=n.color;ctx.globalAlpha=.4+n.intensity*.6;ctx.fill();ctx.globalAlpha=1;
+      }
+      // Border (brighter for nodes with more encounters)
+      ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,'+(0.15+n.intensity*.35).toFixed(2)+')';ctx.lineWidth=n._imgLoaded?1.5:1;ctx.stroke();
+      // Nickname or real name (when zoomed)
       if(z>.6){
+        const label=n.realName||n.nickname;
         ctx.fillStyle='rgba(255,255,255,'+(0.4+n.intensity*0.3).toFixed(2)+')';
         ctx.font=(Math.max(8,9*z))+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-        ctx.fillText(n.nickname.length>8?n.nickname.slice(0,7)+'…':n.nickname,nx,ny+r+4*z);
+        ctx.fillText(label.length>10?label.slice(0,9)+'…':label,nx,ny+r+4*z);
       }
     });
     ctx.textBaseline='alphabetic';
@@ -2217,17 +2311,34 @@ function handleConstTap(tx,ty,W,H){
 function showConstDetail(node){
   constState.selectedNode=node;
   const av=$('constDetailAvatar');
-  av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();
-  av.style.background=node.color;
-  $('constDetailNick').textContent=node.nickname;
-  // Sub info: service label or encounters
+  // Show profile photo or selfie or initials
+  if(node.profilePhoto){
+    av.innerHTML='<img src="'+node.profilePhoto+'" alt="">';av.style.background=node.color;
+  }else{
+    av.innerHTML='';av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();av.style.background=node.color;
+  }
+  $('constDetailNick').textContent=node.realName||node.nickname;
+  // Show real name subtitle if revealed
+  const rn=$('constDetailRealName');
+  if(node.realName&&node.realName!==node.nickname){rn.textContent='@'+node.nickname;rn.classList.remove('hidden')}
+  else rn.classList.add('hidden');
+  // Sub: service or encounters count
   const sub=$('constDetailSub');
-  if(node.isPrestador&&node.serviceLabel) sub.textContent=node.serviceLabel;
-  else sub.textContent='';
-  // Text: encounter message + tip info
+  if(node.isPrestador&&node.serviceLabel)sub.textContent=node.serviceLabel;
+  else sub.textContent=(node.encounters||0)+' encontro'+(node.encounters>1?'s':'');
+  // Meta: last encounter date + first date
+  const meta=$('constDetailMeta');
+  const lastD=node.lastDate?new Date(node.lastDate):null;
+  const timeDiff=lastD?timeAgo(lastD):'';
+  meta.innerHTML=timeDiff?('Último: '+timeDiff+(node.firstDate&&node.encounters>1?' · Primeiro: '+new Date(node.firstDate).toLocaleDateString('pt-BR'):'')):'' ;
+  // Selfie
+  const selfieEl=$('constDetailSelfie');
+  if(node.lastSelfie){selfieEl.src=node.lastSelfie;selfieEl.classList.remove('hidden')}
+  else selfieEl.classList.add('hidden');
+  // Text: tip info
   const txt=$('constDetailText');
-  if(node._tipsTotal>0) txt.textContent='Vocês estiveram juntos. Gorjeta: R$'+node._tipsTotal.toFixed(2).replace('.',',');
-  else txt.textContent='Vocês estiveram juntos.';
+  if(node.tipsTotal>0)txt.textContent='Gorjeta total: R$'+node.tipsTotal.toFixed(2).replace('.',',');
+  else txt.textContent='';
   // Tip button
   const tipBtn=$('constTipBtn');
   if(node.isPrestador){tipBtn.classList.remove('hidden');tipBtn.dataset.receiverId=node.id}
@@ -2235,10 +2346,97 @@ function showConstDetail(node){
   $('constDetail').classList.add('visible');
   haptic([15]);
 }
+function timeAgo(date){
+  const s=Math.floor((Date.now()-date.getTime())/1000);
+  if(s<60)return'agora';if(s<3600)return Math.floor(s/60)+'min atrás';
+  if(s<86400)return Math.floor(s/3600)+'h atrás';
+  const d=Math.floor(s/86400);if(d<7)return d+'d atrás';
+  if(d<30)return Math.floor(d/7)+'sem atrás';
+  return date.toLocaleDateString('pt-BR');
+}
 function hideConstDetail(){$('constDetail').classList.remove('visible');constState.selectedNode=null}
 function constTipAction(){
   const btn=$('constTipBtn');
   if(btn&&btn.dataset.receiverId){hideConstDetail();showTipScreen(btn.dataset.receiverId)}
+}
+
+// ═══ COMPLETE PROFILE ═══
+let cpPhotoData=null;
+async function openCompleteProfile(){
+  haptic([30]);
+  showScreen('completeProfile');
+  // Load existing data
+  try{
+    const d=await(await fetch('/api/myprofile/'+state.userId)).json();
+    if(d.realName)$('cpRealName').value=d.realName;
+    if(d.bio)$('cpBio').value=d.bio;
+    if(d.phone)$('cpPhone').value=d.phone;
+    if(d.instagram)$('cpInstagram').value=d.instagram;
+    if(d.twitter)$('cpTwitter').value=d.twitter;
+    if(d.profilePhoto){
+      cpPhotoData=d.profilePhoto;
+      $('cpPhotoPreview').innerHTML='<img src="'+d.profilePhoto+'" alt="">';
+    }
+  }catch(e){}
+}
+function handleProfilePhoto(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  if(file.size>5*1024*1024)return showToast('Foto muito grande (máx 5MB)');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    // Compress
+    const img=new Image();
+    img.onload=function(){
+      const canvas=document.createElement('canvas');
+      const max=400;
+      let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=h*(max/w);w=max}else{w=w*(max/h);h=max}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      cpPhotoData=canvas.toDataURL('image/jpeg',0.7);
+      $('cpPhotoPreview').innerHTML='<img src="'+cpPhotoData+'" alt="">';
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+async function saveCompleteProfile(){
+  const data={
+    userId:state.userId,
+    realName:$('cpRealName').value.trim(),
+    bio:$('cpBio').value.trim(),
+    phone:$('cpPhone').value.trim(),
+    instagram:$('cpInstagram').value.trim(),
+    twitter:$('cpTwitter').value.trim(),
+    profilePhoto:cpPhotoData||''
+  };
+  try{
+    const r=await fetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    showToast('Perfil salvo!');haptic([40,20,40]);
+    goHome();
+  }catch(e){showToast('Erro ao salvar.')}
+}
+
+// ═══ REVEAL IDENTITY ═══
+async function revealIdentity(targetUserId){
+  if(!state.userId)return;
+  try{
+    const r=await fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    showToast('Identidade revelada!');haptic([40,20,60]);
+    // Update chat UI
+    appendSystemMsg('Você revelou sua identidade real.');
+  }catch(e){showToast('Complete seu perfil antes.')}
+}
+function appendSystemMsg(text){
+  const box=$('chatMessages');if(!box)return;
+  const div=document.createElement('div');
+  div.style.cssText='text-align:center;font-size:.7rem;color:var(--ac);padding:.5rem;font-style:italic';
+  div.textContent=text;box.appendChild(div);box.scrollTop=box.scrollHeight;
 }
 
 // ═══ BOARDING PASS ═══
@@ -2345,10 +2543,19 @@ async function loadProfile(userId,canAct){
   }catch(e){showToast('Erro ao carregar perfil.')}
 }
 function renderProfile(d,userId){
-  $('pfTitle').textContent=d.nickname;
+  const displayName=d.realName||d.nickname;
+  $('pfTitle').textContent=displayName;
   const s=$('pfScroll');
-  let html='<div class="pf-card">'+makeAvatar(d.nickname,d.color,64);
-  html+='<div style="margin-top:.8rem;font-size:1.1rem;font-weight:700">'+esc(d.nickname)+'</div>';
+  let html='<div class="pf-card">';
+  if(d.profilePhoto){
+    html+='<div style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.1)"><img src="'+d.profilePhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+  }else{
+    html+=makeAvatar(d.nickname,d.color,64);
+  }
+  html+='<div style="margin-top:.8rem;font-size:1.1rem;font-weight:700">'+esc(displayName)+'</div>';
+  if(d.realName&&d.realName!==d.nickname)html+='<div style="font-size:.72rem;color:var(--t2);margin-top:.1rem">@'+esc(d.nickname)+'</div>';
+  if(d.bio)html+='<div style="font-size:.75rem;color:var(--t2);margin-top:.4rem;font-style:italic">'+esc(d.bio)+'</div>';
+  if(d.instagram)html+='<div style="font-size:.7rem;color:var(--ac);margin-top:.2rem">'+esc(d.instagram)+'</div>';
   html+='<div style="font-size:.65rem;color:var(--t3);margin-top:.2rem">membro desde '+new Date(d.memberSince).toLocaleDateString('pt-BR')+'</div>';
   html+='<div class="pf-stats">';
   html+='<div class="pf-stat"><div class="pf-stat-num">'+(d.score||0)+'</div><div class="pf-stat-lbl">score</div></div>';
