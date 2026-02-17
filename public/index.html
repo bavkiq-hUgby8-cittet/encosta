@@ -879,6 +879,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="home" class="screen">
+  <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
   <div class="ptr-indicator" id="ptrIndicator"><div class="ptr-spinner"></div></div>
   <div class="fire-overlay" id="fireOverlay">
     <div class="fire-glow"></div><div class="fire-glow2"></div>
@@ -1565,6 +1566,11 @@ function showScreen(id){
     if(constState.animFrame){cancelAnimationFrame(constState.animFrame);constState.animFrame=null}
     if(constState._cleanGyro)constState._cleanGyro();
   }
+  // Stop home nodes animation when leaving home
+  if(id!=='home'){
+    if(_homeNodesAnim){cancelAnimationFrame(_homeNodesAnim);_homeNodesAnim=null}
+    if(_homeNodesGyro){window.removeEventListener('deviceorientation',_homeNodesGyro);_homeNodesGyro=null}
+  }
 }
 function showPhase(id){document.querySelectorAll('.ep').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function goHome(){showScreen('home');refreshHome()}
@@ -1602,7 +1608,98 @@ async function refreshHome(){
     const c=$('dailyCounter'),n=$('dailyNum');
     if(d.count>0){c.classList.remove('hidden');n.textContent=d.count}else c.classList.add('hidden');
     if(cn.total>0)$('constBtn').classList.remove('hidden');
+    // Update home background nodes
+    initHomeNodes(cn.nodes||[]);
   }catch(e){}
+}
+
+// ═══ HOME BACKGROUND NODES — rotating neural web ═══
+let _homeNodesAnim=null,_homeNodesGyro=null;
+function initHomeNodes(nodes){
+  if(_homeNodesAnim){cancelAnimationFrame(_homeNodesAnim);_homeNodesAnim=null}
+  if(_homeNodesGyro){window.removeEventListener('deviceorientation',_homeNodesGyro);_homeNodesGyro=null}
+  const cv=$('homeNodesCanvas');if(!cv)return;
+  const count=nodes.length;
+  if(count<1)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=window.innerWidth,H=window.innerHeight;
+  cv.width=W*dpr;cv.height=H*dpr;
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  const ctx=cv.getContext('2d');
+  ctx.scale(dpr,dpr);
+  // Generate node positions in an organic circle
+  const pts=[];
+  for(let i=0;i<count;i++){
+    const angle=(i/count)*Math.PI*2+Math.random()*0.3;
+    const radius=60+Math.random()*80+Math.min(count,20)*3;
+    pts.push({
+      x:Math.cos(angle)*radius+(Math.random()-0.5)*20,
+      y:Math.sin(angle)*radius+(Math.random()-0.5)*20,
+      r:2+Math.random()*2.5,
+      phase:Math.random()*Math.PI*2,
+      a:0.06+Math.random()*0.06
+    });
+  }
+  // Generate connections (each node connects to 1-2 neighbors)
+  const links=[];
+  for(let i=0;i<pts.length;i++){
+    const next=(i+1)%pts.length;
+    links.push([i,next]);
+    if(Math.random()>0.5&&pts.length>3){
+      const skip=(i+2)%pts.length;
+      links.push([i,skip]);
+    }
+  }
+  let tiltX=0,tiltY=0,rawTX=0,rawTY=0;
+  _homeNodesGyro=function(e){
+    rawTX=Math.max(-1,Math.min(1,(e.gamma||0)/15));
+    rawTY=Math.max(-1,Math.min(1,((e.beta||0)-45)/15));
+  };
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(function(p){
+      if(p==='granted')window.addEventListener('deviceorientation',_homeNodesGyro);
+    }).catch(function(){});
+  }else{
+    window.addEventListener('deviceorientation',_homeNodesGyro);
+  }
+  const t0=performance.now();
+  function draw(){
+    _homeNodesAnim=requestAnimationFrame(draw);
+    const t=(performance.now()-t0)/1000;
+    tiltX+=(rawTX-tiltX)*0.06;
+    tiltY+=(rawTY-tiltY)*0.06;
+    ctx.clearRect(0,0,W,H);
+    // Slow rotation + tilt offset
+    const rot=t*0.08;
+    const cx=W/2+tiltX*40;
+    const cy=H*0.42+tiltY*30;
+    // Draw connections
+    ctx.lineWidth=0.5;
+    links.forEach(([a,b])=>{
+      const pa=pts[a],pb=pts[b];
+      const ax=cx+Math.cos(rot)*pa.x-Math.sin(rot)*pa.y;
+      const ay=cy+Math.sin(rot)*pa.x+Math.cos(rot)*pa.y;
+      const bx=cx+Math.cos(rot)*pb.x-Math.sin(rot)*pb.y;
+      const by=cy+Math.sin(rot)*pb.x+Math.cos(rot)*pb.y;
+      const avg=(pa.a+pb.a)/2;
+      ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);
+      ctx.strokeStyle='rgba(255,107,53,'+(avg*0.4).toFixed(3)+')';ctx.stroke();
+    });
+    // Draw nodes
+    pts.forEach(p=>{
+      const nx=cx+Math.cos(rot)*p.x-Math.sin(rot)*p.y;
+      const ny=cy+Math.sin(rot)*p.x+Math.cos(rot)*p.y;
+      const pulse=p.a+Math.sin(t*1.5+p.phase)*0.02;
+      ctx.beginPath();ctx.arc(nx,ny,p.r,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,107,53,'+pulse.toFixed(3)+')';ctx.fill();
+      // Tiny glow
+      const g=ctx.createRadialGradient(nx,ny,0,nx,ny,p.r*4);
+      g.addColorStop(0,'rgba(255,107,53,'+(pulse*0.3).toFixed(3)+')');
+      g.addColorStop(1,'transparent');
+      ctx.beginPath();ctx.arc(nx,ny,p.r*4,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+    });
+  }
+  draw();
 }
 
 // ═══ REGISTER ═══
