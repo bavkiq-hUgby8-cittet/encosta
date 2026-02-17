@@ -728,16 +728,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .zodiac-phrase{font-size:.85rem;color:var(--t2);font-style:italic;line-height:1.7;max-width:260px;text-align:center;font-weight:300;letter-spacing:.01em}
 
 /* REVEAL SELFIE v2 — side by side */
-/* Floating bottom actions */
-.rv-actions{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:.5rem;align-items:center;padding:.8rem 1.2rem calc(env(safe-area-inset-bottom,.5rem) + .6rem);opacity:0;animation:fi .8s ease 7s forwards;z-index:5;background:linear-gradient(0deg,rgba(2,2,5,.9) 0%,rgba(2,2,5,.5) 50%,transparent 100%)}
-.rv-btn-enter{padding:.6rem 2.2rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:24px;color:#fff;font-size:.75rem;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.08em;transition:all .15s;backdrop-filter:blur(8px)}
-.rv-btn-enter:active{transform:scale(.96);background:rgba(255,255,255,.14)}
-.rv-sec-row{display:flex;gap:.6rem;justify-content:center;align-items:center}
-.rv-btn-mini{display:flex;flex-direction:column;align-items:center;gap:.15rem;padding:.45rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:var(--t3);font-size:.55rem;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.03em;min-width:52px;backdrop-filter:blur(4px)}
-.rv-btn-mini:active{background:rgba(255,255,255,.1);transform:scale(.94)}
-.rv-btn-mini .rv-ico{font-size:.85rem;line-height:1;opacity:.7}
-.rv-btn-skip{padding:.35rem .8rem;background:transparent;border:none;color:var(--t3);font-size:.6rem;font-family:inherit;cursor:pointer;letter-spacing:.08em;transition:.15s;opacity:.5}
-.rv-btn-skip:active{opacity:.8}
 
 /* CONNECTING OVERLAY — after sonic match, before reveal */
 /* Connecting overlay — organic cosmos birth */
@@ -2112,19 +2102,28 @@ function stopRevealLight(){
   if(_rvLightAnim){cancelAnimationFrame(_rvLightAnim);_rvLightAnim=null}
   if(_rvLightHandler){window.removeEventListener('deviceorientation',_rvLightHandler);_rvLightHandler=null}
 }
-function startRevealLight(){
+// beamColor: 'white'=new, 'gold'=known>24h, 'green'=renewed<24h, 'red'=<1h no bonus
+function startRevealLight(beamColor){
   stopRevealLight();
   const cv=$('rvLightBeam');if(!cv)return;
   const dpr=window.devicePixelRatio||1;
-  const W=cv.offsetWidth||window.innerWidth;
-  const H=cv.offsetHeight||window.innerHeight;
+  // Always use window dimensions to guarantee full coverage
+  const W=window.innerWidth;
+  const H=window.innerHeight;
   cv.width=W*dpr;cv.height=H*dpr;
   cv.style.width=W+'px';cv.style.height=H+'px';
   const ctx=cv.getContext('2d');
   ctx.scale(dpr,dpr);
+  // Color palettes: [ambient, mid, core, hot, particle, edge]
+  const palettes={
+    white:{a:'200,210,230',m:'180,190,210',c:'220,230,245',h:'245,248,255',p:'210,220,240',e:'180,200,230'},
+    gold:{a:'255,180,60',m:'255,160,50',c:'255,200,100',h:'255,235,180',p:'255,190,100',e:'255,170,50'},
+    green:{a:'60,220,130',m:'40,200,110',c:'80,240,150',h:'180,255,210',p:'100,230,160',e:'50,210,120'},
+    red:{a:'255,80,80',m:'255,60,60',c:'255,120,100',h:'255,200,180',p:'255,100,90',e:'255,70,70'}
+  };
+  const C=palettes[beamColor]||palettes.white;
   let tiltY=0,rawTY=0;
   _rvLightHandler=function(e){
-    // Horizontal beam: tilt phone left/right moves beam up/down
     rawTY=Math.max(-1,Math.min(1,(e.gamma||0)/10));
   };
   if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
@@ -2135,7 +2134,6 @@ function startRevealLight(){
     window.addEventListener('deviceorientation',_rvLightHandler);
   }
   const t0=performance.now();
-  // Particles that flow along the beam
   const particles=Array.from({length:40},()=>({
     x:Math.random()*W,vx:0.5+Math.random()*1.5,
     yOff:(Math.random()-0.5)*0.5,
@@ -2146,53 +2144,52 @@ function startRevealLight(){
     const t=(performance.now()-t0)/1000;
     tiltY+=(rawTY-tiltY)*0.18;
     ctx.clearRect(0,0,W,H);
-    // Beam center Y: sits roughly at avatar height (~55% down), moves with tilt
     const beamCY=H*0.47+tiltY*H*0.35;
     const breathe=1+Math.sin(t*0.9)*0.06;
     const tubeH=45*breathe;
-    // Layer 1: Wide ambient glow (full width)
+    // Layer 1: Wide ambient — full rect 0 to W
     const g1=ctx.createLinearGradient(0,beamCY-tubeH*3,0,beamCY+tubeH*3);
     g1.addColorStop(0,'transparent');
-    g1.addColorStop(0.3,'rgba(255,140,60,.015)');
-    g1.addColorStop(0.5,'rgba(255,107,53,.035)');
-    g1.addColorStop(0.7,'rgba(255,140,60,.015)');
+    g1.addColorStop(0.3,'rgba('+C.a+',.015)');
+    g1.addColorStop(0.5,'rgba('+C.a+',.035)');
+    g1.addColorStop(0.7,'rgba('+C.a+',.015)');
     g1.addColorStop(1,'transparent');
     ctx.fillStyle=g1;ctx.fillRect(0,0,W,H);
     // Layer 2: Medium band
     const g2=ctx.createLinearGradient(0,beamCY-tubeH*1.2,0,beamCY+tubeH*1.2);
     g2.addColorStop(0,'transparent');
-    g2.addColorStop(0.25,'rgba(255,120,70,.025)');
-    g2.addColorStop(0.5,'rgba(255,107,53,.06)');
-    g2.addColorStop(0.75,'rgba(255,120,70,.025)');
+    g2.addColorStop(0.25,'rgba('+C.m+',.025)');
+    g2.addColorStop(0.5,'rgba('+C.m+',.06)');
+    g2.addColorStop(0.75,'rgba('+C.m+',.025)');
     g2.addColorStop(1,'transparent');
     ctx.fillStyle=g2;ctx.fillRect(0,0,W,H);
     // Layer 3: Narrow core
     const g3=ctx.createLinearGradient(0,beamCY-tubeH*0.35,0,beamCY+tubeH*0.35);
     g3.addColorStop(0,'transparent');
-    g3.addColorStop(0.3,'rgba(255,180,130,.04)');
-    g3.addColorStop(0.5,'rgba(255,220,180,.08)');
-    g3.addColorStop(0.7,'rgba(255,180,130,.04)');
+    g3.addColorStop(0.3,'rgba('+C.c+',.04)');
+    g3.addColorStop(0.5,'rgba('+C.c+',.08)');
+    g3.addColorStop(0.7,'rgba('+C.c+',.04)');
     g3.addColorStop(1,'transparent');
     ctx.fillStyle=g3;ctx.fillRect(0,0,W,H);
-    // Layer 4: Hot wire (1px line)
+    // Layer 4: Hot wire
     const g4=ctx.createLinearGradient(0,beamCY-2,0,beamCY+2);
     g4.addColorStop(0,'transparent');
-    g4.addColorStop(0.5,'rgba(255,240,210,.05)');
+    g4.addColorStop(0.5,'rgba('+C.h+',.05)');
     g4.addColorStop(1,'transparent');
     ctx.fillStyle=g4;ctx.fillRect(0,0,W,H);
-    // Flowing streaks (left to right)
+    // Flowing streaks left→right
     for(let i=0;i<5;i++){
-      const sx=((t*60+i*W/5)%W);
+      const sx=((t*60+i*W/5)%(W+160))-80;
       const sLen=80+Math.sin(t*0.8+i)*30;
       const sy=beamCY+Math.sin(t*1.2+i*1.3)*tubeH*0.3;
       const sg=ctx.createLinearGradient(sx,sy,sx-sLen,sy);
-      sg.addColorStop(0,'rgba(255,180,120,.1)');
-      sg.addColorStop(0.6,'rgba(255,107,53,.04)');
+      sg.addColorStop(0,'rgba('+C.p+',.1)');
+      sg.addColorStop(0.6,'rgba('+C.p+',.04)');
       sg.addColorStop(1,'transparent');
       ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-sLen,sy+Math.sin(t+i)*2);
       ctx.strokeStyle=sg;ctx.lineWidth=1+Math.sin(t*2+i)*0.5;ctx.lineCap='round';ctx.stroke();
     }
-    // Particles drifting along beam
+    // Particles
     particles.forEach(p=>{
       p.x+=p.vx;
       if(p.x>W+10)p.x=-10;
@@ -2200,15 +2197,15 @@ function startRevealLight(){
       const fl=p.a+Math.sin(t*2.5+p.phase)*0.06;
       if(fl>0){
         ctx.beginPath();ctx.arc(p.x,py,p.r,0,Math.PI*2);
-        ctx.fillStyle='rgba(255,190,140,'+fl.toFixed(3)+')';ctx.fill();
+        ctx.fillStyle='rgba('+C.p+','+fl.toFixed(3)+')';ctx.fill();
       }
     });
-    // Subtle edge lines
+    // Edge lines
     const ea=0.02+Math.sin(t*0.5)*0.008;
     ctx.beginPath();ctx.moveTo(0,beamCY-tubeH*0.5);ctx.lineTo(W,beamCY-tubeH*0.5);
-    ctx.strokeStyle='rgba(255,107,53,'+ea+')';ctx.lineWidth=0.5;ctx.stroke();
+    ctx.strokeStyle='rgba('+C.e+','+ea+')';ctx.lineWidth=0.5;ctx.stroke();
     ctx.beginPath();ctx.moveTo(0,beamCY+tubeH*0.5);ctx.lineTo(W,beamCY+tubeH*0.5);
-    ctx.strokeStyle='rgba(255,107,53,'+ea+')';ctx.lineWidth=0.5;ctx.stroke();
+    ctx.strokeStyle='rgba('+C.e+','+ea+')';ctx.lineWidth=0.5;ctx.stroke();
     _rvLightAnim=requestAnimationFrame(animate);
   }
   _rvLightAnim=requestAnimationFrame(animate);
@@ -2221,8 +2218,17 @@ function doReveal(data){
   const meColor=me.color||nickColor(me.name||'??'),themColor=them.color||nickColor(them.name||'??');
   const isDigital=data.type==='digital';
 
-  // 0. Start horizontal accelerometer light beam
-  startRevealLight();
+  // 0. Determine beam color based on relationship status
+  // white=first encounter, gold=known but >24h since last, green=re-encounter <24h, red=<1h no bonus
+  let beamColor='white';
+  if(data.lastEncounter){
+    const sinceMs=Date.now()-data.lastEncounter.timestamp;
+    const hrs=sinceMs/3600000;
+    if(hrs<1)beamColor='red';
+    else if(hrs<24)beamColor='green';
+    else beamColor='gold';
+  }
+  startRevealLight(beamColor);
 
   // 1. Avatars — always try photo first (profilePhoto, photoURL, state)
   const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;
@@ -3014,7 +3020,7 @@ function showMoreMenu(){
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
   overlay.innerHTML='<div class="more-menu-sheet"><div class="more-menu-handle"></div><div class="more-menu-grid">'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showRelations()"><div class="mm-ico">💬</div><div class="mm-lbl">Conexões</div></div>'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showBoardingPass()"><div class="mm-ico">🪪</div><div class="mm-lbl">Touch? Pass</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showBoardingPass()"><div class="mm-ico">🪪</div><div class="mm-lbl">ID</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()"><div class="mm-ico">💼</div><div class="mm-lbl">Prestador</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showManual()"><div class="mm-ico">❓</div><div class="mm-lbl">Tutorial</div></div>'
     +'</div></div>';
@@ -3425,7 +3431,7 @@ function showMyProfileSheet(){
     +(email?'<div style="font-size:.68rem;color:var(--t3);margin-top:.15rem">'+esc(email)+'</div>':'')
     +'<div style="font-size:.62rem;color:var(--ac2);margin-top:.2rem;font-style:italic">nickname — visível para todos</div></div></div>'
     +'<div style="display:flex;flex-direction:column;gap:.5rem">'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">🪪</span>Touch? Pass</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">🪪</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">✏️</span>'+cadastroLabel+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">📋</span>Histórico</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">❓</span>Tutorial</button>'
