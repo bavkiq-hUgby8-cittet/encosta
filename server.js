@@ -570,7 +570,7 @@ function updateStreak(userAId, userBId, today) {
 
 // ── STREAK UNLOCKABLES ──
 const STREAK_UNLOCKS = [
-  { days: 3, id: 'deep_question', label: 'Pergunta Profunda', description: 'Uma pergunta pra conhecer melhor' },
+  { days: 5, id: 'deep_question', label: 'Pergunta Profunda', description: '5 dias seguidos = uma pergunta pra conhecer melhor + ⭐' },
   { days: 7, id: 'time_capsule', label: 'Cápsula do Tempo', description: 'Escreva algo que só abre em 30 dias' },
   { days: 14, id: 'shared_playlist', label: 'Playlist Compartilhada', description: 'Uma playlist que cresce a cada dia' },
   { days: 30, id: 'memory_book', label: 'Livro de Memórias', description: 'Todas as frases dos 30 dias juntas' },
@@ -601,6 +601,9 @@ function checkStreakUnlocks(key, userAId, userBId) {
       // Special content for certain unlocks
       if (u.id === 'deep_question') {
         payload.question = DEEP_QUESTIONS[Math.floor(Math.random() * DEEP_QUESTIONS.length)];
+        // 5 days streak = star for both
+        awardStar(userAId, 'streak', userBId);
+        awardStar(userBId, 'streak', userAId);
       }
       if (u.id === 'memory_book') {
         // Collect all phrases from their encounters
@@ -886,19 +889,29 @@ app.post('/api/session/join', (req, res) => {
 app.get('/api/relations/:userId', (req, res) => {
   const userId = req.params.userId, now = Date.now();
   const active = Object.values(db.relations).filter(r => (r.userA === userId || r.userB === userId) && r.expiresAt > now);
-  res.json(active.map(r => {
+  const results = active.map(r => {
     const pid = r.userA === userId ? r.userB : r.userA, p = db.users[pid];
     const isRevealed = p?.revealedTo?.includes(userId);
     const me = db.users[userId];
     const iRevealed = me?.revealedTo?.includes(pid);
+    // Get last message time and unread count for this relation
+    const msgs = db.messages[r.id] || [];
+    const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+    const lastMessageTime = lastMsg ? lastMsg.timestamp : r.createdAt || 0;
     return { ...r, partnerName: p?.nickname || p?.name || '?', partnerColor: p?.color || '#ff6b35', timeLeft: r.expiresAt - now,
       partnerPhoto: isRevealed ? (p?.profilePhoto || p?.photoURL || null) : null,
       partnerRealName: isRevealed ? (p?.realName || null) : null,
       partnerNickname: p?.nickname || '?',
       iRevealedToPartner: !!iRevealed,
-      partnerRevealedToMe: !!isRevealed
+      partnerRevealedToMe: !!isRevealed,
+      lastMessageTime,
+      lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').slice(0, 40)) : null,
+      lastMessageUserId: lastMsg ? lastMsg.userId : null
     };
-  }));
+  });
+  // Sort by last message time descending (most recent first)
+  results.sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
+  res.json(results);
 });
 
 app.get('/api/messages/:relationId', (req, res) => { res.json(db.messages[req.params.relationId] || []); });
@@ -1684,12 +1697,15 @@ io.on('connection', (socket) => {
     io.to(`user:${partnerId}`).emit('pulse-received', { relationId, from: userId });
   });
 
-  // Ephemeral message — shown briefly then fades, NOT persisted
+  // Ephemeral message — persisted so recipient sees when opening chat
   socket.on('send-ephemeral', ({ relationId, userId, text }) => {
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const msg = { id: uuidv4(), userId, text, type: 'ephemeral', timestamp: Date.now() };
-    // Ephemeral messages are NOT saved to db — they vanish
+    // Save to messages so it appears when recipient opens chat
+    if (!db.messages[relationId]) db.messages[relationId] = [];
+    db.messages[relationId].push(msg);
+    saveDB();
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('ephemeral-received', { relationId, message: msg });
   });

@@ -395,6 +395,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .ri{flex:1;min-width:0}
 .rn{font-size:1.05rem;font-weight:600;letter-spacing:-.01em;color:var(--t1)}
 .rp{font-size:.8rem;color:var(--t2);margin-top:.25rem;font-style:italic;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rp-preview{font-size:.75rem;color:var(--t3);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-unread{width:10px;height:10px;border-radius:50%;background:var(--ac);flex-shrink:0;margin-bottom:.3rem;box-shadow:0 0 8px rgba(255,107,53,.5)}
 .rtm-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex-shrink:0}
 .rtm{font-size:.75rem;font-family:'Courier New',monospace;font-weight:700;flex-shrink:0;padding:.25rem .6rem;border-radius:10px;background:rgba(52,211,153,.08)}
 .rtm.ok{color:var(--ok);background:rgba(52,211,153,.08)}.rtm.med{color:var(--warn);background:rgba(251,191,36,.08)}.rtm.low{color:var(--err);background:rgba(248,113,113,.08);animation:urg-pulse 1.5s ease infinite}
@@ -2491,7 +2493,7 @@ async function openChat(rel){
   const mc=$('chatMessages'),ti=$('typingIndicator');mc.innerHTML='';mc.appendChild(ti);
   loadQuickPhrases();
   try{(await(await fetch('/api/messages/'+rel.relationId)).json()).forEach(m=>{
-    if(m.type==='ephemeral')appendEphemeral(m);
+    if(m.type==='ephemeral')appendEphemeral(m,true);
     else if(m.type==='photo')appendPhoto(m);
     else appendMessage(m);
   })}catch(e){}
@@ -2627,15 +2629,17 @@ function sendEphemeral(text){
   appendEphemeral(msg);haptic([40,20,40]);
   socket.emit('send-ephemeral',{relationId:state.currentRelation.relationId,userId:state.userId,text});
 }
-function appendEphemeral(msg){
+function appendEphemeral(msg,fromHistory){
   const mc=$('chatMessages'),ti=$('typingIndicator'),near=nearBot();
   const div=document.createElement('div');
   div.className='msg ephemeral'+(msg.userId===state.userId?' mine':'');
-  div.innerHTML=esc(msg.text);
+  div.innerHTML=esc(msg.text)+'<span class="eph-badge">efêmera</span>';
   mc.insertBefore(div,ti);
   if(near||msg.userId===state.userId)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
-  // Auto-fade after 8 seconds
-  setTimeout(()=>{div.style.transition='opacity .6s,transform .6s';div.style.opacity='0';div.style.transform='scale(.95)';setTimeout(()=>div.remove(),700)},8000);
+  // Only auto-fade on real-time receive, not from history
+  if(!fromHistory){
+    setTimeout(()=>{div.style.transition='opacity .6s,transform .6s';div.style.opacity='0';div.style.transform='scale(.95)';setTimeout(()=>div.remove(),700)},8000);
+  }
 }
 
 // ═══ PHOTO / FILE IN CHAT ═══
@@ -2722,17 +2726,17 @@ async function refreshRelations(){
   if(!state.userId)return;
   try{
     const rels=await(await fetch('/api/relations/'+state.userId)).json();
+    state._cachedRels=rels; // cache for showRelations
     const badge=$('relBadge'),count=$('relCount');
     if(rels.length>0){
       badge.classList.remove('hidden');
-      // Count unread messages across all relations
+      // Count unread from server data (fast, no extra fetches)
       let unread=0;
       for(const r of rels){
-        try{
-          const msgs=await(await fetch('/api/messages/'+r.id)).json();
+        if(r.lastMessageUserId&&r.lastMessageUserId!==state.userId){
           const lastRead=parseInt(localStorage.getItem('lastRead_'+r.id)||'0');
-          unread+=msgs.filter(m=>m.userId!==state.userId&&m.timestamp>lastRead).length;
-        }catch(e){}
+          if(r.lastMessageTime>lastRead)unread++;
+        }
       }
       count.textContent=unread>0?unread:rels.length;
       if(unread>0){badge.style.background='rgba(255,107,53,.15)';badge.style.borderColor='var(--ac)'}
@@ -2757,7 +2761,13 @@ async function showRelations(){
       const isRevealed=r.partnerRealName&&r.partnerRealName!==r.partnerName;
       const photoHtml=r.partnerPhoto?'<div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12)"><img src="'+r.partnerPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>':makeAvatar(r.partnerName,pColor,48);
       const nameHtml='<div class="rn">'+esc(displayName)+(isRevealed?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>'+(isRevealed?'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">@'+esc(r.partnerName)+'</div>':'');
-      card.innerHTML=photoHtml+'<div class="ri">'+nameHtml+'<div class="rp">"'+esc(r.phrase)+'"</div></div><div class="rtm-wrap"><div class="rtm '+tc+'">'+h+'h '+m+'m</div><div class="rtm-label">'+timeLabel+'</div></div>';
+      // Unread count for this relation
+      const lastRead=parseInt(localStorage.getItem('lastRead_'+r.id)||'0');
+      const unreadCount=(r.lastMessageTime&&r.lastMessageUserId&&r.lastMessageUserId!==state.userId&&r.lastMessageTime>lastRead)?1:0;
+      // Preview text
+      const previewHtml=r.lastMessagePreview?'<div class="rp-preview">'+esc(r.lastMessagePreview)+'</div>':'<div class="rp">"'+esc(r.phrase)+'"</div>';
+      const unreadBadge=unreadCount>0?'<div class="rc-unread"></div>':'';
+      card.innerHTML=photoHtml+'<div class="ri">'+nameHtml+previewHtml+'</div><div class="rtm-wrap">'+unreadBadge+'<div class="rtm '+tc+'">'+h+'h '+m+'m</div><div class="rtm-label">'+timeLabel+'</div></div>';
       const rpid=r.userA===state.userId?r.userB:r.userA;
       card.addEventListener('click',()=>openChat({relationId:r.id,phrase:r.phrase,expiresAt:r.expiresAt,partnerName:r.partnerName,partnerId:rpid,iRevealedToPartner:r.iRevealedToPartner,partnerRevealedToMe:r.partnerRevealedToMe,userA:{id:r.userA,nickname:r.userA===state.userId?state.userName:r.partnerName,realName:r.userA===state.userId?null:r.partnerRealName},userB:{id:r.userB,nickname:r.userB===state.userId?state.userName:r.partnerName,realName:r.userB===state.userId?null:r.partnerRealName}}));
       list.appendChild(card);
