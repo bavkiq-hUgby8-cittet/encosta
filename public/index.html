@@ -955,37 +955,43 @@ let homeSonicActive=false;
 function handleMainButton(){
   if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
   if(homeSonicActive){
-    // Stop sonic
     stopHomeSonic();
     return;
   }
+  if(!socket||!socket.connected){showToast('Sem conexão com servidor. Aguarde...');return}
   haptic([40]);
   homeSonicActive=true;
   sonicActive=true;sonicMyFreq=0;
   const btn=$('mainBtn'),txt=$('mainBtnText'),status=$('sonicHomeStatus'),fb=$('sonicFallback');
   const barsL=$('sonicBarsL'),barsR=$('sonicBarsR'),fire=$('fireOverlay');
   btn.classList.add('energized');
-  txt.textContent='BUSCANDO...';
-  status.textContent='Emitindo som ultrassônico...';
+  txt.textContent='ATIVANDO...';
+  status.textContent='Pedindo permissão do microfone...';
   status.classList.add('active');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
 
-  // Start sonic
-  socket.emit('sonic-start',{userId:state.userId});
-  socket.once('sonic-assigned',({freq})=>{
-    sonicMyFreq=freq;
-    startSonicEmit(freq);
-    startSonicListen();
-    txt.textContent='ENCOSTANDO...';
-    status.textContent='Aproxime os celulares...';
-    // Show fallback after 8 seconds
-    setTimeout(()=>{
-      if(homeSonicActive){
-        fb.classList.add('active');
-        status.textContent='Aproxime os celulares ou use código';
-      }
-    },8000);
+  // Request mic FIRST (triggers browser permission), then ask server for freq
+  startSonicListen().then(()=>{
+    txt.textContent='BUSCANDO...';
+    status.textContent='Emitindo som ultrassônico...';
+    socket.emit('sonic-start',{userId:state.userId});
+    socket.once('sonic-assigned',({freq})=>{
+      sonicMyFreq=freq;
+      startSonicEmit(freq);
+      txt.textContent='ENCOSTANDO...';
+      status.textContent='Aproxime os celulares...';
+      setTimeout(()=>{
+        if(homeSonicActive){
+          fb.classList.add('active');
+          status.textContent='Aproxime ou use código';
+        }
+      },8000);
+    });
+  }).catch(err=>{
+    console.error('Mic error:',err);
+    status.textContent='Microfone negado. Use código.';
+    fb.classList.add('active');
   });
 }
 
@@ -1032,21 +1038,28 @@ const SONIC_DETECT_THRESHOLD=140; // amplitude threshold (0-255)
 
 function startSonicMode(){
   if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
+  if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
   showPhase('phaseBump');
   const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
   circle.className='bump-circle';label.textContent='PREPARANDO...';
-  status.textContent='Ativando som e microfone...';
+  status.textContent='Pedindo microfone...';
   sonicActive=true;sonicMyFreq=0;
 
-  // Ask server for unique frequency
-  socket.emit('sonic-start',{userId:state.userId});
-  socket.once('sonic-assigned',({freq})=>{
-    sonicMyFreq=freq;
-    startSonicEmit(freq);
-    startSonicListen();
-    circle.classList.add('listening');
-    label.textContent='ENCOSTE';
-    status.textContent='Aproxime os celulares...';
+  // Request mic FIRST, then ask server for freq
+  startSonicListen().then(()=>{
+    status.textContent='Emitindo som...';
+    socket.emit('sonic-start',{userId:state.userId});
+    socket.once('sonic-assigned',({freq})=>{
+      sonicMyFreq=freq;
+      startSonicEmit(freq);
+      circle.classList.add('listening');
+      label.textContent='ENCOSTE';
+      status.textContent='Aproxime os celulares...';
+    });
+  }).catch(err=>{
+    console.error('Mic error:',err);
+    status.textContent='Microfone negado. Volte e use código.';
+    sonicActive=false;
   });
 }
 
@@ -1068,51 +1081,46 @@ function startSonicEmit(freq){
 }
 
 async function startSonicListen(){
-  try{
-    sonicStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
-    const micCtx=new(window.AudioContext||window.webkitAudioContext)();
-    const source=micCtx.createMediaStreamSource(sonicStream);
-    sonicAnalyser=micCtx.createAnalyser();
-    sonicAnalyser.fftSize=SONIC_FFT_SIZE;
-    source.connect(sonicAnalyser);
-    const bufLen=sonicAnalyser.frequencyBinCount;
-    const dataArr=new Uint8Array(bufLen);
-    const sampleRate=micCtx.sampleRate;
-    const freqPerBin=sampleRate/SONIC_FFT_SIZE;
+  sonicStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  const micCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const source=micCtx.createMediaStreamSource(sonicStream);
+  sonicAnalyser=micCtx.createAnalyser();
+  sonicAnalyser.fftSize=SONIC_FFT_SIZE;
+  source.connect(sonicAnalyser);
+  const bufLen=sonicAnalyser.frequencyBinCount;
+  const dataArr=new Uint8Array(bufLen);
+  const sampleRate=micCtx.sampleRate;
+  const freqPerBin=sampleRate/SONIC_FFT_SIZE;
 
-    function detect(){
-      if(!sonicActive)return;
-      sonicAnalyser.getByteFrequencyData(dataArr);
-      // Scan ultrasonic range: 18000-20000Hz
-      const minBin=Math.floor(18000/freqPerBin);
-      const maxBin=Math.ceil(20000/freqPerBin);
-      let peakVal=0,peakBin=0;
-      for(let i=minBin;i<=maxBin&&i<bufLen;i++){
-        if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}
-      }
-      if(peakVal>=SONIC_DETECT_THRESHOLD){
-        const detectedFreq=Math.round(peakBin*freqPerBin);
-        // Snap to nearest 100Hz slot
-        const snapped=Math.round(detectedFreq/100)*100;
-        // Ignore own frequency
-        if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
-          haptic([100,30,100]);
-          const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
-          circle.classList.remove('listening');circle.classList.add('bumped');
-          label.textContent='CONECTOU!';
-          status.textContent='Encontrou alguém!';
-          socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-          // Stop detecting after match
-          sonicActive=false;
-          return;
-        }
-      }
-      sonicAnimFrame=requestAnimationFrame(detect);
+  function detect(){
+    if(!sonicActive)return;
+    sonicAnalyser.getByteFrequencyData(dataArr);
+    // Scan ultrasonic range: 18000-20000Hz
+    const minBin=Math.floor(18000/freqPerBin);
+    const maxBin=Math.ceil(20000/freqPerBin);
+    let peakVal=0,peakBin=0;
+    for(let i=minBin;i<=maxBin&&i<bufLen;i++){
+      if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}
     }
-    detect();
-  }catch(e){
-    $('bumpStatus').textContent='Permita o microfone para conectar.';
+    if(peakVal>=SONIC_DETECT_THRESHOLD){
+      const detectedFreq=Math.round(peakBin*freqPerBin);
+      // Snap to nearest 100Hz slot
+      const snapped=Math.round(detectedFreq/100)*100;
+      // Ignore own frequency
+      if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
+        haptic([100,30,100]);
+        const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
+        if(circle){circle.classList.remove('listening');circle.classList.add('bumped')}
+        if(label)label.textContent='CONECTOU!';
+        if(status)status.textContent='Encontrou alguém!';
+        socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
+        sonicActive=false;
+        return;
+      }
+    }
+    sonicAnimFrame=requestAnimationFrame(detect);
   }
+  detect();
 }
 
 function stopSonicMode(){
