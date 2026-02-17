@@ -2989,9 +2989,11 @@ function initConstCanvas(){
     });
 
     // ── Draw nodes back-to-front ──
+    const MAX_NODE_R=28; // fixed max pixel size — zoom only spreads nodes apart
     projected.forEach(({n,sx,sy,scale,z3d})=>{
       const pulse=1+Math.sin(t*1.5+n.pulsePhase)*.06;
-      const r=n.baseRadius*scale*pulse;
+      const rawR=n.baseRadius*scale*pulse;
+      const r=Math.min(rawR,MAX_NODE_R);
       if(r<0.5)return; // too small to see
       const bothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const ringColor=bothVerified?'#00dc82':'#ff4466';
@@ -2999,11 +3001,12 @@ function initConstCanvas(){
       // Depth-based opacity: close nodes=bright, far nodes=dim
       const depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
 
-      // Outer glow
+      // Outer glow (capped)
+      const glowR=Math.min(r*3,50);
       ctx.save();ctx.globalAlpha=depthAlpha;
-      const glow=ctx.createRadialGradient(sx,sy,0,sx,sy,r*3);
+      const glow=ctx.createRadialGradient(sx,sy,0,sx,sy,glowR);
       glow.addColorStop(0,'rgba('+glowRGB+','+(0.06+n.intensity*.1).toFixed(2)+')');glow.addColorStop(1,'transparent');
-      ctx.beginPath();ctx.arc(sx,sy,r*3,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+      ctx.beginPath();ctx.arc(sx,sy,glowR,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
 
       // Node body: photo (center-cropped) or solid
       if(n._imgLoaded&&n._img&&r>4){
@@ -3016,27 +3019,27 @@ function initConstCanvas(){
       }
 
       // Ring: GREEN = verified, RED = anonymous
-      ctx.beginPath();ctx.arc(sx,sy,r+0.8*scale,0,Math.PI*2);
-      ctx.strokeStyle=ringColor;ctx.lineWidth=Math.max(0.3,0.8*scale);
-      ctx.shadowColor=ringColor;ctx.shadowBlur=Math.max(1,6*scale);ctx.stroke();ctx.shadowBlur=0;
+      ctx.beginPath();ctx.arc(sx,sy,r+1,0,Math.PI*2);
+      ctx.strokeStyle=ringColor;ctx.lineWidth=Math.max(0.3,Math.min(1,0.8*scale));
+      ctx.shadowColor=ringColor;ctx.shadowBlur=Math.max(1,Math.min(8,6*scale));ctx.stroke();ctx.shadowBlur=0;
 
       // Rotating scan arc for selected node
       if(constState.selectedNode&&constState.selectedNode.id===n.id){
         const sa=(t*2)%(Math.PI*2);
-        ctx.beginPath();ctx.arc(sx,sy,r+5*scale,sa,sa+Math.PI*.5);
-        ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=Math.max(0.5,1.5*scale);ctx.stroke();
+        ctx.beginPath();ctx.arc(sx,sy,r+5,sa,sa+Math.PI*.5);
+        ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
       }
 
       // Label (only if visible enough)
-      if(scale>.3){
+      if(r>3){
         const label=n.realName||n.nickname;
-        const fontSize=Math.max(6,8*scale);
+        const fontSize=Math.max(6,Math.min(11,8*scale));
         ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*(0.35+n.intensity*0.35)).toFixed(2)+')';
         ctx.font='500 '+fontSize+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-        ctx.fillText(label.length>12?label.slice(0,11)+'…':label,sx,sy+r+4*scale);
-        if(n.encounters>1&&scale>.5){
-          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.2).toFixed(2)+')';ctx.font=(Math.max(5,6*scale))+'px Inter,sans-serif';
-          ctx.fillText(n.encounters+'x',sx,sy+r+4*scale+fontSize+2);
+        ctx.fillText(label.length>12?label.slice(0,11)+'…':label,sx,sy+r+4);
+        if(n.encounters>1&&r>6){
+          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.2).toFixed(2)+')';ctx.font=(Math.max(5,Math.min(9,6*scale)))+'px Inter,sans-serif';
+          ctx.fillText(n.encounters+'x',sx,sy+r+4+fontSize+2);
         }
       }
       ctx.restore();
@@ -3044,8 +3047,8 @@ function initConstCanvas(){
     ctx.textBaseline='alphabetic';
 
     // ── Center node (me) — drawn LAST so it's always on top ──
-    const myScale=FOV/(FOV+0); // z=0 → scale=1
-    const myR=16*z*myScale;
+    const MAX_MY_R=32; // fixed max size for center node
+    const myR=Math.min(16*z,MAX_MY_R);
     // Outer scan ring
     const scanAngle=(t*0.5)%(Math.PI*2);
     ctx.save();ctx.beginPath();ctx.arc(mcx,mcy,myR*2.5,scanAngle,scanAngle+Math.PI*.6);
@@ -3059,14 +3062,14 @@ function initConstCanvas(){
       drawCroppedImage(constState._myImg,mcx,mcy,myR);
     }else{
       ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
-      ctx.fillStyle='#fff';ctx.font='bold '+(9*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#fff';ctx.font='bold '+Math.min(9*z,14)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),mcx,mcy);
     }
     // Orange ring
-    ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=2*z;ctx.stroke();
+    ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=Math.min(2*z,3);ctx.stroke();
     // Label
-    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font=(8*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.fillText('VOCÊ',mcx,mcy+myR+4*z);
+    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font=Math.min(8*z,12)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('VOCÊ',mcx,mcy+myR+4);
 
     // ── Floating legend pill ──
     const verified=constState.nodes.filter(n=>(n.partnerRevealedToMe&&n.iRevealedToPartner)||((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed)))).length;
