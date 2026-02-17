@@ -1450,10 +1450,29 @@ app.get('/api/service-types', (req, res) => res.json(SERVICE_TYPES));
 // MP public key (client needs it for Secure Fields)
 app.get('/api/mp/public-key', (req, res) => res.json({ publicKey: MP_PUBLIC_KEY }));
 
-// Register as prestador (beneficiary)
+// Register as prestador (beneficiary) — converts existing user OR creates new
 app.post('/api/prestador/register', (req, res) => {
-  const { nickname, serviceType, fullName, cpf, birthdate } = req.body;
-  if (!nickname || !serviceType || !fullName) return res.status(400).json({ error: 'Preencha todos os campos.' });
+  const { userId, nickname, serviceType, fullName, cpf, birthdate } = req.body;
+  if (!serviceType || !fullName) return res.status(400).json({ error: 'Preencha todos os campos.' });
+  const svcLabel = (SERVICE_TYPES.find(s => s.id === serviceType) || {}).label || serviceType;
+
+  // If userId provided, convert existing user to prestador
+  if (userId && db.users[userId]) {
+    const user = db.users[userId];
+    user.isPrestador = true;
+    user.serviceType = serviceType;
+    user.serviceLabel = svcLabel;
+    user.name = fullName || user.name;
+    if (cpf) user.cpf = cpf;
+    if (birthdate) user.birthdate = birthdate;
+    if (!user.mpConnected) { user.mpConnected = false; user.mpAccessToken = null; user.mpRefreshToken = null; user.mpUserId = null; }
+    if (!user.tipsReceived) { user.tipsReceived = 0; user.tipsTotal = 0; }
+    saveDB();
+    return res.json({ userId: user.id, user });
+  }
+
+  // Otherwise create new user
+  if (!nickname) return res.status(400).json({ error: 'Preencha o nickname.' });
   const nick = nickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname deve ter 2 a 20 caracteres.' });
   if (!/^[a-zA-Z0-9_.-]+$/.test(nick)) return res.status(400).json({ error: 'Só letras, números, _ . -' });
@@ -1464,17 +1483,9 @@ app.post('/api/prestador/register', (req, res) => {
   db.users[id] = {
     id, nickname: nick, name: fullName, birthdate: birthdate || null,
     avatar: null, color, createdAt: Date.now(), points: 0, pointLog: [], stars: [],
-    // Prestador fields
-    isPrestador: true,
-    serviceType,
-    serviceLabel: (SERVICE_TYPES.find(s => s.id === serviceType) || {}).label || serviceType,
-    cpf: cpf || null,
-    mpConnected: false,
-    mpAccessToken: null,
-    mpRefreshToken: null,
-    mpUserId: null,
-    tipsReceived: 0,
-    tipsTotal: 0
+    isPrestador: true, serviceType, serviceLabel: svcLabel,
+    cpf: cpf || null, mpConnected: false, mpAccessToken: null, mpRefreshToken: null, mpUserId: null,
+    tipsReceived: 0, tipsTotal: 0
   };
   saveDB();
   res.json({ userId: id, user: db.users[id] });

@@ -51,6 +51,15 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .bp:active{transform:scale(.97)}.bp:disabled{opacity:.35}
 .bs{padding:.65rem 1.4rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t2);font-size:.85rem;font-family:inherit;cursor:pointer}
 
+/* PULL TO REFRESH */
+.ptr-indicator{position:absolute;top:-50px;left:50%;transform:translateX(-50%);z-index:99;transition:top .3s ease;pointer-events:none}
+.ptr-indicator.pulling{top:12px}
+.ptr-indicator.refreshing{top:12px}
+.ptr-spinner{width:28px;height:28px;border:2.5px solid rgba(255,255,255,.1);border-top-color:var(--ac);border-radius:50%;opacity:.5;transition:opacity .2s}
+.ptr-indicator.pulling .ptr-spinner{opacity:1}
+.ptr-indicator.refreshing .ptr-spinner{opacity:1;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* HOME */
 #home{display:flex;flex-direction:column;align-items:center;height:100%;padding:0;position:relative;overflow:hidden}
 #home::before{content:'';position:absolute;top:38%;left:50%;width:500px;height:500px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.05) 0%,rgba(255,61,113,.02) 40%,transparent 70%);pointer-events:none;z-index:0}
@@ -609,6 +618,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-btn-tip{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.85rem 1.2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:14px;color:#fff;font-size:.82rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.04em;box-shadow:0 4px 16px rgba(34,197,94,.3);margin-top:.3rem}
 .rv-btn-tip:active{transform:scale(.97);opacity:.9}
 .rv-btn-tip .rv-ico{font-size:1rem}
+.rv-btn-skip{width:100%;padding:.6rem;background:transparent;border:none;color:var(--t3);font-size:.72rem;font-family:inherit;cursor:pointer;opacity:.5;letter-spacing:.06em;margin-top:.2rem;transition:.15s}
+.rv-btn-skip:active{opacity:.8}
 
 /* CONNECTING OVERLAY — after sonic match, before reveal */
 /* Connecting overlay — organic cosmos birth */
@@ -717,6 +728,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="home" class="screen">
+  <div class="ptr-indicator" id="ptrIndicator"><div class="ptr-spinner"></div></div>
   <div class="fire-overlay" id="fireOverlay">
     <div class="fire-glow"></div><div class="fire-glow2"></div>
     <div class="fire-particles"><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div></div>
@@ -846,6 +858,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <button type="button" class="rv-btn-enter" onclick="enterChat()">Abrir a conexão</button>
       <button type="button" class="rv-btn-photo" id="selfieCapBtn" onclick="revealCaptureSelfie()"><span class="rv-ico">✦</span> Guardar esse momento</button>
       <button type="button" class="rv-btn-tip hidden" id="revealTipBtn" onclick="openTipFromReveal()"><span class="rv-ico">💰</span> <span id="revealTipLabel">Dar gorjeta</span></button>
+      <button type="button" class="rv-btn-skip" onclick="goHome()">Pular</button>
     </div>
   </div>
 </div>
@@ -1015,8 +1028,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="preg-mp-status pending" id="pregMpStatus" style="display:none">
     <span id="pregMpText">Conecte sua conta MercadoPago para receber pagamentos</span>
   </div>
-  <button class="bp" id="pregSubmitBtn" onclick="registerPrestador()" style="margin-bottom:1rem">Criar conta de prestador</button>
-  <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" style="display:none;margin-bottom:1rem;width:100%">🔗 Conectar MercadoPago</button>
+  <button class="bp" id="pregSubmitBtn" onclick="registerPrestador()" style="margin-bottom:.8rem">Criar conta de prestador</button>
+  <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" style="display:none;margin-bottom:.8rem;width:100%">🔗 Conectar MercadoPago</button>
+  <button class="bs" onclick="goHome()" style="width:100%;margin-bottom:2rem;opacity:.6">← Voltar</button>
 </div>
 
 <div id="profile" class="screen">
@@ -3071,7 +3085,32 @@ let pregSelectedService = null;
 
 function showPrestadorRegister() {
   showScreen('prestadorReg');
+  // Pre-fill if user already exists
+  if (state.userId && state.userName) {
+    $('pregNick').value = state.userName;
+    $('pregNick').disabled = true; // Can't change nickname of existing user
+    // Fetch full user info to pre-fill name
+    fetch('/api/user/' + state.userId).then(r => r.json()).then(u => {
+      if (u.name) $('pregName').value = u.name;
+      if (u.birthdate) $('pregBirth').value = u.birthdate;
+      if (u.isPrestador) {
+        $('pregSubmitBtn').textContent = 'Atualizar serviço';
+        // Show already-prestador status
+        $('pregMpStatus').style.display = 'block';
+        $('pregMpText').textContent = u.mpConnected ? '✅ MercadoPago conectado' : 'Conecte MercadoPago para receber pagamentos';
+        if (!u.mpConnected) { $('pregMpBtn').style.display = 'block'; }
+      }
+    }).catch(() => {});
+  } else {
+    $('pregNick').value = '';
+    $('pregNick').disabled = false;
+    $('pregSubmitBtn').textContent = 'Criar conta de prestador';
+    $('pregMpStatus').style.display = 'none';
+    $('pregMpBtn').style.display = 'none';
+  }
+  // Load service types
   const grid = $('pregServices');
+  pregSelectedService = null;
   fetch('/api/service-types').then(r => r.json()).then(types => {
     grid.innerHTML = '';
     types.forEach(t => {
@@ -3105,18 +3144,24 @@ async function registerPrestador() {
   const cpf = $('pregCPF').value.trim();
   const birth = $('pregBirth').value;
   if (!name) return showToast('Preencha o nome.');
-  if (!nick || nick.length < 2) return showToast('Preencha o nickname.');
   if (!pregSelectedService) return showToast('Escolha o tipo de serviço.');
 
+  // If user already has account, convert to prestador (keep same userId)
+  const existingId = state.userId || null;
+  if (!existingId && (!nick || nick.length < 2)) return showToast('Preencha o nickname.');
+
   try {
+    const body = { serviceType: pregSelectedService, fullName: name, cpf, birthdate: birth || null };
+    if (existingId) body.userId = existingId;
+    if (nick) body.nickname = nick;
     const resp = await fetch('/api/prestador/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nickname: nick, serviceType: pregSelectedService, fullName: name, cpf, birthdate: birth || null })
+      body: JSON.stringify(body)
     });
     const data = await resp.json();
     if (data.error) return showToast(data.error);
-    // Save as current user
+    // Update local state (keep same userId if converting)
     state.userId = data.userId;
     state.userName = data.user.nickname;
     state.userColor = data.user.color;
@@ -3124,7 +3169,7 @@ async function registerPrestador() {
     localStorage.setItem('enc_userName', data.user.nickname);
     localStorage.setItem('enc_userColor', data.user.color);
     localStorage.setItem('enc_isPrestador', '1');
-    showToast('Conta criada!');
+    showToast(existingId ? 'Conta atualizada! Agora você é prestador.' : 'Conta criada!');
     // Show MP connect option
     $('pregSubmitBtn').style.display = 'none';
     $('pregMpBtn').style.display = 'block';
@@ -3137,6 +3182,38 @@ function connectMercadoPago() {
   if (!state.userId) return showToast('Crie a conta primeiro.');
   window.location.href = '/mp/auth/' + state.userId;
 }
+
+// ═══ PULL TO REFRESH (Home) ═══
+(function(){
+  const home=$('home');if(!home)return;
+  let ptrStartY=0,ptrActive=false,ptrTriggered=false;
+  const indicator=$('ptrIndicator');
+  const threshold=60;
+  home.addEventListener('touchstart',e=>{
+    if(!home.classList.contains('active'))return;
+    ptrStartY=e.touches[0].clientY;ptrActive=true;ptrTriggered=false;
+  },{passive:true});
+  home.addEventListener('touchmove',e=>{
+    if(!ptrActive)return;
+    const dy=e.touches[0].clientY-ptrStartY;
+    if(dy>20&&dy<150){
+      indicator.classList.add('pulling');
+      indicator.classList.remove('refreshing');
+    }
+    if(dy>threshold)ptrTriggered=true;
+  },{passive:true});
+  home.addEventListener('touchend',()=>{
+    if(ptrTriggered){
+      indicator.classList.remove('pulling');
+      indicator.classList.add('refreshing');
+      refreshHome();
+      setTimeout(()=>{indicator.classList.remove('refreshing')},1200);
+    }else{
+      indicator.classList.remove('pulling');
+    }
+    ptrActive=false;ptrTriggered=false;
+  },{passive:true});
+})();
 
 // ═══ EVENTS ═══
 $('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendMessage()}});
