@@ -2742,25 +2742,27 @@ async function showHistory(){
     const empty=$('constEmpty');
     if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];showScreen('history');requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
     empty.classList.add('hidden');
-    // Layout nodes in 3D space — z-depth based on time since last encounter
+    // Layout nodes in 3D space — wide spread + z-depth by time
     const now=Date.now();
+    const nodeCount=data.nodes.length;
+    // Fewer nodes → more spread so they don't cluster
+    const fewBonus=nodeCount<6?(6-nodeCount)*40:0;
     const nodes=data.nodes.map((n,i)=>{
-      const angle=(i/data.nodes.length)*Math.PI*2-Math.PI/2;
-      // Time-based depth: recent=close (z~20), expiring 24h=medium (z~120), old=far (z~250)
+      const angle=(i/nodeCount)*Math.PI*2-Math.PI/2;
       const lastMs=n.lastDate?now-new Date(n.lastDate).getTime():999999999;
       const hrs=lastMs/3600000;
       let zDepth;
-      if(hrs<1)zDepth=15+Math.random()*15;          // <1h → very close
-      else if(hrs<6)zDepth=35+Math.random()*30;      // <6h → close
-      else if(hrs<12)zDepth=70+Math.random()*30;     // <12h → medium-close
-      else if(hrs<24)zDepth=110+Math.random()*40;    // <24h → medium-far
-      else zDepth=160+Math.min(120,hrs*0.5)+Math.random()*40; // >24h → far, grows with time
-      // Spread on X/Y plane proportional to depth for organic feel
-      const spread=40+zDepth*0.5;
+      if(hrs<1)zDepth=60+Math.random()*40;           // <1h → close but not on top
+      else if(hrs<6)zDepth=120+Math.random()*60;      // <6h → medium
+      else if(hrs<12)zDepth=200+Math.random()*80;     // <12h → medium-far
+      else if(hrs<24)zDepth=320+Math.random()*100;    // <24h → far
+      else zDepth=450+Math.min(300,hrs*1.5)+Math.random()*80; // >24h → very far
+      // Wide XY spread — scales with depth + bonus for few nodes
+      const spread=160+fewBonus+zDepth*0.7+(Math.random()-.5)*60;
       const sizeByEnc=Math.min(22,6+Math.log2(1+(n.encounters||1))*5);
       return{...n,
-        x3d:Math.cos(angle)*spread+(Math.random()-.5)*30,
-        y3d:Math.sin(angle)*spread+(Math.random()-.5)*30,
+        x3d:Math.cos(angle)*spread+(Math.random()-.5)*50,
+        y3d:Math.sin(angle)*spread+(Math.random()-.5)*50,
         z3d:zDepth,
         color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByEnc,pulsePhase:Math.random()*Math.PI*2};
     });
@@ -2857,7 +2859,7 @@ function initConstCanvas(){
     if(e.touches.length===2){
       e.preventDefault();
       const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-      constState.cam.zoom=Math.max(.15,Math.min(20,pinchZoom*(d/pinchDist)));
+      constState.cam.zoom=Math.max(.08,Math.min(50,pinchZoom*(d/pinchDist)));
       if(touches2Start){
         const mx=(e.touches[0].clientX+e.touches[1].clientX)/2,my=(e.touches[0].clientY+e.touches[1].clientY)/2;
         constState.cam.x=touches2Start.cx+(mx-touches2Start.mx)/constState.cam.zoom;
@@ -2865,7 +2867,7 @@ function initConstCanvas(){
       }
     }
   };
-  canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.15,Math.min(20,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
+  canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.08,Math.min(50,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
 
   // ── Particles system ──
   const particles=Array.from({length:120},()=>({
@@ -2914,7 +2916,9 @@ function initConstCanvas(){
     const t=Date.now()/1000;
     // Lerp tilt
     tiltX+=(rawTX-tiltX)*0.08;tiltY+=(rawTY-tiltY)*0.08;
-    const tiltOffX=tiltX*30;const tiltOffY=tiltY*20;
+    // Tilt scales with zoom — more zoom = more parallax movement
+    const tiltMul=Math.min(3,1+Math.log2(Math.max(1,z))*0.6);
+    const tiltOffX=tiltX*40*tiltMul;const tiltOffY=tiltY*28*tiltMul;
 
     // ── Subtle hex grid ──
     ctx.save();ctx.globalAlpha=0.03;ctx.strokeStyle='#4488ff';ctx.lineWidth=.5;
