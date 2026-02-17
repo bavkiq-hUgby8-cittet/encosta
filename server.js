@@ -733,11 +733,30 @@ app.get('/api/today/:userId', (req, res) => {
   res.json({ count: unique.length, date: today });
 });
 
-// Constellation (total unique people encountered)
+// Constellation — visual network of encounters (no scores exposed)
 app.get('/api/constellation/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
-  const unique = [...new Set(list.map(e => e.with))];
-  res.json({ total: unique.length, points: list.length });
+  if (!list.length) return res.json({ nodes: [], total: 0 });
+  // Group by person
+  const byPerson = {};
+  list.forEach(e => {
+    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp };
+    byPerson[e.with].encounters++;
+    if (e.timestamp < byPerson[e.with].firstDate) byPerson[e.with].firstDate = e.timestamp;
+    if (e.timestamp > byPerson[e.with].lastDate) byPerson[e.with].lastDate = e.timestamp;
+  });
+  const nodes = Object.values(byPerson).map(p => ({
+    id: p.id,
+    nickname: p.nickname,
+    color: p.color,
+    // intensity: 0-1, based on encounters (1=first, grows logarithmically)
+    intensity: Math.min(1, 0.3 + Math.log2(p.encounters) * 0.25),
+    // internal data (not displayed, for future use)
+    _encounters: p.encounters,
+    _firstDate: p.firstDate,
+    _lastDate: p.lastDate
+  }));
+  res.json({ nodes, total: nodes.length });
 });
 
 // Score — calculated with decay
