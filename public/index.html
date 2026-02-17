@@ -373,7 +373,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .bp-dl:active{transform:scale(.96)}
 
 /* CONSTELLATION / REDE */
-#history{flex-direction:column;background:var(--bg);position:relative;overflow:hidden}
+#history{flex-direction:column;background:var(--bg);overflow:hidden}
 .const-header{display:flex;align-items:center;gap:.8rem;padding:.8rem 1.2rem;padding-top:max(env(safe-area-inset-top),.8rem);position:absolute;top:0;left:0;right:0;z-index:10}
 .const-header h2{font-size:.9rem;font-weight:500;color:var(--t2);letter-spacing:.05em}
 .const-copy{position:absolute;top:0;left:0;right:0;text-align:center;padding-top:calc(max(env(safe-area-inset-top),.8rem) + 3rem);z-index:5;pointer-events:none}
@@ -1889,7 +1889,7 @@ async function showHistory(){
   try{
     const data=await(await fetch('/api/constellation/'+state.userId)).json();
     const empty=$('constEmpty');
-    if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];showScreen('history');initConstCanvas();return}
+    if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];showScreen('history');requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
     empty.classList.add('hidden');
     // Layout nodes in organic circular pattern around center
     const nodes=data.nodes.map((n,i)=>{
@@ -1903,7 +1903,8 @@ async function showHistory(){
     constState.selectedNode=null;
     hideConstDetail();
     showScreen('history');
-    initConstCanvas();
+    // Wait for screen to become visible before measuring canvas
+    requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));
     // Show feedback if new nodes since last visit
     const prevCount=parseInt(localStorage.getItem('enc_const_count')||'0');
     if(data.total>prevCount&&prevCount>0){
@@ -1929,9 +1930,9 @@ function initConstCanvas(){
   const W=wrap.clientWidth,H=wrap.clientHeight;
 
   // Touch/pointer handlers
-  let pinchDist=0,pinchZoom=1;
+  let pinchDist=0,pinchZoom=1,pointerStart=null;
   canvas.onpointerdown=e=>{
-    constState.dragging=true;constState.lastTouch={x:e.clientX,y:e.clientY};
+    constState.dragging=true;constState.lastTouch={x:e.clientX,y:e.clientY};pointerStart={x:e.clientX,y:e.clientY};
   };
   canvas.onpointermove=e=>{
     if(!constState.dragging||!constState.lastTouch)return;
@@ -1941,14 +1942,14 @@ function initConstCanvas(){
     constState.lastTouch={x:e.clientX,y:e.clientY};
   };
   canvas.onpointerup=e=>{
-    if(constState.dragging&&constState.lastTouch){
-      // Check if it was a tap (not drag)
-      const tapThresh=8;
-      if(Math.abs(e.clientX-constState.lastTouch.x)<tapThresh&&Math.abs(e.clientY-constState.lastTouch.y)<tapThresh){
+    if(constState.dragging&&pointerStart){
+      // Check if it was a tap (not drag) using start position
+      const tapThresh=12;
+      if(Math.abs(e.clientX-pointerStart.x)<tapThresh&&Math.abs(e.clientY-pointerStart.y)<tapThresh){
         handleConstTap(e.clientX-canvas.getBoundingClientRect().left,e.clientY-canvas.getBoundingClientRect().top,W,H);
       }
     }
-    constState.dragging=false;constState.lastTouch=null;
+    constState.dragging=false;constState.lastTouch=null;pointerStart=null;
   };
   canvas.ontouchstart=e=>{
     if(e.touches.length===2){
