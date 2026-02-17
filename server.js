@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
 const { MercadoPagoConfig, Payment, OAuth } = require('mercadopago');
+const admin = require('firebase-admin');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,9 +14,160 @@ const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Database ──
-const DB_FILE = path.join(__dirname, 'db.json');
-let db = { users: {}, sessions: {}, relations: {}, messages: {}, encounters: {}, gifts: {}, declarations: {}, events: {}, checkins: {}, tips: {} };
+// ── Firebase Admin SDK ──
+const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
+if (FIREBASE_SA) {
+  admin.initializeApp({ credential: admin.credential.cert(JSON.parse(FIREBASE_SA)) });
+} else {
+  // Fallback: local service account file
+  const saPath = path.join(__dirname, 'firebase-sa.json');
+  if (fs.existsSync(saPath)) {
+    admin.initializeApp({ credential: admin.credential.cert(require(saPath)) });
+  } else {
+    console.warn('⚠️ Firebase não configurado. Rodando sem persistência.');
+    admin.initializeApp({ projectId: 'encosta-f32e7' });
+  }
+}
+const firestore = admin.firestore();
+const firebaseAuth = admin.auth();
+
+// ── Database (in-memory cache synced with Firestore) ──
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks'];
+let db = {};
+DB_COLLECTIONS.forEach(c => db[c] = {});
+let dbLoaded = false;
+let savePending = false;
+let saveTimer = null;
+
+async function loadDB() {
+  try {
+    // Try Firestore first
+    const doc = await firestore.collection('app').doc('state').get();
+    if (doc.exists) {
+      const data = doc.data();
+      DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
+      console.log('✅ DB carregado do Firestore');
+    } else {
+      // Fallback: try local db.json (migration)
+      const DB_FILE = path.join(__dirname, 'db.json');
+      if (fs.existsSync(DB_FILE)) {
+        const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
+        // Migrate to Firestore
+        await saveDBToFirestore();
+        console.log('✅ DB migrado de db.json para Firestore');
+      } else {
+        console.log('📦 DB novo criado');
+      }
+    }
+    dbLoaded = true;
+  } catch (e) {
+    console.error('Erro ao carregar DB:', e.message);
+    // Fallback local
+    const DB_FILE = path.join(__dirname, 'db.json');
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
+      }
+    } catch (e2) { /* start fresh */ }
+    dbLoaded = true;
+  }
+}
+
+async function saveDBToFirestore() {
+  try {
+    const payload = {};
+    DB_COLLECTIONS.forEach(c => { payload[c] = db[c] || {}; });
+    await firestore.collection('app').doc('state').set(payload, { merge: true });
+  } catch (e) {
+    console.error('Erro ao salvar no Firestore:', e.message);
+    // Fallback: save locally
+    try { fs.writeFileSync(path.join(__dirname, 'db.json'), JSON.stringify(db), 'utf8'); } catch (e2) {}
+  }
+}
+
+function saveDB() {
+  // Debounced save: batch writes within 2 seconds
+  savePending = true;
+  if (!saveTimer) {
+    saveTimer = setTimeout(async () => {
+      saveTimer = null;
+      if (savePending) {
+        savePending = false;
+        await saveDBToFirestore();
+      }
+    }, 2000);
+  }
+}
+
+// ── Firebase Auth middleware (optional, verifies token if present) ──
+async function verifyFirebaseToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      req.firebaseUser = await firebaseAuth.verifyIdToken(token);
+    } catch (e) { /* token invalid, continue without auth */ }
+  }
+  next();
+}
+app.use(verifyFirebaseToken);
+
+// ── Firebase client config endpoint ──
+app.get('/api/firebase-config', (req, res) => {
+  res.json({
+    apiKey: "AIzaSyBV6z2qmQn2xqEMBW2lCwZYCvYNyktVRRE",
+    authDomain: "encosta-f32e7.firebaseapp.com",
+    projectId: "encosta-f32e7",
+    storageBucket: "encosta-f32e7.firebasestorage.app",
+    messagingSenderId: "6126377584",
+    appId: "1:6126377584:web:131700cc3a9154477832b5"
+  });
+});
+
+// ── Link Firebase Auth UID to ENCOSTA user ──
+app.post('/api/auth/link', async (req, res) => {
+  const { firebaseUid, email, displayName, photoURL, encUserId } = req.body;
+  if (!firebaseUid) return res.status(400).json({ error: 'Firebase UID obrigatório.' });
+
+  // Check if firebase user already linked to an ENCOSTA user
+  let existingUser = Object.values(db.users).find(u => u.firebaseUid === firebaseUid);
+  if (existingUser) {
+    // Already linked — return existing
+    return res.json({ userId: existingUser.id, user: existingUser, linked: true });
+  }
+
+  // If encUserId provided, link Firebase to existing ENCOSTA user
+  if (encUserId && db.users[encUserId]) {
+    const user = db.users[encUserId];
+    user.firebaseUid = firebaseUid;
+    user.email = email || user.email;
+    if (displayName && !user.name) user.name = displayName;
+    if (photoURL) user.photoURL = photoURL;
+    saveDB();
+    return res.json({ userId: user.id, user, linked: true });
+  }
+
+  // Create new ENCOSTA user from Firebase auth
+  const id = uuidv4();
+  const nick = (displayName || email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 20) || 'user' + Math.floor(Math.random() * 9999);
+  // Ensure unique nickname
+  let finalNick = nick;
+  let suffix = 1;
+  while (Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === finalNick.toLowerCase())) {
+    finalNick = nick + suffix++;
+  }
+  const color = '#' + ((Math.abs([...finalNick].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 0xFFFFFF)).toString(16).padStart(6, '0');
+  db.users[id] = {
+    id, nickname: finalNick, name: displayName || finalNick, email: email || null,
+    firebaseUid, photoURL: photoURL || null,
+    birthdate: null, avatar: null, color, createdAt: Date.now(),
+    points: 0, pointLog: [], stars: []
+  };
+  saveDB();
+  res.json({ userId: id, user: db.users[id], linked: false });
+});
 
 // ── MercadoPago Config ──
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || 'TEST-8596079302689985-021710-c03384d8655dc5b59bfad639d6b86186-125835164';
@@ -24,7 +176,7 @@ const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '22bb7eff614007652059
 const MP_APP_ID = process.env.MP_APP_ID || '8596079302689985';
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
 const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://encosta.onrender.com/mp/callback';
-const ENCOSTA_FEE_PERCENT = parseFloat(process.env.ENCOSTA_FEE_PERCENT || '10'); // 10% default, parametrizable
+const ENCOSTA_FEE_PERCENT = parseFloat(process.env.ENCOSTA_FEE_PERCENT || '10');
 
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
 const mpPayment = new Payment(mpClient);
@@ -40,17 +192,6 @@ const SERVICE_TYPES = [
   { id: 'cabeleireiro', label: 'Cabeleireiro(a)' },
   { id: 'outro', label: 'Outro' }
 ];
-
-function loadDB() {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-      db = { users: {}, sessions: {}, relations: {}, messages: {}, encounters: {}, gifts: {}, declarations: {}, events: {}, checkins: {}, tips: {}, ...data };
-    }
-  } catch (e) { /* start fresh */ }
-}
-function saveDB() { fs.writeFileSync(DB_FILE, JSON.stringify(db), 'utf8'); }
-loadDB();
 
 // Cleanup expired relations + expired points every 60s
 setInterval(() => {
@@ -638,12 +779,27 @@ app.get('/api/check-nick/:nick', (req, res) => {
 });
 
 app.post('/api/register', (req, res) => {
-  const { nickname, birthdate, acceptedTerms } = req.body;
+  const { nickname, birthdate, acceptedTerms, userId } = req.body;
   if (!nickname || !birthdate || !acceptedTerms) return res.status(400).json({ error: 'Campos obrigatórios faltando.' });
   const nick = nickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname deve ter 2 a 20 caracteres.' });
   if (!/^[a-zA-Z0-9_.-]+$/.test(nick)) return res.status(400).json({ error: 'Só letras, números, _ . -' });
-  // Check uniqueness
+
+  // If userId provided, update existing user (from Firebase Auth link)
+  if (userId && db.users[userId]) {
+    const existing = db.users[userId];
+    // Check nick uniqueness (exclude self)
+    const taken = Object.values(db.users).some(u => u.id !== userId && u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
+    if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
+    existing.nickname = nick;
+    existing.name = existing.name || nick;
+    existing.birthdate = birthdate;
+    existing.color = existing.color || nickColor(nick);
+    saveDB();
+    return res.json({ userId, user: existing });
+  }
+
+  // Check uniqueness for new user
   const taken = Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
   if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
   const id = uuidv4();
@@ -1681,18 +1837,23 @@ app.post('/mp/webhook', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  const nets = require('os').networkInterfaces();
-  let localIP = 'localhost';
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) { localIP = net.address; break; }
+
+// Async startup: load DB from Firestore before accepting connections
+(async () => {
+  await loadDB();
+  server.listen(PORT, '0.0.0.0', () => {
+    const nets = require('os').networkInterfaces();
+    let localIP = 'localhost';
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) { localIP = net.address; break; }
+      }
     }
-  }
-  console.log(`\n  ╔══════════════════════════════════════╗`);
-  console.log(`  ║         ENCOSTA está rodando          ║`);
-  console.log(`  ╠══════════════════════════════════════╣`);
-  console.log(`  ║  Local:  http://localhost:${PORT}       ║`);
-  console.log(`  ║  Rede:   http://${localIP}:${PORT}  ║`);
-  console.log(`  ╚══════════════════════════════════════╝\n`);
-});
+    console.log(`\n  ╔══════════════════════════════════════╗`);
+    console.log(`  ║         ENCOSTA está rodando          ║`);
+    console.log(`  ╠══════════════════════════════════════╣`);
+    console.log(`  ║  Local:  http://localhost:${PORT}       ║`);
+    console.log(`  ║  Rede:   http://${localIP}:${PORT}  ║`);
+    console.log(`  ╚══════════════════════════════════════╝\n`);
+  });
+})();

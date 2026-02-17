@@ -51,6 +51,21 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .bp:active{transform:scale(.97)}.bp:disabled{opacity:.35}
 .bs{padding:.65rem 1.4rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t2);font-size:.85rem;font-family:inherit;cursor:pointer}
 
+/* LOGIN SCREEN */
+#login{padding:2rem 1.5rem;justify-content:center;align-items:center;gap:1.2rem}
+.login-logo{font-size:2.4rem;font-weight:800;letter-spacing:.3em;color:var(--ac);margin-bottom:.3rem}
+.login-sub{font-size:.8rem;color:var(--t2);margin-bottom:2rem;text-align:center}
+.login-form{width:100%;max-width:340px;display:flex;flex-direction:column;gap:1rem}
+.login-input{width:100%;padding:.85rem 1rem;background:var(--s1);border:1px solid var(--b1);border-radius:14px;color:var(--t1);font-size:.95rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+.login-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--gw)}
+.login-google{width:100%;max-width:340px;padding:.9rem;background:#fff;border:none;border-radius:14px;color:#333;font-size:.9rem;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;transition:transform .12s}
+.login-google:active{transform:scale(.97)}
+.login-google img{width:20px;height:20px}
+.login-divider{display:flex;align-items:center;gap:1rem;width:100%;max-width:340px;color:var(--t3);font-size:.75rem}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--b1)}
+.login-toggle{font-size:.82rem;color:var(--ac);cursor:pointer;text-align:center;margin-top:.5rem}
+.login-err{font-size:.78rem;color:var(--err);text-align:center;min-height:1.1rem}
+
 /* PULL TO REFRESH */
 .ptr-indicator{position:absolute;top:-50px;left:50%;transform:translateX(-50%);z-index:99;transition:top .3s ease;pointer-events:none}
 .ptr-indicator.pulling{top:12px}
@@ -715,6 +730,23 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="onb-dots" id="onbDots"></div>
 </div>
 
+<div id="login" class="screen">
+  <div class="login-logo">ENCOSTA</div>
+  <div class="login-sub">entre para começar a encostar</div>
+  <button class="login-google" onclick="loginWithGoogle()">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+    Entrar com Google
+  </button>
+  <div class="login-divider">ou</div>
+  <div class="login-form" id="loginForm">
+    <input type="email" class="login-input" id="loginEmail" placeholder="E-mail" autocomplete="email">
+    <input type="password" class="login-input" id="loginPass" placeholder="Senha" autocomplete="current-password">
+    <button class="bp" id="loginBtn" onclick="loginWithEmail()">ENTRAR</button>
+    <div class="login-err" id="loginErr"></div>
+    <div class="login-toggle" id="loginToggle" onclick="toggleLoginMode()">Não tem conta? <strong>Criar conta</strong></div>
+  </div>
+</div>
+
 <div id="register" class="screen">
   <div class="rh"><h1>ENCOSTA</h1><p>crie sua presença</p></div>
   <div class="avs">
@@ -1045,11 +1077,117 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="toast" class="toast hidden"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let socket=null,state={userId:localStorage.getItem('encosta_userId'),userName:localStorage.getItem('encosta_userName'),userColor:localStorage.getItem('encosta_userColor')||'',currentSession:null,currentRelation:null,timerInterval:null};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
+
+// ═══ FIREBASE AUTH ═══
+let firebaseApp=null, firebaseAuthInstance=null, fbUser=null, loginIsRegister=false;
+
+(async function initFirebase(){
+  try{
+    const r=await fetch('/api/firebase-config');
+    const cfg=await r.json();
+    firebaseApp=firebase.initializeApp(cfg);
+    firebaseAuthInstance=firebase.auth();
+    // Listen for auth state changes
+    firebaseAuthInstance.onAuthStateChanged(async(user)=>{
+      fbUser=user;
+      if(user&&!state.userId){
+        // User is signed in via Firebase but not linked to ENCOSTA yet
+        await linkFirebaseToEncosta(user);
+      }
+    });
+  }catch(e){console.warn('Firebase init falhou:',e.message)}
+})();
+
+async function linkFirebaseToEncosta(user){
+  try{
+    const token=await user.getIdToken();
+    const r=await fetch('/api/auth/link',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,encUserId:state.userId||null})
+    });
+    const d=await r.json();
+    if(d.userId){
+      state.userId=d.userId;
+      state.userName=d.user.nickname||d.user.name;
+      state.userColor=d.user.color||'';
+      localStorage.setItem('encosta_userId',d.userId);
+      localStorage.setItem('encosta_userName',state.userName);
+      localStorage.setItem('encosta_userColor',state.userColor);
+      // If user still needs to set nickname/birthdate, show register
+      if(!d.user.birthdate){
+        $('regNick').value=state.userName||'';
+        showScreen('register');
+        return;
+      }
+      initSocket();
+      showScreen('home');
+      $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
+      const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
+      refreshHome();
+    }
+  }catch(e){console.error('Link Firebase erro:',e)}
+}
+
+async function loginWithGoogle(){
+  try{
+    $('loginErr').textContent='';
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    await firebaseAuthInstance.signInWithPopup(provider);
+    // onAuthStateChanged will handle the rest
+  }catch(e){
+    if(e.code==='auth/popup-blocked'){
+      // Fallback to redirect
+      try{await firebaseAuthInstance.signInWithRedirect(new firebase.auth.GoogleAuthProvider())}catch(e2){$('loginErr').textContent='Erro ao abrir Google. Tente novamente.'}
+    }else if(e.code!=='auth/popup-closed-by-user'){
+      $('loginErr').textContent='Erro: '+(e.message||'tente novamente');
+    }
+  }
+}
+
+async function loginWithEmail(){
+  const email=$('loginEmail').value.trim();
+  const pass=$('loginPass').value;
+  $('loginErr').textContent='';
+  if(!email||!pass)return $('loginErr').textContent='Preencha e-mail e senha.';
+  try{
+    if(loginIsRegister){
+      if(pass.length<6)return $('loginErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
+      await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
+    }else{
+      await firebaseAuthInstance.signInWithEmailAndPassword(email,pass);
+    }
+    // onAuthStateChanged will handle the rest
+  }catch(e){
+    const msgs={'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/invalid-email':'E-mail inválido.','auth/user-not-found':'Usuário não encontrado.','auth/wrong-password':'Senha incorreta.','auth/invalid-credential':'E-mail ou senha incorretos.','auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).'};
+    $('loginErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+  }
+}
+
+function toggleLoginMode(){
+  loginIsRegister=!loginIsRegister;
+  $('loginBtn').textContent=loginIsRegister?'CRIAR CONTA':'ENTRAR';
+  $('loginToggle').innerHTML=loginIsRegister?'Já tem conta? <strong>Entrar</strong>':'Não tem conta? <strong>Criar conta</strong>';
+  $('loginErr').textContent='';
+}
+
+async function doLogout(){
+  try{
+    if(firebaseAuthInstance)await firebaseAuthInstance.signOut();
+    localStorage.removeItem('encosta_userId');localStorage.removeItem('encosta_userName');localStorage.removeItem('encosta_userColor');
+    state.userId=null;state.userName=null;state.userColor='';fbUser=null;
+    if(socket){socket.disconnect();socket=null}
+    showScreen('login');
+  }catch(e){showToast('Erro ao sair.')}
+}
 
 // ═══ ONBOARDING ═══
 let onbSlide = 0;
@@ -1076,7 +1214,7 @@ function updateOnbDots() {
 }
 function skipOnboarding() {
   localStorage.setItem('encosta_onboarded', '1');
-  showScreen('register');
+  showScreen('login');
 }
 function showManual(){
   // Re-show onboarding as manual
@@ -1250,10 +1388,25 @@ async function doRegister(){
   if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');if(!terms)return showToast('Aceite os termos.');
   if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return showToast('Nickname: só letras, números, _ . -');
   try{
-    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:nick,birthdate:birth,acceptedTerms:true})});
+    // If user already has ID (came from Firebase link), use update; else register new
+    const endpoint=state.userId?'/api/register':'/api/register';
+    const body={nickname:nick,birthdate:birth,acceptedTerms:true};
+    if(state.userId)body.userId=state.userId;
+    const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    if(d.userId){state.userId=d.userId;state.userName=nick;state.userColor=d.user.color;localStorage.setItem('encosta_userId',d.userId);localStorage.setItem('encosta_userName',nick);localStorage.setItem('encosta_userColor',d.user.color||'');initSocket();showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';haptic([80])}
+    if(d.userId){
+      state.userId=d.userId;state.userName=nick;state.userColor=d.user.color;
+      localStorage.setItem('encosta_userId',d.userId);localStorage.setItem('encosta_userName',nick);localStorage.setItem('encosta_userColor',d.user.color||'');
+      // Link with Firebase if signed in
+      if(fbUser&&firebaseAuthInstance){
+        try{await linkFirebaseToEncosta(fbUser)}catch(e){}
+      }
+      initSocket();showScreen('home');
+      $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
+      const _ha=$('homeAvatar');if(_ha){_ha.textContent=nick.slice(0,2).toUpperCase();_ha.style.background=d.user.color||nickColor(nick)}
+      haptic([80]);
+    }
   }catch(e){showToast('Erro ao registrar.')}
 }
 
@@ -1263,7 +1416,7 @@ function startEncounter(){haptic([40]);showScreen('encounter');showPhase('phaseC
 // ═══ MAIN BUTTON — sonic first, code fallback ═══
 let homeSonicActive=false;
 async function handleMainButton(){
-  if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
+  if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   if(homeSonicActive){stopHomeSonic();return}
   if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
   haptic([40]);
@@ -1369,21 +1522,21 @@ function stopHomeSonic(){
   const si=$('sonicInstruct');if(si)si.classList.remove('active');
 }
 async function createSession(){
-  if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
+  if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   try{
     const r=await fetch('/api/session/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
     const d=await r.json();
-    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada. Registre novamente.');localStorage.clear();showScreen('register');return}return showToast(d.error)}
+    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada. Faça login novamente.');localStorage.clear();showScreen('login');return}return showToast(d.error)}
     state.currentSession=d.sessionId;$('sessionCode').textContent=d.code;showPhase('phaseCode');generateQR(d.code);socket.emit('join-session',d.sessionId);
   }catch(e){showToast('Erro ao criar sessão.')}
 }
 async function joinSession(){
   const code=$('joinCodeInput').value.trim().toUpperCase();if(!code)return showToast('Digite o código.');
-  if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
+  if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   try{
     const r=await fetch('/api/session/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,code})});
     const d=await r.json();
-    if(d.error){if(d.error.includes('inválido')){showToast('Registre novamente.');localStorage.clear();showScreen('register');return}return showToast(d.error)}
+    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada.');localStorage.clear();showScreen('login');return}return showToast(d.error)}
     if(d.relationId){state.currentRelation=d;haptic([100,50,100,50,100]);playSound('connect');showScreen('reveal');doReveal(d)}
   }catch(e){showToast('Código inválido ou expirado.')}
 }
@@ -1404,7 +1557,7 @@ async function requestMic(){
 }
 
 function startSonicMode(){
-  if(!state.userId){showToast('Registre-se primeiro.');showScreen('register');return}
+  if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
   showPhase('phaseBump');
   const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
@@ -2169,6 +2322,11 @@ function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x
 
 // ═══ PROFILE ═══
 let profileReturnTo='chat';
+function showProfile(){
+  if(!state.userId)return;
+  profileReturnTo='home';
+  loadProfile(state.userId);
+}
 async function showPartnerProfile(){
   if(!state.currentRelation)return;
   const pid=state.currentPartnerId;
@@ -2231,6 +2389,13 @@ function renderProfile(d,userId){
     });
   }else html+='<div class="pf-empty">Nenhum presente ainda.</div>';
   html+='</div>';
+  // Logout button (only on own profile)
+  if(userId===state.userId){
+    html+='<div style="margin-top:2rem;text-align:center;padding-bottom:2rem">';
+    if(fbUser)html+='<div style="font-size:.72rem;color:var(--t3);margin-bottom:.6rem">'+esc(fbUser.email||fbUser.displayName||'')+'</div>';
+    html+='<button class="bs" onclick="doLogout()" style="color:var(--err);border-color:var(--err)">Sair da conta</button>';
+    html+='</div>';
+  }
   s.innerHTML=html;
 }
 function closeProfile(){
@@ -3274,12 +3439,12 @@ window.addEventListener('load',()=>{
       else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
       refreshHome();
     }else{
-      // Show onboarding for first-time users, register for returning
+      // Show onboarding for first-time users, login for returning
       if(!localStorage.getItem('encosta_onboarded')){
         initOnboarding();
         showScreen('onboarding');
       }else{
-        showScreen('register');
+        showScreen('login');
       }
     }
   },1800);
