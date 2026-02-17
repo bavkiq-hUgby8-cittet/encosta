@@ -284,10 +284,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-thread-line{height:1px;width:100%;background:linear-gradient(90deg,var(--ac),rgba(255,107,53,.15) 30%,rgba(255,61,113,.15) 70%,var(--ac));filter:blur(.5px)}
 .rv-thread.active{animation:thread-grow 2s cubic-bezier(.22,1,.36,1) 4.2s forwards}
 @keyframes thread-grow{0%{width:0;opacity:0}40%{opacity:.8}100%{width:200px;opacity:.4}}
-/* Main content wrapper */
-.rv-wrap{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;gap:1rem;width:100%}
+/* Main content wrapper — flex column, full height */
+.rv-wrap{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;width:100%;height:100%;justify-content:center}
+/* Central content zone — phrase + zodiac */
+.rv-center{display:flex;flex-direction:column;align-items:center;gap:.8rem;flex:1;justify-content:center;padding:0 1rem}
 /* Avatars row — phase 2 at ~4s */
-.rv-avatars{display:flex;align-items:center;justify-content:center;gap:2.5rem;position:relative;opacity:0;animation:fi 1.2s ease 4s forwards}
+.rv-avatars{display:flex;align-items:center;justify-content:center;gap:2.5rem;position:relative;opacity:0;animation:fi 1.2s ease 4s forwards;margin-bottom:.6rem}
 .rv-avatar-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:.5rem}
 .rv-avatar-glow{position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.3),transparent 70%);opacity:0;animation:avatar-glow-in 1.5s ease 5s forwards;filter:blur(6px)}
 @keyframes avatar-glow-in{to{opacity:1}}
@@ -297,11 +299,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-connection-dot{width:6px;height:6px;border-radius:50%;background:var(--ac);box-shadow:0 0 12px var(--ac);animation:dot-pulse 2s ease infinite 5s}
 @keyframes dot-pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
 /* "algo nasceu" moment text — PHASE 1: first thing visible at 0.5s */
-.rv-moment{font-size:.68rem;color:var(--ac2);letter-spacing:.15em;text-transform:uppercase;opacity:0;animation:moment-in 1.5s ease .5s forwards;font-weight:500}
-@keyframes moment-in{0%{opacity:0;letter-spacing:.3em}100%{opacity:.7;letter-spacing:.15em}}
-/* Phrase — PHASE 1: appears at 1.2s, solo with light */
-.rv-phrase{max-width:300px;min-height:60px;display:flex;flex-wrap:wrap;justify-content:center;gap:.25rem;line-height:2}
-.rv-word{display:inline-block;font-size:1.5rem;font-weight:300;color:var(--t1);opacity:0;transform:translateY(12px) scale(.95);animation:wi .7s cubic-bezier(.22,1,.36,1) forwards}
+.rv-moment{font-size:.72rem;color:var(--ac2);letter-spacing:.18em;text-transform:uppercase;opacity:0;animation:moment-in 1.5s ease .5s forwards;font-weight:500}
+@keyframes moment-in{0%{opacity:0;letter-spacing:.35em}100%{opacity:.8;letter-spacing:.18em}}
+/* Phrase — PHASE 1: THE STAR, appears at 1.2s, big and luminous */
+.rv-phrase{max-width:320px;min-height:60px;display:flex;flex-wrap:wrap;justify-content:center;gap:.3rem;line-height:2.2}
+.rv-word{display:inline-block;font-size:1.7rem;font-weight:300;color:#fff;opacity:0;transform:translateY(14px) scale(.94);animation:wi .8s cubic-bezier(.22,1,.36,1) forwards;text-shadow:0 0 30px rgba(255,107,53,.3),0 0 60px rgba(255,61,113,.15)}
 @keyframes wi{to{opacity:1;transform:none}}
 /* Thin line — phase 2 */
 .rv-line{width:30px;height:1px;background:linear-gradient(90deg,transparent,var(--ac),transparent);opacity:0;animation:fi 1s ease 6s forwards}
@@ -726,7 +728,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 /* ZODIAC */
 /* Zodiac area — poetic, constellation-style */
-.zodiac-area{margin-top:.6rem;opacity:0;animation:fi 1.2s ease 6s forwards;display:flex;flex-direction:column;align-items:center;gap:.8rem}
+.zodiac-area{margin-top:.8rem;opacity:0;animation:fi 1.5s ease 5s forwards;display:flex;flex-direction:column;align-items:center;gap:.8rem}
 .zodiac-elements{font-size:.68rem;color:var(--t3);letter-spacing:.2em;text-transform:lowercase;font-weight:300}
 .zodiac-elements em{color:var(--ac2);font-style:normal;font-weight:500;letter-spacing:.1em}
 /* Constellation glyphs — large, elegant, thin */
@@ -744,17 +746,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .zodiac-phrase{font-size:.85rem;color:var(--t2);font-style:italic;line-height:1.7;max-width:260px;text-align:center;font-weight:300;letter-spacing:.01em}
 
 /* REVEAL SELFIE v2 — side by side */
-.rv-actions{display:flex;flex-direction:column;gap:.5rem;align-items:center;justify-content:center;opacity:0;animation:fi .8s ease 7.5s forwards;width:100%;max-width:280px}
-.rv-btn-enter{width:100%;padding:.9rem 2rem;background:linear-gradient(135deg,var(--ac),var(--pk));border:none;border-radius:16px;color:#fff;font-size:.88rem;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:.06em;box-shadow:0 4px 20px rgba(255,107,53,.25);transition:all .15s}
+/* Floating bottom actions */
+.rv-actions{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:.4rem;align-items:center;padding:1rem 1.5rem calc(env(safe-area-inset-bottom,.5rem) + .8rem);opacity:0;animation:fi .8s ease 7s forwards;z-index:5;background:linear-gradient(0deg,rgba(2,2,5,.95) 0%,rgba(2,2,5,.6) 60%,transparent 100%)}
+.rv-btn-enter{width:100%;max-width:280px;padding:.85rem 2rem;background:linear-gradient(135deg,var(--ac),var(--pk));border:none;border-radius:16px;color:#fff;font-size:.86rem;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:.06em;box-shadow:0 4px 20px rgba(255,107,53,.25);transition:all .15s}
 .rv-btn-enter:active{transform:scale(.97)}
-.rv-btn-photo{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.75rem 1.2rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:var(--t2);font-size:.78rem;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.03em}
-.rv-btn-photo:active{background:rgba(255,255,255,.08);transform:scale(.97)}
-.rv-btn-photo .rv-ico{font-size:1rem;display:flex;align-items:center}
-.rv-btn-tip{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.85rem 1.2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:14px;color:#fff;font-size:.82rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.04em;box-shadow:0 4px 16px rgba(34,197,94,.3);margin-top:.3rem}
+.rv-btn-photo{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;max-width:280px;padding:.65rem 1rem;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:14px;color:var(--t2);font-size:.72rem;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.03em}
+.rv-btn-photo:active{background:rgba(255,255,255,.06);transform:scale(.97)}
+.rv-btn-photo .rv-ico{font-size:.9rem;display:flex;align-items:center}
+.rv-btn-tip{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;max-width:280px;padding:.7rem 1rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:14px;color:#fff;font-size:.78rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.04em;box-shadow:0 4px 16px rgba(34,197,94,.3)}
 .rv-btn-tip:active{transform:scale(.97);opacity:.9}
 .rv-btn-tip .rv-ico{font-size:1rem}
-.rv-btn-skip{width:100%;padding:.7rem;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:14px;color:var(--t2);font-size:.75rem;font-family:inherit;cursor:pointer;letter-spacing:.06em;margin-top:.2rem;transition:.15s}
-.rv-btn-skip:active{background:rgba(255,255,255,.04);transform:scale(.97)}
+.rv-btn-skip{width:100%;max-width:280px;padding:.55rem;background:transparent;border:none;color:var(--t2);font-size:.7rem;font-family:inherit;cursor:pointer;letter-spacing:.06em;transition:.15s}
+.rv-btn-skip:active{opacity:.6}
 
 /* CONNECTING OVERLAY — after sonic match, before reveal */
 /* Connecting overlay — organic cosmos birth */
@@ -1019,29 +1022,34 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <!-- Thread connecting avatars -->
   <div class="rv-thread" id="revealThread"><div class="rv-thread-line"></div></div>
   <div class="rv-wrap">
-    <!-- Avatars with glow -->
-    <div class="rv-avatars" id="revealAvatars">
-      <div class="rv-avatar-wrap" id="rvAvatarMe">
-        <div class="rv-avatar-glow"></div>
-        <div id="rvAvatarMeInner"></div>
-        <div class="rv-avatar-name" id="rvNameMe"></div>
+    <div class="rv-center">
+      <!-- Phase 1: Phrase is THE star -->
+      <div class="rv-moment" id="revealMoment">algo nasceu entre vocês</div>
+      <div class="rv-phrase" id="revealPhrase"></div>
+      <div class="rv-line"></div>
+      <div class="rv-sub">essa é a marca desse encontro</div>
+      <!-- Phase 2: Avatars -->
+      <div class="rv-avatars" id="revealAvatars">
+        <div class="rv-avatar-wrap" id="rvAvatarMe">
+          <div class="rv-avatar-glow"></div>
+          <div id="rvAvatarMeInner"></div>
+          <div class="rv-avatar-name" id="rvNameMe"></div>
+        </div>
+        <div class="rv-connection-symbol">
+          <div class="rv-connection-dot"></div>
+        </div>
+        <div class="rv-avatar-wrap" id="rvAvatarThem">
+          <div class="rv-avatar-glow"></div>
+          <div id="rvAvatarThemInner"></div>
+          <div class="rv-avatar-name" id="rvNameThem"></div>
+        </div>
       </div>
-      <div class="rv-connection-symbol">
-        <div class="rv-connection-dot"></div>
-      </div>
-      <div class="rv-avatar-wrap" id="rvAvatarThem">
-        <div class="rv-avatar-glow"></div>
-        <div id="rvAvatarThemInner"></div>
-        <div class="rv-avatar-name" id="rvNameThem"></div>
-      </div>
+      <div class="rv-renewed hidden" id="revealRenewed">vocês se encontraram de novo</div>
+      <div class="rv-last hidden" id="revealLast"></div>
+      <!-- Phase 2: Zodiac — prominent -->
+      <div id="zodiacArea" class="zodiac-area hidden"></div>
     </div>
-    <div class="rv-renewed hidden" id="revealRenewed">vocês se encontraram de novo</div>
-    <div class="rv-last hidden" id="revealLast"></div>
-    <div class="rv-moment" id="revealMoment">algo nasceu entre vocês</div>
-    <div class="rv-phrase" id="revealPhrase"></div>
-    <div class="rv-line"></div>
-    <div class="rv-sub">essa é a marca desse encontro</div>
-    <div id="zodiacArea" class="zodiac-area hidden"></div>
+    <!-- Floating bottom buttons -->
     <video id="selfieVideo" autoplay playsinline style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid var(--ac);display:none;margin:0 auto"></video>
     <canvas id="selfieCanvas" style="display:none"></canvas>
     <div id="selfiePreview" style="display:none;margin:0 auto"></div>
@@ -1455,8 +1463,8 @@ function initSocket(){
   socket.on('relation-created',d=>{
     if(homeSonicActive)stopHomeSonic();
     if(sonicActive)stopSonicMode();
-    state.currentRelation=d;haptic([100,50,100,50,100]);playSound('connect');
-    // Show epic connecting animation, then reveal
+    state.currentRelation=d;playSound('connect');
+    // Show epic connecting animation with continuous vibration, then reveal
     const co=$('connectingOverlay');
     if(co){
       const isRenewed=!!d.renewed;
@@ -1464,8 +1472,11 @@ function initSocket(){
       co.classList.add(isRenewed?'renewed':'first');
       co.classList.add('active');
       startElectricTouch(isRenewed);
+      // Continuous vibration during the electric touch animation (building intensity)
+      haptic([80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
       setTimeout(()=>{
         stopElectricTouch();
+        if(navigator.vibrate)navigator.vibrate(0); // stop vibration
         co.classList.remove('active','first','renewed');
         showScreen('reveal');doReveal(d);
       },4200);
@@ -1801,13 +1812,14 @@ async function joinSession(){
     const d=await r.json();
     if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada.');localStorage.clear();showScreen('login');return}return showToast(d.error)}
     if(d.relationId){
-      state.currentRelation=d;haptic([100,50,100,50,100]);playSound('connect');
+      state.currentRelation=d;playSound('connect');
       const co=$('connectingOverlay');
       if(co){
         co.classList.remove('first','renewed');
         co.classList.add(d.renewed?'renewed':'first','active');
         startElectricTouch(!!d.renewed);
-        setTimeout(()=>{stopElectricTouch();co.classList.remove('active','first','renewed');showScreen('reveal');doReveal(d)},4200);
+        haptic([80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
+        setTimeout(()=>{stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);co.classList.remove('active','first','renewed');showScreen('reveal');doReveal(d)},4200);
       }else{showScreen('reveal');doReveal(d)}
     }
   }catch(e){showToast('Código inválido ou expirado.')}
@@ -2104,17 +2116,18 @@ function stopRevealLight(){
   if(_rvLightHandler){window.removeEventListener('deviceorientation',_rvLightHandler);_rvLightHandler=null}
 }
 function startRevealLight(lightType){
-  // lightType: 'sun' or 'bolt'
+  // lightType: 'sun', 'moon', or 'bolt'
   stopRevealLight();
   const cv=$('rvLightBeam');if(!cv)return;
   const W=cv.width=cv.offsetWidth||window.innerWidth;
   const H=cv.height=cv.offsetHeight||window.innerHeight;
   const ctx=cv.getContext('2d');
-  let tiltX=0,tiltY=0; // normalized -1 to 1
+  let tiltX=0,tiltY=0; // normalized -1 to 1, smoothed
+  let rawTX=0,rawTY=0;
   _rvLightHandler=function(e){
-    // beta: front-back tilt (-180 to 180), gamma: left-right tilt (-90 to 90)
-    tiltX=Math.max(-1,Math.min(1,(e.gamma||0)/45));
-    tiltY=Math.max(-1,Math.min(1,((e.beta||0)-45)/45));
+    // Higher sensitivity: /20 instead of /45
+    rawTX=Math.max(-1,Math.min(1,(e.gamma||0)/20));
+    rawTY=Math.max(-1,Math.min(1,((e.beta||0)-45)/20));
   };
   // Request permission on iOS
   if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
@@ -2127,74 +2140,141 @@ function startRevealLight(lightType){
   const t0=performance.now();
   function animate(){
     const t=(performance.now()-t0)/1000;
+    // Smooth tilt with lerp for fluid feel
+    tiltX+=(rawTX-tiltX)*0.12;
+    tiltY+=(rawTY-tiltY)*0.12;
     ctx.clearRect(0,0,W,H);
-    // Light position based on tilt (wobble toy effect)
-    const cx=W/2+tiltX*W*0.35;
-    const cy=H*0.35+tiltY*H*0.25;
+    // Light position — more reactive range
+    const cx=W/2+tiltX*W*0.45;
+    const cy=H*0.32+tiltY*H*0.35;
     if(lightType==='sun'){
-      // Warm sun rays — radial glow with light rays
-      const breathe=1+Math.sin(t*1.5)*0.15;
-      const radius=140*breathe;
-      // Outer glow
-      const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*2);
-      g1.addColorStop(0,'rgba(255,200,80,.12)');
-      g1.addColorStop(.3,'rgba(255,160,40,.06)');
-      g1.addColorStop(.7,'rgba(255,120,20,.02)');
+      // ☀ Warm sun — golden radial glow with rotating rays
+      const breathe=1+Math.sin(t*1.5)*0.18;
+      const radius=160*breathe;
+      // Outer haze
+      const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*2.5);
+      g1.addColorStop(0,'rgba(255,200,80,.14)');
+      g1.addColorStop(.2,'rgba(255,170,50,.08)');
+      g1.addColorStop(.5,'rgba(255,120,20,.03)');
       g1.addColorStop(1,'transparent');
       ctx.fillStyle=g1;ctx.fillRect(0,0,W,H);
-      // Inner bright core
-      const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*.5);
-      g2.addColorStop(0,'rgba(255,240,200,.2)');
-      g2.addColorStop(.5,'rgba(255,200,100,.08)');
+      // Core glow
+      const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*.4);
+      g2.addColorStop(0,'rgba(255,250,220,.25)');
+      g2.addColorStop(.5,'rgba(255,210,110,.1)');
       g2.addColorStop(1,'transparent');
       ctx.fillStyle=g2;ctx.fillRect(0,0,W,H);
-      // Sun rays (8 rotating rays)
-      const rayCount=8;
+      // Rotating rays
+      const rayCount=12;
       for(let i=0;i<rayCount;i++){
-        const angle=(i/rayCount)*Math.PI*2+t*0.2;
-        const len=radius*(1.2+Math.sin(t*2+i)*0.3);
+        const angle=(i/rayCount)*Math.PI*2+t*0.15;
+        const len=radius*(1.3+Math.sin(t*2+i*0.7)*0.35);
         const x1=cx+Math.cos(angle)*len;
         const y1=cy+Math.sin(angle)*len;
+        const grad=ctx.createLinearGradient(cx,cy,x1,y1);
+        grad.addColorStop(0,'rgba(255,210,80,'+(0.06+Math.sin(t*3+i)*0.03)+')');
+        grad.addColorStop(1,'transparent');
         ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x1,y1);
-        ctx.strokeStyle='rgba(255,200,80,'+(0.04+Math.sin(t*3+i)*0.02)+')';
-        ctx.lineWidth=3+Math.sin(t*2+i)*2;ctx.lineCap='round';ctx.stroke();
+        ctx.strokeStyle=grad;
+        ctx.lineWidth=4+Math.sin(t*2+i)*2;ctx.lineCap='round';ctx.stroke();
       }
-      // Soft corona ring
-      ctx.beginPath();ctx.arc(cx,cy,radius*.6,0,Math.PI*2);
-      ctx.strokeStyle='rgba(255,220,120,.05)';ctx.lineWidth=8;ctx.stroke();
-    }else{
-      // Lightning bolt — jagged light beam
-      const breathe=1+Math.sin(t*2.5)*0.1;
-      // Electric glow at origin
-      const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,100*breathe);
-      g1.addColorStop(0,'rgba(180,200,255,.15)');
-      g1.addColorStop(.4,'rgba(120,160,255,.06)');
+      // Corona
+      ctx.beginPath();ctx.arc(cx,cy,radius*.5,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,230,140,.06)';ctx.lineWidth=12;ctx.stroke();
+    }else if(lightType==='moon'){
+      // 🌙 Moon — cool silver/blue glow, crescent shape, gentle
+      const breathe=1+Math.sin(t*0.8)*0.1;
+      const radius=130*breathe;
+      // Outer silver haze
+      const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*2.5);
+      g1.addColorStop(0,'rgba(200,210,240,.12)');
+      g1.addColorStop(.3,'rgba(160,180,220,.06)');
+      g1.addColorStop(.6,'rgba(120,140,200,.02)');
       g1.addColorStop(1,'transparent');
       ctx.fillStyle=g1;ctx.fillRect(0,0,W,H);
-      // Draw 2-3 lightning bolts from origin downward
-      const boltCount=2+Math.floor(Math.sin(t)*1);
+      // Moon disc — bright circle
+      const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,radius*.35);
+      g2.addColorStop(0,'rgba(230,235,255,.2)');
+      g2.addColorStop(.6,'rgba(200,210,240,.08)');
+      g2.addColorStop(1,'transparent');
+      ctx.fillStyle=g2;ctx.fillRect(0,0,W,H);
+      // Crescent shadow (darker circle offset to left to create crescent)
+      const shX=cx-radius*0.15;
+      const g3=ctx.createRadialGradient(shX,cy,0,shX,cy,radius*.3);
+      g3.addColorStop(0,'rgba(2,2,5,.2)');
+      g3.addColorStop(1,'transparent');
+      ctx.fillStyle=g3;ctx.fillRect(0,0,W,H);
+      // Moonbeams — subtle silver streaks
+      const beamCount=6;
+      for(let i=0;i<beamCount;i++){
+        const angle=(i/beamCount)*Math.PI*2+t*0.08+Math.PI/6;
+        const len=radius*(1.5+Math.sin(t*1.2+i)*0.4);
+        const x1=cx+Math.cos(angle)*len;
+        const y1=cy+Math.sin(angle)*len;
+        const grad=ctx.createLinearGradient(cx,cy,x1,y1);
+        grad.addColorStop(0,'rgba(200,215,255,'+(0.03+Math.sin(t*1.5+i)*0.015)+')');
+        grad.addColorStop(1,'transparent');
+        ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x1,y1);
+        ctx.strokeStyle=grad;ctx.lineWidth=2+Math.sin(t+i)*1.5;ctx.lineCap='round';ctx.stroke();
+      }
+      // Soft halo
+      ctx.beginPath();ctx.arc(cx,cy,radius*.55,0,Math.PI*2);
+      ctx.strokeStyle='rgba(180,200,240,.04)';ctx.lineWidth=15;ctx.stroke();
+      // Tiny moonlight sparkles
+      for(let i=0;i<4;i++){
+        const sx=cx+(Math.sin(t*0.7+i*1.5))*radius*0.8;
+        const sy=cy+(Math.cos(t*0.5+i*2.1))*radius*0.6;
+        const sparkA=0.03+Math.sin(t*3+i)*0.02;
+        if(sparkA>0){
+          ctx.beginPath();ctx.arc(sx,sy,1.5,0,Math.PI*2);
+          ctx.fillStyle='rgba(220,230,255,'+sparkA+')';ctx.fill();
+        }
+      }
+    }else{
+      // ⚡ Lightning bolt — electric jagged beams
+      const breathe=1+Math.sin(t*2.5)*0.12;
+      // Electric glow at origin
+      const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,120*breathe);
+      g1.addColorStop(0,'rgba(180,200,255,.18)');
+      g1.addColorStop(.3,'rgba(140,170,255,.08)');
+      g1.addColorStop(.7,'rgba(100,130,255,.03)');
+      g1.addColorStop(1,'transparent');
+      ctx.fillStyle=g1;ctx.fillRect(0,0,W,H);
+      // Multiple lightning bolts from origin
+      const boltCount=2+Math.floor(Math.sin(t*1.5)+1);
       for(let b=0;b<boltCount;b++){
-        const endX=cx+(Math.sin(t*1.3+b*2)-0.5)*W*0.4;
-        const endY=cy+H*0.4+Math.sin(t+b)*40;
-        const segs=6+Math.floor(Math.random()*3);
+        const angle=Math.PI*0.3+b*Math.PI*0.4+Math.sin(t*0.8)*0.3;
+        const endX=cx+Math.cos(angle)*H*0.4;
+        const endY=cy+Math.sin(angle)*H*0.4;
+        const segs=7+Math.floor(Math.random()*4);
         ctx.beginPath();ctx.moveTo(cx,cy);
+        let px=cx,py=cy;
         for(let s=1;s<=segs;s++){
           const prog=s/segs;
-          const mx=cx+(endX-cx)*prog+(Math.random()-0.5)*50*(1-Math.abs(prog-0.5)*2);
-          const my=cy+(endY-cy)*prog+(Math.random()-0.5)*30;
+          const mx=cx+(endX-cx)*prog+(Math.random()-0.5)*60*(1-Math.abs(prog-0.5)*2);
+          const my=cy+(endY-cy)*prog+(Math.random()-0.5)*40;
           ctx.lineTo(mx,my);
+          // Branch at some points
+          if(Math.random()>0.7&&s<segs-1){
+            ctx.moveTo(mx,my);
+            const ba2=angle+(Math.random()-0.5)*1;
+            const bl2=30+Math.random()*50;
+            ctx.lineTo(mx+Math.cos(ba2)*bl2,my+Math.sin(ba2)*bl2);
+            ctx.moveTo(mx,my);
+          }
+          px=mx;py=my;
         }
-        const ba=0.04+Math.random()*0.04;
+        const ba=0.06+Math.random()*0.05;
         ctx.strokeStyle='rgba(160,190,255,'+ba+')';
-        ctx.lineWidth=2+Math.random()*2;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
+        ctx.lineWidth=2.5+Math.random()*2;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
         // White core
-        ctx.strokeStyle='rgba(220,230,255,'+(ba*0.6)+')';
+        ctx.strokeStyle='rgba(230,240,255,'+(ba*0.5)+')';
         ctx.lineWidth=0.8;ctx.stroke();
       }
-      // Flicker effect — brief bright flash
-      if(Math.random()>0.97){
-        const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,200);
-        fg.addColorStop(0,'rgba(200,220,255,.15)');
+      // Flicker flash
+      if(Math.random()>0.95){
+        const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,250);
+        fg.addColorStop(0,'rgba(200,220,255,.18)');
         fg.addColorStop(1,'transparent');
         ctx.fillStyle=fg;ctx.fillRect(0,0,W,H);
       }
@@ -2211,8 +2291,9 @@ function doReveal(data){
   const meColor=me.color||nickColor(me.name||'??'),themColor=them.color||nickColor(them.name||'??');
   const isDigital=data.type==='digital';
 
-  // 0. Start accelerometer light beam — random type per user
-  const lightType=Math.random()>0.5?'sun':'bolt';
+  // 0. Start accelerometer light beam — random from 3 types per user
+  const lightTypes=['sun','moon','bolt'];
+  const lightType=lightTypes[Math.floor(Math.random()*3)];
   startRevealLight(lightType);
 
   // 1. Generate star field in cosmos
