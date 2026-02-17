@@ -1064,7 +1064,15 @@ function initSocket(){
 function updateConn(s){const d=$('connDot');if(d)d.className='cd'+(s!=='online'?' '+s:'')}
 
 // ═══ NAV ═══
-function showScreen(id){document.querySelectorAll('.screen').forEach(s=>{if(s.id!==id)s.classList.remove('active')});requestAnimationFrame(()=>$(id).classList.add('active'));if(state.timerInterval&&id!=='chat'){clearInterval(state.timerInterval);state.timerInterval=null}}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{if(s.id!==id)s.classList.remove('active')});
+  requestAnimationFrame(()=>$(id).classList.add('active'));
+  if(state.timerInterval&&id!=='chat'){clearInterval(state.timerInterval);state.timerInterval=null}
+  // Close selfie camera when leaving reveal
+  if(id!=='reveal')releaseSelfieCamera();
+  // Stop constellation animation when leaving
+  if(id!=='history'&&constState.animFrame){cancelAnimationFrame(constState.animFrame);constState.animFrame=null}
+}
 function showPhase(id){document.querySelectorAll('.ep').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function goHome(){showScreen('home');refreshHome()}
 
@@ -1462,9 +1470,9 @@ function doReveal(data){
       '<div class="zodiac-phrase">'+esc(data.zodiacPhrase)+'</div>';
   } else { zodiacArea.classList.add('hidden'); zodiacArea.innerHTML=''; }
 
-  // 11. Reset selfie UI
+  // 11. Reset selfie UI — release camera if open from previous reveal
+  releaseSelfieCamera();
   $('selfiePreview').style.display='none';$('selfiePreview').innerHTML='';
-  $('selfieVideo').style.display='none';
   const capBtn=$('selfieCapBtn');
   if(capBtn){capBtn.innerHTML='<span class="rv-ico">✦</span> Guardar esse momento';capBtn.disabled=false}
   $('revealActions').style.opacity='';
@@ -2247,6 +2255,17 @@ function updateSendBtn(){$('sendBtn').classList.toggle('active',$('chatInput').v
 
 // ═══ SELFIE AT CONNECTION (v2 — inline, no separate step) ═══
 let selfieStream=null;
+function releaseSelfieCamera(){
+  if(selfieStream){selfieStream.getTracks().forEach(t=>t.stop());selfieStream=null}
+  const v=$('selfieVideo');if(v){v.srcObject=null;v.style.display='none'}
+}
+function releaseAllMedia(){
+  // Stop sonic (mic + speaker)
+  if(homeSonicActive)stopHomeSonic();
+  if(sonicActive)stopSonicMode();
+  // Stop selfie camera
+  releaseSelfieCamera();
+}
 function revealCaptureSelfie(){
   const btn=$('selfieCapBtn');
   // If camera already active, capture
@@ -2764,15 +2783,20 @@ document.addEventListener('click',e=>{const pm=$('plusMenu');if(pm&&pm.classList
 $('joinCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')joinSession()});
 if(window.visualViewport){let ph=window.visualViewport.height;window.visualViewport.addEventListener('resize',()=>{if($('chat').classList.contains('active')&&window.visualViewport.height<ph)requestAnimationFrame(()=>{$('chatMessages').scrollTop=99999});ph=window.visualViewport.height})}
 
-// ═══ SCREENSHOT PROTECTION IN CHAT ═══
-// Blur chat when user switches away (screenshot attempt on mobile)
+// ═══ RESOURCE CLEANUP + SCREENSHOT PROTECTION ═══
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&$('chat').classList.contains('active')){
-    $('chatMessages').style.filter='blur(20px)';
+  if(document.hidden){
+    // Release mic, speaker, camera when app goes to background
+    releaseAllMedia();
+    // Blur chat for screenshot protection
+    if($('chat').classList.contains('active'))$('chatMessages').style.filter='blur(20px)';
   }else{
     $('chatMessages').style.filter='';
   }
 });
+// Also cleanup on page close/navigate away
+window.addEventListener('beforeunload',()=>releaseAllMedia());
+window.addEventListener('pagehide',()=>releaseAllMedia());
 // Block keyboard screenshot shortcuts (partial - won't work on all platforms)
 document.addEventListener('keyup',e=>{
   if(e.key==='PrintScreen'&&$('chat').classList.contains('active')){
