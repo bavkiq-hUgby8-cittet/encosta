@@ -1541,7 +1541,7 @@ app.get('/api/prestador/:userId/status', (req, res) => {
 
 // Create a tip payment
 app.post('/api/tip/create', async (req, res) => {
-  const { payerId, receiverId, amount, token, paymentMethodId, issuer, installments } = req.body;
+  const { payerId, receiverId, amount, token, paymentMethodId, issuer, installments, payerEmail, payerCPF } = req.body;
   if (!payerId || !receiverId || !amount || !token) return res.status(400).json({ error: 'Dados incompletos.' });
   const payer = db.users[payerId];
   const receiver = db.users[receiverId];
@@ -1552,14 +1552,20 @@ app.post('/api/tip/create', async (req, res) => {
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   const encostaFee = Math.round(tipAmount * ENCOSTA_FEE_PERCENT) / 100; // 10%
 
+  const email = payerEmail || payer.email || 'test@testuser.com';
+  const cpf = payerCPF || payer.cpf || '12345678909';
+
   try {
     const paymentData = {
       transaction_amount: tipAmount,
       token,
-      description: 'Gorjeta ENCOSTA — ' + (receiver.serviceLabel || receiver.name),
+      description: 'Gorjeta ENCOSTA — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
       installments: installments || 1,
       payment_method_id: paymentMethodId || 'visa',
-      payer: { email: payer.email || payer.nickname + '@encosta.app' },
+      payer: {
+        email: email,
+        identification: { type: 'CPF', number: cpf }
+      },
       statement_descriptor: 'ENCOSTA GORJETA',
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
     };

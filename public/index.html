@@ -547,8 +547,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .tip-card-row{display:flex;gap:.5rem}
 .tip-field{flex:1;padding:.7rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;min-height:42px}
 .tip-field iframe{border:none!important;height:24px!important}
-.tip-save-card{display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--t3);margin-top:.4rem}
-.tip-save-card input{accent-color:var(--ac)}
+.tip-input{width:100%;padding:.7rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:14px;font-family:inherit;outline:none;margin-top:.4rem}
+.tip-input::placeholder{color:#555568}
 .tip-pay-btn{width:100%;padding:1rem;background:linear-gradient(135deg,var(--ac),var(--pk));border:none;border-radius:16px;color:#fff;font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.04em;box-shadow:0 4px 15px rgba(255,107,53,.3);transition:.15s}
 .tip-pay-btn:active{transform:scale(.97)}
 .tip-pay-btn:disabled{opacity:.4}
@@ -989,8 +989,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <div class="tip-field" id="mpCVV"></div>
       </div>
       <div class="tip-field" id="mpCardHolder"></div>
+      <input type="email" id="tipPayerEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email">
+      <input type="text" id="tipPayerCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off">
     </div>
-    <label class="tip-save-card"><input type="checkbox" id="tipSaveCard" checked> Salvar cartão para próximas gorjetas</label>
   </div>
   <button class="tip-pay-btn" id="tipPayBtn" onclick="processTip()" disabled>Confirmar gorjeta</button>
   <div class="tip-result hidden" id="tipResult">
@@ -3022,6 +3023,8 @@ async function processTip() {
     if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão.');
 
     // Send to server
+    const payerEmail = ($('tipPayerEmail') ? $('tipPayerEmail').value.trim() : '') || 'test@testuser.com';
+    const payerCPF = ($('tipPayerCPF') ? $('tipPayerCPF').value.replace(/\D/g,'') : '') || '12345678909';
     const resp = await fetch('/api/tip/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3031,7 +3034,9 @@ async function processTip() {
         amount: tipState.amount,
         token: tokenResult.id,
         paymentMethodId: tokenResult.payment_method_id || 'visa',
-        installments: 1
+        installments: 1,
+        payerEmail,
+        payerCPF
       })
     });
     const result = await resp.json();
