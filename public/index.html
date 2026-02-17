@@ -534,6 +534,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .id-float-btn.request{background:linear-gradient(135deg,#7c3aed,#a371f7);color:#fff}
 .id-float-btn.reveal{background:linear-gradient(135deg,var(--ac),var(--pk));color:#fff}
 .id-float-btn:active{transform:scale(.93)}
+.reveal-req-popup{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);width:calc(100% - 2rem);max-width:380px;background:linear-gradient(135deg,var(--s2),var(--s1));border:1px solid rgba(255,107,53,.25);border-radius:20px;padding:1.2rem;z-index:9999;box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 20px rgba(255,107,53,.15);animation:slideUp .35s cubic-bezier(.22,1,.36,1)}
+.reveal-req-content{display:flex;align-items:center;gap:.8rem;margin-bottom:1rem}
+.reveal-req-actions{display:flex;gap:.5rem}
 .id-revealed-card{background:var(--s1);border:1px solid var(--ac);border-radius:14px;padding:.8rem;display:flex;align-items:center;gap:.8rem;margin:.5rem 0}
 .id-revealed-card img{width:44px;height:44px;border-radius:50%;object-fit:cover}
 .id-revealed-card .id-name{font-size:.9rem;font-weight:600;color:var(--t1)}
@@ -1140,8 +1143,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <img class="const-detail-selfie hidden" id="constDetailSelfie" alt="selfie">
     <div class="const-detail-text" id="constDetailText">Vocês estiveram juntos.</div>
     <div class="const-detail-id-actions hidden" id="constIdActions" onclick="event.stopPropagation()">
-      <button class="id-float-btn request" id="constRequestIdBtn" onclick="requestRevealFromConstellation(window._constDetailNodeId)">🔓 Pedir ID real</button>
-      <button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(window._constDetailNodeId)">🪪 Revelar meu ID</button>
+      <button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(window._constDetailNodeId)">🪪 Trocar IDs</button>
     </div>
     <button class="const-detail-tip-btn hidden" id="constTipBtn" onclick="event.stopPropagation();constTipAction()">💰 Dar gorjeta</button>
   </div>
@@ -1535,49 +1537,38 @@ function initSocket(){
   socket.on('gift-address-declined',({giftName})=>{showToast('Presente recusado: '+giftName);haptic([30])});
   socket.on('identity-request',({relationId,fromName})=>{
     haptic([60,30,60]);playSound('receive');
-    if(state.currentRelation?.relationId===relationId){
-      appendSystemMsg(esc(fromName)+' quer ver sua identidade real. Use "Revelar meu ID" para mostrar.');
-    }else{
-      showToast(fromName+' quer ver quem você é de verdade!');
-    }
+    showToast(fromName+' quer ver quem você é de verdade!');
   });
+  // New: someone wants to reveal IDs (bilateral exchange request)
+  socket.on('identity-reveal-request',({fromUserId,fromName,fromPhoto,relationId})=>{
+    haptic([100,50,100]);playSound('receive');
+    showRevealRequestPopup(fromUserId,fromName,fromPhoto,relationId);
+  });
+  // Reveal was declined
+  socket.on('identity-reveal-declined',({byUserId,byName})=>{
+    haptic([30]);showToast((byName||'A pessoa')+' preferiu não revelar agora.');
+  });
+  // Bilateral reveal completed — both identities exchanged
   socket.on('identity-revealed',({fromUserId,realName,profilePhoto,instagram,bio})=>{
     haptic([80,40,80]);playSound('connect');
-    // Store revealed state — preserve _iRevealed if already set
+    // Store revealed state — BOTH directions are now revealed
     if(!state.revealedIds)state.revealedIds={};
-    const prev=state.revealedIds[fromUserId]||{};
-    state.revealedIds[fromUserId]={realName,profilePhoto,_iRevealed:prev._iRevealed||false};
+    state.revealedIds[fromUserId]={realName,profilePhoto,_iRevealed:true};
+    // Global UI sync — hide all ID buttons for this person everywhere
+    syncRevealUI(fromUserId,realName,profilePhoto);
     // Refresh relations so photos show on home/relations screens
     refreshRelations();
-    // Update chat if open with this person
+    // Show ID card in chat if open
     if(state.currentPartnerId===fromUserId&&state.currentRelation){
-      const chatName=$('chatPartner');
-      const pNick=state.currentRelation.partnerName||'';
-      if(chatName&&realName){
-        chatName.textContent=realName;
-        const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ ID revelado</span> · @'+esc(pNick);
-      }
-      // Check both directions — hide entire bar if both revealed
-      const iRevealed=!!(state.revealedIds[fromUserId]._iRevealed);
-      const idBar=$('chatIdBar');
-      const reqBtn=$('requestIdBtn');if(reqBtn)reqBtn.style.display='none';
-      if(idBar){
-        if(iRevealed){idBar.style.display='none'}
-        else{idBar.style.display='flex';const revBtn=$('revealIdBtn');if(revBtn)revBtn.style.display=''}
-      }
-      appendSystemMsg((realName||'Alguém')+' revelou sua identidade real para você! 🪪');
-      // Show ID card in chat
+      appendSystemMsg('Identidades reveladas! Agora vocês se conhecem de verdade 🪪');
       const box=$('chatMessages');
       if(box){
-        const card=document.createElement('div');
-        card.className='id-revealed-card';
+        const card=document.createElement('div');card.className='id-revealed-card';
         card.innerHTML=(profilePhoto?'<img src="'+profilePhoto+'" alt="">':'')+'<div><div class="id-name">'+(realName||'?')+'</div>'+(bio?'<div class="id-bio">'+esc(bio)+'</div>':'')+(instagram?'<div class="id-bio">'+esc(instagram)+'</div>':'')+'</div>';
         box.appendChild(card);box.scrollTop=box.scrollHeight;
       }
-      // Update chat header avatar with revealed photo
-      if(profilePhoto){const chatAv=$('chatPartnerAvatar');if(chatAv)chatAv.innerHTML='<img src="'+profilePhoto+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">'}
     }else{
-      showToast((realName||'Alguém')+' revelou quem é de verdade! 🪪');
+      showToast((realName||'Alguém')+' revelou quem é — abra o chat para ver! 🪪');
     }
   });
   socket.on('encosta-request',data=>showEncostaRequest(data));
@@ -1685,8 +1676,11 @@ function checkNick(val){
   },400);
 }
 function nickColor(nick){let h=0;for(let i=0;i<nick.length;i++)h=nick.charCodeAt(i)+((h<<5)-h);return'hsl('+Math.abs(h)%360+',65%,55%)'}
-function makeAvatar(nick,color,size){
+function makeAvatar(nick,color,size,photo){
   size=size||44;
+  if(photo&&photo.length>10){
+    return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+  }
   const initials=(nick||'??').slice(0,2).toUpperCase();
   return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:'+(size*.36)+'px;font-weight:800;color:#fff;letter-spacing:.03em;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+esc(initials)+'</div>';
 }
@@ -2475,18 +2469,20 @@ async function openChat(rel){
   }
   // Show/hide ID action buttons — check BOTH directions of reveal
   const idBar=$('chatIdBar');
-  const reqBtn=$('requestIdBtn');
-  const revBtn=$('revealIdBtn');
   if(idBar){
+    // Bilateral reveal: if both revealed (partner has realName AND I revealed), hide all
     const partnerRevealed=!!(pRealName&&pRealName!==pNick);
-    // Check if I already revealed — from rel API data or local state
     const iRevealed=!!(rel.iRevealedToPartner||(state.revealedIds&&state.revealedIds[state.currentPartnerId]&&state.revealedIds[state.currentPartnerId]._iRevealed));
-    // Hide individual buttons as needed
-    if(reqBtn){reqBtn.style.display=partnerRevealed?'none':'';reqBtn.disabled=false;reqBtn.style.opacity='1';reqBtn.textContent='🔓 Pedir ID'}
-    if(revBtn){revBtn.style.display=iRevealed?'none':''}
-    // Hide entire bar if both already revealed
-    if(partnerRevealed&&iRevealed){idBar.style.display='none'}
-    else{idBar.style.display='flex'}
+    if(partnerRevealed&&iRevealed){
+      idBar.style.display='none';
+    }else{
+      idBar.style.display='flex';
+      // Single button: "Trocar IDs" (combines request + reveal)
+      const revBtn=$('revealIdBtn');
+      const reqBtn=$('requestIdBtn');
+      if(reqBtn)reqBtn.style.display='none'; // hide old request button
+      if(revBtn){revBtn.style.display='';revBtn.disabled=false;revBtn.style.opacity='1';revBtn.textContent='🪪 Trocar IDs'}
+    }
   }
   $('chatPhrase').textContent=rel.phrase;
   closePlusMenu();hideTyping();
@@ -3008,17 +3004,17 @@ function showConstDetail(node){
   const tipBtn=$('constTipBtn');
   if(node.isPrestador){tipBtn.classList.remove('hidden');tipBtn.dataset.receiverId=node.id}
   else tipBtn.classList.add('hidden');
-  // ID action buttons — show if there's an active (not expired) relation with this person
+  // ID action button — show if active relation AND IDs not yet exchanged
   const idActions=$('constIdActions');
   window._constDetailNodeId=node.id;
-  if(node.hasActiveRelation&&!node.realName){
+  const alreadyRevealed=!!(node.realName&&node.realName!==node.nickname);
+  const iAlreadyRevealed=!!(state.revealedIds&&state.revealedIds[node.id]&&state.revealedIds[node.id]._iRevealed);
+  if(node.hasActiveRelation&&!(alreadyRevealed&&iAlreadyRevealed)){
     idActions.classList.remove('hidden');
+    const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='🪪 Trocar IDs';cBtn.disabled=false;cBtn.style.opacity='1'}
   }else{
     idActions.classList.add('hidden');
-    // If real name is revealed, show indicator
-    if(node.realName&&node.realName!==node.nickname){
-      $('constDetailText').textContent='🪪 Identidade revelada';
-    }
+    if(alreadyRevealed){$('constDetailText').textContent='🪪 IDs trocados'}
   }
   $('constDetail').classList.add('visible');
   haptic([15]);
@@ -3151,59 +3147,85 @@ async function saveCompleteProfile(){
   }catch(e){showToast('Erro ao salvar.')}
 }
 
-// ═══ REVEAL / REQUEST IDENTITY ═══
+// ═══ REVEAL / REQUEST IDENTITY — UNIFIED FLOW ═══
+// "Revelar meu ID" sends a request; partner must accept for bilateral exchange
 async function revealIdentity(targetUserId){
   if(!state.userId)return;
-  if(!state.currentRelation)return showToast('Sem conexão ativa.');
+  // Check if already fully revealed
+  if(state.revealedIds&&state.revealedIds[targetUserId]&&state.revealedIds[targetUserId]._iRevealed&&state.revealedIds[targetUserId].realName)return showToast('IDs já foram trocados.');
   try{
     const r=await fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    showToast('Identidade revelada! 🪪');haptic([40,20,60]);
-    appendSystemMsg('Você revelou sua identidade real para '+esc(state.currentRelation.partnerName||'essa pessoa')+'.');
-    // Mark local state so buttons sync immediately
-    if(!state.revealedIds)state.revealedIds={};
-    if(!state.revealedIds[targetUserId])state.revealedIds[targetUserId]={};
-    state.revealedIds[targetUserId]._iRevealed=true;
-    // Hide reveal button
-    const revBtn=$('revealIdBtn');if(revBtn)revBtn.style.display='none';
-    // Check if partner already revealed to me — if so hide entire ID bar
-    const partnerRevealed=!!(state.revealedIds[targetUserId]?.realName);
-    const idBar=$('chatIdBar');
-    if(idBar&&partnerRevealed){idBar.style.display='none'}
-    // Update chat subtitle
-    const sub=$('chatSub');if(sub&&!partnerRevealed){sub.innerHTML='<span style="color:var(--ok)">✓ Seu ID revelado</span>'}
-    // Refresh relations to update home/relations screens
-    refreshRelations();
+    showToast('Pedido de troca de ID enviado! 🪪');haptic([40,20,60]);
+    if(state.currentRelation)appendSystemMsg('Você pediu para trocar identidades reais.');
+    // Disable all reveal buttons immediately
+    const revBtn=$('revealIdBtn');if(revBtn){revBtn.textContent='Enviado...';revBtn.disabled=true;revBtn.style.opacity='.5'}
+    const cRevBtn=$('constRevealIdBtn');if(cRevBtn){cRevBtn.textContent='Enviado...';cRevBtn.disabled=true;cRevBtn.style.opacity='.5'}
   }catch(e){showToast('Complete seu perfil antes de revelar.')}
 }
 async function requestIdentity(){
-  if(!state.userId||!state.currentRelation)return;
+  // Now this also triggers a reveal request (same flow)
+  if(!state.userId)return;
+  const pid=state.currentPartnerId;
+  if(!pid)return showToast('Sem parceiro.');
+  revealIdentity(pid);
+}
+function requestRevealFromConstellation(nodeId){revealIdentity(nodeId)}
+function revealFromConstellation(nodeId){revealIdentity(nodeId)}
+
+// Show popup when someone requests to reveal IDs
+function showRevealRequestPopup(fromUserId,fromName,fromPhoto,relationId){
+  // Remove existing popup if any
+  document.querySelectorAll('.reveal-req-popup').forEach(e=>e.remove());
+  const popup=document.createElement('div');
+  popup.className='reveal-req-popup';
+  const avatarHtml=fromPhoto&&fromPhoto.length>10
+    ?'<div style="width:50px;height:50px;border-radius:50%;overflow:hidden;border:2px solid var(--ac);flex-shrink:0"><img src="'+fromPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>'
+    :'<div style="width:50px;height:50px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;flex-shrink:0">'+esc((fromName||'??').slice(0,2).toUpperCase())+'</div>';
+  popup.innerHTML='<div class="reveal-req-content">'
+    +avatarHtml
+    +'<div style="flex:1">'
+    +'<div style="font-size:.95rem;font-weight:700;color:var(--t1)">'+esc(fromName)+' quer trocar IDs</div>'
+    +'<div style="font-size:.7rem;color:var(--t3);margin-top:.15rem">Se aceitar, vocês vão ver o nome real e foto um do outro</div>'
+    +'</div></div>'
+    +'<div class="reveal-req-actions">'
+    +'<button class="bp" style="flex:1" onclick="acceptRevealRequest(\''+fromUserId+'\',this)">Aceitar 🪪</button>'
+    +'<button class="bs" style="flex:1" onclick="declineRevealRequest(\''+fromUserId+'\',this)">Agora não</button>'
+    +'</div>';
+  document.body.appendChild(popup);
+  // Auto-remove after 30s
+  setTimeout(()=>{if(popup.parentNode)popup.remove()},30000);
+}
+async function acceptRevealRequest(fromUserId,btn){
+  const popup=btn.closest('.reveal-req-popup');
   try{
-    const r=await fetch('/api/identity/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,relationId:state.currentRelation.relationId})});
+    const r=await fetch('/api/identity/reveal-accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})});
     const d=await r.json();
-    if(d.error)return showToast(d.error);
-    showToast('Pedido de ID enviado! 🔓');haptic([40,20,40]);
-    appendSystemMsg('Você pediu para ver a identidade real.');
-    const btn=$('requestIdBtn');if(btn){btn.textContent='Pedido enviado';btn.disabled=true;btn.style.opacity='.5'}
-  }catch(e){showToast('Erro ao pedir ID.')}
+    if(d.error){showToast(d.error);return}
+    haptic([80,40,80,40,80]);
+  }catch(e){showToast('Erro ao aceitar.')}
+  if(popup)popup.remove();
 }
-function requestRevealFromConstellation(nodeId){
-  if(!nodeId||!state.userId)return;
-  // Check if there's an active relation with this person
-  fetch('/api/identity/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:nodeId})})
-  .then(r=>r.json()).then(d=>{
-    if(d.error)return showToast(d.error);
-    showToast('Pedido de ID enviado! 🔓');haptic([40,20,40]);
-  }).catch(()=>showToast('Só pode pedir durante as 24h da conexão.'));
+async function declineRevealRequest(fromUserId,btn){
+  const popup=btn.closest('.reveal-req-popup');
+  try{await fetch('/api/identity/reveal-decline',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})})}catch(e){}
+  if(popup)popup.remove();
+  showToast('Pedido recusado.');
 }
-function revealFromConstellation(nodeId){
-  if(!nodeId||!state.userId)return;
-  fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:nodeId})})
-  .then(r=>r.json()).then(d=>{
-    if(d.error)return showToast(d.error);
-    showToast('Identidade revelada! 🪪');haptic([40,20,60]);
-  }).catch(()=>showToast('Complete seu perfil antes de revelar.'));
+
+// Global UI sync — when IDs are revealed, update ALL screens
+function syncRevealUI(partnerId,realName,profilePhoto){
+  // 1. Hide ALL ID buttons related to this partner
+  const idBar=$('chatIdBar');if(idBar)idBar.style.display='none';
+  const constActions=$('constIdActions');if(constActions)constActions.classList.add('hidden');
+  // 2. Update chat header if open with this person
+  if(state.currentPartnerId===partnerId){
+    const chatName=$('chatPartner');
+    if(chatName&&realName)chatName.textContent=realName;
+    const pNick=state.currentRelation?.partnerName||'';
+    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ IDs trocados</span>'+(pNick?' · @'+esc(pNick):'');
+  }
 }
 function appendSystemMsg(text){
   const box=$('chatMessages');if(!box)return;
@@ -3745,7 +3767,7 @@ function showEncostaRequest(data){
   const area=$('encostaReqArea');
   const color=data.from.color||nickColor(data.from.name||'??');
   let html='<div class="encosta-req-banner" id="encostaReq-'+data.requestId+'">';
-  html+='<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem">'+makeAvatar(data.from.name,color,38);
+  html+='<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem">'+makeAvatar(data.from.name,color,38,data.from.photo||null);
   html+='<div><div class="encosta-req-title">'+esc(data.from.name)+' quer conectar</div>';
   html+='<div class="encosta-req-sub">📍 '+esc(data.eventName)+'</div></div></div>';
   html+='<div class="encosta-req-actions">';
@@ -3843,7 +3865,7 @@ async function loadNearbyPeople(){
       const nick=p.nickname||p.name||'?';
       const dist=p.distance<1000?Math.round(p.distance)+'m':((p.distance/1000).toFixed(1))+'km';
       html+='<div class="loc-person">';
-      html+=makeAvatar(nick,color,36);
+      html+=makeAvatar(nick,color,36,p.profilePhoto||null);
       html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+'</div><div class="loc-person-dist">'+dist+'</div>';
       if(p.score||p.stars)html+='<div class="loc-person-pts">'+(p.score?'&#x26A1;'+p.score:'')+(p.stars?' ⭐'+p.stars:'')+'</div>';
       html+='</div>';
@@ -3956,7 +3978,7 @@ async function openEventDetail(eventId){
         const nick=p.nickname||p.name||'?';
         const isMe=p.id===state.userId;
         html+='<div class="loc-person">';
-        html+=makeAvatar(nick,color,34);
+        html+=makeAvatar(nick,color,34,p.profilePhoto||null);
         html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+(isMe?' <span style="font-size:.62rem;color:var(--ok)">('+i18n('evt_you')+')</span>':'')+'</div></div>';
         if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+esc(nick)+'\')">'+i18n('loc_encosta')+'</button>';
         html+='</div>';
@@ -4156,11 +4178,14 @@ function showTipScreen(receiverId) {
   // Fetch receiver info
   fetch('/api/user/' + receiverId).then(r => r.json()).then(u => {
     const color = u.color || nickColor(u.nickname || '?');
-    const initials = (u.nickname || '??').slice(0, 2).toUpperCase();
     const serviceLabel = u.serviceLabel || '';
+    const photo = u.profilePhoto || null;
+    const revData = state.revealedIds && state.revealedIds[receiverId];
+    const displayPhoto = photo || (revData && revData.profilePhoto) || null;
+    const displayName = (revData && revData.realName) || u.nickname || u.name;
     $('tipReceiver').innerHTML =
-      '<div class="tip-receiver-avatar" style="background:' + color + '">' + initials + '</div>' +
-      '<div class="tip-receiver-name">' + esc(u.nickname || u.name) + '</div>' +
+      makeAvatar(u.nickname || '?', color, 64, displayPhoto) +
+      '<div class="tip-receiver-name">' + esc(displayName) + '</div>' +
       (serviceLabel ? '<div class="tip-receiver-service">' + esc(serviceLabel) + '</div>' : '');
   }).catch(() => {});
 

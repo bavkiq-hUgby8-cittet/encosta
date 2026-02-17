@@ -1299,28 +1299,66 @@ app.post('/api/identity/request', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Reveal real identity to a specific user ──
+// ── Reveal real identity — sends a request that partner must accept ──
 app.post('/api/identity/reveal', (req, res) => {
   const { userId, targetUserId } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
   if (!user.realName && !user.profilePhoto) return res.status(400).json({ error: 'Complete seu perfil antes de revelar.' });
-  if (!user.revealedTo) user.revealedTo = [];
-  if (!user.revealedTo.includes(targetUserId)) user.revealedTo.push(targetUserId);
-  saveDB();
-  // Notify target via socket
+  // Check active relation
+  const now = Date.now();
+  const rel = Object.values(db.relations).find(r =>
+    ((r.userA === userId && r.userB === targetUserId) || (r.userA === targetUserId && r.userB === userId)) && r.expiresAt > now
+  );
+  if (!rel) return res.status(400).json({ error: 'Sem conexão ativa.' });
+  const relId = rel.id || Object.keys(db.relations).find(k => db.relations[k] === rel);
+  // Send reveal request to partner (partner must accept)
   const targetSocket = Object.values(io.sockets.sockets).find(s => s.encUserId === targetUserId);
   if (targetSocket) {
-    targetSocket.emit('identity-revealed', {
+    targetSocket.emit('identity-reveal-request', {
       fromUserId: userId,
-      realName: user.realName,
-      profilePhoto: user.profilePhoto,
-      instagram: user.instagram,
-      bio: user.bio
+      fromName: user.nickname || user.name || '?',
+      fromPhoto: user.profilePhoto || null,
+      relationId: relId
     });
   }
-  res.json({ ok: true, revealed: { realName: user.realName, profilePhoto: user.profilePhoto } });
+  res.json({ ok: true, pending: true });
+});
+
+// ── Accept identity reveal — bilateral exchange ──
+app.post('/api/identity/reveal-accept', (req, res) => {
+  const { userId, fromUserId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!fromUserId || !db.users[fromUserId]) return res.status(400).json({ error: 'Solicitante inválido.' });
+  const me = db.users[userId];
+  const them = db.users[fromUserId];
+  // Bilateral reveal — both reveal to each other
+  if (!me.revealedTo) me.revealedTo = [];
+  if (!them.revealedTo) them.revealedTo = [];
+  if (!me.revealedTo.includes(fromUserId)) me.revealedTo.push(fromUserId);
+  if (!them.revealedTo.includes(userId)) them.revealedTo.push(userId);
+  saveDB();
+  // Notify both users with each other's data
+  const meData = { fromUserId: userId, realName: me.realName, profilePhoto: me.profilePhoto, instagram: me.instagram, bio: me.bio };
+  const themData = { fromUserId: fromUserId, realName: them.realName, profilePhoto: them.profilePhoto, instagram: them.instagram, bio: them.bio };
+  // Send to requester (them): my data
+  const fromSocket = Object.values(io.sockets.sockets).find(s => s.encUserId === fromUserId);
+  if (fromSocket) fromSocket.emit('identity-revealed', meData);
+  // Send to acceptor (me): their data
+  const mySocket = Object.values(io.sockets.sockets).find(s => s.encUserId === userId);
+  if (mySocket) mySocket.emit('identity-revealed', themData);
+  res.json({ ok: true, myReveal: { realName: them.realName, profilePhoto: them.profilePhoto }, theirReveal: { realName: me.realName, profilePhoto: me.profilePhoto } });
+});
+
+// ── Decline identity reveal ──
+app.post('/api/identity/reveal-decline', (req, res) => {
+  const { userId, fromUserId } = req.body;
+  if (!fromUserId) return res.status(400).json({ error: 'Falta fromUserId.' });
+  const me = db.users[userId];
+  const fromSocket = Object.values(io.sockets.sockets).find(s => s.encUserId === fromUserId);
+  if (fromSocket) fromSocket.emit('identity-reveal-declined', { byUserId: userId, byName: me?.nickname || '?' });
+  res.json({ ok: true });
 });
 
 // ── Get own full profile data ──
