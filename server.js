@@ -176,7 +176,7 @@ const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '22bb7eff614007652059
 const MP_APP_ID = process.env.MP_APP_ID || '8596079302689985';
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
 const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://encosta.onrender.com/mp/callback';
-const ENCOSTA_FEE_PERCENT = parseFloat(process.env.ENCOSTA_FEE_PERCENT || '10');
+const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
 
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
 const mpPayment = new Payment(mpClient);
@@ -658,7 +658,7 @@ app.post('/api/touch-link/connect', (req, res) => {
     visitor = { id, nickname: nick, name: nick, birthdate: null, avatar: null, color, createdAt: Date.now(), points: 0, pointLog: [], stars: [], isGuest: true };
     db.users[id] = visitor;
   }
-  if (visitor.id === owner.id) return res.status(400).json({ error: 'Não pode encostar em si mesmo.' });
+  if (visitor.id === owner.id) return res.status(400).json({ error: 'Não pode dar touch em si mesmo.' });
   // Create relation
   const now = Date.now();
   const phrase = randomPhrase();
@@ -706,7 +706,7 @@ app.get('/api/streak/:userId/:partnerId', (req, res) => {
 
 function generateTouchPage(owner, code) {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>ENCOSTA — ${owner.nickname}</title>
+<title>Touch? — ${owner.nickname}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#050508;color:#e8e6e3;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
 .card{width:100%;max-width:360px;text-align:center;padding:2rem}
@@ -727,20 +727,20 @@ button:active{transform:scale(.97)}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 </style></head><body>
 <div class="card">
-<div class="logo">ENCOSTA</div>
+<div class="logo">Touch?</div>
 <div id="form">
 <div class="avatar">${(owner.nickname || '??').slice(0, 2).toUpperCase()}</div>
 <div class="name">${owner.nickname}</div>
 ${(owner.stars || []).length > 0 ? '<div class="stars">' + '⭐'.repeat(Math.min((owner.stars || []).length, 10)) + '</div>' : ''}
-<div class="sub">quer encostar com você</div>
+<div class="sub">quer dar um touch com você</div>
 <input type="text" id="nick" placeholder="Seu nickname" maxlength="20" autocomplete="off">
-<button onclick="connect()">ENCOSTAR</button>
+<button onclick="connect()">👆 TOUCH</button>
 </div>
 <div id="result" class="result">
-<div class="sub">Vocês encostaram!</div>
+<div class="sub">Vocês se tocaram! ✨</div>
 <div class="phrase" id="phrase"></div>
 <div class="timer">24h juntos a partir de agora</div>
-<div class="cta">Baixe o app para a experiência completa<br><a href="/">Abrir ENCOSTA</a></div>
+<div class="cta">Baixe o app para a experiência completa<br><a href="/">Abrir Touch?</a></div>
 </div>
 </div>
 <script>
@@ -754,8 +754,8 @@ async function connect(){
     document.getElementById('form').style.display='none';
     document.getElementById('result').style.display='block';
     document.getElementById('phrase').textContent='"'+d.phrase+'"';
-    localStorage.setItem('encosta_userId',d.visitorId);
-    localStorage.setItem('encosta_userName',nick);
+    localStorage.setItem('touch_userId',d.visitorId);
+    localStorage.setItem('touch_userName',nick);
   }catch(e){alert('Erro de conexão.')}
 }
 document.getElementById('nick').addEventListener('keydown',e=>{if(e.key==='Enter')connect()});
@@ -832,7 +832,7 @@ app.post('/api/session/join', (req, res) => {
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const session = Object.values(db.sessions).find(s => s.code === code && s.status === 'waiting');
   if (!session) return res.status(404).json({ error: 'Sessão não encontrada ou expirada.' });
-  if (session.userA === userId) return res.status(400).json({ error: 'Você não pode encostar em si mesmo.' });
+  if (session.userA === userId) return res.status(400).json({ error: 'Você não pode dar touch em si mesmo.' });
 
   session.userB = userId;
   session.status = 'completed';
@@ -1047,7 +1047,7 @@ app.post('/api/selfie/:relationId', (req, res) => {
 const GIFT_CATALOG = [
   { id: 'flowers', name: 'Bouquet de Flores', emoji: '💐', needsAddress: true, description: 'Um bouquet entregue com carinho' },
   { id: 'coffee', name: 'Café Especial', emoji: '☕', needsAddress: true, description: 'Um café especial na porta' },
-  { id: 'letter', name: 'Carta Selada', emoji: '💌', needsAddress: false, description: 'Uma carta digital com selo ENCOSTA' },
+  { id: 'letter', name: 'Carta Selada', emoji: '💌', needsAddress: false, description: 'Uma carta digital com selo Touch?' },
   { id: 'playlist', name: 'Playlist', emoji: '🎵', needsAddress: false, description: 'Uma playlist dedicada' },
   { id: 'star', name: 'Estrela', emoji: '⭐', needsAddress: false, description: 'Uma estrela na constelação da pessoa' },
   { id: 'book', name: 'Livro', emoji: '📖', needsAddress: true, description: 'Um livro surpresa entregue' },
@@ -1800,7 +1800,7 @@ app.post('/api/tip/create', async (req, res) => {
 
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
-  const encostaFee = Math.round(tipAmount * ENCOSTA_FEE_PERCENT) / 100; // 10%
+  const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100; // 10%
 
   const email = payerEmail || payer.email || 'test@testuser.com';
   const cpf = payerCPF || payer.cpf || '12345678909';
@@ -1809,28 +1809,28 @@ app.post('/api/tip/create', async (req, res) => {
     const paymentData = {
       transaction_amount: tipAmount,
       token,
-      description: 'Gorjeta ENCOSTA — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
+      description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
       installments: installments || 1,
       payment_method_id: paymentMethodId || 'visa',
       payer: {
         email: email,
         identification: { type: 'CPF', number: cpf }
       },
-      statement_descriptor: 'ENCOSTA GORJETA',
+      statement_descriptor: 'TOUCH GORJETA',
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
     };
     // If receiver has MP OAuth, use split payment
     if (receiver.mpConnected && receiver.mpAccessToken) {
-      paymentData.application_fee = encostaFee;
+      paymentData.application_fee = touchFee;
       // Use receiver's access token for split
       const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
       const receiverPayment = new Payment(receiverClient);
       const result = await receiverPayment.create({ body: paymentData });
-      return handlePaymentResult(result, payerId, receiverId, tipAmount, encostaFee, res);
+      return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     } else {
       // Fallback: process through main account (manual payout later)
       const result = await mpPayment.create({ body: paymentData });
-      return handlePaymentResult(result, payerId, receiverId, tipAmount, encostaFee, res);
+      return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     }
   } catch (e) {
     console.error('Payment error:', e);
@@ -1933,7 +1933,7 @@ const PORT = process.env.PORT || 3000;
       }
     }
     console.log(`\n  ╔══════════════════════════════════════╗`);
-    console.log(`  ║         ENCOSTA está rodando          ║`);
+    console.log(`  ║         Touch? está rodando          ║`);
     console.log(`  ╠══════════════════════════════════════╣`);
     console.log(`  ║  Local:  http://localhost:${PORT}       ║`);
     console.log(`  ║  Rede:   http://${localIP}:${PORT}  ║`);
