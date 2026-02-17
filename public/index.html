@@ -141,7 +141,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .fire-edge.right{left:50%;right:0;border-radius:2px 0 0 0}
 @keyframes fire-edge-pulse{0%{opacity:.3;height:2px}100%{opacity:.8;height:4px}}
 /* Sonic instruction — phones approaching animation */
-.sonic-instruct{position:absolute;bottom:18%;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.5rem;opacity:0;transition:opacity .5s;z-index:3}
+.sonic-instruct{position:absolute;bottom:30%;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.5rem;opacity:0;transition:opacity .5s;z-index:3}
 .sonic-instruct.active{opacity:1}
 .si-phones{position:relative;width:100px;height:60px;display:flex;align-items:center;justify-content:center}
 .si-phone{width:24px;height:44px;border:2px solid var(--ac);border-radius:6px;position:absolute;background:rgba(255,107,53,.08)}
@@ -153,7 +153,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Screenshot block in chat */
 #chat .cms{-webkit-user-select:none;user-select:none}
 /* Bottom section — anchored tab bar */
-.home-bottom{display:flex;flex-direction:column;align-items:center;width:100%;position:relative;z-index:2;flex-shrink:0;padding:0 1.2rem;padding-bottom:max(env(safe-area-inset-bottom),.6rem)}
+.home-bottom{display:flex;flex-direction:column;align-items:center;width:100%;position:relative;z-index:5;flex-shrink:0;padding:0 1.2rem;padding-bottom:max(env(safe-area-inset-bottom),.6rem)}
 .home-nav{display:flex;justify-content:space-around;width:100%;padding:.6rem 0;border-top:1px solid rgba(255,255,255,.04)}
 .hn-btn{display:flex;flex-direction:column;align-items:center;gap:.25rem;background:none;border:none;color:var(--t3);font-family:inherit;cursor:pointer;padding:.6rem .6rem;border-radius:12px;transition:.15s;-webkit-tap-highlight-color:transparent;min-width:56px;flex:1;max-width:80px}
 .hn-btn:active{background:rgba(255,255,255,.05);color:var(--t1);transform:scale(.95)}
@@ -1267,6 +1267,10 @@ async function handleMainButton(){
   if(homeSonicActive){stopHomeSonic();return}
   if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
   haptic([40]);
+
+  // RESET: kill any leftover audio/mic state from previous attempt
+  stopSonicMode();
+
   homeSonicActive=true;
   sonicActive=true;sonicMyFreq=0;
   const btn=$('mainBtn'),txt=$('mainBtnText'),sts=$('sonicHomeStatus'),fb=$('sonicFallback');
@@ -1274,12 +1278,13 @@ async function handleMainButton(){
   btn.classList.add('energized');
   txt.textContent='ATIVANDO...';
   sts.textContent='Pedindo microfone...';sts.classList.add('active');
+  fb.classList.remove('active'); // reset fallback
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
   const si=$('sonicInstruct');if(si)si.classList.add('active');
 
   try{
-    // 1. Mic permission
+    // 1. Fresh mic permission — always request new stream
     sonicStream=await requestMic();
     if(!homeSonicActive)return;
     sts.textContent='Conectando ao servidor...';
@@ -1293,8 +1298,9 @@ async function handleMainButton(){
     if(!homeSonicActive)return;
     sonicMyFreq=freq;
 
-    // 3. Emit ultrasonic
+    // 3. Emit ultrasonic — fresh AudioContext
     sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(sonicEmitCtx.state==='suspended')await sonicEmitCtx.resume();
     sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
@@ -1303,8 +1309,9 @@ async function handleMainButton(){
     sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
 
-    // 4. Start detection
+    // 4. Start detection — fresh AudioContext for mic
     sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(sonicMicCtx.state==='suspended')await sonicMicCtx.resume();
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
     sonicAnalyser=sonicMicCtx.createAnalyser();
     sonicAnalyser.fftSize=SONIC_FFT_SIZE;
