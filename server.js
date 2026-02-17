@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const { MercadoPagoConfig, Payment, OAuth } = require('mercadopago');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,13 +15,37 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Database ──
 const DB_FILE = path.join(__dirname, 'db.json');
-let db = { users: {}, sessions: {}, relations: {}, messages: {}, encounters: {}, gifts: {}, declarations: {}, events: {}, checkins: {} };
+let db = { users: {}, sessions: {}, relations: {}, messages: {}, encounters: {}, gifts: {}, declarations: {}, events: {}, checkins: {}, tips: {} };
+
+// ── MercadoPago Config ──
+const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || 'TEST-8596079302689985-021710-c03384d8655dc5b59bfad639d6b86186-125835164';
+const MP_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || 'TEST-9e8c8ea8-4ac3-4d2b-a954-debcb9af1bde';
+const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '22bb7eff61400765205900092920631cba157850eae26dee2a9fdbd26492b36a';
+const MP_APP_ID = process.env.MP_APP_ID || '8596079302689985';
+const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
+const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://encosta.onrender.com/mp/callback';
+const ENCOSTA_FEE_PERCENT = parseFloat(process.env.ENCOSTA_FEE_PERCENT || '10'); // 10% default, parametrizable
+
+const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
+const mpPayment = new Payment(mpClient);
+
+const SERVICE_TYPES = [
+  { id: 'flanelinha', label: 'Flanelinha / Guardador' },
+  { id: 'garcom', label: 'Garçom / Garçonete' },
+  { id: 'musico', label: 'Músico de rua' },
+  { id: 'artista', label: 'Artista de rua' },
+  { id: 'delivery', label: 'Entregador' },
+  { id: 'faxineiro', label: 'Faxineiro(a)' },
+  { id: 'porteiro', label: 'Porteiro' },
+  { id: 'cabeleireiro', label: 'Cabeleireiro(a)' },
+  { id: 'outro', label: 'Outro' }
+];
 
 function loadDB() {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-      db = { users: {}, sessions: {}, relations: {}, messages: {}, encounters: {}, gifts: {}, declarations: {}, events: {}, checkins: {}, ...data };
+      db = { users: {}, sessions: {}, relations: {}, messages: {}, encounters: {}, gifts: {}, declarations: {}, events: {}, checkins: {}, tips: {}, ...data };
     }
   } catch (e) { /* start fresh */ }
 }
@@ -1408,6 +1433,212 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {});
+});
+
+// ═══ MERCADOPAGO — Gorjetas ═══
+
+// Service types catalog
+app.get('/api/service-types', (req, res) => res.json(SERVICE_TYPES));
+
+// MP public key (client needs it for Secure Fields)
+app.get('/api/mp/public-key', (req, res) => res.json({ publicKey: MP_PUBLIC_KEY }));
+
+// Register as prestador (beneficiary)
+app.post('/api/prestador/register', (req, res) => {
+  const { nickname, serviceType, fullName, cpf, birthdate } = req.body;
+  if (!nickname || !serviceType || !fullName) return res.status(400).json({ error: 'Preencha todos os campos.' });
+  const nick = nickname.trim();
+  if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname deve ter 2 a 20 caracteres.' });
+  if (!/^[a-zA-Z0-9_.-]+$/.test(nick)) return res.status(400).json({ error: 'Só letras, números, _ . -' });
+  const taken = Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
+  if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
+  const id = uuidv4();
+  const color = nickColor(nick);
+  db.users[id] = {
+    id, nickname: nick, name: fullName, birthdate: birthdate || null,
+    avatar: null, color, createdAt: Date.now(), points: 0, pointLog: [], stars: [],
+    // Prestador fields
+    isPrestador: true,
+    serviceType,
+    serviceLabel: (SERVICE_TYPES.find(s => s.id === serviceType) || {}).label || serviceType,
+    cpf: cpf || null,
+    mpConnected: false,
+    mpAccessToken: null,
+    mpRefreshToken: null,
+    mpUserId: null,
+    tipsReceived: 0,
+    tipsTotal: 0
+  };
+  saveDB();
+  res.json({ userId: id, user: db.users[id] });
+});
+
+// OAuth: redirect prestador to MercadoPago to connect account
+app.get('/mp/auth/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user || !user.isPrestador) return res.status(400).send('Usuário não é prestador.');
+  const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${MP_APP_ID}&response_type=code&platform_id=mp&redirect_uri=${encodeURIComponent(MP_REDIRECT_URI)}&state=${user.id}`;
+  res.redirect(authUrl);
+});
+
+// OAuth callback from MercadoPago
+app.get('/mp/callback', async (req, res) => {
+  const { code, state: userId } = req.query;
+  if (!code || !userId) return res.status(400).send('Erro na autorização.');
+  const user = db.users[userId];
+  if (!user) return res.status(404).send('Usuário não encontrado.');
+  try {
+    // Exchange code for tokens
+    const resp = await fetch('https://api.mercadopago.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: MP_APP_ID,
+        client_secret: MP_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: MP_REDIRECT_URI
+      })
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      user.mpConnected = true;
+      user.mpAccessToken = data.access_token;
+      user.mpRefreshToken = data.refresh_token || null;
+      user.mpUserId = data.user_id || null;
+      saveDB();
+      // Redirect back to app with success
+      res.redirect('/?mp_connected=1&userId=' + userId);
+    } else {
+      console.error('MP OAuth error:', data);
+      res.redirect('/?mp_error=1');
+    }
+  } catch (e) {
+    console.error('MP OAuth exception:', e);
+    res.redirect('/?mp_error=1');
+  }
+});
+
+// Check if prestador is connected to MP
+app.get('/api/prestador/:userId/status', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  res.json({
+    isPrestador: !!user.isPrestador,
+    serviceType: user.serviceType || null,
+    serviceLabel: user.serviceLabel || null,
+    mpConnected: !!user.mpConnected,
+    tipsReceived: user.tipsReceived || 0
+  });
+});
+
+// Create a tip payment
+app.post('/api/tip/create', async (req, res) => {
+  const { payerId, receiverId, amount, token, paymentMethodId, issuer, installments } = req.body;
+  if (!payerId || !receiverId || !amount || !token) return res.status(400).json({ error: 'Dados incompletos.' });
+  const payer = db.users[payerId];
+  const receiver = db.users[receiverId];
+  if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
+  if (!receiver || !receiver.isPrestador) return res.status(400).json({ error: 'Destinatário não é prestador.' });
+
+  const tipAmount = parseFloat(amount);
+  if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
+  const encostaFee = Math.round(tipAmount * ENCOSTA_FEE_PERCENT) / 100; // 10%
+
+  try {
+    const paymentData = {
+      transaction_amount: tipAmount,
+      token,
+      description: 'Gorjeta ENCOSTA — ' + (receiver.serviceLabel || receiver.name),
+      installments: installments || 1,
+      payment_method_id: paymentMethodId || 'visa',
+      payer: { email: payer.email || payer.nickname + '@encosta.app' },
+      statement_descriptor: 'ENCOSTA GORJETA',
+      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
+    };
+    // If receiver has MP OAuth, use split payment
+    if (receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = encostaFee;
+      // Use receiver's access token for split
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      const receiverPayment = new Payment(receiverClient);
+      const result = await receiverPayment.create({ body: paymentData });
+      return handlePaymentResult(result, payerId, receiverId, tipAmount, encostaFee, res);
+    } else {
+      // Fallback: process through main account (manual payout later)
+      const result = await mpPayment.create({ body: paymentData });
+      return handlePaymentResult(result, payerId, receiverId, tipAmount, encostaFee, res);
+    }
+  } catch (e) {
+    console.error('Payment error:', e);
+    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente.') });
+  }
+});
+
+function handlePaymentResult(result, payerId, receiverId, amount, fee, res) {
+  const tipId = uuidv4();
+  const tip = {
+    id: tipId,
+    payerId, receiverId, amount, fee,
+    mpPaymentId: result.id,
+    status: result.status, // approved, pending, rejected
+    statusDetail: result.status_detail,
+    createdAt: Date.now()
+  };
+  db.tips[tipId] = tip;
+  // Update receiver stats
+  const receiver = db.users[receiverId];
+  if (receiver && result.status === 'approved') {
+    receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
+    receiver.tipsTotal = (receiver.tipsTotal || 0) + amount;
+  }
+  saveDB();
+  // Notify receiver via socket
+  io.to(`user:${receiverId}`).emit('tip-received', { amount, from: db.users[payerId]?.nickname || '?' });
+  res.json({ status: result.status, tipId, statusDetail: result.status_detail });
+}
+
+// Tip history for user
+app.get('/api/tips/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const tips = Object.values(db.tips).filter(t => t.payerId === userId || t.receiverId === userId)
+    .sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+  const enriched = tips.map(t => ({
+    ...t,
+    payerName: db.users[t.payerId]?.nickname || '?',
+    receiverName: db.users[t.receiverId]?.nickname || '?',
+    receiverService: db.users[t.receiverId]?.serviceLabel || ''
+  }));
+  res.json(enriched);
+});
+
+// MercadoPago webhook
+app.post('/mp/webhook', (req, res) => {
+  // Validate signature (basic)
+  const xSig = req.headers['x-signature'] || '';
+  // Process payment notifications
+  if (req.body.type === 'payment' && req.body.data && req.body.data.id) {
+    const paymentId = req.body.data.id;
+    // Find tip by mpPaymentId and update status
+    const tip = Object.values(db.tips).find(t => String(t.mpPaymentId) === String(paymentId));
+    if (tip) {
+      // Fetch latest status from MP
+      mpPayment.get({ id: paymentId }).then(p => {
+        tip.status = p.status;
+        tip.statusDetail = p.status_detail;
+        if (p.status === 'approved') {
+          const receiver = db.users[tip.receiverId];
+          if (receiver) {
+            receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
+            receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
+          }
+          io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, from: db.users[tip.payerId]?.nickname || '?' });
+        }
+        saveDB();
+      }).catch(e => console.error('Webhook MP fetch error:', e));
+    }
+  }
+  res.sendStatus(200);
 });
 
 const PORT = process.env.PORT || 3000;
