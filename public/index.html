@@ -2739,13 +2739,26 @@ async function showHistory(){
     const empty=$('constEmpty');
     if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];showScreen('history');requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
     empty.classList.add('hidden');
-    // Layout nodes in organic circular pattern around center
+    // Layout nodes in 3D space — z-depth based on time since last encounter
+    const now=Date.now();
     const nodes=data.nodes.map((n,i)=>{
       const angle=(i/data.nodes.length)*Math.PI*2-Math.PI/2;
-      const radius=80+Math.random()*60+i*12;
-      // Node size grows with encounters: min 6px, grows logarithmically, max ~22px
+      // Time-based depth: recent=close (z~20), expiring 24h=medium (z~120), old=far (z~250)
+      const lastMs=n.lastDate?now-new Date(n.lastDate).getTime():999999999;
+      const hrs=lastMs/3600000;
+      let zDepth;
+      if(hrs<1)zDepth=15+Math.random()*15;          // <1h → very close
+      else if(hrs<6)zDepth=35+Math.random()*30;      // <6h → close
+      else if(hrs<12)zDepth=70+Math.random()*30;     // <12h → medium-close
+      else if(hrs<24)zDepth=110+Math.random()*40;    // <24h → medium-far
+      else zDepth=160+Math.min(120,hrs*0.5)+Math.random()*40; // >24h → far, grows with time
+      // Spread on X/Y plane proportional to depth for organic feel
+      const spread=40+zDepth*0.5;
       const sizeByEnc=Math.min(22,6+Math.log2(1+(n.encounters||1))*5);
-      return{...n,x:Math.cos(angle)*radius+(Math.random()-.5)*30,y:Math.sin(angle)*radius+(Math.random()-.5)*30,
+      return{...n,
+        x3d:Math.cos(angle)*spread+(Math.random()-.5)*30,
+        y3d:Math.sin(angle)*spread+(Math.random()-.5)*30,
+        z3d:zDepth,
         color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByEnc,pulsePhase:Math.random()*Math.PI*2};
     });
     // Pre-load images for nodes with photos
@@ -2795,6 +2808,9 @@ function initConstCanvas(){
   const ctx=canvas.getContext('2d');
   ctx.scale(dpr,dpr);
   const W=wrap.clientWidth,H=wrap.clientHeight;
+
+  // ── 3D Perspective parameters ──
+  const FOV=300; // field of view — higher = less extreme perspective
 
   // ── Accelerometer tilt ──
   let tiltX=0,tiltY=0,rawTX=0,rawTY=0;
@@ -2859,6 +2875,34 @@ function initConstCanvas(){
   // ── Grid lines (subtle tech background) ──
   const gridSpacing=60;
 
+  // ── Helper: project 3D to 2D with perspective ──
+  function project(x3d,y3d,z3d,camX,camY,zoom,tOX,tOY){
+    const wx=(x3d+camX+tOX)*zoom;
+    const wy=(y3d+camY+tOY)*zoom;
+    const scale=FOV/(FOV+z3d);
+    return{
+      sx:W/2+wx*scale,
+      sy:H*0.45+wy*scale,
+      scale:scale*zoom,
+      z3d:z3d
+    };
+  }
+
+  // ── Helper: draw image with center-crop (no stretching) ──
+  function drawCroppedImage(img,cx,cy,r){
+    const iw=img.naturalWidth||img.width;
+    const ih=img.naturalHeight||img.height;
+    if(!iw||!ih)return;
+    // Compute center square crop from source
+    const side=Math.min(iw,ih);
+    const sx=(iw-side)/2;
+    const sy=(ih-side)/2;
+    ctx.save();
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.clip();
+    ctx.drawImage(img,sx,sy,side,side,cx-r,cy-r,r*2,r*2);
+    ctx.restore();
+  }
+
   if(constState.animFrame)cancelAnimationFrame(constState.animFrame);
 
   function draw(){
@@ -2893,112 +2937,128 @@ function initConstCanvas(){
 
     if(!constState.nodes.length)return;
     const z=constState.cam.zoom;
-    const cx=W/2+(constState.cam.x+tiltOffX)*z;
-    const cy=H*0.45+(constState.cam.y+tiltOffY)*z;
+    const camX=constState.cam.x+tiltOffX;
+    const camY=constState.cam.y+tiltOffY;
 
-    // ── Neural connections (animated data flow lines) ──
-    constState.nodes.forEach(n=>{
-      const nx=cx+n.x*z,ny=cy+n.y*z;
+    // ── Project center node (me) at z=0 ──
+    const meProj=project(0,0,0,camX,camY,z,0,0);
+    const mcx=meProj.sx,mcy=meProj.sy;
+
+    // ── Project all nodes and sort by z (back-to-front) ──
+    const projected=constState.nodes.map(n=>{
+      const p=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
+      // Store projected coords for tap detection
+      n._px=p.sx;n._py=p.sy;n._pscale=p.scale;
+      return{n,sx:p.sx,sy:p.sy,scale:p.scale,z3d:p.z3d};
+    });
+    projected.sort((a,b)=>b.z3d-a.z3d); // far first (back-to-front)
+
+    // ── Draw connections first (behind nodes) ──
+    projected.forEach(({n,sx,sy,scale})=>{
       const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const lineColor=lineBothVerified?'0,220,130':'100,140,255';
-      const thick=Math.min(2.5,0.3+Math.log2(1+(n.encounters||1))*0.4)*z;
-      // Animated dashed line
+      // Connection line opacity fades with distance
+      const depthAlpha=Math.max(0.03,scale*0.8);
+      const thick=Math.min(2.5,0.3+Math.log2(1+(n.encounters||1))*0.4)*scale;
       ctx.save();
-      ctx.setLineDash([4*z,8*z]);ctx.lineDashOffset=-t*30*n.intensity;
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(nx,ny);
-      ctx.strokeStyle='rgba('+lineColor+','+(0.08+n.intensity*.15).toFixed(2)+')';ctx.lineWidth=thick;ctx.stroke();
+      ctx.setLineDash([4*scale,8*scale]);ctx.lineDashOffset=-t*30*n.intensity;
+      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
+      ctx.strokeStyle='rgba('+lineColor+','+(depthAlpha*(0.08+n.intensity*.15)).toFixed(3)+')';ctx.lineWidth=Math.max(0.3,thick);ctx.stroke();
       ctx.setLineDash([]);
-      // Data pulse traveling along the line
+      // Data pulse
       const pulsePos=(t*0.4+n.pulsePhase)%1;
-      const px=cx+(nx-cx)*pulsePos,py=cy+(ny-cy)*pulsePos;
-      const pg=ctx.createRadialGradient(px,py,0,px,py,4*z);
-      pg.addColorStop(0,'rgba('+lineColor+','+(0.4*n.intensity).toFixed(2)+')');pg.addColorStop(1,'transparent');
-      ctx.beginPath();ctx.arc(px,py,4*z,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
+      const px=mcx+(sx-mcx)*pulsePos,py=mcy+(sy-mcy)*pulsePos;
+      const pSize=Math.max(1,4*scale);
+      const pg=ctx.createRadialGradient(px,py,0,px,py,pSize);
+      pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.4*n.intensity).toFixed(3)+')');pg.addColorStop(1,'transparent');
+      ctx.beginPath();ctx.arc(px,py,pSize,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
       ctx.restore();
     });
 
-    // ── Center node (me) ──
-    const myR=16*z;
-    // Outer scan ring
-    const scanAngle=(t*0.5)%(Math.PI*2);
-    ctx.save();ctx.beginPath();ctx.arc(cx,cy,myR*2.5,scanAngle,scanAngle+Math.PI*.6);
-    ctx.strokeStyle='rgba(255,107,53,.15)';ctx.lineWidth=1;ctx.stroke();ctx.restore();
-    // Glow
-    const myGlow=ctx.createRadialGradient(cx,cy,0,cx,cy,myR*3);
-    myGlow.addColorStop(0,'rgba(255,107,53,.2)');myGlow.addColorStop(.5,'rgba(255,107,53,.05)');myGlow.addColorStop(1,'transparent');
-    ctx.beginPath();ctx.arc(cx,cy,myR*3,0,Math.PI*2);ctx.fillStyle=myGlow;ctx.fill();
-    // Photo or initials
-    if(constState._myImg&&constState._myImgLoaded){
-      ctx.save();ctx.beginPath();ctx.arc(cx,cy,myR,0,Math.PI*2);ctx.clip();
-      ctx.drawImage(constState._myImg,cx-myR,cy-myR,myR*2,myR*2);ctx.restore();
-    }else{
-      ctx.beginPath();ctx.arc(cx,cy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
-      ctx.fillStyle='#fff';ctx.font='bold '+(9*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),cx,cy);
-    }
-    // Orange ring
-    ctx.beginPath();ctx.arc(cx,cy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=2*z;ctx.stroke();
-    // Label
-    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font=(8*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.fillText('VOCÊ',cx,cy+myR+4*z);
-
-    // ── People nodes ──
-    constState.nodes.forEach(n=>{
-      const nx=cx+n.x*z,ny=cy+n.y*z;
+    // ── Draw nodes back-to-front ──
+    projected.forEach(({n,sx,sy,scale,z3d})=>{
       const pulse=1+Math.sin(t*1.5+n.pulsePhase)*.06;
-      const r=n.baseRadius*z*pulse;
+      const r=n.baseRadius*scale*pulse;
+      if(r<0.5)return; // too small to see
       const bothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const ringColor=bothVerified?'#00dc82':'#ff4466';
       const glowRGB=bothVerified?'0,220,130':'255,68,102';
+      // Depth-based opacity: close nodes=bright, far nodes=dim
+      const depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
 
       // Outer glow
-      const glow=ctx.createRadialGradient(nx,ny,0,nx,ny,r*3);
+      ctx.save();ctx.globalAlpha=depthAlpha;
+      const glow=ctx.createRadialGradient(sx,sy,0,sx,sy,r*3);
       glow.addColorStop(0,'rgba('+glowRGB+','+(0.06+n.intensity*.1).toFixed(2)+')');glow.addColorStop(1,'transparent');
-      ctx.beginPath();ctx.arc(nx,ny,r*3,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+      ctx.beginPath();ctx.arc(sx,sy,r*3,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
 
-      // Node body: photo or solid
-      if(n._imgLoaded&&n._img&&r>6*z){
-        ctx.save();ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);ctx.clip();
-        ctx.drawImage(n._img,nx-r,ny-r,r*2,r*2);ctx.restore();
+      // Node body: photo (center-cropped) or solid
+      if(n._imgLoaded&&n._img&&r>4){
+        drawCroppedImage(n._img,sx,sy,r);
       }else{
-        ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);
-        const nGrad=ctx.createRadialGradient(nx-r*.3,ny-r*.3,0,nx,ny,r);
+        ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
+        const nGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
         nGrad.addColorStop(0,'rgba('+glowRGB+',0.6)');nGrad.addColorStop(1,'rgba('+glowRGB+',0.2)');
         ctx.fillStyle=nGrad;ctx.fill();
       }
 
-      // Ring: GREEN = verified, RED = anonymous (minimal stroke)
-      ctx.beginPath();ctx.arc(nx,ny,r+0.8*z,0,Math.PI*2);
-      ctx.strokeStyle=ringColor;ctx.lineWidth=0.8*z;
-      ctx.shadowColor=ringColor;ctx.shadowBlur=6*z;ctx.stroke();ctx.shadowBlur=0;
+      // Ring: GREEN = verified, RED = anonymous
+      ctx.beginPath();ctx.arc(sx,sy,r+0.8*scale,0,Math.PI*2);
+      ctx.strokeStyle=ringColor;ctx.lineWidth=Math.max(0.3,0.8*scale);
+      ctx.shadowColor=ringColor;ctx.shadowBlur=Math.max(1,6*scale);ctx.stroke();ctx.shadowBlur=0;
 
       // Rotating scan arc for selected node
       if(constState.selectedNode&&constState.selectedNode.id===n.id){
-        ctx.save();const sa=(t*2)%(Math.PI*2);
-        ctx.beginPath();ctx.arc(nx,ny,r+5*z,sa,sa+Math.PI*.5);
-        ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5*z;ctx.stroke();ctx.restore();
+        const sa=(t*2)%(Math.PI*2);
+        ctx.beginPath();ctx.arc(sx,sy,r+5*scale,sa,sa+Math.PI*.5);
+        ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=Math.max(0.5,1.5*scale);ctx.stroke();
       }
 
-      // Label
-      if(z>.5){
+      // Label (only if visible enough)
+      if(scale>.3){
         const label=n.realName||n.nickname;
-        ctx.fillStyle='rgba(255,255,255,'+(0.35+n.intensity*0.35).toFixed(2)+')';
-        ctx.font='500 '+(Math.max(7,8*z))+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-        ctx.fillText(label.length>12?label.slice(0,11)+'…':label,nx,ny+r+5*z);
-        // Encounter count badge
-        if(n.encounters>1&&z>.7){
-          ctx.fillStyle='rgba(255,255,255,.2)';ctx.font=(6*z)+'px Inter,sans-serif';
-          ctx.fillText(n.encounters+'x',nx,ny+r+5*z+10*z);
+        const fontSize=Math.max(6,8*scale);
+        ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*(0.35+n.intensity*0.35)).toFixed(2)+')';
+        ctx.font='500 '+fontSize+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+        ctx.fillText(label.length>12?label.slice(0,11)+'…':label,sx,sy+r+4*scale);
+        if(n.encounters>1&&scale>.5){
+          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.2).toFixed(2)+')';ctx.font=(Math.max(5,6*scale))+'px Inter,sans-serif';
+          ctx.fillText(n.encounters+'x',sx,sy+r+4*scale+fontSize+2);
         }
       }
+      ctx.restore();
     });
     ctx.textBaseline='alphabetic';
+
+    // ── Center node (me) — drawn LAST so it's always on top ──
+    const myScale=FOV/(FOV+0); // z=0 → scale=1
+    const myR=16*z*myScale;
+    // Outer scan ring
+    const scanAngle=(t*0.5)%(Math.PI*2);
+    ctx.save();ctx.beginPath();ctx.arc(mcx,mcy,myR*2.5,scanAngle,scanAngle+Math.PI*.6);
+    ctx.strokeStyle='rgba(255,107,53,.15)';ctx.lineWidth=1;ctx.stroke();ctx.restore();
+    // Glow
+    const myGlow=ctx.createRadialGradient(mcx,mcy,0,mcx,mcy,myR*3);
+    myGlow.addColorStop(0,'rgba(255,107,53,.2)');myGlow.addColorStop(.5,'rgba(255,107,53,.05)');myGlow.addColorStop(1,'transparent');
+    ctx.beginPath();ctx.arc(mcx,mcy,myR*3,0,Math.PI*2);ctx.fillStyle=myGlow;ctx.fill();
+    // Photo or initials
+    if(constState._myImg&&constState._myImgLoaded){
+      drawCroppedImage(constState._myImg,mcx,mcy,myR);
+    }else{
+      ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='bold '+(9*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),mcx,mcy);
+    }
+    // Orange ring
+    ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=2*z;ctx.stroke();
+    // Label
+    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font=(8*z)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('VOCÊ',mcx,mcy+myR+4*z);
 
     // ── Floating legend pill ──
     const verified=constState.nodes.filter(n=>(n.partnerRevealedToMe&&n.iRevealedToPartner)||((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed)))).length;
     const anon=constState.nodes.length-verified;
     const pillW=Math.min(W-24,260),pillH=32,pillX=(W-pillW)/2,pillY=H-48;
-    // Pill background
     ctx.save();
     ctx.beginPath();
     const pillR=pillH/2;
@@ -3008,21 +3068,17 @@ function initConstCanvas(){
     ctx.closePath();
     ctx.fillStyle='rgba(10,10,25,.65)';ctx.fill();
     ctx.strokeStyle='rgba(100,160,255,.12)';ctx.lineWidth=0.5;ctx.stroke();
-    // Content inside pill
     const midY=pillY+pillH/2;
     let tx=pillX+14;
-    // Green dot + Verificados
     ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#00dc82';ctx.fill();
     tx+=10;
     ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='500 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
     ctx.fillText('Verificados: '+verified,tx,midY);
-    // Red dot + Anônimos
     tx+=ctx.measureText('Verificados: '+verified).width+16;
     ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#ff4466';ctx.fill();
     tx+=10;
     ctx.fillStyle='rgba(255,255,255,.55)';
     ctx.fillText('Anônimos: '+anon,tx,midY);
-    // Total on right
     ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='400 9px Inter,sans-serif';
     ctx.fillText(constState.nodes.length+' conexões',pillX+pillW-14,midY);
     ctx.restore();
@@ -3032,14 +3088,12 @@ function initConstCanvas(){
 }
 
 function handleConstTap(tx,ty,W,H){
-  const cx=W/2+constState.cam.x*constState.cam.zoom;
-  const cy=H*0.45+constState.cam.y*constState.cam.zoom;
-  const z=constState.cam.zoom;
+  // Use pre-computed projected 2D coordinates from draw loop
   let hit=null,minD=Infinity;
   constState.nodes.forEach(n=>{
-    const nx=cx+n.x*z,ny=cy+n.y*z;
-    const d=Math.hypot(tx-nx,ty-ny);
-    const hitR=n.baseRadius*z*1.8+10;// generous tap target
+    if(n._px===undefined)return;
+    const d=Math.hypot(tx-n._px,ty-n._py);
+    const hitR=n.baseRadius*(n._pscale||1)*1.8+12;// generous tap target
     if(d<hitR&&d<minD){minD=d;hit=n}
   });
   if(hit){showConstDetail(hit)}else{hideConstDetail()}
