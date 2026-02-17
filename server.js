@@ -137,101 +137,101 @@ function getZodiacSign(birthdate) {
 }
 
 const ZODIAC_INFO = {
-  aries: { emoji: '♈', name: 'Áries', element: 'fogo' },
-  touro: { emoji: '♉', name: 'Touro', element: 'terra' },
-  gemeos: { emoji: '♊', name: 'Gêmeos', element: 'ar' },
-  cancer: { emoji: '♋', name: 'Câncer', element: 'agua' },
-  leao: { emoji: '♌', name: 'Leão', element: 'fogo' },
-  virgem: { emoji: '♍', name: 'Virgem', element: 'terra' },
-  libra: { emoji: '♎', name: 'Libra', element: 'ar' },
-  escorpiao: { emoji: '♏', name: 'Escorpião', element: 'agua' },
-  sagitario: { emoji: '♐', name: 'Sagitário', element: 'fogo' },
-  capricornio: { emoji: '♑', name: 'Capricórnio', element: 'terra' },
-  aquario: { emoji: '♒', name: 'Aquário', element: 'ar' },
-  peixes: { emoji: '♓', name: 'Peixes', element: 'agua' }
+  aries:       { glyph: '♈', name: 'Áries',       element: 'fogo',  trait: 'impulso',    elementName: 'Fogo' },
+  touro:       { glyph: '♉', name: 'Touro',       element: 'terra', trait: 'presença',   elementName: 'Terra' },
+  gemeos:      { glyph: '♊', name: 'Gêmeos',      element: 'ar',    trait: 'movimento',  elementName: 'Ar' },
+  cancer:      { glyph: '♋', name: 'Câncer',       element: 'agua',  trait: 'profundidade', elementName: 'Água' },
+  leao:        { glyph: '♌', name: 'Leão',         element: 'fogo',  trait: 'brilho',     elementName: 'Fogo' },
+  virgem:      { glyph: '♍', name: 'Virgem',       element: 'terra', trait: 'cuidado',    elementName: 'Terra' },
+  libra:       { glyph: '♎', name: 'Libra',        element: 'ar',    trait: 'equilíbrio', elementName: 'Ar' },
+  escorpiao:   { glyph: '♏', name: 'Escorpião',    element: 'agua',  trait: 'intensidade', elementName: 'Água' },
+  sagitario:   { glyph: '♐', name: 'Sagitário',    element: 'fogo',  trait: 'expansão',   elementName: 'Fogo' },
+  capricornio: { glyph: '♑', name: 'Capricórnio',  element: 'terra', trait: 'estrutura',  elementName: 'Terra' },
+  aquario:     { glyph: '♒', name: 'Aquário',       element: 'ar',    trait: 'liberdade',  elementName: 'Ar' },
+  peixes:      { glyph: '♓', name: 'Peixes',        element: 'agua',  trait: 'intuição',   elementName: 'Água' }
 };
 
-// Zodiac compatibility phrases — based on element combinations
+// Zodiac compatibility — poetic, element-focused language
 const ZODIAC_PHRASES = {
   'fogo+fogo': [
-    'Dois fogos juntos: faísca garantida.',
-    'Intensidade pura. Nada aqui é pela metade.',
-    'Energia que se multiplica quando se encontra.',
-    'Vocês queimam na mesma frequência.',
-    'Encontro de chamas — iluminam ou incendeiam.',
-    'Juntos, vocês são combustão espontânea.'
+    'duas chamas que se reconhecem no escuro.',
+    'isso não se apaga com facilidade.',
+    'vocês ardem na mesma direção.',
+    'fogo encontra fogo — e o mundo esquenta.',
+    'nenhum dos dois sabe ir devagar.',
+    'combustão bonita.'
   ],
   'fogo+ar': [
-    'O ar alimenta a chama — vocês se potencializam.',
-    'Uma conexão que eleva e inspira.',
-    'Leveza que encontra paixão.',
-    'Vocês se movem rápido, mas com propósito.',
-    'O vento sopra onde o fogo brilha.',
-    'Juntos: furacão criativo.'
+    'o vento sopra — e a chama cresce.',
+    'leveza que encontra coragem.',
+    'vocês se movem rápido e com propósito.',
+    'o ar alimenta o que o fogo ilumina.',
+    'inspiração e ação no mesmo gesto.',
+    'juntos criam tempestade bonita.'
   ],
   'fogo+terra': [
-    'O fogo aquece a terra — combinação forte.',
-    'Paixão encontra estabilidade.',
-    'Um transforma o outro com paciência.',
-    'Aqui existe tensão produtiva.',
-    'A firmeza da terra acalma a chama.',
-    'Conexão de opostos que se completam.'
+    'a chama aquece o chão. o chão sustenta a chama.',
+    'tensão que constrói.',
+    'paixão que aprende paciência.',
+    'opostos que se precisam.',
+    'a firmeza acalma. o calor transforma.',
+    'nada disso é óbvio — e é por isso que funciona.'
   ],
   'fogo+agua': [
-    'Vapor — quando fogo e água se encontram, algo se transforma.',
-    'Intensidade emocional encontra coragem.',
-    'Vocês se desafiam e se transformam.',
-    'Encontro profundo, mesmo que breve.',
-    'A água aprofunda o que o fogo ilumina.',
-    'Juntos criam algo que não existia antes.'
+    'vapor. quando se encontram, algo muda de estado.',
+    'o fogo ilumina. a água aprofunda.',
+    'encontro que transforma os dois.',
+    'intensidade e sensibilidade no mesmo instante.',
+    'nada aqui é superficial.',
+    'isso vai deixar marca.'
   ],
   'terra+terra': [
-    'Dois pés no chão. Conexão sólida.',
-    'Construção calma e firme.',
-    'Vocês se entendem sem precisar explicar.',
-    'Relação que cresce como raiz — devagar, mas forte.',
-    'Juntos são montanha: inabaláveis.',
-    'Confiança que se constrói no silêncio.'
+    'dois pés no chão. um silêncio que basta.',
+    'raiz encontra raiz — cresce devagar, mas forte.',
+    'vocês se entendem sem explicar.',
+    'juntos são montanha.',
+    'a confiança já estava ali antes do gesto.',
+    'solidez rara.'
   ],
   'terra+ar': [
-    'A terra precisa respirar — o ar traz leveza.',
-    'Ideias encontram forma concreta.',
-    'Uma relação entre o sonho e a realidade.',
-    'O ar expande o que a terra sustenta.',
-    'Vocês equilibram pensamento e ação.',
-    'Conexão entre o possível e o prático.'
+    'o sonho encontra o concreto.',
+    'a terra respira quando o ar chega.',
+    'pensamento e ação no mesmo movimento.',
+    'um expande o que o outro sustenta.',
+    'a leveza não diminui a força — amplifica.',
+    'equilíbrio entre voar e permanecer.'
   ],
   'terra+agua': [
-    'A água nutre a terra — crescimento natural.',
-    'Relação que faz florescer.',
-    'Profundidade emocional encontra segurança.',
-    'Vocês criam um jardim juntos.',
-    'Cuidado que se manifesta no gesto.',
-    'Conexão que alimenta os dois.'
+    'a água nutre. a terra acolhe.',
+    'conexão que faz florescer.',
+    'cuidado manifesto no gesto.',
+    'profundidade encontra segurança.',
+    'juntos criam um jardim.',
+    'isso cresce naturalmente.'
   ],
   'ar+ar': [
-    'Duas mentes que voam juntas.',
-    'Conversa que não tem fim — e não precisa.',
-    'Vocês se entendem no plano das ideias.',
-    'Liberdade compartilhada.',
-    'Juntos pensam mais longe.',
-    'Conexão intelectual rara.'
+    'ar encontra ar — liberdade compartilhada.',
+    'conversa sem fim. e sem necessidade de fim.',
+    'duas mentes que voam juntas.',
+    'nada disso gosta de ficar parado.',
+    'juntos pensam mais longe.',
+    'movimento é a linguagem de vocês.'
   ],
   'ar+agua': [
-    'O ar agita a superfície da água — revela profundidade.',
-    'Razão encontra emoção.',
-    'Vocês se complementam nos contrastes.',
-    'Uma conexão entre pensar e sentir.',
-    'O ar entende, a água sente — juntos sabem.',
-    'Descobertas inesperadas nesse encontro.'
+    'o vento move a superfície. revela profundidade.',
+    'pensar e sentir no mesmo encontro.',
+    'contrastes que se completam.',
+    'a razão entende. a emoção sabe.',
+    'juntos descobrem o que não esperavam.',
+    'nada aqui é previsível.'
   ],
   'agua+agua': [
-    'Dois oceanos se encontram — profundidade infinita.',
-    'Conexão que dispensa palavras.',
-    'Vocês sentem o que o outro não diz.',
-    'Relação intuitiva e envolvente.',
-    'Juntos mergulham mais fundo.',
-    'Corrente emocional que une sem esforço.'
+    'dois oceanos. profundidade infinita.',
+    'vocês sentem o que o outro não diz.',
+    'corrente que une sem esforço.',
+    'intuição compartilhada.',
+    'juntos mergulham mais fundo.',
+    'silêncio que comunica tudo.'
   ]
 };
 
@@ -1218,11 +1218,13 @@ app.get('/api/horoscope/:relationId/:userId', (req, res) => {
   if (!phrase) return res.json({ error: 'Signos não disponíveis.' });
   const nameA = userA.nickname || userA.name;
   const nameB = userB.nickname || userB.name;
-  const emojiA = infoA ? infoA.emoji : '✨';
-  const emojiB = infoB ? infoB.emoji : '✨';
+  const elA = infoA ? infoA.elementName : '?';
+  const elB = infoB ? infoB.elementName : '?';
+  const same = elA === elB;
+  const intro = same ? elA + ' encontra ' + elA : elA + ' encontra ' + elB;
   res.json({
-    phrase: emojiA + ' ' + (signA || '?') + ' × ' + emojiB + ' ' + (signB || '?') + ' — ' + phrase,
-    signA, signB, emojiA, emojiB
+    phrase: intro + ' — ' + phrase,
+    signA, signB, elementA: elA, elementB: elB
   });
 });
 
