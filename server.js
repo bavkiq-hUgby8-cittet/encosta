@@ -992,6 +992,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       profilePhoto: partnerRevealedToMe ? p.profilePhoto : null,
       tipsGiven: p.tipsGiven,
       tipsTotal: p.tipsTotal,
+      instagram: partnerRevealedToMe ? ((other && other.instagram) || null) : null,
       iRevealedToPartner: !!iRevealedToPartner,
       partnerRevealedToMe: !!partnerRevealedToMe,
       hasActiveRelation: !!Object.values(db.relations).find(r => ((r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)) && r.expiresAt > Date.now())

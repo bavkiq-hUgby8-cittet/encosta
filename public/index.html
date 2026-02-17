@@ -444,6 +444,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .const-detail-sub{font-size:.7rem;color:var(--t2);font-weight:400;margin-top:-.1rem}
 .const-detail-meta{font-size:.68rem;color:var(--t3);display:flex;gap:1rem;align-items:center}
 .const-detail-selfie{width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.1);margin-top:.3rem}
+.const-detail-insta{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .8rem;margin:.3rem 0;background:linear-gradient(135deg,rgba(225,48,108,.15),rgba(131,58,180,.15));border:1px solid rgba(225,48,108,.25);border-radius:20px;color:#e1306c;font-size:.75rem;font-weight:500;text-decoration:none;transition:all .2s}
+.const-detail-insta:active{background:linear-gradient(135deg,rgba(225,48,108,.3),rgba(131,58,180,.3));transform:scale(.96)}
 .const-detail-text{font-size:.72rem;color:var(--t3);font-style:italic;font-weight:300}
 .const-detail-id-actions{display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap;justify-content:center}
 .const-detail-tip-btn{margin-top:.5rem;padding:.5rem 1.2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:#fff;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:.03em}
@@ -1090,6 +1092,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="const-detail-sub" id="constDetailSub"></div>
     <div class="const-detail-meta" id="constDetailMeta"></div>
     <img class="const-detail-selfie hidden" id="constDetailSelfie" alt="selfie">
+    <a class="const-detail-insta hidden" id="constDetailInsta" onclick="event.stopPropagation()" target="_blank" rel="noopener">📸 Instagram</a>
     <div class="const-detail-text" id="constDetailText">Vocês estiveram juntos.</div>
     <div class="const-detail-id-actions hidden" id="constIdActions" onclick="event.stopPropagation()">
       <button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(window._constDetailNodeId)">🪪 Trocar IDs</button>
@@ -2854,7 +2857,7 @@ function initConstCanvas(){
     if(e.touches.length===2){
       e.preventDefault();
       const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-      constState.cam.zoom=Math.max(.25,Math.min(4,pinchZoom*(d/pinchDist)));
+      constState.cam.zoom=Math.max(.15,Math.min(20,pinchZoom*(d/pinchDist)));
       if(touches2Start){
         const mx=(e.touches[0].clientX+e.touches[1].clientX)/2,my=(e.touches[0].clientY+e.touches[1].clientY)/2;
         constState.cam.x=touches2Start.cx+(mx-touches2Start.mx)/constState.cam.zoom;
@@ -2862,7 +2865,7 @@ function initConstCanvas(){
       }
     }
   };
-  canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.25,Math.min(4,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
+  canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.15,Math.min(20,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
 
   // ── Particles system ──
   const particles=Array.from({length:120},()=>({
@@ -2953,24 +2956,34 @@ function initConstCanvas(){
     });
     projected.sort((a,b)=>b.z3d-a.z3d); // far first (back-to-front)
 
-    // ── Draw connections first (behind nodes) ──
+    // ── Draw connections — solid LED-glow lines ──
     projected.forEach(({n,sx,sy,scale})=>{
       const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const lineColor=lineBothVerified?'0,220,130':'100,140,255';
-      // Connection line opacity fades with distance
       const depthAlpha=Math.max(0.03,scale*0.8);
       const thick=Math.min(2.5,0.3+Math.log2(1+(n.encounters||1))*0.4)*scale;
+      const lineAlpha=depthAlpha*(0.1+n.intensity*.2);
       ctx.save();
-      ctx.setLineDash([4*scale,8*scale]);ctx.lineDashOffset=-t*30*n.intensity;
+      // Outer glow layer (wide, soft)
       ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
-      ctx.strokeStyle='rgba('+lineColor+','+(depthAlpha*(0.08+n.intensity*.15)).toFixed(3)+')';ctx.lineWidth=Math.max(0.3,thick);ctx.stroke();
-      ctx.setLineDash([]);
-      // Data pulse
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.3).toFixed(3)+')';
+      ctx.lineWidth=Math.max(1,thick*4);ctx.stroke();
+      // Mid glow
+      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.6).toFixed(3)+')';
+      ctx.lineWidth=Math.max(0.5,thick*2);ctx.stroke();
+      // Core bright line (LED center)
+      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*1.2).toFixed(3)+')';
+      ctx.lineWidth=Math.max(0.3,thick*0.8);ctx.stroke();
+      // Traveling energy pulse
       const pulsePos=(t*0.4+n.pulsePhase)%1;
       const px=mcx+(sx-mcx)*pulsePos,py=mcy+(sy-mcy)*pulsePos;
-      const pSize=Math.max(1,4*scale);
+      const pSize=Math.max(2,6*scale);
       const pg=ctx.createRadialGradient(px,py,0,px,py,pSize);
-      pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.4*n.intensity).toFixed(3)+')');pg.addColorStop(1,'transparent');
+      pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.7).toFixed(3)+')');
+      pg.addColorStop(0.4,'rgba('+lineColor+','+(depthAlpha*0.3).toFixed(3)+')');
+      pg.addColorStop(1,'transparent');
       ctx.beginPath();ctx.arc(px,py,pSize,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
       ctx.restore();
     });
@@ -3125,6 +3138,14 @@ function showConstDetail(node){
   const selfieEl=$('constDetailSelfie');
   if(node.lastSelfie){selfieEl.src=node.lastSelfie;selfieEl.classList.remove('hidden')}
   else selfieEl.classList.add('hidden');
+  // Instagram link
+  const instaEl=$('constDetailInsta');
+  if(node.instagram){
+    const handle=node.instagram.replace(/^@/,'').trim();
+    instaEl.href='https://instagram.com/'+handle;
+    instaEl.textContent='📸 @'+handle;
+    instaEl.classList.remove('hidden');
+  }else{instaEl.classList.add('hidden')}
   // Text: tip info
   const txt=$('constDetailText');
   if(node.tipsTotal>0)txt.textContent='Gorjeta total: R$'+node.tipsTotal.toFixed(2).replace('.',',');
