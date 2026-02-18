@@ -4249,7 +4249,7 @@ async function openEventDetail(eventId){
         html+='<div class="loc-person">';
         html+=makeAvatar(nick,color,34,p.profilePhoto||null);
         html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+(isMe?' <span style="font-size:.62rem;color:var(--ok)">('+i18n('evt_you')+')</span>':'')+'</div></div>';
-        if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+esc(nick)+'\')">'+i18n('loc_encosta')+'</button>';
+        if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+p.id+'\')">'+i18n('loc_encosta')+'</button>';
         html+='</div>';
       });
     }else html+='<div class="loc-empty"><div class="loc-empty-icon">&#x1F3C3;</div>'+i18n('evt_nobody')+'</div>';
@@ -4265,9 +4265,9 @@ async function joinEvent(eventId){
     openEventDetail(eventId);
   }catch(e){showToast('Erro.')}
 }
-async function encostaAtEvent(eventId,partnerNick){
+async function encostaAtEvent(eventId,partnerId){
   try{
-    const r=await fetch('/api/event/encosta-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId,userId:state.userId,targetNickname:partnerNick})});
+    const r=await fetch('/api/event/encosta-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId,userId:state.userId,targetId:partnerId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
     showToast('Pedido enviado! Aguardando aceite...');haptic([50,30,50]);

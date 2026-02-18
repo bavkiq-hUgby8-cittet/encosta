@@ -32,7 +32,7 @@ const firestore = admin.firestore();
 const firebaseAuth = admin.auth();
 
 // ── Database (in-memory cache synced with Firestore) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -1482,23 +1482,30 @@ app.get('/api/event/:eventId', (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   const participants = ev.participants.map(pid => {
     const u = db.users[pid];
-    return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, score: calcScore(pid), stars: (u.stars || []).length } : null;
+    return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length } : null;
   }).filter(Boolean);
   res.json({ ...ev, participantsData: participants });
 });
 
 // Digital encosta REQUEST — needs acceptance from the other person
 app.post('/api/event/encosta-request', (req, res) => {
-  const { userId, eventId, targetNickname } = req.body;
+  const { userId, eventId, targetNickname, targetId: directTargetId } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const ev = db.events[eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   if (!ev.participants.includes(userId)) return res.status(403).json({ error: 'Você não está neste evento.' });
-  const targetEntry = Object.entries(db.users).find(([id, u]) =>
-    (u.nickname || u.name || '').toLowerCase() === targetNickname.toLowerCase() && ev.participants.includes(id) && id !== userId
-  );
-  if (!targetEntry) return res.status(404).json({ error: 'Pessoa não encontrada neste evento.' });
-  const targetId = targetEntry[0];
+  let targetId;
+  if (directTargetId && db.users[directTargetId] && ev.participants.includes(directTargetId) && directTargetId !== userId) {
+    targetId = directTargetId;
+  } else if (targetNickname) {
+    const targetEntry = Object.entries(db.users).find(([id, u]) =>
+      (u.nickname || u.name || '').toLowerCase() === targetNickname.toLowerCase() && ev.participants.includes(id) && id !== userId
+    );
+    if (!targetEntry) return res.status(404).json({ error: 'Pessoa não encontrada neste evento.' });
+    targetId = targetEntry[0];
+  } else {
+    return res.status(400).json({ error: 'Informe targetId ou targetNickname.' });
+  }
   const user = db.users[userId];
   const reqId = uuidv4();
   // Send request via socket to target
@@ -1702,6 +1709,44 @@ setInterval(() => {
     if (now - entry.joinedAt > 60000) delete sonicQueue[uid]; // 1 min timeout
   }
 }, 30000);
+
+// ── DATABASE RESET ──
+app.post('/api/admin/reset-db', (req, res) => {
+  const { confirm, keepUsers } = req.body;
+  if (confirm !== 'RESET') return res.status(400).json({ error: 'Send { confirm: "RESET" } to confirm.' });
+  const userCount = Object.keys(db.users).length;
+  const relationCount = Object.keys(db.relations).length;
+  const eventCount = Object.keys(db.events).length;
+  const encounterCount = Object.keys(db.encounters).length;
+  const msgCount = Object.keys(db.messages).length;
+  if (keepUsers) {
+    // Reset everything except users
+    DB_COLLECTIONS.forEach(c => { if (c !== 'users') db[c] = {}; });
+    // Clear user transient data but keep profiles
+    Object.values(db.users).forEach(u => {
+      u.stars = []; u.score = 0;
+    });
+  } else {
+    DB_COLLECTIONS.forEach(c => { db[c] = {}; });
+  }
+  saveDB();
+  res.json({ ok: true, cleared: { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount } });
+});
+
+// ── STATUS / HEALTH ──
+app.get('/api/status', (req, res) => {
+  res.json({
+    ok: true, uptime: process.uptime(),
+    counts: {
+      users: Object.keys(db.users).length,
+      relations: Object.keys(db.relations).length,
+      events: Object.keys(db.events).length,
+      encounters: Object.keys(db.encounters).length,
+      sessions: Object.keys(db.sessions).length,
+      messages: Object.keys(db.messages).length
+    }
+  });
+});
 
 // ── SOCKET.IO ──
 io.on('connection', (socket) => {
