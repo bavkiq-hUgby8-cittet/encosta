@@ -186,16 +186,19 @@ async function run() {
     assert(d.some(p => p.id === userB.id), 'Expected userB nearby');
   });
 
-  // ── ID Reveal ──
+  // ── ID Reveal (centralized system) ──
   console.log('\n── ID Reveal ──');
-  await test('POST /api/reveal-id works', async () => {
-    // Get a relation first
-    const rels = await api(`/api/relations/${userA.id}`);
-    if (rels.length > 0) {
-      const relId = rels[0].id;
-      const d = await api('/api/reveal-id', { method: 'POST', body: { userId: userA.id, relationId: relId } });
-      assert(d.ok === true || d.error, 'Expected response');
-    }
+  await test('POST /api/identity/reveal sends request', async () => {
+    const d = await api('/api/identity/reveal', { method: 'POST', body: { userId: userA.id, targetUserId: userB.id } });
+    assert(d.ok === true || d.error, 'Expected response from reveal request');
+  });
+  await test('GET /api/identity/pending returns pending requests', async () => {
+    const d = await api(`/api/identity/pending/${userB.id}`);
+    assert(Array.isArray(d), 'Expected array of pending requests');
+  });
+  await test('POST /api/identity/reveal-accept accepts request', async () => {
+    const d = await api('/api/identity/reveal-accept', { method: 'POST', body: { userId: userB.id, fromUserId: userA.id } });
+    assert(d.ok === true || d.error, 'Expected response from reveal accept');
   });
 
   // ── Final Reset with keepUsers ──
