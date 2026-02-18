@@ -691,8 +691,8 @@ app.post('/api/touch-link/connect', (req, res) => {
   const zodiacPhrase = getZodiacPhrase(signOwner, signVisitor);
   const responseData = {
     relationId: existing ? existing.id : relationId, phrase, expiresAt, renewed: !!existing,
-    userA: { id: owner.id, name: owner.nickname, color: owner.color, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '' },
-    userB: { id: visitor.id, name: visitor.nickname, color: visitor.color, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '' },
+    userA: { id: owner.id, name: owner.nickname, realName: owner.realName || null, color: owner.color, profilePhoto: owner.profilePhoto || null, photoURL: owner.photoURL || null, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '' },
+    userB: { id: visitor.id, name: visitor.nickname, realName: visitor.realName || null, color: visitor.color, profilePhoto: visitor.profilePhoto || null, photoURL: visitor.photoURL || null, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '' },
     zodiacPhrase
   };
   io.to(`user:${owner.id}`).emit('relation-created', responseData);
@@ -1504,7 +1504,7 @@ app.post('/api/event/encosta-request', (req, res) => {
   // Send request via socket to target
   io.to(`user:${targetId}`).emit('encosta-request', {
     requestId: reqId, eventId, eventName: ev.name,
-    from: { id: userId, name: user.nickname || user.name, color: user.color }
+    from: { id: userId, name: user.nickname || user.name, color: user.color, profilePhoto: user.profilePhoto || null, photoURL: user.photoURL || null }
   });
   res.json({ ok: true, requestId: reqId });
 });
@@ -1547,8 +1547,8 @@ app.post('/api/event/encosta-accept', (req, res) => {
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing, type: 'digital', eventName: ev ? ev.name : '',
     lastEncounter: lastEnc ? { phrase: lastEnc.phrase, timestamp: lastEnc.timestamp } : null,
-    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' }
+    userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: getZodiacSign(userA.birthdate), signInfo: getZodiacSign(userA.birthdate) ? ZODIAC_INFO[getZodiacSign(userA.birthdate)] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+    userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: getZodiacSign(userB.birthdate), signInfo: getZodiacSign(userB.birthdate) ? ZODIAC_INFO[getZodiacSign(userB.birthdate)] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' }
   };
   io.to(`user:${fromUserId}`).emit('relation-created', responseData);
   io.to(`user:${userId}`).emit('relation-created', responseData);
