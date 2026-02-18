@@ -511,7 +511,25 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .id-float-btn.request{background:linear-gradient(135deg,#7c3aed,#a371f7);color:#fff}
 .id-float-btn.reveal{background:linear-gradient(135deg,var(--ac),var(--pk));color:#fff}
 .id-float-btn:active{transform:scale(.93)}
-.reveal-req-popup{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);width:calc(100% - 2rem);max-width:380px;background:linear-gradient(135deg,var(--s2),var(--s1));border:1px solid rgba(255,107,53,.25);border-radius:20px;padding:1.2rem;z-index:9999;box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 20px rgba(255,107,53,.15);animation:slideUp .35s cubic-bezier(.22,1,.36,1)}
+.reveal-req-popup{display:none}
+.reveal-chat-card{margin:.5rem .4rem;padding:0;animation:mi .3s ease}
+.rcc-header{display:flex;align-items:center;gap:.6rem;padding:.8rem;background:linear-gradient(135deg,rgba(255,200,87,.06),rgba(255,107,53,.06));border:1px solid rgba(255,200,87,.2);border-radius:14px}
+.rcc-icon{font-size:1.3rem}
+.rcc-text{font-size:.78rem;color:var(--t2);line-height:1.4}
+.rcc-actions{display:flex;gap:.4rem;margin-top:.4rem;padding:0 .8rem .6rem}
+.rcc-status{text-align:center;font-size:.72rem;padding:.4rem .8rem;border-radius:10px;margin-top:.3rem}
+.rcc-status.pending{color:#fbbf24;background:rgba(251,191,36,.08)}
+.rcc-status.accepted{color:var(--ok);background:rgba(52,211,153,.08)}
+.rcc-status.declined{color:var(--t3);background:rgba(255,255,255,.03)}
+.rcc-revealed{text-align:center;padding:1rem;background:linear-gradient(135deg,rgba(52,211,153,.06),rgba(0,220,130,.04));border:1px solid rgba(52,211,153,.2);border-radius:16px}
+.rcc-revealed-title{font-size:.9rem;font-weight:700;color:var(--ok);margin-bottom:.6rem}
+.rcc-revealed-pair{display:flex;justify-content:center;align-items:center;gap:.8rem;margin:.5rem 0}
+.rcc-photo{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--ok)}
+.rcc-photo-placeholder{width:52px;height:52px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;color:#fff}
+.rcc-heart{font-size:1.2rem}
+.rcc-names{display:flex;justify-content:center;gap:2rem;margin:.3rem 0}
+.rcc-name{font-size:.8rem;font-weight:600;color:var(--t1)}
+.rcc-insta{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .7rem;margin-top:.4rem;background:linear-gradient(135deg,rgba(225,48,108,.12),rgba(131,58,180,.12));border:1px solid rgba(225,48,108,.2);border-radius:20px;color:#e1306c;font-size:.7rem;font-weight:500;text-decoration:none}
 .reveal-req-content{display:flex;align-items:center;gap:.8rem;margin-bottom:1rem}
 .reveal-req-actions{display:flex;gap:.5rem}
 .id-revealed-card{background:var(--s1);border:1px solid var(--ac);border-radius:14px;padding:.8rem;display:flex;align-items:center;gap:.8rem;margin:.5rem 0}
@@ -871,10 +889,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="rh"><h1>Touch?</h1><p>complete sua presença</p></div>
   <div class="avs">
     <div class="avp" id="avatarPreview" style="background:var(--s2)">?</div>
-    <div class="nick-hint" id="nickHint">escolha seu nickname</div>
+    <div class="nick-hint" id="nickHint">escolha um apelido criativo</div>
   </div>
-  <div class="fg"><label>Nickname</label><input type="text" id="regNick" placeholder="seu_nick" maxlength="20" autocomplete="off" oninput="checkNick(this.value)"></div>
-  <div class="reg-nick-info">Este é o nome que todos verão. Seu nome real só aparece quando você decide revelar sua identidade para alguém.</div>
+  <div class="fg"><label>Nickname</label><input type="text" id="regNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" oninput="checkNick(this.value)"></div>
+  <div class="reg-nick-info">Escolha um apelido criativo! Não use seu nome real — ele será seu segredo até você decidir revelar para alguém.</div>
   <div class="fg"><label>Data de nascimento</label><input type="date" id="regBirth"></div>
   <div class="tc"><input type="checkbox" id="regTerms"><span>Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.</span></div>
   <button class="bp" onclick="doRegister()">ENTRAR</button>
@@ -1043,8 +1061,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="chat-bottom" style="position:relative">
     <!-- ID action buttons (only visible when relevant) -->
     <div class="chat-id-bar" id="chatIdBar">
-      <button class="id-pill request" onclick="requestIdentity()" type="button" id="requestIdBtn">🔓 Pedir ID</button>
-      <button class="id-pill reveal" onclick="revealIdentity(state.currentPartnerId)" type="button" id="revealIdBtn">🪪 Revelar meu ID</button>
+      <button class="id-pill reveal" onclick="revealIdentity(state.currentPartnerId)" type="button" id="revealIdBtn">🪪 Revelar ID Real</button>
     </div>
     <!-- Plus menu (all actions here) -->
     <div class="plus-menu" id="plusMenu">
@@ -1095,7 +1112,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <a class="const-detail-insta hidden" id="constDetailInsta" onclick="event.stopPropagation()" target="_blank" rel="noopener">📸 Instagram</a>
     <div class="const-detail-text" id="constDetailText">Vocês estiveram juntos.</div>
     <div class="const-detail-id-actions hidden" id="constIdActions" onclick="event.stopPropagation()">
-      <button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(window._constDetailNodeId)">🪪 Trocar IDs</button>
+      <button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(window._constDetailNodeId)">🪪 Revelar ID Real</button>
     </div>
     <button class="const-detail-tip-btn hidden" id="constTipBtn" onclick="event.stopPropagation();constTipAction()">💰 Dar gorjeta</button>
   </div>
@@ -1449,7 +1466,12 @@ function initSocket(){
     }
   });
   socket.on('new-message',({relationId,message})=>{
-    if(state.currentRelation?.relationId===relationId){appendMessage(message);playSound('receive');hideTyping()}
+    if(state.currentRelation?.relationId===relationId){
+      if(message.type==='reveal-request'||message.type==='reveal-accepted'||message.type==='reveal-declined'){
+        appendRevealChatCard(message);
+      }else{appendMessage(message)}
+      playSound('receive');hideTyping();
+    }
   });
   socket.on('partner-typing',({relationId})=>{
     if(state.currentRelation?.relationId===relationId)showTyping()
@@ -1492,34 +1514,26 @@ function initSocket(){
     showToast(fromName+' quer ver quem você é de verdade!');
   });
   // New: someone wants to reveal IDs (bilateral exchange request)
-  socket.on('identity-reveal-request',({fromUserId,fromName,fromPhoto,relationId})=>{
-    haptic([100,50,100]);playSound('receive');
-    showRevealRequestPopup(fromUserId,fromName,fromPhoto,relationId);
+  // Reveal status update — sync constellation + chat UI
+  socket.on('reveal-status-update',({relationId,fromUserId,toUserId,status})=>{
+    const partnerId=(fromUserId===state.userId)?toUserId:fromUserId;
+    if(!state.pendingReveals)state.pendingReveals={};
+    if(status==='pending'){
+      state.pendingReveals[partnerId]=fromUserId===state.userId?'sent':'received';
+    }else{
+      delete state.pendingReveals[partnerId];
+    }
+    // Update chat ID bar if open with this partner
+    if(state.currentPartnerId===partnerId)updateChatIdBar();
   });
-  // Reveal was declined
-  socket.on('identity-reveal-declined',({byUserId,byName})=>{
-    haptic([30]);showToast((byName||'A pessoa')+' preferiu não revelar agora.');
-  });
-  // Bilateral reveal completed — both identities exchanged
+  // Bilateral reveal completed
   socket.on('identity-revealed',({fromUserId,realName,profilePhoto,instagram,bio})=>{
     haptic([80,40,80]);playSound('connect');
-    // Store revealed state — BOTH directions are now revealed
     if(!state.revealedIds)state.revealedIds={};
     state.revealedIds[fromUserId]={realName,profilePhoto,_iRevealed:true};
-    // Global UI sync — hide all ID buttons for this person everywhere
     syncRevealUI(fromUserId,realName,profilePhoto);
-    // Refresh relations so photos show on home/relations screens
     refreshRelations();
-    // Show ID card in chat if open
-    if(state.currentPartnerId===fromUserId&&state.currentRelation){
-      appendSystemMsg('Identidades reveladas! Agora vocês se conhecem de verdade 🪪');
-      const box=$('chatMessages');
-      if(box){
-        const card=document.createElement('div');card.className='id-revealed-card';
-        card.innerHTML=(profilePhoto?'<img src="'+profilePhoto+'" alt="">':'')+'<div><div class="id-name">'+(realName||'?')+'</div>'+(bio?'<div class="id-bio">'+esc(bio)+'</div>':'')+(instagram?'<div class="id-bio">'+esc(instagram)+'</div>':'')+'</div>';
-        box.appendChild(card);box.scrollTop=box.scrollHeight;
-      }
-    }else{
+    if(state.currentPartnerId!==fromUserId){
       showToast((realName||'Alguém')+' revelou quem é — abra o chat para ver! 🪪');
     }
   });
@@ -2437,23 +2451,8 @@ async function openChat(rel){
     $('chatPartner').textContent=pNick;
     $('chatSub').textContent='nickname';
   }
-  // Show/hide ID action buttons — check BOTH directions of reveal
-  const idBar=$('chatIdBar');
-  if(idBar){
-    // Bilateral reveal: if both revealed (partner has realName AND I revealed), hide all
-    const partnerRevealed=!!(pRealName&&pRealName!==pNick);
-    const iRevealed=!!(rel.iRevealedToPartner||(state.revealedIds&&state.revealedIds[state.currentPartnerId]&&state.revealedIds[state.currentPartnerId]._iRevealed));
-    if(partnerRevealed&&iRevealed){
-      idBar.style.display='none';
-    }else{
-      idBar.style.display='flex';
-      // Single button: "Trocar IDs" (combines request + reveal)
-      const revBtn=$('revealIdBtn');
-      const reqBtn=$('requestIdBtn');
-      if(reqBtn)reqBtn.style.display='none'; // hide old request button
-      if(revBtn){revBtn.style.display='';revBtn.disabled=false;revBtn.style.opacity='1';revBtn.textContent='🪪 Trocar IDs'}
-    }
-  }
+  // Load pending reveals for this partner and update chat ID bar
+  updateChatIdBar();
   $('chatPhrase').textContent=rel.phrase;
   closePlusMenu();hideTyping();
   const mc=$('chatMessages'),ti=$('typingIndicator');mc.innerHTML='';mc.appendChild(ti);
@@ -2461,6 +2460,7 @@ async function openChat(rel){
   try{(await(await fetch('/api/messages/'+rel.relationId)).json()).forEach(m=>{
     if(m.type==='ephemeral')appendEphemeral(m,true);
     else if(m.type==='photo')appendPhoto(m);
+    else if(m.type==='reveal-request'||m.type==='reveal-accepted'||m.type==='reveal-declined')appendRevealChatCard(m);
     else appendMessage(m);
   })}catch(e){}
   // Load partner score + stars into subtitle
@@ -2754,6 +2754,18 @@ async function showHistory(){
     const empty=$('constEmpty');
     if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];showScreen('history');requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
     empty.classList.add('hidden');
+    // Load pending reveal requests for constellation state
+    try{
+      const pendingReveals=await(await fetch('/api/identity/pending/'+state.userId)).json();
+      if(!state.pendingReveals)state.pendingReveals={};
+      pendingReveals.forEach(pr=>{
+        const partnerId=pr.fromUserId===state.userId?pr.toUserId:pr.fromUserId;
+        state.pendingReveals[partnerId]=pr.direction;
+        // Also update node data
+        const nd=data.nodes.find(n=>n.id===partnerId);
+        if(nd)nd.pendingReveal=pr.direction;
+      });
+    }catch(e){}
     // Layout nodes in 3D space — wide spread + z-depth by time
     const now=Date.now();
     const nodeCount=data.nodes.length;
@@ -3267,18 +3279,28 @@ function showConstDetail(node){
   const tipBtn=$('constTipBtn');
   if(node.isPrestador){tipBtn.classList.remove('hidden');tipBtn.dataset.receiverId=node.id}
   else tipBtn.classList.add('hidden');
-  // ID action button — show if active relation AND IDs not yet exchanged BOTH ways
+  // ID reveal actions — 4 states: none, sent, received, revealed
   const idActions=$('constIdActions');
   window._constDetailNodeId=node.id;
   const partnerRevealed=!!(node.partnerRevealedToMe||(node.realName&&node.realName!==node.nickname));
   const iRevealed=!!(node.iRevealedToPartner||(state.revealedIds&&state.revealedIds[node.id]&&state.revealedIds[node.id]._iRevealed));
   const bothRevealed=partnerRevealed&&iRevealed;
-  if(node.hasActiveRelation&&!bothRevealed){
+  const pending=node.pendingReveal||state.pendingReveals[node.id]||null;
+  if(bothRevealed){
     idActions.classList.remove('hidden');
-    const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='🪪 Trocar IDs';cBtn.disabled=false;cBtn.style.opacity='1'}
+    idActions.innerHTML='<div style="display:flex;align-items:center;gap:.4rem;color:var(--ok);font-size:.75rem;font-weight:600">✅ Identidade Revelada</div>';
+  }else if(pending==='sent'){
+    idActions.classList.remove('hidden');
+    idActions.innerHTML='<button class="id-float-btn reveal" disabled style="opacity:.6">⏳ Aguardando...</button>';
+  }else if(pending==='received'){
+    idActions.classList.remove('hidden');
+    idActions.innerHTML='<button class="id-float-btn reveal" onclick="acceptRevealFromChat(\''+node.id+'\');hideConstDetail()">🪪 Aceitar Reveal</button>'
+      +'<button class="id-float-btn" style="background:rgba(255,255,255,.05);color:var(--t3);font-size:.7rem" onclick="declineRevealFromChat(\''+node.id+'\');hideConstDetail()">Recusar</button>';
+  }else if(node.hasActiveRelation){
+    idActions.classList.remove('hidden');
+    idActions.innerHTML='<button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(\''+node.id+'\')">🪪 Revelar ID Real</button>';
   }else{
     idActions.classList.add('hidden');
-    if(bothRevealed){$('constDetailText').textContent='🪪 IDs trocados'}
   }
   $('constDetail').classList.add('visible');
   haptic([15]);
@@ -3391,9 +3413,13 @@ function handleProfilePhoto(input){
   reader.readAsDataURL(file);
 }
 async function saveCompleteProfile(){
+  const realNameVal=$('cpRealName').value.trim();
+  if(realNameVal&&state.userNickname&&realNameVal.toLowerCase()===state.userNickname.toLowerCase()){
+    return showToast('Seu nome real precisa ser diferente do nickname!');
+  }
   const data={
     userId:state.userId,
-    realName:$('cpRealName').value.trim(),
+    realName:realNameVal,
     bio:$('cpBio').value.trim(),
     phone:$('cpPhone').value.trim(),
     instagram:$('cpInstagram').value.trim(),
@@ -3411,89 +3437,141 @@ async function saveCompleteProfile(){
   }catch(e){showToast('Erro ao salvar.')}
 }
 
-// ═══ REVEAL / REQUEST IDENTITY — UNIFIED FLOW ═══
-// "Revelar meu ID" sends a request; partner must accept for bilateral exchange
+// ═══ REVELAR ID REAL — SISTEMA CENTRALIZADO ═══
+if(!state.pendingReveals)state.pendingReveals={};
+
+// Send reveal request (from chat or constellation)
 async function revealIdentity(targetUserId){
   if(!state.userId)return;
-  // Check if already fully revealed
-  if(state.revealedIds&&state.revealedIds[targetUserId]&&state.revealedIds[targetUserId]._iRevealed&&state.revealedIds[targetUserId].realName)return showToast('IDs já foram trocados.');
+  if(state.revealedIds&&state.revealedIds[targetUserId]&&state.revealedIds[targetUserId]._iRevealed)return showToast('Identidades já reveladas.');
+  if(state.pendingReveals[targetUserId]==='sent')return showToast('Pedido já enviado. Aguardando...');
   try{
     const r=await fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    showToast('Pedido de troca de ID enviado! 🪪');haptic([40,20,60]);
-    if(state.currentRelation)appendSystemMsg('Você pediu para trocar identidades reais.');
-    // Disable all reveal buttons immediately
-    const revBtn=$('revealIdBtn');if(revBtn){revBtn.textContent='Enviado...';revBtn.disabled=true;revBtn.style.opacity='.5'}
-    const cRevBtn=$('constRevealIdBtn');if(cRevBtn){cRevBtn.textContent='Enviado...';cRevBtn.disabled=true;cRevBtn.style.opacity='.5'}
+    haptic([40,20,60]);
+    state.pendingReveals[targetUserId]='sent';
+    updateChatIdBar();
+    // Update constellation button if visible
+    const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='⏳ Aguardando...';cBtn.disabled=true;cBtn.style.opacity='.6'}
   }catch(e){showToast('Complete seu perfil antes de revelar.')}
 }
-async function requestIdentity(){
-  // Now this also triggers a reveal request (same flow)
-  if(!state.userId)return;
-  const pid=state.currentPartnerId;
-  if(!pid)return showToast('Sem parceiro.');
-  revealIdentity(pid);
-}
-function requestRevealFromConstellation(nodeId){revealIdentity(nodeId)}
 function revealFromConstellation(nodeId){revealIdentity(nodeId)}
 
-// Show popup when someone requests to reveal IDs
-function showRevealRequestPopup(fromUserId,fromName,fromPhoto,relationId){
-  // Remove existing popup if any
-  document.querySelectorAll('.reveal-req-popup').forEach(e=>e.remove());
-  const popup=document.createElement('div');
-  popup.className='reveal-req-popup';
-  const avatarHtml=fromPhoto&&fromPhoto.length>10
-    ?'<div style="width:50px;height:50px;border-radius:50%;overflow:hidden;border:2px solid var(--ac);flex-shrink:0"><img src="'+fromPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>'
-    :'<div style="width:50px;height:50px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;flex-shrink:0">'+esc((fromName||'??').slice(0,2).toUpperCase())+'</div>';
-  popup.innerHTML='<div class="reveal-req-content">'
-    +avatarHtml
-    +'<div style="flex:1">'
-    +'<div style="font-size:.95rem;font-weight:700;color:var(--t1)">'+esc(fromName)+' quer trocar IDs</div>'
-    +'<div style="font-size:.7rem;color:var(--t3);margin-top:.15rem">Se aceitar, vocês vão ver o nome real e foto um do outro</div>'
-    +'</div></div>'
-    +'<div class="reveal-req-actions">'
-    +'<button class="bp" style="flex:1" onclick="acceptRevealRequest(\''+fromUserId+'\',this)">Aceitar 🪪</button>'
-    +'<button class="bs" style="flex:1" onclick="declineRevealRequest(\''+fromUserId+'\',this)">Agora não</button>'
-    +'</div>';
-  document.body.appendChild(popup);
-  // Auto-remove after 30s
-  setTimeout(()=>{if(popup.parentNode)popup.remove()},30000);
-}
-async function acceptRevealRequest(fromUserId,btn){
-  const popup=btn.closest('.reveal-req-popup');
+// Accept reveal (from chat card or constellation)
+async function acceptRevealFromChat(fromUserId){
   try{
     const r=await fetch('/api/identity/reveal-accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})});
     const d=await r.json();
     if(d.error){showToast(d.error);return}
     haptic([80,40,80,40,80]);
+    delete state.pendingReveals[fromUserId];
+    updateChatIdBar();
   }catch(e){showToast('Erro ao aceitar.')}
-  if(popup)popup.remove();
 }
-async function declineRevealRequest(fromUserId,btn){
-  const popup=btn.closest('.reveal-req-popup');
+async function declineRevealFromChat(fromUserId){
   try{await fetch('/api/identity/reveal-decline',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})})}catch(e){}
-  if(popup)popup.remove();
+  delete state.pendingReveals[fromUserId];
   showToast('Pedido recusado.');
+  updateChatIdBar();
+}
+
+// Render reveal messages in chat (request, accepted, declined)
+function appendRevealChatCard(msg){
+  const mc=$('chatMessages'),ti=$('typingIndicator'),near=nearBot();
+  const div=document.createElement('div');
+  div.className='reveal-chat-card';
+  div.id='revealMsg-'+(msg.revealRequestId||msg.id);
+  if(msg.type==='reveal-request'){
+    const iSent=msg.fromUserId===state.userId;
+    const name=msg.fromName||'?';
+    const color=msg.fromColor||'var(--ac)';
+    const photo=msg.fromPhoto;
+    const avatarHtml=photo&&photo.length>10
+      ?'<img src="'+photo+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid '+color+'" alt="">'
+      :'<div style="width:42px;height:42px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff">'+esc(name.slice(0,2).toUpperCase())+'</div>';
+    div.innerHTML='<div class="rcc-header">'
+      +'<div class="rcc-icon">🪪</div>'
+      +avatarHtml
+      +'<div class="rcc-text">'
+      +(iSent?'<strong>Você</strong> pediu para revelar identidades':'<strong>'+esc(name)+'</strong> quer revelar a identidade real')
+      +'</div></div>'
+      +(iSent
+        ?'<div class="rcc-status pending">⏳ Aguardando resposta...</div>'
+        :'<div class="rcc-actions" id="rccActions-'+msg.revealRequestId+'">'
+        +'<button class="bp" style="flex:1;font-size:.82rem" onclick="acceptRevealFromChat(\''+msg.fromUserId+'\')">Aceitar 🪪</button>'
+        +'<button class="bs" style="flex:1;font-size:.82rem" onclick="declineRevealFromChat(\''+msg.fromUserId+'\')">Agora não</button>'
+        +'</div>');
+    // Check if already resolved (for historical messages)
+    if(!iSent){
+      const alreadyRevealed=state.revealedIds&&state.revealedIds[msg.fromUserId]&&state.revealedIds[msg.fromUserId]._iRevealed;
+      if(alreadyRevealed){
+        div.innerHTML=div.innerHTML.replace(/<div class="rcc-actions".*<\/div>$/,'<div class="rcc-status accepted">✅ Identidades reveladas</div>');
+      }
+    }
+  }else if(msg.type==='reveal-accepted'){
+    const a=msg.userA,b=msg.userB;
+    const me=(a.id===state.userId)?a:b;
+    const them=(a.id===state.userId)?b:a;
+    const themPhoto=them.profilePhoto;
+    const mePhoto=me.profilePhoto;
+    div.innerHTML='<div class="rcc-revealed">'
+      +'<div class="rcc-revealed-title">🪪 Identidades Reveladas!</div>'
+      +'<div class="rcc-revealed-pair">'
+      +(mePhoto?'<img src="'+mePhoto+'" class="rcc-photo" alt="">':'<div class="rcc-photo-placeholder">'+esc((me.nickname||'?').slice(0,2).toUpperCase())+'</div>')
+      +'<div class="rcc-heart">💛</div>'
+      +(themPhoto?'<img src="'+themPhoto+'" class="rcc-photo" alt="">':'<div class="rcc-photo-placeholder">'+esc((them.nickname||'?').slice(0,2).toUpperCase())+'</div>')
+      +'</div>'
+      +'<div class="rcc-names">'
+      +'<div class="rcc-name">'+esc(me.realName||me.nickname)+'</div>'
+      +'<div class="rcc-name">'+esc(them.realName||them.nickname)+'</div>'
+      +'</div>'
+      +(them.instagram?'<a class="rcc-insta" href="https://instagram.com/'+esc(them.instagram.replace(/^@/,''))+'" target="_blank" rel="noopener">📸 @'+esc(them.instagram.replace(/^@/,''))+'</a>':'')
+      +'</div>';
+  }else if(msg.type==='reveal-declined'){
+    div.innerHTML='<div class="rcc-status declined">Pedido de reveal não aceito no momento</div>';
+  }
+  mc.insertBefore(div,ti);
+  if(near)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
+}
+
+// Update chat ID bar button state
+function updateChatIdBar(){
+  const idBar=$('chatIdBar');if(!idBar)return;
+  const pid=state.currentPartnerId;
+  if(!pid){idBar.style.display='none';return}
+  // Check if already revealed both ways
+  const partnerRevealed=!!(state.revealedIds&&state.revealedIds[pid]&&state.revealedIds[pid]._iRevealed);
+  const rel=state.currentRelation;
+  const iRevealed=!!(rel&&rel.iRevealedToPartner)||(state.revealedIds&&state.revealedIds[pid]&&state.revealedIds[pid]._iRevealed);
+  if(partnerRevealed&&iRevealed){idBar.style.display='none';return}
+  idBar.style.display='flex';
+  const btn=$('revealIdBtn');if(!btn)return;
+  const pending=state.pendingReveals[pid];
+  if(pending==='sent'){
+    btn.textContent='⏳ Aguardando...';btn.disabled=true;btn.style.opacity='.6';
+  }else if(pending==='received'){
+    btn.textContent='🪪 Aceitar Reveal';btn.disabled=false;btn.style.opacity='1';
+    btn.onclick=()=>acceptRevealFromChat(pid);
+  }else{
+    btn.textContent='🪪 Revelar ID Real';btn.disabled=false;btn.style.opacity='1';
+    btn.onclick=()=>revealIdentity(pid);
+  }
 }
 
 // Global UI sync — when IDs are revealed, update ALL screens
 function syncRevealUI(partnerId,realName,profilePhoto){
-  // 1. Hide ALL ID buttons related to this partner
   const idBar=$('chatIdBar');if(idBar)idBar.style.display='none';
-  const constActions=$('constIdActions');if(constActions)constActions.classList.add('hidden');
-  // 2. Update chat header if open with this person
+  delete state.pendingReveals[partnerId];
   if(state.currentPartnerId===partnerId){
     const chatName=$('chatPartner');
     if(chatName&&realName)chatName.textContent=realName;
     const pNick=state.currentRelation?.partnerName||'';
-    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ IDs trocados</span>'+(pNick?' · @'+esc(pNick):'');
+    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ ID revelado</span>'+(pNick?' · @'+esc(pNick):'');
   }
-  // 3. Update constellation node flags in real-time
   if(constState.nodes){
     const cNode=constState.nodes.find(n=>n.id===partnerId);
-    if(cNode){cNode.iRevealedToPartner=true;cNode.partnerRevealedToMe=true;if(realName)cNode.realName=realName;if(profilePhoto)cNode.profilePhoto=profilePhoto}
+    if(cNode){cNode.iRevealedToPartner=true;cNode.partnerRevealedToMe=true;cNode.pendingReveal=null;if(realName)cNode.realName=realName;if(profilePhoto)cNode.profilePhoto=profilePhoto}
   }
 }
 function appendSystemMsg(text){
@@ -4309,7 +4387,7 @@ pt:{
   home_footer:'Tocar cria algo. Não tocar faz sumir.',
   sonic_searching:'Emitindo som ultrassônico...',sonic_approach:'Aproxime os celulares...',sonic_fallback:'Aproxime os celulares ou use código',
   // Register
-  reg_title:'Touch?',reg_sub:'crie sua presença',reg_nick_hint:'escolha seu nickname',
+  reg_title:'Touch?',reg_sub:'crie sua presença',reg_nick_hint:'escolha um apelido criativo',
   reg_nick:'Nickname',reg_birth:'Data de nascimento',
   reg_terms:'Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.',
   reg_btn:'ENTRAR',
@@ -4353,7 +4431,7 @@ en:{
   home_greeting:'Hello',home_motto:'Nothing happens<br>from a distance.',home_btn:'TOUCH',
   home_footer:'Touching creates something. Not touching makes it vanish.',
   sonic_searching:'Emitting ultrasonic sound...',sonic_approach:'Bring phones closer...',sonic_fallback:'Bring phones closer or use code',
-  reg_title:'Touch?',reg_sub:'create your presence',reg_nick_hint:'choose your nickname',
+  reg_title:'Touch?',reg_sub:'create your presence',reg_nick_hint:'choose a creative alias',
   reg_nick:'Nickname',reg_birth:'Date of birth',
   reg_terms:'I understand and accept that <strong>all relationships here are temporary</strong>. Nothing persists without encounter.',
   reg_btn:'ENTER',
@@ -4389,7 +4467,7 @@ es:{
   home_greeting:'Hola',home_motto:'Nada pasa<br>a distancia.',home_btn:'TOCAR',
   home_footer:'Tocar crea algo. No tocar lo hace desaparecer.',
   sonic_searching:'Emitiendo sonido ultrasónico...',sonic_approach:'Acerquen los celulares...',sonic_fallback:'Acerquen los celulares o usen código',
-  reg_title:'Touch?',reg_sub:'crea tu presencia',reg_nick_hint:'elige tu nickname',
+  reg_title:'Touch?',reg_sub:'crea tu presencia',reg_nick_hint:'elige un apodo creativo',
   reg_nick:'Nickname',reg_birth:'Fecha de nacimiento',
   reg_terms:'Entiendo y acepto que <strong>todas las relaciones aquí son temporales</strong>. Nada persiste sin encuentro.',
   reg_btn:'ENTRAR',
