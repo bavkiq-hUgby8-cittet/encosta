@@ -111,6 +111,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .be .be-icon{font-size:2.4rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));display:flex;align-items:center;justify-content:center}
 .be .be-text{font-size:.78rem;font-weight:800;letter-spacing:.25em}
 .be::before{content:'';position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,var(--ac),var(--pk),#9333ea,var(--ac));z-index:-1;animation:rs 4s linear infinite;opacity:.5;filter:blur(2px)}
+.be.service-mode{background:radial-gradient(circle at 35% 35%,#444,#222 50%,#111)!important;box-shadow:0 0 50px rgba(0,0,0,.5),0 0 100px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.1)!important}
+.be.service-mode::before{background:conic-gradient(from 0deg,#555,#333,#555)!important;opacity:.3}
+.service-toggle{display:flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:2rem;font-size:.7rem;font-weight:600;color:var(--t2);background:rgba(255,255,255,.06);cursor:pointer;margin-bottom:.5rem;transition:all .2s}
+.service-toggle.active{background:#333;color:#fff;border:1px solid #555}
 .be::after{content:'';position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.08),transparent 70%);z-index:-2;animation:bb 3s ease-in-out infinite}
 /* Energized state */
 .be.energized{animation:sonic-energy .6s ease-in-out infinite alternate;box-shadow:0 0 60px var(--gw2),0 0 120px rgba(255,107,53,.15),0 0 200px rgba(255,61,113,.06)}
@@ -458,6 +462,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .elog-list{padding:.8rem 1rem;display:flex;flex-direction:column;gap:.6rem;padding-bottom:3rem}
 .elog-item{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;display:flex;gap:.7rem;align-items:flex-start;transition:all .15s cubic-bezier(.22,1,.36,1);cursor:pointer}
 .elog-item:active{transform:scale(.975);background:var(--s2);border-color:rgba(255,107,53,.15)}
+.elog-tip-btn{background:linear-gradient(135deg,#ff6b35,#e05520);border:none;color:#fff;font-size:.8rem;padding:.35rem .6rem;border-radius:1rem;cursor:pointer;flex-shrink:0;align-self:center}
 .elog-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;flex-shrink:0}
 .elog-info{flex:1;min-width:0}
 .elog-name{font-size:.85rem;font-weight:600;color:var(--t1)}
@@ -940,6 +945,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
   <!-- CENTER: botão TOUCH grande -->
   <div class="hc">
+    <div class="service-toggle hidden" id="serviceToggle" onclick="toggleServiceMode()"><span id="serviceToggleIcon">💼</span> <span id="serviceToggleLabel">Modo Serviço</span></div>
     <div class="hm" id="homeMotivation">Nada acontece<br>à distância.</div>
     <div style="position:relative;display:flex;align-items:center;justify-content:center">
       <div class="sonic-bars left" id="sonicBarsL"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
@@ -1245,6 +1251,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cp-photo-label" onclick="$('cpPhotoInput').click()">Adicionar foto real</div>
     <input type="file" id="cpPhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
   </div>
+  <div class="cp-field"><label>Apelido (máscara)</label><input type="text" id="cpNickname" placeholder="seu_apelido" maxlength="20" autocomplete="off"><div class="cp-note">Sua identidade secreta — como todos te veem</div></div>
   <div class="cp-field"><label>Nome real</label><input type="text" id="cpRealName" placeholder="Seu nome completo" maxlength="60"></div>
   <div class="cp-field"><label>Bio</label><textarea id="cpBio" placeholder="Conte algo sobre você..." maxlength="200"></textarea></div>
   <div class="cp-field"><label>Telefone</label><input type="tel" id="cpPhone" placeholder="+55 11 99999-9999" maxlength="20"><div class="cp-note">Opcional — não será mostrado publicamente</div></div>
@@ -1530,11 +1537,11 @@ function initSocket(){
   socket.on('identity-revealed',({fromUserId,realName,profilePhoto,instagram,bio})=>{
     haptic([80,40,80]);playSound('connect');
     if(!state.revealedIds)state.revealedIds={};
-    state.revealedIds[fromUserId]={realName,profilePhoto,_iRevealed:true};
+    state.revealedIds[fromUserId]={realName,profilePhoto,instagram,bio};
     syncRevealUI(fromUserId,realName,profilePhoto);
     refreshRelations();
     if(state.currentPartnerId!==fromUserId){
-      showToast((realName||'Alguém')+' revelou quem é — abra o chat para ver! 🪪');
+      showToast((realName||'Alguém')+' se revelou pra você! 🪪');
     }
   });
   socket.on('encosta-request',data=>showEncostaRequest(data));
@@ -1557,6 +1564,15 @@ function initSocket(){
     haptic([100,50,100,50,100]);playSound('connect');
     const reason=star.reason==='gift'?'Presente de '+(star.fromName||'alguém'):star.reason==='organic'?'Conexão especial com '+(star.withName||'alguém'):star.reason==='streak'?'Streak com '+(star.withName||'alguém'):'Marco alcançado';
     showToast('⭐ Nova estrela! '+reason+' (Total: '+total+')');
+  });
+  socket.on('like-toggled',({fromUserId,liked})=>{
+    haptic([30,20,30]);
+    if(liked)showToast('Alguém curtiu seu perfil! ❤️');
+    refreshRelations();
+  });
+  socket.on('star-received',({fromUserId,reason})=>{
+    haptic([80,40,80,40,80]);playSound('connect');
+    showToast('⭐ Você recebeu uma estrela de presente!');
   });
   socket.on('streak-unlock',data=>showStreakUnlock(data));
   socket.on('tip-received',({amount,from,status})=>{
@@ -1606,12 +1622,19 @@ function requestAccelPermission(){
 async function refreshHome(){
   refreshRelations();
   setHomeMotivation();
+  initServiceToggle();
   // Fetch user profile to get latest photo + real name
   if(state.userId){
     try{
       const mp=await fetch('/api/myprofile/'+state.userId).then(r=>r.json());
       if(mp.profilePhoto){state.userPhoto=mp.profilePhoto;localStorage.setItem('touch_userPhoto',mp.profilePhoto)}
       state.userRealName=mp.realName||null;
+      // Load canSee into revealedIds
+      if(mp.canSee){
+        if(!state.revealedIds)state.revealedIds={};
+        Object.keys(mp.canSee).forEach(k=>{if(!state.revealedIds[k])state.revealedIds[k]=mp.canSee[k]});
+      }
+      if(mp.isPrestador)localStorage.setItem('touch_isPrestador','1');
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
     }catch(e){}
@@ -1793,6 +1816,32 @@ async function doRegister(){
 }
 
 // ═══ ENCOUNTER ═══
+// ═══ SERVICE MODE ═══
+let serviceMode=false;
+function toggleServiceMode(){
+  serviceMode=!serviceMode;
+  const toggle=$('serviceToggle');
+  const btn=$('mainBtn');
+  if(serviceMode){
+    toggle.classList.add('active');
+    $('serviceToggleLabel').textContent='SERVIÇO ATIVO';
+    btn.classList.add('service-mode');
+    $('mainBtnText').textContent='SERVIÇO';
+    haptic([60,20,60]);
+  }else{
+    toggle.classList.remove('active');
+    $('serviceToggleLabel').textContent='Modo Serviço';
+    btn.classList.remove('service-mode');
+    $('mainBtnText').textContent='TOUCH';
+    haptic([30]);
+  }
+}
+function initServiceToggle(){
+  const isPrest=localStorage.getItem('touch_isPrestador')==='1';
+  const toggle=$('serviceToggle');
+  if(isPrest&&toggle)toggle.classList.remove('hidden');
+}
+
 function startEncounter(){haptic([40]);showScreen('encounter');showPhase('phaseChoose');$('joinCodeInput').value=''}
 
 // ═══ MAIN BUTTON — sonic first, code fallback ═══
@@ -1910,7 +1959,7 @@ function stopHomeSonic(){
 async function createSession(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   try{
-    const r=await fetch('/api/session/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+    const r=await fetch('/api/session/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,isServiceTouch:serviceMode})});
     const d=await r.json();
     if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada. Faça login novamente.');localStorage.clear();showScreen('login');return}return showToast(d.error)}
     state.currentSession=d.sessionId;$('sessionCode').textContent=d.code;showPhase('phaseCode');generateQR(d.code);socket.emit('join-session',d.sessionId);
@@ -2426,6 +2475,18 @@ function doReveal(data){
       tipBtn.classList.add('hidden');
     }
   }
+  // 13. Auto-open gorjeta for service touch
+  if(data.isServiceTouch&&them.isPrestador){
+    setTimeout(()=>showTipScreen(them.id),2500);
+  }
+  // Reset service mode after touch
+  if(serviceMode){
+    serviceMode=false;
+    const toggle=$('serviceToggle');if(toggle)toggle.classList.remove('active');
+    const btn2=$('mainBtn');if(btn2)btn2.classList.remove('service-mode');
+    $('mainBtnText').textContent='TOUCH';
+    $('serviceToggleLabel').textContent='Modo Serviço';
+  }
 }
 
 function openTipFromReveal(){
@@ -2783,22 +2844,28 @@ async function showHistory(){
       else zDepth=360+Math.min(240,hrs*1.2)+Math.random()*64; // >24h → very far
       // XY spread — 20% reduced, scales with depth + bonus for few nodes
       const spread=128+fewBonus+zDepth*0.56+(Math.random()-.5)*48;
-      const sizeByEnc=Math.min(22,6+Math.log2(1+(n.encounters||1))*5);
+      // Size: smaller=newer, bigger=longer relationship (by time since first encounter)
+      const ageMs=n.firstDate?now-new Date(n.firstDate).getTime():(n.lastDate?now-new Date(n.lastDate).getTime():0);
+      const ageDays=ageMs/86400000;
+      const sizeByAge=Math.min(22,6+Math.log2(1+ageDays)*4+Math.log2(1+(n.encounters||1))*2);
       return{...n,
         x3d:Math.cos(angle)*spread+(Math.random()-.5)*50,
         y3d:Math.sin(angle)*spread+(Math.random()-.5)*50,
         z3d:zDepth,
-        color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByEnc,pulsePhase:Math.random()*Math.PI*2};
+        color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByAge,pulsePhase:Math.random()*Math.PI*2};
     });
-    // Pre-load images for nodes with photos
+    // Pre-load images ONLY for revealed users (canSee)
+    const myCanSee=state.revealedIds||{};
     nodes.forEach(n=>{
-      const src=n.profilePhoto||n.lastSelfie;
-      if(src){
+      const revealed=!!(n.partnerRevealedToMe||myCanSee[n.id]);
+      if(revealed&&n.profilePhoto){
         const img=new Image();
         img.crossOrigin='anonymous';
-        img.src=src;
-        n._img=img;n._imgLoaded=false;
+        img.src=n.profilePhoto;
+        n._img=img;n._imgLoaded=false;n._revealed=true;
         img.onload=()=>{n._imgLoaded=true};
+      }else{
+        n._img=null;n._imgLoaded=false;n._revealed=false;
       }
     });
     constState.nodes=nodes;
@@ -3076,9 +3143,9 @@ function initConstCanvas(){
       const rawR=n.baseRadius*scale*pulse;
       const r=Math.min(rawR,MAX_NODE_R);
       if(r<0.5)return; // too small to see
-      const bothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
-      const ringColor=bothVerified?'#00dc82':'#ff4466';
-      const glowRGB=bothVerified?'0,220,130':'255,68,102';
+      const theyRevealedToMe=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+      const ringColor=theyRevealedToMe?'#00dc82':'#ff4466';
+      const glowRGB=theyRevealedToMe?'0,220,130':'255,68,102';
       // Depth-based opacity: close nodes=bright, far nodes=dim
       const depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
 
@@ -3089,14 +3156,22 @@ function initConstCanvas(){
       glow.addColorStop(0,'rgba('+glowRGB+','+(0.06+n.intensity*.1).toFixed(2)+')');glow.addColorStop(1,'transparent');
       ctx.beginPath();ctx.arc(sx,sy,glowR,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
 
-      // Node body: photo (center-cropped) or solid
-      if(n._imgLoaded&&n._img&&r>4){
+      // Node body: photo if revealed, initials if not
+      if(n._revealed&&n._imgLoaded&&n._img&&r>4){
         drawCroppedImage(n._img,sx,sy,r);
       }else{
         ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
         const nGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
         nGrad.addColorStop(0,'rgba('+glowRGB+',0.6)');nGrad.addColorStop(1,'rgba('+glowRGB+',0.2)');
         ctx.fillStyle=nGrad;ctx.fill();
+        // Draw initials (2 letters of nickname)
+        if(r>5){
+          const ini=(n.nickname||'??').slice(0,2).toUpperCase();
+          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.8).toFixed(2)+')';
+          ctx.font='bold '+Math.max(5,Math.min(10,r*0.7))+'px Inter,sans-serif';
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(ini,sx,sy);
+        }
       }
 
       // Ring: GREEN = verified, RED = anonymous
@@ -3111,9 +3186,27 @@ function initConstCanvas(){
         ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
       }
 
-      // Label (only if visible enough)
+      // Top tag badge above node
+      if(n.topTag&&r>5){
+        const tagLabels={top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100',top1000:'TOP 1K',top5000:'TOP 5K',top10000:'TOP 10K',top100000:'TOP 100K'};
+        const tagColors={top1:'#FFD700',top5:'#C0C0C0',top50:'#CD7F32',top100:'#6a5acd',top1000:'#20b2aa',top5000:'#708090',top10000:'#556b2f',top100000:'#8b4513'};
+        const tagTxt=tagLabels[n.topTag]||'';
+        if(tagTxt){
+          const tagFs=Math.max(5,Math.min(8,6*scale));
+          const tagW=ctx.measureText?tagFs*tagTxt.length*0.55+6:30;
+          const tagH=tagFs+4;const tagY=sy-r-tagH-3;
+          const tagColor=tagColors[n.topTag]||'#888';
+          ctx.fillStyle=tagColor;
+          ctx.beginPath();
+          const tr=tagH/2;
+          ctx.moveTo(sx-tagW/2+tr,tagY);ctx.lineTo(sx+tagW/2-tr,tagY);ctx.arc(sx+tagW/2-tr,tagY+tr,tr,-Math.PI/2,Math.PI/2);ctx.lineTo(sx-tagW/2+tr,tagY+tagH);ctx.arc(sx-tagW/2+tr,tagY+tr,tr,Math.PI/2,-Math.PI/2);ctx.closePath();ctx.fill();
+          ctx.fillStyle='#000';ctx.font='bold '+tagFs+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(tagTxt,sx,tagY+tagH/2);
+        }
+      }
+      // Label — show nickname only (real name only if revealed)
       if(r>3){
-        const label=n.realName||n.nickname;
+        const label=n._revealed?(n.realName||n.nickname):n.nickname;
         const fontSize=Math.max(6,Math.min(11,8*scale));
         ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*(0.35+n.intensity*0.35)).toFixed(2)+')';
         ctx.font='500 '+fontSize+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
@@ -3166,7 +3259,7 @@ function initConstCanvas(){
 
     // ── Floating legend pill (hidden in FP mode) ──
     if(fpBlend>0.7)return; // skip pill in full FP
-    const verified=constState.nodes.filter(n=>(n.partnerRevealedToMe&&n.iRevealedToPartner)||((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed)))).length;
+    const verified=constState.nodes.filter(n=>!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]))).length;
     const anon=constState.nodes.length-verified;
     const pillW=Math.min(W-24,260),pillH=32,pillX=(W-pillW)/2,pillY=H-48;
     ctx.save();ctx.globalAlpha=1-fpBlend;
@@ -3183,7 +3276,7 @@ function initConstCanvas(){
     ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#00dc82';ctx.fill();
     tx+=10;
     ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='500 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillText('Verificados: '+verified,tx,midY);
+    ctx.fillText('Revelados: '+verified,tx,midY);
     tx+=ctx.measureText('Verificados: '+verified).width+16;
     ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#ff4466';ctx.fill();
     tx+=10;
@@ -3239,33 +3332,47 @@ function exitConstFP(){
 function showConstDetail(node){
   constState.selectedNode=node;
   const av=$('constDetailAvatar');
-  // Show profile photo or selfie or initials
-  if(node.profilePhoto){
+  // UNILATERAL: show photo only if they revealed to me (partnerRevealedToMe)
+  const theyRevealed=!!node.partnerRevealedToMe;
+  if(theyRevealed&&node.profilePhoto){
     av.innerHTML='<img src="'+node.profilePhoto+'" alt="">';av.style.background=node.color;
   }else{
     av.innerHTML='';av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();av.style.background=node.color;
   }
-  $('constDetailNick').textContent=node.realName||node.nickname;
-  // Show real name subtitle if revealed
+  // Name: show realName only if revealed to me
+  $('constDetailNick').textContent=theyRevealed?(node.realName||node.nickname):node.nickname;
   const rn=$('constDetailRealName');
-  if(node.realName&&node.realName!==node.nickname){rn.textContent='@'+node.nickname;rn.classList.remove('hidden')}
+  if(theyRevealed&&node.realName&&node.realName!==node.nickname){rn.textContent='@'+node.nickname;rn.classList.remove('hidden')}
   else rn.classList.add('hidden');
-  // Sub: service or encounters count
+  // Top tag badge
+  let tagHtml='';
+  if(node.topTag){
+    const tagColors={top1:'#ffd700',top5:'#c0c0c0',top50:'#cd7f32',top100:'#e8a0bf',top1000:'#7ec8e3',top5000:'#b5e3b5',top10000:'#ddd',top100000:'#999'};
+    const tc=tagColors[node.topTag]||'#888';
+    tagHtml='<span style="display:inline-block;background:'+tc+';color:#111;font-size:.55rem;font-weight:900;padding:1px 6px;border-radius:8px;margin-left:.4rem;text-transform:uppercase">'+node.topTag.replace('top','TOP ')+'</span>';
+  }
+  $('constDetailNick').innerHTML=$('constDetailNick').textContent+tagHtml;
+  // Sub: stats line
   const sub=$('constDetailSub');
-  if(node.isPrestador&&node.serviceLabel)sub.textContent=node.serviceLabel;
-  else sub.textContent=(node.encounters||0)+' encontro'+(node.encounters>1?'s':'');
-  // Meta: last encounter date + first date
+  let statsArr=[];
+  if(node.isPrestador&&node.serviceLabel)statsArr.push('💼 '+node.serviceLabel);
+  statsArr.push('📲 '+(node.encounters||0));
+  if(node.touchers)statsArr.push('👥 '+node.touchers+' touchers');
+  if(node.starsCount)statsArr.push('⭐ '+node.starsCount);
+  if(theyRevealed&&node.likesCount)statsArr.push('❤️ '+node.likesCount);
+  sub.textContent=statsArr.join(' · ');
+  // Meta: dates
   const meta=$('constDetailMeta');
   const lastD=node.lastDate?new Date(node.lastDate):null;
   const timeDiff=lastD?timeAgo(lastD):'';
   meta.innerHTML=timeDiff?('Último: '+timeDiff+(node.firstDate&&node.encounters>1?' · Primeiro: '+new Date(node.firstDate).toLocaleDateString('pt-BR'):'')):'' ;
-  // Selfie
+  // Selfie — lembrança (only on detail click, not on node)
   const selfieEl=$('constDetailSelfie');
   if(node.lastSelfie){selfieEl.src=node.lastSelfie;selfieEl.classList.remove('hidden')}
   else selfieEl.classList.add('hidden');
-  // Instagram link
+  // Instagram — only if revealed
   const instaEl=$('constDetailInsta');
-  if(node.instagram){
+  if(theyRevealed&&node.instagram){
     const handle=node.instagram.replace(/^@/,'').trim();
     instaEl.href='https://instagram.com/'+handle;
     instaEl.textContent='📸 @'+handle;
@@ -3279,29 +3386,31 @@ function showConstDetail(node){
   const tipBtn=$('constTipBtn');
   if(node.isPrestador){tipBtn.classList.remove('hidden');tipBtn.dataset.receiverId=node.id}
   else tipBtn.classList.add('hidden');
-  // ID reveal actions — 4 states: none, sent, received, revealed
+  // ID reveal actions — UNILATERAL
   const idActions=$('constIdActions');
   window._constDetailNodeId=node.id;
-  const partnerRevealed=!!(node.partnerRevealedToMe||(node.realName&&node.realName!==node.nickname));
-  const iRevealed=!!(node.iRevealedToPartner||(state.revealedIds&&state.revealedIds[node.id]&&state.revealedIds[node.id]._iRevealed));
-  const bothRevealed=partnerRevealed&&iRevealed;
+  const iRevealed=!!node.iRevealedToPartner;
   const pending=node.pendingReveal||state.pendingReveals[node.id]||null;
-  if(bothRevealed){
-    idActions.classList.remove('hidden');
-    idActions.innerHTML='<div style="display:flex;align-items:center;gap:.4rem;color:var(--ok);font-size:.75rem;font-weight:600">✅ Identidade Revelada</div>';
-  }else if(pending==='sent'){
-    idActions.classList.remove('hidden');
-    idActions.innerHTML='<button class="id-float-btn reveal" disabled style="opacity:.6">⏳ Aguardando...</button>';
-  }else if(pending==='received'){
-    idActions.classList.remove('hidden');
-    idActions.innerHTML='<button class="id-float-btn reveal" onclick="acceptRevealFromChat(\''+node.id+'\');hideConstDetail()">🪪 Aceitar Reveal</button>'
-      +'<button class="id-float-btn" style="background:rgba(255,255,255,.05);color:var(--t3);font-size:.7rem" onclick="declineRevealFromChat(\''+node.id+'\');hideConstDetail()">Recusar</button>';
-  }else if(node.hasActiveRelation){
-    idActions.classList.remove('hidden');
-    idActions.innerHTML='<button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(\''+node.id+'\')">🪪 Revelar ID Real</button>';
-  }else{
-    idActions.classList.add('hidden');
+  idActions.classList.remove('hidden');
+  let actionsHtml='';
+  // Like + Star buttons (always for revealed, like only for revealed)
+  if(theyRevealed){
+    const isLiked=(node.likedBy||[]).includes?false:false; // Will be determined by server
+    actionsHtml+='<button class="id-float-btn" id="constLikeBtn" onclick="toggleLike(\''+node.id+'\')" style="background:rgba(255,100,100,.1);border:1px solid rgba(255,100,100,.2)">❤️ '+(node.likesCount||0)+'</button>';
   }
+  actionsHtml+='<button class="id-float-btn" onclick="donateStar(\''+node.id+'\')" style="background:rgba(255,200,0,.08);border:1px solid rgba(255,200,0,.2)">⭐ Doar estrela</button>';
+  // Reveal buttons
+  if(pending==='sent'){
+    actionsHtml+='<button class="id-float-btn reveal" disabled style="opacity:.6">⏳ Aguardando...</button>';
+  }else if(pending==='received'){
+    actionsHtml+='<button class="id-float-btn reveal" onclick="acceptRevealFromChat(\''+node.id+'\');hideConstDetail()">🪪 Ver identidade</button>'
+      +'<button class="id-float-btn" style="background:rgba(255,255,255,.05);color:var(--t3);font-size:.7rem" onclick="declineRevealFromChat(\''+node.id+'\');hideConstDetail()">Recusar</button>';
+  }else if(iRevealed){
+    actionsHtml+='<div style="display:flex;align-items:center;gap:.3rem;color:var(--ok);font-size:.7rem">✅ Você se revelou</div>';
+  }else{
+    actionsHtml+='<button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(\''+node.id+'\')">🪪 Me revelar</button>';
+  }
+  idActions.innerHTML=actionsHtml;
   $('constDetail').classList.add('visible');
   haptic([15]);
 }
@@ -3347,25 +3456,30 @@ async function showEncounterLog(){
       return;
     }
     let html='';
+    const myCanSee2=state.revealedIds||{};
     data.nodes.forEach(n=>{
       const lastD=n.lastDate?new Date(n.lastDate):null;
-      const displayName=n.realName||n.nickname;
+      const revealed=!!(n.partnerRevealedToMe||myCanSee2[n.id]);
+      const displayName=revealed?(n.realName||n.nickname):n.nickname;
       html+='<div class="elog-item" onclick="showHistory()">';
-      if(n.profilePhoto||n.lastSelfie){
-        html+='<div class="elog-avatar" style="overflow:hidden"><img src="'+(n.profilePhoto||n.lastSelfie)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+      if(revealed&&n.profilePhoto){
+        html+='<div class="elog-avatar" style="overflow:hidden"><img src="'+n.profilePhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
       }else{
-        html+='<div class="elog-avatar" style="background:'+(n.color||'var(--ac)')+'">'+(displayName||'??').slice(0,2).toUpperCase()+'</div>';
+        html+='<div class="elog-avatar" style="background:'+(n.color||'var(--ac)')+'">'+(n.nickname||'??').slice(0,2).toUpperCase()+'</div>';
       }
       html+='<div class="elog-info">';
-      html+='<div class="elog-name">'+esc(displayName)+(n.realName&&n.realName!==n.nickname?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>';
-      if(n.realName&&n.realName!==n.nickname)html+='<div style="font-size:.62rem;color:var(--t3)">@'+esc(n.nickname)+' <span style="color:var(--ac2)">— nickname</span></div>';
-      else html+='<div style="font-size:.6rem;color:var(--t3);font-style:italic">nickname — ID real não revelado</div>';
+      html+='<div class="elog-name">'+esc(displayName)+(revealed?' <span style="font-size:.55rem;color:var(--ok)">✓ revelado</span>':'')+'</div>';
+      if(revealed&&n.realName&&n.realName!==n.nickname)html+='<div style="font-size:.62rem;color:var(--t3)">@'+esc(n.nickname)+' <span style="color:var(--ac2)">— nickname</span></div>';
+      else if(!revealed)html+='<div style="font-size:.6rem;color:var(--t3);font-style:italic">identidade não revelada</div>';
       html+='<div class="elog-meta">';
       html+='<span>📲 '+(n.encounters||0)+'x</span>';
       if(lastD)html+='<span>🕐 '+timeAgo(lastD)+'</span>';
       if(n.tipsTotal>0)html+='<span class="elog-tip">💰 R$'+n.tipsTotal.toFixed(2).replace('.',',')+'</span>';
       if(n.isPrestador&&n.serviceLabel)html+='<span>💼 '+esc(n.serviceLabel)+'</span>';
-      html+='</div></div></div>';
+      html+='</div></div>';
+      // Gorjeta button always visible for prestadores
+      if(n.isPrestador)html+='<button class="elog-tip-btn" onclick="event.stopPropagation();showTipScreen(\''+n.id+'\')">💰</button>';
+      html+='</div>';
     });
     list.innerHTML=html;
   }catch(e){list.innerHTML='<div class="elog-empty">Erro ao carregar histórico.</div>'}
@@ -3379,6 +3493,7 @@ async function openCompleteProfile(){
   // Load existing data
   try{
     const d=await(await fetch('/api/myprofile/'+state.userId)).json();
+    if(d.nickname)$('cpNickname').value=d.nickname;
     if(d.realName)$('cpRealName').value=d.realName;
     if(d.bio)$('cpBio').value=d.bio;
     if(d.phone)$('cpPhone').value=d.phone;
@@ -3413,12 +3528,15 @@ function handleProfilePhoto(input){
   reader.readAsDataURL(file);
 }
 async function saveCompleteProfile(){
+  const nicknameVal=$('cpNickname').value.trim();
   const realNameVal=$('cpRealName').value.trim();
-  if(realNameVal&&state.userNickname&&realNameVal.toLowerCase()===state.userNickname.toLowerCase()){
+  if(realNameVal&&nicknameVal&&realNameVal.toLowerCase()===nicknameVal.toLowerCase()){
     return showToast('Seu nome real precisa ser diferente do nickname!');
   }
+  if(nicknameVal&&nicknameVal.length<2)return showToast('Apelido precisa ter pelo menos 2 caracteres.');
   const data={
     userId:state.userId,
+    nickname:nicknameVal||undefined,
     realName:realNameVal,
     bio:$('cpBio').value.trim(),
     phone:$('cpPhone').value.trim(),
@@ -3430,20 +3548,22 @@ async function saveCompleteProfile(){
     const r=await fetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    // Update local state with new photo
+    // Update local state
     if(data.profilePhoto){state.userPhoto=data.profilePhoto;localStorage.setItem('touch_userPhoto',data.profilePhoto);constState._myImgLoaded=false}
+    if(nicknameVal){state.userNickname=nicknameVal;state.userName=nicknameVal;localStorage.setItem('touch_userName',nicknameVal)}
     showToast('Perfil salvo!');haptic([40,20,40]);
     goHome();
   }catch(e){showToast('Erro ao salvar.')}
 }
 
-// ═══ REVELAR ID REAL — SISTEMA CENTRALIZADO ═══
+// ═══ REVELAR ID — SISTEMA UNILATERAL ═══
+// Cada pessoa decide se revela SUA identidade independentemente.
+// "Eu me revelo pra você" → outra pessoa aceita ver ou não.
 if(!state.pendingReveals)state.pendingReveals={};
 
-// Send reveal request (from chat or constellation)
+// Send reveal request: "Eu quero me revelar pra targetUser"
 async function revealIdentity(targetUserId){
   if(!state.userId)return;
-  if(state.revealedIds&&state.revealedIds[targetUserId]&&state.revealedIds[targetUserId]._iRevealed)return showToast('Identidades já reveladas.');
   if(state.pendingReveals[targetUserId]==='sent')return showToast('Pedido já enviado. Aguardando...');
   try{
     const r=await fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
@@ -3452,13 +3572,12 @@ async function revealIdentity(targetUserId){
     haptic([40,20,60]);
     state.pendingReveals[targetUserId]='sent';
     updateChatIdBar();
-    // Update constellation button if visible
     const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='⏳ Aguardando...';cBtn.disabled=true;cBtn.style.opacity='.6'}
-  }catch(e){showToast('Complete seu perfil antes de revelar.')}
+  }catch(e){showToast('Complete seu perfil antes de se revelar.')}
 }
 function revealFromConstellation(nodeId){revealIdentity(nodeId)}
 
-// Accept reveal (from chat card or constellation)
+// Accept: "Aceito ver a identidade de fromUser"
 async function acceptRevealFromChat(fromUserId){
   try{
     const r=await fetch('/api/identity/reveal-accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})});
@@ -3476,7 +3595,35 @@ async function declineRevealFromChat(fromUserId){
   updateChatIdBar();
 }
 
-// Render reveal messages in chat (request, accepted, declined)
+// Like toggle
+async function toggleLike(targetUserId){
+  if(!state.userId||!targetUserId)return;
+  try{
+    const r=await fetch('/api/like/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    haptic([30]);
+    const btn=$('constLikeBtn');
+    if(btn){btn.textContent=(d.liked?'❤️':'🤍')+' '+d.count;btn.classList.toggle('liked',d.liked)}
+  }catch(e){}
+}
+
+// Star donation
+async function donateStar(targetUserId){
+  if(!state.userId||!targetUserId)return;
+  try{
+    const avail=await(await fetch('/api/stars/available/'+state.userId)).json();
+    if(avail.available<=0)return showToast('Sem estrelas para doar. Continue conectando!');
+    if(!confirm('Doar ⭐ estrela para essa pessoa? (Você tem '+avail.available+' disponíveis)'))return;
+    const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:state.userId,toUserId:targetUserId})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    haptic([60,30,60,30,100]);
+    showToast('⭐ Estrela doada!');
+  }catch(e){showToast('Erro ao doar.')}
+}
+
+// Render reveal messages in chat (UNILATERAL)
 function appendRevealChatCard(msg){
   const mc=$('chatMessages'),ti=$('typingIndicator'),near=nearBot();
   const div=document.createElement('div');
@@ -3486,48 +3633,42 @@ function appendRevealChatCard(msg){
     const iSent=msg.fromUserId===state.userId;
     const name=msg.fromName||'?';
     const color=msg.fromColor||'var(--ac)';
-    const photo=msg.fromPhoto;
-    const avatarHtml=photo&&photo.length>10
-      ?'<img src="'+photo+'" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid '+color+'" alt="">'
-      :'<div style="width:42px;height:42px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff">'+esc(name.slice(0,2).toUpperCase())+'</div>';
+    const initials=esc(name.slice(0,2).toUpperCase());
+    const avatarHtml='<div style="width:42px;height:42px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff">'+initials+'</div>';
     div.innerHTML='<div class="rcc-header">'
       +'<div class="rcc-icon">🪪</div>'
       +avatarHtml
       +'<div class="rcc-text">'
-      +(iSent?'<strong>Você</strong> pediu para revelar identidades':'<strong>'+esc(name)+'</strong> quer revelar a identidade real')
+      +(iSent?'<strong>Você</strong> quer se revelar para essa pessoa':'<strong>'+esc(name)+'</strong> quer se revelar pra você')
       +'</div></div>'
       +(iSent
-        ?'<div class="rcc-status pending">⏳ Aguardando resposta...</div>'
+        ?'<div class="rcc-status pending">⏳ Aguardando aceitação...</div>'
         :'<div class="rcc-actions" id="rccActions-'+msg.revealRequestId+'">'
-        +'<button class="bp" style="flex:1;font-size:.82rem" onclick="acceptRevealFromChat(\''+msg.fromUserId+'\')">Aceitar 🪪</button>'
+        +'<button class="bp" style="flex:1;font-size:.82rem" onclick="acceptRevealFromChat(\''+msg.fromUserId+'\')">Ver identidade 🪪</button>'
         +'<button class="bs" style="flex:1;font-size:.82rem" onclick="declineRevealFromChat(\''+msg.fromUserId+'\')">Agora não</button>'
         +'</div>');
-    // Check if already resolved (for historical messages)
+    // Check if already resolved
     if(!iSent){
-      const alreadyRevealed=state.revealedIds&&state.revealedIds[msg.fromUserId]&&state.revealedIds[msg.fromUserId]._iRevealed;
-      if(alreadyRevealed){
-        div.innerHTML=div.innerHTML.replace(/<div class="rcc-actions".*<\/div>$/,'<div class="rcc-status accepted">✅ Identidades reveladas</div>');
+      const alreadySeen=state.revealedIds&&state.revealedIds[msg.fromUserId];
+      if(alreadySeen){
+        div.innerHTML=div.innerHTML.replace(/<div class="rcc-actions".*<\/div>$/,'<div class="rcc-status accepted">✅ Identidade revelada</div>');
       }
     }
   }else if(msg.type==='reveal-accepted'){
-    const a=msg.userA,b=msg.userB;
-    const me=(a.id===state.userId)?a:b;
-    const them=(a.id===state.userId)?b:a;
-    const themPhoto=them.profilePhoto;
-    const mePhoto=me.profilePhoto;
+    // UNILATERAL: only one person revealed
+    const revealed=msg.revealedUser;
+    if(!revealed){div.innerHTML='<div class="rcc-status accepted">✅ Identidade revelada</div>';mc.insertBefore(div,ti);return}
+    const iAmRevealer=revealed.id===state.userId;
+    const photo=revealed.profilePhoto;
     div.innerHTML='<div class="rcc-revealed">'
-      +'<div class="rcc-revealed-title">🪪 Identidades Reveladas!</div>'
-      +'<div class="rcc-revealed-pair">'
-      +(mePhoto?'<img src="'+mePhoto+'" class="rcc-photo" alt="">':'<div class="rcc-photo-placeholder">'+esc((me.nickname||'?').slice(0,2).toUpperCase())+'</div>')
-      +'<div class="rcc-heart">💛</div>'
-      +(themPhoto?'<img src="'+themPhoto+'" class="rcc-photo" alt="">':'<div class="rcc-photo-placeholder">'+esc((them.nickname||'?').slice(0,2).toUpperCase())+'</div>')
-      +'</div>'
-      +'<div class="rcc-names">'
-      +'<div class="rcc-name">'+esc(me.realName||me.nickname)+'</div>'
-      +'<div class="rcc-name">'+esc(them.realName||them.nickname)+'</div>'
-      +'</div>'
-      +(them.instagram?'<a class="rcc-insta" href="https://instagram.com/'+esc(them.instagram.replace(/^@/,''))+'" target="_blank" rel="noopener">📸 @'+esc(them.instagram.replace(/^@/,''))+'</a>':'')
-      +'</div>';
+      +'<div class="rcc-revealed-title">🪪 '+(iAmRevealer?'Você se revelou!':esc(revealed.realName||revealed.nickname)+' se revelou!')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:.8rem;margin:.4rem 0">'
+      +(photo?'<img src="'+photo+'" class="rcc-photo" alt="">':'<div class="rcc-photo-placeholder">'+esc((revealed.nickname||'?').slice(0,2).toUpperCase())+'</div>')
+      +'<div>'
+      +'<div class="rcc-name">'+esc(revealed.realName||revealed.nickname)+'</div>'
+      +(revealed.instagram?'<a class="rcc-insta" href="https://instagram.com/'+esc(revealed.instagram.replace(/^@/,''))+'" target="_blank" rel="noopener">📸 @'+esc(revealed.instagram.replace(/^@/,''))+'</a>':'')
+      +(revealed.bio?'<div style="font-size:.7rem;color:var(--t3);margin-top:.2rem">'+esc(revealed.bio)+'</div>':'')
+      +'</div></div></div>';
   }else if(msg.type==='reveal-declined'){
     div.innerHTML='<div class="rcc-status declined">Pedido de reveal não aceito no momento</div>';
   }
@@ -3535,44 +3676,48 @@ function appendRevealChatCard(msg){
   if(near)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
 }
 
-// Update chat ID bar button state
+// Update chat ID bar — UNILATERAL states
 function updateChatIdBar(){
   const idBar=$('chatIdBar');if(!idBar)return;
   const pid=state.currentPartnerId;
   if(!pid){idBar.style.display='none';return}
-  // Check if already revealed both ways
-  const partnerRevealed=!!(state.revealedIds&&state.revealedIds[pid]&&state.revealedIds[pid]._iRevealed);
   const rel=state.currentRelation;
-  const iRevealed=!!(rel&&rel.iRevealedToPartner)||(state.revealedIds&&state.revealedIds[pid]&&state.revealedIds[pid]._iRevealed);
-  if(partnerRevealed&&iRevealed){idBar.style.display='none';return}
+  // I already revealed to them? Check from relation data
+  const iRevealed=!!(rel&&rel.iRevealedToPartner);
   idBar.style.display='flex';
   const btn=$('revealIdBtn');if(!btn)return;
   const pending=state.pendingReveals[pid];
-  if(pending==='sent'){
+  if(iRevealed&&pending!=='received'){
+    // Already revealed myself — maybe they want to reveal too
+    btn.textContent='✅ Você se revelou';btn.disabled=true;btn.style.opacity='.6';
+  }else if(pending==='sent'){
     btn.textContent='⏳ Aguardando...';btn.disabled=true;btn.style.opacity='.6';
   }else if(pending==='received'){
-    btn.textContent='🪪 Aceitar Reveal';btn.disabled=false;btn.style.opacity='1';
+    btn.textContent='🪪 Ver identidade';btn.disabled=false;btn.style.opacity='1';
     btn.onclick=()=>acceptRevealFromChat(pid);
   }else{
-    btn.textContent='🪪 Revelar ID Real';btn.disabled=false;btn.style.opacity='1';
+    btn.textContent='🪪 Me revelar';btn.disabled=false;btn.style.opacity='1';
     btn.onclick=()=>revealIdentity(pid);
   }
 }
 
-// Global UI sync — when IDs are revealed, update ALL screens
+// Sync reveal UI — UNILATERAL
 function syncRevealUI(partnerId,realName,profilePhoto){
-  const idBar=$('chatIdBar');if(idBar)idBar.style.display='none';
   delete state.pendingReveals[partnerId];
+  if(!state.revealedIds)state.revealedIds={};
+  state.revealedIds[partnerId]={realName,profilePhoto};
   if(state.currentPartnerId===partnerId){
     const chatName=$('chatPartner');
     if(chatName&&realName)chatName.textContent=realName;
     const pNick=state.currentRelation?.partnerName||'';
-    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ ID revelado</span>'+(pNick?' · @'+esc(pNick):'');
+    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ revelou-se</span>'+(pNick?' · @'+esc(pNick):'');
   }
   if(constState.nodes){
     const cNode=constState.nodes.find(n=>n.id===partnerId);
-    if(cNode){cNode.iRevealedToPartner=true;cNode.partnerRevealedToMe=true;cNode.pendingReveal=null;if(realName)cNode.realName=realName;if(profilePhoto)cNode.profilePhoto=profilePhoto}
+    if(cNode){cNode.partnerRevealedToMe=true;cNode.pendingReveal=null;if(realName)cNode.realName=realName;if(profilePhoto)cNode.profilePhoto=profilePhoto}
   }
+  updateChatIdBar();
+  refreshRelations();
 }
 function appendSystemMsg(text){
   const box=$('chatMessages');if(!box)return;

@@ -32,12 +32,33 @@ const firestore = admin.firestore();
 const firebaseAuth = admin.auth();
 
 // ── Database (in-memory cache synced with Firestore) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
 let savePending = false;
 let saveTimer = null;
+let registrationCounter = 0; // global signup order
+
+// ── Top Tag Calculation ──
+function calculateTopTag(order, totalUsers) {
+  const tiers = [
+    { max: 1, tag: 'top1', needTotal: 5 },
+    { max: 5, tag: 'top5', needTotal: 50 },
+    { max: 50, tag: 'top50', needTotal: 100 },
+    { max: 100, tag: 'top100', needTotal: 1000 },
+    { max: 1000, tag: 'top1000', needTotal: 5000 },
+    { max: 5000, tag: 'top5000', needTotal: 10000 },
+    { max: 10000, tag: 'top10000', needTotal: 100000 },
+    { max: 100000, tag: 'top100000', needTotal: 200000 }
+  ];
+  for (const t of tiers) {
+    if (order <= t.max && totalUsers >= t.needTotal) return t.tag;
+  }
+  // Always show top1 even with few users
+  if (order === 1) return 'top1';
+  return null;
+}
 
 async function loadDB() {
   try {
@@ -61,6 +82,7 @@ async function loadDB() {
       }
     }
     dbLoaded = true;
+    initRegistrationCounter();
   } catch (e) {
     console.error('Erro ao carregar DB:', e.message);
     // Fallback local
@@ -72,7 +94,29 @@ async function loadDB() {
       }
     } catch (e2) { /* start fresh */ }
     dbLoaded = true;
+    initRegistrationCounter();
   }
+}
+
+function initRegistrationCounter() {
+  // Set counter from existing users, migrate missing fields
+  const users = Object.values(db.users);
+  registrationCounter = users.length;
+  // Sort by createdAt to assign registrationOrder to existing users missing it
+  const sorted = [...users].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  sorted.forEach((u, i) => {
+    if (!u.registrationOrder) u.registrationOrder = i + 1;
+    if (!u.canSee) u.canSee = {};
+    if (!u.likedBy) u.likedBy = [];
+    if (u.likesCount === undefined) u.likesCount = 0;
+    if (u.touchers === undefined) u.touchers = 0;
+    if (!u.revealedTo) u.revealedTo = [];
+  });
+  const total = users.length;
+  sorted.forEach(u => {
+    u.topTag = calculateTopTag(u.registrationOrder, total);
+  });
+  console.log(`📊 Registration counter: ${registrationCounter}, ${total} users migrated`);
 }
 
 async function saveDBToFirestore() {
@@ -159,11 +203,15 @@ app.post('/api/auth/link', async (req, res) => {
     finalNick = nick + suffix++;
   }
   const color = '#' + ((Math.abs([...finalNick].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 0xFFFFFF)).toString(16).padStart(6, '0');
+  registrationCounter = Math.max(registrationCounter, Object.keys(db.users).length) + 1;
+  const totalUsers = Object.keys(db.users).length + 1;
   db.users[id] = {
     id, nickname: finalNick, name: displayName || finalNick, email: email || null,
     firebaseUid, photoURL: photoURL || null,
     birthdate: null, avatar: null, color, createdAt: Date.now(),
-    points: 0, pointLog: [], stars: []
+    points: 0, pointLog: [], stars: [],
+    registrationOrder: registrationCounter, topTag: calculateTopTag(registrationCounter, totalUsers),
+    likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
   saveDB();
   res.json({ userId: id, user: db.users[id], linked: false });
@@ -433,8 +481,8 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical') {
   awardPoints(userAId, userBId, type);
   // Update streaks
   updateStreak(userAId, userBId, today);
-  // Check for organic star
-  checkOrganicStar(userAId, userBId);
+  // Check star eligibility (streak + milestone)
+  checkStarEligibility(userAId, userBId);
 }
 
 // ── SCORING SYSTEM ──
@@ -492,51 +540,50 @@ function getStars(userId) {
   return user.stars || [];
 }
 
-function awardStar(userId, reason, fromUserId = null) {
+// ══ STAR SYSTEM — Stars are EARNED then DONATED ══
+// Earn conditions: (1) 5 encounters with same person in 5 consecutive days
+//                  (2) every 100 unique new connections
+// Stars must be donated to someone in the network to honor them.
+
+function earnStarForUser(userId, reason, context = '') {
   const user = db.users[userId];
-  if (!user) return null;
-  if (!user.stars) user.stars = [];
-  const star = {
-    id: uuidv4(),
-    reason, // 'organic', 'gift', 'milestone'
-    from: fromUserId,
-    fromName: fromUserId ? (db.users[fromUserId]?.nickname || '?') : null,
-    timestamp: Date.now()
-  };
-  user.stars.push(star);
+  if (!user) return;
+  user.starsEarned = (user.starsEarned || 0) + 1;
+  io.to(`user:${userId}`).emit('star-earned', { reason, context, totalEarned: user.starsEarned });
   saveDB();
-  // Notify user
-  io.to(`user:${userId}`).emit('star-earned', { star, total: user.stars.length });
-  return star;
 }
 
-function checkOrganicStar(userAId, userBId) {
-  // Count mutual encounters
-  const encA = (db.encounters[userAId] || []).filter(e => e.with === userBId);
-  const milestones = [5, 15, 30, 50, 100];
-  const count = encA.length;
-  if (!milestones.includes(count)) return;
-  // Check if star already awarded for this milestone+pair
-  const user = db.users[userAId];
-  const partner = db.users[userBId];
-  if (!user || !partner) return;
-  const tag = `organic_${userBId}_${count}`;
-  const tagB = `organic_${userAId}_${count}`;
-  const alreadyA = (user.stars || []).some(s => s._tag === tag);
-  const alreadyB = (partner.stars || []).some(s => s._tag === tagB);
-  if (!alreadyA) {
-    if (!user.stars) user.stars = [];
-    const star = { id: uuidv4(), reason: 'organic', milestone: count, with: userBId, withName: partner.nickname || partner.name, _tag: tag, timestamp: Date.now() };
-    user.stars.push(star);
-    io.to(`user:${userAId}`).emit('star-earned', { star, total: user.stars.length });
+function checkStarEligibility(userAId, userBId) {
+  const userA = db.users[userAId];
+  const userB = db.users[userBId];
+  if (!userA || !userB) return;
+  // Check streak-based star: 5 encounters with same person in 5 consecutive days
+  const key = [userAId, userBId].sort().join('_');
+  const streak = db.streaks[key];
+  if (streak && streak.currentStreak >= 5 && streak.currentStreak % 5 === 0) {
+    const tag = `streak5_${key}_${streak.currentStreak}`;
+    if (!userA._starTags) userA._starTags = [];
+    if (!userB._starTags) userB._starTags = [];
+    if (!userA._starTags.includes(tag)) { userA._starTags.push(tag); earnStarForUser(userAId, 'streak', `${streak.currentStreak} dias com ${userB.nickname}`); }
+    if (!userB._starTags.includes(tag)) { userB._starTags.push(tag); earnStarForUser(userBId, 'streak', `${streak.currentStreak} dias com ${userA.nickname}`); }
   }
-  if (!alreadyB) {
-    if (!partner.stars) partner.stars = [];
-    const star = { id: uuidv4(), reason: 'organic', milestone: count, with: userAId, withName: user.nickname || user.name, _tag: tagB, timestamp: Date.now() };
-    partner.stars.push(star);
-    io.to(`user:${userBId}`).emit('star-earned', { star, total: partner.stars.length });
-  }
-  saveDB();
+  // Check milestone-based star: every 100 unique connections
+  [userAId, userBId].forEach(uid => {
+    const u = db.users[uid];
+    const uniqueConnections = new Set((db.encounters[uid] || []).map(e => e.with)).size;
+    u.touchers = uniqueConnections;
+    const milestonesHit = Math.floor(uniqueConnections / 100);
+    const currentMilestoneStars = (u._milestone100Stars || 0);
+    if (milestonesHit > currentMilestoneStars) {
+      u._milestone100Stars = milestonesHit;
+      earnStarForUser(uid, 'milestone', `${uniqueConnections} conexões únicas`);
+    }
+  });
+}
+
+// Backward compat wrapper (old code calls this)
+function awardStar(userId, reason, fromUserId = null) {
+  earnStarForUser(userId, reason, fromUserId ? `de ${db.users[fromUserId]?.nickname}` : '');
 }
 
 // ── STREAK SYSTEM ──
@@ -807,7 +854,14 @@ app.post('/api/register', (req, res) => {
   if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
   const id = uuidv4();
   const color = nickColor(nick);
-  db.users[id] = { id, nickname: nick, name: nick, birthdate, avatar: null, color, createdAt: Date.now(), points: 0, pointLog: [], stars: [] };
+  registrationCounter = Math.max(registrationCounter, Object.keys(db.users).length) + 1;
+  const totalUsers = Object.keys(db.users).length + 1;
+  db.users[id] = {
+    id, nickname: nick, name: nick, birthdate, avatar: null, color, createdAt: Date.now(),
+    points: 0, pointLog: [], stars: [],
+    registrationOrder: registrationCounter, topTag: calculateTopTag(registrationCounter, totalUsers),
+    likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
+  };
   saveDB();
   res.json({ userId: id, user: db.users[id] });
 });
@@ -820,13 +874,16 @@ app.get('/api/user/:id', (req, res) => {
 });
 
 app.post('/api/session/create', (req, res) => {
-  const { userId } = req.body;
+  const { userId, isServiceTouch } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const code = generateCode();
   const sessionId = uuidv4();
-  db.sessions[sessionId] = { id: sessionId, code, userA: userId, userB: null, status: 'waiting', createdAt: Date.now() };
+  db.sessions[sessionId] = {
+    id: sessionId, code, userA: userId, userB: null, status: 'waiting', createdAt: Date.now(),
+    isServiceTouch: !!isServiceTouch, serviceProviderId: isServiceTouch ? userId : null
+  };
   saveDB();
-  res.json({ sessionId, code });
+  res.json({ sessionId, code, isServiceTouch: !!isServiceTouch });
 });
 
 // Join session → instant relation + encounter trace
@@ -863,8 +920,9 @@ app.post('/api/session/join', (req, res) => {
     expiresAt = now + 86400000;
   }
 
-  // Record encounter trace + award points (handled inside recordEncounter)
-  recordEncounter(session.userA, userId, phrase, 'physical');
+  // Record encounter trace — service touch type if applicable
+  const encounterType = session.isServiceTouch ? 'service' : 'physical';
+  recordEncounter(session.userA, userId, phrase, encounterType);
   session.relationId = relationId;
   saveDB();
 
@@ -876,7 +934,7 @@ app.post('/api/session/join', (req, res) => {
   const zodiacInfoB = signB ? ZODIAC_INFO[signB] : null;
 
   const responseData = {
-    relationId, phrase, expiresAt, renewed: !!existing,
+    relationId, phrase, expiresAt, renewed: !!existing, isServiceTouch: !!session.isServiceTouch,
     userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
     userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
@@ -891,9 +949,10 @@ app.get('/api/relations/:userId', (req, res) => {
   const active = Object.values(db.relations).filter(r => (r.userA === userId || r.userB === userId) && r.expiresAt > now);
   const results = active.map(r => {
     const pid = r.userA === userId ? r.userB : r.userA, p = db.users[pid];
-    const isRevealed = p?.revealedTo?.includes(userId);
     const me = db.users[userId];
-    const iRevealed = me?.revealedTo?.includes(pid);
+    // UNILATERAL: canSee check
+    const isRevealed = !!(me?.canSee?.[pid]); // I can see them (they revealed to me)
+    const iRevealed = !!(p?.canSee?.[userId]); // They can see me (I revealed to them)
     // Get last message time and unread count for this relation
     const msgs = db.messages[r.id] || [];
     const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
@@ -975,8 +1034,11 @@ app.get('/api/constellation/:userId', (req, res) => {
   const nodes = Object.values(byPerson).map(p => {
     const other = db.users[p.id];
     const me = db.users[req.params.userId];
-    const partnerRevealedToMe = p.revealedTo && p.revealedTo.includes(req.params.userId);
-    const iRevealedToPartner = me && me.revealedTo && me.revealedTo.includes(p.id);
+    // UNILATERAL: canSee means I can see their real data
+    const iCanSeeThem = !!(me && me.canSee && me.canSee[p.id]);
+    const theyCanSeeMe = !!(other && other.canSee && other.canSee[req.params.userId]);
+    // Count unique touchers for this person
+    const toucherCount = other ? new Set((db.encounters[p.id] || []).map(e => e.with)).size : 0;
     return {
       id: p.id,
       nickname: p.nickname,
@@ -988,14 +1050,20 @@ app.get('/api/constellation/:userId', (req, res) => {
       lastSelfie: p.lastSelfie,
       lastDate: p.lastDate,
       firstDate: p.firstDate,
-      realName: partnerRevealedToMe ? p.realName : null,
-      profilePhoto: partnerRevealedToMe ? p.profilePhoto : null,
+      // Only show real data if I can see them (they revealed to me)
+      realName: iCanSeeThem ? (other.realName || null) : null,
+      profilePhoto: iCanSeeThem ? (other.profilePhoto || null) : null,
+      instagram: iCanSeeThem ? (other.instagram || null) : null,
       tipsGiven: p.tipsGiven,
       tipsTotal: p.tipsTotal,
-      instagram: partnerRevealedToMe ? ((other && other.instagram) || null) : null,
-      iRevealedToPartner: !!iRevealedToPartner,
-      partnerRevealedToMe: !!partnerRevealedToMe,
+      iRevealedToPartner: !!theyCanSeeMe, // they can see me = I revealed to them
+      partnerRevealedToMe: !!iCanSeeThem, // I can see them = they revealed to me
       hasActiveRelation: !!Object.values(db.relations).find(r => ((r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)) && r.expiresAt > Date.now()),
+      // New fields
+      topTag: (other && other.topTag) || null,
+      touchers: toucherCount,
+      likesCount: iCanSeeThem ? (other.likesCount || 0) : 0,
+      starsCount: (other && other.stars) ? other.stars.length : 0,
       pendingReveal: (() => {
         const pr = Object.values(db.revealRequests).find(rr => rr.status === 'pending' && ((rr.fromUserId === req.params.userId && rr.toUserId === p.id) || (rr.fromUserId === p.id && rr.toUserId === req.params.userId)));
         if (!pr) return null;
@@ -1262,9 +1330,19 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', (req, res) => {
-  const { userId, realName, phone, instagram, twitter, bio, profilePhoto } = req.body;
+  const { userId, nickname, realName, phone, instagram, twitter, bio, profilePhoto } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
+  // Nickname change
+  if (nickname !== undefined && nickname.trim()) {
+    const newNick = nickname.trim();
+    if (newNick.length < 2 || newNick.length > 20) return res.status(400).json({ error: 'Nickname: 2-20 caracteres.' });
+    if (!/^[a-zA-Z0-9_.-]+$/.test(newNick)) return res.status(400).json({ error: 'Nickname: só letras, números, _ . -' });
+    const taken = Object.values(db.users).some(u => u.id !== userId && u.nickname && u.nickname.toLowerCase() === newNick.toLowerCase());
+    if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
+    user.nickname = newNick;
+    user.name = user.name === user.nickname ? newNick : user.name; // update name if it was same as nick
+  }
   if (realName !== undefined && realName.trim()) {
     if (realName.trim().toLowerCase() === (user.nickname || '').toLowerCase()) {
       return res.status(400).json({ error: 'Seu nome real deve ser diferente do nickname. O nickname é seu apelido criativo!' });
@@ -1291,102 +1369,104 @@ function findActiveRelation(userIdA, userIdB) {
 }
 function getRelId(rel) { return rel.id || Object.keys(db.relations).find(k => db.relations[k] === rel); }
 
-// POST /api/identity/reveal — Create reveal request (persisted + chat message)
+// ══ REVEAL UNILATERAL — Cada pessoa revela SUA identidade independentemente ══
+// "Eu quero me revelar pra você" → a outra pessoa aceita ver ou não.
+// Aceitar = o toUser passa a ver o realName/profilePhoto/instagram do fromUser.
+// NÃO é bilateral — o outro precisa enviar pedido separado se quiser se revelar.
+
 app.post('/api/identity/reveal', (req, res) => {
-  const { userId, targetUserId, relationId: directRelId } = req.body;
+  const { userId, targetUserId } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
-  if (!user.realName && !user.profilePhoto) return res.status(400).json({ error: 'Complete seu perfil antes de revelar.' });
-  // Find relation
-  let rel = directRelId ? db.relations[directRelId] : findActiveRelation(userId, targetUserId);
-  if (!rel || rel.expiresAt <= Date.now()) return res.status(400).json({ error: 'Sem conexão ativa.' });
-  const relId = getRelId(rel);
-  // Check if already revealed both ways
-  const meRevealed = (user.revealedTo || []).includes(targetUserId);
-  const themRevealed = (db.users[targetUserId].revealedTo || []).includes(userId);
-  if (meRevealed && themRevealed) return res.status(400).json({ error: 'IDs já foram revelados.' });
-  // Check for existing pending request
+  if (!user.realName && !user.profilePhoto) return res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' });
+  // Find any relation (active or historical via encounters)
+  let rel = findActiveRelation(userId, targetUserId);
+  if (!rel) {
+    // Check encounters for historical connection
+    const enc = (db.encounters[userId] || []).find(e => e.with === targetUserId);
+    if (!enc) return res.status(400).json({ error: 'Sem conexão com essa pessoa.' });
+    // Use a pseudo-relation key for chat
+  }
+  const relId = rel ? getRelId(rel) : [userId, targetUserId].sort().join('_');
+  // Check if already revealed to them
+  const target = db.users[targetUserId];
+  if (target.canSee && target.canSee[userId]) return res.status(400).json({ error: 'Você já se revelou para essa pessoa.' });
+  // Check for existing pending request (I→them)
   const existing = Object.values(db.revealRequests).find(rr =>
     rr.fromUserId === userId && rr.toUserId === targetUserId && rr.status === 'pending'
   );
   if (existing) return res.status(400).json({ error: 'Pedido já enviado. Aguardando resposta.' });
-  // Check if THEY sent us a pending request — auto-accept!
-  const theirPending = Object.values(db.revealRequests).find(rr =>
-    rr.fromUserId === targetUserId && rr.toUserId === userId && rr.status === 'pending'
-  );
-  if (theirPending) {
-    // Both want to reveal — auto-accept
-    return acceptRevealInternal(theirPending.id, userId, res);
-  }
   // Create new reveal request
   const reqId = uuidv4();
   db.revealRequests[reqId] = {
     id: reqId, fromUserId: userId, toUserId: targetUserId,
     relationId: relId, status: 'pending', createdAt: Date.now()
   };
-  // Add as chat message (persisted)
+  // Chat message
   const chatMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-request',
     revealRequestId: reqId,
     fromUserId: userId, fromName: user.nickname || user.name || '?',
-    fromColor: user.color || '#6baaff', fromPhoto: user.profilePhoto || null,
+    fromColor: user.color || '#6baaff',
     timestamp: Date.now()
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(chatMsg);
   saveDB();
-  // Emit to both users
   io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
-  io.to(`user:${targetUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'pending', requestId: reqId });
-  io.to(`user:${userId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'pending', requestId: reqId });
+  io.to(`user:${targetUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'pending' });
+  io.to(`user:${userId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'pending' });
   res.json({ ok: true, requestId: reqId, status: 'pending' });
 });
 
-// Internal accept logic (shared by endpoint and auto-accept)
+// Accept: toUser aceita ver a identidade do fromUser (UNILATERAL)
 function acceptRevealInternal(requestId, acceptorUserId, res) {
   const rr = db.revealRequests[requestId];
   if (!rr) return res ? res.status(404).json({ error: 'Pedido não encontrado.' }) : null;
-  if (rr.status !== 'pending') return res ? res.status(400).json({ error: 'Pedido já foi respondido.' }) : null;
+  if (rr.status !== 'pending') return res ? res.status(400).json({ error: 'Pedido já respondido.' }) : null;
   const fromUser = db.users[rr.fromUserId];
   const toUser = db.users[rr.toUserId];
   if (!fromUser || !toUser) return res ? res.status(400).json({ error: 'Usuário não encontrado.' }) : null;
   // Mark accepted
   rr.status = 'accepted'; rr.respondedAt = Date.now();
-  // Bilateral reveal
+  // UNILATERAL: toUser can now SEE fromUser's real identity
+  if (!toUser.canSee) toUser.canSee = {};
+  toUser.canSee[rr.fromUserId] = {
+    realName: fromUser.realName || '', profilePhoto: fromUser.profilePhoto || null,
+    instagram: fromUser.instagram || '', bio: fromUser.bio || '',
+    revealedAt: Date.now()
+  };
+  // Also update revealedTo for backward compat
   if (!fromUser.revealedTo) fromUser.revealedTo = [];
-  if (!toUser.revealedTo) toUser.revealedTo = [];
   if (!fromUser.revealedTo.includes(rr.toUserId)) fromUser.revealedTo.push(rr.toUserId);
-  if (!toUser.revealedTo.includes(rr.fromUserId)) toUser.revealedTo.push(rr.fromUserId);
-  // Create accepted chat message with both real identities
+  // Chat message — only shows fromUser's data (unilateral)
   const relId = rr.relationId;
   const acceptMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-accepted', timestamp: Date.now(),
     revealRequestId: requestId,
-    userA: { id: rr.fromUserId, nickname: fromUser.nickname, realName: fromUser.realName || '', profilePhoto: fromUser.profilePhoto || null, instagram: fromUser.instagram || '', bio: fromUser.bio || '' },
-    userB: { id: rr.toUserId, nickname: toUser.nickname, realName: toUser.realName || '', profilePhoto: toUser.profilePhoto || null, instagram: toUser.instagram || '', bio: toUser.bio || '' }
+    revealedUser: { id: rr.fromUserId, nickname: fromUser.nickname, realName: fromUser.realName || '', profilePhoto: fromUser.profilePhoto || null, instagram: fromUser.instagram || '', bio: fromUser.bio || '' },
+    acceptorId: rr.toUserId
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(acceptMsg);
   saveDB();
-  // Notify both via socket
   io.to(`user:${rr.fromUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
-  // Send identity-revealed for UI sync (constellation, chat header)
-  const fromData = { fromUserId: rr.fromUserId, realName: fromUser.realName, profilePhoto: fromUser.profilePhoto, instagram: fromUser.instagram, bio: fromUser.bio };
-  const toData = { fromUserId: rr.toUserId, realName: toUser.realName, profilePhoto: toUser.profilePhoto, instagram: toUser.instagram, bio: toUser.bio };
-  io.to(`user:${rr.fromUserId}`).emit('identity-revealed', toData);
-  io.to(`user:${rr.toUserId}`).emit('identity-revealed', fromData);
+  // Only toUser receives identity data (they can now see fromUser)
+  io.to(`user:${rr.toUserId}`).emit('identity-revealed', {
+    fromUserId: rr.fromUserId, realName: fromUser.realName, profilePhoto: fromUser.profilePhoto,
+    instagram: fromUser.instagram, bio: fromUser.bio
+  });
+  // Notify fromUser that their reveal was accepted
   io.to(`user:${rr.fromUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
   io.to(`user:${rr.toUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
   if (res) res.json({ ok: true, status: 'accepted' });
 }
 
-// POST /api/identity/reveal-accept
 app.post('/api/identity/reveal-accept', (req, res) => {
   const { revealRequestId, userId, fromUserId } = req.body;
-  // Support both: by requestId or by fromUserId lookup
   let reqId = revealRequestId;
   if (!reqId && fromUserId && userId) {
     const found = Object.values(db.revealRequests).find(rr =>
@@ -1398,7 +1478,6 @@ app.post('/api/identity/reveal-accept', (req, res) => {
   acceptRevealInternal(reqId, userId, res);
 });
 
-// POST /api/identity/reveal-decline
 app.post('/api/identity/reveal-decline', (req, res) => {
   const { revealRequestId, userId, fromUserId } = req.body;
   let rr = revealRequestId ? db.revealRequests[revealRequestId] : null;
@@ -1407,7 +1486,6 @@ app.post('/api/identity/reveal-decline', (req, res) => {
   }
   if (!rr) return res.status(400).json({ error: 'Pedido não encontrado.' });
   rr.status = 'declined'; rr.respondedAt = Date.now();
-  // Add decline message to chat
   const declineMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-declined', timestamp: Date.now(),
     revealRequestId: rr.id, declinedBy: userId
@@ -1423,7 +1501,6 @@ app.post('/api/identity/reveal-decline', (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/identity/pending/:userId — All pending reveal requests for a user
 app.get('/api/identity/pending/:userId', (req, res) => {
   const uid = req.params.userId;
   const pending = Object.values(db.revealRequests).filter(rr =>
@@ -1436,6 +1513,69 @@ app.get('/api/identity/pending/:userId', (req, res) => {
   res.json(pending);
 });
 
+// ══ LIKE SYSTEM ══
+app.post('/api/like/toggle', (req, res) => {
+  const { userId, targetUserId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Alvo inválido.' });
+  if (userId === targetUserId) return res.status(400).json({ error: 'Não pode curtir a si mesmo.' });
+  const target = db.users[targetUserId];
+  // Check if already liked
+  const existing = Object.values(db.likes).find(l => l.fromUserId === userId && l.toUserId === targetUserId);
+  let liked;
+  if (existing) {
+    // Unlike
+    delete db.likes[existing.id];
+    if (!target.likedBy) target.likedBy = [];
+    target.likedBy = target.likedBy.filter(id => id !== userId);
+    target.likesCount = Math.max(0, (target.likesCount || 0) - 1);
+    liked = false;
+  } else {
+    // Like
+    const likeId = uuidv4();
+    db.likes[likeId] = { id: likeId, fromUserId: userId, toUserId: targetUserId, createdAt: Date.now() };
+    if (!target.likedBy) target.likedBy = [];
+    if (!target.likedBy.includes(userId)) target.likedBy.push(userId);
+    target.likesCount = (target.likesCount || 0) + 1;
+    liked = true;
+  }
+  saveDB();
+  io.to(`user:${targetUserId}`).emit('like-toggled', { fromUserId: userId, liked, count: target.likesCount || 0 });
+  res.json({ ok: true, liked, count: target.likesCount || 0 });
+});
+
+// ══ STAR DONATION SYSTEM ══
+app.post('/api/star/donate', (req, res) => {
+  const { fromUserId, toUserId } = req.body;
+  if (!fromUserId || !db.users[fromUserId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!toUserId || !db.users[toUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
+  if (fromUserId === toUserId) return res.status(400).json({ error: 'Não pode doar estrela pra si mesmo.' });
+  const fromUser = db.users[fromUserId];
+  const toUser = db.users[toUserId];
+  // Check available stars
+  const totalEarned = (fromUser.starsEarned || 0);
+  const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId).length;
+  const available = totalEarned - totalDonated;
+  if (available <= 0) return res.status(400).json({ error: 'Sem estrelas disponíveis para doar. Continue conectando para ganhar!' });
+  // Create donation
+  const donationId = uuidv4();
+  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now() };
+  // Add star to recipient
+  if (!toUser.stars) toUser.stars = [];
+  toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now() });
+  saveDB();
+  io.to(`user:${toUserId}`).emit('star-received', { fromUserId, fromName: fromUser.nickname, total: toUser.stars.length });
+  res.json({ ok: true, donationId, recipientStars: toUser.stars.length });
+});
+
+app.get('/api/stars/available/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  const totalEarned = user.starsEarned || 0;
+  const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === req.params.userId).length;
+  res.json({ total: totalEarned, donated: totalDonated, available: totalEarned - totalDonated });
+});
+
 // ── Get own full profile data ──
 app.get('/api/myprofile/:userId', (req, res) => {
   const user = db.users[req.params.userId];
@@ -1445,7 +1585,10 @@ app.get('/api/myprofile/:userId', (req, res) => {
     phone: user.phone || '', instagram: user.instagram || '',
     twitter: user.twitter || '', bio: user.bio || '',
     profilePhoto: user.profilePhoto || '', profileComplete: !!user.profileComplete,
-    email: user.email || ''
+    email: user.email || '',
+    canSee: user.canSee || {}, isPrestador: !!user.isPrestador,
+    starsEarned: user.starsEarned || 0, likesCount: user.likesCount || 0,
+    topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0
   });
 });
 
