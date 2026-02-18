@@ -1064,6 +1064,9 @@ app.get('/api/constellation/:userId', (req, res) => {
       touchers: toucherCount,
       likesCount: iCanSeeThem ? (other.likesCount || 0) : 0,
       starsCount: (other && other.stars) ? other.stars.length : 0,
+      likedByMe: !!(other && other.likedBy && other.likedBy.includes(req.params.userId)),
+      isPrestador: !!(other && other.isPrestador),
+      serviceLabel: (other && other.serviceLabel) || null,
       pendingReveal: (() => {
         const pr = Object.values(db.revealRequests).find(rr => rr.status === 'pending' && ((rr.fromUserId === req.params.userId && rr.toUserId === p.id) || (rr.fromUserId === p.id && rr.toUserId === req.params.userId)));
         if (!pr) return null;
@@ -1122,7 +1125,10 @@ app.get('/api/boarding-pass/:userId', (req, res) => {
     totalEncounters: enc.length,
     uniquePeople: unique,
     memberSince: user.createdAt,
-    firstEncounter: firstEnc
+    firstEncounter: firstEnc,
+    likesCount: user.likesCount || 0,
+    topTag: user.topTag || null,
+    starsEarned: user.starsEarned || 0
   });
 });
 
@@ -1369,46 +1375,84 @@ function findActiveRelation(userIdA, userIdB) {
 }
 function getRelId(rel) { return rel.id || Object.keys(db.relations).find(k => db.relations[k] === rel); }
 
-// ══ REVEAL UNILATERAL — Cada pessoa revela SUA identidade independentemente ══
-// "Eu quero me revelar pra você" → a outra pessoa aceita ver ou não.
-// Aceitar = o toUser passa a ver o realName/profilePhoto/instagram do fromUser.
-// NÃO é bilateral — o outro precisa enviar pedido separado se quiser se revelar.
+// ══ REVEAL — DUAS AÇÕES DIFERENTES ══
+// 1. "Me revelar" → imediato, sem precisar aceite. Eu decido mostrar minha ID.
+// 2. "Solicitar reveal" → peço para o outro se revelar. Precisa aceite.
 
+// ACTION 1: Me revelar (direto, sem aceite)
 app.post('/api/identity/reveal', (req, res) => {
   const { userId, targetUserId } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
   if (!user.realName && !user.profilePhoto) return res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' });
-  // Find any relation (active or historical via encounters)
   let rel = findActiveRelation(userId, targetUserId);
   if (!rel) {
-    // Check encounters for historical connection
     const enc = (db.encounters[userId] || []).find(e => e.with === targetUserId);
     if (!enc) return res.status(400).json({ error: 'Sem conexão com essa pessoa.' });
-    // Use a pseudo-relation key for chat
   }
   const relId = rel ? getRelId(rel) : [userId, targetUserId].sort().join('_');
-  // Check if already revealed to them
   const target = db.users[targetUserId];
   if (target.canSee && target.canSee[userId]) return res.status(400).json({ error: 'Você já se revelou para essa pessoa.' });
-  // Check for existing pending request (I→them)
+  // DIRETO: target agora pode ver minha identidade (sem precisar aceite)
+  if (!target.canSee) target.canSee = {};
+  target.canSee[userId] = {
+    realName: user.realName || '', profilePhoto: user.profilePhoto || null,
+    instagram: user.instagram || '', bio: user.bio || '',
+    revealedAt: Date.now()
+  };
+  if (!user.revealedTo) user.revealedTo = [];
+  if (!user.revealedTo.includes(targetUserId)) user.revealedTo.push(targetUserId);
+  // Chat message
+  const chatMsg = {
+    id: uuidv4(), userId: 'system', type: 'reveal-accepted', timestamp: Date.now(),
+    revealedUser: { id: userId, nickname: user.nickname, realName: user.realName || '', profilePhoto: user.profilePhoto || null, instagram: user.instagram || '', bio: user.bio || '' },
+    acceptorId: targetUserId
+  };
+  if (!db.messages[relId]) db.messages[relId] = [];
+  db.messages[relId].push(chatMsg);
+  saveDB();
+  io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
+  io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
+  io.to(`user:${targetUserId}`).emit('identity-revealed', {
+    fromUserId: userId, realName: user.realName, profilePhoto: user.profilePhoto,
+    instagram: user.instagram, bio: user.bio
+  });
+  io.to(`user:${userId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'accepted' });
+  res.json({ ok: true, status: 'revealed' });
+});
+
+// ACTION 2: Solicitar que o outro se revele (precisa aceite)
+app.post('/api/identity/request-reveal', (req, res) => {
+  const { userId, targetUserId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
+  const user = db.users[userId];
+  const target = db.users[targetUserId];
+  // Check if they already revealed
+  if (user.canSee && user.canSee[targetUserId]) return res.status(400).json({ error: 'Essa pessoa já se revelou para você.' });
+  let rel = findActiveRelation(userId, targetUserId);
+  if (!rel) {
+    const enc = (db.encounters[userId] || []).find(e => e.with === targetUserId);
+    if (!enc) return res.status(400).json({ error: 'Sem conexão com essa pessoa.' });
+  }
+  const relId = rel ? getRelId(rel) : [userId, targetUserId].sort().join('_');
+  // Check for existing pending request
   const existing = Object.values(db.revealRequests).find(rr =>
     rr.fromUserId === userId && rr.toUserId === targetUserId && rr.status === 'pending'
   );
   if (existing) return res.status(400).json({ error: 'Pedido já enviado. Aguardando resposta.' });
-  // Create new reveal request
   const reqId = uuidv4();
   db.revealRequests[reqId] = {
     id: reqId, fromUserId: userId, toUserId: targetUserId,
-    relationId: relId, status: 'pending', createdAt: Date.now()
+    relationId: relId, status: 'pending', type: 'request-reveal', createdAt: Date.now()
   };
-  // Chat message
   const chatMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-request',
     revealRequestId: reqId,
     fromUserId: userId, fromName: user.nickname || user.name || '?',
     fromColor: user.color || '#6baaff',
+    requestType: 'ask-to-reveal', // "Eu peço pra você se revelar"
     timestamp: Date.now()
   };
   if (!db.messages[relId]) db.messages[relId] = [];
@@ -1421,32 +1465,32 @@ app.post('/api/identity/reveal', (req, res) => {
   res.json({ ok: true, requestId: reqId, status: 'pending' });
 });
 
-// Accept: toUser aceita ver a identidade do fromUser (UNILATERAL)
+// Accept request-reveal: "Alguém pediu pra eu me revelar" → eu aceito → me revelo
+// O toUser (quem recebeu o pedido) agora revela SUA identidade para o fromUser (quem pediu)
 function acceptRevealInternal(requestId, acceptorUserId, res) {
   const rr = db.revealRequests[requestId];
   if (!rr) return res ? res.status(404).json({ error: 'Pedido não encontrado.' }) : null;
   if (rr.status !== 'pending') return res ? res.status(400).json({ error: 'Pedido já respondido.' }) : null;
-  const fromUser = db.users[rr.fromUserId];
-  const toUser = db.users[rr.toUserId];
-  if (!fromUser || !toUser) return res ? res.status(400).json({ error: 'Usuário não encontrado.' }) : null;
-  // Mark accepted
+  // rr.fromUserId = quem PEDIU pra ver, rr.toUserId = quem foi PEDIDO pra se revelar
+  const requester = db.users[rr.fromUserId]; // quem pediu
+  const revealer = db.users[rr.toUserId]; // quem vai se revelar (aceitou)
+  if (!requester || !revealer) return res ? res.status(400).json({ error: 'Usuário não encontrado.' }) : null;
+  if (!revealer.realName && !revealer.profilePhoto) return res ? res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' }) : null;
   rr.status = 'accepted'; rr.respondedAt = Date.now();
-  // UNILATERAL: toUser can now SEE fromUser's real identity
-  if (!toUser.canSee) toUser.canSee = {};
-  toUser.canSee[rr.fromUserId] = {
-    realName: fromUser.realName || '', profilePhoto: fromUser.profilePhoto || null,
-    instagram: fromUser.instagram || '', bio: fromUser.bio || '',
+  // O requester (fromUser) agora pode VER o revealer (toUser)
+  if (!requester.canSee) requester.canSee = {};
+  requester.canSee[rr.toUserId] = {
+    realName: revealer.realName || '', profilePhoto: revealer.profilePhoto || null,
+    instagram: revealer.instagram || '', bio: revealer.bio || '',
     revealedAt: Date.now()
   };
-  // Also update revealedTo for backward compat
-  if (!fromUser.revealedTo) fromUser.revealedTo = [];
-  if (!fromUser.revealedTo.includes(rr.toUserId)) fromUser.revealedTo.push(rr.toUserId);
-  // Chat message — only shows fromUser's data (unilateral)
+  if (!revealer.revealedTo) revealer.revealedTo = [];
+  if (!revealer.revealedTo.includes(rr.fromUserId)) revealer.revealedTo.push(rr.fromUserId);
   const relId = rr.relationId;
   const acceptMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-accepted', timestamp: Date.now(),
     revealRequestId: requestId,
-    revealedUser: { id: rr.fromUserId, nickname: fromUser.nickname, realName: fromUser.realName || '', profilePhoto: fromUser.profilePhoto || null, instagram: fromUser.instagram || '', bio: fromUser.bio || '' },
+    revealedUser: { id: rr.toUserId, nickname: revealer.nickname, realName: revealer.realName || '', profilePhoto: revealer.profilePhoto || null, instagram: revealer.instagram || '', bio: revealer.bio || '' },
     acceptorId: rr.toUserId
   };
   if (!db.messages[relId]) db.messages[relId] = [];
@@ -1454,12 +1498,11 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   saveDB();
   io.to(`user:${rr.fromUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
-  // Only toUser receives identity data (they can now see fromUser)
-  io.to(`user:${rr.toUserId}`).emit('identity-revealed', {
-    fromUserId: rr.fromUserId, realName: fromUser.realName, profilePhoto: fromUser.profilePhoto,
-    instagram: fromUser.instagram, bio: fromUser.bio
+  // fromUser (requester) can now see toUser (revealer)
+  io.to(`user:${rr.fromUserId}`).emit('identity-revealed', {
+    fromUserId: rr.toUserId, realName: revealer.realName, profilePhoto: revealer.profilePhoto,
+    instagram: revealer.instagram, bio: revealer.bio
   });
-  // Notify fromUser that their reveal was accepted
   io.to(`user:${rr.fromUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
   io.to(`user:${rr.toUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
   if (res) res.json({ ok: true, status: 'accepted' });
@@ -1922,6 +1965,25 @@ setInterval(() => {
     if (now - entry.joinedAt > 60000) delete sonicQueue[uid]; // 1 min timeout
   }
 }, 30000);
+
+// ── RESET REVEALS ONLY ──
+app.post('/api/admin/reset-reveals', (req, res) => {
+  const { confirm } = req.body;
+  if (confirm !== 'RESET_REVEALS') return res.status(400).json({ error: 'Send { confirm: "RESET_REVEALS" }.' });
+  let count = 0;
+  Object.values(db.users).forEach(u => {
+    u.canSee = {};
+    u.revealedTo = [];
+    count++;
+  });
+  db.revealRequests = {};
+  // Also remove reveal messages from all chats
+  Object.keys(db.messages).forEach(relId => {
+    db.messages[relId] = (db.messages[relId] || []).filter(m => !['reveal-request', 'reveal-accepted', 'reveal-declined'].includes(m.type));
+  });
+  saveDB();
+  res.json({ ok: true, usersReset: count });
+});
 
 // ── DATABASE RESET ──
 app.post('/api/admin/reset-db', (req, res) => {

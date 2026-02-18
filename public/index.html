@@ -311,6 +311,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes urg-pulse{0%,100%{opacity:1}50%{opacity:.6}}
 /* ID action pills */
 .chat-id-bar{display:flex;gap:.4rem;padding:.3rem .8rem;justify-content:center}
+.id-bar-btn{padding:.35rem .7rem;border-radius:20px;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;border:1px solid rgba(255,255,255,.1);transition:all .2s;background:rgba(255,255,255,.06);color:var(--t2)}
+.id-bar-btn.reveal{background:rgba(0,220,130,.1);color:#00dc82;border-color:rgba(0,220,130,.2)}
+.id-bar-btn.request{background:rgba(163,113,247,.1);color:#a371f7;border-color:rgba(163,113,247,.2)}
+.id-bar-btn.done{background:rgba(255,255,255,.04);color:var(--t3);border-color:transparent;cursor:default}
 .id-pill{padding:.4rem .8rem;border-radius:20px;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:.3rem}
 .id-pill.request{background:rgba(163,113,247,.1);color:#a371f7;border:1px solid rgba(163,113,247,.2)}
 .id-pill.reveal{background:rgba(255,107,53,.1);color:var(--ac);border:1px solid rgba(255,107,53,.2)}
@@ -420,9 +424,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .bp-name{font-size:1.2rem;font-weight:700;color:var(--t1);margin-bottom:.2rem}
 .bp-since{font-size:.65rem;color:var(--t3);margin-bottom:1.2rem}
 .bp-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
-.bp-stat{text-align:center}
-.bp-stat-num{font-size:1.4rem;font-weight:800;color:var(--ac);line-height:1}
-.bp-stat-label{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-top:.3rem}
+.bp-stat{text-align:center;flex:1}
+.bp-stat-ico{font-size:1rem;margin-bottom:.15rem}
+.bp-stat-num{font-size:1.3rem;font-weight:800;color:var(--ac);line-height:1}
+.bp-stat-label{font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-top:.2rem}
 .bp-barcode{padding:1rem 1.5rem;border-top:1px dashed var(--b1);display:flex;justify-content:center;gap:2px}
 .bp-bar{width:2px;background:var(--t3);border-radius:1px}
 .bp-footer{padding:.6rem;font-size:.5rem;color:var(--t3);letter-spacing:.15em;text-align:center}
@@ -1137,10 +1142,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="bp-name" id="bpName">Nome</div>
       <div class="bp-since" id="bpSince">membro desde jan 2026</div>
       <div class="bp-stats">
-        <div class="bp-stat"><div class="bp-stat-num" id="bpScore">0</div><div class="bp-stat-label">score</div></div>
-        <div class="bp-stat"><div class="bp-stat-num" id="bpStars" style="color:#fbbf24">0</div><div class="bp-stat-label">estrelas</div></div>
-        <div class="bp-stat"><div class="bp-stat-num" id="bpPeople">0</div><div class="bp-stat-label">pessoas</div></div>
-        <div class="bp-stat"><div class="bp-stat-num" id="bpTotal">0</div><div class="bp-stat-label">encontros</div></div>
+        <div class="bp-stat"><div class="bp-stat-ico">📲</div><div class="bp-stat-num" id="bpTotal">0</div><div class="bp-stat-label">encontros</div></div>
+        <div class="bp-stat"><div class="bp-stat-ico">👥</div><div class="bp-stat-num" id="bpPeople">0</div><div class="bp-stat-label">pessoas</div></div>
+        <div class="bp-stat"><div class="bp-stat-ico">⭐</div><div class="bp-stat-num" id="bpStars" style="color:#fbbf24">0</div><div class="bp-stat-label">estrelas</div></div>
+        <div class="bp-stat"><div class="bp-stat-ico">❤️</div><div class="bp-stat-num" id="bpLikes" style="color:#ff6b8a">0</div><div class="bp-stat-label">curtidas</div></div>
+      </div>
+      <div class="bp-stats" style="margin-top:.4rem">
+        <div class="bp-stat"><div class="bp-stat-ico">🏆</div><div class="bp-stat-num" id="bpScore">0</div><div class="bp-stat-label">score</div></div>
+        <div class="bp-stat"><div class="bp-stat-ico" id="bpTagIco">🏷</div><div class="bp-stat-num" id="bpTag" style="font-size:.75rem;color:#ffd700">—</div><div class="bp-stat-label">ranking</div></div>
       </div>
     </div>
     <div class="bp-barcode" id="bpBarcode"></div>
@@ -3186,6 +3195,16 @@ function initConstCanvas(){
         ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
       }
 
+      // Floating star icon if user has stars
+      if(n.starsCount&&n.starsCount>0&&r>4){
+        const starFs=Math.max(6,Math.min(12,r*0.6));
+        ctx.font=starFs+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('⭐',sx+r*0.7,sy-r*0.7);
+        if(n.starsCount>1){
+          ctx.font='bold '+Math.max(5,starFs*0.6)+'px Inter,sans-serif';
+          ctx.fillStyle='#ffd700';ctx.fillText(n.starsCount>9?'9+':''+n.starsCount,sx+r*0.7+starFs*0.5,sy-r*0.7);
+        }
+      }
       // Top tag badge above node
       if(n.topTag&&r>5){
         const tagLabels={top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100',top1000:'TOP 1K',top5000:'TOP 5K',top10000:'TOP 10K',top100000:'TOP 100K'};
@@ -3393,24 +3412,32 @@ function showConstDetail(node){
   const pending=node.pendingReveal||state.pendingReveals[node.id]||null;
   idActions.classList.remove('hidden');
   let actionsHtml='';
-  // Like + Star buttons (always for revealed, like only for revealed)
-  if(theyRevealed){
-    const isLiked=(node.likedBy||[]).includes?false:false; // Will be determined by server
-    actionsHtml+='<button class="id-float-btn" id="constLikeBtn" onclick="toggleLike(\''+node.id+'\')" style="background:rgba(255,100,100,.1);border:1px solid rgba(255,100,100,.2)">❤️ '+(node.likesCount||0)+'</button>';
-  }
-  actionsHtml+='<button class="id-float-btn" onclick="donateStar(\''+node.id+'\')" style="background:rgba(255,200,0,.08);border:1px solid rgba(255,200,0,.2)">⭐ Doar estrela</button>';
-  // Reveal buttons
-  if(pending==='sent'){
-    actionsHtml+='<button class="id-float-btn reveal" disabled style="opacity:.6">⏳ Aguardando...</button>';
-  }else if(pending==='received'){
-    actionsHtml+='<button class="id-float-btn reveal" onclick="acceptRevealFromChat(\''+node.id+'\');hideConstDetail()">🪪 Ver identidade</button>'
-      +'<button class="id-float-btn" style="background:rgba(255,255,255,.05);color:var(--t3);font-size:.7rem" onclick="declineRevealFromChat(\''+node.id+'\');hideConstDetail()">Recusar</button>';
-  }else if(iRevealed){
+  // Like button — white heart default, red if liked (works for all, count only for revealed)
+  const isLiked=(node.likedByMe);
+  actionsHtml+='<button class="id-float-btn" id="constLikeBtn" onclick="toggleLike(\''+node.id+'\')" style="background:rgba(255,100,100,.06);border:1px solid rgba(255,100,100,.15)">'+(isLiked?'❤️':'🤍')+' '+(theyRevealed?(node.likesCount||0):'')+'</button>';
+  // Star donate button — only if user has stars
+  actionsHtml+='<button class="id-float-btn" id="constStarBtn" onclick="donateStar(\''+node.id+'\')" style="background:rgba(255,200,0,.06);border:1px solid rgba(255,200,0,.15);display:none">⭐ Doar estrela</button>';
+  // Reveal buttons: two separate actions
+  if(iRevealed){
     actionsHtml+='<div style="display:flex;align-items:center;gap:.3rem;color:var(--ok);font-size:.7rem">✅ Você se revelou</div>';
   }else{
     actionsHtml+='<button class="id-float-btn reveal" id="constRevealIdBtn" onclick="revealFromConstellation(\''+node.id+'\')">🪪 Me revelar</button>';
   }
+  if(theyRevealed){
+    actionsHtml+='<div style="display:flex;align-items:center;gap:.3rem;color:var(--ok);font-size:.7rem">✅ Revelou-se pra você</div>';
+  }else if(pending==='sent'){
+    actionsHtml+='<button class="id-float-btn" disabled style="opacity:.6">⏳ Pedido enviado</button>';
+  }else if(pending==='received'){
+    actionsHtml+='<button class="id-float-btn reveal" onclick="acceptRevealRequest(\''+node.id+'\');hideConstDetail()">🪪 Aceitar pedido</button>'
+      +'<button class="id-float-btn" style="background:rgba(255,255,255,.05);color:var(--t3);font-size:.7rem" onclick="declineRevealRequest(\''+node.id+'\');hideConstDetail()">Recusar</button>';
+  }else{
+    actionsHtml+='<button class="id-float-btn" onclick="requestRevealFromConstellation(\''+node.id+'\')">👁 Pedir reveal</button>';
+  }
   idActions.innerHTML=actionsHtml;
+  // Check if user has stars to donate (async)
+  fetch('/api/stars/available/'+state.userId).then(r=>r.json()).then(d=>{
+    const sb=$('constStarBtn');if(sb&&d.available>0)sb.style.display='';
+  }).catch(()=>{});
   $('constDetail').classList.add('visible');
   haptic([15]);
 }
@@ -3556,55 +3583,78 @@ async function saveCompleteProfile(){
   }catch(e){showToast('Erro ao salvar.')}
 }
 
-// ═══ REVELAR ID — SISTEMA UNILATERAL ═══
-// Cada pessoa decide se revela SUA identidade independentemente.
-// "Eu me revelo pra você" → outra pessoa aceita ver ou não.
+// ═══ REVELAR ID — DUAS AÇÕES ═══
+// 1. "Me revelar" = direto, sem aceite. Eu mostro minha identidade.
+// 2. "Pedir pra revelar" = solicito que o outro se revele. Precisa aceite.
 if(!state.pendingReveals)state.pendingReveals={};
 
-// Send reveal request: "Eu quero me revelar pra targetUser"
-async function revealIdentity(targetUserId){
+// ACTION 1: Me revelar (direto, imediato)
+async function revealMyself(targetUserId){
   if(!state.userId)return;
-  if(state.pendingReveals[targetUserId]==='sent')return showToast('Pedido já enviado. Aguardando...');
   try{
     const r=await fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    haptic([40,20,60]);
-    state.pendingReveals[targetUserId]='sent';
+    haptic([60,30,60]);
+    showToast('Você se revelou! 🪪');
     updateChatIdBar();
-    const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='⏳ Aguardando...';cBtn.disabled=true;cBtn.style.opacity='.6'}
+    refreshRelations();
+    const cBtn=$('constRevealIdBtn');if(cBtn){cBtn.textContent='✅ Revelado';cBtn.disabled=true;cBtn.style.opacity='.6'}
   }catch(e){showToast('Complete seu perfil antes de se revelar.')}
 }
-function revealFromConstellation(nodeId){revealIdentity(nodeId)}
 
-// Accept: "Aceito ver a identidade de fromUser"
-async function acceptRevealFromChat(fromUserId){
+// ACTION 2: Solicitar que o outro se revele (precisa aceite)
+async function requestReveal(targetUserId){
+  if(!state.userId)return;
+  if(state.pendingReveals[targetUserId]==='sent')return showToast('Pedido já enviado. Aguardando...');
+  try{
+    const r=await fetch('/api/identity/request-reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    haptic([40,20,40]);
+    state.pendingReveals[targetUserId]='sent';
+    updateChatIdBar();
+    showToast('Pedido enviado!');
+  }catch(e){showToast('Erro ao solicitar.')}
+}
+function revealFromConstellation(nodeId){revealMyself(nodeId)}
+function requestRevealFromConstellation(nodeId){requestReveal(nodeId)}
+
+// Accept: "Aceito me revelar" (eu fui pedido pra me revelar, e aceito)
+async function acceptRevealRequest(fromUserId){
   try{
     const r=await fetch('/api/identity/reveal-accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})});
     const d=await r.json();
     if(d.error){showToast(d.error);return}
     haptic([80,40,80,40,80]);
     delete state.pendingReveals[fromUserId];
+    showToast('Você se revelou! 🪪');
     updateChatIdBar();
   }catch(e){showToast('Erro ao aceitar.')}
 }
-async function declineRevealFromChat(fromUserId){
+async function declineRevealRequest(fromUserId){
   try{await fetch('/api/identity/reveal-decline',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,fromUserId})})}catch(e){}
   delete state.pendingReveals[fromUserId];
   showToast('Pedido recusado.');
   updateChatIdBar();
 }
 
-// Like toggle
+// Like toggle — white heart 🤍 → red ❤️
 async function toggleLike(targetUserId){
   if(!state.userId||!targetUserId)return;
   try{
     const r=await fetch('/api/like/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    haptic([30]);
+    haptic(d.liked?[50,30,50]:[20]);
     const btn=$('constLikeBtn');
-    if(btn){btn.textContent=(d.liked?'❤️':'🤍')+' '+d.count;btn.classList.toggle('liked',d.liked)}
+    if(btn){
+      const heart=d.liked?'❤️':'🤍';
+      btn.innerHTML=heart+(d.count?' '+d.count:'');
+      btn.style.background=d.liked?'rgba(255,60,80,.15)':'rgba(255,100,100,.06)';
+      btn.style.borderColor=d.liked?'rgba(255,60,80,.3)':'rgba(255,100,100,.15)';
+    }
+    if(d.liked)showToast('Curtiu! ❤️');
   }catch(e){}
 }
 
@@ -3623,7 +3673,7 @@ async function donateStar(targetUserId){
   }catch(e){showToast('Erro ao doar.')}
 }
 
-// Render reveal messages in chat (UNILATERAL)
+// Render reveal messages in chat
 function appendRevealChatCard(msg){
   const mc=$('chatMessages'),ti=$('typingIndicator'),near=nearBot();
   const div=document.createElement('div');
@@ -3635,23 +3685,25 @@ function appendRevealChatCard(msg){
     const color=msg.fromColor||'var(--ac)';
     const initials=esc(name.slice(0,2).toUpperCase());
     const avatarHtml='<div style="width:42px;height:42px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff">'+initials+'</div>';
+    // "request-reveal" = alguém pediu pra eu me revelar
     div.innerHTML='<div class="rcc-header">'
       +'<div class="rcc-icon">🪪</div>'
       +avatarHtml
       +'<div class="rcc-text">'
-      +(iSent?'<strong>Você</strong> quer se revelar para essa pessoa':'<strong>'+esc(name)+'</strong> quer se revelar pra você')
+      +(iSent?'<strong>Você</strong> pediu pra essa pessoa se revelar':'<strong>'+esc(name)+'</strong> pede pra você se revelar')
       +'</div></div>'
       +(iSent
-        ?'<div class="rcc-status pending">⏳ Aguardando aceitação...</div>'
+        ?'<div class="rcc-status pending">⏳ Aguardando resposta...</div>'
         :'<div class="rcc-actions" id="rccActions-'+msg.revealRequestId+'">'
-        +'<button class="bp" style="flex:1;font-size:.82rem" onclick="acceptRevealFromChat(\''+msg.fromUserId+'\')">Ver identidade 🪪</button>'
-        +'<button class="bs" style="flex:1;font-size:.82rem" onclick="declineRevealFromChat(\''+msg.fromUserId+'\')">Agora não</button>'
+        +'<button class="bp" style="flex:1;font-size:.82rem" onclick="acceptRevealRequest(\''+msg.fromUserId+'\')">Me revelar 🪪</button>'
+        +'<button class="bs" style="flex:1;font-size:.82rem" onclick="declineRevealRequest(\''+msg.fromUserId+'\')">Agora não</button>'
         +'</div>');
-    // Check if already resolved
     if(!iSent){
-      const alreadySeen=state.revealedIds&&state.revealedIds[msg.fromUserId];
-      if(alreadySeen){
-        div.innerHTML=div.innerHTML.replace(/<div class="rcc-actions".*<\/div>$/,'<div class="rcc-status accepted">✅ Identidade revelada</div>');
+      // If I already revealed to them, show as resolved
+      const them=db?undefined:undefined;
+      const meRevealed=state.currentRelation&&state.currentRelation.iRevealedToPartner;
+      if(meRevealed){
+        div.innerHTML=div.innerHTML.replace(/<div class="rcc-actions"[^]*<\/div>$/,'<div class="rcc-status accepted">✅ Você se revelou</div>');
       }
     }
   }else if(msg.type==='reveal-accepted'){
@@ -3676,32 +3728,39 @@ function appendRevealChatCard(msg){
   if(near)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
 }
 
-// Update chat ID bar — UNILATERAL states
+// Update chat ID bar — two actions: "Me revelar" and "Pedir reveal"
 function updateChatIdBar(){
   const idBar=$('chatIdBar');if(!idBar)return;
   const pid=state.currentPartnerId;
   if(!pid){idBar.style.display='none';return}
   const rel=state.currentRelation;
-  // I already revealed to them? Check from relation data
   const iRevealed=!!(rel&&rel.iRevealedToPartner);
+  const theyRevealed=!!(state.revealedIds&&state.revealedIds[pid]);
   idBar.style.display='flex';
   const btn=$('revealIdBtn');if(!btn)return;
   const pending=state.pendingReveals[pid];
-  if(iRevealed&&pending!=='received'){
-    // Already revealed myself — maybe they want to reveal too
-    btn.textContent='✅ Você se revelou';btn.disabled=true;btn.style.opacity='.6';
-  }else if(pending==='sent'){
-    btn.textContent='⏳ Aguardando...';btn.disabled=true;btn.style.opacity='.6';
-  }else if(pending==='received'){
-    btn.textContent='🪪 Ver identidade';btn.disabled=false;btn.style.opacity='1';
-    btn.onclick=()=>acceptRevealFromChat(pid);
+  // Build two-button layout
+  let html='';
+  // Button 1: Me revelar (direto)
+  if(iRevealed){
+    html+='<button class="id-bar-btn done" disabled>✅ Revelado</button>';
   }else{
-    btn.textContent='🪪 Me revelar';btn.disabled=false;btn.style.opacity='1';
-    btn.onclick=()=>revealIdentity(pid);
+    html+='<button class="id-bar-btn reveal" onclick="revealMyself(\''+pid+'\')">🪪 Me revelar</button>';
   }
+  // Button 2: Pedir pra se revelar
+  if(theyRevealed){
+    html+='<button class="id-bar-btn done" disabled>✅ Visto</button>';
+  }else if(pending==='sent'){
+    html+='<button class="id-bar-btn" disabled style="opacity:.6">⏳ Pedido enviado</button>';
+  }else if(pending==='received'){
+    html+='<button class="id-bar-btn request" onclick="acceptRevealRequest(\''+pid+'\')">🪪 Aceitar pedido</button>';
+  }else{
+    html+='<button class="id-bar-btn request" onclick="requestReveal(\''+pid+'\')">👁 Pedir reveal</button>';
+  }
+  idBar.innerHTML=html;
 }
 
-// Sync reveal UI — UNILATERAL
+// Sync reveal UI
 function syncRevealUI(partnerId,realName,profilePhoto){
   delete state.pendingReveals[partnerId];
   if(!state.revealedIds)state.revealedIds={};
@@ -3710,11 +3769,19 @@ function syncRevealUI(partnerId,realName,profilePhoto){
     const chatName=$('chatPartner');
     if(chatName&&realName)chatName.textContent=realName;
     const pNick=state.currentRelation?.partnerName||'';
-    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ revelou-se</span>'+(pNick?' · @'+esc(pNick):'');
+    const sub=$('chatSub');if(sub)sub.innerHTML='<span style="color:var(--ok)">✓ revelou-se pra você</span>'+(pNick?' · @'+esc(pNick):'');
   }
   if(constState.nodes){
     const cNode=constState.nodes.find(n=>n.id===partnerId);
-    if(cNode){cNode.partnerRevealedToMe=true;cNode.pendingReveal=null;if(realName)cNode.realName=realName;if(profilePhoto)cNode.profilePhoto=profilePhoto}
+    if(cNode){
+      cNode.partnerRevealedToMe=true;cNode.pendingReveal=null;
+      if(realName)cNode.realName=realName;
+      if(profilePhoto){cNode.profilePhoto=profilePhoto;cNode._revealed=true;
+        // Load image for canvas
+        const img=new Image();img.crossOrigin='anonymous';img.src=profilePhoto;
+        cNode._img=img;cNode._imgLoaded=false;img.onload=()=>{cNode._imgLoaded=true};
+      }
+    }
   }
   updateChatIdBar();
   refreshRelations();
@@ -3749,6 +3816,8 @@ async function showBoardingPass(){
     $('bpStars').textContent=d.stars;
     $('bpPeople').textContent=d.uniquePeople;
     $('bpTotal').textContent=d.totalEncounters;
+    $('bpLikes').textContent=d.likesCount||0;
+    const tagEl=$('bpTag');if(tagEl)tagEl.textContent=d.topTag?d.topTag.replace('top','TOP '):'—';
     // Generate barcode visual
     const bc=$('bpBarcode');bc.innerHTML='';
     for(let i=0;i<40;i++){const bar=document.createElement('div');bar.className='bp-bar';bar.style.height=(8+Math.random()*16)+'px';bar.style.opacity=(.3+Math.random()*.5).toFixed(2);bc.appendChild(bar)}
