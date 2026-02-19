@@ -1340,6 +1340,20 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
 </div>
 
+<div id="eventView" class="screen">
+  <div style="display:flex;align-items:center;padding:.6rem 1rem;background:rgba(18,18,26,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)">
+    <button class="chb" onclick="closeEventView()">&#x2190;</button>
+    <div style="flex:1;text-align:center">
+      <div style="font-size:.75rem;font-weight:700;color:#60a5fa">📍 Check-in</div>
+      <div style="font-size:.9rem;font-weight:600" id="evViewName"></div>
+    </div>
+    <div style="font-size:.7rem;color:var(--t2)" id="evViewCount">0</div>
+  </div>
+  <div style="flex:1;position:relative;overflow:hidden;background:#050508">
+    <canvas id="evCanvas" style="width:100%;height:100%"></canvas>
+  </div>
+</div>
+
 <div id="profile" class="screen">
   <div class="pf-header"><button class="chb" onclick="closeProfile()">&#x2190;</button><h2 id="pfTitle">Perfil</h2></div>
   <div class="pf-scroll" id="pfScroll"></div>
@@ -1695,6 +1709,120 @@ function showScreen(id){
 }
 function showPhase(id){document.querySelectorAll('.ep').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function goHome(){showScreen('home');refreshHome()}
+
+// ═══ EVENT VIEW — Constelação do evento no celular ═══
+let evViewEventId=null,evViewCtx=null,evViewW=0,evViewH=0,evViewAnim=null;
+const evNodes=[],evAmbientP=[];
+
+async function showEventView(eventId,eventName){
+  evViewEventId=eventId;
+  $('evViewName').textContent=eventName||'Evento';
+  showScreen('eventView');
+  // Init canvas
+  const cv=$('evCanvas');const rect=cv.parentElement.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  evViewW=rect.width;evViewH=rect.height;
+  cv.width=evViewW*dpr;cv.height=evViewH*dpr;cv.style.width=evViewW+'px';cv.style.height=evViewH+'px';
+  evViewCtx=cv.getContext('2d');evViewCtx.scale(dpr,dpr);
+  evNodes.length=0;evAmbientP.length=0;
+  for(let i=0;i<40;i++)evAmbientP.push({x:Math.random()*evViewW,y:Math.random()*evViewH,r:.5+Math.random()*1.5,vx:(Math.random()-.5)*.1,vy:(Math.random()-.5)*.1,a:.03+Math.random()*.12,phase:Math.random()*Math.PI*2});
+  // Load attendees
+  try{
+    const r=await fetch('/api/operator/event/'+eventId+'/attendees');const d=await r.json();
+    $('evViewCount').textContent=(d.attendees||[]).length+' pessoas';
+    (d.attendees||[]).forEach(a=>addEvNode(a,true));
+  }catch(e){console.error('[eventView] load error:',e)}
+  // Socket listeners
+  if(socket){
+    socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' pessoas'}});
+    socket.on('event-ended',d=>{if(d.eventId===evViewEventId){showToast('Evento encerrado: '+(d.name||''));closeEventView()}});
+  }
+  if(evViewAnim)cancelAnimationFrame(evViewAnim);
+  renderEvCanvas();
+}
+
+function addEvNode(d,instant){
+  const stars=d.stars||0;
+  const maxStars=Math.max(1,...evNodes.map(n=>n.stars||0),stars);
+  const maxDist=Math.min(evViewW,evViewH)*0.36;
+  const minDist=35;
+  const dist=maxDist-(stars/Math.max(1,maxStars))*(maxDist-minDist);
+  const angle=Math.random()*Math.PI*2;
+  const baseR=7+Math.min(stars*.3,5);
+  const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0};
+  if(n.revealed&&n.profilePhoto){
+    const img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{n.photoImg=img;n.photoLoaded=true};
+    img.src=n.profilePhoto;
+  }
+  evNodes.push(n);
+}
+
+function renderEvCanvas(){
+  if(!evViewCtx)return;const c=evViewCtx;c.clearRect(0,0,evViewW,evViewH);const t=Date.now()/1000;
+  const cx=evViewW/2,cy=evViewH/2;
+  // Ambient
+  evAmbientP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=evViewW;if(p.x>evViewW)p.x=0;if(p.y<0)p.y=evViewH;if(p.y>evViewH)p.y=0;
+    c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
+  // Recalc orbits
+  const maxStars=Math.max(1,...evNodes.map(n=>n.stars||0));
+  const maxDist=Math.min(evViewW,evViewH)*0.36;
+  const minDist=35;
+  // Orbit rings
+  [.25,.5,.75].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.stroke()});
+  // Update positions
+  evNodes.forEach(n=>{
+    n.orbitDist=maxDist-((n.stars||0)/maxStars)*(maxDist-minDist);
+    n.orbitAngle+=n.orbitSpeed;
+    n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
+    n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
+    if(n.r<1)return;
+    // Line to center
+    const la=.05+Math.sin(t*.8+n.phase)*.02;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.6;c.stroke();
+  });
+  // Center — event icon
+  const cs=18+Math.sin(t*2)*1;
+  c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle='#60a5fa';c.fill();c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=1.5;c.stroke();
+  c.fillStyle='#fff';c.font='700 10px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText('📍',cx,cy);
+  // Nodes
+  evNodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.3);const pulse=1+Math.sin(t*1.2+n.phase)*.04;const r=n.r*pulse;
+    // Glow
+    if(n.glow>0){const gr=r*5*n.glow;const g=c.createRadialGradient(n.x,n.y,0,n.x,n.y,gr);g.addColorStop(0,'rgba(96,165,250,'+(0.3*n.glow)+')');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(n.x,n.y,gr,0,Math.PI*2);c.fill();n.glow=Math.max(0,n.glow-.005)}
+    // Top tag
+    if(n.topTag&&n.r>=n.targetR*.8){
+      const tagColors={top1:'#FFD700',top5:'#C0C0C0',top50:'#CD7F32',top100:'#6a5acd'};
+      const tagLabels={top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100'};
+      const tagCol=tagColors[n.topTag]||'#6a5acd';const tagLbl=tagLabels[n.topTag]||'';
+      if(tagLbl){c.save();c.font='700 5px Inter';c.textAlign='center';c.textBaseline='middle';
+        const tw=c.measureText(tagLbl).width+5;const th=9;const tx=n.x;const ty=n.y-r-th/2-2;
+        c.fillStyle=tagCol;c.globalAlpha=.85;
+        c.beginPath();const br=3;c.moveTo(tx-tw/2+br,ty-th/2);c.lineTo(tx+tw/2-br,ty-th/2);c.quadraticCurveTo(tx+tw/2,ty-th/2,tx+tw/2,ty-th/2+br);c.lineTo(tx+tw/2,ty+th/2-br);c.quadraticCurveTo(tx+tw/2,ty+th/2,tx+tw/2-br,ty+th/2);c.lineTo(tx-tw/2+br,ty+th/2);c.quadraticCurveTo(tx-tw/2,ty+th/2,tx-tw/2,ty+th/2-br);c.lineTo(tx-tw/2,ty-th/2+br);c.quadraticCurveTo(tx-tw/2,ty-th/2,tx-tw/2+br,ty-th/2);c.fill();
+        c.globalAlpha=1;c.fillStyle='#000';c.fillText(tagLbl,tx,ty+.5);c.restore()}}
+    // Node — photo or color
+    if(n.revealed&&n.photoLoaded&&n.photoImg){
+      c.save();c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.clip();
+      c.drawImage(n.photoImg,n.x-r,n.y-r,r*2,r*2);c.restore();
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.6)';c.lineWidth=1.5;c.stroke();
+    }else{
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=.6;c.stroke();
+      if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1;c.stroke()}
+      if(r>4){const ini2=(s)=>{if(!s)return'?';const p=s.trim().split(/\s+/);return p.length>1?(p[0][0]+p[1][0]).toUpperCase():s.slice(0,2).toUpperCase()};
+        c.fillStyle='#fff';c.font='600 '+(r*.55)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini2(n.name),n.x,n.y+.5)}}
+    // Name + stars below
+    if(r>6){const dName=n.revealed&&n.revealData&&n.revealData.realName?n.revealData.realName:n.name;
+      c.fillStyle='rgba(255,255,255,.3)';c.font='400 6px Inter';c.textAlign='center';
+      c.fillText(dName.length>12?dName.slice(0,12)+'…':dName,n.x,n.y+r+8);
+      if(n.stars>0){c.fillStyle='rgba(255,215,0,.5)';c.font='400 5px Inter';c.fillText('⭐'+n.stars,n.x,n.y+r+15)}}
+  });
+  evViewAnim=requestAnimationFrame(renderEvCanvas);
+}
+
+function closeEventView(){
+  if(evViewAnim){cancelAnimationFrame(evViewAnim);evViewAnim=null}
+  evViewEventId=null;evNodes.length=0;evViewCtx=null;
+  if(socket){socket.off('event-attendee-joined');socket.off('event-ended')}
+  goHome();
+}
 
 // ── Request accelerometer permission (iOS requires user gesture) ──
 let _accelPermGranted=false;
@@ -2628,16 +2756,16 @@ function doReveal(data){
       secRow.innerHTML='<button type="button" class="rv-btn-mini" onclick="enterChat()"><span class="rv-ico">💬</span>Abrir chat</button>';
     }
   }else if(isCheckin){
-    // CHECKIN: revelar dados ou só check-in
+    // CHECKIN: revelar dados ou só check-in → go to event view
+    const evId=data.eventId||null;
+    const evName=data.eventName||data.operatorName||'Evento';
     if(data.requireReveal){
-      // Operator requires reveal — show prominent popup
-      if(enterBtn){enterBtn.textContent='Revelar e continuar';enterBtn.style.background='linear-gradient(135deg,#34d399,#10b981)';enterBtn.onclick=function(){revealToOperator(them.id)}}
-      if(skipBtn){skipBtn.textContent='Continuar anônimo';skipBtn.onclick=function(){goHome()}}
-      // Show info message about requirement
+      if(enterBtn){enterBtn.textContent='Revelar e continuar';enterBtn.style.background='linear-gradient(135deg,#34d399,#10b981)';enterBtn.onclick=function(){revealToOperator(them.id,evId,evName)}}
+      if(skipBtn){skipBtn.textContent='Continuar anônimo';skipBtn.onclick=function(){if(evId)showEventView(evId,evName);else goHome()}}
       if(secRow){secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">📋 Este estabelecimento solicita identificação.<br>Revele sua identidade para uma experiência completa.</div>'}
     }else{
-      if(enterBtn){enterBtn.textContent='Revelar meus dados';enterBtn.onclick=function(){revealToOperator(them.id)}}
-      if(skipBtn){skipBtn.textContent='Só check-in';skipBtn.onclick=function(){goHome()}}
+      if(enterBtn){enterBtn.textContent='Revelar meus dados';enterBtn.onclick=function(){revealToOperator(them.id,evId,evName)}}
+      if(skipBtn){skipBtn.textContent='Só check-in';skipBtn.onclick=function(){if(evId)showEventView(evId,evName);else goHome()}}
       if(secRow)secRow.style.display='none';
     }
   }else{
@@ -2661,11 +2789,11 @@ function doReveal(data){
 }
 
 // Reveal data to operator (checkin mode)
-function revealToOperator(operatorId){
+function revealToOperator(operatorId,eventId,eventName){
   fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:operatorId})})
   .then(r=>r.json()).then(d=>{
     if(d.error)showToast(d.error);
-    else{showToast('Dados revelados!');enterChat()}
+    else{showToast('Dados revelados!');if(eventId)showEventView(eventId,eventName);else enterChat()}
   }).catch(()=>showToast('Erro ao revelar.'));
 }
 

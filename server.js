@@ -32,7 +32,7 @@ const firestore = admin.firestore();
 const firebaseAuth = admin.auth();
 
 // ── Database (in-memory cache synced with Firestore) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -2000,19 +2000,29 @@ function findSonicUserByFreq(freq) {
   return Object.values(sonicQueue).find(s => s.freq === freq);
 }
 
+// Find sonicQueue entry by userId (searches all entries since operators use 'evt:' keys)
+function findSonicEntryByUserId(userId) {
+  // First try direct key (regular users)
+  if (sonicQueue[userId]) return sonicQueue[userId];
+  // Then search all entries (for operators with 'evt:' keys)
+  return Object.values(sonicQueue).find(s => s.userId === userId) || null;
+}
+
 function createSonicConnection(userIdA, userIdB) {
   const userA = db.users[userIdA];
   const userB = db.users[userIdB];
   if (!userA || !userB) return;
   const now = Date.now();
 
-  // Check if either user is in checkin or service mode
-  const entryA = sonicQueue[userIdA];
-  const entryB = sonicQueue[userIdB];
+  // Check if either user is in checkin or service mode (search by userId since operators use 'evt:' keys)
+  const entryA = findSonicEntryByUserId(userIdA);
+  const entryB = findSonicEntryByUserId(userIdB);
   const isCheckin = !!(entryA && entryA.isCheckin) || !!(entryB && entryB.isCheckin);
   const isServiceTouch = !!(entryA && entryA.isServiceTouch) || !!(entryB && entryB.isServiceTouch)
     || (userA.isPrestador && userA.serviceModeActive) || (userB.isPrestador && userB.serviceModeActive);
   const operatorId = isCheckin ? (entryA && entryA.isCheckin ? userIdA : userIdB) : null;
+  const operatorEntry = operatorId ? (operatorId === userIdA ? entryA : entryB) : null;
+  const eventId = operatorEntry ? operatorEntry.eventId : null;
   const serviceProviderId = isServiceTouch ? (entryA && entryA.isServiceTouch ? userIdA : (entryB && entryB.isServiceTouch ? userIdB : (userA.isPrestador ? userIdA : userIdB))) : null;
 
   const phrase = isCheckin ? 'Check-in realizado' : (isServiceTouch ? 'Serviço realizado' : randomPhrase());
@@ -2042,11 +2052,14 @@ function createSonicConnection(userIdA, userIdB) {
   const operatorUser = operatorId ? db.users[operatorId] : null;
   // Check if operator requires reveal
   const opRequireReveal = operatorUser && operatorUser.operatorSettings && operatorUser.operatorSettings.requireReveal;
+  const eventObj = eventId ? db.operatorEvents[eventId] : null;
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
     sonicMatch: true,
     isCheckin,
     isServiceTouch,
+    eventId: eventId || null,
+    eventName: eventObj ? eventObj.name : null,
     requireReveal: !!opRequireReveal,
     operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
     userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
@@ -2058,9 +2071,18 @@ function createSonicConnection(userIdA, userIdB) {
     // Only remove the visitor, operator stays with same freq
     const visitorId = operatorId === userIdA ? userIdB : userIdA;
     delete sonicQueue[visitorId];
-    // Reset operator's joinedAt so the 10min cleanup timer doesn't expire
-    if (sonicQueue[operatorId]) {
-      sonicQueue[operatorId].joinedAt = Date.now();
+    // Reset operator's joinedAt so the 10min cleanup timer doesn't expire (use queueKey for 'evt:' keys)
+    const opQueueKey = operatorEntry ? operatorEntry.queueKey : operatorId;
+    if (sonicQueue[opQueueKey]) {
+      sonicQueue[opQueueKey].joinedAt = Date.now();
+    }
+    // Add visitor to event participants
+    if (eventId && db.operatorEvents[eventId]) {
+      const ev = db.operatorEvents[eventId];
+      if (!ev.participants.includes(visitorId)) {
+        ev.participants.push(visitorId);
+        ev.checkinCount = ev.participants.length;
+      }
     }
   } else {
     delete sonicQueue[userIdA];
@@ -2074,13 +2096,36 @@ function createSonicConnection(userIdA, userIdB) {
   // Notify operator dashboard if checkin
   if (isCheckin && operatorId) {
     const visitor = operatorId === userIdA ? userB : userA;
-    const visitorRevealed = !!(db.users[operatorId] && db.users[operatorId].canSee && db.users[operatorId].canSee[visitor.id]);
-    io.to(`user:${operatorId}`).emit('checkin-created', {
-      userId: visitor.id, nickname: visitor.nickname || visitor.name, color: visitor.color,
+    const visitorId = visitor.id;
+    const visitorUser = db.users[visitorId];
+    const visitorRevealed = !!(db.users[operatorId] && db.users[operatorId].canSee && db.users[operatorId].canSee[visitorId]);
+    const totalUsers = Object.keys(db.users).length;
+    const visitorStars = visitorUser ? (visitorUser.stars || []).length : 0;
+    const visitorOrder = visitorUser ? (visitorUser.registrationOrder || 9999) : 9999;
+    const visitorTopTag = calculateTopTag(visitorOrder, totalUsers);
+    const checkinData = {
+      userId: visitorId, nickname: visitor.nickname || visitor.name, color: visitor.color,
       profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now,
       relationId, revealed: visitorRevealed,
-      revealData: visitorRevealed ? db.users[operatorId].canSee[visitor.id] : null
-    });
+      revealData: visitorRevealed ? db.users[operatorId].canSee[visitorId] : null,
+      eventId: eventId || null,
+      stars: visitorStars,
+      topTag: visitorTopTag,
+      score: calcScore(visitorId)
+    };
+    io.to(`user:${operatorId}`).emit('checkin-created', checkinData);
+    // Notify event room so phone users see new attendee
+    if (eventId) {
+      io.to('event:' + eventId).emit('event-attendee-joined', checkinData);
+      // Join visitor to event room
+      const visitorSockets = io.sockets.adapter.rooms.get(`user:${visitorId}`);
+      if (visitorSockets) {
+        for (const sid of visitorSockets) {
+          const s = io.sockets.sockets.get(sid);
+          if (s) s.join('event:' + eventId);
+        }
+      }
+    }
   }
 }
 
@@ -2214,12 +2259,16 @@ io.on('connection', (socket) => {
   });
 
   // Sonic connection — ultrasonic frequency matching
-  socket.on('sonic-start', ({ userId, isCheckin, isServiceTouch }) => {
+  socket.on('sonic-start', ({ userId, isCheckin, isServiceTouch, eventId }) => {
     if (!userId || !db.users[userId]) return;
     const freq = assignSonicFreq();
-    sonicQueue[userId] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch };
-    console.log('[sonic-start] user:', userId.slice(0,8)+'..', 'assigned freq:', freq, 'isCheckin:', !!isCheckin, 'isServiceTouch:', !!isServiceTouch);
+    // For checkin operators, use eventId as sonicQueue key to avoid overwriting phone's entry
+    const queueKey = (isCheckin && eventId) ? ('evt:' + eventId) : userId;
+    sonicQueue[queueKey] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch, eventId: eventId || null, queueKey };
+    console.log('[sonic-start] user:', userId.slice(0,8)+'..', 'key:', queueKey.slice(0,12), 'freq:', freq, 'isCheckin:', !!isCheckin);
     socket.emit('sonic-assigned', { freq });
+    // Join event socket room if checkin
+    if (isCheckin && eventId) socket.join('event:' + eventId);
   });
 
   socket.on('sonic-detected', ({ userId, detectedFreq }) => {
@@ -2231,8 +2280,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('sonic-stop', ({ userId }) => {
-    if (userId) delete sonicQueue[userId];
+  socket.on('sonic-stop', ({ userId, eventId }) => {
+    if (eventId) delete sonicQueue['evt:' + eventId];
+    else if (userId) delete sonicQueue[userId];
   });
 
   socket.on('disconnect', () => {});
@@ -2536,6 +2586,66 @@ app.post('/api/operator/settings', (req, res) => {
   db.users[userId].operatorSettings.requireReveal = !!requireReveal;
   saveDB();
   res.json({ ok: true, settings: db.users[userId].operatorSettings });
+});
+
+// ═══ OPERATOR EVENTS ═══
+app.post('/api/operator/event/create', (req, res) => {
+  const { userId, name, description } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
+  const id = uuidv4();
+  db.operatorEvents[id] = {
+    id, name: name.trim(), description: (description || '').trim(),
+    creatorId: userId, creatorName: db.users[userId].nickname || db.users[userId].name,
+    active: true, participants: [], checkinCount: 0,
+    createdAt: Date.now()
+  };
+  saveDB();
+  res.json({ event: db.operatorEvents[id] });
+});
+
+app.get('/api/operator/events/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const events = Object.values(db.operatorEvents).filter(e => e.creatorId === userId);
+  events.sort((a, b) => b.createdAt - a.createdAt);
+  res.json({ events });
+});
+
+app.post('/api/operator/event/:eventId/end', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  ev.active = false;
+  ev.endedAt = Date.now();
+  // Remove from sonicQueue
+  delete sonicQueue['evt:' + ev.id];
+  // Notify all participants
+  io.to('event:' + ev.id).emit('event-ended', { eventId: ev.id, name: ev.name });
+  saveDB();
+  res.json({ ok: true });
+});
+
+app.get('/api/operator/event/:eventId/attendees', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const totalUsers = Object.keys(db.users).length;
+  const attendees = ev.participants.map(uid => {
+    const u = db.users[uid];
+    if (!u) return null;
+    const stars = (u.stars || []).length;
+    const order = u.registrationOrder || 9999;
+    const topTag = calculateTopTag(order, totalUsers);
+    // Check if this user revealed to the event creator
+    const creatorUser = db.users[ev.creatorId];
+    const revealed = !!(creatorUser && creatorUser.canSee && creatorUser.canSee[uid]);
+    const revealData = revealed ? creatorUser.canSee[uid] : null;
+    return {
+      userId: uid, nickname: u.nickname || u.name, color: u.color,
+      profilePhoto: u.profilePhoto || u.photoURL || null,
+      stars, topTag, revealed, revealData,
+      score: calcScore(uid)
+    };
+  }).filter(Boolean);
+  res.json({ attendees, eventName: ev.name, active: ev.active });
 });
 
 const PORT = process.env.PORT || 3000;

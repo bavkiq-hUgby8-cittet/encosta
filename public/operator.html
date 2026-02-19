@@ -17,6 +17,34 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .op-login-sub{font-size:.75rem;color:var(--t3);max-width:300px;text-align:center;line-height:1.6}
 .op-login-btn{padding:.8rem 2rem;background:var(--ac);border:none;border-radius:14px;color:#fff;font-size:.85rem;font-weight:600;font-family:inherit;cursor:pointer;transition:transform .2s}
 .op-login-btn:active{transform:scale(.95)}
+.op-login-divider{display:flex;align-items:center;gap:.8rem;width:260px;color:var(--t3);font-size:.7rem}
+.op-login-divider::before,.op-login-divider::after{content:'';flex:1;height:1px;background:var(--b1)}
+.op-login-field{display:flex;flex-direction:column;gap:.3rem;width:260px}
+.op-login-label{font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.op-login-input{padding:.6rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:border .2s}
+.op-login-input:focus{border-color:var(--ac)}
+.op-login-err{font-size:.65rem;color:var(--pk);min-height:1em;text-align:center}
+.op-login-toggle{font-size:.7rem;color:var(--ac2);cursor:pointer;text-decoration:underline}
+
+/* Events screen */
+.op-events{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;z-index:98;background:var(--bg);display:none;padding:2rem 1rem;overflow-y:auto}
+.op-events h2{font-size:1.4rem;font-weight:700;margin-bottom:.3rem}.op-events h2 span{color:var(--ac)}
+.op-events-sub{font-size:.7rem;color:var(--t3);text-align:center;max-width:300px;line-height:1.5;margin-bottom:1.2rem}
+.op-event-list{width:100%;max-width:360px;display:flex;flex-direction:column;gap:.6rem}
+.op-event-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem 1rem;cursor:pointer;transition:all .2s}
+.op-event-card:hover{border-color:var(--ac);transform:translateY(-1px)}
+.op-event-card.active{border-color:var(--ok)}
+.op-event-card.ended{opacity:.5}
+.op-event-name{font-size:.9rem;font-weight:600;color:var(--t1)}
+.op-event-meta{font-size:.65rem;color:var(--t3);margin-top:.2rem}
+.op-event-status{font-size:.6rem;font-weight:600;padding:.1rem .4rem;border-radius:6px;display:inline-block;margin-left:.4rem}
+.op-event-status.active{background:rgba(52,211,153,.15);color:var(--ok)}
+.op-event-status.ended{background:rgba(255,61,113,.1);color:var(--pk)}
+.op-event-create{display:flex;flex-direction:column;gap:.6rem;width:100%;max-width:360px;margin-top:1rem}
+.op-event-create-btn{padding:.7rem;background:var(--ac);border:none;border-radius:12px;color:#fff;font-size:.8rem;font-weight:600;font-family:inherit;cursor:pointer}
+.op-event-create-btn:active{transform:scale(.97)}
+.op-event-end-btn{padding:.4rem .8rem;background:rgba(255,61,113,.15);border:1px solid rgba(255,61,113,.3);border-radius:10px;color:var(--pk);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s}
+.op-event-end-btn:hover{background:rgba(255,61,113,.3)}
 
 /* Setup / Cadastro */
 .op-setup{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:99;background:var(--bg);display:none}
@@ -204,6 +232,35 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
   <h1>Touch<span>?</span></h1>
   <div class="op-login-sub">Painel Operacional<br>Check-in em tempo real para eventos e estabelecimentos</div>
   <button class="op-login-btn" onclick="opDoLogin()">Entrar com Google</button>
+  <div class="op-login-divider">ou</div>
+  <div class="op-login-field">
+    <label class="op-login-label">Email</label>
+    <input class="op-login-input" id="opLoginEmail" type="email" placeholder="seu@email.com">
+  </div>
+  <div class="op-login-field">
+    <label class="op-login-label">Senha</label>
+    <input class="op-login-input" id="opLoginPass" type="password" placeholder="Mínimo 6 caracteres">
+  </div>
+  <div class="op-login-err" id="opLoginErr"></div>
+  <button class="op-login-btn" id="opLoginEmailBtn" onclick="opDoEmailLogin()">Entrar</button>
+  <div class="op-login-toggle" id="opLoginToggle" onclick="opToggleCreateAccount()">Não tem conta? Criar conta</div>
+</div>
+
+<div class="op-events" id="opEvents">
+  <h2>Touch<span>?</span> Eventos</h2>
+  <div class="op-events-sub">Selecione um evento ativo ou crie um novo.</div>
+  <div class="op-event-list" id="opEventList"></div>
+  <div class="op-event-create">
+    <div class="op-login-field">
+      <label class="op-login-label">Nome do novo evento</label>
+      <input class="op-login-input" id="opNewEventName" type="text" placeholder="Ex: Festa de Verão, Happy Hour" maxlength="40">
+    </div>
+    <button class="op-event-create-btn" onclick="opCreateEvent()">+ Criar Evento</button>
+    <div class="op-login-err" id="opEventErr"></div>
+  </div>
+  <div style="margin-top:1.5rem">
+    <button class="op-logoff" onclick="opLogoff()">Sair da conta</button>
+  </div>
 </div>
 
 <div class="op-setup" id="opSetup">
@@ -223,7 +280,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 
 <div style="display:none" id="opApp">
   <div class="op-header">
-    <div class="op-logo">Touch<span>?</span> Operador</div>
+    <div class="op-logo">Touch<span>?</span> <span id="opEventTitle" style="color:var(--ok);font-size:.75rem"></span></div>
     <div class="op-stats">
       <div><span class="op-stat-num" id="opCount">0</span> check-ins</div>
       <div class="op-toggle">
@@ -231,7 +288,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
         <div class="op-toggle-switch" id="opToggleReveal" onclick="toggleRequireReveal()"><div class="op-toggle-dot"></div></div>
       </div>
       <div class="op-user" id="opUserName"></div>
-      <button class="op-logoff" onclick="opLogoff()">Sair</button>
+      <button class="op-event-end-btn" onclick="opEndEvent()">Encerrar Evento</button>
+      <button class="op-logoff" onclick="opBackToEvents()">← Eventos</button>
     </div>
   </div>
   <div class="op-main">
@@ -301,7 +359,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 <script src="/socket.io/socket.io.js"></script>
 <script>
 // ═══ STATE ═══
-const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false};
+const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false,currentEventId:null,currentEventName:null};
+let opIsCreateAccount=false;
 let homeSonicActive=false,sonicActive=false,sonicMyFreq=0;
 let sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null;
 let sonicKeepAlive=null,audioCtx=null;
@@ -335,16 +394,130 @@ function $(id){return document.getElementById(id)}
       // Check if user needs to complete setup (no nickname or auto-generated)
       const needsSetup=!S.userName||S.userName==='Operador'||S.userName===user.displayName;
       if(needsSetup){
-        $('opSetup').style.display='flex';$('opApp').style.display='none';
+        $('opSetup').style.display='flex';$('opApp').style.display='none';$('opEvents').style.display='none';
       }else{
-        $('opSetup').style.display='none';$('opApp').style.display='';
-        $('opUserName').textContent=S.userName;
-        initSocket();initCanvas();loadExisting();
+        $('opSetup').style.display='none';$('opApp').style.display='none';
+        // Show events screen instead of going directly to dashboard
+        showEventsScreen();
       }
-    }else{$('opLogin').style.display='';$('opApp').style.display='none';$('opSetup').style.display='none'}
+    }else{$('opLogin').style.display='';$('opApp').style.display='none';$('opSetup').style.display='none';$('opEvents').style.display='none'}
   });
 })();
 function opDoLogin(){firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert('Erro: '+e.message))}
+
+// ═══ EMAIL/PASSWORD LOGIN ═══
+function opToggleCreateAccount(){
+  opIsCreateAccount=!opIsCreateAccount;
+  $('opLoginEmailBtn').textContent=opIsCreateAccount?'Criar conta':'Entrar';
+  $('opLoginToggle').textContent=opIsCreateAccount?'Já tem conta? Entrar':'Não tem conta? Criar conta';
+  $('opLoginErr').textContent='';
+}
+async function opDoEmailLogin(){
+  const email=$('opLoginEmail').value.trim();
+  const pass=$('opLoginPass').value;
+  const err=$('opLoginErr');
+  if(!email){err.textContent='Informe o email.';return}
+  if(!pass||pass.length<6){err.textContent='Senha deve ter pelo menos 6 caracteres.';return}
+  err.textContent='Aguarde...';
+  try{
+    if(opIsCreateAccount){
+      await firebase.auth().createUserWithEmailAndPassword(email,pass);
+    }else{
+      await firebase.auth().signInWithEmailAndPassword(email,pass);
+    }
+    err.textContent='';
+  }catch(e){
+    const msgs={'auth/email-already-in-use':'Este email já está em uso.','auth/invalid-email':'Email inválido.','auth/user-not-found':'Usuário não encontrado.','auth/wrong-password':'Senha incorreta.','auth/weak-password':'Senha muito fraca (mín. 6 caracteres).'};
+    err.textContent=msgs[e.code]||e.message;
+  }
+}
+
+// ═══ EVENTS SCREEN ═══
+async function showEventsScreen(){
+  $('opEvents').style.display='flex';$('opApp').style.display='none';
+  $('opEventList').innerHTML='<div style="text-align:center;color:var(--t3);font-size:.7rem">Carregando...</div>';
+  try{
+    const r=await fetch('/api/operator/events/'+S.userId);const d=await r.json();
+    const list=$('opEventList');list.innerHTML='';
+    if(d.events&&d.events.length>0){
+      d.events.forEach(ev=>{
+        const card=document.createElement('div');
+        card.className='op-event-card'+(ev.active?' active':' ended');
+        const dt=new Date(ev.createdAt);
+        const dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+        const statusBadge=ev.active?'<span class="op-event-status active">Ativo</span>':'<span class="op-event-status ended">Encerrado</span>';
+        card.innerHTML='<div class="op-event-name">'+esc(ev.name)+' '+statusBadge+'</div><div class="op-event-meta">'+dateStr+' · '+((ev.participants||[]).length)+' participantes</div>';
+        if(ev.active){card.onclick=()=>opSelectEvent(ev.id,ev.name)}
+        list.appendChild(card);
+      });
+    }else{
+      list.innerHTML='<div style="text-align:center;color:var(--t3);font-size:.75rem;padding:1rem">Nenhum evento criado ainda.<br>Crie seu primeiro evento abaixo!</div>';
+    }
+  }catch(e){$('opEventList').innerHTML='<div style="color:var(--pk);text-align:center;font-size:.7rem">Erro ao carregar eventos</div>'}
+}
+
+async function opCreateEvent(){
+  const name=$('opNewEventName').value.trim();
+  const err=$('opEventErr');
+  if(!name||name.length<2){err.textContent='Nome deve ter pelo menos 2 caracteres.';return}
+  err.textContent='Criando...';
+  try{
+    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Erro ao criar.';return}
+    err.textContent='';$('opNewEventName').value='';
+    opSelectEvent(d.event.id,d.event.name);
+  }catch(e){err.textContent='Erro: '+e.message}
+}
+
+function opSelectEvent(eventId,eventName){
+  S.currentEventId=eventId;S.currentEventName=eventName;
+  $('opEvents').style.display='none';$('opApp').style.display='';
+  $('opEventTitle').textContent=eventName;
+  $('opUserName').textContent=S.userName;
+  S.checkins=[];nodes.length=0;
+  $('opCount').textContent='0';$('opListCount').textContent='0';
+  $('opList').innerHTML='';$('opEmpty').style.display='';
+  initSocket();initCanvas();loadExistingEvent();
+}
+
+async function loadExistingEvent(){
+  loadOperatorSettings();
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/attendees');const d=await r.json();
+    if(d.attendees&&d.attendees.length>0){
+      $('opEmpty').style.display='none';
+      d.attendees.forEach(a=>{
+        const checkinData={userId:a.userId,nickname:a.nickname,color:a.color,profilePhoto:a.profilePhoto,timestamp:Date.now(),relationId:null,revealed:a.revealed,revealData:a.revealData,stars:a.stars,topTag:a.topTag,score:a.score};
+        S.checkins.push(checkinData);
+        addCheckinToList(checkinData);
+        addNodeToCanvas(checkinData,true);
+      });
+      $('opCount').textContent=S.checkins.length;$('opListCount').textContent=S.checkins.length;
+    }
+  }catch(e){console.error('[loadExistingEvent]',e)}
+}
+
+async function opEndEvent(){
+  if(!S.currentEventId)return;
+  if(!confirm('Encerrar o evento "'+S.currentEventName+'"? Todos os participantes serão desconectados.'))return;
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    if(homeSonicActive)stopHomeSonic();
+    if(S.socket){S.socket.disconnect();S.socket=null}
+    S.currentEventId=null;S.currentEventName=null;S.checkins=[];nodes.length=0;
+    $('opApp').style.display='none';
+    showEventsScreen();
+  }catch(e){alert('Erro ao encerrar: '+e.message)}
+}
+
+function opBackToEvents(){
+  if(homeSonicActive)stopHomeSonic();
+  if(S.socket){S.socket.disconnect();S.socket=null}
+  S.currentEventId=null;S.currentEventName=null;S.checkins=[];nodes.length=0;
+  $('opApp').style.display='none';
+  showEventsScreen();
+}
 
 // ═══ SETUP / CADASTRO ═══
 async function opFinishSetup(){
@@ -361,9 +534,8 @@ async function opFinishSetup(){
     if(!res.ok){err.textContent=data.error||'Erro ao salvar.';return}
     S.userName=data.user?.nickname||nick;
     S.userColor=data.user?.color||S.userColor;
-    $('opSetup').style.display='none';$('opApp').style.display='';
-    $('opUserName').textContent=S.userName;
-    initSocket();initCanvas();loadExisting();
+    $('opSetup').style.display='none';
+    showEventsScreen();
   }catch(e){err.textContent='Erro de conexão: '+e.message}
 }
 
@@ -372,8 +544,9 @@ function opLogoff(){
   if(homeSonicActive)stopHomeSonic();
   if(S.socket){S.socket.disconnect();S.socket=null}
   firebase.auth().signOut();
-  S.userId=null;S.userName=null;S.userColor=null;S.checkins=[];
-  $('opApp').style.display='none';$('opSetup').style.display='none';$('opLogin').style.display='';
+  S.userId=null;S.userName=null;S.userColor=null;S.checkins=[];S.currentEventId=null;S.currentEventName=null;
+  nodes.length=0;
+  $('opApp').style.display='none';$('opSetup').style.display='none';$('opEvents').style.display='none';$('opLogin').style.display='';
 }
 
 // ═══ SOCKET ═══
@@ -383,7 +556,7 @@ function initSocket(){
     if(S.userId)S.socket.emit('identify',S.userId);
     // On reconnect: re-register in queue AND update oscillator to new freq
     if(homeSonicActive){
-      S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true});
+      S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true,eventId:S.currentEventId});
       S.socket.once('sonic-assigned',({freq})=>{
         sonicMyFreq=freq;
         if(sonicOsc&&sonicEmitCtx){try{sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime)}catch(e){}}
@@ -401,7 +574,15 @@ function initSocket(){
     if(!d||!d.userId)return;
     // Update node
     const node=nodes.find(n=>n.userId===d.userId);
-    if(node){node.revealed=true;node.revealData=d}
+    if(node){
+      node.revealed=true;node.revealData=d;
+      // Load profile photo for canvas
+      if(d.profilePhoto&&!node.photoLoaded){
+        const img=new Image();img.crossOrigin='anonymous';
+        img.onload=()=>{node.photoImg=img;node.photoLoaded=true};
+        img.src=d.profilePhoto;
+      }
+    }
     // Update sidebar item
     const items=document.querySelectorAll('.op-checkin-item');
     items.forEach(item=>{
@@ -467,7 +648,7 @@ async function opToggleTouch(){
     sts.textContent='Conectando ao servidor...';
 
     // 2. Get frequency
-    S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true});
+    S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true,eventId:S.currentEventId});
     const freq=await new Promise((resolve,reject)=>{
       const t=setTimeout(()=>reject(new Error('Timeout')),8000);
       S.socket.once('sonic-assigned',({freq})=>{clearTimeout(t);resolve(freq)});
@@ -807,48 +988,64 @@ function initCanvas(){
 }
 
 function addNodeToCanvas(d,instant){
-  const margin=60;
-  const x=margin+Math.random()*(cvW-margin*2);
-  const y=margin+Math.random()*(cvH-margin*2-100); // avoid button area at bottom
-  const vx=(Math.random()-.5)*.5;
-  const vy=(Math.random()-.5)*.5;
-  const n={x,y,vx,vy,r:instant?9:0,targetR:8+Math.random()*5,color:d.color||nickColor(d.nickname||'?'),name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,entryAnim:instant?0:1,entryStartX:cvW/2,entryStartY:cvH/2,userId:d.userId||null,relationId:d.relationId||null,revealed:d.revealed||false,revealData:d.revealData||null,timestamp:d.timestamp||Date.now()};
+  const stars=d.stars||0;
+  const maxStars=Math.max(1,...nodes.map(n=>n.stars||0),stars);
+  const maxDist=Math.min(cvW,cvH)*0.38;
+  const minDist=40;
+  const dist=maxDist-(stars/Math.max(1,maxStars))*(maxDist-minDist);
+  const angle=Math.random()*Math.PI*2;
+  const cx=cvW/2,cy=cvH/2-20;
+  const x=cx+Math.cos(angle)*dist;
+  const y=cy+Math.sin(angle)*dist;
+  const baseR=8+Math.min(stars*.3,6);
+  const n={x,y,vx:0,vy:0,r:instant?baseR:0,targetR:baseR,color:d.color||nickColor(d.nickname||'?'),name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,entryAnim:instant?0:1,entryStartX:cvW/2,entryStartY:cvH/2,userId:d.userId||null,relationId:d.relationId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,score:d.score||0,timestamp:d.timestamp||Date.now(),orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,photoImg:null,photoLoaded:false};
+  // Pre-load profile photo if revealed
+  if(n.revealed&&n.profilePhoto){
+    const img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{n.photoImg=img;n.photoLoaded=true};
+    img.src=n.profilePhoto;
+  }
   nodes.push(n);
 }
 
 function renderCanvas(){
   if(!cvCtx)return;const c=cvCtx;c.clearRect(0,0,cvW,cvH);const t=Date.now()/1000;
-  const cx=cvW/2,cy=cvH/2-20;const margin=30;
+  const cx=cvW/2,cy=cvH/2-20;
   // Ambient particles
   ambientP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=cvW;if(p.x>cvW)p.x=0;if(p.y<0)p.y=cvH;if(p.y>cvH)p.y=0;
     c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
-  // Free-floating node movement + connection lines
+  // Recalculate orbits based on current max stars
+  const maxStars=Math.max(1,...nodes.map(n=>n.stars||0));
+  const maxDist=Math.min(cvW,cvH)*0.38;
+  const minDist=40;
+  // Orbital node movement + connection lines
   nodes.forEach(n=>{if(n.r<1)return;
-    // Move freely
-    n.x+=n.vx;n.y+=n.vy;
-    // Bounce off edges
-    if(n.x<margin){n.x=margin;n.vx=Math.abs(n.vx)}
-    if(n.x>cvW-margin){n.x=cvW-margin;n.vx=-Math.abs(n.vx)}
-    if(n.y<margin){n.y=margin;n.vy=Math.abs(n.vy)}
-    if(n.y>cvH-margin-120){n.y=cvH-margin-120;n.vy=-Math.abs(n.vy)}
+    // Update orbit distance based on stars
+    n.orbitDist=maxDist-((n.stars||0)/maxStars)*(maxDist-minDist);
+    // Orbit around center
+    n.orbitAngle+=n.orbitSpeed;
+    n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
+    n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
     // Connection line to center
     const la=.06+Math.sin(t*.8+n.phase)*.03;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.8;c.stroke();
     // Traveling dot on line
     const pt=(t*.5+n.phase)%1;c.beginPath();c.arc(cx+(n.x-cx)*pt,cy+(n.y-cy)*pt,1.5,0,Math.PI*2);c.fillStyle='rgba(99,102,241,.25)';c.fill()});
+  // Orbit rings (subtle)
+  [.25,.5,.75].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.stroke()});
   // Center node (operator)
   const cs=20+Math.sin(t*2)*1.5;
   c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle=homeSonicActive?'#ff6b35':(S.userColor||'#6366f1');c.fill();c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=1.5;c.stroke();
   c.fillStyle='#fff';c.font='700 9px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini(S.userName||'OP'),cx,cy);
-  // Person nodes with entry animation
+  if(S.currentEventName){c.font='400 6px Inter';c.fillStyle='rgba(255,255,255,.3)';c.fillText(S.currentEventName.length>16?S.currentEventName.slice(0,16)+'…':S.currentEventName,cx,cy+cs+8)}
+  // Person nodes with entry animation, orbital, tags, photos
   nodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.3);const pulse=1+Math.sin(t*1.2+n.phase)*.04;const r=n.r*pulse;
-    // Entry animation: large name sliding from center to node position
+    // Entry animation
     if(n.entryAnim>0){
       n.entryAnim=Math.max(0,n.entryAnim-.008);
       const ea=n.entryAnim;
-      // Interpolate text position from center to node
       const tx=n.entryStartX+(n.x-n.entryStartX)*(1-ea);
       const ty=n.entryStartY+(n.y-n.entryStartY)*(1-ea);
-      const fontSize=8+ea*16; // 24px→8px
+      const fontSize=8+ea*16;
       c.save();c.globalAlpha=Math.min(1,ea*2);
       c.font='700 '+fontSize+'px Inter';c.textAlign='center';c.textBaseline='middle';
       c.shadowColor=n.color;c.shadowBlur=20*ea;
@@ -857,14 +1054,41 @@ function renderCanvas(){
     }
     // Glow effect
     if(n.glow>0){const gr=r*5*n.glow;const g=c.createRadialGradient(n.x,n.y,0,n.x,n.y,gr);g.addColorStop(0,hexA(n.color,.3*n.glow));g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(n.x,n.y,gr,0,Math.PI*2);c.fill();n.glow=Math.max(0,n.glow-.005)}
-    // Node circle
-    c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=.8;c.stroke();
-    // Revealed indicator ring
-    if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1.5;c.stroke()}
-    // Initials inside node
-    if(r>5){c.fillStyle='#fff';c.font='600 '+(r*.6)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini(n.name),n.x,n.y+.5)}
-    // Name below node (only when entry anim is done)
-    if(r>7&&n.entryAnim<=0){c.fillStyle='rgba(255,255,255,.25)';c.font='400 6.5px Inter';c.textAlign='center';c.fillText(n.name.length>12?n.name.slice(0,12)+'…':n.name,n.x,n.y+r+9)}});
+    // Top tag badge ABOVE node
+    if(n.topTag&&n.entryAnim<=0){
+      const tagColors={top1:'#FFD700',top5:'#C0C0C0',top50:'#CD7F32',top100:'#6a5acd'};
+      const tagLabels={top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100'};
+      const tagCol=tagColors[n.topTag]||'#6a5acd';
+      const tagLbl=tagLabels[n.topTag]||'';
+      if(tagLbl){
+        c.save();c.font='700 5.5px Inter';c.textAlign='center';c.textBaseline='middle';
+        const tw=c.measureText(tagLbl).width+6;const th=10;const tx=n.x;const ty=n.y-r-th/2-2;
+        c.fillStyle=tagCol;c.globalAlpha=.85;
+        c.beginPath();const br=4;c.moveTo(tx-tw/2+br,ty-th/2);c.lineTo(tx+tw/2-br,ty-th/2);c.quadraticCurveTo(tx+tw/2,ty-th/2,tx+tw/2,ty-th/2+br);c.lineTo(tx+tw/2,ty+th/2-br);c.quadraticCurveTo(tx+tw/2,ty+th/2,tx+tw/2-br,ty+th/2);c.lineTo(tx-tw/2+br,ty+th/2);c.quadraticCurveTo(tx-tw/2,ty+th/2,tx-tw/2,ty+th/2-br);c.lineTo(tx-tw/2,ty-th/2+br);c.quadraticCurveTo(tx-tw/2,ty-th/2,tx-tw/2+br,ty-th/2);c.fill();
+        c.globalAlpha=1;c.fillStyle='#000';c.fillText(tagLbl,tx,ty+.5);c.restore();
+      }
+    }
+    // Node circle — photo or color
+    if(n.revealed&&n.photoLoaded&&n.photoImg){
+      // Circular clipped photo
+      c.save();c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.clip();
+      c.drawImage(n.photoImg,n.x-r,n.y-r,r*2,r*2);c.restore();
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.6)';c.lineWidth=1.5;c.stroke();
+    }else{
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=.8;c.stroke();
+      // Revealed indicator ring
+      if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1.5;c.stroke()}
+      // Initials inside node
+      if(r>5){c.fillStyle='#fff';c.font='600 '+(r*.6)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini(n.name),n.x,n.y+.5)}
+    }
+    // Name + stars below node (only when entry anim is done)
+    if(r>7&&n.entryAnim<=0){
+      const displayName=n.revealed&&n.revealData&&n.revealData.realName?n.revealData.realName:n.name;
+      c.fillStyle='rgba(255,255,255,.3)';c.font='400 6.5px Inter';c.textAlign='center';
+      c.fillText(displayName.length>14?displayName.slice(0,14)+'…':displayName,n.x,n.y+r+9);
+      // Stars count
+      if(n.stars>0){c.fillStyle='rgba(255,215,0,.5)';c.font='400 5.5px Inter';c.fillText('⭐'+n.stars,n.x,n.y+r+17)}
+    }});
   cvAnim=requestAnimationFrame(renderCanvas);
 }
 window.addEventListener('resize',()=>{if($('opApp').style.display!=='none'){if(cvAnim)cancelAnimationFrame(cvAnim);initCanvas()}});
