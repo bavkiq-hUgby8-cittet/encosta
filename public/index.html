@@ -32,6 +32,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 #splash{justify-content:center;align-items:center;background:radial-gradient(circle at 50% 50%,rgba(255,107,53,.03),transparent 60%)}
 #splash .logo{font-size:2.8rem;font-weight:800;letter-spacing:.35em;color:var(--ac);animation:gp 2s ease-in-out infinite;opacity:0;animation:gp 2s ease-in-out infinite,splash-in .8s ease forwards}
 #splash .tag{margin-top:1.2rem;font-size:.78rem;color:var(--t3);font-weight:300;letter-spacing:.2em;opacity:0;animation:splash-tag-in .8s ease .4s forwards}
+@keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes splash-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
 @keyframes splash-tag-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes gp{0%,100%{text-shadow:0 0 20px var(--gw)}50%{text-shadow:0 0 50px var(--gw2),0 0 100px rgba(255,107,53,.08)}}
@@ -964,7 +965,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="sonic-fallback" id="sonicFallback">
       <button class="bs" onclick="startEncounter()" style="font-size:.75rem">&#x1F511; Conectar por código</button>
     </div>
-    <div class="daily-counter hidden" id="dailyCounter">Hoje: <strong id="dailyNum">0</strong> encontros</div>
+    <div class="daily-counter hidden" id="dailyCounter"><strong id="dailyNum">0</strong> touches nas últimas 24h</div>
   </div>
   <!-- BOTTOM: minimal — only location + tutorial -->
   <div class="home-bottom">
@@ -1427,6 +1428,13 @@ function nextOnbSlide() {
   $('onbSlides').style.transform = 'translateX(-' + (onbSlide * 100) + '%)';
   updateOnbDots();
   if (onbSlide === ONB_TOTAL - 1) $('onbNextBtn').textContent = 'Começar';
+  // Retrigger animations for current slide
+  const slides=document.querySelectorAll('.onb-slide');
+  if(slides[onbSlide]){
+    slides[onbSlide].querySelectorAll('.onb-icon,.onb-title,.onb-desc').forEach(el=>{
+      el.style.animation='none';el.offsetHeight;el.style.animation='';
+    });
+  }
 }
 function updateOnbDots() {
   const dots = $('onbDots').children;
@@ -1438,12 +1446,16 @@ function skipOnboarding() {
 }
 function showTutorial(){showManual()}
 function showManual(){
-  // Re-show onboarding as manual
   onbSlide=0;
   initOnboarding();
   $('onbSlides').style.transform='translateX(0)';
   $('onbNextBtn').textContent='Próximo';
-  // Override skip to go home
+  // Retrigger fade-in animations by resetting them
+  document.querySelectorAll('.onb-icon,.onb-title,.onb-desc').forEach(el=>{
+    el.style.animation='none';
+    el.offsetHeight; // force reflow
+    el.style.animation='';
+  });
   const oldSkip=window.skipOnboarding;
   window.skipOnboarding=function(){ showScreen('home'); window.skipOnboarding=oldSkip; };
   showScreen('onboarding');
@@ -3376,7 +3388,7 @@ function showConstDetail(node){
   let statsArr=[];
   if(node.isPrestador&&node.serviceLabel)statsArr.push('💼 '+node.serviceLabel);
   statsArr.push('📲 '+(node.encounters||0));
-  if(node.touchers)statsArr.push('👥 '+node.touchers+' touchers');
+  if(node.touchers)statsArr.push('👥 '+node.touchers+' pessoas');
   if(node.starsCount)statsArr.push('⭐ '+node.starsCount);
   if(theyRevealed&&node.likesCount)statsArr.push('❤️ '+node.likesCount);
   sub.textContent=statsArr.join(' · ');
@@ -4170,7 +4182,31 @@ function playSound(type){
   else if(type==='pulse'){o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(200,t+.3);g.gain.setValueAtTime(.08,t);g.gain.exponentialRampToValueAtTime(.001,t+.4);o.start(t);o.stop(t+.4)}
   }catch(e){}
 }
-function haptic(p){if(navigator.vibrate)navigator.vibrate(p)}
+// Haptic vibration — robust for web
+let _vibrationTested=false;
+function haptic(p){
+  try{
+    if('vibrate' in navigator){
+      navigator.vibrate(p);
+      _vibrationTested=true;
+    }
+  }catch(e){}
+}
+// Try to activate vibration on first user interaction
+document.addEventListener('click',function _activateVibration(){
+  if(!_vibrationTested&&'vibrate' in navigator){
+    try{navigator.vibrate(1)}catch(e){}
+    _vibrationTested=true;
+  }
+  document.removeEventListener('click',_activateVibration);
+},{once:true});
+document.addEventListener('touchstart',function _activateVibrationTouch(){
+  if(!_vibrationTested&&'vibrate' in navigator){
+    try{navigator.vibrate(1)}catch(e){}
+    _vibrationTested=true;
+  }
+  document.removeEventListener('touchstart',_activateVibrationTouch);
+},{once:true});
 
 // ═══ HOME MOTIVATION ═══
 const HOME_PHRASES=[
