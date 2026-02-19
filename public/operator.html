@@ -234,9 +234,22 @@ function $(id){return document.getElementById(id)}
   firebase.initializeApp(cfg);
   firebase.auth().onAuthStateChanged(async user=>{
     if(user){
-      S.userId=user.uid;
-      try{const ur=await fetch('/api/user/'+user.uid);const ud=await ur.json();S.userName=ud.nickname||ud.name||user.displayName||'Operador';S.userColor=ud.color||'#6366f1'}
-      catch(e){S.userName=user.displayName||'Operador';S.userColor='#6366f1'}
+      // CRITICAL: Ensure user exists in database via /api/auth/link
+      // Without this, sonic-start is rejected because db.users[userId] is null
+      try{
+        const linkRes=await fetch('/api/auth/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL})});
+        const linkData=await linkRes.json();
+        S.userId=linkData.userId; // Use the ENCOSTA userId (not Firebase uid)
+        S.userName=linkData.user?.nickname||linkData.user?.name||user.displayName||'Operador';
+        S.userColor=linkData.user?.color||'#6366f1';
+        console.log('[operator] Auth linked:',S.userId,'name:',S.userName,'linked:',linkData.linked);
+      }catch(e){
+        console.error('[operator] Auth link failed:',e);
+        // Fallback: try GET
+        S.userId=user.uid;
+        try{const ur=await fetch('/api/user/'+user.uid);const ud=await ur.json();S.userName=ud.nickname||ud.name||user.displayName||'Operador';S.userColor=ud.color||'#6366f1'}
+        catch(e2){S.userName=user.displayName||'Operador';S.userColor='#6366f1'}
+      }
       $('opLogin').style.display='none';$('opApp').style.display='';
       $('opUserName').textContent=S.userName;
       initSocket();initCanvas();loadExisting();
