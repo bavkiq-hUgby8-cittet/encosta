@@ -18,6 +18,20 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .op-login-btn{padding:.8rem 2rem;background:var(--ac);border:none;border-radius:14px;color:#fff;font-size:.85rem;font-weight:600;font-family:inherit;cursor:pointer;transition:transform .2s}
 .op-login-btn:active{transform:scale(.95)}
 
+/* Setup / Cadastro */
+.op-setup{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:99;background:var(--bg);display:none}
+.op-setup h2{font-size:1.4rem;font-weight:700}.op-setup h2 span{color:var(--ac)}
+.op-setup-sub{font-size:.7rem;color:var(--t3);text-align:center;max-width:280px;line-height:1.5}
+.op-setup-field{display:flex;flex-direction:column;gap:.3rem;width:260px}
+.op-setup-label{font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.op-setup-input{padding:.6rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:border .2s}
+.op-setup-input:focus{border-color:var(--ac)}
+.op-setup-err{font-size:.65rem;color:var(--pk);min-height:1em}
+
+/* Logoff button */
+.op-logoff{font-size:.6rem;color:var(--t3);cursor:pointer;padding:.2rem .5rem;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:none;font-family:inherit;transition:all .2s}
+.op-logoff:hover{color:var(--pk);border-color:rgba(255,61,113,.3)}
+
 /* Header */
 .op-header{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;background:rgba(18,18,26,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--b1);z-index:10;position:relative}
 .op-logo{font-size:.82rem;font-weight:700;letter-spacing:.08em}.op-logo span{color:var(--ac)}
@@ -160,12 +174,28 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
   <button class="op-login-btn" onclick="opDoLogin()">Entrar com Google</button>
 </div>
 
+<div class="op-setup" id="opSetup">
+  <h2>Touch<span>?</span> Operador</h2>
+  <div class="op-setup-sub">Configure o nome do seu estabelecimento ou evento. Este nome aparecerá para as pessoas que fizerem check-in.</div>
+  <div class="op-setup-field">
+    <label class="op-setup-label">Nome do estabelecimento</label>
+    <input class="op-setup-input" id="opSetupNick" type="text" placeholder="Ex: Bar do João, Festa XYZ" maxlength="20">
+  </div>
+  <div class="op-setup-field">
+    <label class="op-setup-label">Data de nascimento (responsável)</label>
+    <input class="op-setup-input" id="opSetupBirth" type="date">
+  </div>
+  <div class="op-setup-err" id="opSetupErr"></div>
+  <button class="op-login-btn" onclick="opFinishSetup()">Salvar e continuar</button>
+</div>
+
 <div style="display:none" id="opApp">
   <div class="op-header">
     <div class="op-logo">Touch<span>?</span> Operador</div>
     <div class="op-stats">
       <div><span class="op-stat-num" id="opCount">0</span> check-ins</div>
       <div class="op-user" id="opUserName"></div>
+      <button class="op-logoff" onclick="opLogoff()">Sair</button>
     </div>
   </div>
   <div class="op-main">
@@ -250,13 +280,50 @@ function $(id){return document.getElementById(id)}
         try{const ur=await fetch('/api/user/'+user.uid);const ud=await ur.json();S.userName=ud.nickname||ud.name||user.displayName||'Operador';S.userColor=ud.color||'#6366f1'}
         catch(e2){S.userName=user.displayName||'Operador';S.userColor='#6366f1'}
       }
-      $('opLogin').style.display='none';$('opApp').style.display='';
-      $('opUserName').textContent=S.userName;
-      initSocket();initCanvas();loadExisting();
-    }else{$('opLogin').style.display='';$('opApp').style.display='none'}
+      $('opLogin').style.display='none';
+      // Check if user needs to complete setup (no nickname or auto-generated)
+      const needsSetup=!S.userName||S.userName==='Operador'||S.userName===user.displayName;
+      if(needsSetup){
+        $('opSetup').style.display='flex';$('opApp').style.display='none';
+      }else{
+        $('opSetup').style.display='none';$('opApp').style.display='';
+        $('opUserName').textContent=S.userName;
+        initSocket();initCanvas();loadExisting();
+      }
+    }else{$('opLogin').style.display='';$('opApp').style.display='none';$('opSetup').style.display='none'}
   });
 })();
 function opDoLogin(){firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert('Erro: '+e.message))}
+
+// ═══ SETUP / CADASTRO ═══
+async function opFinishSetup(){
+  const nick=$('opSetupNick').value.trim();
+  const birth=$('opSetupBirth').value;
+  const err=$('opSetupErr');
+  if(!nick||nick.length<2){err.textContent='Nome deve ter pelo menos 2 caracteres.';return}
+  if(nick.length>20){err.textContent='Nome deve ter no máximo 20 caracteres.';return}
+  if(!birth){err.textContent='Informe a data de nascimento.';return}
+  err.textContent='Salvando...';
+  try{
+    const res=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:nick,birthdate:birth,acceptedTerms:true,userId:S.userId})});
+    const data=await res.json();
+    if(!res.ok){err.textContent=data.error||'Erro ao salvar.';return}
+    S.userName=data.user?.nickname||nick;
+    S.userColor=data.user?.color||S.userColor;
+    $('opSetup').style.display='none';$('opApp').style.display='';
+    $('opUserName').textContent=S.userName;
+    initSocket();initCanvas();loadExisting();
+  }catch(e){err.textContent='Erro de conexão: '+e.message}
+}
+
+// ═══ LOGOFF ═══
+function opLogoff(){
+  if(homeSonicActive)stopHomeSonic();
+  if(S.socket){S.socket.disconnect();S.socket=null}
+  firebase.auth().signOut();
+  S.userId=null;S.userName=null;S.userColor=null;S.checkins=[];
+  $('opApp').style.display='none';$('opSetup').style.display='none';$('opLogin').style.display='';
+}
 
 // ═══ SOCKET ═══
 function initSocket(){
@@ -381,35 +448,49 @@ async function opToggleTouch(){
       if(sonicMicCtx&&sonicMicCtx.state==='suspended'){sonicMicCtx.resume();console.log('[operator] Resumed micCtx')}
     },3000);
 
-    // 5. Detection loop — operator mode: does NOT stop on detect, just cooldown
+    // 5. Detection loop — OPERATOR MODE (different from main app!)
+    // On computers, speaker-to-mic feedback makes OUR OWN frequency the loudest peak.
+    // Fix: SKIP bins near our frequency, look for OTHER frequencies only.
+    const myBinCenter=Math.round(freq/freqPerBin);
+    const skipRadius=Math.ceil(200/freqPerBin); // skip ±200Hz around our freq
+    console.log('[operator] Detection: skipping bins',myBinCenter-skipRadius,'to',myBinCenter+skipRadius,'(our freq zone)');
+
     let confirmHits=0,lastSnapped=0,cooldown=0,debugCounter=0;
     function detect(){
       if(!sonicActive)return;
       if(cooldown>0){cooldown--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
       const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
-      let peakVal=0,peakBin=0;
-      for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}}
 
-      // Log peak every ~2 seconds (120 frames) so we can see what mic picks up
+      // Find peak EXCLUDING bins near our own frequency
+      let peakVal=0,peakBin=0;
+      for(let i=minBin;i<=maxBin&&i<bufLen;i++){
+        // Skip bins around our own emission to avoid self-detection
+        if(i>=myBinCenter-skipRadius&&i<=myBinCenter+skipRadius)continue;
+        if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}
+      }
+
+      // Also check raw peak (including self) for debug logging
+      let rawPeak=0,rawBin=0;
+      for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>rawPeak){rawPeak=dataArr[i];rawBin=i}}
+
       debugCounter++;
       if(debugCounter%120===0){
-        const peakFreq=Math.round(peakBin*freqPerBin);
-        console.log('[operator-mic] peak:',peakVal,'at',peakFreq,'Hz (bin:'+peakBin+') | threshold:',SONIC_DETECT_THRESHOLD,'| myFreq:',sonicMyFreq,'| emitCtx:',sonicEmitCtx?sonicEmitCtx.state:'null','| micCtx:',sonicMicCtx?sonicMicCtx.state:'null');
+        const rawFreq=Math.round(rawBin*freqPerBin);
+        const peakFreq=peakBin>0?Math.round(peakBin*freqPerBin):0;
+        console.log('[operator-mic] self:',rawPeak,'@',rawFreq,'Hz | other:',peakVal,'@',peakFreq,'Hz | threshold:',SONIC_DETECT_THRESHOLD);
       }
 
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
-        if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
+        if(snapped>=18000&&snapped<=19900&&snapped!==sonicMyFreq){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
           console.log('[operator] Hit! snapped:',snapped,'peak:',peakVal,'confirmHits:',confirmHits,'/',SONIC_CONFIRM_COUNT);
           if(confirmHits>=SONIC_CONFIRM_COUNT){
-            // DETECTED! But don't stop — operator keeps listening
             console.log('[operator] ★ DETECTED freq:',snapped,'Hz (peak:',peakVal,') — sending sonic-detected');
             S.socket.emit('sonic-detected',{userId:S.userId,detectedFreq:snapped});
             confirmHits=0;lastSnapped=0;
-            cooldown=90; // ~1.5s at 60fps
-            // Flash green
+            cooldown=90;
             btn.classList.add('connected');
             setTimeout(()=>{if(homeSonicActive){btn.classList.remove('connected');btn.classList.add('energized')}},1200);
           }
