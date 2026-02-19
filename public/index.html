@@ -273,6 +273,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-connection-dot{width:4px;height:4px;border-radius:50%;background:rgba(255,107,53,.5);box-shadow:0 0 8px rgba(255,107,53,.3)}
 /* Moment label */
 .rv-moment{font-size:.6rem;color:rgba(255,255,255,.25);letter-spacing:.25em;text-transform:uppercase;opacity:0;animation:rv-fi 1.2s ease .3s forwards;font-weight:400}
+.rv-service-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .8rem;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:16px;font-size:.75rem;color:#34d399;font-weight:500;margin-top:.5rem;opacity:0;animation:rv-fi .8s ease .6s forwards;letter-spacing:.02em}
 /* Phrase — THE focus */
 .rv-phrase{max-width:300px;min-height:50px;display:flex;flex-wrap:wrap;justify-content:center;gap:.25rem;line-height:2}
 .rv-word{display:inline-block;font-size:1.5rem;font-weight:200;color:#fff;opacity:0;transform:translateY(8px);animation:rv-word .7s cubic-bezier(.22,1,.36,1) forwards;letter-spacing:-.01em}
@@ -745,6 +746,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .tip-field iframe{border:none!important;height:24px!important}
 .tip-input{width:100%;padding:.7rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:14px;font-family:inherit;outline:none;margin-top:.4rem}
 .tip-input::placeholder{color:#555568}
+.tip-saved-section{margin-bottom:1rem}
+.tip-saved-card{width:100%;display:flex;align-items:center;gap:.7rem;padding:.8rem 1rem;background:rgba(52,211,153,.06);border:1.5px solid rgba(52,211,153,.25);border-radius:14px;color:#34d399;font-family:inherit;cursor:pointer;transition:.15s}
+.tip-saved-card.active{border-color:#34d399;background:rgba(52,211,153,.12)}
+.tsc-icon{font-size:1.2rem}
+.tsc-info{flex:1;text-align:left;font-size:.82rem;font-weight:500}
+.tsc-brand{text-transform:capitalize}
+.tsc-check{font-size:.9rem;opacity:0;transition:.2s}
+.tip-saved-card.active .tsc-check{opacity:1}
+.tip-new-card-link{background:none;border:none;color:var(--t3);font-size:.68rem;font-family:inherit;cursor:pointer;padding:.4rem 0;text-decoration:underline}
+.tip-save-check{display:flex;align-items:center;gap:.5rem;font-size:.7rem;color:var(--t3);margin-top:.6rem;cursor:pointer}
+.tip-save-check input{accent-color:var(--ac)}
 .tip-pay-btn{width:100%;padding:1rem;background:linear-gradient(135deg,var(--ac),var(--pk));border:none;border-radius:16px;color:#fff;font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.04em;box-shadow:0 4px 15px rgba(255,107,53,.3);transition:.15s}
 .tip-pay-btn:active{transform:scale(.97)}
 .tip-pay-btn:disabled{opacity:.4}
@@ -1249,7 +1261,15 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <label>Outro valor:</label>
     <input type="number" id="tipCustomAmount" placeholder="R$" min="1" max="500" oninput="selectTipCustom()">
   </div>
-  <div class="tip-card-section">
+  <div class="tip-saved-section hidden" id="tipSavedSection">
+    <button class="tip-saved-card" id="tipSavedCardBtn" onclick="useSavedCard()">
+      <span class="tsc-icon">💳</span>
+      <span class="tsc-info"><span class="tsc-brand" id="tscBrand">Visa</span> •••• <span id="tscLast4">0000</span></span>
+      <span class="tsc-check" id="tscCheck">✓</span>
+    </button>
+    <button class="tip-new-card-link" onclick="showNewCardForm()">Usar outro cartão</button>
+  </div>
+  <div class="tip-card-section" id="tipCardSection">
     <h3>Cartão de crédito</h3>
     <div class="tip-card-fields">
       <div class="tip-field" id="mpCardNumber"></div>
@@ -1261,6 +1281,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <input type="email" id="tipPayerEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email">
       <input type="text" id="tipPayerCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off">
     </div>
+    <label class="tip-save-check" id="tipSaveCheck"><input type="checkbox" id="tipSaveCardCb"> Memorizar cartão para próximas gorjetas</label>
   </div>
   <button class="tip-pay-btn" id="tipPayBtn" onclick="processTip()" disabled>Confirmar gorjeta</button>
   <div class="tip-result hidden" id="tipResult">
@@ -1526,15 +1547,15 @@ function initSocket(){
       co.classList.remove('first','renewed');
       co.classList.add(isRenewed?'renewed':'first');
       co.classList.add('active');
+      const isQuick=!!(d.isServiceTouch||d.isCheckin);
       startElectricTouch(isRenewed);
-      // Continuous vibration during the electric touch animation (building intensity)
-      haptic([80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
+      haptic(isQuick?[60,20,60,20,100]:[80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
       setTimeout(()=>{
         stopElectricTouch();
-        if(navigator.vibrate)navigator.vibrate(0); // stop vibration
+        if(navigator.vibrate)navigator.vibrate(0);
         co.classList.remove('active','first','renewed');
         showScreen('reveal');doReveal(d);
-      },4200);
+      },isQuick?1800:4200);
     }else{
       showScreen('reveal');doReveal(d);
     }
@@ -2046,9 +2067,10 @@ async function joinSession(){
       if(co){
         co.classList.remove('first','renewed');
         co.classList.add(d.renewed?'renewed':'first','active');
+        const isQ2=!!(d.isServiceTouch||d.isCheckin);
         startElectricTouch(!!d.renewed);
-        haptic([80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
-        setTimeout(()=>{stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);co.classList.remove('active','first','renewed');showScreen('reveal');doReveal(d)},4200);
+        haptic(isQ2?[60,20,60,20,100]:[80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
+        setTimeout(()=>{stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);co.classList.remove('active','first','renewed');showScreen('reveal');doReveal(d)},isQ2?1800:4200);
       }else{showScreen('reveal');doReveal(d)}
     }
   }catch(e){showToast('Código inválido ou expirado.')}
@@ -2488,41 +2510,86 @@ function doReveal(data){
   $('rvNameMe').textContent=me.realName||me.name||'?';
   $('rvNameThem').textContent=them.realName||them.name||'?';
 
-  // 2. Moment label
+  // Detect special modes
+  const isService=!!data.isServiceTouch;
+  const isCheckin=!!data.isCheckin;
+  const isSpecial=isService||isCheckin;
+
+  // 2. Moment label + phrase + sub
   const moment=$('revealMoment');
-  moment.textContent=isDigital?'uma conexão nasceu':'algo nasceu entre vocês';
-
-  // 3. Renewed
-  data.renewed?$('revealRenewed').classList.remove('hidden'):$('revealRenewed').classList.add('hidden');
-
-  // 4. Last encounter
-  const lastEl=$('revealLast');
-  if(data.lastEncounter){
-    const ago=Date.now()-data.lastEncounter.timestamp;
-    const days=Math.floor(ago/86400000),hrs=Math.floor((ago%86400000)/3600000);
-    let agoStr=days>0?days+'d '+hrs+'h atrás':hrs>0?hrs+'h atrás':'agora';
-    lastEl.innerHTML='Último: <strong>'+agoStr+'</strong>';
-    lastEl.classList.remove('hidden');
-  }else lastEl.classList.add('hidden');
-
-  // 5. Phrase — word by word, THE star
-  const el=$('revealPhrase');el.innerHTML='';
-  const baseDelay=0.8;
-  data.phrase.split(' ').forEach((w,i)=>{
-    const s=document.createElement('span');s.className='rv-word';
-    s.textContent=w+'\u00A0';
-    s.style.animationDelay=(baseDelay+i*0.22)+'s';
-    el.appendChild(s);
-  });
-
-  // 6. Zodiac (minimal)
+  const phraseEl=$('revealPhrase');
+  const subEl=document.querySelector('.rv-sub');
   const zodiacArea=$('zodiacArea');
-  if(data.zodiacPhrase&&data.userA?.signInfo&&data.userB?.signInfo){
-    const sA=meIsA?data.userA.signInfo:data.userB.signInfo;
-    const sB=meIsA?data.userB.signInfo:data.userA.signInfo;
-    zodiacArea.classList.remove('hidden');
-    zodiacArea.innerHTML='<div class="zodiac-phrase">'+esc(data.zodiacPhrase)+'</div>';
-  }else{zodiacArea.classList.add('hidden');zodiacArea.innerHTML=''}
+  const lastEl=$('revealLast');
+
+  // Remove previous service badge if any
+  const oldBadge=document.querySelector('.rv-service-badge');
+  if(oldBadge)oldBadge.remove();
+
+  if(isService){
+    // ── SERVICE REVEAL ──
+    moment.textContent='Conexão de serviço';
+    moment.style.color='#34d399';
+    // Service badge with label
+    const badge=document.createElement('div');
+    badge.className='rv-service-badge';
+    badge.innerHTML='💼 '+(them.serviceLabel||'Serviço');
+    moment.after(badge);
+    // Hide poetic elements
+    phraseEl.innerHTML='';phraseEl.style.display='none';
+    if(subEl)subEl.style.display='none';
+    zodiacArea.classList.add('hidden');zodiacArea.innerHTML='';
+    $('revealRenewed').classList.add('hidden');
+    lastEl.classList.add('hidden');
+    startRevealLight('#34d399');
+  }else if(isCheckin){
+    // ── CHECK-IN REVEAL ──
+    const opName=data.operatorName||them.name||'Estabelecimento';
+    moment.textContent='Check-in';
+    moment.style.color='#60a5fa';
+    const badge=document.createElement('div');
+    badge.className='rv-service-badge';
+    badge.style.borderColor='rgba(96,165,250,.3)';badge.style.background='rgba(96,165,250,.08)';badge.style.color='#60a5fa';
+    badge.innerHTML='📍 '+esc(opName);
+    moment.after(badge);
+    phraseEl.innerHTML='';phraseEl.style.display='none';
+    if(subEl)subEl.style.display='none';
+    zodiacArea.classList.add('hidden');zodiacArea.innerHTML='';
+    $('revealRenewed').classList.add('hidden');
+    lastEl.classList.add('hidden');
+    startRevealLight('#60a5fa');
+  }else{
+    // ── NORMAL REVEAL ──
+    moment.textContent=isDigital?'uma conexão nasceu':'algo nasceu entre vocês';
+    moment.style.color='';
+    phraseEl.style.display='';
+    if(subEl)subEl.style.display='';
+    // 3. Renewed
+    data.renewed?$('revealRenewed').classList.remove('hidden'):$('revealRenewed').classList.add('hidden');
+    // 4. Last encounter
+    if(data.lastEncounter){
+      const ago=Date.now()-data.lastEncounter.timestamp;
+      const days=Math.floor(ago/86400000),hrs=Math.floor((ago%86400000)/3600000);
+      let agoStr=days>0?days+'d '+hrs+'h atrás':hrs>0?hrs+'h atrás':'agora';
+      lastEl.innerHTML='Último: <strong>'+agoStr+'</strong>';
+      lastEl.classList.remove('hidden');
+    }else lastEl.classList.add('hidden');
+    // 5. Phrase — word by word
+    phraseEl.innerHTML='';
+    const baseDelay=0.8;
+    data.phrase.split(' ').forEach((w,i)=>{
+      const s=document.createElement('span');s.className='rv-word';
+      s.textContent=w+'\u00A0';
+      s.style.animationDelay=(baseDelay+i*0.22)+'s';
+      phraseEl.appendChild(s);
+    });
+    // 6. Zodiac
+    if(data.zodiacPhrase&&data.userA?.signInfo&&data.userB?.signInfo){
+      zodiacArea.classList.remove('hidden');
+      zodiacArea.innerHTML='<div class="zodiac-phrase">'+esc(data.zodiacPhrase)+'</div>';
+    }else{zodiacArea.classList.add('hidden');zodiacArea.innerHTML=''}
+    startRevealLight(beamColor);
+  }
 
   // 7. Reset selfie
   releaseSelfieCamera();
@@ -2531,38 +2598,50 @@ function doReveal(data){
   if(capBtn){capBtn.innerHTML='<span class="rv-ico">📸</span>Selfie';capBtn.disabled=false}
   $('revealActions').style.opacity='';
 
-  // 12. Gorjeta button — show if the other person is a prestador
+  // 8. Configure action buttons based on mode
   const tipBtn=$('revealTipBtn');
   const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
-  if(tipBtn){
-    if(them.isPrestador){
+  const skipBtn=document.querySelector('#revealActions .rv-btn-skip');
+  const secRow=document.querySelector('#revealActions .rv-sec-row');
+
+  // Reset buttons to default state first
+  if(enterBtn){enterBtn.style.display='';enterBtn.textContent='Abrir conexão';enterBtn.onclick=function(){enterChat()}}
+  if(tipBtn){tipBtn.className='rv-btn-mini hidden';tipBtn.style.cssText='';tipBtn.innerHTML='<span class="rv-ico">💲</span><span id="revealTipLabel">Gorjeta</span>'}
+  if(capBtn)capBtn.style.display='';
+  if(secRow)secRow.style.display='';
+
+  if(isService){
+    // SERVICE: gorjeta principal, chat pequeno, sem selfie
+    if(enterBtn)enterBtn.style.display='none';
+    if(capBtn)capBtn.style.display='none';
+    if(tipBtn){
+      tipBtn.className='rv-btn-enter';
+      tipBtn.style.cssText='background:linear-gradient(135deg,#34d399,#059669);border-color:#34d399;color:#fff;font-size:.82rem;font-weight:600;width:100%;padding:.7rem 0;';
+      tipBtn.innerHTML='💲 Pagar Gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
+      tipBtn.dataset.receiverId=them.id;
+      tipBtn.classList.remove('hidden');
+      const mainRow=document.querySelector('#revealActions .rv-btn-row');
+      if(mainRow)mainRow.prepend(tipBtn);
+    }
+    // Add small chat button in sec row
+    if(secRow){
+      secRow.innerHTML='<button type="button" class="rv-btn-mini" onclick="enterChat()"><span class="rv-ico">💬</span>Abrir chat</button>';
+    }
+  }else if(isCheckin){
+    // CHECKIN: revelar dados ou só check-in
+    if(enterBtn){enterBtn.textContent='Revelar meus dados';enterBtn.onclick=function(){revealToOperator(them.id)}}
+    if(skipBtn){skipBtn.textContent='Só check-in';skipBtn.onclick=function(){goHome()}}
+    if(secRow)secRow.style.display='none';
+  }else{
+    // NORMAL: show gorjeta if them is prestador
+    if(tipBtn&&them.isPrestador){
       tipBtn.classList.remove('hidden');
       tipBtn.dataset.receiverId=them.id;
       const lbl=$('revealTipLabel');
       if(lbl)lbl.textContent='Dar gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
-    }else{
-      tipBtn.classList.add('hidden');
     }
   }
-  // 13. Service touch: promote gorjeta to main, hide "Abrir conexão"
-  if(data.isServiceTouch){
-    if(enterBtn)enterBtn.style.display='none';
-    if(tipBtn&&them.isPrestador){
-      // Promote tip button to main action (big, primary style)
-      tipBtn.className='rv-btn-enter';
-      tipBtn.style.cssText='background:linear-gradient(135deg,#34d399,#059669);border-color:#34d399;color:#fff;font-size:.8rem;font-weight:600;width:100%;';
-      tipBtn.innerHTML='<span style="margin-right:.4rem">💲</span>Dar Gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
-      // Move tip button to the main row
-      const mainRow=document.querySelector('#revealActions .rv-btn-row');
-      if(mainRow)mainRow.prepend(tipBtn);
-    }
-  }else{
-    if(enterBtn)enterBtn.style.display='';
-    if(tipBtn){
-      tipBtn.className='rv-btn-mini hidden';
-      tipBtn.style.cssText='';
-    }
-  }
+
   // Reset service mode after touch
   if(serviceMode){
     serviceMode=false;
@@ -2571,6 +2650,15 @@ function doReveal(data){
     $('mainBtnText').textContent='TOUCH';
     $('serviceToggleLabel').textContent='Modo Serviço';
   }
+}
+
+// Reveal data to operator (checkin mode)
+function revealToOperator(operatorId){
+  fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:operatorId})})
+  .then(r=>r.json()).then(d=>{
+    if(d.error)showToast(d.error);
+    else{showToast('Dados revelados!');enterChat()}
+  }).catch(()=>showToast('Erro ao revelar.'));
 }
 
 function openTipFromReveal(){
@@ -4936,20 +5024,21 @@ function applyLang(){
 }
 
 // ═══ GORJETA / TIP ═══
-let tipState = { receiverId: null, amount: 0, mpInstance: null, cardToken: null };
+let tipState = { receiverId: null, amount: 0, mpInstance: null, cardToken: null, useSaved: false };
 
 function showTipScreen(receiverId) {
-  const user = null; // will be fetched
-  tipState = { receiverId, amount: 0, mpInstance: null, cardToken: null };
+  tipState = { receiverId, amount: 0, mpInstance: null, cardToken: null, useSaved: false };
   // Reset UI
   document.querySelectorAll('.tip-amount-btn').forEach(b => b.classList.remove('selected'));
   $('tipCustomAmount').value = '';
   $('tipPayBtn').disabled = true;
   $('tipPayBtn').textContent = 'Confirmar gorjeta';
   $('tipResult').classList.add('hidden');
-  $('tipScreen').querySelector('.tip-card-section').style.display = '';
+  $('tipCardSection').style.display = '';
   $('tipScreen').querySelector('.tip-amounts').style.display = '';
   $('tipScreen').querySelector('.tip-custom').style.display = '';
+  $('tipSavedSection').classList.add('hidden');
+  const saveCb=$('tipSaveCardCb');if(saveCb)saveCb.checked=false;
 
   // Fetch receiver info
   fetch('/api/user/' + receiverId).then(r => r.json()).then(u => {
@@ -4965,8 +5054,33 @@ function showTipScreen(receiverId) {
       (serviceLabel ? '<div class="tip-receiver-service">' + esc(serviceLabel) + '</div>' : '');
   }).catch(() => {});
 
+  // Check for saved card
+  fetch('/api/tip/saved-card/' + state.userId).then(r => r.json()).then(sc => {
+    if (sc.hasSaved) {
+      $('tscBrand').textContent = sc.brand || 'Cartão';
+      $('tscLast4').textContent = sc.lastFour || '****';
+      $('tipSavedSection').classList.remove('hidden');
+      // Auto-select saved card
+      useSavedCard();
+    }
+  }).catch(() => {});
+
   showScreen('tipScreen');
   initMPSecureFields();
+}
+
+function useSavedCard() {
+  tipState.useSaved = true;
+  $('tipSavedCardBtn').classList.add('active');
+  $('tipCardSection').style.display = 'none';
+  updateTipBtn();
+}
+function showNewCardForm() {
+  tipState.useSaved = false;
+  $('tipSavedCardBtn').classList.remove('active');
+  $('tipCardSection').style.display = '';
+  initMPSecureFields();
+  updateTipBtn();
 }
 
 function selectTipAmount(val) {
@@ -5029,19 +5143,32 @@ function setupMPFields() {
 
 async function processTip() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
-  if (!tipState.mpInstance) return showToast('Carregando pagamento...');
   const btn = $('tipPayBtn');
   btn.disabled = true; btn.textContent = 'Processando...';
 
   try {
-    // Create card token via MP SDK
-    const holderName = $('mpCardHolderInput') ? $('mpCardHolderInput').value : '';
-    const tokenResult = await tipState.mpInstance.fields.createCardToken({
-      cardholderName: holderName
-    });
-    if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão.');
+    let tokenId, pmId;
+    if (tipState.useSaved) {
+      // Use saved card — server will handle via customer_id
+      tokenId = '__saved__';
+      pmId = 'saved';
+    } else {
+      if (!tipState.mpInstance) return showToast('Carregando pagamento...');
+      const holderName = $('mpCardHolderInput') ? $('mpCardHolderInput').value : '';
+      const tokenResult = await tipState.mpInstance.fields.createCardToken({ cardholderName: holderName });
+      if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão.');
+      tokenId = tokenResult.id;
+      pmId = tokenResult.payment_method_id || 'visa';
+      // Save card if checkbox checked
+      const saveCb = $('tipSaveCardCb');
+      if (saveCb && saveCb.checked && tokenResult.last_four_digits) {
+        fetch('/api/tip/save-card', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: state.userId, lastFour: tokenResult.last_four_digits, brand: tokenResult.cardholder?.name ? pmId : pmId, customerId: tokenResult.cardholder?.id || null })
+        }).catch(() => {});
+      }
+    }
 
-    // Send to server
     const payerEmail = ($('tipPayerEmail') ? $('tipPayerEmail').value.trim() : '') || 'test@testuser.com';
     const payerCPF = ($('tipPayerCPF') ? $('tipPayerCPF').value.replace(/\D/g,'') : '') || '12345678909';
     const resp = await fetch('/api/tip/create', {
@@ -5051,11 +5178,12 @@ async function processTip() {
         payerId: state.userId,
         receiverId: tipState.receiverId,
         amount: tipState.amount,
-        token: tokenResult.id,
-        paymentMethodId: tokenResult.payment_method_id || 'visa',
+        token: tokenId,
+        paymentMethodId: pmId,
         installments: 1,
         payerEmail,
-        payerCPF
+        payerCPF,
+        useSavedCard: tipState.useSaved
       })
     });
     const result = await resp.json();
@@ -5079,7 +5207,8 @@ function showTipResult(icon, text) {
   $('tipResultIcon').textContent = icon;
   $('tipResultText').innerHTML = text;
   // Hide form parts
-  $('tipScreen').querySelector('.tip-card-section').style.display = 'none';
+  $('tipCardSection').style.display = 'none';
+  $('tipSavedSection').classList.add('hidden');
   $('tipScreen').querySelector('.tip-amounts').style.display = 'none';
   $('tipScreen').querySelector('.tip-custom').style.display = 'none';
   $('tipPayBtn').style.display = 'none';

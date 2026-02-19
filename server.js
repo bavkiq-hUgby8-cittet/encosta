@@ -852,16 +852,17 @@ app.get('/api/user/:id', (req, res) => {
 });
 
 app.post('/api/session/create', (req, res) => {
-  const { userId, isServiceTouch } = req.body;
+  const { userId, isServiceTouch, isCheckin } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const code = generateCode();
   const sessionId = uuidv4();
   db.sessions[sessionId] = {
     id: sessionId, code, userA: userId, userB: null, status: 'waiting', createdAt: Date.now(),
-    isServiceTouch: !!isServiceTouch, serviceProviderId: isServiceTouch ? userId : null
+    isServiceTouch: !!isServiceTouch, serviceProviderId: isServiceTouch ? userId : null,
+    isCheckin: !!isCheckin, operatorId: isCheckin ? userId : null
   };
   saveDB();
-  res.json({ sessionId, code, isServiceTouch: !!isServiceTouch });
+  res.json({ sessionId, code, isServiceTouch: !!isServiceTouch, isCheckin: !!isCheckin });
 });
 
 // Join session → instant relation + encounter trace
@@ -883,23 +884,29 @@ app.post('/api/session/join', (req, res) => {
   );
 
   let relationId, phrase, expiresAt;
+  // Phrase: service/checkin get fixed phrases
+  const getPhrase = () => {
+    if (session.isCheckin) return 'Check-in realizado';
+    if (session.isServiceTouch) return 'Serviço realizado';
+    return randomPhrase();
+  };
+
   if (existing) {
-    // Restart 24h from NOW (not add)
     existing.expiresAt = now + 86400000;
-    existing.phrase = randomPhrase();
+    existing.phrase = getPhrase();
     existing.renewed = (existing.renewed || 0) + 1;
     existing.provocations = {};
     relationId = existing.id; phrase = existing.phrase; expiresAt = existing.expiresAt;
   } else {
-    phrase = randomPhrase();
+    phrase = getPhrase();
     relationId = uuidv4();
     db.relations[relationId] = { id: relationId, userA: session.userA, userB: userId, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
 
-  // Record encounter trace — service touch type if applicable
-  const encounterType = session.isServiceTouch ? 'service' : 'physical';
+  // Record encounter trace
+  const encounterType = session.isCheckin ? 'checkin' : (session.isServiceTouch ? 'service' : 'physical');
   recordEncounter(session.userA, userId, phrase, encounterType);
   session.relationId = relationId;
   saveDB();
@@ -911,14 +918,26 @@ app.post('/api/session/join', (req, res) => {
   const zodiacInfoA = signA ? ZODIAC_INFO[signA] : null;
   const zodiacInfoB = signB ? ZODIAC_INFO[signB] : null;
 
+  const operatorUser = session.isCheckin ? db.users[session.operatorId] : null;
   const responseData = {
-    relationId, phrase, expiresAt, renewed: !!existing, isServiceTouch: !!session.isServiceTouch,
+    relationId, phrase, expiresAt, renewed: !!existing,
+    isServiceTouch: !!session.isServiceTouch,
+    isCheckin: !!session.isCheckin,
+    operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
     userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
     userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
   };
 
   io.to(`session:${session.id}`).emit('relation-created', responseData);
+  // Emit to operator if this is a checkin
+  if (session.isCheckin && session.operatorId) {
+    io.to(`user:${session.operatorId}`).emit('checkin-created', {
+      userId, nickname: userB.nickname || userB.name, color: userB.color,
+      profilePhoto: userB.profilePhoto || userB.photoURL || null,
+      timestamp: now
+    });
+  }
   res.json({ sessionId: session.id, ...responseData });
 });
 
@@ -2403,6 +2422,50 @@ app.post('/mp/webhook', (req, res) => {
     }
   }
   res.sendStatus(200);
+});
+
+// ═══ SAVED CARD ═══
+app.get('/api/tip/saved-card/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.savedCard && user.savedCard.lastFour) {
+    res.json({ hasSaved: true, lastFour: user.savedCard.lastFour, brand: user.savedCard.brand || 'Cartão' });
+  } else {
+    res.json({ hasSaved: false });
+  }
+});
+
+app.post('/api/tip/save-card', (req, res) => {
+  const { userId, lastFour, brand, customerId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'User not found' });
+  db.users[userId].savedCard = { lastFour, brand: brand || 'Cartão', customerId: customerId || null, savedAt: Date.now() };
+  saveDB();
+  res.json({ ok: true });
+});
+
+app.delete('/api/tip/saved-card/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  delete user.savedCard;
+  saveDB();
+  res.json({ ok: true });
+});
+
+// ═══ OPERATOR / CHECK-IN ═══
+app.get('/operator', (req, res) => {
+  res.sendFile(require('path').join(__dirname, 'public', 'operator.html'));
+});
+
+app.get('/api/operator/checkins/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const list = db.encounters[userId] || [];
+  const checkins = list.filter(e => e.type === 'checkin').map(e => ({
+    with: e.with, withName: e.withName, withColor: e.withColor,
+    timestamp: e.timestamp, date: e.date,
+    revealed: !!(db.users[userId] && db.users[userId].canSee && db.users[userId].canSee[e.with])
+  }));
+  checkins.sort((a, b) => b.timestamp - a.timestamp);
+  res.json({ checkins, total: checkins.length });
 });
 
 const PORT = process.env.PORT || 3000;
