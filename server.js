@@ -2047,9 +2047,13 @@ function createSonicConnection(userIdA, userIdB) {
   };
   // Clean both from queue (but NOT the operator — they stay for continuous check-ins)
   if (isCheckin && operatorId) {
-    // Only remove the visitor, operator stays
+    // Only remove the visitor, operator stays with same freq
     const visitorId = operatorId === userIdA ? userIdB : userIdA;
     delete sonicQueue[visitorId];
+    // Reset operator's joinedAt so the 10min cleanup timer doesn't expire
+    if (sonicQueue[operatorId]) {
+      sonicQueue[operatorId].joinedAt = Date.now();
+    }
   } else {
     delete sonicQueue[userIdA];
     delete sonicQueue[userIdB];
@@ -2203,12 +2207,14 @@ io.on('connection', (socket) => {
     if (!userId || !db.users[userId]) return;
     const freq = assignSonicFreq();
     sonicQueue[userId] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch };
+    console.log('[sonic-start] user:', userId.slice(0,8)+'..', 'assigned freq:', freq, 'isCheckin:', !!isCheckin, 'isServiceTouch:', !!isServiceTouch);
     socket.emit('sonic-assigned', { freq });
   });
 
   socket.on('sonic-detected', ({ userId, detectedFreq }) => {
     if (!userId || !db.users[userId]) return;
     const emitter = findSonicUserByFreq(detectedFreq);
+    console.log('[sonic-detected] user:', userId, 'detected freq:', detectedFreq, '→ emitter:', emitter ? emitter.userId : 'NOT FOUND', '| queue:', Object.keys(sonicQueue).map(k => k.slice(0,8)+'..freq:'+sonicQueue[k].freq).join(', '));
     if (emitter && emitter.userId !== userId) {
       createSonicConnection(emitter.userId, userId);
     }

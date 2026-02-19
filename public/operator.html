@@ -250,21 +250,28 @@ function initSocket(){
   S.socket=io({reconnection:true,reconnectionDelay:1000});
   S.socket.on('connect',()=>{
     if(S.userId)S.socket.emit('identify',S.userId);
-    if(homeSonicActive)S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true});
-  });
-  S.socket.on('checkin-created',d=>{handleNewCheckin(d)});
-  S.socket.on('relation-created',d=>{
-    if(d.isCheckin){
-      const other=d.userA.id===S.userId?d.userB:d.userA;
-      handleNewCheckin({userId:other.id,nickname:other.name,color:other.color,profilePhoto:other.profilePhoto||other.photoURL,timestamp:Date.now()});
+    // On reconnect: re-register in queue AND update oscillator to new freq
+    if(homeSonicActive){
+      S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true});
+      S.socket.once('sonic-assigned',({freq})=>{
+        sonicMyFreq=freq;
+        if(sonicOsc&&sonicEmitCtx){try{sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime)}catch(e){}}
+      });
     }
   });
+  // Use checkin-created as the primary event (avoids duplicates with relation-created)
+  S.socket.on('checkin-created',d=>{handleNewCheckin(d)});
+  // relation-created: only handle on the PHONE side, not operator
+  // (operator gets checkin-created which has the visitor's data already)
   S.socket.on('sonic-matched',()=>{
-    // Re-register in queue for next person
-    if(homeSonicActive){
-      setTimeout(()=>{
-        if(homeSonicActive)S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true});
-      },1500);
+    // Operator STAYS in sonicQueue after connection (server keeps it).
+    // Do NOT re-register — that would assign a new freq while oscillator plays old freq.
+    // Just update joinedAt to prevent timeout cleanup:
+    if(homeSonicActive&&S.socket&&S.socket.connected){
+      // Re-register with same freq by telling server to keep us alive
+      // We DON'T call sonic-start (which would assign new freq)
+      // Instead, server already keeps operator in queue. Nothing to do.
+      console.log('[operator] sonic-matched: staying in queue, continuing detection');
     }
   });
 }
@@ -338,6 +345,7 @@ async function opToggleTouch(){
 
     txt.textContent='EMITINDO...';
     sts.textContent='Encoste o celular no alto-falante 🔊';
+    console.log('[operator] Sonic ACTIVE — emitting freq:',freq,'Hz, sampleRate:',sampleRate,'freqPerBin:',freqPerBin.toFixed(2));
 
     // Keep alive
     sonicKeepAlive=setInterval(()=>{
@@ -360,6 +368,7 @@ async function opToggleTouch(){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             // DETECTED! But don't stop — operator keeps listening
+            console.log('[operator] DETECTED freq:',snapped,'Hz (peak:',peakVal,') — sending sonic-detected');
             S.socket.emit('sonic-detected',{userId:S.userId,detectedFreq:snapped});
             confirmHits=0;lastSnapped=0;
             cooldown=90; // ~1.5s at 60fps
