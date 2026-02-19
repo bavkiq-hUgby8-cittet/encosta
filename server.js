@@ -2041,11 +2041,20 @@ function createSonicConnection(userIdA, userIdB) {
     userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
   };
-  // Clean both from queue
-  delete sonicQueue[userIdA];
-  delete sonicQueue[userIdB];
+  // Clean both from queue (but NOT the operator — they stay for continuous check-ins)
+  if (isCheckin && operatorId) {
+    // Only remove the visitor, operator stays
+    const visitorId = operatorId === userIdA ? userIdB : userIdA;
+    delete sonicQueue[visitorId];
+  } else {
+    delete sonicQueue[userIdA];
+    delete sonicQueue[userIdB];
+  }
   io.to(`user:${userIdA}`).emit('relation-created', responseData);
   io.to(`user:${userIdB}`).emit('relation-created', responseData);
+  // Emit sonic-matched so operator dashboard can re-register if needed
+  io.to(`user:${userIdA}`).emit('sonic-matched', { withUser: userIdB });
+  io.to(`user:${userIdB}`).emit('sonic-matched', { withUser: userIdA });
   // Notify operator dashboard if checkin
   if (isCheckin && operatorId) {
     const visitor = operatorId === userIdA ? userB : userA;
@@ -2060,7 +2069,9 @@ function createSonicConnection(userIdA, userIdB) {
 setInterval(() => {
   const now = Date.now();
   for (const [uid, entry] of Object.entries(sonicQueue)) {
-    if (now - entry.joinedAt > 60000) delete sonicQueue[uid]; // 1 min timeout
+    // Operators (isCheckin) get 10 min timeout, regular users 1 min
+    const maxAge = entry.isCheckin ? 600000 : 60000;
+    if (now - entry.joinedAt > maxAge) delete sonicQueue[uid];
   }
 }, 30000);
 
