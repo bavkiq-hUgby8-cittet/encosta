@@ -161,12 +161,12 @@ app.use(verifyFirebaseToken);
 // ── Firebase client config endpoint ──
 app.get('/api/firebase-config', (req, res) => {
   res.json({
-    apiKey: "AIzaSyBV6z2qmQn2xqEMBW2lCwZYCvYNyktVRRE",
-    authDomain: "encosta-f32e7.firebaseapp.com",
-    projectId: "encosta-f32e7",
-    storageBucket: "encosta-f32e7.firebasestorage.app",
-    messagingSenderId: "6126377584",
-    appId: "1:6126377584:web:131700cc3a9154477832b5"
+    apiKey: process.env.FIREBASE_API_KEY || '',
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: process.env.FIREBASE_APP_ID || ''
   });
 });
 
@@ -218,10 +218,10 @@ app.post('/api/auth/link', async (req, res) => {
 });
 
 // ── MercadoPago Config ──
-const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || 'TEST-8596079302689985-021710-c03384d8655dc5b59bfad639d6b86186-125835164';
-const MP_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || 'TEST-9e8c8ea8-4ac3-4d2b-a954-debcb9af1bde';
-const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '22bb7eff61400765205900092920631cba157850eae26dee2a9fdbd26492b36a';
-const MP_APP_ID = process.env.MP_APP_ID || '8596079302689985';
+const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || '';
+const MP_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || '';
+const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
+const MP_APP_ID = process.env.MP_APP_ID || '';
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
 const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://encosta.onrender.com/mp/callback';
 const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
