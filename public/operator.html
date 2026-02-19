@@ -319,18 +319,32 @@ async function opToggleTouch(){
     if(!homeSonicActive)return;
     sonicMyFreq=freq;
 
-    // 3. Emit ultrasonic
+    // 3. Emit ultrasonic — USE SAME AudioContext for BOTH emit and mic
+    // (single context avoids Chrome issues with multiple contexts)
     sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
     if(sonicEmitCtx.state==='suspended')await sonicEmitCtx.resume();
+    console.log('[operator] EmitCtx state:',sonicEmitCtx.state,'sampleRate:',sonicEmitCtx.sampleRate);
+
+    // Play brief AUDIBLE confirmation beep so user knows speaker works
+    const confirmOsc=sonicEmitCtx.createOscillator();
+    const confirmGain=sonicEmitCtx.createGain();
+    confirmOsc.connect(confirmGain);confirmGain.connect(sonicEmitCtx.destination);
+    confirmOsc.type='sine';confirmOsc.frequency.setValueAtTime(880,sonicEmitCtx.currentTime);
+    confirmGain.gain.setValueAtTime(0.15,sonicEmitCtx.currentTime);
+    confirmGain.gain.linearRampToValueAtTime(0,sonicEmitCtx.currentTime+0.3);
+    confirmOsc.start();confirmOsc.stop(sonicEmitCtx.currentTime+0.3);
+
+    // Start ultrasonic oscillator
     sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.8,sonicEmitCtx.currentTime);
+    gain.gain.setValueAtTime(1.0,sonicEmitCtx.currentTime);
     sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
+    console.log('[operator] Oscillator started at',freq,'Hz, gain:1.0, ctxState:',sonicEmitCtx.state);
 
-    // 4. Start detection
+    // 4. Start detection — use SEPARATE context for mic
     sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
     if(sonicMicCtx.state==='suspended')await sonicMicCtx.resume();
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
@@ -342,19 +356,20 @@ async function opToggleTouch(){
     const dataArr=new Uint8Array(bufLen);
     const sampleRate=sonicMicCtx.sampleRate;
     const freqPerBin=sampleRate/SONIC_FFT_SIZE;
+    console.log('[operator] MicCtx state:',sonicMicCtx.state,'sampleRate:',sampleRate,'freqPerBin:',freqPerBin.toFixed(2),'nyquist:',sampleRate/2);
 
     txt.textContent='EMITINDO...';
     sts.textContent='Encoste o celular no alto-falante 🔊';
-    console.log('[operator] Sonic ACTIVE — emitting freq:',freq,'Hz, sampleRate:',sampleRate,'freqPerBin:',freqPerBin.toFixed(2));
+    console.log('[operator] Sonic ACTIVE — emitting freq:',freq,'Hz, detecting range: 18000-20000Hz');
 
     // Keep alive
     sonicKeepAlive=setInterval(()=>{
-      if(sonicEmitCtx&&sonicEmitCtx.state==='suspended')sonicEmitCtx.resume();
-      if(sonicMicCtx&&sonicMicCtx.state==='suspended')sonicMicCtx.resume();
+      if(sonicEmitCtx&&sonicEmitCtx.state==='suspended'){sonicEmitCtx.resume();console.log('[operator] Resumed emitCtx')}
+      if(sonicMicCtx&&sonicMicCtx.state==='suspended'){sonicMicCtx.resume();console.log('[operator] Resumed micCtx')}
     },3000);
 
     // 5. Detection loop — operator mode: does NOT stop on detect, just cooldown
-    let confirmHits=0,lastSnapped=0,cooldown=0;
+    let confirmHits=0,lastSnapped=0,cooldown=0,debugCounter=0;
     function detect(){
       if(!sonicActive)return;
       if(cooldown>0){cooldown--;sonicAnimFrame=requestAnimationFrame(detect);return}
@@ -362,13 +377,22 @@ async function opToggleTouch(){
       const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
       let peakVal=0,peakBin=0;
       for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}}
+
+      // Log peak every ~2 seconds (120 frames) so we can see what mic picks up
+      debugCounter++;
+      if(debugCounter%120===0){
+        const peakFreq=Math.round(peakBin*freqPerBin);
+        console.log('[operator-mic] peak:',peakVal,'at',peakFreq,'Hz (bin:'+peakBin+') | threshold:',SONIC_DETECT_THRESHOLD,'| myFreq:',sonicMyFreq,'| emitCtx:',sonicEmitCtx?sonicEmitCtx.state:'null','| micCtx:',sonicMicCtx?sonicMicCtx.state:'null');
+      }
+
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
         if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
+          console.log('[operator] Hit! snapped:',snapped,'peak:',peakVal,'confirmHits:',confirmHits,'/',SONIC_CONFIRM_COUNT);
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             // DETECTED! But don't stop — operator keeps listening
-            console.log('[operator] DETECTED freq:',snapped,'Hz (peak:',peakVal,') — sending sonic-detected');
+            console.log('[operator] ★ DETECTED freq:',snapped,'Hz (peak:',peakVal,') — sending sonic-detected');
             S.socket.emit('sonic-detected',{userId:S.userId,detectedFreq:snapped});
             confirmHits=0;lastSnapped=0;
             cooldown=90; // ~1.5s at 60fps
