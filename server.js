@@ -2001,14 +2001,17 @@ function createSonicConnection(userIdA, userIdB) {
   if (!userA || !userB) return;
   const now = Date.now();
 
-  // Check if either user is in checkin mode
+  // Check if either user is in checkin or service mode
   const entryA = sonicQueue[userIdA];
   const entryB = sonicQueue[userIdB];
   const isCheckin = !!(entryA && entryA.isCheckin) || !!(entryB && entryB.isCheckin);
+  const isServiceTouch = !!(entryA && entryA.isServiceTouch) || !!(entryB && entryB.isServiceTouch)
+    || (userA.isPrestador && userA.serviceModeActive) || (userB.isPrestador && userB.serviceModeActive);
   const operatorId = isCheckin ? (entryA && entryA.isCheckin ? userIdA : userIdB) : null;
+  const serviceProviderId = isServiceTouch ? (entryA && entryA.isServiceTouch ? userIdA : (entryB && entryB.isServiceTouch ? userIdB : (userA.isPrestador ? userIdA : userIdB))) : null;
 
-  const phrase = isCheckin ? 'Check-in realizado' : randomPhrase();
-  const encounterType = isCheckin ? 'checkin' : 'physical';
+  const phrase = isCheckin ? 'Check-in realizado' : (isServiceTouch ? 'Serviço realizado' : randomPhrase());
+  const encounterType = isCheckin ? 'checkin' : (isServiceTouch ? 'service' : 'physical');
 
   const existing = Object.values(db.relations).find(r =>
     ((r.userA === userIdA && r.userB === userIdB) || (r.userA === userIdB && r.userB === userIdA)) && r.expiresAt > now
@@ -2030,12 +2033,13 @@ function createSonicConnection(userIdA, userIdB) {
   saveDB();
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
-  const zodiacPhrase = isCheckin ? null : getZodiacPhrase(signA, signB);
+  const zodiacPhrase = (isCheckin || isServiceTouch) ? null : getZodiacPhrase(signA, signB);
   const operatorUser = operatorId ? db.users[operatorId] : null;
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
     sonicMatch: true,
     isCheckin,
+    isServiceTouch,
     operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
     userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
     userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
@@ -2195,10 +2199,10 @@ io.on('connection', (socket) => {
   });
 
   // Sonic connection — ultrasonic frequency matching
-  socket.on('sonic-start', ({ userId, isCheckin }) => {
+  socket.on('sonic-start', ({ userId, isCheckin, isServiceTouch }) => {
     if (!userId || !db.users[userId]) return;
     const freq = assignSonicFreq();
-    sonicQueue[userId] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin };
+    sonicQueue[userId] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch };
     socket.emit('sonic-assigned', { freq });
   });
 

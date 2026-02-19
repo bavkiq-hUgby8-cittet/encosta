@@ -145,7 +145,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 // STATE
 // ═══════════════════════════════════════════════
 const S={userId:null,userName:null,userColor:null,socket:null,checkins:[]};
-let sonicOn=false,sonicFreq=0,sonicOsc=null,sonicEmitCtx=null,sonicMicCtx=null,sonicStream=null,sonicAnalyser=null,sonicAnimFrame=null;
+let sonicOn=false,sonicFreq=0,sonicOsc=null,sonicEmitCtx=null,sonicMicCtx=null,sonicStream=null,sonicAnalyser=null,sonicAnimFrame=null,sonicKeepAlive=null;
 let audioCtx=null;
 const SONIC_FFT=8192,SONIC_THRESHOLD=80,SONIC_CONFIRMS=3;
 
@@ -221,6 +221,7 @@ async function opToggleTouch(){
 
     // 3. Start emitting ultrasonic tone
     sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(sonicEmitCtx.state==='suspended')await sonicEmitCtx.resume();
     sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(sonicFreq,sonicEmitCtx.currentTime);
@@ -231,6 +232,7 @@ async function opToggleTouch(){
 
     // 4. Start listening for other devices
     sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(sonicMicCtx.state==='suspended')await sonicMicCtx.resume();
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
     sonicAnalyser=sonicMicCtx.createAnalyser();
     sonicAnalyser.fftSize=SONIC_FFT;
@@ -249,6 +251,12 @@ async function opToggleTouch(){
 
     // Start ripple rings
     startRipples();
+
+    // Keep AudioContext alive — some browsers suspend after inactivity
+    sonicKeepAlive=setInterval(()=>{
+      if(sonicEmitCtx&&sonicEmitCtx.state==='suspended')sonicEmitCtx.resume();
+      if(sonicMicCtx&&sonicMicCtx.state==='suspended')sonicMicCtx.resume();
+    },3000);
 
     // 6. Detection loop — NEVER stops until user presses button again
     let confirmHits=0,lastSnapped=0,cooldown=0;
@@ -309,6 +317,7 @@ function spawnRipple(){
 
 function stopSonic(){
   sonicOn=false;
+  if(sonicKeepAlive){clearInterval(sonicKeepAlive);sonicKeepAlive=null}
   if(rippleInterval){clearInterval(rippleInterval);rippleInterval=null}
   if(sonicOsc)try{sonicOsc.stop()}catch(e){}
   if(sonicEmitCtx)try{sonicEmitCtx.close()}catch(e){}
