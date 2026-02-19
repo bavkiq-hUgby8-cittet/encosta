@@ -981,11 +981,10 @@ app.delete('/api/encounters/:userId/:timestamp', (req, res) => {
 // Daily counter
 app.get('/api/today/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
-  const today = new Date().toISOString().slice(0, 10);
-  const todayEnc = list.filter(e => e.date === today);
-  // Unique people
-  const unique = [...new Set(todayEnc.map(e => e.with))];
-  res.json({ count: unique.length, date: today });
+  const cutoff = Date.now() - 86400000; // últimas 24h reais
+  const recentEnc = list.filter(e => e.timestamp >= cutoff);
+  const unique = [...new Set(recentEnc.map(e => e.with))];
+  res.json({ count: unique.length });
 });
 
 // Constellation — visual network of encounters (no scores exposed)

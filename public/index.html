@@ -1002,7 +1002,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="sonic-fallback" id="sonicFallback">
       <button class="bs" onclick="startEncounter()" style="font-size:.75rem">&#x1F511; Conectar por código</button>
     </div>
-    <div class="daily-counter hidden" id="dailyCounter"><strong id="dailyNum">0</strong> touches nas últimas 24h</div>
+    <div class="daily-counter hidden" id="dailyCounter"><strong id="dailyNum">0</strong> pessoas em 24h</div>
   </div>
   <!-- BOTTOM: minimal — only location + tutorial -->
   <div class="home-bottom">
@@ -2533,6 +2533,7 @@ function doReveal(data){
 
   // 12. Gorjeta button — show if the other person is a prestador
   const tipBtn=$('revealTipBtn');
+  const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
   if(tipBtn){
     if(them.isPrestador){
       tipBtn.classList.remove('hidden');
@@ -2543,17 +2544,24 @@ function doReveal(data){
       tipBtn.classList.add('hidden');
     }
   }
-  // 13. Service touch: hide "Abrir conexão", show only gorjeta + pular
+  // 13. Service touch: promote gorjeta to main, hide "Abrir conexão"
   if(data.isServiceTouch){
-    const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
     if(enterBtn)enterBtn.style.display='none';
-    // Auto-open gorjeta if they are prestador
-    if(them.isPrestador){
-      setTimeout(()=>showTipScreen(them.id),2500);
+    if(tipBtn&&them.isPrestador){
+      // Promote tip button to main action (big, primary style)
+      tipBtn.className='rv-btn-enter';
+      tipBtn.style.cssText='background:linear-gradient(135deg,#34d399,#059669);border-color:#34d399;color:#fff;font-size:.8rem;font-weight:600;width:100%;';
+      tipBtn.innerHTML='<span style="margin-right:.4rem">💲</span>Dar Gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
+      // Move tip button to the main row
+      const mainRow=document.querySelector('#revealActions .rv-btn-row');
+      if(mainRow)mainRow.prepend(tipBtn);
     }
   }else{
-    const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
     if(enterBtn)enterBtn.style.display='';
+    if(tipBtn){
+      tipBtn.className='rv-btn-mini hidden';
+      tipBtn.style.cssText='';
+    }
   }
   // Reset service mode after touch
   if(serviceMode){
