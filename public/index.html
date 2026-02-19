@@ -1648,7 +1648,8 @@ async function refreshHome(){
   if(state.userId){
     try{
       const mp=await fetch('/api/myprofile/'+state.userId).then(r=>r.json());
-      if(mp.profilePhoto){state.userPhoto=mp.profilePhoto;localStorage.setItem('touch_userPhoto',mp.profilePhoto)}
+      const _mpPhoto=mp.profilePhoto||mp.photoURL||null;
+      if(_mpPhoto){state.userPhoto=_mpPhoto;localStorage.setItem('touch_userPhoto',_mpPhoto)}
       state.userRealName=mp.realName||null;
       // Load canSee into revealedIds
       if(mp.canSee){
@@ -3538,9 +3539,10 @@ async function openCompleteProfile(){
     if(d.phone)$('cpPhone').value=d.phone;
     if(d.instagram)$('cpInstagram').value=d.instagram;
     if(d.twitter)$('cpTwitter').value=d.twitter;
-    if(d.profilePhoto){
-      cpPhotoData=d.profilePhoto;
-      $('cpPhotoPreview').innerHTML='<img src="'+d.profilePhoto+'" alt="">';
+    const _cpPhoto=d.profilePhoto||d.photoURL||null;
+    if(_cpPhoto){
+      cpPhotoData=_cpPhoto;
+      $('cpPhotoPreview').innerHTML='<img src="'+_cpPhoto+'" alt="">';
     }
   }catch(e){}
 }
@@ -4776,7 +4778,7 @@ function showTipScreen(receiverId) {
   fetch('/api/user/' + receiverId).then(r => r.json()).then(u => {
     const color = u.color || nickColor(u.nickname || '?');
     const serviceLabel = u.serviceLabel || '';
-    const photo = u.profilePhoto || null;
+    const photo = u.profilePhoto || u.photoURL || null;
     const revData = state.revealedIds && state.revealedIds[receiverId];
     const displayPhoto = photo || (revData && revData.profilePhoto) || null;
     const displayName = (revData && revData.realName) || u.nickname || u.name;

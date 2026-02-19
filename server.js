@@ -1052,7 +1052,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       firstDate: p.firstDate,
       // Only show real data if I can see them (they revealed to me)
       realName: iCanSeeThem ? (other.realName || null) : null,
-      profilePhoto: iCanSeeThem ? (other.profilePhoto || null) : null,
+      profilePhoto: iCanSeeThem ? (other.profilePhoto || other.photoURL || null) : null,
       instagram: iCanSeeThem ? (other.instagram || null) : null,
       tipsGiven: p.tipsGiven,
       tipsTotal: p.tipsTotal,
@@ -1328,7 +1328,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     canInteract: true,
     // Real identity if revealed
     realName: isRevealed ? (user.realName || null) : null,
-    profilePhoto: isRevealed ? (user.profilePhoto || null) : null,
+    profilePhoto: isRevealed ? (user.profilePhoto || user.photoURL || null) : null,
     instagram: isRevealed ? (user.instagram || null) : null,
     bio: isRevealed ? (user.bio || null) : null
   });
@@ -1360,7 +1360,7 @@ app.post('/api/profile/update', (req, res) => {
   if (twitter !== undefined) user.twitter = twitter;
   if (bio !== undefined) user.bio = bio;
   if (profilePhoto !== undefined) user.profilePhoto = profilePhoto; // base64
-  user.profileComplete = !!(user.realName && user.profilePhoto);
+  user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
   saveDB();
   res.json({ ok: true, user });
 });
@@ -1385,7 +1385,7 @@ app.post('/api/identity/reveal', (req, res) => {
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
-  if (!user.realName && !user.profilePhoto) return res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' });
+  if (!user.realName && !user.profilePhoto && !user.photoURL) return res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' });
   let rel = findActiveRelation(userId, targetUserId);
   if (!rel) {
     const enc = (db.encounters[userId] || []).find(e => e.with === targetUserId);
@@ -1396,8 +1396,9 @@ app.post('/api/identity/reveal', (req, res) => {
   if (target.canSee && target.canSee[userId]) return res.status(400).json({ error: 'Você já se revelou para essa pessoa.' });
   // DIRETO: target agora pode ver minha identidade (sem precisar aceite)
   if (!target.canSee) target.canSee = {};
+  const userPhoto = user.profilePhoto || user.photoURL || null;
   target.canSee[userId] = {
-    realName: user.realName || '', profilePhoto: user.profilePhoto || null,
+    realName: user.realName || '', profilePhoto: userPhoto,
     instagram: user.instagram || '', bio: user.bio || '',
     revealedAt: Date.now()
   };
@@ -1406,7 +1407,7 @@ app.post('/api/identity/reveal', (req, res) => {
   // Chat message
   const chatMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-accepted', timestamp: Date.now(),
-    revealedUser: { id: userId, nickname: user.nickname, realName: user.realName || '', profilePhoto: user.profilePhoto || null, instagram: user.instagram || '', bio: user.bio || '' },
+    revealedUser: { id: userId, nickname: user.nickname, realName: user.realName || '', profilePhoto: userPhoto, instagram: user.instagram || '', bio: user.bio || '' },
     acceptorId: targetUserId
   };
   if (!db.messages[relId]) db.messages[relId] = [];
@@ -1415,7 +1416,7 @@ app.post('/api/identity/reveal', (req, res) => {
   io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${targetUserId}`).emit('identity-revealed', {
-    fromUserId: userId, realName: user.realName, profilePhoto: user.profilePhoto,
+    fromUserId: userId, realName: user.realName, profilePhoto: userPhoto,
     instagram: user.instagram, bio: user.bio
   });
   io.to(`user:${userId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'accepted' });
@@ -1475,12 +1476,13 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   const requester = db.users[rr.fromUserId]; // quem pediu
   const revealer = db.users[rr.toUserId]; // quem vai se revelar (aceitou)
   if (!requester || !revealer) return res ? res.status(400).json({ error: 'Usuário não encontrado.' }) : null;
-  if (!revealer.realName && !revealer.profilePhoto) return res ? res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' }) : null;
+  if (!revealer.realName && !revealer.profilePhoto && !revealer.photoURL) return res ? res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' }) : null;
   rr.status = 'accepted'; rr.respondedAt = Date.now();
+  const revealerPhoto = revealer.profilePhoto || revealer.photoURL || null;
   // O requester (fromUser) agora pode VER o revealer (toUser)
   if (!requester.canSee) requester.canSee = {};
   requester.canSee[rr.toUserId] = {
-    realName: revealer.realName || '', profilePhoto: revealer.profilePhoto || null,
+    realName: revealer.realName || '', profilePhoto: revealerPhoto,
     instagram: revealer.instagram || '', bio: revealer.bio || '',
     revealedAt: Date.now()
   };
@@ -1490,7 +1492,7 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   const acceptMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-accepted', timestamp: Date.now(),
     revealRequestId: requestId,
-    revealedUser: { id: rr.toUserId, nickname: revealer.nickname, realName: revealer.realName || '', profilePhoto: revealer.profilePhoto || null, instagram: revealer.instagram || '', bio: revealer.bio || '' },
+    revealedUser: { id: rr.toUserId, nickname: revealer.nickname, realName: revealer.realName || '', profilePhoto: revealerPhoto, instagram: revealer.instagram || '', bio: revealer.bio || '' },
     acceptorId: rr.toUserId
   };
   if (!db.messages[relId]) db.messages[relId] = [];
@@ -1500,7 +1502,7 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
   // fromUser (requester) can now see toUser (revealer)
   io.to(`user:${rr.fromUserId}`).emit('identity-revealed', {
-    fromUserId: rr.toUserId, realName: revealer.realName, profilePhoto: revealer.profilePhoto,
+    fromUserId: rr.toUserId, realName: revealer.realName, profilePhoto: revealerPhoto,
     instagram: revealer.instagram, bio: revealer.bio
   });
   io.to(`user:${rr.fromUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
@@ -1627,7 +1629,7 @@ app.get('/api/myprofile/:userId', (req, res) => {
     nickname: user.nickname, realName: user.realName || '',
     phone: user.phone || '', instagram: user.instagram || '',
     twitter: user.twitter || '', bio: user.bio || '',
-    profilePhoto: user.profilePhoto || '', profileComplete: !!user.profileComplete,
+    profilePhoto: user.profilePhoto || user.photoURL || '', photoURL: user.photoURL || '', profileComplete: !!user.profileComplete,
     email: user.email || '',
     canSee: user.canSee || {}, isPrestador: !!user.isPrestador,
     starsEarned: user.starsEarned || 0, likesCount: user.likesCount || 0,
