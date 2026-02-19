@@ -2628,14 +2628,16 @@ async function loadStreak(){
     const el=$('chatStreak');
     if(s.currentStreak>0){
       el.classList.remove('hidden');
-      $('chatStreakText').innerHTML='<span class="streak-fire">🔥</span> '+s.currentStreak+' dia'+(s.currentStreak>1?'s':'');
-      if(s.nextUnlock){
-        const pct=Math.min(100,Math.round((s.currentStreak/s.nextUnlock.days)*100));
-        $('chatStreakBar').style.width=pct+'%';
-        $('chatStreakNext').textContent=s.nextUnlock.label+' em '+(s.nextUnlock.days-s.currentStreak)+'d';
+      // Show stars earned and progress to next
+      let starsHtml='';
+      for(let i=0;i<s.starsEarned;i++)starsHtml+='⭐';
+      const daysInCycle=s.currentStreak%5;
+      $('chatStreakText').innerHTML=starsHtml+(starsHtml?' · ':'')+'🔥 '+s.currentStreak+' dia'+(s.currentStreak>1?'s':'');
+      $('chatStreakBar').style.width=(s.progress||0)+'%';
+      if(s.daysToNextStar>0){
+        $('chatStreakNext').textContent='Próxima ⭐ em '+s.daysToNextStar+' dia'+(s.daysToNextStar>1?'s':'');
       }else{
-        $('chatStreakBar').style.width='100%';
-        $('chatStreakNext').textContent='Todas conquistas desbloqueadas!';
+        $('chatStreakNext').textContent='⭐ Nova estrela!';
       }
     }else el.classList.add('hidden');
   }catch(e){}
@@ -2795,10 +2797,9 @@ function closePlusMenu(){const m=$('plusMenu');if(m)m.classList.remove('open')}
 // ═══ STREAK UNLOCK ═══
 function showStreakUnlock(data){
   const overlay=document.createElement('div');overlay.className='streak-unlock-overlay';
-  let contentHtml='';
-  if(data.question)contentHtml='<div class="su-content">'+esc(data.question)+'</div>';
-  if(data.phrases)contentHtml='<div class="su-content" style="max-height:200px;overflow-y:auto;font-size:.75rem">'+data.phrases.map(p=>'<div style="margin-bottom:.3rem">"'+esc(p.phrase)+'" <span style="opacity:.4;font-size:.6rem">'+p.date+'</span></div>').join('')+'</div>';
-  overlay.innerHTML='<div class="streak-unlock-card"><div class="su-emoji">🔥</div><div class="su-title">'+data.streakDays+' dias seguidos!</div><div style="font-size:.75rem;color:var(--t3);margin-bottom:.8rem">Desbloqueado: '+esc(data.unlock.label)+'</div><div class="su-desc">'+esc(data.unlock.description)+'</div>'+contentHtml+'<button class="bp" style="max-width:200px;margin:0 auto" onclick="this.closest(\'.streak-unlock-overlay\').remove()">Incrível!</button></div>';
+  const starsTotal=data.starsTotal||1;
+  let starsHtml='';for(let i=0;i<starsTotal;i++)starsHtml+='⭐';
+  overlay.innerHTML='<div class="streak-unlock-card"><div class="su-emoji">'+starsHtml+'</div><div class="su-title">'+data.streakDays+' dias juntos!</div><div class="su-desc">'+esc(data.unlock.description)+'</div><button class="bp" style="max-width:200px;margin:0 auto" onclick="this.closest(\'.streak-unlock-overlay\').remove()">Incrível!</button></div>';
   document.body.appendChild(overlay);
   haptic([100,50,100,50,100]);playSound('connect');
 }
@@ -3634,30 +3635,43 @@ async function showEncounterLog(){
 function initElogSwipe(){
   const items=document.querySelectorAll('.elog-item');
   items.forEach(item=>{
-    let startX=0,currentX=0,swiping=false;
+    let startX=0,startY=0,dx=0,isHorizontal=null;
     const inner=item.querySelector('.elog-item-inner');
     if(!inner)return;
     inner.addEventListener('touchstart',e=>{
-      startX=e.touches[0].clientX;currentX=0;swiping=true;
+      const t=e.touches[0];startX=t.clientX;startY=t.clientY;dx=0;isHorizontal=null;
       inner.style.transition='none';
+      // Close any other open items
+      document.querySelectorAll('.elog-item-inner').forEach(el=>{
+        if(el!==inner&&el.style.transform&&el.style.transform!=='translateX(0px)'){
+          el.style.transition='transform .2s ease';el.style.transform='translateX(0)';
+        }
+      });
     },{passive:true});
     inner.addEventListener('touchmove',e=>{
-      if(!swiping)return;
-      currentX=e.touches[0].clientX-startX;
-      if(currentX<0){
-        inner.style.transform='translateX('+Math.max(currentX,-70)+'px)';
-      }else{
-        inner.style.transform='translateX(0)';
+      const t=e.touches[0];
+      dx=t.clientX-startX;
+      const dy=t.clientY-startY;
+      // Decide direction on first significant move
+      if(isHorizontal===null&&(Math.abs(dx)>8||Math.abs(dy)>8)){
+        isHorizontal=Math.abs(dx)>Math.abs(dy);
       }
-    },{passive:true});
+      if(!isHorizontal)return; // let vertical scroll happen
+      e.preventDefault();
+      if(dx<0){
+        inner.style.transform='translateX('+Math.max(dx,-80)+'px)';
+      }else{
+        inner.style.transform='translateX('+Math.min(dx,0)+'px)';
+      }
+    },{passive:false});
     inner.addEventListener('touchend',()=>{
-      swiping=false;
       inner.style.transition='transform .2s ease';
-      if(currentX<-40){
+      if(isHorizontal&&dx<-35){
         inner.style.transform='translateX(-70px)';
       }else{
         inner.style.transform='translateX(0)';
       }
+      isHorizontal=null;
     });
   });
 }
@@ -4641,22 +4655,31 @@ async function loadNearbyEvents(){
   }catch(e){c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--err)">Erro ao buscar.</div>'}
 }
 function showCreateEvent(){
-  _renderEventForm(!!myLat);
+  _renderEventForm();
 }
 function showCreateEventManual(){
-  _renderEventForm(false);
+  _renderEventForm();
 }
-function _renderEventForm(hasLocation){
+function _renderEventForm(){
+  // Try to get location first if we don't have it
+  if(!myLat&&navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+    },()=>{},{enableHighAccuracy:true,timeout:5000});
+  }
   let html='<div class="loc-create-form">';
   html+='<div class="form-title">&#x1F4CD; '+i18n('create_event_title')+'</div>';
   html+='<div class="form-sub">Crie um ponto de encontro digital em um local físico. Quem estiver por perto poderá entrar e se conectar.</div>';
+  if(myLat){
+    html+='<div style="font-size:.65rem;color:var(--ok);margin-bottom:.6rem">📍 Localização detectada ('+myLat.toFixed(4)+', '+myLng.toFixed(4)+')</div>';
+  }else{
+    html+='<div style="font-size:.65rem;color:var(--ac2);margin-bottom:.6rem">📍 Sem GPS — insira as coordenadas manualmente</div>';
+  }
   html+='<div class="loc-fg"><label>'+i18n('evt_name')+'</label><input type="text" id="evtName" maxlength="60" placeholder="'+i18n('evt_name_ph')+'"></div>';
   html+='<div class="loc-fg"><label>'+i18n('evt_desc')+'</label><textarea id="evtDesc" maxlength="200" placeholder="'+i18n('evt_desc_ph')+'"></textarea></div>';
-  if(!hasLocation){
-    html+='<div class="loc-fg"><label>Latitude</label><input type="text" id="evtLat" placeholder="-23.550520"></div>';
-    html+='<div class="loc-fg"><label>Longitude</label><input type="text" id="evtLng" placeholder="-46.633308"></div>';
-    html+='<div style="font-size:.62rem;color:var(--t3);margin:-.4rem 0 .6rem;line-height:1.4">Dica: busque no Google Maps, clique no local e copie as coordenadas.</div>';
-  }
+  html+='<div class="loc-fg"><label>Latitude</label><input type="text" id="evtLat" value="'+(myLat||'')+'" placeholder="-23.550520"></div>';
+  html+='<div class="loc-fg"><label>Longitude</label><input type="text" id="evtLng" value="'+(myLng||'')+'" placeholder="-46.633308"></div>';
+  html+='<div style="font-size:.62rem;color:var(--t3);margin:-.4rem 0 .6rem;line-height:1.4">Dica: busque no Google Maps, clique no local e copie as coordenadas. Se o GPS estiver ativo, as coordenadas são preenchidas automaticamente.</div>';
   html+='<div class="loc-fg"><label>&#x1F4E1; '+i18n('evt_radius')+'</label>';
   html+='<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.3rem">';
   ['50','100','200','500','1000'].forEach(r=>{

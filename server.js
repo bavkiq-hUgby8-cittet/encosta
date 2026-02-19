@@ -610,61 +610,36 @@ function updateStreak(userAId, userBId, today) {
   s.lastDate = today;
   if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
   s.history.push({ date: today, streak: s.currentStreak });
-  // Check for streak unlocks
-  checkStreakUnlocks(key, userAId, userBId);
+  // Check for star awards (every 5 days = 1 star)
+  checkStreakStars(key, userAId, userBId);
   saveDB();
 }
 
-// ── STREAK UNLOCKABLES ──
-const STREAK_UNLOCKS = [
-  { days: 5, id: 'deep_question', label: 'Pergunta Profunda', description: '5 dias seguidos = uma pergunta pra conhecer melhor + ⭐' },
-  { days: 7, id: 'time_capsule', label: 'Cápsula do Tempo', description: 'Escreva algo que só abre em 30 dias' },
-  { days: 14, id: 'shared_playlist', label: 'Playlist Compartilhada', description: 'Uma playlist que cresce a cada dia' },
-  { days: 30, id: 'memory_book', label: 'Livro de Memórias', description: 'Todas as frases dos 30 dias juntas' },
-  { days: 50, id: 'constellation_link', label: 'Constelação Ligada', description: 'Vínculo permanente na constelação' },
-  { days: 100, id: 'eternal_star', label: 'Estrela Eterna', description: 'Estrela dourada para os dois' }
-];
-
-const DEEP_QUESTIONS = [
-  'O que você mais admira em alguém que acabou de conhecer?',
-  'Qual foi a última vez que você se surpreendeu com alguém?',
-  'O que faz você confiar numa pessoa?',
-  'Qual momento pequeno da vida você guardaria pra sempre?',
-  'O que você gostaria de ter coragem de dizer mais vezes?',
-  'Quando foi a última vez que alguém te fez sorrir sem querer?',
-  'O que você procura numa conexão?',
-  'Qual é o seu jeito de demonstrar que se importa?',
-  'O que te faz sentir vivo?',
-  'Se pudesse reviver um encontro com alguém, qual seria?'
-];
-
-function checkStreakUnlocks(key, userAId, userBId) {
+// ── STAR SYSTEM: every 5 encounters on different days = 1 star ──
+function checkStreakStars(key, userAId, userBId) {
   const s = db.streaks[key];
   if (!s) return;
-  STREAK_UNLOCKS.forEach(u => {
-    if (s.currentStreak >= u.days && !s.unlocks.includes(u.id)) {
-      s.unlocks.push(u.id);
-      let payload = { streakDays: s.currentStreak, unlock: u };
-      // Special content for certain unlocks
-      if (u.id === 'deep_question') {
-        payload.question = DEEP_QUESTIONS[Math.floor(Math.random() * DEEP_QUESTIONS.length)];
-        // 5 days streak = star for both
-        awardStar(userAId, 'streak', userBId);
-        awardStar(userBId, 'streak', userAId);
-      }
-      if (u.id === 'memory_book') {
-        // Collect all phrases from their encounters
-        const enc = (db.encounters[userAId] || []).filter(e => e.with === userBId).slice(-30);
-        payload.phrases = enc.map(e => ({ phrase: e.phrase, date: e.date }));
-      }
-      if (u.id === 'eternal_star') {
-        awardStar(userAId, 'streak', userBId);
-        awardStar(userBId, 'streak', userAId);
-      }
-      io.to(`user:${userAId}`).emit('streak-unlock', payload);
-      io.to(`user:${userBId}`).emit('streak-unlock', payload);
+  // Count how many stars they should have earned from days together
+  const totalDays = s.currentStreak; // consecutive days
+  const starsEarned = Math.floor(totalDays / 5);
+  const prevStars = s._starsAwarded || 0;
+  if (starsEarned > prevStars) {
+    // Award new stars
+    for (let i = prevStars; i < starsEarned; i++) {
+      awardStar(userAId, 'streak', userBId);
+      awardStar(userBId, 'streak', userAId);
     }
-  });
+    s._starsAwarded = starsEarned;
+    // Notify both users
+    const payload = {
+      streakDays: totalDays,
+      starsTotal: starsEarned,
+      newStar: true,
+      unlock: { label: '⭐ Nova estrela!', description: totalDays + ' dias juntos = ' + starsEarned + ' estrela' + (starsEarned > 1 ? 's' : '') }
+    };
+    io.to(`user:${userAId}`).emit('streak-unlock', payload);
+    io.to(`user:${userBId}`).emit('streak-unlock', payload);
+  }
 }
 
 // ── NFC / QR WEB LINK ──
@@ -749,9 +724,12 @@ app.post('/api/touch-link/connect', (req, res) => {
 app.get('/api/streak/:userId/:partnerId', (req, res) => {
   const key = [req.params.userId, req.params.partnerId].sort().join('_');
   const s = db.streaks?.[key];
-  if (!s) return res.json({ currentStreak: 0, bestStreak: 0, unlocks: [], nextUnlock: STREAK_UNLOCKS[0] });
-  const next = STREAK_UNLOCKS.find(u => !s.unlocks.includes(u.id));
-  res.json({ currentStreak: s.currentStreak, bestStreak: s.bestStreak, lastDate: s.lastDate, unlocks: s.unlocks, nextUnlock: next || null, daysToNext: next ? next.days - s.currentStreak : 0 });
+  if (!s) return res.json({ currentStreak: 0, bestStreak: 0, starsEarned: 0, daysToNextStar: 5, progress: 0 });
+  const starsEarned = s._starsAwarded || Math.floor(s.currentStreak / 5);
+  const daysInCycle = s.currentStreak % 5;
+  const daysToNextStar = 5 - daysInCycle;
+  const progress = Math.round((daysInCycle / 5) * 100);
+  res.json({ currentStreak: s.currentStreak, bestStreak: s.bestStreak, lastDate: s.lastDate, starsEarned, daysToNextStar, progress });
 });
 
 function generateTouchPage(owner, code) {
