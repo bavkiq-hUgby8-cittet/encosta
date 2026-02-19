@@ -502,10 +502,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .elog-header{display:flex;align-items:center;gap:.6rem;padding:max(env(safe-area-inset-top),.8rem) 1.2rem .6rem;border-bottom:1px solid var(--b1)}
 .elog-header h2{font-size:1rem;font-weight:700;flex:1}
 .elog-list{padding:.8rem 1rem;display:flex;flex-direction:column;gap:.6rem;padding-bottom:3rem}
-.elog-item{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;display:flex;gap:.7rem;align-items:flex-start;transition:all .15s cubic-bezier(.22,1,.36,1);cursor:pointer}
-.elog-item:active{transform:scale(.975);background:var(--s2);border-color:rgba(255,107,53,.15)}
+.elog-item{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.7rem .8rem;display:flex;gap:.6rem;align-items:center;position:relative;overflow:hidden;touch-action:pan-y}
+.elog-item-inner{display:flex;gap:.6rem;align-items:center;flex:1;min-width:0;transition:transform .2s ease;position:relative;z-index:1}
+.elog-delete{position:absolute;right:0;top:0;bottom:0;width:70px;background:#ef4444;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:600;z-index:0}
 .elog-tip-btn{background:linear-gradient(135deg,#ff6b35,#e05520);border:none;color:#fff;font-size:.8rem;padding:.35rem .6rem;border-radius:1rem;cursor:pointer;flex-shrink:0;align-self:center}
-.elog-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;flex-shrink:0}
+.elog-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:#fff;flex-shrink:0}
 .elog-info{flex:1;min-width:0}
 .elog-name{font-size:.85rem;font-weight:600;color:var(--t1)}
 .elog-phrase{font-size:.7rem;color:var(--t2);font-style:italic;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1007,7 +1008,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="home-bottom">
     <div class="home-nav">
       <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico">📍</span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
-      <button class="hn-btn" onclick="showPrestadorRegister()"><span class="hn-ico">💼</span><span class="hn-lbl">Prestador</span></button>
       <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico">❓</span><span class="hn-lbl">Ajuda</span></button>
     </div>
     <div class="home-brand-row">
@@ -2543,9 +2543,17 @@ function doReveal(data){
       tipBtn.classList.add('hidden');
     }
   }
-  // 13. Auto-open gorjeta for service touch
-  if(data.isServiceTouch&&them.isPrestador){
-    setTimeout(()=>showTipScreen(them.id),2500);
+  // 13. Service touch: hide "Abrir conexão", show only gorjeta + pular
+  if(data.isServiceTouch){
+    const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
+    if(enterBtn)enterBtn.style.display='none';
+    // Auto-open gorjeta if they are prestador
+    if(them.isPrestador){
+      setTimeout(()=>showTipScreen(them.id),2500);
+    }
+  }else{
+    const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
+    if(enterBtn)enterBtn.style.display='';
   }
   // Reset service mode after touch
   if(serviceMode){
@@ -3574,46 +3582,92 @@ function showMoreMenu(){
   document.body.appendChild(overlay);
 }
 
-// ═══ ENCOUNTER LOG ═══
+// ═══ ENCOUNTER LOG (individual touches) ═══
 async function showEncounterLog(){
   haptic([30]);
   showScreen('encounterLog');
   const list=$('elogList');
   list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3)">Carregando...</div>';
   try{
-    const data=await(await fetch('/api/constellation/'+state.userId)).json();
-    if(!data.nodes||!data.nodes.length){
+    const data=await(await fetch('/api/encounters/'+state.userId)).json();
+    if(!data||!data.length){
       list.innerHTML='<div class="elog-empty">Nenhum encontro ainda.<br>Toque em alguém para começar!</div>';
       return;
     }
-    let html='';
     const myCanSee2=state.revealedIds||{};
-    data.nodes.forEach(n=>{
-      const lastD=n.lastDate?new Date(n.lastDate):null;
-      const revealed=!!(n.partnerRevealedToMe||myCanSee2[n.id]);
-      const displayName=revealed?(n.realName||n.nickname):n.nickname;
-      html+='<div class="elog-item" onclick="showHistory()">';
-      if(revealed&&n.profilePhoto){
-        html+='<div class="elog-avatar" style="overflow:hidden"><img src="'+n.profilePhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
-      }else{
-        html+='<div class="elog-avatar" style="background:'+(n.color||'var(--ac)')+'">'+(n.nickname||'??').slice(0,2).toUpperCase()+'</div>';
+    let html='';
+    let lastDateLabel='';
+    data.forEach(enc=>{
+      const dt=new Date(enc.timestamp);
+      const dateLabel=dt.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
+      if(dateLabel!==lastDateLabel){
+        html+='<div style="font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:.6rem 0 .2rem;font-weight:600;border-bottom:1px solid rgba(255,255,255,.04);margin-bottom:.3rem">'+dateLabel+'</div>';
+        lastDateLabel=dateLabel;
       }
-      html+='<div class="elog-info">';
-      html+='<div class="elog-name">'+esc(displayName)+(revealed?' <span style="font-size:.55rem;color:var(--ok)">✓ revelado</span>':'')+'</div>';
-      if(revealed&&n.realName&&n.realName!==n.nickname)html+='<div style="font-size:.62rem;color:var(--t3)">@'+esc(n.nickname)+' <span style="color:var(--ac2)">— nickname</span></div>';
-      else if(!revealed)html+='<div style="font-size:.6rem;color:var(--t3);font-style:italic">identidade não revelada</div>';
-      html+='<div class="elog-meta">';
-      html+='<span>📲 '+(n.encounters||0)+'x</span>';
-      if(lastD)html+='<span>🕐 '+timeAgo(lastD)+'</span>';
-      if(n.tipsTotal>0)html+='<span class="elog-tip">💰 R$'+n.tipsTotal.toFixed(2).replace('.',',')+'</span>';
-      if(n.isPrestador&&n.serviceLabel)html+='<span>💼 '+esc(n.serviceLabel)+'</span>';
+      const revealed=!!(enc.profilePhoto||myCanSee2[enc.with]);
+      const revData=myCanSee2[enc.with];
+      const displayName=revealed?(enc.realName||revData?.realName||enc.withName):enc.withName;
+      const photo=revealed?(enc.profilePhoto||revData?.profilePhoto||null):null;
+      const timeStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const typeIcon=enc.type==='service'?'💼':(enc.type==='digital'?'📱':'📲');
+      html+='<div class="elog-item" data-ts="'+enc.timestamp+'">';
+      html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')">Apagar</div>';
+      html+='<div class="elog-item-inner">';
+      if(photo){
+        html+='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+';overflow:hidden"><img src="'+esc(photo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+      }else{
+        html+='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+'">'+(enc.withName||'??').slice(0,2).toUpperCase()+'</div>';
+      }
+      html+='<div style="flex:1;min-width:0">';
+      html+='<div class="elog-name" style="font-size:.8rem">'+esc(displayName)+'</div>';
+      html+='<div class="elog-meta" style="margin-top:.15rem">';
+      html+='<span>'+typeIcon+' '+timeStr+'</span>';
+      if(enc.points)html+='<span>+'+enc.points+'pts</span>';
       html+='</div></div>';
-      // Gorjeta button always visible for prestadores
-      if(n.isPrestador)html+='<button class="elog-tip-btn" onclick="event.stopPropagation();showTipScreen(\''+n.id+'\')">💰</button>';
-      html+='</div>';
+      html+='</div></div>';
     });
     list.innerHTML=html;
+    // Init swipe-to-delete
+    initElogSwipe();
   }catch(e){list.innerHTML='<div class="elog-empty">Erro ao carregar histórico.</div>'}
+}
+function initElogSwipe(){
+  const items=document.querySelectorAll('.elog-item');
+  items.forEach(item=>{
+    let startX=0,currentX=0,swiping=false;
+    const inner=item.querySelector('.elog-item-inner');
+    if(!inner)return;
+    inner.addEventListener('touchstart',e=>{
+      startX=e.touches[0].clientX;currentX=0;swiping=true;
+      inner.style.transition='none';
+    },{passive:true});
+    inner.addEventListener('touchmove',e=>{
+      if(!swiping)return;
+      currentX=e.touches[0].clientX-startX;
+      if(currentX<0){
+        inner.style.transform='translateX('+Math.max(currentX,-70)+'px)';
+      }else{
+        inner.style.transform='translateX(0)';
+      }
+    },{passive:true});
+    inner.addEventListener('touchend',()=>{
+      swiping=false;
+      inner.style.transition='transform .2s ease';
+      if(currentX<-40){
+        inner.style.transform='translateX(-70px)';
+      }else{
+        inner.style.transform='translateX(0)';
+      }
+    });
+  });
+}
+async function deleteEncounter(el,timestamp){
+  haptic([20]);
+  try{
+    await fetch('/api/encounters/'+state.userId+'/'+timestamp,{method:'DELETE'});
+    el.style.transition='all .3s ease';el.style.opacity='0';el.style.maxHeight='0';el.style.padding='0';el.style.margin='0';el.style.overflow='hidden';
+    setTimeout(()=>el.remove(),350);
+  }catch(e){showToast('Erro ao apagar')}
 }
 
 // ═══ COMPLETE PROFILE ═══
@@ -4116,6 +4170,7 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">🪪</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">✏️</span>'+cadastroLabel+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">📋</span>Histórico</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showPrestadorRegister()"><span class="my-pf-ico">💼</span>Prestador</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">❓</span>Tutorial</button>'
     +'<div style="height:1px;background:var(--b1);margin:.3rem 0"></div>'
     +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">🚪</span>Sair da conta</button>'

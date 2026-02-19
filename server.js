@@ -990,6 +990,16 @@ app.get('/api/encounters/:userId', (req, res) => {
   res.json(enriched); // newest first
 });
 
+// Delete a specific encounter entry
+app.delete('/api/encounters/:userId/:timestamp', (req, res) => {
+  const userId = req.params.userId;
+  const ts = parseInt(req.params.timestamp);
+  if (!db.encounters[userId]) return res.json({ ok: true });
+  db.encounters[userId] = db.encounters[userId].filter(e => e.timestamp !== ts);
+  saveDB();
+  res.json({ ok: true });
+});
+
 // Daily counter
 app.get('/api/today/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
