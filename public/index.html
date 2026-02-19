@@ -2629,9 +2629,17 @@ function doReveal(data){
     }
   }else if(isCheckin){
     // CHECKIN: revelar dados ou só check-in
-    if(enterBtn){enterBtn.textContent='Revelar meus dados';enterBtn.onclick=function(){revealToOperator(them.id)}}
-    if(skipBtn){skipBtn.textContent='Só check-in';skipBtn.onclick=function(){goHome()}}
-    if(secRow)secRow.style.display='none';
+    if(data.requireReveal){
+      // Operator requires reveal — show prominent popup
+      if(enterBtn){enterBtn.textContent='Revelar e continuar';enterBtn.style.background='linear-gradient(135deg,#34d399,#10b981)';enterBtn.onclick=function(){revealToOperator(them.id)}}
+      if(skipBtn){skipBtn.textContent='Continuar anônimo';skipBtn.onclick=function(){goHome()}}
+      // Show info message about requirement
+      if(secRow){secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">📋 Este estabelecimento solicita identificação.<br>Revele sua identidade para uma experiência completa.</div>'}
+    }else{
+      if(enterBtn){enterBtn.textContent='Revelar meus dados';enterBtn.onclick=function(){revealToOperator(them.id)}}
+      if(skipBtn){skipBtn.textContent='Só check-in';skipBtn.onclick=function(){goHome()}}
+      if(secRow)secRow.style.display='none';
+    }
   }else{
     // NORMAL: show gorjeta if them is prestador
     if(tipBtn&&them.isPrestador){

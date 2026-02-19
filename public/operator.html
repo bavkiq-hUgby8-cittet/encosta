@@ -41,15 +41,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 
 /* Main layout */
 .op-main{display:flex;height:calc(100vh - 40px);position:relative}
-.op-canvas-area{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.op-canvas-area{flex:1;position:relative;overflow:hidden}
 .op-sidebar{width:280px;background:rgba(18,18,26,.92);backdrop-filter:blur(20px);border-left:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;z-index:5}
 @media(max-width:768px){
   .op-sidebar{position:absolute;bottom:0;left:0;right:0;width:100%;height:36vh;border-left:none;border-top:1px solid var(--b1);border-radius:20px 20px 0 0;z-index:5}
-  .op-canvas-area{height:64vh}
 }
 
-/* ═══ TOUCH BUTTON — exact copy from main app ═══ */
-.op-btn-area{position:relative;display:flex;flex-direction:column;align-items:center;gap:.6rem;z-index:3}
+/* ═══ TOUCH BUTTON — positioned at bottom ═══ */
+.op-btn-area{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.6rem;z-index:3}
+@media(max-width:768px){.op-btn-area{bottom:calc(36vh + 30px)}}
 .be{width:clamp(130px,36vw,170px);height:clamp(130px,36vw,170px);border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff8f65,#ff6b35 50%,#e05520);border:none;color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 50px var(--gw),0 0 100px rgba(255,107,53,.08),inset 0 1px 0 rgba(255,255,255,.15);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem}
 .be:active{transform:scale(.92)}
 .be .be-text{font-size:.75rem;font-weight:800;letter-spacing:.25em}
@@ -83,8 +83,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 @keyframes sbar-left{0%{opacity:.2;transform:translateX(0)}100%{opacity:.7;transform:translateX(-6px)}}
 @keyframes sbar-right{0%{opacity:.2;transform:translateX(0)}100%{opacity:.7;transform:translateX(6px)}}
 
-/* FIRE overlay */
-.fire-overlay{position:absolute;bottom:0;left:0;right:0;height:55%;pointer-events:none;z-index:0;opacity:0;transition:opacity .6s}
+/* FIRE overlay — anchored to bottom where button is */
+.fire-overlay{position:absolute;bottom:0;left:0;right:0;height:45%;pointer-events:none;z-index:0;opacity:0;transition:opacity .6s}
 .fire-overlay.active{opacity:1}
 .fire-glow{position:absolute;bottom:-15%;left:50%;transform:translateX(-50%);width:80%;height:55%;background:radial-gradient(ellipse at 50% 100%,rgba(255,107,53,.4) 0%,rgba(255,61,113,.18) 25%,rgba(255,107,53,.06) 50%,transparent 70%);animation:fire-breathe 1s ease-in-out infinite alternate;filter:blur(6px)}
 .fire-glow2{position:absolute;bottom:-5%;left:50%;transform:translateX(-50%);width:50%;height:40%;background:radial-gradient(ellipse at 50% 100%,rgba(255,180,80,.3) 0%,rgba(255,107,53,.1) 40%,transparent 65%);animation:fire-breathe .7s ease-in-out infinite alternate-reverse;filter:blur(10px)}
@@ -115,9 +115,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .fire-edge.right{left:50%;right:0;border-radius:2px 0 0 0}
 @keyframes fire-edge-pulse{0%{opacity:.3;height:2px}100%{opacity:.9;height:5px}}
 
-/* Sonic instruction — phones touching */
-.sonic-instruct{position:absolute;bottom:18%;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.8rem;opacity:0;transition:opacity .5s;z-index:3}
+/* Sonic instruction — above button at bottom */
+.sonic-instruct{position:absolute;bottom:220px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.8rem;opacity:0;transition:opacity .5s;z-index:3}
 .sonic-instruct.active{opacity:1}
+@media(max-width:768px){.sonic-instruct{bottom:calc(36vh + 200px)}}
 .si-scene{position:relative;width:160px;height:80px;display:flex;align-items:center;justify-content:center}
 .si-phone{position:absolute;width:50px;height:26px;border:1.5px solid var(--ac);border-radius:5px;background:rgba(255,107,53,.06)}
 .si-phone.left{left:0;animation:si-slide-l 2s ease-in-out infinite}
@@ -162,6 +163,37 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .op-empty-ico{font-size:2rem;opacity:.4}
 .op-empty-text{font-size:.68rem;text-align:center;line-height:1.6;max-width:200px}
 
+/* Toggle switch */
+.op-toggle{display:flex;align-items:center;gap:.4rem;font-size:.6rem;color:var(--t3)}
+.op-toggle-switch{position:relative;width:32px;height:18px;background:rgba(255,255,255,.1);border-radius:9px;cursor:pointer;transition:background .3s}
+.op-toggle-switch.on{background:var(--ok)}
+.op-toggle-dot{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .3s}
+.op-toggle-switch.on .op-toggle-dot{transform:translateX(14px)}
+
+/* Chat panel */
+.op-chat{position:absolute;inset:0;background:rgba(18,18,26,.97);backdrop-filter:blur(20px);display:flex;flex-direction:column;z-index:20;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1)}
+.op-chat.open{transform:translateX(0)}
+.op-chat-head{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;border-bottom:1px solid var(--b1)}
+.op-chat-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:700;color:#fff;flex-shrink:0}
+.op-chat-name{flex:1;font-size:.75rem;font-weight:600}
+.op-chat-reveal-badge{font-size:.5rem;padding:.15rem .4rem;border-radius:6px;background:rgba(52,211,153,.15);color:var(--ok);font-weight:600;border:1px solid rgba(52,211,153,.2)}
+.op-chat-close{background:none;border:none;color:var(--t3);font-size:1rem;cursor:pointer;padding:.2rem .4rem}
+.op-chat-close:hover{color:var(--t1)}
+.op-chat-info{padding:.4rem .8rem;font-size:.6rem;color:var(--t3);border-bottom:1px solid var(--b1);line-height:1.5}
+.op-chat-msgs{flex:1;overflow-y:auto;padding:.6rem .8rem;display:flex;flex-direction:column;gap:.4rem}
+.op-chat-msg{max-width:85%;padding:.4rem .6rem;border-radius:10px;font-size:.7rem;line-height:1.4;word-break:break-word}
+.op-chat-msg.mine{align-self:flex-end;background:var(--ac);color:#fff;border-bottom-right-radius:3px}
+.op-chat-msg.theirs{align-self:flex-start;background:var(--s2);color:var(--t1);border-bottom-left-radius:3px}
+.op-chat-msg .msg-time{font-size:.5rem;opacity:.5;margin-top:.15rem}
+.op-chat-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:.65rem}
+.op-chat-input-area{display:flex;gap:.4rem;padding:.5rem .6rem;border-top:1px solid var(--b1)}
+.op-chat-input{flex:1;padding:.4rem .6rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.72rem;font-family:inherit;outline:none}
+.op-chat-input:focus{border-color:var(--ac)}
+.op-chat-send{background:var(--ac);border:none;color:#fff;border-radius:10px;padding:.3rem .6rem;font-size:.65rem;font-weight:600;cursor:pointer;font-family:inherit}
+
+/* Sidebar revealed badge */
+.op-ci-revealed{font-size:.5rem;padding:.1rem .3rem;border-radius:6px;font-weight:600;background:rgba(52,211,153,.12);color:var(--ok);border:1px solid rgba(52,211,153,.2)}
+
 /* Connection flash overlay */
 .op-flash{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0}
 </style>
@@ -194,6 +226,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
     <div class="op-logo">Touch<span>?</span> Operador</div>
     <div class="op-stats">
       <div><span class="op-stat-num" id="opCount">0</span> check-ins</div>
+      <div class="op-toggle">
+        <span>Somente revelados</span>
+        <div class="op-toggle-switch" id="opToggleReveal" onclick="toggleRequireReveal()"><div class="op-toggle-dot"></div></div>
+      </div>
       <div class="op-user" id="opUserName"></div>
       <button class="op-logoff" onclick="opLogoff()">Sair</button>
     </div>
@@ -231,12 +267,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
         <div class="sonic-status" id="opStatus"></div>
       </div>
     </div>
-    <div class="op-sidebar">
+    <div class="op-sidebar" style="position:relative">
       <div class="op-sb-header"><span>Check-ins</span><span id="opListCount">0</span></div>
       <div class="op-sb-list" id="opList">
         <div class="op-empty" id="opEmpty">
           <div class="op-empty-ico">📡</div>
           <div class="op-empty-text">Ative o TOUCH para começar.<br>As pessoas encostam o celular e aparecem aqui.</div>
+        </div>
+      </div>
+      <!-- Chat panel slides over sidebar -->
+      <div class="op-chat" id="opChat">
+        <div class="op-chat-head">
+          <div class="op-chat-avatar" id="opChatAvatar">?</div>
+          <div class="op-chat-name" id="opChatName">Visitante</div>
+          <span class="op-chat-reveal-badge" id="opChatRevealBadge" style="display:none">Revelado ✓</span>
+          <button class="op-chat-close" onclick="closeChat()">✕</button>
+        </div>
+        <div class="op-chat-info" id="opChatInfo"></div>
+        <div class="op-chat-msgs" id="opChatMsgs"><div class="op-chat-empty">Nenhuma mensagem ainda</div></div>
+        <div class="op-chat-input-area">
+          <input class="op-chat-input" id="opChatInput" placeholder="Mensagem..." onkeydown="if(event.key==='Enter')sendChatMsg()">
+          <button class="op-chat-send" onclick="sendChatMsg()">Enviar</button>
         </div>
       </div>
     </div>
@@ -250,7 +301,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 <script src="/socket.io/socket.io.js"></script>
 <script>
 // ═══ STATE ═══
-const S={userId:null,userName:null,userColor:null,socket:null,checkins:[]};
+const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false};
 let homeSonicActive=false,sonicActive=false,sonicMyFreq=0;
 let sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null;
 let sonicKeepAlive=null,audioCtx=null;
@@ -341,8 +392,33 @@ function initSocket(){
   });
   // Use checkin-created as the primary event (avoids duplicates with relation-created)
   S.socket.on('checkin-created',d=>{handleNewCheckin(d)});
-  // relation-created: only handle on the PHONE side, not operator
-  // (operator gets checkin-created which has the visitor's data already)
+  // Chat messages
+  S.socket.on('new-message',({relationId,message})=>{
+    if(chatOpen&&chatRelationId===relationId)appendChatMsg(message);
+  });
+  // Identity revealed — update sidebar + canvas node
+  S.socket.on('identity-revealed',d=>{
+    if(!d||!d.userId)return;
+    // Update node
+    const node=nodes.find(n=>n.userId===d.userId);
+    if(node){node.revealed=true;node.revealData=d}
+    // Update sidebar item
+    const items=document.querySelectorAll('.op-checkin-item');
+    items.forEach(item=>{
+      if(item.dataset.userId===d.userId){
+        const badge=item.querySelector('.op-ci-badge');
+        if(badge){badge.outerHTML='<span class="op-ci-revealed">Revelado ✓</span>'}
+      }
+    });
+    // Update chat if open for this user
+    if(chatOpen&&chatPartnerId===d.userId){
+      $('opChatRevealBadge').style.display='';
+      let info=$('opChatInfo').innerHTML;
+      if(d.realName)info+='<br>Nome: '+esc(d.realName);
+      if(d.instagram)info+=' | @'+esc(d.instagram);
+      $('opChatInfo').innerHTML=info;
+    }
+  });
   S.socket.on('sonic-matched',()=>{
     // Operator STAYS in sonicQueue after connection (server keeps it).
     // Do NOT re-register — that would assign a new freq while oscillator plays old freq.
@@ -536,11 +612,21 @@ function stopHomeSonic(){
 }
 
 // ═══ CHECK-IN HANDLER ═══
+let flashQueue=[],flashRunning=false;
 function handleNewCheckin(d){
   addCheckinToList(d);
   addNodeToCanvas(d);
-  playConnectionShow(d);
+  // Queue connection flash animations
+  flashQueue.push(d);
+  if(!flashRunning)runNextFlash();
   playBeep();
+}
+function runNextFlash(){
+  if(flashQueue.length===0){flashRunning=false;return}
+  flashRunning=true;
+  const d=flashQueue.shift();
+  playConnectionShow(d);
+  setTimeout(runNextFlash,1500); // 1.5s between flashes
 }
 
 function addCheckinToList(d){
@@ -553,11 +639,87 @@ function addCheckinToList(d){
   setTimeout(()=>{if(homeSonicActive){sts.textContent='Encoste o celular no alto-falante 🔊'}},3000);
   const list=$('opList');
   const item=document.createElement('div');item.className='op-checkin-item';
+  item.style.cursor='pointer';
+  item.onclick=()=>openChat(d);
   const time=new Date(d.timestamp||Date.now());
   const ts=time.getHours().toString().padStart(2,'0')+':'+time.getMinutes().toString().padStart(2,'0');
   const col=d.color||nickColor(d.nickname||'?');
-  item.innerHTML='<div class="op-ci-avatar" style="background:'+col+'">'+ini(d.nickname||'?')+'</div><div class="op-ci-info"><div class="op-ci-name">'+esc(d.nickname||'Visitante')+'</div><div class="op-ci-time">'+ts+'</div></div><div class="op-ci-badge">check-in</div>';
+  const revBadge=d.revealed?'<span class="op-ci-revealed">Revelado ✓</span>':'<div class="op-ci-badge">check-in</div>';
+  item.innerHTML='<div class="op-ci-avatar" style="background:'+col+'">'+ini(d.nickname||'?')+'</div><div class="op-ci-info"><div class="op-ci-name">'+esc(d.nickname||'Visitante')+'</div><div class="op-ci-time">'+ts+'</div></div>'+revBadge;
+  item.dataset.userId=d.userId||'';
   list.prepend(item);
+}
+
+// ═══ CHAT PANEL ═══
+let chatOpen=false,chatRelationId=null,chatPartnerId=null;
+function openChat(d){
+  if(!d.relationId&&!d.userId){console.log('[chat] no relation/user data');return}
+  chatPartnerId=d.userId||d.with||null;
+  chatRelationId=d.relationId||null;
+  const panel=$('opChat');
+  $('opChatAvatar').style.background=d.color||nickColor(d.nickname||'?');
+  $('opChatAvatar').textContent=ini(d.nickname||'?');
+  $('opChatName').textContent=d.nickname||d.withName||'Visitante';
+  const time=new Date(d.timestamp||Date.now());
+  const ts=time.getHours().toString().padStart(2,'0')+':'+time.getMinutes().toString().padStart(2,'0');
+  let info='Check-in às '+ts;
+  // Show revealed data if available
+  const revBadge=$('opChatRevealBadge');
+  if(d.revealed||d.revealData){
+    revBadge.style.display='';
+    if(d.revealData){info+='<br>Nome: '+esc(d.revealData.realName||'');if(d.revealData.instagram)info+=' | @'+esc(d.revealData.instagram)}
+  }else{revBadge.style.display='none'}
+  $('opChatInfo').innerHTML=info;
+  // Load messages
+  $('opChatMsgs').innerHTML='<div class="op-chat-empty">Carregando...</div>';
+  if(chatRelationId){loadChatMessages(chatRelationId)}
+  else{$('opChatMsgs').innerHTML='<div class="op-chat-empty">Sem chat disponível (sem relationId)</div>'}
+  panel.classList.add('open');chatOpen=true;
+}
+function closeChat(){$('opChat').classList.remove('open');chatOpen=false;chatRelationId=null;chatPartnerId=null}
+async function loadChatMessages(relId){
+  try{
+    const r=await fetch('/api/messages/'+relId);const d=await r.json();
+    const container=$('opChatMsgs');
+    if(!d.messages||d.messages.length===0){container.innerHTML='<div class="op-chat-empty">Nenhuma mensagem ainda</div>';return}
+    container.innerHTML='';
+    d.messages.forEach(m=>{appendChatMsg(m)});
+    container.scrollTop=container.scrollHeight;
+  }catch(e){$('opChatMsgs').innerHTML='<div class="op-chat-empty">Erro ao carregar</div>'}
+}
+function appendChatMsg(m){
+  const container=$('opChatMsgs');
+  // Remove empty placeholder
+  const empty=container.querySelector('.op-chat-empty');if(empty)empty.remove();
+  const div=document.createElement('div');
+  div.className='op-chat-msg '+(m.userId===S.userId?'mine':'theirs');
+  const t=new Date(m.timestamp);
+  const ts=t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');
+  div.innerHTML=esc(m.text)+'<div class="msg-time">'+ts+'</div>';
+  container.appendChild(div);
+  container.scrollTop=container.scrollHeight;
+}
+function sendChatMsg(){
+  const input=$('opChatInput');const text=input.value.trim();
+  if(!text||!chatRelationId||!S.socket)return;
+  S.socket.emit('send-message',{relationId:chatRelationId,userId:S.userId,text});
+  appendChatMsg({userId:S.userId,text,timestamp:Date.now()});
+  input.value='';
+}
+
+// ═══ TOGGLE: SOMENTE REVELADOS ═══
+function toggleRequireReveal(){
+  S.requireReveal=!S.requireReveal;
+  const sw=$('opToggleReveal');
+  if(S.requireReveal)sw.classList.add('on');else sw.classList.remove('on');
+  // Save to server
+  fetch('/api/operator/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,requireReveal:S.requireReveal})}).catch(e=>console.error('Settings save error:',e));
+}
+async function loadOperatorSettings(){
+  try{
+    const r=await fetch('/api/operator/settings/'+S.userId);const d=await r.json();
+    if(d.requireReveal){S.requireReveal=true;$('opToggleReveal').classList.add('on')}
+  }catch(e){}
 }
 
 // ═══ CONNECTION SHOW — lightning + shockwave ═══
@@ -605,20 +767,25 @@ function playConnectionShow(d){
 
 // ═══ LOAD EXISTING ═══
 async function loadExisting(){
+  loadOperatorSettings();
   try{
     const r=await fetch('/api/operator/checkins/'+S.userId);const d=await r.json();
     if(d.checkins&&d.checkins.length>0){
       $('opEmpty').style.display='none';
-      d.checkins.forEach(c=>{
-        S.checkins.push(c);
+      d.checkins.forEach(ci=>{
+        const checkinData={userId:ci.with,nickname:ci.withName,color:ci.withColor,timestamp:ci.timestamp,relationId:ci.relationId,revealed:ci.revealed};
+        S.checkins.push(checkinData);
         const list=$('opList');const item=document.createElement('div');
-        item.className='op-checkin-item';item.style.animation='none';
-        const time=new Date(c.timestamp);
+        item.className='op-checkin-item';item.style.animation='none';item.style.cursor='pointer';
+        item.onclick=()=>openChat(checkinData);
+        item.dataset.userId=ci.with||'';
+        const time=new Date(ci.timestamp);
         const ts=time.getHours().toString().padStart(2,'0')+':'+time.getMinutes().toString().padStart(2,'0');
-        const col=c.withColor||nickColor(c.withName||'?');
-        item.innerHTML='<div class="op-ci-avatar" style="background:'+col+'">'+ini(c.withName||'?')+'</div><div class="op-ci-info"><div class="op-ci-name">'+esc(c.withName||'Visitante')+'</div><div class="op-ci-time">'+ts+'</div></div><div class="op-ci-badge">check-in</div>';
+        const col=ci.withColor||nickColor(ci.withName||'?');
+        const revBadge=ci.revealed?'<span class="op-ci-revealed">Revelado ✓</span>':'<div class="op-ci-badge">check-in</div>';
+        item.innerHTML='<div class="op-ci-avatar" style="background:'+col+'">'+ini(ci.withName||'?')+'</div><div class="op-ci-info"><div class="op-ci-name">'+esc(ci.withName||'Visitante')+'</div><div class="op-ci-time">'+ts+'</div></div>'+revBadge;
         list.appendChild(item);
-        addNodeToCanvas({nickname:c.withName,color:c.withColor},true);
+        addNodeToCanvas({nickname:ci.withName,color:ci.withColor,userId:ci.with,relationId:ci.relationId,revealed:ci.revealed},true);
       });
       $('opCount').textContent=S.checkins.length;$('opListCount').textContent=S.checkins.length;
     }
@@ -640,32 +807,64 @@ function initCanvas(){
 }
 
 function addNodeToCanvas(d,instant){
-  const idx=nodes.length;const ga=2.399963;const angle=idx*ga;
-  const maxR=Math.min(cvW,cvH)*0.3;const dist=50+Math.sqrt(idx+1)*maxR*0.13;
-  const cx=cvW/2,cy=cvH/2-20;
-  nodes.push({x:cx+Math.cos(angle)*dist,y:cy+Math.sin(angle)*dist,r:instant?9:0,targetR:8+Math.random()*5,color:d.color||nickColor(d.nickname||'?'),name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,entryAngle:angle,entryDist:dist,orbit:0,orbitV:.0003+Math.random()*.0003});
+  const margin=60;
+  const x=margin+Math.random()*(cvW-margin*2);
+  const y=margin+Math.random()*(cvH-margin*2-100); // avoid button area at bottom
+  const vx=(Math.random()-.5)*.5;
+  const vy=(Math.random()-.5)*.5;
+  const n={x,y,vx,vy,r:instant?9:0,targetR:8+Math.random()*5,color:d.color||nickColor(d.nickname||'?'),name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,entryAnim:instant?0:1,entryStartX:cvW/2,entryStartY:cvH/2,userId:d.userId||null,relationId:d.relationId||null,revealed:d.revealed||false,revealData:d.revealData||null,timestamp:d.timestamp||Date.now()};
+  nodes.push(n);
 }
 
 function renderCanvas(){
   if(!cvCtx)return;const c=cvCtx;c.clearRect(0,0,cvW,cvH);const t=Date.now()/1000;
-  const cx=cvW/2,cy=cvH/2-20;
+  const cx=cvW/2,cy=cvH/2-20;const margin=30;
   // Ambient particles
   ambientP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=cvW;if(p.x>cvW)p.x=0;if(p.y<0)p.y=cvH;if(p.y>cvH)p.y=0;
     c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
-  // Connection lines
-  nodes.forEach(n=>{if(n.r<1)return;n.orbit+=n.orbitV;const a=n.entryAngle+n.orbit;n.x=cx+Math.cos(a)*n.entryDist;n.y=cy+Math.sin(a)*n.entryDist;
+  // Free-floating node movement + connection lines
+  nodes.forEach(n=>{if(n.r<1)return;
+    // Move freely
+    n.x+=n.vx;n.y+=n.vy;
+    // Bounce off edges
+    if(n.x<margin){n.x=margin;n.vx=Math.abs(n.vx)}
+    if(n.x>cvW-margin){n.x=cvW-margin;n.vx=-Math.abs(n.vx)}
+    if(n.y<margin){n.y=margin;n.vy=Math.abs(n.vy)}
+    if(n.y>cvH-margin-120){n.y=cvH-margin-120;n.vy=-Math.abs(n.vy)}
+    // Connection line to center
     const la=.06+Math.sin(t*.8+n.phase)*.03;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.8;c.stroke();
+    // Traveling dot on line
     const pt=(t*.5+n.phase)%1;c.beginPath();c.arc(cx+(n.x-cx)*pt,cy+(n.y-cy)*pt,1.5,0,Math.PI*2);c.fillStyle='rgba(99,102,241,.25)';c.fill()});
-  // Center node
+  // Center node (operator)
   const cs=20+Math.sin(t*2)*1.5;
   c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle=homeSonicActive?'#ff6b35':(S.userColor||'#6366f1');c.fill();c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=1.5;c.stroke();
   c.fillStyle='#fff';c.font='700 9px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini(S.userName||'OP'),cx,cy);
-  // Person nodes
+  // Person nodes with entry animation
   nodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.3);const pulse=1+Math.sin(t*1.2+n.phase)*.04;const r=n.r*pulse;
+    // Entry animation: large name sliding from center to node position
+    if(n.entryAnim>0){
+      n.entryAnim=Math.max(0,n.entryAnim-.008);
+      const ea=n.entryAnim;
+      // Interpolate text position from center to node
+      const tx=n.entryStartX+(n.x-n.entryStartX)*(1-ea);
+      const ty=n.entryStartY+(n.y-n.entryStartY)*(1-ea);
+      const fontSize=8+ea*16; // 24px→8px
+      c.save();c.globalAlpha=Math.min(1,ea*2);
+      c.font='700 '+fontSize+'px Inter';c.textAlign='center';c.textBaseline='middle';
+      c.shadowColor=n.color;c.shadowBlur=20*ea;
+      c.fillStyle='#fff';c.fillText(n.name,tx,ty);
+      c.restore();
+    }
+    // Glow effect
     if(n.glow>0){const gr=r*5*n.glow;const g=c.createRadialGradient(n.x,n.y,0,n.x,n.y,gr);g.addColorStop(0,hexA(n.color,.3*n.glow));g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(n.x,n.y,gr,0,Math.PI*2);c.fill();n.glow=Math.max(0,n.glow-.005)}
+    // Node circle
     c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=.8;c.stroke();
+    // Revealed indicator ring
+    if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1.5;c.stroke()}
+    // Initials inside node
     if(r>5){c.fillStyle='#fff';c.font='600 '+(r*.6)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini(n.name),n.x,n.y+.5)}
-    if(r>7){c.fillStyle='rgba(255,255,255,.25)';c.font='400 6.5px Inter';c.fillText(n.name.length>12?n.name.slice(0,12)+'…':n.name,n.x,n.y+r+9)}});
+    // Name below node (only when entry anim is done)
+    if(r>7&&n.entryAnim<=0){c.fillStyle='rgba(255,255,255,.25)';c.font='400 6.5px Inter';c.textAlign='center';c.fillText(n.name.length>12?n.name.slice(0,12)+'…':n.name,n.x,n.y+r+9)}});
   cvAnim=requestAnimationFrame(renderCanvas);
 }
 window.addEventListener('resize',()=>{if($('opApp').style.display!=='none'){if(cvAnim)cancelAnimationFrame(cvAnim);initCanvas()}});

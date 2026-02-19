@@ -463,7 +463,7 @@ function getZodiacPhrase(signA, signB) {
 }
 
 // Helper: record encounter trace
-function recordEncounter(userAId, userBId, phrase, type = 'physical') {
+function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId = null) {
   const uA = db.users[userAId], uB = db.users[userBId];
   const now = Date.now();
   const today = new Date(now).toISOString().slice(0, 10);
@@ -471,8 +471,8 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical') {
   const isRePre = encA.length > 0;
   const pointTypePre = isRePre ? 're_' + type : type;
   const pts = POINT_VALUES[pointTypePre] || POINT_VALUES[type] || 1;
-  const trace = { with: userBId, withName: uB?.nickname || uB?.name || '?', withColor: uB?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24 };
-  const traceB = { with: userAId, withName: uA?.nickname || uA?.name || '?', withColor: uA?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24 };
+  const trace = { with: userBId, withName: uB?.nickname || uB?.name || '?', withColor: uB?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24, relationId };
+  const traceB = { with: userAId, withName: uA?.nickname || uA?.name || '?', withColor: uA?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24, relationId };
   if (!db.encounters[userAId]) db.encounters[userAId] = [];
   if (!db.encounters[userBId]) db.encounters[userBId] = [];
   db.encounters[userAId].push(trace);
@@ -919,10 +919,12 @@ app.post('/api/session/join', (req, res) => {
   const zodiacInfoB = signB ? ZODIAC_INFO[signB] : null;
 
   const operatorUser = session.isCheckin ? db.users[session.operatorId] : null;
+  const opRequireRevealJoin = operatorUser && operatorUser.operatorSettings && operatorUser.operatorSettings.requireReveal;
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
     isServiceTouch: !!session.isServiceTouch,
     isCheckin: !!session.isCheckin,
+    requireReveal: !!opRequireRevealJoin,
     operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
     userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
     userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
@@ -932,10 +934,13 @@ app.post('/api/session/join', (req, res) => {
   io.to(`session:${session.id}`).emit('relation-created', responseData);
   // Emit to operator if this is a checkin
   if (session.isCheckin && session.operatorId) {
+    const opUser = db.users[session.operatorId];
+    const visRevealed = !!(opUser && opUser.canSee && opUser.canSee[userId]);
     io.to(`user:${session.operatorId}`).emit('checkin-created', {
       userId, nickname: userB.nickname || userB.name, color: userB.color,
       profilePhoto: userB.profilePhoto || userB.photoURL || null,
-      timestamp: now
+      timestamp: now, relationId,
+      revealed: visRevealed, revealData: visRevealed ? opUser.canSee[userId] : null
     });
   }
   res.json({ sessionId: session.id, ...responseData });
@@ -2029,17 +2034,20 @@ function createSonicConnection(userIdA, userIdB) {
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
-  recordEncounter(userIdA, userIdB, phrase, encounterType);
+  recordEncounter(userIdA, userIdB, phrase, encounterType, relationId);
   saveDB();
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
   const zodiacPhrase = (isCheckin || isServiceTouch) ? null : getZodiacPhrase(signA, signB);
   const operatorUser = operatorId ? db.users[operatorId] : null;
+  // Check if operator requires reveal
+  const opRequireReveal = operatorUser && operatorUser.operatorSettings && operatorUser.operatorSettings.requireReveal;
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
     sonicMatch: true,
     isCheckin,
     isServiceTouch,
+    requireReveal: !!opRequireReveal,
     operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
     userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
     userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
@@ -2066,9 +2074,12 @@ function createSonicConnection(userIdA, userIdB) {
   // Notify operator dashboard if checkin
   if (isCheckin && operatorId) {
     const visitor = operatorId === userIdA ? userB : userA;
+    const visitorRevealed = !!(db.users[operatorId] && db.users[operatorId].canSee && db.users[operatorId].canSee[visitor.id]);
     io.to(`user:${operatorId}`).emit('checkin-created', {
       userId: visitor.id, nickname: visitor.nickname || visitor.name, color: visitor.color,
-      profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now
+      profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now,
+      relationId, revealed: visitorRevealed,
+      revealData: visitorRevealed ? db.users[operatorId].canSee[visitor.id] : null
     });
   }
 }
@@ -2500,13 +2511,31 @@ app.get('/operator', (req, res) => {
 app.get('/api/operator/checkins/:userId', (req, res) => {
   const userId = req.params.userId;
   const list = db.encounters[userId] || [];
+  const opUser = db.users[userId];
   const checkins = list.filter(e => e.type === 'checkin').map(e => ({
     with: e.with, withName: e.withName, withColor: e.withColor,
-    timestamp: e.timestamp, date: e.date,
-    revealed: !!(db.users[userId] && db.users[userId].canSee && db.users[userId].canSee[e.with])
+    timestamp: e.timestamp, date: e.date, relationId: e.relationId || null,
+    revealed: !!(opUser && opUser.canSee && opUser.canSee[e.with]),
+    revealData: (opUser && opUser.canSee && opUser.canSee[e.with]) ? opUser.canSee[e.with] : null
   }));
   checkins.sort((a, b) => b.timestamp - a.timestamp);
   res.json({ checkins, total: checkins.length });
+});
+
+// ═══ OPERATOR SETTINGS ═══
+app.get('/api/operator/settings/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user.operatorSettings || { requireReveal: false });
+});
+
+app.post('/api/operator/settings', (req, res) => {
+  const { userId, requireReveal } = req.body;
+  if (!userId || !db.users[userId]) return res.status(404).json({ error: 'User not found' });
+  if (!db.users[userId].operatorSettings) db.users[userId].operatorSettings = {};
+  db.users[userId].operatorSettings.requireReveal = !!requireReveal;
+  saveDB();
+  res.json({ ok: true, settings: db.users[userId].operatorSettings });
 });
 
 const PORT = process.env.PORT || 3000;
