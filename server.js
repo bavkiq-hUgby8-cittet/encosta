@@ -2000,7 +2000,16 @@ function createSonicConnection(userIdA, userIdB) {
   const userB = db.users[userIdB];
   if (!userA || !userB) return;
   const now = Date.now();
-  const phrase = randomPhrase();
+
+  // Check if either user is in checkin mode
+  const entryA = sonicQueue[userIdA];
+  const entryB = sonicQueue[userIdB];
+  const isCheckin = !!(entryA && entryA.isCheckin) || !!(entryB && entryB.isCheckin);
+  const operatorId = isCheckin ? (entryA && entryA.isCheckin ? userIdA : userIdB) : null;
+
+  const phrase = isCheckin ? 'Check-in realizado' : randomPhrase();
+  const encounterType = isCheckin ? 'checkin' : 'physical';
+
   const existing = Object.values(db.relations).find(r =>
     ((r.userA === userIdA && r.userB === userIdB) || (r.userA === userIdB && r.userB === userIdA)) && r.expiresAt > now
   );
@@ -2017,16 +2026,19 @@ function createSonicConnection(userIdA, userIdB) {
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
-  recordEncounter(userIdA, userIdB, phrase, 'physical');
+  recordEncounter(userIdA, userIdB, phrase, encounterType);
   saveDB();
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
-  const zodiacPhrase = getZodiacPhrase(signA, signB);
+  const zodiacPhrase = isCheckin ? null : getZodiacPhrase(signA, signB);
+  const operatorUser = operatorId ? db.users[operatorId] : null;
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing,
     sonicMatch: true,
-    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
+    isCheckin,
+    operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
+    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
   };
   // Clean both from queue
@@ -2034,6 +2046,14 @@ function createSonicConnection(userIdA, userIdB) {
   delete sonicQueue[userIdB];
   io.to(`user:${userIdA}`).emit('relation-created', responseData);
   io.to(`user:${userIdB}`).emit('relation-created', responseData);
+  // Notify operator dashboard if checkin
+  if (isCheckin && operatorId) {
+    const visitor = operatorId === userIdA ? userB : userA;
+    io.to(`user:${operatorId}`).emit('checkin-created', {
+      userId: visitor.id, nickname: visitor.nickname || visitor.name, color: visitor.color,
+      profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now
+    });
+  }
 }
 
 // Cleanup stale sonic entries every 30s
@@ -2164,10 +2184,10 @@ io.on('connection', (socket) => {
   });
 
   // Sonic connection — ultrasonic frequency matching
-  socket.on('sonic-start', ({ userId }) => {
+  socket.on('sonic-start', ({ userId, isCheckin }) => {
     if (!userId || !db.users[userId]) return;
     const freq = assignSonicFreq();
-    sonicQueue[userId] = { userId, freq, socketId: socket.id, joinedAt: Date.now() };
+    sonicQueue[userId] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin };
     socket.emit('sonic-assigned', { freq });
   });
 
