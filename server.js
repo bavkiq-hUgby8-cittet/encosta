@@ -1132,6 +1132,76 @@ app.get('/api/boarding-pass/:userId', (req, res) => {
   });
 });
 
+// ── Notifications / Activity Feed ──
+app.get('/api/notifications/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const notifs = [];
+  // 1. Who liked me (from likedBy array)
+  (user.likedBy || []).forEach(likerId => {
+    const liker = db.users[likerId];
+    if (!liker) return;
+    const iCanSee = user.canSee && user.canSee[likerId];
+    notifs.push({
+      type: 'like',
+      fromId: likerId,
+      nickname: liker.nickname || liker.name,
+      realName: iCanSee ? (liker.realName || null) : null,
+      profilePhoto: iCanSee ? (liker.profilePhoto || liker.photoURL || null) : null,
+      color: liker.color,
+      timestamp: Date.now()
+    });
+  });
+  // 2. Stars received
+  (user.stars || []).forEach(star => {
+    const giver = db.users[star.from];
+    if (!giver) return;
+    const iCanSee = user.canSee && user.canSee[star.from];
+    notifs.push({
+      type: 'star',
+      fromId: star.from,
+      nickname: giver.nickname || giver.name,
+      realName: iCanSee ? (giver.realName || null) : null,
+      profilePhoto: iCanSee ? (giver.profilePhoto || giver.photoURL || null) : null,
+      color: giver.color,
+      timestamp: star.at || Date.now()
+    });
+  });
+  // 3. Reveal requests received (pending)
+  Object.values(db.revealRequests || {}).forEach(rr => {
+    if (rr.toUserId === userId && rr.status === 'pending') {
+      const from = db.users[rr.fromUserId];
+      if (!from) return;
+      notifs.push({
+        type: 'reveal-request',
+        fromId: rr.fromUserId,
+        nickname: from.nickname || from.name,
+        color: from.color,
+        requestId: rr.id,
+        timestamp: rr.createdAt || Date.now()
+      });
+    }
+  });
+  // 4. People who revealed to me (canSee entries)
+  Object.entries(user.canSee || {}).forEach(([pid, data]) => {
+    const p = db.users[pid];
+    if (!p) return;
+    notifs.push({
+      type: 'identity-revealed',
+      fromId: pid,
+      nickname: p.nickname || p.name,
+      realName: data.realName || null,
+      profilePhoto: data.profilePhoto || null,
+      color: p.color,
+      timestamp: data.revealedAt || Date.now()
+    });
+  });
+  // Sort by timestamp desc
+  notifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  res.json({ notifications: notifs.slice(0, 50) });
+});
+
 // Selfie for relation
 app.post('/api/selfie/:relationId', (req, res) => {
   const { userId, selfieData } = req.body;
