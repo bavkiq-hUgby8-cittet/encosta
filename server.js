@@ -883,15 +883,22 @@ app.post('/api/session/join', (req, res) => {
   const userA = db.users[session.userA], userB = db.users[session.userB];
   const now = Date.now();
 
-  // Check renewal
+  const isSessionCheckin = !!session.isCheckin;
+  const sessionEventId = session.eventId || null;
+  const sessionOperatorId = session.operatorId || null;
+
+  // For check-ins: relation is between VISITOR and EVENT (not operator)
+  const codeVisitorId = isSessionCheckin ? userId : null;
+  const relA = isSessionCheckin && sessionEventId ? codeVisitorId : session.userA;
+  const relB = isSessionCheckin && sessionEventId ? ('evt:' + sessionEventId) : userId;
+
   const existing = Object.values(db.relations).find(r =>
-    ((r.userA === session.userA && r.userB === userId) || (r.userA === userId && r.userB === session.userA)) && r.expiresAt > now
+    ((r.userA === relA && r.userB === relB) || (r.userA === relB && r.userB === relA)) && r.expiresAt > now
   );
 
   let relationId, phrase, expiresAt;
-  // Phrase: service/checkin get fixed phrases
   const getPhrase = () => {
-    if (session.isCheckin) return 'Check-in realizado';
+    if (isSessionCheckin) return 'Check-in realizado';
     if (session.isServiceTouch) return 'Serviço realizado';
     return randomPhrase();
   };
@@ -905,47 +912,77 @@ app.post('/api/session/join', (req, res) => {
   } else {
     phrase = getPhrase();
     relationId = uuidv4();
-    db.relations[relationId] = { id: relationId, userA: session.userA, userB: userId, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
+    db.relations[relationId] = { id: relationId, userA: relA, userB: relB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: sessionEventId, isEventCheckin: isSessionCheckin && !!sessionEventId };
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
 
-  // Record encounter trace
-  const encounterType = session.isCheckin ? 'checkin' : (session.isServiceTouch ? 'service' : 'physical');
-  recordEncounter(session.userA, userId, phrase, encounterType);
+  // Record encounter — for check-ins, record with event not operator
+  const encounterType = isSessionCheckin ? 'checkin' : (session.isServiceTouch ? 'service' : 'physical');
+  if (isSessionCheckin && sessionEventId && codeVisitorId) {
+    const evObj = db.operatorEvents[sessionEventId];
+    const evName = evObj ? evObj.name : 'Evento';
+    if (!db.encounters[codeVisitorId]) db.encounters[codeVisitorId] = [];
+    db.encounters[codeVisitorId].push({ with: 'evt:' + sessionEventId, withName: evName, withColor: '#60a5fa', phrase, timestamp: now, date: new Date(now).toISOString().slice(0,10), type: 'checkin', points: 1, chatDurationH: 24, relationId, isEvent: true });
+    awardPoints(codeVisitorId, null, 'checkin');
+    // Add to event participants
+    if (evObj && !evObj.participants.includes(codeVisitorId)) {
+      evObj.participants.push(codeVisitorId);
+      evObj.checkinCount = evObj.participants.length;
+    }
+  } else {
+    recordEncounter(session.userA, userId, phrase, encounterType);
+  }
   session.relationId = relationId;
   saveDB();
 
-  // Zodiac
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
-  const zodiacPhrase = getZodiacPhrase(signA, signB);
+  const zodiacPhrase = (isSessionCheckin || session.isServiceTouch) ? null : getZodiacPhrase(signA, signB);
   const zodiacInfoA = signA ? ZODIAC_INFO[signA] : null;
   const zodiacInfoB = signB ? ZODIAC_INFO[signB] : null;
 
-  const operatorUser = session.isCheckin ? db.users[session.operatorId] : null;
+  const operatorUser = isSessionCheckin ? db.users[sessionOperatorId] : null;
   const opRequireRevealJoin = operatorUser && operatorUser.operatorSettings && operatorUser.operatorSettings.requireReveal;
-  const responseData = {
-    relationId, phrase, expiresAt, renewed: !!existing,
-    isServiceTouch: !!session.isServiceTouch,
-    isCheckin: !!session.isCheckin,
-    requireReveal: !!opRequireRevealJoin,
-    operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
-    userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-    userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
-    zodiacPhrase
-  };
+  const sessionEventObj = sessionEventId ? db.operatorEvents[sessionEventId] : null;
+
+  let responseData;
+  if (isSessionCheckin && sessionEventId) {
+    // Visitor gets event data, not operator data
+    responseData = {
+      relationId, phrase, expiresAt, renewed: !!existing,
+      isServiceTouch: false, isCheckin: true,
+      eventId: sessionEventId, eventName: sessionEventObj ? sessionEventObj.name : 'Evento',
+      requireReveal: !!opRequireRevealJoin,
+      operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
+      entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
+      userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
+      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true },
+      zodiacPhrase: null
+    };
+  } else {
+    responseData = {
+      relationId, phrase, expiresAt, renewed: !!existing,
+      isServiceTouch: !!session.isServiceTouch, isCheckin: false,
+      requireReveal: !!opRequireRevealJoin,
+      operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
+      userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+      userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
+      zodiacPhrase
+    };
+  }
 
   io.to(`session:${session.id}`).emit('relation-created', responseData);
-  // Emit to operator if this is a checkin
-  if (session.isCheckin && session.operatorId) {
-    const opUser = db.users[session.operatorId];
+  // Emit to operator if this is a checkin (operator only gets dashboard notification)
+  if (isSessionCheckin && sessionOperatorId) {
+    const opUser = db.users[sessionOperatorId];
     const visRevealed = !!(opUser && opUser.canSee && opUser.canSee[userId]);
-    io.to(`user:${session.operatorId}`).emit('checkin-created', {
+    io.to(`user:${sessionOperatorId}`).emit('checkin-created', {
       userId, nickname: userB.nickname || userB.name, color: userB.color,
       profilePhoto: userB.profilePhoto || userB.photoURL || null,
       timestamp: now, relationId,
-      revealed: visRevealed, revealData: visRevealed ? opUser.canSee[userId] : null
+      revealed: visRevealed, revealData: visRevealed ? opUser.canSee[userId] : null,
+      eventId: sessionEventId || null
     });
   }
   res.json({ sessionId: session.id, ...responseData });
@@ -955,18 +992,19 @@ app.get('/api/relations/:userId', (req, res) => {
   const userId = req.params.userId, now = Date.now();
   const active = Object.values(db.relations).filter(r => (r.userA === userId || r.userB === userId) && r.expiresAt > now);
   const results = active.map(r => {
-    const pid = r.userA === userId ? r.userB : r.userA, p = db.users[pid];
+    const pid = r.userA === userId ? r.userB : r.userA;
+    // Check if partner is an event (evt:xxx)
+    const isEvent = !!r.isEventCheckin || (typeof pid === 'string' && pid.startsWith('evt:'));
+    const evtId = isEvent ? (r.eventId || pid.replace('evt:', '')) : r.eventId;
+    const evObj = evtId ? db.operatorEvents[evtId] : null;
+    const p = isEvent ? null : db.users[pid];
     const me = db.users[userId];
-    // UNILATERAL: canSee check
-    const isRevealed = !!(me?.canSee?.[pid]); // I can see them (they revealed to me)
-    const iRevealed = !!(p?.canSee?.[userId]); // They can see me (I revealed to them)
-    // Get last message time and unread count for this relation
+    // UNILATERAL: canSee check (only for person relations)
+    const isRevealed = !isEvent && !!(me?.canSee?.[pid]);
+    const iRevealed = !isEvent && !!(p?.canSee?.[userId]);
     const msgs = db.messages[r.id] || [];
     const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
     const lastMessageTime = lastMsg ? lastMsg.timestamp : r.createdAt || 0;
-    // For event relations, show event name as partner
-    const isEvent = !!r.eventId;
-    const evObj = isEvent ? db.operatorEvents[r.eventId] : null;
     return { ...r,
       partnerName: isEvent ? (evObj?.name || r.eventName || 'Evento') : (p?.nickname || p?.name || '?'),
       partnerColor: isEvent ? '#60a5fa' : (p?.color || '#ff6b35'),
@@ -974,10 +1012,10 @@ app.get('/api/relations/:userId', (req, res) => {
       partnerPhoto: isEvent ? null : (isRevealed ? (p?.profilePhoto || p?.photoURL || null) : null),
       partnerRealName: isEvent ? null : (isRevealed ? (p?.realName || null) : null),
       partnerNickname: isEvent ? (evObj?.name || 'Evento') : (p?.nickname || '?'),
-      iRevealedToPartner: !!iRevealed,
+      iRevealedToPartner: isEvent ? false : !!iRevealed,
       partnerRevealedToMe: isEvent ? false : !!isRevealed,
       isEvent,
-      eventId: r.eventId || null,
+      eventId: evtId || null,
       eventName: isEvent ? (evObj?.name || r.eventName || null) : null,
       lastMessageTime,
       lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').slice(0, 40)) : null,
@@ -1029,9 +1067,11 @@ app.get('/api/today/:userId', (req, res) => {
 app.get('/api/constellation/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
   if (!list.length) return res.json({ nodes: [], total: 0 });
-  // Group by person
+  // Group by person (skip event encounters — they become event nodes)
   const byPerson = {};
   list.forEach(e => {
+    // Skip event encounters — handled separately as event nodes
+    if (e.isEvent || (typeof e.with === 'string' && e.with.startsWith('evt:'))) return;
     if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0, lastSelfie: null };
     byPerson[e.with].encounters++;
     if (e.tipAmount && e.tipStatus === 'approved') { byPerson[e.with].tipsGiven++; byPerson[e.with].tipsTotal += e.tipAmount; }
@@ -2087,8 +2127,13 @@ function createSonicConnection(userIdA, userIdB) {
   const phrase = isCheckin ? 'Check-in realizado' : (isServiceTouch ? 'Serviço realizado' : randomPhrase());
   const encounterType = isCheckin ? 'checkin' : (isServiceTouch ? 'service' : 'physical');
 
+  // For check-ins: relation is between VISITOR and EVENT (not operator personally)
+  const visitorId = isCheckin && operatorId ? (operatorId === userIdA ? userIdB : userIdA) : null;
+  const relPartnerA = isCheckin && eventId ? visitorId : userIdA;
+  const relPartnerB = isCheckin && eventId ? ('evt:' + eventId) : userIdB;
+
   const existing = Object.values(db.relations).find(r =>
-    ((r.userA === userIdA && r.userB === userIdB) || (r.userA === userIdB && r.userB === userIdA)) && r.expiresAt > now
+    ((r.userA === relPartnerA && r.userB === relPartnerB) || (r.userA === relPartnerB && r.userB === relPartnerA)) && r.expiresAt > now
   );
   let relationId, expiresAt;
   if (existing) {
@@ -2099,11 +2144,21 @@ function createSonicConnection(userIdA, userIdB) {
     expiresAt = existing.expiresAt;
   } else {
     relationId = uuidv4();
-    db.relations[relationId] = { id: relationId, userA: userIdA, userB: userIdB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: eventId || null, eventName: (eventId && db.operatorEvents[eventId]) ? db.operatorEvents[eventId].name : null };
+    db.relations[relationId] = { id: relationId, userA: relPartnerA, userB: relPartnerB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: eventId || null, eventName: (eventId && db.operatorEvents[eventId]) ? db.operatorEvents[eventId].name : null, isEventCheckin: isCheckin && !!eventId };
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
-  recordEncounter(userIdA, userIdB, phrase, encounterType, relationId);
+  // For check-ins, record encounter with event virtual ID, NOT with operator
+  if (isCheckin && eventId && visitorId) {
+    const evObj = db.operatorEvents[eventId];
+    const evName = evObj ? evObj.name : 'Evento';
+    if (!db.encounters[visitorId]) db.encounters[visitorId] = [];
+    db.encounters[visitorId].push({ with: 'evt:' + eventId, withName: evName, withColor: '#60a5fa', phrase, timestamp: now, date: new Date(now).toISOString().slice(0,10), type: 'checkin', points: 1, chatDurationH: 24, relationId, isEvent: true });
+    // Award points to visitor only
+    awardPoints(visitorId, null, 'checkin');
+  } else {
+    recordEncounter(userIdA, userIdB, phrase, encounterType, relationId);
+  }
   saveDB();
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
@@ -2112,25 +2167,41 @@ function createSonicConnection(userIdA, userIdB) {
   // Check if operator requires reveal
   const opRequireReveal = operatorUser && operatorUser.operatorSettings && operatorUser.operatorSettings.requireReveal;
   const eventObj = eventId ? db.operatorEvents[eventId] : null;
-  const responseData = {
-    relationId, phrase, expiresAt, renewed: !!existing,
-    sonicMatch: true,
-    isCheckin,
-    isServiceTouch,
-    eventId: eventId || null,
-    eventName: eventObj ? eventObj.name : null,
-    requireReveal: !!opRequireReveal,
-    operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
-    entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
-    userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-    userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
-    zodiacPhrase
-  };
+  // For check-ins, visitor sees event info, NOT operator personal data
+  let responseData;
+  if (isCheckin && eventId && visitorId) {
+    const visitorUser = visitorId === userIdA ? userA : userB;
+    const vSign = getZodiacSign(visitorUser.birthdate);
+    responseData = {
+      relationId, phrase, expiresAt, renewed: !!existing,
+      sonicMatch: true, isCheckin: true, isServiceTouch: false,
+      eventId, eventName: eventObj ? eventObj.name : null,
+      requireReveal: !!opRequireReveal,
+      operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
+      entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
+      // userA = visitor, userB = event (virtual)
+      userA: { id: visitorUser.id, name: visitorUser.nickname || visitorUser.name, color: visitorUser.color, profilePhoto: visitorUser.profilePhoto || null, photoURL: visitorUser.photoURL || null, score: calcScore(visitorUser.id), stars: (visitorUser.stars || []).length, sign: vSign, signInfo: vSign ? ZODIAC_INFO[vSign] : null, isPrestador: !!visitorUser.isPrestador, serviceLabel: visitorUser.serviceLabel || '' },
+      userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true },
+      zodiacPhrase: null
+    };
+  } else {
+    responseData = {
+      relationId, phrase, expiresAt, renewed: !!existing,
+      sonicMatch: true, isCheckin, isServiceTouch,
+      eventId: eventId || null, eventName: eventObj ? eventObj.name : null,
+      requireReveal: !!opRequireReveal,
+      operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
+      entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
+      userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
+      userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
+      zodiacPhrase
+    };
+  }
   // Clean both from queue (but NOT the operator — they stay for continuous check-ins)
   if (isCheckin && operatorId) {
     // Only remove the visitor, operator stays with same freq
-    const visitorId = operatorId === userIdA ? userIdB : userIdA;
-    delete sonicQueue[visitorId];
+    const checkinVisitorId = operatorId === userIdA ? userIdB : userIdA;
+    delete sonicQueue[checkinVisitorId];
     // Reset operator's joinedAt so the 10min cleanup timer doesn't expire (use queueKey for 'evt:' keys)
     const opQueueKey = operatorEntry ? operatorEntry.queueKey : operatorId;
     if (sonicQueue[opQueueKey]) {
@@ -2148,11 +2219,18 @@ function createSonicConnection(userIdA, userIdB) {
     delete sonicQueue[userIdA];
     delete sonicQueue[userIdB];
   }
-  io.to(`user:${userIdA}`).emit('relation-created', responseData);
-  io.to(`user:${userIdB}`).emit('relation-created', responseData);
-  // Emit sonic-matched so operator dashboard can re-register if needed
-  io.to(`user:${userIdA}`).emit('sonic-matched', { withUser: userIdB });
-  io.to(`user:${userIdB}`).emit('sonic-matched', { withUser: userIdA });
+  if (isCheckin && operatorId && visitorId) {
+    // Only emit to VISITOR (operator doesn't get personal relation, only checkin-created)
+    io.to(`user:${visitorId}`).emit('relation-created', responseData);
+    io.to(`user:${visitorId}`).emit('sonic-matched', { withUser: 'evt:' + eventId });
+    // Operator gets sonic-matched so dashboard re-registers
+    io.to(`user:${operatorId}`).emit('sonic-matched', { withUser: visitorId });
+  } else {
+    io.to(`user:${userIdA}`).emit('relation-created', responseData);
+    io.to(`user:${userIdB}`).emit('relation-created', responseData);
+    io.to(`user:${userIdA}`).emit('sonic-matched', { withUser: userIdB });
+    io.to(`user:${userIdB}`).emit('sonic-matched', { withUser: userIdA });
+  }
   // Notify operator dashboard if checkin
   if (isCheckin && operatorId) {
     const visitor = operatorId === userIdA ? userB : userA;
