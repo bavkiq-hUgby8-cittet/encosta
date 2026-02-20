@@ -959,6 +959,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="home" class="screen">
+  <!-- Floating event button (persistent while event active) -->
+  <div id="floatingEventBtn" style="display:none;position:absolute;bottom:180px;left:50%;transform:translateX(-50%);z-index:20;padding:.6rem 1.2rem;background:rgba(96,165,250,.15);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.3);border-radius:20px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
+    <span style="font-size:.75rem;font-weight:600;color:#60a5fa">📍 <span id="floatingEventName"></span> · Ver quem está</span>
+  </div>
   <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
   <div class="ptr-indicator" id="ptrIndicator"><div class="ptr-spinner"></div></div>
   <div class="fire-overlay" id="fireOverlay">
@@ -1156,6 +1160,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="history" class="screen">
   <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Constelação</h2></div>
+  <div style="display:flex;gap:.4rem;padding:0 1rem .3rem;justify-content:center">
+    <button class="const-filter-btn active" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">👤 Pessoas</button>
+    <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">📍 Eventos</button>
+  </div>
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge hidden" id="constNotifBadge">0</span></div>
@@ -1351,6 +1359,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
   <div style="flex:1;position:relative;overflow:hidden;background:#050508">
     <canvas id="evCanvas" style="width:100%;height:100%"></canvas>
+    <!-- Leave event button -->
+    <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Saí do evento</button>
   </div>
 </div>
 
@@ -1819,9 +1829,72 @@ function renderEvCanvas(){
 
 function closeEventView(){
   if(evViewAnim){cancelAnimationFrame(evViewAnim);evViewAnim=null}
+  const savedId=evViewEventId;
+  const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evViewCtx=null;
   if(socket){socket.off('event-attendee-joined');socket.off('event-ended')}
+  // Persist active event in localStorage for floating button
+  if(savedId){
+    localStorage.setItem('activeEventId',savedId);
+    localStorage.setItem('activeEventName',savedName);
+    showFloatingEventBtn(savedId,savedName);
+  }
   goHome();
+}
+
+function showFloatingEventBtn(eventId,eventName){
+  const btn=$('floatingEventBtn');if(!btn)return;
+  $('floatingEventName').textContent=eventName;
+  btn.style.display='';
+  btn._eventId=eventId;btn._eventName=eventName;
+  // Listen for event-ended to auto-hide
+  if(socket){
+    socket.off('event-ended-floating');
+    socket.on('event-ended',function onEnded(d){
+      if(d.eventId===eventId){
+        hideFloatingEventBtn();
+        showToast('O evento '+esc(eventName)+' foi encerrado');
+        socket.off('event-ended',onEnded);
+      }
+    });
+  }
+}
+
+function hideFloatingEventBtn(){
+  const btn=$('floatingEventBtn');if(btn)btn.style.display='none';
+  localStorage.removeItem('activeEventId');
+  localStorage.removeItem('activeEventName');
+}
+
+function reopenEventView(){
+  const btn=$('floatingEventBtn');
+  const eventId=btn?._eventId||localStorage.getItem('activeEventId');
+  const eventName=btn?._eventName||localStorage.getItem('activeEventName')||'Evento';
+  if(eventId){
+    btn.style.display='none';
+    showEventView(eventId,eventName);
+  }
+}
+
+async function leaveEvent(){
+  const eventId=evViewEventId||localStorage.getItem('activeEventId');
+  if(!eventId){closeEventView();return}
+  try{
+    await fetch('/api/operator/event/'+eventId+'/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+  }catch(e){}
+  hideFloatingEventBtn();
+  if(evViewAnim){cancelAnimationFrame(evViewAnim);evViewAnim=null}
+  evViewEventId=null;evNodes.length=0;evViewCtx=null;
+  if(socket){socket.off('event-attendee-joined');socket.off('event-ended')}
+  showToast('Você saiu do evento');
+  goHome();
+}
+
+// Restore floating event button on page load
+function restoreFloatingEvent(){
+  const eventId=localStorage.getItem('activeEventId');
+  const eventName=localStorage.getItem('activeEventName');
+  if(eventId&&eventName)showFloatingEventBtn(eventId,eventName);
 }
 
 // ── Request accelerometer permission (iOS requires user gesture) ──
@@ -2671,14 +2744,17 @@ function doReveal(data){
     lastEl.classList.add('hidden');
     startRevealLight('#34d399');
   }else if(isCheckin){
-    // ── CHECK-IN REVEAL ──
-    const opName=data.operatorName||them.name||'Estabelecimento';
+    // ── CHECK-IN REVEAL — show EVENT, not operator ──
+    const evName=data.eventName||data.operatorName||them.name||'Evento';
+    // Override "them" avatar to show event icon
+    $('rvAvatarThemInner').innerHTML='<div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 0 20px rgba(96,165,250,.3)">📍</div>';
+    $('rvNameThem').textContent=evName;
     moment.textContent='Check-in';
     moment.style.color='#60a5fa';
     const badge=document.createElement('div');
     badge.className='rv-service-badge';
     badge.style.borderColor='rgba(96,165,250,.3)';badge.style.background='rgba(96,165,250,.08)';badge.style.color='#60a5fa';
-    badge.innerHTML='📍 '+esc(opName);
+    badge.innerHTML='📍 Check-in em '+esc(evName);
     moment.after(badge);
     phraseEl.innerHTML='';phraseEl.style.display='none';
     if(subEl)subEl.style.display='none';
@@ -2808,12 +2884,16 @@ async function openChat(rel){
   state.currentRelation=rel;pulseSent=false;
   const pb=$('pulseBtn');if(pb)pb.style.opacity='1';
   const partner=(rel.userA?.id===state.userId)?rel.userB:rel.userA;
-  const pNick=partner?.nickname||rel.partnerName||'Pessoa';
-  const pRealName=partner?.realName||null;
+  const isEventRel=!!(rel.isEvent||rel.eventId);
+  const pNick=isEventRel?(rel.eventName||rel.partnerName||'Evento'):(partner?.nickname||rel.partnerName||'Pessoa');
+  const pRealName=isEventRel?null:(partner?.realName||null);
   const pName=pRealName||pNick;
   state.currentPartnerId=partner?.id||rel.partnerId||null;
-  // Show real name with indicator, or just nickname
-  if(pRealName&&pRealName!==pNick){
+  // Event-type chat: show event info
+  if(isEventRel){
+    $('chatPartner').textContent=pNick;
+    $('chatSub').innerHTML='<span style="color:#60a5fa">📍 Chat da organização</span> · '+esc(pNick);
+  }else if(pRealName&&pRealName!==pNick){
     $('chatPartner').textContent=pRealName;
     $('chatSub').innerHTML='<span style="color:var(--ok)">✓ ID revelado</span> · @'+esc(pNick);
   }else{
@@ -3091,12 +3171,21 @@ async function showRelations(){
       const h=Math.floor(r.timeLeft/3600000),m=Math.floor((r.timeLeft%3600000)/60000);
       let tc='ok';if(r.timeLeft<3600000)tc='low';else if(r.timeLeft<43200000)tc='med';
       const card=document.createElement('div');card.className='rc';card.style.animationDelay=(idx*0.06)+'s';card.style.animation='mi .35s ease '+(idx*0.06)+'s both';
-      const pColor=r.partnerColor||nickColor(r.partnerName||'??');
+      const isEventRel=!!(r.isEvent||r.eventId);
+      const pColor=isEventRel?'#60a5fa':(r.partnerColor||nickColor(r.partnerName||'??'));
       const timeLabel=tc==='low'?'expirando':'restante';
-      const displayName=r.partnerRealName||r.partnerName;
-      const isRevealed=r.partnerRealName&&r.partnerRealName!==r.partnerName;
-      const photoHtml=r.partnerPhoto?'<div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12)"><img src="'+r.partnerPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>':makeAvatar(r.partnerName,pColor,48);
-      const nameHtml='<div class="rn">'+esc(displayName)+(isRevealed?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>'+(isRevealed?'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">@'+esc(r.partnerName)+'</div>':'');
+      let displayName,nameHtml,photoHtml;
+      if(isEventRel){
+        // Event relation: show event icon and name
+        displayName=r.eventName||r.partnerName||'Evento';
+        photoHtml='<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;box-shadow:0 0 12px rgba(96,165,250,.2)">📍</div>';
+        nameHtml='<div class="rn" style="color:#60a5fa">'+esc(displayName)+'</div><div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">evento</div>';
+      }else{
+        displayName=r.partnerRealName||r.partnerName;
+        const isRevealed=r.partnerRealName&&r.partnerRealName!==r.partnerName;
+        photoHtml=r.partnerPhoto?'<div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12)"><img src="'+r.partnerPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>':makeAvatar(r.partnerName,pColor,48);
+        nameHtml='<div class="rn">'+esc(displayName)+(isRevealed?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>'+(isRevealed?'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">@'+esc(r.partnerName)+'</div>':'');
+      }
       // Unread count for this relation
       const lastRead=parseInt(localStorage.getItem('lastRead_'+r.id)||'0');
       const unreadCount=(r.lastMessageTime&&r.lastMessageUserId&&r.lastMessageUserId!==state.userId&&r.lastMessageTime>lastRead)?1:0;
@@ -3104,8 +3193,9 @@ async function showRelations(){
       const previewHtml=r.lastMessagePreview?'<div class="rp-preview">'+esc(r.lastMessagePreview)+'</div>':'<div class="rp">"'+esc(r.phrase)+'"</div>';
       const unreadBadge=unreadCount>0?'<div class="rc-unread"></div>':'';
       card.innerHTML=photoHtml+'<div class="ri">'+nameHtml+previewHtml+'</div><div class="rtm-wrap">'+unreadBadge+'<div class="rtm '+tc+'">'+h+'h '+m+'m</div><div class="rtm-label">'+timeLabel+'</div></div>';
+      if(isEventRel){card.style.borderColor='rgba(96,165,250,.15)'}
       const rpid=r.userA===state.userId?r.userB:r.userA;
-      card.addEventListener('click',()=>openChat({relationId:r.id,phrase:r.phrase,expiresAt:r.expiresAt,partnerName:r.partnerName,partnerId:rpid,iRevealedToPartner:r.iRevealedToPartner,partnerRevealedToMe:r.partnerRevealedToMe,userA:{id:r.userA,nickname:r.userA===state.userId?state.userName:r.partnerName,realName:r.userA===state.userId?null:r.partnerRealName},userB:{id:r.userB,nickname:r.userB===state.userId?state.userName:r.partnerName,realName:r.userB===state.userId?null:r.partnerRealName}}));
+      card.addEventListener('click',()=>openChat({relationId:r.id,phrase:r.phrase,expiresAt:r.expiresAt,partnerName:isEventRel?(r.eventName||r.partnerName):r.partnerName,partnerId:rpid,isEvent:isEventRel,eventId:r.eventId,eventName:r.eventName,iRevealedToPartner:r.iRevealedToPartner,partnerRevealedToMe:r.partnerRevealedToMe,userA:{id:r.userA,nickname:r.userA===state.userId?state.userName:r.partnerName,realName:r.userA===state.userId?null:r.partnerRealName},userB:{id:r.userB,nickname:r.userB===state.userId?state.userName:r.partnerName,realName:r.userB===state.userId?null:r.partnerRealName}}));
       list.appendChild(card);
     })}
     showScreen('relations');
@@ -3113,6 +3203,18 @@ async function showRelations(){
 }
 
 // ═══ CONSTELLATION ═══
+let constFilter='people'; // 'people' or 'events'
+function setConstFilter(f){
+  constFilter=f;
+  const bp=$('constFilterPeople'),be=$('constFilterEvents');
+  if(f==='people'){
+    bp.style.background='rgba(99,102,241,.15)';bp.style.borderColor='rgba(99,102,241,.3)';bp.style.color='#a78bfa';
+    be.style.background='rgba(255,255,255,.04)';be.style.borderColor='rgba(255,255,255,.08)';be.style.color='var(--t3)';
+  }else{
+    be.style.background='rgba(96,165,250,.15)';be.style.borderColor='rgba(96,165,250,.3)';be.style.color='#60a5fa';
+    bp.style.background='rgba(255,255,255,.04)';bp.style.borderColor='rgba(255,255,255,.08)';bp.style.color='var(--t3)';
+  }
+}
 let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,animFrame:null,selectedNode:null,
   fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0};
 const CONST_FEEDBACK=['Um novo ponto surgiu.','Sua rede cresceu hoje.','Um encontro deixou rastro.','Um elo foi reforçado.','Algo ficou marcado.','A constelação se expandiu.'];
@@ -3382,7 +3484,12 @@ function initConstCanvas(){
     constState._mcx=mcx;constState._mcy=mcy;
 
     const FP_FOV=180; // wider FOV for immersive fan-out
-    const projected=constState.nodes.map(n=>{
+    // Filter nodes by constellation filter
+    const filteredNodes=constState.nodes.filter(n=>{
+      if(constFilter==='events')return !!n.isEvent;
+      return !n.isEvent;
+    });
+    const projected=filteredNodes.map(n=>{
       if(fpBlend<0.01){
         // Pure normal mode
         const p=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
@@ -3454,8 +3561,8 @@ function initConstCanvas(){
       const r=Math.min(rawR,MAX_NODE_R);
       if(r<0.5)return; // too small to see
       const theyRevealedToMe=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
-      const ringColor=theyRevealedToMe?'#00dc82':'#ff4466';
-      const glowRGB=theyRevealedToMe?'0,220,130':'255,68,102';
+      const ringColor=n.isEvent?'#60a5fa':(theyRevealedToMe?'#00dc82':'#ff4466');
+      const glowRGB=n.isEvent?'96,165,250':(theyRevealedToMe?'0,220,130':'255,68,102');
       // Depth-based opacity: close nodes=bright, far nodes=dim
       const depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
 
@@ -3466,8 +3573,20 @@ function initConstCanvas(){
       glow.addColorStop(0,'rgba('+glowRGB+','+(0.06+n.intensity*.1).toFixed(2)+')');glow.addColorStop(1,'transparent');
       ctx.beginPath();ctx.arc(sx,sy,glowR,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
 
-      // Node body: photo if revealed, initials if not
-      if(n._revealed&&n._imgLoaded&&n._img&&r>4){
+      // Node body: event icon, photo if revealed, or initials
+      if(n.isEvent){
+        // Event node: blue gradient with pin icon
+        ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
+        const evGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
+        evGrad.addColorStop(0,'rgba(96,165,250,0.7)');evGrad.addColorStop(1,'rgba(59,130,246,0.3)');
+        ctx.fillStyle=evGrad;ctx.fill();
+        if(r>5){
+          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';
+          ctx.font=Math.max(6,Math.min(14,r*0.9))+'px sans-serif';
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('📍',sx,sy);
+        }
+      }else if(n._revealed&&n._imgLoaded&&n._img&&r>4){
         drawCroppedImage(n._img,sx,sy,r);
       }else{
         ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
@@ -3651,11 +3770,28 @@ function exitConstFP(){
 }
 function showConstDetail(node){
   constState.selectedNode=node;
+  // Event nodes: special detail card
+  if(node.isEvent){
+    window._constDetailNodeId=node.id;
+    const av=$('cdAvatar');
+    av.innerHTML='';av.textContent='📍';av.style.background='linear-gradient(135deg,#3b82f6,#60a5fa)';av.style.fontSize='1.4rem';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
+    $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>';
+    $('cdAlias').textContent='evento';$('cdAlias').style.display='';
+    const statsEl=$('cdStats');
+    statsEl.innerHTML='<div class="cd-stat"><div class="cd-stat-val">'+(node.encounters||0)+'</div><div class="cd-stat-lbl">check-ins</div></div>';
+    const metaEl=$('cdMeta');
+    const lastD=node.lastDate?new Date(node.lastDate):null;
+    metaEl.innerHTML=lastD?'<div class="cd-time"><span>🕐 '+timeAgo(lastD)+'</span></div>':'';
+    $('cdActions').innerHTML='';
+    $('constDetail').classList.add('visible');
+    return;
+  }
   const theyRevealed=!!node.partnerRevealedToMe;
   const iRevealed=!!node.iRevealedToPartner;
   window._constDetailNodeId=node.id;
   // Avatar
   const av=$('cdAvatar');
+  av.style.fontSize='';av.style.display='';av.style.alignItems='';av.style.justifyContent='';
   if(theyRevealed&&node.profilePhoto){
     av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="">';av.style.background=node.color;
   }else{
@@ -5535,7 +5671,7 @@ window.addEventListener('load',()=>{
       const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
       if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
       else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
-      refreshHome();
+      refreshHome();restoreFloatingEvent();
     }else{
       // Show onboarding for first-time users, login for returning
       if(!localStorage.getItem('touch_onboarded')){

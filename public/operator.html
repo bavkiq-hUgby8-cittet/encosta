@@ -88,6 +88,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .be.energized::after{animation:sonic-waves 1s ease-out infinite}
 .be.energized .be-text{animation:sonic-text .8s ease infinite alternate}
 .be.connected{background:radial-gradient(circle at 35% 35%,#34d399,#10b981 50%,#059669)!important;box-shadow:0 0 80px rgba(52,211,153,.5)!important;animation:bump-hit .5s ease!important}
+/* Event-mode TOUCH button — blue + semi-transparent */
+.be.event-mode{background:rgba(96,165,250,.25)!important;backdrop-filter:blur(8px);border:2px solid rgba(96,165,250,.4);box-shadow:0 0 40px rgba(96,165,250,.15),0 0 80px rgba(96,165,250,.06),inset 0 1px 0 rgba(255,255,255,.1)}
+.be.event-mode::before{background:conic-gradient(from 0deg,#60a5fa,#818cf8,#a78bfa,#60a5fa)}
+.be.event-mode::after{background:radial-gradient(circle,rgba(96,165,250,.08),transparent 70%)}
+.be.event-mode.energized{animation:sonic-energy-ev .6s ease-in-out infinite alternate;box-shadow:0 0 50px rgba(96,165,250,.25),0 0 100px rgba(96,165,250,.1),0 0 180px rgba(129,140,248,.06)!important}
+@keyframes sonic-energy-ev{0%{transform:scale(1);box-shadow:0 0 50px rgba(96,165,250,.25),0 0 100px rgba(96,165,250,.1)}100%{transform:scale(1.04);box-shadow:0 0 70px rgba(96,165,250,.3),0 0 130px rgba(96,165,250,.15),0 0 220px rgba(129,140,248,.08)}}
 @keyframes bb{0%,100%{opacity:.3}50%{opacity:.6}}
 @keyframes rs{to{transform:rotate(360deg)}}
 @keyframes sonic-energy{0%{transform:scale(1);box-shadow:0 0 60px var(--gw2),0 0 120px rgba(255,107,53,.15)}100%{transform:scale(1.04);box-shadow:0 0 80px var(--gw2),0 0 150px rgba(255,107,53,.2),0 0 250px rgba(255,61,113,.08)}}
@@ -255,6 +261,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <label class="op-login-label">Nome do novo evento</label>
       <input class="op-login-input" id="opNewEventName" type="text" placeholder="Ex: Festa de Verão, Happy Hour" maxlength="40">
     </div>
+    <div class="op-login-field">
+      <label class="op-login-label">Tipo de serviço (opcional)</label>
+      <select class="op-login-input" id="opServiceType" style="cursor:pointer">
+        <option value="">Sem serviço</option>
+        <option value="bar">🍺 Bar / Drinks</option>
+        <option value="dj">🎵 DJ / Música</option>
+        <option value="food">🍕 Comida</option>
+        <option value="photo">📸 Fotografia</option>
+        <option value="custom">✏️ Outro</option>
+      </select>
+    </div>
+    <div class="op-login-field" id="opServiceCustomWrap" style="display:none">
+      <label class="op-login-label">Descreva o serviço</label>
+      <input class="op-login-input" id="opServiceCustom" type="text" placeholder="Ex: Decoração, Segurança..." maxlength="30">
+    </div>
+    <div style="display:flex;align-items:center;gap:.6rem;padding:.3rem 0">
+      <input type="checkbox" id="opAcceptsTips" style="accent-color:var(--ok);width:16px;height:16px;cursor:pointer">
+      <label for="opAcceptsTips" style="font-size:.72rem;color:var(--t2);cursor:pointer">Aceitar gorjetas neste evento 💰</label>
+    </div>
     <button class="op-event-create-btn" onclick="opCreateEvent()">+ Criar Evento</button>
     <div class="op-login-err" id="opEventErr"></div>
   </div>
@@ -280,7 +305,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 
 <div style="display:none" id="opApp">
   <div class="op-header">
-    <div class="op-logo">Touch<span>?</span> <span id="opEventTitle" style="color:var(--ok);font-size:.75rem"></span></div>
+    <div class="op-logo" style="display:flex;flex-direction:column;line-height:1.2">
+      <span>Touch<span style="color:var(--ac)">?</span></span>
+      <span id="opEventTitle" style="color:#60a5fa;font-size:.7rem;font-weight:600;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px"></span>
+    </div>
     <div class="op-stats">
       <div><span class="op-stat-num" id="opCount">0</span> check-ins</div>
       <div class="op-toggle">
@@ -456,16 +484,22 @@ async function showEventsScreen(){
   }catch(e){$('opEventList').innerHTML='<div style="color:var(--pk);text-align:center;font-size:.7rem">Erro ao carregar eventos</div>'}
 }
 
+// Toggle custom service field
+if($('opServiceType')){$('opServiceType').onchange=function(){$('opServiceCustomWrap').style.display=this.value==='custom'?'':'none'}}
+
 async function opCreateEvent(){
   const name=$('opNewEventName').value.trim();
   const err=$('opEventErr');
   if(!name||name.length<2){err.textContent='Nome deve ter pelo menos 2 caracteres.';return}
+  const serviceType=$('opServiceType').value;
+  const serviceLabel=serviceType==='custom'?($('opServiceCustom').value.trim()||''):serviceType;
+  const acceptsTips=$('opAcceptsTips').checked;
   err.textContent='Criando...';
   try{
-    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name})});
+    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error||'Erro ao criar.';return}
-    err.textContent='';$('opNewEventName').value='';
+    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';
     opSelectEvent(d.event.id,d.event.name);
   }catch(e){err.textContent='Erro: '+e.message}
 }
@@ -475,6 +509,9 @@ function opSelectEvent(eventId,eventName){
   $('opEvents').style.display='none';$('opApp').style.display='';
   $('opEventTitle').textContent=eventName;
   $('opUserName').textContent=S.userName;
+  // Apply event-mode styling to TOUCH button
+  const btn=$('opTouchBtn');
+  if(btn){btn.classList.add('event-mode');$('opBtnText').textContent='📍 TOUCH'}
   S.checkins=[];nodes.length=0;
   $('opCount').textContent='0';$('opListCount').textContent='0';
   // Recreate list with empty state (opEmpty is inside opList)
@@ -1059,22 +1096,39 @@ function renderCanvas(){
     const la=.05+Math.sin(t*.8+n.phase)*.025;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.6;c.stroke();
     // Traveling dot
     const pt=(t*.4+n.phase)%1;c.beginPath();c.arc(cx+(n.x-cx)*pt,cy+(n.y-cy)*pt,1.2,0,Math.PI*2);c.fillStyle='rgba(99,102,241,.2)';c.fill()});
-  // ── CENTER: Event name (not operator) ──
+  // ── CENTER: Event name — adaptive size ──
   const evName=S.currentEventName||'Touch?';
-  const cs=24+Math.sin(t*1.5)*2;
-  // Center glow
+  // Measure text to adapt center radius
+  const centerFontSize=Math.min(14,Math.max(9,180/(evName.length+2)));
+  c.font='700 '+centerFontSize+'px Inter';
+  const textW=c.measureText(evName).width;
+  const baseCS=Math.max(30,textW/2+18);
+  const cs=baseCS+Math.sin(t*1.5)*2;
+  // Center glow — blue for events
+  const evColor=S.currentEventId?'rgba(96,165,250,':'rgba(99,102,241,';
+  const activeColor=homeSonicActive?'rgba(255,107,53,':'rgba(99,102,241,';
+  const glowColor=S.currentEventId?(homeSonicActive?activeColor:evColor):activeColor;
   const cg=c.createRadialGradient(cx,cy,0,cx,cy,cs*2.5);
-  cg.addColorStop(0,homeSonicActive?'rgba(255,107,53,.15)':'rgba(99,102,241,.12)');cg.addColorStop(1,'transparent');
+  cg.addColorStop(0,glowColor+'.15)');cg.addColorStop(1,'transparent');
   c.fillStyle=cg;c.beginPath();c.arc(cx,cy,cs*2.5,0,Math.PI*2);c.fill();
   // Center circle
-  c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle=homeSonicActive?'rgba(255,107,53,.9)':'rgba(99,102,241,.8)';c.fill();
+  c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);
+  c.fillStyle=S.currentEventId?(homeSonicActive?'rgba(255,107,53,.85)':'rgba(96,165,250,.7)'):(homeSonicActive?'rgba(255,107,53,.9)':'rgba(99,102,241,.8)');
+  c.fill();
   c.strokeStyle='rgba(255,255,255,.2)';c.lineWidth=1.5;c.stroke();
-  // Event name inside center
-  c.fillStyle='#fff';c.font='700 '+Math.min(10,cs*.4)+'px Inter';c.textAlign='center';c.textBaseline='middle';
-  const shortName=evName.length>10?evName.slice(0,10)+'…':evName;
-  c.fillText(shortName,cx,cy);
-  // Attendee count below center
-  c.font='400 7px Inter';c.fillStyle='rgba(255,255,255,.4)';c.fillText(nodes.length+' pessoas',cx,cy+cs+10);
+  // Subtle inner glow
+  const ig=c.createRadialGradient(cx,cy-cs*.3,0,cx,cy,cs);
+  ig.addColorStop(0,'rgba(255,255,255,.08)');ig.addColorStop(1,'transparent');
+  c.fillStyle=ig;c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fill();
+  // Event name inside center — prominent
+  c.fillStyle='#fff';c.font='700 '+centerFontSize+'px Inter';c.textAlign='center';c.textBaseline='middle';
+  c.shadowColor=S.currentEventId?'rgba(96,165,250,.6)':'rgba(99,102,241,.5)';c.shadowBlur=8;
+  c.fillText(evName,cx,cy-4);
+  c.shadowBlur=0;
+  // Attendee count below name
+  c.font='400 8px Inter';c.fillStyle='rgba(255,255,255,.45)';c.fillText(nodes.length+' pessoa'+(nodes.length!==1?'s':''),cx,cy+centerFontSize*.6+4);
+  // Small dot separator + pulse effect
+  if(homeSonicActive){const pa=.3+Math.sin(t*3)*.2;c.beginPath();c.arc(cx,cy+cs+8,2,0,Math.PI*2);c.fillStyle='rgba(96,165,250,'+pa+')';c.fill()}
   // ── PERSON NODES ──
   nodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.4);const pulse=1+Math.sin(t*1.2+n.phase)*.03;const r=n.r*pulse;
     // Entry animation

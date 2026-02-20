@@ -959,12 +959,21 @@ app.get('/api/relations/:userId', (req, res) => {
     const msgs = db.messages[r.id] || [];
     const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
     const lastMessageTime = lastMsg ? lastMsg.timestamp : r.createdAt || 0;
-    return { ...r, partnerName: p?.nickname || p?.name || '?', partnerColor: p?.color || '#ff6b35', timeLeft: r.expiresAt - now,
-      partnerPhoto: isRevealed ? (p?.profilePhoto || p?.photoURL || null) : null,
-      partnerRealName: isRevealed ? (p?.realName || null) : null,
-      partnerNickname: p?.nickname || '?',
+    // For event relations, show event name as partner
+    const isEvent = !!r.eventId;
+    const evObj = isEvent ? db.operatorEvents[r.eventId] : null;
+    return { ...r,
+      partnerName: isEvent ? (evObj?.name || r.eventName || 'Evento') : (p?.nickname || p?.name || '?'),
+      partnerColor: isEvent ? '#60a5fa' : (p?.color || '#ff6b35'),
+      timeLeft: r.expiresAt - now,
+      partnerPhoto: isEvent ? null : (isRevealed ? (p?.profilePhoto || p?.photoURL || null) : null),
+      partnerRealName: isEvent ? null : (isRevealed ? (p?.realName || null) : null),
+      partnerNickname: isEvent ? (evObj?.name || 'Evento') : (p?.nickname || '?'),
       iRevealedToPartner: !!iRevealed,
-      partnerRevealedToMe: !!isRevealed,
+      partnerRevealedToMe: isEvent ? false : !!isRevealed,
+      isEvent,
+      eventId: r.eventId || null,
+      eventName: isEvent ? (evObj?.name || r.eventName || null) : null,
       lastMessageTime,
       lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').slice(0, 40)) : null,
       lastMessageUserId: lastMsg ? lastMsg.userId : null
@@ -1085,6 +1094,25 @@ app.get('/api/constellation/:userId', (req, res) => {
       })()
     };
   });
+  // Add event nodes — events the user participated in
+  const eventNodes = Object.values(db.operatorEvents).filter(ev => ev.participants && ev.participants.includes(req.params.userId)).map(ev => {
+    const lastRel = Object.values(db.relations).find(r => r.eventId === ev.id && (r.userA === req.params.userId || r.userB === req.params.userId));
+    return {
+      id: 'evt:' + ev.id, isEvent: true, eventId: ev.id,
+      nickname: ev.name, color: '#60a5fa',
+      encounters: 1, intensity: 0.6,
+      lastDate: lastRel ? lastRel.createdAt : ev.createdAt,
+      firstDate: ev.createdAt,
+      realName: null, profilePhoto: null, instagram: null,
+      tipsGiven: 0, tipsTotal: 0, lastSelfie: null,
+      iRevealedToPartner: false, partnerRevealedToMe: false,
+      hasActiveRelation: ev.active, topTag: null, touchers: (ev.participants || []).length,
+      likesCount: 0, starsCount: 0, likedByMe: false,
+      isPrestador: false, serviceLabel: null, pendingReveal: null,
+      eventActive: ev.active, eventParticipants: (ev.participants || []).length
+    };
+  });
+  nodes.push(...eventNodes);
   // Sort by most recent encounter
   nodes.sort((a, b) => b.lastDate - a.lastDate);
   res.json({ nodes, total: nodes.length });
@@ -2040,7 +2068,7 @@ function createSonicConnection(userIdA, userIdB) {
     expiresAt = existing.expiresAt;
   } else {
     relationId = uuidv4();
-    db.relations[relationId] = { id: relationId, userA: userIdA, userB: userIdB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
+    db.relations[relationId] = { id: relationId, userA: userIdA, userB: userIdB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: eventId || null, eventName: (eventId && db.operatorEvents[eventId]) ? db.operatorEvents[eventId].name : null };
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
@@ -2590,7 +2618,7 @@ app.post('/api/operator/settings', (req, res) => {
 
 // ═══ OPERATOR EVENTS ═══
 app.post('/api/operator/event/create', (req, res) => {
-  const { userId, name, description } = req.body;
+  const { userId, name, description, acceptsTips, serviceLabel } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
@@ -2598,6 +2626,7 @@ app.post('/api/operator/event/create', (req, res) => {
     id, name: name.trim(), description: (description || '').trim(),
     creatorId: userId, creatorName: db.users[userId].nickname || db.users[userId].name,
     active: true, participants: [], checkinCount: 0,
+    acceptsTips: !!acceptsTips, serviceLabel: (serviceLabel || '').trim(),
     createdAt: Date.now()
   };
   saveDB();
@@ -2620,6 +2649,27 @@ app.post('/api/operator/event/:eventId/end', (req, res) => {
   delete sonicQueue['evt:' + ev.id];
   // Notify all participants
   io.to('event:' + ev.id).emit('event-ended', { eventId: ev.id, name: ev.name });
+  saveDB();
+  res.json({ ok: true });
+});
+
+app.post('/api/operator/event/:eventId/leave', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatório.' });
+  ev.participants = (ev.participants || []).filter(uid => uid !== userId);
+  ev.checkinCount = ev.participants.length;
+  // Leave socket room
+  const userSockets = io.sockets.adapter.rooms.get(`user:${userId}`);
+  if (userSockets) {
+    for (const sid of userSockets) {
+      const s = io.sockets.sockets.get(sid);
+      if (s) s.leave('event:' + ev.id);
+    }
+  }
+  io.to('event:' + ev.id).emit('event-attendee-left', { userId, eventId: ev.id });
+  io.to(`user:${ev.creatorId}`).emit('event-attendee-left', { userId, eventId: ev.id });
   saveDB();
   res.json({ ok: true });
 });
