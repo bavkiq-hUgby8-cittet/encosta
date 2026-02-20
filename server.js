@@ -122,9 +122,76 @@ function initRegistrationCounter() {
     u.topTag = calculateTopTag(u.registrationOrder, total);
   });
   console.log(`📊 Registration counter: ${registrationCounter}, ${total} users migrated`);
+  // Build performance indexes
+  rebuildIndexes();
   // Auto-verify Top 1 + grant 50 stars
   ensureTop1Perks();
 }
+
+// ══ PERFORMANCE INDEXES (critical for 10M+ users) ══
+const IDX = {
+  firebaseUid: new Map(),   // firebaseUid → userId
+  touchCode: new Map(),     // touchCode → userId
+  nickname: new Map(),      // nickname.toLowerCase() → userId
+  relationPair: new Map(),  // "a_b" (sorted) → relationId
+  donationsByFrom: new Map(), // fromUserId → [donationIds]
+  donationsByPair: new Map(), // "from_to" → count
+  uniqueConns: new Map(),   // userId → count (cache)
+};
+
+function rebuildIndexes() {
+  IDX.firebaseUid.clear(); IDX.touchCode.clear(); IDX.nickname.clear();
+  IDX.relationPair.clear(); IDX.donationsByFrom.clear(); IDX.donationsByPair.clear();
+  for (const [uid, u] of Object.entries(db.users)) {
+    if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, uid);
+    if (u.touchCode) IDX.touchCode.set(u.touchCode, uid);
+    if (u.nickname) IDX.nickname.set(u.nickname.toLowerCase(), uid);
+  }
+  for (const [rid, r] of Object.entries(db.relations)) {
+    if (r.userA && r.userB) {
+      const key = [r.userA, r.userB].sort().join('_');
+      IDX.relationPair.set(key, rid);
+    }
+  }
+  for (const [did, d] of Object.entries(db.starDonations || {})) {
+    if (!IDX.donationsByFrom.has(d.fromUserId)) IDX.donationsByFrom.set(d.fromUserId, []);
+    IDX.donationsByFrom.get(d.fromUserId).push(did);
+    const pk = d.fromUserId + '_' + d.toUserId;
+    IDX.donationsByPair.set(pk, (IDX.donationsByPair.get(pk) || 0) + 1);
+  }
+  console.log(`🗂️ Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations`);
+}
+
+// Helper: find active relation between two users in O(1)
+function findActiveRelation(userA, userB) {
+  const key = [userA, userB].sort().join('_');
+  const rid = IDX.relationPair.get(key);
+  if (!rid) return null;
+  const r = db.relations[rid];
+  return (r && r.expiresAt > Date.now()) ? r : null;
+}
+
+// Helper: check nickname taken in O(1)
+function isNickTaken(nick) { return IDX.nickname.has(nick.toLowerCase()); }
+
+// Helper: register new relation in index
+function idxAddRelation(relationId, userA, userB) {
+  const key = [userA, userB].sort().join('_');
+  IDX.relationPair.set(key, relationId);
+}
+
+// Helper: register new user in indexes
+function idxAddUser(user) {
+  if (user.firebaseUid) IDX.firebaseUid.set(user.firebaseUid, user.id);
+  if (user.touchCode) IDX.touchCode.set(user.touchCode, user.id);
+  if (user.nickname) IDX.nickname.set(user.nickname.toLowerCase(), user.id);
+}
+
+// Helper: count donations from user in O(1)
+function countDonationsFrom(userId) { return (IDX.donationsByFrom.get(userId) || []).length; }
+
+// Helper: count donations between pair in O(1)
+function countDonationsPair(from, to) { return IDX.donationsByPair.get(from + '_' + to) || 0; }
 
 function ensureTop1Perks() {
   const users = Object.values(db.users);
@@ -222,8 +289,9 @@ app.post('/api/auth/link', async (req, res) => {
   const { firebaseUid, email, displayName, photoURL, encUserId } = req.body;
   if (!firebaseUid) return res.status(400).json({ error: 'Firebase UID obrigatório.' });
 
-  // Check if firebase user already linked to an ENCOSTA user
-  let existingUser = Object.values(db.users).find(u => u.firebaseUid === firebaseUid);
+  // Check if firebase user already linked to an ENCOSTA user (O(1) index)
+  const existingId = IDX.firebaseUid.get(firebaseUid);
+  let existingUser = existingId ? db.users[existingId] : null;
   if (existingUser) {
     // Already linked — return existing
     return res.json({ userId: existingUser.id, user: existingUser, linked: true });
@@ -236,6 +304,7 @@ app.post('/api/auth/link', async (req, res) => {
     user.email = email || user.email;
     if (displayName && !user.name) user.name = displayName;
     if (photoURL) user.photoURL = photoURL;
+    IDX.firebaseUid.set(firebaseUid, user.id);
     saveDB();
     return res.json({ userId: user.id, user, linked: true });
   }
@@ -246,7 +315,7 @@ app.post('/api/auth/link', async (req, res) => {
   // Ensure unique nickname
   let finalNick = nick;
   let suffix = 1;
-  while (Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === finalNick.toLowerCase())) {
+  while (isNickTaken(finalNick)) {
     finalNick = nick + suffix++;
   }
   const color = '#' + ((Math.abs([...finalNick].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 0xFFFFFF)).toString(16).padStart(6, '0');
@@ -260,6 +329,7 @@ app.post('/api/auth/link', async (req, res) => {
     registrationOrder: registrationCounter, topTag: calculateTopTag(registrationCounter, totalUsers),
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
+  idxAddUser(db.users[id]);
   saveDB();
   res.json({ userId: id, user: db.users[id], linked: false });
 });
@@ -874,6 +944,7 @@ app.post('/api/touch-link/create', (req, res) => {
   // Generate or reuse touch code
   if (!user.touchCode) {
     user.touchCode = uuidv4().replace(/-/g, '').slice(0, 12);
+    IDX.touchCode.set(user.touchCode, userId);
     saveDB();
   }
   const baseUrl = req.protocol + '://' + req.get('host');
@@ -883,7 +954,7 @@ app.post('/api/touch-link/create', (req, res) => {
 // Touch link page — serves the web experience for NFC/QR scan
 app.get('/t/:code', (req, res) => {
   const code = req.params.code;
-  const owner = Object.values(db.users).find(u => u.touchCode === code);
+  const owner = db.users[IDX.touchCode.get(code)];
   if (!owner) return res.status(404).send('Link inválido.');
   // Serve a lightweight touch page
   res.send(generateTouchPage(owner, code));
@@ -893,7 +964,7 @@ app.get('/t/:code', (req, res) => {
 app.post('/api/touch-link/connect', (req, res) => {
   const { touchCode, visitorNickname } = req.body;
   if (!touchCode || !visitorNickname) return res.status(400).json({ error: 'Dados inválidos.' });
-  const owner = Object.values(db.users).find(u => u.touchCode === touchCode);
+  const owner = db.users[IDX.touchCode.get(touchCode)];
   if (!owner) return res.status(404).json({ error: 'Código inválido.' });
   const nick = visitorNickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname: 2 a 20 caracteres.' });
@@ -911,10 +982,8 @@ app.post('/api/touch-link/connect', (req, res) => {
   const now = Date.now();
   const phrase = smartPhrase(owner.id, visitor.id);
   const relationId = uuidv4();
-  // Check existing
-  const existing = Object.values(db.relations).find(r =>
-    ((r.userA === owner.id && r.userB === visitor.id) || (r.userA === visitor.id && r.userB === owner.id)) && r.expiresAt > now
-  );
+  // Check existing (O(1) via index)
+  const existing = findActiveRelation(owner.id, visitor.id);
   let expiresAt;
   if (existing) {
     existing.expiresAt = now + 86400000;
@@ -924,6 +993,7 @@ app.post('/api/touch-link/connect', (req, res) => {
     res.json({ relationId: existing.id, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, renewed: true });
   } else {
     db.relations[relationId] = { id: relationId, userA: owner.id, userB: visitor.id, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
+    idxAddRelation(relationId, owner.id, visitor.id);
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
     res.json({ relationId, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, renewed: false });
@@ -1025,7 +1095,7 @@ function nickColor(nick) {
 // Check nickname availability
 app.get('/api/check-nick/:nick', (req, res) => {
   const nick = req.params.nick.toLowerCase().trim();
-  const taken = Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === nick);
+  const taken = isNickTaken(nick);
   res.json({ available: !taken });
 });
 
@@ -1051,7 +1121,7 @@ app.post('/api/register', (req, res) => {
   }
 
   // Check uniqueness for new user
-  const taken = Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
+  const taken = isNickTaken(nick);
   if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
   const id = uuidv4();
   const color = nickColor(nick);
@@ -1063,6 +1133,7 @@ app.post('/api/register', (req, res) => {
     registrationOrder: registrationCounter, topTag: calculateTopTag(registrationCounter, totalUsers),
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
+  idxAddUser(db.users[id]);
   saveDB();
   res.json({ userId: id, user: db.users[id] });
 });
@@ -1110,9 +1181,7 @@ app.post('/api/session/join', (req, res) => {
   const relA = isSessionCheckin && sessionEventId ? codeVisitorId : session.userA;
   const relB = isSessionCheckin && sessionEventId ? ('evt:' + sessionEventId) : userId;
 
-  const existing = Object.values(db.relations).find(r =>
-    ((r.userA === relA && r.userB === relB) || (r.userA === relB && r.userB === relA)) && r.expiresAt > now
-  );
+  const existing = findActiveRelation(relA, relB);
 
   let relationId, phrase, expiresAt;
   const getPhrase = () => {
@@ -1131,6 +1200,7 @@ app.post('/api/session/join', (req, res) => {
     phrase = getPhrase();
     relationId = uuidv4();
     db.relations[relationId] = { id: relationId, userA: relA, userB: relB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: sessionEventId, isEventCheckin: isSessionCheckin && !!sessionEventId };
+    idxAddRelation(relationId, relA, relB);
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
@@ -1351,7 +1421,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       tipsTotal: p.tipsTotal,
       iRevealedToPartner: !!theyCanSeeMe, // they can see me = I revealed to them
       partnerRevealedToMe: !!iCanSeeThem, // I can see them = they revealed to me
-      hasActiveRelation: !!Object.values(db.relations).find(r => ((r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)) && r.expiresAt > Date.now()),
+      hasActiveRelation: !!findActiveRelation(req.params.userId, p.id),
       // New fields
       topTag: (other && other.topTag) || null,
       touchers: toucherCount,
@@ -1453,16 +1523,28 @@ app.get('/api/boarding-pass/:userId', (req, res) => {
 });
 
 // ── Notifications / Activity Feed ──
+// Mark notifications as seen
+app.post('/api/notifications/seen', (req, res) => {
+  const { userId } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  user.notifSeenAt = Date.now();
+  saveDB();
+  res.json({ ok: true });
+});
+
 app.get('/api/notifications/:userId', (req, res) => {
   const userId = req.params.userId;
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const seenAt = user.notifSeenAt || 0;
   const notifs = [];
   // 1. Who liked me (from likedBy array)
   (user.likedBy || []).forEach(likerId => {
     const liker = db.users[likerId];
     if (!liker) return;
     const iCanSee = user.canSee && user.canSee[likerId];
+    const ts = liker._likedAt?.[userId] || Date.now();
     notifs.push({
       type: 'like',
       fromId: likerId,
@@ -1470,22 +1552,23 @@ app.get('/api/notifications/:userId', (req, res) => {
       realName: iCanSee ? (liker.realName || null) : null,
       profilePhoto: iCanSee ? (liker.profilePhoto || liker.photoURL || null) : null,
       color: liker.color,
-      timestamp: Date.now()
+      timestamp: ts,
+      seen: ts <= seenAt
     });
   });
   // 2. Stars received
   (user.stars || []).forEach(star => {
     const giver = db.users[star.from];
-    if (!giver) return;
-    const iCanSee = user.canSee && user.canSee[star.from];
+    const ts = star.donatedAt || star.at || Date.now();
     notifs.push({
       type: 'star',
       fromId: star.from,
-      nickname: giver.nickname || giver.name,
-      realName: iCanSee ? (giver.realName || null) : null,
-      profilePhoto: iCanSee ? (giver.profilePhoto || giver.photoURL || null) : null,
-      color: giver.color,
-      timestamp: star.at || Date.now()
+      nickname: giver ? (giver.nickname || giver.name) : 'Alguém',
+      realName: null,
+      profilePhoto: null,
+      color: giver ? giver.color : '#fbbf24',
+      timestamp: ts,
+      seen: ts <= seenAt
     });
   });
   // 3. Reveal requests received (pending)
@@ -1493,35 +1576,36 @@ app.get('/api/notifications/:userId', (req, res) => {
     if (rr.toUserId === userId && rr.status === 'pending') {
       const from = db.users[rr.fromUserId];
       if (!from) return;
+      const ts = rr.createdAt || Date.now();
       notifs.push({
         type: 'reveal-request',
         fromId: rr.fromUserId,
         nickname: from.nickname || from.name,
         color: from.color,
         requestId: rr.id,
-        timestamp: rr.createdAt || Date.now()
+        timestamp: ts,
+        seen: ts <= seenAt
       });
     }
   });
-  // 4. Friends who earned stars (someone I've encountered got a star)
+  // 4. Friends who earned stars (someone in my network got a star — no donor info)
   const myEncounters = db.encounters[userId] || [];
-  const myFriendIds = [...new Set(myEncounters.map(e => e.with))];
+  const myFriendIds = [...new Set(myEncounters.filter(e => !e.isEvent && !(e.with || '').startsWith('evt:')).map(e => e.with))];
   myFriendIds.forEach(fid => {
     const friend = db.users[fid];
     if (!friend || !friend.stars || !friend.stars.length) return;
-    const iCanSee = user.canSee && user.canSee[fid];
     // Show last 3 stars from each friend (recent ones)
     friend.stars.slice(-3).forEach(star => {
       if (star.from === userId) return; // skip my own stars to them
+      const ts = star.donatedAt || star.at || Date.now();
       notifs.push({
         type: 'friend-star',
         fromId: fid,
         nickname: friend.nickname || friend.name,
-        realName: iCanSee ? (friend.realName || null) : null,
-        profilePhoto: iCanSee ? (friend.profilePhoto || friend.photoURL || null) : null,
         color: friend.color,
         topTag: friend.topTag || null,
-        timestamp: star.at || Date.now()
+        timestamp: ts,
+        seen: ts <= seenAt
       });
     });
   });
@@ -1529,6 +1613,7 @@ app.get('/api/notifications/:userId', (req, res) => {
   Object.entries(user.canSee || {}).forEach(([pid, data]) => {
     const p = db.users[pid];
     if (!p) return;
+    const ts = data.revealedAt || Date.now();
     notifs.push({
       type: 'identity-revealed',
       fromId: pid,
@@ -1536,12 +1621,35 @@ app.get('/api/notifications/:userId', (req, res) => {
       realName: data.realName || null,
       profilePhoto: data.profilePhoto || null,
       color: p.color,
-      timestamp: data.revealedAt || Date.now()
+      timestamp: ts,
+      seen: ts <= seenAt
+    });
+  });
+  // 6. Star donations in network (broadcast — "fulano ganhou estrela")
+  const recentDonations = Object.values(db.starDonations || {}).filter(d => {
+    if (d.fromUserId === userId || d.toUserId === userId) return false; // skip own
+    const recipInNetwork = myFriendIds.includes(d.toUserId);
+    const donorInNetwork = myFriendIds.includes(d.fromUserId);
+    return recipInNetwork || donorInNetwork;
+  }).slice(-20);
+  recentDonations.forEach(d => {
+    const recip = db.users[d.toUserId];
+    if (!recip) return;
+    const ts = d.timestamp || Date.now();
+    notifs.push({
+      type: 'network-star',
+      fromId: d.toUserId,
+      nickname: recip.nickname || recip.name,
+      color: recip.color,
+      timestamp: ts,
+      seen: ts <= seenAt
     });
   });
   // Sort by timestamp desc
   notifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  res.json({ notifications: notifs.slice(0, 50) });
+  const all = notifs.slice(0, 50);
+  const unseenCount = all.filter(n => !n.seen).length;
+  res.json({ notifications: all, unseenCount });
 });
 
 // Selfie for relation
@@ -1816,13 +1924,7 @@ app.post('/api/profile/update', (req, res) => {
 });
 
 // ── Reveal Real ID — Centralized system ──
-// Helper: find active relation between two users
-function findActiveRelation(userIdA, userIdB) {
-  const now = Date.now();
-  return Object.values(db.relations).find(r =>
-    ((r.userA === userIdA && r.userB === userIdB) || (r.userA === userIdB && r.userB === userIdA)) && r.expiresAt > now
-  );
-}
+// findActiveRelation already defined in index layer above
 function getRelId(rel) { return rel.id || Object.keys(db.relations).find(k => db.relations[k] === rel); }
 
 // ══ REVEAL — DUAS AÇÕES DIFERENTES ══
@@ -2083,15 +2185,19 @@ app.post('/api/star/donate', (req, res) => {
     if (idx === -1) return res.status(400).json({ error: 'Estrela pendente não encontrada.' });
     fromUser.pendingStars.splice(idx, 1);
   } else {
-    // Legacy: check available stars (earned - donated)
+    // Legacy: check available stars (earned - donated) — O(1) via index
     const totalEarned = (fromUser.starsEarned || 0);
-    const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId).length;
+    const totalDonated = countDonationsFrom(fromUserId);
     const available = totalEarned - totalDonated;
     if (available <= 0) return res.status(400).json({ error: 'Sem estrelas disponíveis para doar.' });
   }
 
   const donationId = uuidv4();
   db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: 'earned', pendingStarId };
+  // Update indexes
+  if (!IDX.donationsByFrom.has(fromUserId)) IDX.donationsByFrom.set(fromUserId, []);
+  IDX.donationsByFrom.get(fromUserId).push(donationId);
+  IDX.donationsByPair.set(fromUserId + '_' + toUserId, (IDX.donationsByPair.get(fromUserId + '_' + toUserId) || 0) + 1);
   if (!toUser.stars) toUser.stars = [];
   toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: 'earned' });
   saveDB();
@@ -2150,8 +2256,8 @@ app.post('/api/star/buy', (req, res) => {
 
   // Check max per person if gifting
   if (!isSelf) {
-    const existing = Object.values(db.starDonations).filter(d => d.fromUserId === userId && d.toUserId === recipientId);
-    if (existing.length >= cfg.maxStarsPerPersonToPerson) {
+    const existingCount = countDonationsPair(userId, recipientId);
+    if (existingCount >= cfg.maxStarsPerPersonToPerson) {
       return res.status(400).json({ error: `Máximo de ${cfg.maxStarsPerPersonToPerson} estrela(s) por pessoa.` });
     }
   }
@@ -2191,7 +2297,7 @@ app.get('/api/stars/available/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
   const totalEarned = user.starsEarned || 0;
-  const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === req.params.userId).length;
+  const totalDonated = countDonationsFrom(req.params.userId);
   res.json({ total: totalEarned, donated: totalDonated, available: totalEarned - totalDonated });
 });
 
@@ -2618,7 +2724,7 @@ app.get('/api/score/breakdown/:userId', (req, res) => {
   const spendable = rawScore - (user.pointsSpent || 0);
   const starsReceived = (user.stars || []).length;
   const starsEarned = user.starsEarned || 0;
-  const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === req.params.userId).length;
+  const totalDonated = countDonationsFrom(req.params.userId);
   // Count by type
   const typeCounts = {};
   for (const p of (user.pointLog || [])) {
@@ -2806,9 +2912,7 @@ app.post('/api/event/encosta-accept', (req, res) => {
   const ev = db.events[eventId];
   const now = Date.now();
   const DIGITAL_DURATION = 3600000; // 1 hour
-  const existing = Object.values(db.relations).find(r =>
-    ((r.userA === fromUserId && r.userB === userId) || (r.userA === userId && r.userB === fromUserId)) && r.expiresAt > now
-  );
+  const existing = findActiveRelation(fromUserId, userId);
   let relationId, phrase, expiresAt;
   if (existing) {
     existing.expiresAt = now + DIGITAL_DURATION;
@@ -2820,6 +2924,7 @@ app.post('/api/event/encosta-accept', (req, res) => {
     phrase = smartPhrase(fromUserId, userId);
     relationId = uuidv4();
     db.relations[relationId] = { id: relationId, userA: fromUserId, userB: userId, phrase, type: 'digital', createdAt: now, expiresAt: now + DIGITAL_DURATION, provocations: {}, renewed: 0, selfie: null, eventId };
+    idxAddRelation(relationId, fromUserId, userId);
     db.messages[relationId] = [];
     expiresAt = now + DIGITAL_DURATION;
   }
@@ -2971,9 +3076,7 @@ function createSonicConnection(userIdA, userIdB) {
   const relPartnerA = isCheckin && eventId ? visitorId : userIdA;
   const relPartnerB = isCheckin && eventId ? ('evt:' + eventId) : userIdB;
 
-  const existing = Object.values(db.relations).find(r =>
-    ((r.userA === relPartnerA && r.userB === relPartnerB) || (r.userA === relPartnerB && r.userB === relPartnerA)) && r.expiresAt > now
-  );
+  const existing = findActiveRelation(relPartnerA, relPartnerB);
   let relationId, expiresAt;
   if (existing) {
     existing.expiresAt = now + 86400000;
@@ -2984,6 +3087,7 @@ function createSonicConnection(userIdA, userIdB) {
   } else {
     relationId = uuidv4();
     db.relations[relationId] = { id: relationId, userA: relPartnerA, userB: relPartnerB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: eventId || null, eventName: (eventId && db.operatorEvents[eventId]) ? db.operatorEvents[eventId].name : null, isEventCheckin: isCheckin && !!eventId };
+    idxAddRelation(relationId, relPartnerA, relPartnerB);
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
   }
@@ -3299,7 +3403,7 @@ app.post('/api/prestador/register', (req, res) => {
   const nick = nickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname deve ter 2 a 20 caracteres.' });
   if (!/^[a-zA-Z0-9_.-]+$/.test(nick)) return res.status(400).json({ error: 'Só letras, números, _ . -' });
-  const taken = Object.values(db.users).some(u => u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
+  const taken = isNickTaken(nick);
   if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
   const id = uuidv4();
   const color = nickColor(nick);
@@ -3310,6 +3414,7 @@ app.post('/api/prestador/register', (req, res) => {
     cpf: cpf || null, mpConnected: false, mpAccessToken: null, mpRefreshToken: null, mpUserId: null,
     tipsReceived: 0, tipsTotal: 0
   };
+  idxAddUser(db.users[id]);
   saveDB();
   res.json({ userId: id, user: db.users[id] });
 });

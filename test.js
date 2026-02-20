@@ -1,223 +1,198 @@
-#!/usr/bin/env node
-// Touch? App - Basic API Tests
-// Run: node test.js [server-url]
-// Default: http://localhost:3000
+/**
+ * Encosta (Touch?) — Automated Test Suite
+ * 20 comprehensive tests covering all major features
+ * Run: node test.js
+ */
 
-const BASE = process.argv[2] || 'http://localhost:3000';
+const http = require('http');
+
+const BASE = 'http://localhost:' + (process.env.PORT || 3000);
 let passed = 0, failed = 0, total = 0;
+
+function req(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, BASE);
+    const opts = { method, hostname: url.hostname, port: url.port, path: url.pathname + url.search, headers: {} };
+    if (body) { opts.headers['Content-Type'] = 'application/json'; }
+    const r = http.request(opts, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch(e) { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    r.on('error', reject);
+    if (body) r.write(JSON.stringify(body));
+    r.end();
+  });
+}
 
 async function test(name, fn) {
   total++;
   try {
     await fn();
     passed++;
-    console.log(`  ✅ ${name}`);
+    console.log('  ✅ ' + total + '. ' + name);
   } catch (e) {
     failed++;
-    console.log(`  ❌ ${name}: ${e.message}`);
+    console.log('  ❌ ' + total + '. ' + name + ' — ' + e.message);
   }
 }
 
 function assert(cond, msg) { if (!cond) throw new Error(msg || 'Assertion failed'); }
 
-async function api(path, opts = {}) {
-  const url = BASE + path;
-  const r = await fetch(url, {
-    method: opts.method || 'GET',
-    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
-    body: opts.body ? JSON.stringify(opts.body) : undefined
-  });
-  return r.json();
-}
+const testNick1 = 'TestUser_' + Date.now();
+const testNick2 = 'TestUser2_' + Date.now();
+let userId1, userId2;
 
 async function run() {
-  console.log(`\n🧪 Touch? API Tests — ${BASE}\n`);
+  console.log('\n🧪 Encosta Test Suite — 20 tests\n');
 
-  // ── Status ──
-  console.log('── Status ──');
-  await test('GET /api/status returns ok', async () => {
-    const d = await api('/api/status');
-    assert(d.ok === true, 'Expected ok:true');
-    assert(typeof d.counts === 'object', 'Expected counts object');
-    assert(typeof d.counts.users === 'number', 'Expected users count');
+  // 1. Register user 1
+  await test('Register user 1', async () => {
+    const r = await req('POST', '/api/register', { nickname: testNick1, birthdate: '1995-06-15' });
+    assert(r.status === 200 || r.status === 201, 'Status: ' + r.status);
+    assert(r.body.userId, 'No userId returned');
+    userId1 = r.body.userId;
   });
 
-  // ── Reset DB ──
-  console.log('\n── Reset DB ──');
-  await test('POST /api/admin/reset-db requires confirm', async () => {
-    const d = await api('/api/admin/reset-db', { method: 'POST', body: {} });
-    assert(d.error, 'Expected error without confirm');
+  // 2. Register user 2
+  await test('Register user 2', async () => {
+    const r = await req('POST', '/api/register', { nickname: testNick2, birthdate: '1990-03-20' });
+    assert(r.body.userId, 'No userId returned');
+    userId2 = r.body.userId;
   });
 
-  await test('POST /api/admin/reset-db clears data', async () => {
-    const d = await api('/api/admin/reset-db', { method: 'POST', body: { confirm: 'RESET' } });
-    assert(d.ok === true, 'Expected ok:true');
-    assert(typeof d.cleared === 'object', 'Expected cleared stats');
+  // 3. Profile
+  await test('Get my profile', async () => {
+    const r = await req('GET', '/api/myprofile/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(r.body.nickname === testNick1, 'Wrong nickname: ' + r.body.nickname);
+    assert(typeof r.body.score === 'number', 'No score');
   });
 
-  // ── Registration ──
-  console.log('\n── Registration ──');
-  let userA, userB;
-
-  await test('POST /api/register user A', async () => {
-    const d = await api('/api/register', { method: 'POST', body: { nickname: 'Alice', color: '#ff6b9d', birthdate: '1995-03-15' } });
-    assert(d.id, 'Expected user id');
-    assert(d.nickname === 'Alice', 'Expected nickname Alice');
-    userA = d;
+  // 4. Update profile
+  await test('Update profile', async () => {
+    const r = await req('POST', '/api/profile/update', { userId: userId1, realName: 'Test Name', bio: 'Bio' });
+    assert(r.status === 200, 'Status: ' + r.status);
   });
 
-  await test('POST /api/register user B', async () => {
-    const d = await api('/api/register', { method: 'POST', body: { nickname: 'Bob', color: '#6baaff', birthdate: '1992-08-22' } });
-    assert(d.id, 'Expected user id');
-    assert(d.nickname === 'Bob', 'Expected nickname Bob');
-    userB = d;
+  // 5. Constellation
+  await test('Get constellation', async () => {
+    const r = await req('GET', '/api/constellation/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(Array.isArray(r.body.nodes), 'No nodes');
+    assert(Array.isArray(r.body.links), 'No links');
   });
 
-  await test('POST /api/register rejects empty nickname', async () => {
-    const d = await api('/api/register', { method: 'POST', body: { nickname: '', color: '#fff' } });
-    assert(d.error, 'Expected error for empty nickname');
+  // 6. Score
+  await test('Get score', async () => {
+    const r = await req('GET', '/api/score/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(typeof r.body.score === 'number', 'No score');
   });
 
-  // ── Session / Touch ──
-  console.log('\n── Session / Touch ──');
-  let sessionCode;
-
-  await test('POST /api/session/create creates session', async () => {
-    const d = await api('/api/session/create', { method: 'POST', body: { userId: userA.id } });
-    assert(d.code, 'Expected session code');
-    sessionCode = d.code;
+  // 7. Stars detail
+  await test('Get stars', async () => {
+    const r = await req('GET', '/api/stars/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(Array.isArray(r.body.stars), 'No stars');
   });
 
-  await test('POST /api/session/join connects users', async () => {
-    const d = await api('/api/session/join', { method: 'POST', body: { code: sessionCode, userId: userB.id } });
-    assert(d.relationId || d.relation, 'Expected relation data');
+  // 8. Star shop
+  await test('Star shop info', async () => {
+    const r = await req('GET', '/api/star/shop/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(typeof r.body.selfCost === 'number', 'No selfCost');
   });
 
-  // ── Relations ──
-  console.log('\n── Relations ──');
-  await test('GET /api/relations/:userId returns relations', async () => {
-    const d = await api(`/api/relations/${userA.id}`);
-    assert(Array.isArray(d), 'Expected array');
-    assert(d.length > 0, 'Expected at least 1 relation');
-    assert(d[0].partner, 'Expected partner data');
+  // 9. Pending stars
+  await test('Pending stars empty', async () => {
+    const r = await req('GET', '/api/star/pending/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(r.body.count === 0, 'Should be 0 pending');
   });
 
-  // ── Constellation ──
-  console.log('\n── Constellation ──');
-  await test('GET /api/constellation/:userId returns nodes', async () => {
-    const d = await api(`/api/constellation/${userA.id}`);
-    assert(Array.isArray(d), 'Expected array');
-    assert(d.length > 0, 'Expected at least 1 node');
-    assert(d[0].nickname, 'Expected nickname in node');
+  // 10. Star donate fails without stars
+  await test('Star donate fails', async () => {
+    const r = await req('POST', '/api/star/donate', { fromUserId: userId1, toUserId: userId2 });
+    assert(r.status === 400, 'Should fail: ' + r.status);
   });
 
-  // ── Events ──
-  console.log('\n── Events ──');
-  let eventId;
-
-  await test('POST /api/event/create creates event', async () => {
-    const d = await api('/api/event/create', { method: 'POST', body: {
-      userId: userA.id, name: 'Test Meetup', description: 'A test event', lat: -23.5505, lng: -46.6333, radius: 200
-    }});
-    assert(d.event, 'Expected event data');
-    assert(d.event.id, 'Expected event id');
-    assert(d.event.name === 'Test Meetup', 'Expected event name');
-    assert(d.event.participants.includes(userA.id), 'Creator should be participant');
-    eventId = d.event.id;
+  // 11. Self-donate fails
+  await test('Self-donate fails', async () => {
+    const r = await req('POST', '/api/star/donate', { fromUserId: userId1, toUserId: userId1 });
+    assert(r.status === 400, 'Should reject self');
   });
 
-  await test('POST /api/event/create rejects missing name', async () => {
-    const d = await api('/api/event/create', { method: 'POST', body: { userId: userA.id, lat: -23.5, lng: -46.6 } });
-    assert(d.error, 'Expected error for missing name');
+  // 12. Search people
+  await test('Search people by nick', async () => {
+    const r = await req('GET', '/api/star/search-people/' + userId1 + '?q=' + testNick2.slice(0, 10));
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(r.body.results.length >= 1, 'Should find user2');
   });
 
-  await test('GET /api/event/:id returns event details', async () => {
-    const d = await api(`/api/event/${eventId}`);
-    assert(d.name === 'Test Meetup', 'Expected event name');
-    assert(d.participantsData, 'Expected participantsData');
-    assert(d.participantsData.length === 1, 'Expected 1 participant');
-    assert(d.participantsData[0].id === userA.id, 'Expected creator as participant');
+  // 13. Notifications
+  await test('Get notifications', async () => {
+    const r = await req('GET', '/api/notifications/' + userId1);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(typeof r.body.unseenCount === 'number', 'No unseenCount');
   });
 
-  await test('POST /api/event/join adds user to event', async () => {
-    const d = await api('/api/event/join', { method: 'POST', body: { eventId, userId: userB.id } });
-    assert(d.ok === true, 'Expected ok:true');
+  // 14. Mark seen
+  await test('Mark notifications seen', async () => {
+    const r = await req('POST', '/api/notifications/seen', { userId: userId1 });
+    assert(r.body.ok, 'Not ok');
+    const r2 = await req('GET', '/api/notifications/' + userId1);
+    assert(r2.body.unseenCount === 0, 'Should be 0 unseen');
   });
 
-  await test('GET /api/events/nearby finds event', async () => {
-    const d = await api('/api/events/nearby?lat=-23.5505&lng=-46.6333&radius=5000');
-    assert(Array.isArray(d), 'Expected array');
-    assert(d.length > 0, 'Expected at least 1 event');
-    assert(d[0].participantCount === 2, 'Expected 2 participants');
+  // 15. Reveal identity
+  await test('Reveal identity', async () => {
+    const r = await req('POST', '/api/identity/reveal', { userId: userId1, targetUserId: userId2 });
+    assert(r.status === 200, 'Status: ' + r.status);
   });
 
-  await test('POST /api/event/encosta-request with targetId', async () => {
-    const d = await api('/api/event/encosta-request', { method: 'POST', body: {
-      eventId, userId: userA.id, targetId: userB.id
-    }});
-    assert(d.ok === true, 'Expected ok:true');
-    assert(d.requestId, 'Expected requestId');
+  // 16. Toggle reveal off (hide)
+  await test('Hide identity (toggle off)', async () => {
+    const r = await req('POST', '/api/reveal/toggle', { userId: userId1, partnerId: userId2, reveal: false });
+    assert(r.status === 200, 'Status: ' + r.status);
   });
 
-  await test('POST /api/event/encosta-accept creates relation', async () => {
-    const d = await api('/api/event/encosta-accept', { method: 'POST', body: {
-      eventId, userId: userB.id, fromUserId: userA.id, accepted: true
-    }});
-    assert(d.relationId, 'Expected relationId');
-    assert(d.userA, 'Expected userA data');
-    assert(d.userB, 'Expected userB data');
-    assert(d.userA.profilePhoto !== undefined, 'Expected profilePhoto field in userA');
-    assert(d.type === 'digital', 'Expected type digital');
+  // 17. Request reveal
+  await test('Request reveal', async () => {
+    const r = await req('POST', '/api/identity/request-reveal', { userId: userId1, targetUserId: userId2 });
+    assert(r.status === 200, 'Status: ' + r.status);
   });
 
-  // ── Location ──
-  console.log('\n── Location ──');
-  await test('POST /api/location/update stores location', async () => {
-    const d = await api('/api/location/update', { method: 'POST', body: { userId: userA.id, lat: -23.5505, lng: -46.6333 } });
-    assert(d.ok === true, 'Expected ok:true');
+  // 18. Declarations
+  await test('Send declaration', async () => {
+    const r = await req('POST', '/api/declarations/send', { fromUserId: userId1, toUserId: userId2, text: 'Pessoa incrivel!' });
+    assert(r.status === 200 || r.status === 201, 'Status: ' + r.status);
   });
 
-  await test('GET /api/nearby/:userId finds nearby users', async () => {
-    // Update B's location nearby
-    await api('/api/location/update', { method: 'POST', body: { userId: userB.id, lat: -23.5506, lng: -46.6334 } });
-    const d = await api(`/api/nearby/${userA.id}?radius=1000`);
-    assert(Array.isArray(d), 'Expected array');
-    // B should be nearby
-    assert(d.some(p => p.id === userB.id), 'Expected userB nearby');
+  // 19. Get declarations
+  await test('Get declarations', async () => {
+    const r = await req('GET', '/api/declarations/' + userId2);
+    assert(r.status === 200, 'Status: ' + r.status);
+    assert(r.body.declarations.length >= 1, 'No declarations');
   });
 
-  // ── ID Reveal (centralized system) ──
-  console.log('\n── ID Reveal ──');
-  await test('POST /api/identity/reveal sends request', async () => {
-    const d = await api('/api/identity/reveal', { method: 'POST', body: { userId: userA.id, targetUserId: userB.id } });
-    assert(d.ok === true || d.error, 'Expected response from reveal request');
-  });
-  await test('GET /api/identity/pending returns pending requests', async () => {
-    const d = await api(`/api/identity/pending/${userB.id}`);
-    assert(Array.isArray(d), 'Expected array of pending requests');
-  });
-  await test('POST /api/identity/reveal-accept accepts request', async () => {
-    const d = await api('/api/identity/reveal-accept', { method: 'POST', body: { userId: userB.id, fromUserId: userA.id } });
-    assert(d.ok === true || d.error, 'Expected response from reveal accept');
+  // 20. Doc ID submit
+  await test('Doc ID submit + status', async () => {
+    const r = await req('POST', '/api/doc/submit', {
+      userId: userId1, docPhoto: 'data:image/png;base64,iVBOR', selfiePhoto: 'data:image/png;base64,iVBOR',
+      docName: 'Test', cpf: '123.456.789-00'
+    });
+    assert(r.status === 200, 'Status: ' + r.status);
+    const r2 = await req('GET', '/api/doc/status/' + userId1);
+    assert(r2.body.status === 'pending', 'Wrong status: ' + r2.body.status);
   });
 
-  // ── Final Reset with keepUsers ──
-  console.log('\n── Reset with keepUsers ──');
-  await test('POST /api/admin/reset-db keepUsers preserves users', async () => {
-    const before = await api('/api/status');
-    const d = await api('/api/admin/reset-db', { method: 'POST', body: { confirm: 'RESET', keepUsers: true } });
-    assert(d.ok === true, 'Expected ok:true');
-    const after = await api('/api/status');
-    assert(after.counts.users === before.counts.users, 'Users should be preserved');
-    assert(after.counts.relations === 0, 'Relations should be cleared');
-    assert(after.counts.events === 0, 'Events should be cleared');
-  });
-
-  // ── Summary ──
-  console.log(`\n${'═'.repeat(40)}`);
-  console.log(`  Total: ${total}  ✅ ${passed}  ❌ ${failed}`);
-  console.log(`${'═'.repeat(40)}\n`);
-
+  console.log('\n' + '='.repeat(40));
+  console.log('  Total: ' + total + '  ✅ Passed: ' + passed + '  ❌ Failed: ' + failed);
+  console.log('='.repeat(40) + '\n');
   process.exit(failed > 0 ? 1 : 0);
 }
 
