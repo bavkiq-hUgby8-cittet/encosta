@@ -21,27 +21,46 @@ app.get('/termos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'te
 
 // ── Firebase Admin SDK ──
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
+const FIREBASE_DB_URL = process.env.FIREBASE_DATABASE_URL || 'https://encosta-f32e7-default-rtdb.firebaseio.com';
 if (FIREBASE_SA) {
-  admin.initializeApp({ credential: admin.credential.cert(JSON.parse(FIREBASE_SA)) });
+  admin.initializeApp({ credential: admin.credential.cert(JSON.parse(FIREBASE_SA)), databaseURL: FIREBASE_DB_URL });
 } else {
-  // Fallback: local service account file
   const saPath = path.join(__dirname, 'firebase-sa.json');
   if (fs.existsSync(saPath)) {
-    admin.initializeApp({ credential: admin.credential.cert(require(saPath)) });
+    admin.initializeApp({ credential: admin.credential.cert(require(saPath)), databaseURL: FIREBASE_DB_URL });
   } else {
     console.warn('⚠️ Firebase não configurado. Rodando sem persistência.');
-    admin.initializeApp({ projectId: 'encosta-f32e7' });
+    admin.initializeApp({ projectId: 'encosta-f32e7', databaseURL: FIREBASE_DB_URL });
   }
 }
-const firestore = admin.firestore();
+const rtdb = admin.database();
 const firebaseAuth = admin.auth();
+const storageBucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET || 'encosta-f32e7.firebasestorage.app');
 
-// ── Database (in-memory cache synced with Firestore) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents'];
+// ── Upload base64 image to Firebase Storage, return public URL ──
+async function uploadBase64ToStorage(base64Data, filePath) {
+  try {
+    // Strip data:image/xxx;base64, prefix if present
+    const base64Str = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Str, 'base64');
+    const file = storageBucket.file(filePath);
+    await file.save(buffer, {
+      contentType: 'image/jpeg',
+      metadata: { cacheControl: 'public, max-age=31536000' },
+      public: true
+    });
+    return `https://storage.googleapis.com/${storageBucket.name}/${filePath}`;
+  } catch (e) {
+    console.error('❌ Storage upload error:', e.message);
+    return null; // fallback: caller keeps base64
+  }
+}
+
+// ── Database (in-memory cache synced with Firebase Realtime Database) ──
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
-let savePending = false;
 let saveTimer = null;
 let registrationCounter = 0; // global signup order
 
@@ -67,30 +86,49 @@ function calculateTopTag(order, totalUsers) {
 
 async function loadDB() {
   try {
-    // Try Firestore first
-    const doc = await firestore.collection('app').doc('state').get();
-    if (doc.exists) {
-      const data = doc.data();
+    // Load from Firebase Realtime Database
+    const snapshot = await rtdb.ref('/').once('value');
+    const data = snapshot.val();
+    if (data) {
       DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
-      console.log('✅ DB carregado do Firestore');
+      console.log('✅ DB carregado do Firebase Realtime Database');
     } else {
-      // Fallback: try local db.json (migration)
-      const DB_FILE = path.join(__dirname, 'db.json');
-      if (fs.existsSync(DB_FILE)) {
-        const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-        DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
-        // Migrate to Firestore
-        await saveDBToFirestore();
-        console.log('✅ DB migrado de db.json para Firestore');
-      } else {
-        console.log('📦 DB novo criado');
+      // Try Firestore migration (one-time)
+      try {
+        const firestore = admin.firestore();
+        const fsDoc = await firestore.collection('app').doc('state').get();
+        if (fsDoc.exists) {
+          const fsData = fsDoc.data();
+          DB_COLLECTIONS.forEach(c => { db[c] = fsData[c] || {}; });
+          // Migrate to RTDB
+          const updates = {};
+          DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
+          await rtdb.ref('/').update(updates);
+          console.log('✅ DB migrado do Firestore → Realtime Database');
+        }
+      } catch (migErr) {
+        console.log('ℹ️ Sem dados no Firestore para migrar:', migErr.message);
+      }
+      // Fallback: try local db.json
+      if (!Object.keys(db.users).length) {
+        const DB_FILE = path.join(__dirname, 'db.json');
+        if (fs.existsSync(DB_FILE)) {
+          const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+          DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
+          // Migrate to RTDB
+          const updates = {};
+          DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
+          await rtdb.ref('/').update(updates);
+          console.log('✅ DB migrado de db.json → Realtime Database');
+        } else {
+          console.log('📦 DB novo criado');
+        }
       }
     }
     dbLoaded = true;
     initRegistrationCounter();
   } catch (e) {
     console.error('Erro ao carregar DB:', e.message);
-    // Fallback local
     const DB_FILE = path.join(__dirname, 'db.json');
     try {
       if (fs.existsSync(DB_FILE)) {
@@ -267,32 +305,42 @@ function ensureTop1Perks() {
     top1.isAdmin = true;
     console.log(`👑 Top 1 set as admin: ${top1.nickname}`);
   }
-  saveDB();
+  saveDB('users');
 }
 
-async function saveDBToFirestore() {
+// ── Dirty tracking: only write changed collections to RTDB ──
+const _dirtyCollections = new Set();
+
+async function flushToRTDB() {
+  saveTimer = null;
+  const cols = [..._dirtyCollections];
+  _dirtyCollections.clear();
+  if (!cols.length) return;
   try {
-    const payload = {};
-    DB_COLLECTIONS.forEach(c => { payload[c] = db[c] || {}; });
-    await firestore.collection('app').doc('state').set(payload, { merge: true });
+    const updates = {};
+    cols.forEach(c => { updates[c] = db[c] || {}; });
+    await rtdb.ref('/').update(updates);
   } catch (e) {
-    console.error('Erro ao salvar no Firestore:', e.message);
+    console.error('❌ RTDB save error:', e.message);
+    // Re-add failed collections for retry
+    cols.forEach(c => _dirtyCollections.add(c));
     // Fallback: save locally
     try { fs.writeFileSync(path.join(__dirname, 'db.json'), JSON.stringify(db), 'utf8'); } catch (e2) {}
   }
 }
 
-function saveDB() {
-  // Debounced save: batch writes within 2 seconds
-  savePending = true;
+// saveDB(collections...) — mark collections as dirty and schedule flush
+// Call with collection names: saveDB('users','relations')
+// Call with no args: marks ALL collections dirty (legacy fallback)
+function saveDB(...collections) {
+  if (collections.length === 0) {
+    // Legacy: mark all dirty
+    DB_COLLECTIONS.forEach(c => _dirtyCollections.add(c));
+  } else {
+    collections.forEach(c => _dirtyCollections.add(c));
+  }
   if (!saveTimer) {
-    saveTimer = setTimeout(async () => {
-      saveTimer = null;
-      if (savePending) {
-        savePending = false;
-        await saveDBToFirestore();
-      }
-    }, 2000);
+    saveTimer = setTimeout(flushToRTDB, 2000);
   }
 }
 
@@ -342,7 +390,7 @@ app.post('/api/auth/link', async (req, res) => {
     if (displayName && !user.name) user.name = displayName;
     if (photoURL) user.photoURL = photoURL;
     IDX.firebaseUid.set(firebaseUid, user.id);
-    saveDB();
+    saveDB('users');
     return res.json({ userId: user.id, user, linked: true });
   }
 
@@ -367,7 +415,7 @@ app.post('/api/auth/link', async (req, res) => {
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
   idxAddUser(db.users[id]);
-  saveDB();
+  saveDB('users');
   res.json({ userId: id, user: db.users[id], linked: false });
 });
 
@@ -410,7 +458,7 @@ setInterval(() => {
     }
   }
   cleanExpiredPoints();
-  saveDB();
+  saveDB('relations', 'messages');
 }, 60000);
 
 // ── PHRASES BANK v2 ── Hundreds of phrases by category + re-encounter tiers
@@ -898,7 +946,7 @@ function earnStarForUser(userId, reason, context = '') {
     totalEarned: user.starsEarned,
     pendingCount: user.pendingStars.length
   });
-  saveDB();
+  saveDB('users');
 }
 
 // Calculate how many points the Nth star costs (rarity escalation)
@@ -969,7 +1017,7 @@ function updateStreak(userAId, userBId, today) {
   s.lastDate = today;
   if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
   s.history.push({ date: today, streak: s.currentStreak });
-  saveDB();
+  saveDB('streaks');
 }
 
 // ── NFC / QR WEB LINK ──
@@ -982,7 +1030,7 @@ app.post('/api/touch-link/create', (req, res) => {
   if (!user.touchCode) {
     user.touchCode = uuidv4().replace(/-/g, '').slice(0, 12);
     IDX.touchCode.set(user.touchCode, userId);
-    saveDB();
+    saveDB('users');
   }
   const baseUrl = req.protocol + '://' + req.get('host');
   res.json({ touchCode: user.touchCode, url: baseUrl + '/t/' + user.touchCode, nfcUrl: baseUrl + '/t/' + user.touchCode });
@@ -1037,7 +1085,7 @@ app.post('/api/touch-link/connect', (req, res) => {
     res.json({ relationId, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, renewed: false });
   }
   recordEncounter(owner.id, visitor.id, phrase, 'physical');
-  saveDB();
+  saveDB('users', 'relations', 'messages', 'encounters');
   // Notify owner
   const signOwner = getZodiacSign(owner.birthdate);
   const signVisitor = getZodiacSign(visitor.birthdate);
@@ -1156,7 +1204,7 @@ app.post('/api/register', (req, res) => {
     existing.name = existing.name || nick;
     existing.birthdate = birthdate;
     existing.color = existing.color || nickColor(nick);
-    saveDB();
+    saveDB('users');
     return res.json({ userId, user: existing });
   }
 
@@ -1174,7 +1222,7 @@ app.post('/api/register', (req, res) => {
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
   idxAddUser(db.users[id]);
-  saveDB();
+  saveDB('users');
   res.json({ userId: id, user: db.users[id] });
 });
 
@@ -1195,7 +1243,7 @@ app.post('/api/session/create', (req, res) => {
     isServiceTouch: !!isServiceTouch, serviceProviderId: isServiceTouch ? userId : null,
     isCheckin: !!isCheckin, operatorId: isCheckin ? userId : null
   };
-  saveDB();
+  saveDB('sessions');
   res.json({ sessionId, code, isServiceTouch: !!isServiceTouch, isCheckin: !!isCheckin });
 });
 
@@ -1262,7 +1310,7 @@ app.post('/api/session/join', (req, res) => {
     recordEncounter(session.userA, userId, phrase, encounterType);
   }
   session.relationId = relationId;
-  saveDB();
+  saveDB('sessions', 'relations', 'messages', 'encounters');
 
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
@@ -1379,7 +1427,7 @@ app.delete('/api/encounters/:userId/:timestamp', (req, res) => {
   const ts = parseInt(req.params.timestamp);
   if (!db.encounters[userId]) return res.json({ ok: true });
   db.encounters[userId] = db.encounters[userId].filter(e => e.timestamp !== ts);
-  saveDB();
+  saveDB('encounters');
   res.json({ ok: true });
 });
 
@@ -1575,7 +1623,7 @@ app.post('/api/notifications/seen', (req, res) => {
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
   user.notifSeenAt = Date.now();
-  saveDB();
+  saveDB('users');
   res.json({ ok: true });
 });
 
@@ -1699,14 +1747,20 @@ app.get('/api/notifications/:userId', (req, res) => {
 });
 
 // Selfie for relation
-app.post('/api/selfie/:relationId', (req, res) => {
+app.post('/api/selfie/:relationId', async (req, res) => {
   const { userId, selfieData } = req.body;
   const rel = db.relations[req.params.relationId];
   if (!rel || Date.now() > rel.expiresAt) return res.status(404).json({ error: 'Relação expirada.' });
   if (rel.userA !== userId && rel.userB !== userId) return res.status(403).json({ error: 'Sem permissão.' });
   if (!rel.selfie) rel.selfie = {};
-  rel.selfie[userId] = selfieData; // store each user's consent/photo
-  saveDB();
+  // Upload selfie to Storage if base64
+  if (selfieData && selfieData.startsWith('data:image')) {
+    const url = await uploadBase64ToStorage(selfieData, `photos/selfie/${req.params.relationId}_${userId}.jpg`);
+    rel.selfie[userId] = url || selfieData;
+  } else {
+    rel.selfie[userId] = selfieData;
+  }
+  saveDB('relations');
   // If both submitted, notify both
   if (rel.selfie[rel.userA] && rel.selfie[rel.userB]) {
     io.to(`user:${rel.userA}`).to(`user:${rel.userB}`).emit('selfie-complete', {
@@ -1728,7 +1782,7 @@ app.delete('/api/selfie/:relationId/:userId', (req, res) => {
   if (rel.selfie && rel.selfie[req.params.userId]) {
     delete rel.selfie[req.params.userId];
     if (Object.keys(rel.selfie).length === 0) rel.selfie = null;
-    saveDB();
+    saveDB('relations');
   }
   res.json({ ok: true });
 });
@@ -1750,7 +1804,7 @@ app.post('/api/reveal/toggle', (req, res) => {
     }
     // Notify partner
     io.to(`user:${partnerId}`).emit('reveal-revoked', { userId });
-    saveDB();
+    saveDB('users');
   }
   res.json({ ok: true });
 });
@@ -1793,14 +1847,14 @@ app.post('/api/gift/send', (req, res) => {
   if (!db.gifts[fromUserId]) db.gifts[fromUserId] = [];
   db.gifts[toUserId].push(giftRecord);
   db.gifts[fromUserId].push({ ...giftRecord, _role: 'sender' });
-  saveDB();
+  saveDB('gifts', 'users');
   // If gift is a star, award a permanent star
   if (giftId === 'star') {
     awardStar(toUserId, 'gift', fromUserId);
     // Also award score points for gifting
     if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
     db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift, type: 'gift', timestamp: Date.now() });
-    saveDB();
+    saveDB('users');
   }
   // Notify recipient via socket
   io.to(`user:${toUserId}`).emit('gift-received', { relationId, gift: giftRecord });
@@ -1832,7 +1886,7 @@ app.post('/api/gift/address-response', (req, res) => {
     if (senderGift) { senderGift.addressStatus = 'declined'; senderGift.status = 'declined'; }
     io.to(`user:${gift.from}`).emit('gift-address-declined', { giftId, giftName: gift.giftName });
   }
-  saveDB();
+  saveDB('gifts');
   res.json({ ok: true });
 });
 
@@ -1861,7 +1915,7 @@ app.post('/api/declaration/send', (req, res) => {
   // Award score points for declaration
   if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
   db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsDeclaration, type: 'declaration', timestamp: Date.now() });
-  saveDB();
+  saveDB('declarations', 'users');
   io.to(`user:${toUserId}`).emit('declaration-received', { relationId, declaration: decl });
   res.json({ ok: true, declaration: decl });
 });
@@ -1937,7 +1991,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 });
 
 // ── Update full profile ──
-app.post('/api/profile/update', (req, res) => {
+app.post('/api/profile/update', async (req, res) => {
   const { userId, nickname, realName, phone, instagram, twitter, bio, profilePhoto, email, cpf } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
@@ -1966,13 +2020,19 @@ app.post('/api/profile/update', (req, res) => {
   if (twitter !== undefined) user.twitter = twitter;
   if (bio !== undefined) user.bio = bio;
   if (profilePhoto !== undefined) {
-    if (profilePhoto && profilePhoto.length > 500000) return res.status(400).json({ error: 'Foto muito grande (máx 500KB).' });
-    user.profilePhoto = profilePhoto;
+    if (profilePhoto && profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });
+    if (profilePhoto && profilePhoto.startsWith('data:image')) {
+      // Upload to Firebase Storage instead of storing base64
+      const photoUrl = await uploadBase64ToStorage(profilePhoto, `photos/profile/${userId}_${Date.now()}.jpg`);
+      user.profilePhoto = photoUrl || profilePhoto; // fallback to base64 if upload fails
+    } else {
+      user.profilePhoto = profilePhoto;
+    }
   }
   if (email !== undefined && email.trim()) user.email = email.trim();
   if (cpf !== undefined && cpf.trim()) user.cpf = cpf.trim();
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, user });
 });
 
@@ -2017,7 +2077,7 @@ app.post('/api/identity/reveal', (req, res) => {
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(chatMsg);
-  saveDB();
+  saveDB('users', 'messages');
   io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${targetUserId}`).emit('identity-revealed', {
@@ -2063,7 +2123,7 @@ app.post('/api/identity/request-reveal', (req, res) => {
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(chatMsg);
-  saveDB();
+  saveDB('revealRequests', 'messages');
   io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${targetUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'pending' });
@@ -2102,7 +2162,7 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(acceptMsg);
-  saveDB();
+  saveDB('users', 'revealRequests', 'messages');
   io.to(`user:${rr.fromUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
   // fromUser (requester) can now see toUser (revealer)
@@ -2143,7 +2203,7 @@ app.post('/api/identity/reveal-decline', (req, res) => {
   const relId = rr.relationId;
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(declineMsg);
-  saveDB();
+  saveDB('revealRequests', 'messages');
   io.to(`user:${rr.fromUserId}`).emit('new-message', { relationId: relId, message: declineMsg });
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: declineMsg });
   io.to(`user:${rr.fromUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'declined' });
@@ -2189,7 +2249,7 @@ app.post('/api/like/toggle', (req, res) => {
     target.likesCount = (target.likesCount || 0) + 1;
     liked = true;
   }
-  saveDB();
+  saveDB('users', 'likes');
   io.to(`user:${targetUserId}`).emit('like-toggled', { fromUserId: userId, liked, count: target.likesCount || 0 });
   res.json({ ok: true, liked, count: target.likesCount || 0 });
 });
@@ -2253,7 +2313,7 @@ app.post('/api/star/donate', (req, res) => {
   IDX.donationsByPair.set(fromUserId + '_' + toUserId, (IDX.donationsByPair.get(fromUserId + '_' + toUserId) || 0) + 1);
   if (!toUser.stars) toUser.stars = [];
   toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: 'earned' });
-  saveDB();
+  saveDB('users', 'starDonations');
 
   // Notify recipient
   io.to(`user:${toUserId}`).emit('star-received', { fromUserId, fromName: fromUser.nickname, total: toUser.stars.length });
@@ -2328,7 +2388,7 @@ app.post('/api/star/buy', (req, res) => {
     io.to(`user:${recipientId}`).emit('star-received', { fromUserId: userId, fromName: user.nickname, total: recipientUser.stars.length });
   }
 
-  saveDB();
+  saveDB('users');
   io.to(`user:${recipientId}`).emit('star-earned', { reason: 'purchased', context: isSelf ? 'Comprou na loja' : `Presente de ${user.nickname}`, totalEarned: recipientUser.stars.length });
   res.json({ ok: true, starId, cost, recipientStars: recipientUser.stars.length, pointsRemaining: Math.round(rawScore - (user.pointsSpent || 0)) });
 });
@@ -2389,7 +2449,7 @@ app.post('/api/admin/game-config', (req, res) => {
       applied[key] = val;
     }
   }
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, applied, current: getGameConfig() });
 });
 
@@ -2419,7 +2479,7 @@ app.post('/api/declarations/send', (req, res) => {
     expiresAt: Date.now() + 30 * 86400000 // 30 days
   };
   db.declarations[toUserId].push(decl);
-  saveDB();
+  saveDB('declarations');
   res.json({ ok: true, declaration: decl });
 });
 
@@ -2432,7 +2492,7 @@ app.get('/api/declarations/:userId', (req, res) => {
   if (db.declarations[userId]) {
     const before = db.declarations[userId].length;
     db.declarations[userId] = decls;
-    if (before !== decls.length) saveDB();
+    if (before !== decls.length) saveDB('declarations');
   }
   // Sort newest first
   decls.sort((a, b) => b.createdAt - a.createdAt);
@@ -2442,16 +2502,21 @@ app.get('/api/declarations/:userId', (req, res) => {
 // ═══ DOC ID — DOCUMENT VERIFICATION ═══
 if (!db.docVerifications) db.docVerifications = {};
 
-app.post('/api/doc/submit', (req, res) => {
+app.post('/api/doc/submit', async (req, res) => {
   const { userId, docPhoto, selfiePhoto, docName, cpf, submittedAt } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!docPhoto || !selfiePhoto) return res.status(400).json({ error: 'Fotos obrigatórias.' });
   if (!docName || docName.trim().length < 3) return res.status(400).json({ error: 'Nome do documento obrigatório (mín 3 caracteres).' });
 
+  // Upload doc photos to Firebase Storage
+  const ts = Date.now();
+  const docUrl = docPhoto.startsWith('data:image') ? (await uploadBase64ToStorage(docPhoto, `docs/${userId}_doc_${ts}.jpg`)) || docPhoto : docPhoto;
+  const selfieUrl = selfiePhoto.startsWith('data:image') ? (await uploadBase64ToStorage(selfiePhoto, `docs/${userId}_selfie_${ts}.jpg`)) || selfiePhoto : selfiePhoto;
+
   db.docVerifications[userId] = {
     userId,
-    docPhoto, // base64 of document front
-    selfiePhoto, // base64 of selfie holding doc
+    docPhoto: docUrl,
+    selfiePhoto: selfieUrl,
     docName: docName.trim(),
     cpf: cpf || null,
     submittedAt: submittedAt || Date.now(),
@@ -2462,7 +2527,7 @@ app.post('/api/doc/submit', (req, res) => {
   db.users[userId].docSubmitted = true;
   db.users[userId].docSubmittedAt = Date.now();
   db.users[userId].docStatus = 'pending';
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, status: 'pending' });
 });
 
@@ -2484,7 +2549,7 @@ app.post('/api/doc/review', (req, res) => {
   doc.reviewedBy = adminId;
   db.users[userId].docStatus = doc.status;
   if (doc.status === 'approved') db.users[userId].docVerified = true;
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, status: doc.status });
 });
 
@@ -2558,7 +2623,7 @@ app.post('/api/face/enroll', (req, res) => {
   };
   db.users[userId].faceEnrolled = true;
   db.users[userId].faceEnrolledAt = Date.now();
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, enrolled: true });
 });
 
@@ -2569,7 +2634,7 @@ app.post('/api/face/remove', (req, res) => {
   delete db.faceData[userId];
   db.users[userId].faceEnrolled = false;
   delete db.users[userId].faceEnrolledAt;
-  saveDB();
+  saveDB('users');
   res.json({ ok: true });
 });
 
@@ -2661,7 +2726,7 @@ app.post('/api/face/identify', (req, res) => {
       totalCandidates: Object.keys(db.faceData).length
     });
     if (db.faceAccessLog.length > 10000) db.faceAccessLog = db.faceAccessLog.slice(-5000);
-    saveDB();
+    saveDB('users');
   }
 
   res.json({
@@ -2703,7 +2768,7 @@ app.post('/api/admin/verify', (req, res) => {
   target.verifiedBy = adminId;
   target.verificationType = type || 'standard';
   db.verifications[targetId] = { userId: targetId, verifiedAt: Date.now(), by: adminId, type: type || 'standard', note: note || '' };
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, user: { id: targetId, nickname: target.nickname, verified: true, verificationType: target.verificationType } });
 });
 
@@ -2720,7 +2785,7 @@ app.post('/api/admin/unverify', (req, res) => {
   delete target.verifiedBy;
   delete target.verificationType;
   delete db.verifications[targetId];
-  saveDB();
+  saveDB('users');
   res.json({ ok: true });
 });
 
@@ -2735,7 +2800,7 @@ app.post('/api/admin/verify-event', (req, res) => {
   ev.verified = true;
   ev.verifiedAt = Date.now();
   ev.verifiedBy = adminId;
-  saveDB();
+  saveDB('operatorEvents');
   res.json({ ok: true, event: { id: eventId, name: ev.name, verified: true } });
 });
 
@@ -2835,7 +2900,7 @@ app.post('/api/location/update', (req, res) => {
   if (lat == null || lng == null) return res.status(400).json({ error: 'Localização inválida.' });
   if (!db.checkins[userId]) db.checkins[userId] = {};
   db.checkins[userId] = { lat, lng, updatedAt: Date.now() };
-  saveDB();
+  saveDB('checkins');
   res.json({ ok: true });
 });
 
@@ -2877,7 +2942,7 @@ app.post('/api/event/create', (req, res) => {
     participants: [userId],
     createdAt: Date.now()
   };
-  saveDB();
+  saveDB('operatorEvents');
   res.json({ event: db.events[id] });
 });
 
@@ -2906,7 +2971,7 @@ app.post('/api/event/join', (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   if (Date.now() > ev.endsAt) return res.status(400).json({ error: 'Evento encerrado.' });
   if (!ev.participants.includes(userId)) ev.participants.push(userId);
-  saveDB();
+  saveDB('operatorEvents');
   // Notify others in event
   ev.participants.forEach(pid => {
     if (pid !== userId) io.to(`user:${pid}`).emit('event-join', { eventId, user: { id: userId, nickname: db.users[userId].nickname, color: db.users[userId].color } });
@@ -2987,7 +3052,7 @@ app.post('/api/event/encosta-accept', (req, res) => {
   const myEncounters = db.encounters[userId] || [];
   const lastEnc = myEncounters.filter(e => e.with === fromUserId).sort((a,b) => b.timestamp - a.timestamp)[0];
   recordEncounter(fromUserId, userId, phrase, 'digital');
-  saveDB();
+  saveDB('users', 'relations', 'messages', 'encounters');
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing, type: 'digital', eventName: ev ? ev.name : '',
     lastEncounter: lastEnc ? { phrase: lastEnc.phrase, timestamp: lastEnc.timestamp } : null,
@@ -3033,7 +3098,7 @@ app.post('/api/respond-contact', (req, res) => {
     };
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(contactMsg);
-    saveDB();
+    saveDB('messages');
     io.to(`user:${fromUserId}`).emit('contact-shared', { relationId, contactType, value, from: toUserId });
   } else {
     io.to(`user:${fromUserId}`).emit('contact-declined', { relationId, contactType, from: toUserId });
@@ -3067,13 +3132,18 @@ app.get('/api/horoscope/:relationId/:userId', (req, res) => {
 });
 
 // Save selfie for relation
-app.post('/api/selfie', (req, res) => {
+app.post('/api/selfie', async (req, res) => {
   const { relationId, userId, selfieData } = req.body;
   const rel = db.relations[relationId];
   if (!rel) return res.status(400).json({ error: 'Relação não encontrada.' });
   if (!rel.selfie) rel.selfie = {};
-  rel.selfie[userId] = selfieData;
-  saveDB();
+  if (selfieData && selfieData.startsWith('data:image')) {
+    const url = await uploadBase64ToStorage(selfieData, `photos/selfie/${relationId}_${userId}.jpg`);
+    rel.selfie[userId] = url || selfieData;
+  } else {
+    rel.selfie[userId] = selfieData;
+  }
+  saveDB('relations');
   const partnerId = rel.userA === userId ? rel.userB : rel.userA;
   io.to(`user:${partnerId}`).emit('selfie-taken', { relationId, from: userId });
   res.json({ ok: true });
@@ -3157,7 +3227,7 @@ function createSonicConnection(userIdA, userIdB) {
   } else {
     recordEncounter(userIdA, userIdB, phrase, encounterType, relationId);
   }
-  saveDB();
+  saveDB('relations', 'messages');
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
   const zodiacPhrase = (isCheckin || isServiceTouch) ? null : getZodiacPhrase(signA, signB);
@@ -3290,7 +3360,7 @@ app.post('/api/admin/reset-reveals', (req, res) => {
   Object.keys(db.messages).forEach(relId => {
     db.messages[relId] = (db.messages[relId] || []).filter(m => !['reveal-request', 'reveal-accepted', 'reveal-declined'].includes(m.type));
   });
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, usersReset: count });
 });
 
@@ -3313,7 +3383,7 @@ app.post('/api/admin/reset-db', (req, res) => {
   } else {
     DB_COLLECTIONS.forEach(c => { db[c] = {}; });
   }
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, cleared: { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount } });
 });
 
@@ -3349,7 +3419,7 @@ io.on('connection', (socket) => {
     const msg = { id: uuidv4(), userId, text, timestamp: Date.now() };
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
-    saveDB();
+    saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('new-message', { relationId, message: msg });
   });
@@ -3377,7 +3447,7 @@ io.on('connection', (socket) => {
     // Save to messages so it appears when recipient opens chat
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
-    saveDB();
+    saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('ephemeral-received', { relationId, message: msg });
   });
@@ -3389,7 +3459,7 @@ io.on('connection', (socket) => {
     const msg = { id: uuidv4(), userId, type: 'photo', photoData, timestamp: Date.now() };
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
-    saveDB();
+    saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('photo-received', { relationId, message: msg });
   });
@@ -3449,7 +3519,7 @@ app.post('/api/prestador/register', (req, res) => {
     if (birthdate) user.birthdate = birthdate;
     if (!user.mpConnected) { user.mpConnected = false; user.mpAccessToken = null; user.mpRefreshToken = null; user.mpUserId = null; }
     if (!user.tipsReceived) { user.tipsReceived = 0; user.tipsTotal = 0; }
-    saveDB();
+    saveDB('users');
     return res.json({ userId: user.id, user });
   }
 
@@ -3470,7 +3540,7 @@ app.post('/api/prestador/register', (req, res) => {
     tipsReceived: 0, tipsTotal: 0
   };
   idxAddUser(db.users[id]);
-  saveDB();
+  saveDB('users');
   res.json({ userId: id, user: db.users[id] });
 });
 
@@ -3507,7 +3577,7 @@ app.get('/mp/callback', async (req, res) => {
       user.mpAccessToken = data.access_token;
       user.mpRefreshToken = data.refresh_token || null;
       user.mpUserId = data.user_id || null;
-      saveDB();
+      saveDB('users');
       // Redirect back to app with success
       res.redirect('/?mp_connected=1&userId=' + userId);
     } else {
@@ -3629,7 +3699,7 @@ function handlePaymentResult(result, payerId, receiverId, amount, fee, res) {
     recEnc.tipId = tipId;
     recEnc.tipStatus = result.status;
   }
-  saveDB();
+  saveDB('tips', 'users', 'encounters');
   // Notify receiver via socket
   io.to(`user:${receiverId}`).emit('tip-received', { amount, tipId, from: db.users[payerId]?.nickname || '?', status: result.status });
   res.json({ status: result.status, tipId, statusDetail: result.status_detail });
@@ -3688,7 +3758,7 @@ app.post('/api/tip/pix', async (req, res) => {
       mpPaymentId: result.id, status: result.status, statusDetail: result.status_detail,
       method: 'pix', createdAt: Date.now()
     };
-    saveDB();
+    saveDB('tips');
     io.to(`user:${receiverId}`).emit('tip-received', { amount: tipAmount, tipId, from: payer.nickname || '?', status: 'pending', method: 'pix' });
 
     res.json({
@@ -3758,7 +3828,7 @@ app.post('/api/tip/checkout', async (req, res) => {
       mpPreferenceId: preference.id, status: 'pending', statusDetail: 'waiting_checkout',
       method: 'checkout_pro', createdAt: Date.now()
     };
-    saveDB();
+    saveDB('tips');
 
     console.log('🛒 Checkout Pro preference created:', preference.id);
     res.json({
@@ -3786,7 +3856,7 @@ app.get('/tip-result', (req, res) => {
       if (receiver) { receiver.tipsReceived = (receiver.tipsReceived || 0) + 1; receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount; }
       io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, tipId, from: db.users[tip.payerId]?.nickname || '?', status: 'approved' });
     }
-    saveDB();
+    saveDB('tips', 'users');
   }
   // Redirect back to app
   res.redirect('/?tipResult=' + (status || 'unknown') + '&tipId=' + (tipId || ''));
@@ -3896,7 +3966,7 @@ app.post('/mp/webhook', (req, res) => {
           }
           io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, from: db.users[tip.payerId]?.nickname || '?' });
         }
-        saveDB();
+        saveDB('tips', 'users');
       }).catch(e => console.error('Webhook MP fetch error:', e));
     }
   }
@@ -3968,7 +4038,7 @@ app.post('/api/tip/save-card', async (req, res) => {
       cpf: cpf || user.cpf || '',
       savedAt: Date.now()
     };
-    saveDB();
+    saveDB('users');
     console.log('💳 Card saved for user', userId, '- customer:', customerId, 'card:', cardData.id, 'last4:', cardData.last_four_digits);
     res.json({ ok: true, lastFour: cardData.last_four_digits, brand: user.savedCard.brand });
   } catch (e) {
@@ -4021,7 +4091,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
         const newCust = await createResp.json();
         if (!newCust.id) {
           console.error('⚠️ Customer creation failed:', newCust);
-          delete payer.savedCard; saveDB();
+          delete payer.savedCard; saveDB('users');
           return res.status(400).json({ error: 'Erro ao recriar cliente. Cadastre o cartão novamente.', cardExpired: true });
         }
         customerId = newCust.id;
@@ -4029,7 +4099,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       }
       // Update saved customer ID
       payer.savedCard.customerId = customerId;
-      saveDB();
+      saveDB('users');
       // Try to get cards from new customer
       const newCardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + customerId + '/cards', {
         headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
@@ -4037,12 +4107,12 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       const newCards = newCardsResp.ok ? await newCardsResp.json() : [];
       if (!Array.isArray(newCards) || newCards.length === 0) {
         // No cards on new customer — need to re-register card
-        delete payer.savedCard; saveDB();
+        delete payer.savedCard; saveDB('users');
         return res.status(400).json({ error: 'Cartão precisa ser cadastrado novamente.', cardExpired: true });
       }
       cardId = newCards[0].id;
       payer.savedCard.cardId = cardId;
-      saveDB();
+      saveDB('users');
     }
 
     // 2. Get cards from customer
@@ -4051,12 +4121,12 @@ app.post('/api/tip/quick-pay', async (req, res) => {
     });
     if (!cardsResp.ok) {
       console.error('⚠️ Cards API error:', cardsResp.status);
-      delete payer.savedCard; saveDB();
+      delete payer.savedCard; saveDB('users');
       return res.status(400).json({ error: 'Erro ao buscar cartão. Cadastre novamente.', cardExpired: true });
     }
     const cards = await cardsResp.json();
     if (!Array.isArray(cards) || cards.length === 0) {
-      delete payer.savedCard; saveDB();
+      delete payer.savedCard; saveDB('users');
       return res.status(400).json({ error: 'Cartão salvo expirou. Cadastre novamente.', cardExpired: true });
     }
     const card = cards.find(c => c.id === cardId) || cards[0];
@@ -4186,16 +4256,16 @@ app.post('/api/subscription/create-card', async (req, res) => {
           body: JSON.stringify({ email })
         });
         const newCust = await createResp.json();
-        if (!newCust.id) { delete user.savedCard; saveDB(); return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true }); }
+        if (!newCust.id) { delete user.savedCard; saveDB('users'); return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true }); }
         custId = newCust.id;
       }
       user.savedCard.customerId = custId;
       // Get cards from updated customer
       const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + custId + '/cards', { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
       const cards = cardsResp.ok ? await cardsResp.json() : [];
-      if (!Array.isArray(cards) || !cards.length) { delete user.savedCard; saveDB(); return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true }); }
+      if (!Array.isArray(cards) || !cards.length) { delete user.savedCard; saveDB('users'); return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true }); }
       user.savedCard.cardId = cards[0].id;
-      saveDB();
+      saveDB('users');
     }
     // Create token with CVV — try with customer, fallback without
     let tokenData;
@@ -4244,7 +4314,7 @@ app.post('/api/subscription/create-card', async (req, res) => {
       user.verified = true;
       user.verifiedAt = user.verifiedAt || Date.now();
       user.verificationType = user.verificationType || 'subscriber';
-      saveDB();
+      saveDB('users');
       res.json({ ok: true, status: result.status });
     } else {
       const detail = result.status_detail || result.status || 'recusado';
@@ -4269,7 +4339,7 @@ app.delete('/api/tip/saved-card/:userId', async (req, res) => {
     } catch (e) { console.error('Delete card from MP error:', e); }
   }
   delete user.savedCard;
-  saveDB();
+  saveDB('users');
   res.json({ ok: true });
 });
 
@@ -4307,7 +4377,7 @@ app.get('/api/subscription/status/:userId', (req, res) => {
   const now = Date.now();
   if (sub.expiresAt && sub.expiresAt < now && sub.status !== 'authorized') {
     sub.status = 'expired';
-    saveDB();
+    saveDB('users');
     return res.json({ active: false, plan: sub.planId, status: 'expired' });
   }
   res.json({
@@ -4379,7 +4449,7 @@ app.post('/api/subscription/create', async (req, res) => {
       createdAt: Date.now()
     };
     user.isSubscriber = false; // Will be activated on webhook confirmation
-    saveDB();
+    saveDB('users');
 
     res.json({
       subId,
@@ -4407,7 +4477,7 @@ app.get('/sub-result', (req, res) => {
         user.verifiedAt = user.verifiedAt || Date.now();
         user.verificationType = user.verificationType || 'subscriber';
       }
-      saveDB();
+      saveDB('users');
     }
   }
   res.redirect('/?subResult=ok');
@@ -4438,7 +4508,7 @@ app.post('/mp/webhook/subscription', (req, res) => {
         if (pa.status === 'cancelled') {
           sub.cancelledAt = Date.now();
         }
-        saveDB();
+        saveDB('users');
         console.log('📋 Subscription webhook:', { userId: uid, status: pa.status });
       }
     }).catch(e => console.error('Sub webhook error:', e));
@@ -4478,7 +4548,7 @@ app.post('/api/subscription/cancel', async (req, res) => {
         delete user.verificationType;
       }
     }
-    saveDB();
+    saveDB('users');
     res.json({ ok: true });
   } catch (e) {
     console.error('Cancel sub error:', e);
@@ -4517,7 +4587,7 @@ app.post('/api/operator/settings', (req, res) => {
   if (!userId || !db.users[userId]) return res.status(404).json({ error: 'User not found' });
   if (!db.users[userId].operatorSettings) db.users[userId].operatorSettings = {};
   db.users[userId].operatorSettings.requireReveal = !!requireReveal;
-  saveDB();
+  saveDB('users');
   res.json({ ok: true, settings: db.users[userId].operatorSettings });
 });
 
@@ -4537,7 +4607,7 @@ app.post('/api/operator/event/create', (req, res) => {
     revenue: 0, paidCheckins: 0,
     createdAt: Date.now()
   };
-  saveDB();
+  saveDB('operatorEvents');
   res.json({ event: db.operatorEvents[id] });
 });
 
@@ -4574,9 +4644,9 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
         if (searchData.results && searchData.results.length > 0) {
           entryCustId = searchData.results[0].id;
           user.savedCard.customerId = entryCustId;
-          saveDB();
+          saveDB('users');
         } else {
-          delete user.savedCard; saveDB();
+          delete user.savedCard; saveDB('users');
           return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true });
         }
       }
@@ -4585,7 +4655,7 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
       });
       const cards = cardsResp.ok ? await cardsResp.json() : [];
       if (!Array.isArray(cards) || cards.length === 0) {
-        delete user.savedCard; saveDB();
+        delete user.savedCard; saveDB('users');
         return res.status(400).json({ error: 'Cartão salvo expirou.', cardExpired: true });
       }
       const card = cards.find(c => c.id === user.savedCard.cardId) || cards[0];
@@ -4650,7 +4720,7 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
         type: 'entry', eventId: ev.id, eventName: ev.name,
         createdAt: Date.now()
       };
-      saveDB();
+      saveDB('operatorEvents');
       io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount, eventId: ev.id, nickname: user.nickname || user.name });
     }
 
@@ -4678,7 +4748,7 @@ app.post('/api/operator/event/:eventId/end', (req, res) => {
   delete sonicQueue['evt:' + ev.id];
   // Notify all participants
   io.to('event:' + ev.id).emit('event-ended', { eventId: ev.id, name: ev.name });
-  saveDB();
+  saveDB('operatorEvents');
   res.json({ ok: true });
 });
 
@@ -4699,7 +4769,7 @@ app.post('/api/operator/event/:eventId/leave', (req, res) => {
   }
   io.to('event:' + ev.id).emit('event-attendee-left', { userId, eventId: ev.id });
   io.to(`user:${ev.creatorId}`).emit('event-attendee-left', { userId, eventId: ev.id });
-  saveDB();
+  saveDB('operatorEvents');
   res.json({ ok: true });
 });
 
