@@ -377,6 +377,8 @@ function rebuildIndexes() {
     IDX.donationsByPair.set(pk, (IDX.donationsByPair.get(pk) || 0) + 1);
   }
   for (const [eid, ev] of Object.entries(db.operatorEvents || {})) {
+    // Firebase RTDB drops empty arrays — ensure participants always exists
+    if (!Array.isArray(ev.participants)) ev.participants = [];
     if (ev.creatorId) {
       if (!IDX.operatorByCreator.has(ev.creatorId)) IDX.operatorByCreator.set(ev.creatorId, []);
       IDX.operatorByCreator.get(ev.creatorId).push(eid);
@@ -576,6 +578,7 @@ async function restoreBackup(backupId) {
     });
     if (db.operatorEvents) {
       Object.values(db.operatorEvents).forEach(ev => {
+        if (!Array.isArray(ev.participants)) ev.participants = [];
         if (ev.creatorId && IDX.operatorByCreator) {
           if (!IDX.operatorByCreator.has(ev.creatorId)) IDX.operatorByCreator.set(ev.creatorId, []);
           IDX.operatorByCreator.get(ev.creatorId).push(ev.id);
@@ -1716,9 +1719,12 @@ app.post('/api/session/join', (req, res) => {
     db.encounters[codeVisitorId].push({ with: 'evt:' + sessionEventId, withName: evName, withColor: '#60a5fa', phrase, timestamp: now, date: new Date(now).toISOString().slice(0,10), type: 'checkin', points: 1, chatDurationH: 24, relationId, isEvent: true });
     awardPoints(codeVisitorId, null, 'checkin');
     // Add to event participants
-    if (evObj && !evObj.participants.includes(codeVisitorId)) {
-      evObj.participants.push(codeVisitorId);
-      evObj.checkinCount = evObj.participants.length;
+    if (evObj) {
+      if (!Array.isArray(evObj.participants)) evObj.participants = [];
+      if (!evObj.participants.includes(codeVisitorId)) {
+        evObj.participants.push(codeVisitorId);
+        evObj.checkinCount = evObj.participants.length;
+      }
     }
   } else {
     recordEncounter(session.userA, userId, phrase, encounterType);
@@ -3427,6 +3433,7 @@ app.post('/api/event/join', (req, res) => {
   const ev = db.events[eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   if (Date.now() > ev.endsAt) return res.status(400).json({ error: 'Evento encerrado.' });
+  if (!Array.isArray(ev.participants)) ev.participants = [];
   if (!ev.participants.includes(userId)) ev.participants.push(userId);
   saveDB('operatorEvents');
   // Notify others in event
@@ -3440,6 +3447,7 @@ app.post('/api/event/join', (req, res) => {
 app.get('/api/event/:eventId', (req, res) => {
   const ev = db.events[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!Array.isArray(ev.participants)) ev.participants = [];
   const participants = ev.participants.map(pid => {
     const u = db.users[pid];
     return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length, verified: !!u.verified } : null;
@@ -3453,6 +3461,7 @@ app.post('/api/event/encosta-request', (req, res) => {
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const ev = db.events[eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!Array.isArray(ev.participants)) ev.participants = [];
   if (!ev.participants.includes(userId)) return res.status(403).json({ error: 'Você não está neste evento.' });
   let targetId;
   if (directTargetId && db.users[directTargetId] && ev.participants.includes(directTargetId) && directTargetId !== userId) {
@@ -3740,6 +3749,7 @@ function createSonicConnection(userIdA, userIdB) {
     // Add visitor to event participants
     if (eventId && db.operatorEvents[eventId]) {
       const ev = db.operatorEvents[eventId];
+      if (!Array.isArray(ev.participants)) ev.participants = [];
       if (!ev.participants.includes(visitorId)) {
         ev.participants.push(visitorId);
         ev.checkinCount = ev.participants.length;
