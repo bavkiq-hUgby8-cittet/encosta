@@ -14,6 +14,10 @@ const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Clean URL routes for static pages
+app.get('/site', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
+app.get('/sobre', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
+
 // ── Firebase Admin SDK ──
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (FIREBASE_SA) {

@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Touch — Conexões Reais</title>
+<meta name="description" content="Touch transforma encontros físicos em conexões digitais. Eventos, gorjetas, estrelas e relações reais.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#12121a;--border:rgba(255,255,255,.06);--t1:#f0f0f5;--t2:#a0a0b8;--t3:#606078;--ac:#818cf8;--gold:#fbbf24;--green:#34d399;--pink:#f472b6;--blue:#60a5fa}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--ac);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,10,15,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:.8rem 1.5rem;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-weight:800;font-size:1.1rem;letter-spacing:-.02em}
+.nav-logo span{color:var(--ac)}
+.nav-links{display:flex;gap:1.5rem;font-size:.8rem;font-weight:500;color:var(--t2)}
+.nav-links a{color:var(--t2);transition:.2s}
+.nav-links a:hover{color:var(--t1);text-decoration:none}
+@media(max-width:600px){.nav-links{display:none}}
+
+/* HERO */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6rem 1.5rem 4rem;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(129,140,248,.08) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .8rem;background:rgba(129,140,248,.08);border:1px solid rgba(129,140,248,.15);border-radius:20px;font-size:.7rem;font-weight:600;color:var(--ac);margin-bottom:1.5rem;letter-spacing:.03em}
+.hero h1{font-size:clamp(2.5rem,7vw,4.5rem);font-weight:900;line-height:1.05;letter-spacing:-.04em;max-width:700px}
+.hero h1 .accent{background:linear-gradient(135deg,var(--ac),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{margin-top:1.2rem;font-size:1.1rem;color:var(--t2);max-width:500px;font-weight:300}
+.hero-cta{margin-top:2rem;display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center}
+.btn{padding:.7rem 1.8rem;border-radius:12px;font-size:.85rem;font-weight:600;border:none;cursor:pointer;transition:.2s}
+.btn-primary{background:var(--ac);color:#fff}
+.btn-primary:hover{background:#6366f1;text-decoration:none}
+.btn-ghost{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--t1)}
+.btn-ghost:hover{background:rgba(255,255,255,.08);text-decoration:none}
+
+/* SECTIONS */
+section{padding:5rem 1.5rem}
+.container{max-width:900px;margin:0 auto}
+.section-label{font-size:.65rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ac);margin-bottom:.6rem}
+.section-title{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-bottom:.8rem}
+.section-desc{font-size:1rem;color:var(--t2);max-width:600px;font-weight:300;line-height:1.8}
+
+/* FEATURES GRID */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;margin-top:2.5rem}
+.feature-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.8rem;transition:.2s}
+.feature-card:hover{border-color:rgba(129,140,248,.15);transform:translateY(-2px)}
+.feature-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:1rem}
+.feature-card h3{font-size:1.05rem;font-weight:700;margin-bottom:.4rem}
+.feature-card p{font-size:.82rem;color:var(--t2);line-height:1.7}
+
+/* STARS SECTION */
+.stars-section{background:linear-gradient(180deg,transparent,rgba(251,191,36,.02),transparent)}
+.star-visual{display:flex;align-items:center;justify-content:center;gap:.3rem;margin:2rem 0;font-size:2rem;opacity:.8}
+.star-tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:2rem}
+.star-tier{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;text-align:center}
+.star-tier .tier-stars{font-size:1.5rem;margin-bottom:.5rem}
+.star-tier .tier-name{font-size:.9rem;font-weight:700;margin-bottom:.3rem}
+.star-tier .tier-desc{font-size:.72rem;color:var(--t2);line-height:1.6}
+.star-tier .tier-req{font-size:.65rem;color:var(--t3);margin-top:.5rem;font-weight:500}
+
+/* SCORING */
+.score-table{width:100%;border-collapse:collapse;margin-top:1.5rem;font-size:.82rem}
+.score-table th{text-align:left;padding:.7rem 1rem;background:rgba(255,255,255,.03);color:var(--t2);font-weight:600;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.score-table td{padding:.7rem 1rem;border-bottom:1px solid var(--border)}
+.score-table tr:last-child td{border-bottom:none}
+.pts{font-weight:700;color:var(--green);font-size:.9rem}
+.pts.zero{color:var(--t3)}
+
+/* DIFFICULTY */
+.diff-bar{margin-top:2rem}
+.diff-row{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
+.diff-label{width:120px;font-size:.75rem;font-weight:600;flex-shrink:0}
+.diff-track{flex:1;height:8px;background:rgba(255,255,255,.04);border-radius:4px;overflow:hidden}
+.diff-fill{height:100%;border-radius:4px;transition:.6s}
+.diff-num{font-size:.7rem;color:var(--t3);width:60px;text-align:right;flex-shrink:0}
+
+/* HOW IT WORKS */
+.steps{display:flex;flex-direction:column;gap:0;margin-top:2rem;position:relative}
+.steps::before{content:'';position:absolute;left:23px;top:24px;bottom:24px;width:2px;background:linear-gradient(var(--ac),var(--gold));opacity:.15}
+.step{display:flex;gap:1.2rem;align-items:flex-start;padding:1rem 0}
+.step-num{width:48px;height:48px;border-radius:50%;background:rgba(129,140,248,.08);border:2px solid rgba(129,140,248,.15);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;color:var(--ac);flex-shrink:0;position:relative;z-index:1}
+.step-content h4{font-size:.95rem;font-weight:700;margin-bottom:.2rem}
+.step-content p{font-size:.8rem;color:var(--t2);line-height:1.7}
+
+/* RARITY */
+.rarity-visual{margin:2rem 0;padding:2rem;background:var(--card);border:1px solid var(--border);border-radius:16px}
+.rarity-row{display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border)}
+.rarity-row:last-child{border-bottom:none}
+.rarity-star{font-size:.85rem;font-weight:700}
+.rarity-cost{font-size:.75rem;color:var(--gold);font-weight:600}
+.rarity-note{font-size:.65rem;color:var(--t3)}
+
+/* FOOTER */
+.footer{text-align:center;padding:3rem 1.5rem;border-top:1px solid var(--border);font-size:.75rem;color:var(--t3)}
+.footer a{color:var(--t2)}
+
+/* FAQ */
+.faq-item{border-bottom:1px solid var(--border);padding:1.2rem 0}
+.faq-q{font-weight:700;font-size:.9rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.faq-q::after{content:'+';font-size:1.2rem;color:var(--t3);transition:.2s}
+.faq-item.open .faq-q::after{transform:rotate(45deg)}
+.faq-a{max-height:0;overflow:hidden;transition:.3s;font-size:.82rem;color:var(--t2);line-height:1.8}
+.faq-item.open .faq-a{max-height:500px;padding-top:.8rem}
+
+/* RESPONSIVE */
+@media(max-width:600px){
+  section{padding:3rem 1.2rem}
+  .features{grid-template-columns:1fr}
+  .star-tiers{grid-template-columns:1fr 1fr}
+  .diff-label{width:80px;font-size:.65rem}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo"><span>touch</span> irl</div>
+  <div class="nav-links">
+    <a href="#sobre">Sobre</a>
+    <a href="#eventos">Eventos</a>
+    <a href="#gorjeta">Gorjeta</a>
+    <a href="#estrelas">Estrelas</a>
+    <a href="#pontuacao">Pontuação</a>
+    <a href="#faq">FAQ</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">&#x26A1; Conexões que existem de verdade</div>
+  <h1>O mundo real tem <span class="accent">mais valor</span></h1>
+  <p>Touch transforma encontros físicos em conexões digitais permanentes. Sem likes falsos. Sem seguidores comprados. Só quem encostou de verdade.</p>
+  <div class="hero-cta">
+    <a href="#estrelas" class="btn btn-primary">Como funcionam as Estrelas</a>
+    <a href="#pontuacao" class="btn btn-ghost">Sistema de Pontuação</a>
+  </div>
+</section>
+
+<!-- SOBRE -->
+<section id="sobre">
+  <div class="container">
+    <div class="section-label">O que é</div>
+    <div class="section-title">Conexão começa no toque</div>
+    <div class="section-desc">Touch registra quando duas pessoas se encontram de verdade — pelo toque dos celulares, NFC, QR Code ou proximidade. Cada encontro vira um ponto na sua constelação pessoal. Quanto mais você se conecta no mundo real, mais sua rede cresce.</div>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(129,140,248,.08)">
+          <svg width="28" height="28" viewBox="0 0 48 48" fill="none"><rect x="8" y="10" width="14" height="24" rx="3" fill="none" stroke="rgba(129,140,248,.7)" stroke-width="1.5"/><rect x="26" y="10" width="14" height="24" rx="3" fill="none" stroke="rgba(129,140,248,.7)" stroke-width="1.5"/><path d="M22 22 C24 20 24 20 26 22" stroke="rgba(129,140,248,.5)" stroke-width="1" fill="none"/><path d="M22 24 C25 21 23 21 26 24" stroke="rgba(129,140,248,.35)" stroke-width="1" fill="none"/></svg>
+        </div>
+        <h3>Encontro Físico</h3>
+        <p>Dois celulares se tocam e a conexão é registrada. Sem adicionar ninguém. Sem trocar número. O touch faz tudo.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(251,191,36,.08)">★</div>
+        <h3>Reputação Real</h3>
+        <p>Suas estrelas mostram quantas conexões reais você construiu. Não dá pra comprar seguidores aqui — só vivendo.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(244,114,182,.08)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="rgba(244,114,182,.7)" stroke-width="1.5"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="rgba(244,114,182,.7)" stroke-width="1.5" fill="none"/><circle cx="18" cy="6" r="2.5" stroke="rgba(244,114,182,.5)" stroke-width="1" fill="none"/><circle cx="6" cy="6" r="2.5" stroke="rgba(244,114,182,.5)" stroke-width="1" fill="none"/></svg>
+        </div>
+        <h3>Constelação</h3>
+        <p>Sua rede de conexões vira uma constelação visual. Cada pessoa é uma estrela orbitando ao seu redor. Quanto mais próximos, mais brilham.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EVENTOS -->
+<section id="eventos" style="background:rgba(129,140,248,.015)">
+  <div class="container">
+    <div class="section-label">Para eventos</div>
+    <div class="section-title">Check-in por toque</div>
+    <div class="section-desc">Organizadores criam eventos e os participantes fazem check-in tocando o celular do operador. Sem fila, sem papel, sem QR code complicado.</div>
+
+    <div class="features" style="margin-top:2rem">
+      <div class="feature-card">
+        <h3>Painel do Operador</h3>
+        <p>Dashboard em tempo real com lista de check-ins, controle de capacidade e visão geral do evento. O operador vê quem chegou e quando.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Taxa de Entrada</h3>
+        <p>Configure pagamento na entrada via cartão, PIX ou Mercado Pago. O participante paga e faz check-in no mesmo gesto.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Privacidade</h3>
+        <p>Check-ins são registrados como conexão com o evento, não com o operador. Sua identidade fica protegida até você decidir se revelar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GORJETA -->
+<section id="gorjeta">
+  <div class="container">
+    <div class="section-label">Gorjeta digital</div>
+    <div class="section-title">Valorize quem te atendeu bem</div>
+    <div class="section-desc">Prestadores de serviço — garçons, bartenders, DJs, artistas — recebem gorjetas diretamente pelo Touch. Basta tocar o celular e escolher o valor.</div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Toque</h4>
+          <p>Encoste seu celular no do prestador. A conexão é criada instantaneamente.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Escolha o valor</h4>
+          <p>Selecione quanto quer dar de gorjeta. Valores sugeridos ou personalizados.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Pague como preferir</h4>
+          <p>Cartão salvo, Mercado Pago ou PIX. Tudo integrado, sem complicação.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Conexão permanente</h4>
+          <p>Além da gorjeta, o encontro fica registrado na sua constelação. Vocês podem se revelar depois.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ESTRELAS -->
+<section id="estrelas" class="stars-section">
+  <div class="container">
+    <div class="section-label">Reputação</div>
+    <div class="section-title">Estrelas são raras. Como na vida real.</div>
+    <div class="section-desc">Estrelas são a métrica principal do Touch. Elas representam sua influência física — quantas conexões reais e duradouras você construiu. Não existem atalhos. Cada estrela é conquistada.</div>
+
+    <div class="star-visual">★ ★ ★ ★ ★</div>
+
+    <h3 style="font-size:1rem;margin:1.5rem 0 .5rem">Como ganhar estrelas</h3>
+
+    <div class="star-tiers">
+      <div class="star-tier">
+        <div class="tier-stars">★</div>
+        <div class="tier-name">Conexões únicas</div>
+        <div class="tier-desc">A cada 100 pessoas diferentes que você encontra no mundo real, você ganha 1 estrela automaticamente.</div>
+        <div class="tier-req">100 conexões únicas = 1 ★</div>
+      </div>
+      <div class="star-tier">
+        <div class="tier-stars">★</div>
+        <div class="tier-name">Relação duradoura</div>
+        <div class="tier-desc">Encontrar a mesma pessoa em 5 dias diferentes prova que a relação é real. Vocês dois ganham estrela.</div>
+        <div class="tier-req">5 dias diferentes = 1 ★</div>
+      </div>
+      <div class="star-tier">
+        <div class="tier-stars">★</div>
+        <div class="tier-name">Loja de estrelas</div>
+        <div class="tier-desc">Acumule pontos de score e troque por estrelas. Para si mesmo custa mais. Para presentear alguém, custa menos.</div>
+        <div class="tier-req">120 pts (si) / 100 pts (presente)</div>
+      </div>
+      <div class="star-tier">
+        <div class="tier-stars">★</div>
+        <div class="tier-name">Doação</div>
+        <div class="tier-desc">Estrelas conquistadas podem ser doadas para honrar alguém especial na sua rede. Máximo 1 estrela por pessoa.</div>
+        <div class="tier-req">Earned → doada para alguém</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:1rem;margin:2.5rem 0 .5rem">Cada estrela fica mais difícil</h3>
+    <div class="section-desc" style="margin-bottom:0">Assim como na vida real, construir reputação fica mais difícil com o tempo. Cada nova estrela exige mais esforço que a anterior.</div>
+
+    <div class="rarity-visual">
+      <div class="rarity-row">
+        <span class="rarity-star">1ª estrela</span>
+        <span class="rarity-cost">100 pts</span>
+        <span class="rarity-note">Acessível</span>
+      </div>
+      <div class="rarity-row">
+        <span class="rarity-star">2ª estrela</span>
+        <span class="rarity-cost">115 pts</span>
+        <span class="rarity-note">+15%</span>
+      </div>
+      <div class="rarity-row">
+        <span class="rarity-star">3ª estrela</span>
+        <span class="rarity-cost">132 pts</span>
+        <span class="rarity-note">+32%</span>
+      </div>
+      <div class="rarity-row">
+        <span class="rarity-star">5ª estrela</span>
+        <span class="rarity-cost">175 pts</span>
+        <span class="rarity-note">+75%</span>
+      </div>
+      <div class="rarity-row">
+        <span class="rarity-star">10ª estrela</span>
+        <span class="rarity-cost">352 pts</span>
+        <span class="rarity-note">+252% — Muito raro</span>
+      </div>
+      <div class="rarity-row">
+        <span class="rarity-star">20ª estrela</span>
+        <span class="rarity-cost">1.424 pts</span>
+        <span class="rarity-note">Lendário</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PONTUAÇÃO -->
+<section id="pontuacao">
+  <div class="container">
+    <div class="section-label">Como funciona</div>
+    <div class="section-title">Sistema de pontuação</div>
+    <div class="section-desc">O Touch valoriza conexões reais e penaliza repetição. Encontrar pessoas novas vale mais. Reencontrar no mesmo dia vale menos. Spammar não vale nada.</div>
+
+    <table class="score-table">
+      <thead>
+        <tr><th>Tipo de encontro</th><th>Pontos</th><th>Quando</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Primeiro encontro</strong><br><span style="font-size:.7rem;color:var(--t3)">Nunca se viram antes</span></td>
+          <td><span class="pts">+10</span></td>
+          <td style="font-size:.75rem;color:var(--t2)">Primeira vez que dois celulares se tocam</td>
+        </tr>
+        <tr>
+          <td><strong>Reencontro</strong><br><span style="font-size:.7rem;color:var(--t3)">Já se viram, dia diferente</span></td>
+          <td><span class="pts">+8</span></td>
+          <td style="font-size:.75rem;color:var(--t2)">Reencontrar em outro dia — relação duradoura</td>
+        </tr>
+        <tr>
+          <td><strong>Mesmo dia</strong><br><span style="font-size:.7rem;color:var(--t3)">2ª vez nas 24h</span></td>
+          <td><span class="pts" style="color:var(--gold)">+4</span></td>
+          <td style="font-size:.75rem;color:var(--t2)">Segundo encontro no mesmo dia</td>
+        </tr>
+        <tr>
+          <td><strong>Spam</strong><br><span style="font-size:.7rem;color:var(--t3)">3ª+ vez nas 24h</span></td>
+          <td><span class="pts zero">0</span></td>
+          <td style="font-size:.75rem;color:var(--t2)">Anti-farm: máximo 2 por dupla em 24h</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:1rem;margin:2.5rem 0 .8rem">Pontos decaem com o tempo</h3>
+    <p style="font-size:.85rem;color:var(--t2);line-height:1.8;margin-bottom:1.5rem">Seu score não é eterno. Pontos perdem valor ao longo de 30 dias até desaparecerem. Isso significa que seu score reflete sua atividade recente — não o que você fez meses atrás. Para manter o score alto, continue se conectando.</p>
+
+    <h3 style="font-size:1rem;margin:2rem 0 .8rem">Dificuldade de cada estrela</h3>
+    <p style="font-size:.85rem;color:var(--t2);line-height:1.8;margin-bottom:1rem">Para ter noção do esforço: conseguir sua primeira estrela por conexões únicas exige encontrar 100 pessoas diferentes no mundo real. Isso pode levar semanas ou meses dependendo da sua vida social.</p>
+
+    <div class="diff-bar">
+      <div class="diff-row">
+        <div class="diff-label">1ª estrela</div>
+        <div class="diff-track"><div class="diff-fill" style="width:10%;background:var(--green)"></div></div>
+        <div class="diff-num">100 pessoas</div>
+      </div>
+      <div class="diff-row">
+        <div class="diff-label">3ª estrela</div>
+        <div class="diff-track"><div class="diff-fill" style="width:30%;background:var(--blue)"></div></div>
+        <div class="diff-num">300 pessoas</div>
+      </div>
+      <div class="diff-row">
+        <div class="diff-label">5ª estrela</div>
+        <div class="diff-track"><div class="diff-fill" style="width:50%;background:var(--ac)"></div></div>
+        <div class="diff-num">500 pessoas</div>
+      </div>
+      <div class="diff-row">
+        <div class="diff-label">10ª estrela</div>
+        <div class="diff-track"><div class="diff-fill" style="width:80%;background:var(--gold)"></div></div>
+        <div class="diff-num">1.000 pessoas</div>
+      </div>
+      <div class="diff-row">
+        <div class="diff-label">20 estrelas</div>
+        <div class="diff-track"><div class="diff-fill" style="width:100%;background:linear-gradient(90deg,var(--gold),var(--pink))"></div></div>
+        <div class="diff-num">Lendário</div>
+      </div>
+    </div>
+
+    <div style="margin-top:2.5rem;padding:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:14px">
+      <h4 style="font-size:.9rem;margin-bottom:.5rem;color:var(--gold)">★ Por que é tão difícil?</h4>
+      <p style="font-size:.82rem;color:var(--t2);line-height:1.8">Porque estrelas representam algo real. Na internet, qualquer um compra mil seguidores em 5 minutos. No Touch, cada estrela é prova de que você saiu de casa, encontrou gente de verdade e construiu relações que duram. É a diferença entre um número na tela e uma experiência vivida. Estrelas são raras porque conexões reais são raras.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ANTI-FARM -->
+<section style="background:rgba(129,140,248,.015)">
+  <div class="container">
+    <div class="section-label">Proteção</div>
+    <div class="section-title">Anti-farm: sem trapaça</div>
+    <div class="section-desc">O Touch tem mecanismos para impedir que pessoas inflem artificialmente suas métricas.</div>
+
+    <div class="features" style="margin-top:1.5rem">
+      <div class="feature-card">
+        <h3>Limite por dupla</h3>
+        <p>Máximo 2 encontros pontuados por dupla a cada 24 horas. A partir do 3º, não ganha nada. Favor encontrar pessoas diferentes.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Valoriza novidade</h3>
+        <p>Primeira vez com alguém: +10 pontos. Mesmo dia de novo: +4. Terceira vez: zero. O sistema favorece conhecer gente nova.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Decaimento</h3>
+        <p>Pontos perdem valor ao longo de 30 dias. Não adianta acumular e parar. Seu score reflete quem você é agora, não quem foi.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <div class="section-label">Dúvidas</div>
+    <div class="section-title">Perguntas frequentes</div>
+
+    <div style="margin-top:1.5rem">
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>Preciso instalar algum app?</span>
+        </div>
+        <div class="faq-a">Não. O Touch funciona 100% no navegador do celular. Basta acessar o link e tocar. Sem download, sem conta obrigatória — você cria um apelido e já está dentro.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>Minhas informações ficam visíveis?</span>
+        </div>
+        <div class="faq-a">Não. Por padrão, as pessoas só veem seu apelido e sua cor. Para revelar nome real, foto, Instagram ou WhatsApp, você precisa ativar manualmente a opção "Revelar-me" para cada pessoa. É um sistema de consentimento mútuo.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>Posso comprar estrelas?</span>
+        </div>
+        <div class="faq-a">Sim, mas com pontos — não com dinheiro. Você acumula pontos fazendo conexões reais e pode trocar por estrelas na loja. E cada estrela fica mais cara que a anterior (15% a mais por estrela). Não existe atalho fácil.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>O que acontece se eu tentar farmar pontos?</span>
+        </div>
+        <div class="faq-a">O sistema limita a 2 encontros pontuados por dupla a cada 24h. A partir do 3º encontro com a mesma pessoa no mesmo dia, você recebe zero pontos. O Touch valoriza conexões diversas e espaçadas.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>Como funciona para eventos?</span>
+        </div>
+        <div class="faq-a">O organizador cria um evento no painel do operador, define se há taxa de entrada e abre o check-in. Os participantes tocam o celular do operador para entrar. Tudo fica registrado com horário, e o check-in aparece na constelação do visitante como conexão com o evento (não com o operador).</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>Como dar gorjeta?</span>
+        </div>
+        <div class="faq-a">Depois de tocar o celular de um prestador de serviço, aparece a opção de gorjeta na tela. Você escolhe o valor e paga por cartão salvo, Mercado Pago ou PIX. O prestador recebe na hora.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>O que é a constelação?</span>
+        </div>
+        <div class="faq-a">A constelação é uma visualização animada de todas as pessoas com quem você se conectou. Cada pessoa é um ponto orbitando ao seu redor. Pessoas com mais estrelas ficam mais próximas do centro. Você pode clicar em qualquer ponto para ver detalhes, curtir, doar estrela ou se revelar.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>Quem é o Top 1?</span>
+        </div>
+        <div class="faq-a">O Top 1 é a pessoa com mais estrelas na plataforma. Além de ser reconhecido como o maior influenciador físico do Touch, o Top 1 tem o poder de ajustar os parâmetros do sistema de pontuação — decidindo como as estrelas são distribuídas para toda a comunidade.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p style="margin-bottom:.4rem"><strong style="color:var(--t1)">touch</strong> irl — conexões reais</p>
+  <p>Feito para quem acredita que o mundo real tem mais valor.</p>
+  <p style="margin-top:1rem"><a href="/">Abrir Touch</a></p>
+</footer>
+
+</body>
+</html>
