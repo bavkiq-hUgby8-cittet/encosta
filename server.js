@@ -1894,7 +1894,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', (req, res) => {
-  const { userId, nickname, realName, phone, instagram, twitter, bio, profilePhoto } = req.body;
+  const { userId, nickname, realName, phone, instagram, twitter, bio, profilePhoto, email, cpf } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -1902,10 +1902,14 @@ app.post('/api/profile/update', (req, res) => {
     const newNick = nickname.trim();
     if (newNick.length < 2 || newNick.length > 20) return res.status(400).json({ error: 'Nickname: 2-20 caracteres.' });
     if (!/^[a-zA-Z0-9_.-]+$/.test(newNick)) return res.status(400).json({ error: 'Nickname: só letras, números, _ . -' });
-    const taken = Object.values(db.users).some(u => u.id !== userId && u.nickname && u.nickname.toLowerCase() === newNick.toLowerCase());
-    if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
+    // Check uniqueness — allow if same user
+    const existingId = IDX.nickname.get(newNick.toLowerCase());
+    if (existingId && existingId !== userId) return res.status(400).json({ error: 'Esse nickname já existe.' });
+    // Update index
+    if (user.nickname) IDX.nickname.delete(user.nickname.toLowerCase());
+    IDX.nickname.set(newNick.toLowerCase(), userId);
     user.nickname = newNick;
-    user.name = user.name === user.nickname ? newNick : user.name; // update name if it was same as nick
+    user.name = user.name === user.nickname ? newNick : user.name;
   }
   if (realName !== undefined && realName.trim()) {
     if (realName.trim().toLowerCase() === (user.nickname || '').toLowerCase()) {
@@ -1918,6 +1922,8 @@ app.post('/api/profile/update', (req, res) => {
   if (twitter !== undefined) user.twitter = twitter;
   if (bio !== undefined) user.bio = bio;
   if (profilePhoto !== undefined) user.profilePhoto = profilePhoto; // base64
+  if (email !== undefined && email.trim()) user.email = email.trim();
+  if (cpf !== undefined && cpf.trim()) user.cpf = cpf.trim();
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
   saveDB();
   res.json({ ok: true, user });
@@ -2749,7 +2755,7 @@ app.get('/api/myprofile/:userId', (req, res) => {
     phone: user.phone || '', instagram: user.instagram || '',
     twitter: user.twitter || '', bio: user.bio || '',
     profilePhoto: user.profilePhoto || user.photoURL || '', photoURL: user.photoURL || '', profileComplete: !!user.profileComplete,
-    email: user.email || '',
+    email: user.email || '', cpf: user.cpf || '',
     canSee: user.canSee || {}, isPrestador: !!user.isPrestador,
     starsEarned: user.starsEarned || 0, likesCount: user.likesCount || 0,
     starsReceived: (user.stars || []).length, score: calcScore(req.params.userId),
@@ -2758,7 +2764,9 @@ app.get('/api/myprofile/:userId', (req, res) => {
     verified: !!user.verified, isAdmin: !!user.isAdmin,
     faceEnrolled: !!user.faceEnrolled, faceEnrolledAt: user.faceEnrolledAt || null,
     docSubmitted: !!user.docSubmitted, docStatus: user.docStatus || null, docVerified: !!user.docVerified,
-    giftsReceived: (db.gifts[req.params.userId] || []).length
+    isSubscriber: !!user.isSubscriber, verificationType: user.verificationType || null,
+    giftsReceived: (db.gifts[req.params.userId] || []).length,
+    likesGiven: user.likesGiven || 0, declarationsReceived: (db.declarations ? Object.values(db.declarations).filter(d => d.toUserId === req.params.userId).length : 0)
   });
 });
 
@@ -4039,7 +4047,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       installments: 1,
       payer: {
         email: payer.email || payer.savedCard.email || payerId + '@touch.app',
-        identification: { type: 'CPF', number: payer.cpf || payer.savedCard.cpf || '00000000000' }
+        identification: { type: 'CPF', number: payer.cpf || payer.savedCard.cpf || '' }
       },
       description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
       statement_descriptor: 'TOUCH GORJETA',
@@ -4162,27 +4170,43 @@ app.post('/api/subscription/create-card', async (req, res) => {
       if (!tokenData.id) return res.status(400).json({ error: 'CVV inválido ou cartão expirado.' });
     }
     // Create recurring payment
+    const payerEmail = user.email || user.savedCard?.email;
+    const payerCpf = user.cpf || user.savedCard?.cpf;
+    if (!payerEmail || payerEmail.includes('@touch.app')) {
+      return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
+    }
+    if (!payerCpf || payerCpf === '00000000000') {
+      return res.status(400).json({ error: 'Cadastre seu CPF no perfil antes de assinar.' });
+    }
     const paymentData = {
       transaction_amount: 9.90,
       token: tokenData.id,
       payment_method_id: user.savedCard.paymentMethodId || 'visa',
       installments: 1,
-      payer: { email: user.email || userId + '@touch.app', identification: { type: 'CPF', number: user.cpf || '00000000000' } },
+      payer: { email: payerEmail, identification: { type: 'CPF', number: payerCpf } },
       description: 'Touch? Plus — Assinatura mensal',
       statement_descriptor: 'TOUCH PLUS',
       metadata: { user_id: userId, type: 'subscription', plan: planId }
     };
+    console.log('💳 Sub card pay:', { email: payerEmail, cpf: payerCpf ? '***' + payerCpf.slice(-4) : 'none', method: user.savedCard.paymentMethodId, token: tokenData.id?.slice(0, 8) });
     const result = await mpPayment.create({ body: paymentData });
+    console.log('💳 Sub card result:', { id: result.id, status: result.status, detail: result.status_detail });
     if (result.status === 'approved') {
       user.subscription = { active: true, planId, method: 'card', startDate: new Date().toISOString(), mpPaymentId: result.id };
+      user.isSubscriber = true;
+      user.verified = true;
+      user.verifiedAt = user.verifiedAt || Date.now();
+      user.verificationType = user.verificationType || 'subscriber';
       saveDB();
       res.json({ ok: true, status: result.status });
     } else {
-      res.status(400).json({ error: 'Pagamento ' + (result.status_detail || result.status || 'recusado') });
+      const detail = result.status_detail || result.status || 'recusado';
+      const msgs = { cc_rejected_bad_filled_card_number: 'Número do cartão inválido', cc_rejected_bad_filled_date: 'Data de validade incorreta', cc_rejected_bad_filled_other: 'Dados do cartão incorretos', cc_rejected_bad_filled_security_code: 'CVV incorreto', cc_rejected_blacklist: 'Cartão bloqueado', cc_rejected_call_for_authorize: 'Ligue para a operadora para autorizar', cc_rejected_card_disabled: 'Cartão desabilitado', cc_rejected_duplicated_payment: 'Pagamento duplicado', cc_rejected_high_risk: 'Pagamento rejeitado por segurança', cc_rejected_insufficient_amount: 'Saldo insuficiente', cc_rejected_max_attempts: 'Excedido número de tentativas', cc_rejected_other_reason: 'Cartão recusado — tente outro' };
+      res.status(400).json({ error: msgs[detail] || 'Pagamento recusado: ' + detail, detail });
     }
   } catch (e) {
-    console.error('Sub card error:', e);
-    res.status(500).json({ error: 'Erro no pagamento.' });
+    console.error('Sub card error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
   }
 });
 
@@ -4273,7 +4297,7 @@ app.post('/api/subscription/create', async (req, res) => {
         currency_id: plan.currency
       },
       back_url: baseUrl + '/sub-result?subId=' + subId + '&userId=' + userId,
-      payer_email: user.email || '',
+      payer_email: user.email || user.savedCard?.email || '',
       external_reference: subId,
       notification_url: baseUrl + '/mp/webhook/subscription'
     };
@@ -4330,7 +4354,12 @@ app.get('/sub-result', (req, res) => {
     if (sub.id === subId) {
       sub.status = 'authorized';
       const user = db.users[userId];
-      if (user) user.isSubscriber = true;
+      if (user) {
+        user.isSubscriber = true;
+        user.verified = true;
+        user.verifiedAt = user.verifiedAt || Date.now();
+        user.verificationType = user.verificationType || 'subscriber';
+      }
       saveDB();
     }
   }
@@ -4353,6 +4382,11 @@ app.post('/mp/webhook/subscription', (req, res) => {
         const user = db.users[uid];
         if (user) {
           user.isSubscriber = (pa.status === 'authorized');
+          if (pa.status === 'authorized') {
+            user.verified = true;
+            user.verifiedAt = user.verifiedAt || Date.now();
+            user.verificationType = user.verificationType || 'subscriber';
+          }
         }
         if (pa.status === 'cancelled') {
           sub.cancelledAt = Date.now();
@@ -4388,7 +4422,15 @@ app.post('/api/subscription/cancel', async (req, res) => {
     sub.status = 'cancelled';
     sub.cancelledAt = Date.now();
     const user = db.users[userId];
-    if (user) user.isSubscriber = false;
+    if (user) {
+      user.isSubscriber = false;
+      // Only remove verified if it was subscriber-only verification
+      if (user.verificationType === 'subscriber') {
+        user.verified = false;
+        delete user.verifiedAt;
+        delete user.verificationType;
+      }
+    }
     saveDB();
     res.json({ ok: true });
   } catch (e) {

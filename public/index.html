@@ -1486,6 +1486,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="cp-field"><label>Nome real</label><input type="text" id="cpRealName" placeholder="Seu nome completo" maxlength="60"></div>
   <div class="cp-field"><label>Bio</label><textarea id="cpBio" placeholder="Conte algo sobre você..." maxlength="200"></textarea></div>
   <div class="cp-field"><label>Telefone</label><input type="tel" id="cpPhone" placeholder="+55 11 99999-9999" maxlength="20"><div class="cp-note">Opcional — não será mostrado publicamente</div></div>
+  <div class="cp-field"><label>Email</label><input type="email" id="cpEmail" placeholder="seu@email.com" maxlength="60"><div class="cp-note">Necessário para pagamentos e assinatura</div></div>
+  <div class="cp-field"><label>CPF</label><input type="text" id="cpCpf" placeholder="000.000.000-00" maxlength="14" inputmode="numeric"><div class="cp-note">Necessário para pagamentos — não será exibido</div></div>
   <div class="cp-field"><label>Instagram</label><input type="text" id="cpInstagram" placeholder="@seuuser" maxlength="30"></div>
   <div class="cp-field"><label>X (Twitter)</label><input type="text" id="cpTwitter" placeholder="@seuuser" maxlength="30"></div>
   <div class="cp-actions">
@@ -2240,13 +2242,15 @@ async function refreshHome(){
       if(mp.isPrestador)localStorage.setItem('touch_isPrestador','1');
       state.userVerified=!!mp.verified;
       state.userIsAdmin=!!mp.isAdmin;
-      state.userStarsCount=(mp.stars||[]).length;
+      state.userStarsCount=mp.starsReceived||0;
       state.userFaceEnrolled=!!mp.faceEnrolled;
       state.userDocVerified=!!mp.docSubmitted;
       state.userScore=mp.score||0;
       state.userTopTag=mp.topTag||null;
       state.userRealName=mp.realName||'';
       state.userUniqueConnections=mp.uniqueConnections||0;
+      state.userIsSubscriber=!!mp.isSubscriber;
+      state.userGiftsReceived=mp.giftsReceived||0;
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
       // Check for pending stars that need donation
@@ -4881,6 +4885,8 @@ async function openCompleteProfile(){
     if(d.realName)$('cpRealName').value=d.realName;
     if(d.bio)$('cpBio').value=d.bio;
     if(d.phone)$('cpPhone').value=d.phone;
+    if(d.email)$('cpEmail').value=d.email;
+    if(d.cpf)$('cpCpf').value=d.cpf;
     if(d.instagram)$('cpInstagram').value=d.instagram;
     if(d.twitter)$('cpTwitter').value=d.twitter;
     const _cpPhoto=d.profilePhoto||d.photoURL||null;
@@ -4925,6 +4931,8 @@ async function saveCompleteProfile(){
     realName:realNameVal,
     bio:$('cpBio').value.trim(),
     phone:$('cpPhone').value.trim(),
+    email:$('cpEmail').value.trim(),
+    cpf:$('cpCpf').value.trim(),
     instagram:$('cpInstagram').value.trim(),
     twitter:$('cpTwitter').value.trim(),
     profilePhoto:cpPhotoData||''
@@ -5515,10 +5523,19 @@ function showMyProfileSheet(){
     +'<div style="flex:1;min-width:0">'
     +'<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap"><span style="font-size:1.3rem;font-weight:900;color:#fff;letter-spacing:-.01em">'+esc(state.userName||'??')+'</span>'+(isVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.9rem;font-weight:800" title="Verificado">✓</span>':'')+'</div>'
     +(state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.15rem">'+esc(state.userRealName)+'</div>':'')
-    +'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.25rem">'
-    +(state.userStarsCount>0?'<span style="font-size:.6rem;color:#fbbf24;letter-spacing:1px">'+'★'.repeat(Math.min(state.userStarsCount,5))+(state.userStarsCount>5?' +':'')+'</span>':'')
-    +(hasFace?'<span style="font-size:.55rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">🔐 Face</span>':'')
-    +(hasDoc?'<span style="font-size:.55rem;color:#a855f7;background:rgba(168,85,247,.1);padding:1px 6px;border-radius:6px;font-weight:600">📄 Doc</span>':'')
+    +'<div style="display:flex;align-items:center;gap:.4rem;margin-top:.25rem;flex-wrap:wrap">'
+    +(state.userIsSubscriber?'<span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 6px;border-radius:6px;font-weight:700">✦ Plus</span>':'')
+    +(state.userStarsCount>0?'<span style="font-size:.55rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:1px 6px;border-radius:6px;font-weight:600">★ '+state.userStarsCount+'</span>':'')
+    +(hasFace?'<span style="font-size:.5rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">🔐 Face</span>':'')
+    +(hasDoc?'<span style="font-size:.5rem;color:#a855f7;background:rgba(168,85,247,.1);padding:1px 6px;border-radius:6px;font-weight:600">📄 Doc</span>':'')
+    +(state.userTopTag?'<span style="font-size:.5rem;color:'+(state.userTopTag==='top1'?'#FFD700':state.userTopTag==='top5'?'#C0C0C0':'#CD7F32')+';background:rgba(255,215,0,.1);padding:1px 6px;border-radius:6px;font-weight:700">'+(state.userTopTag==='top1'?'🏆 TOP 1':state.userTopTag==='top5'?'🥈 TOP 5':state.userTopTag==='top50'?'🥉 TOP 50':'')+'</span>':'')
+    +'</div>'
+    // Stats row
+    +'<div style="display:flex;gap:.8rem;margin-top:.4rem">'
+    +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#60a5fa">'+(state.userScore||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">score</div></div>'
+    +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--t1)">'+(state.userUniqueConnections||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">conexões</div></div>'
+    +(state.userStarsCount>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#fbbf24">'+state.userStarsCount+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">estrelas</div></div>':'')
+    +(state.userGiftsReceived>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#f472b6">'+state.userGiftsReceived+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">presentes</div></div>':'')
     +'</div>'
     +'</div></div>'
     // Menu buttons — clean, no emojis
@@ -5539,7 +5556,7 @@ function showMyProfileSheet(){
     +'</button>'
     +'</div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">📋</span>Histórico</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">⭐</span>Touch? Plus</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">'+(state.userIsSubscriber?'✦':'⭐')+'</span>Touch? Plus'+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">ativo</span>':'')+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico">💼</span>Serviços</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">❓</span>Tutorial</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
