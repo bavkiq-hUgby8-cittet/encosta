@@ -995,7 +995,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="home" class="screen">
   <!-- Floating event button (persistent while event active) - positioned below daily counter -->
-  <div id="floatingEventBtn" style="display:none;position:absolute;top:auto;bottom:calc(50% + 90px);left:50%;transform:translateX(-50%);z-index:8;padding:.5rem 1rem;background:rgba(96,165,250,.12);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.25);border-radius:16px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
+  <div id="floatingEventBtn" style="display:none;position:absolute;top:auto;bottom:calc(50% + 55px);left:50%;transform:translateX(-50%);z-index:8;padding:.5rem 1rem;background:rgba(96,165,250,.12);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.25);border-radius:16px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
     <span style="font-size:.7rem;font-weight:600;color:#60a5fa">📍 <span id="floatingEventName"></span> · Ver evento</span>
   </div>
   <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
@@ -2094,8 +2094,8 @@ function addEvNode(d,instant){
   const minDist=35;
   const dist=maxDist-(stars/Math.max(1,maxStars))*(maxDist-minDist);
   const angle=Math.random()*Math.PI*2;
-  const baseR=5+Math.min(stars*.25,4);
-  const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0,verified:!!d.verified};
+  const baseR=6+Math.min(stars*.2,3);
+  const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0002+Math.min(stars*0.00003,0.0004),r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0,verified:!!d.verified};
   if(n.revealed&&n.profilePhoto){
     const img=new Image();img.crossOrigin='anonymous';
     img.onload=()=>{n.photoImg=img;n.photoLoaded=true};
@@ -3131,7 +3131,7 @@ function doReveal(data){
     // ── CHECK-IN REVEAL — show EVENT, not operator ──
     const evName=data.eventName||data.operatorName||them.name||'Evento';
     // Override "them" avatar to show event icon
-    $('rvAvatarThemInner').innerHTML='<div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 0 20px rgba(96,165,250,.3)">📍</div>';
+    $('rvAvatarThemInner').innerHTML='<div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(96,165,250,.3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>';
     $('rvNameThem').textContent=evName;
     moment.textContent='Check-in';
     moment.style.color='#60a5fa';
