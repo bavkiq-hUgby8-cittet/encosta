@@ -11,12 +11,10 @@
 <meta http-equiv="Expires" content="0">
 <title>Touch? — tudo nasce no gesto</title>
 <script>
-// Force cache bust v3 — unregister service workers + clear caches
+// Force cache bust v4 — unregister service workers + clear caches (no reload loop)
 (function(){
-  var V='touch_v3';
-  if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})})}
-  if(window.caches){caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})})}
-  if(!sessionStorage.getItem(V)){sessionStorage.setItem(V,'1');if(performance&&performance.navigation&&performance.navigation.type!==1){location.reload(true)}}
+  try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})}).catch(function(){})}}catch(e){}
+  try{if(window.caches){caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})}).catch(function(){})}}catch(e){}
 })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">

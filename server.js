@@ -56,7 +56,8 @@ app.use(helmet({
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       workerSrc: ["'self'", "blob:"],
-      mediaSrc: ["'self'", "blob:", "data:"]
+      mediaSrc: ["'self'", "blob:", "data:"],
+      scriptSrcAttr: ["'unsafe-inline'"]
     }
   },
   crossOriginEmbedderPolicy: false,
