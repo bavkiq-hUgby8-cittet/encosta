@@ -1887,6 +1887,15 @@ function initSocket(){
     if(homeSonicActive)stopHomeSonic();
     if(sonicActive)stopSonicMode();
     state.currentRelation=d;playSound('connect');
+    // For checkin connections: set up floating event button IMMEDIATELY
+    // so visitor always knows they're at the event, even if payment fails later
+    if(d.isCheckin&&d.eventId){
+      const evName=d.eventName||'Evento';
+      localStorage.setItem('activeEventId',d.eventId);
+      localStorage.setItem('activeEventName',evName);
+      if(!localStorage.getItem('activeEventRole'))localStorage.setItem('activeEventRole','visitor');
+      showFloatingEventBtn(d.eventId,evName);
+    }
     // Show epic connecting animation with continuous vibration, then reveal
     const co=$('connectingOverlay');
     if(co){
@@ -3333,8 +3342,9 @@ async function showEntryPayment(eventId,eventName,price,operatorId){
         showEventView(eventId,eventName);
       }
     }catch(e){
-      showToast('Erro: '+(e.message||'Tente novamente'));
-      if(enterBtn){enterBtn.disabled=false;enterBtn.textContent='🎫 Pagar ingresso '+priceLabel}
+      showToast('Erro no pagamento. Tente com outro cartão.');
+      // Fallback to card form instead of dead-end
+      showEntryCardForm(eventId,eventName,price,operatorId);
     }
   }else{
     // No saved card — show card form inline
@@ -3361,7 +3371,7 @@ function showEntryCardForm(eventId,eventName,price,operatorId){
       +'<input type="text" id="entryCardCPF" class="tip-input" placeholder="CPF" inputmode="numeric" maxlength="14" oninput="formatCPF(this)" style="margin-bottom:.3rem">'
       +'<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.5rem"><input type="checkbox" id="entrySaveCard" checked style="accent-color:#6366f1"><label for="entrySaveCard" style="font-size:.55rem;color:var(--t3)">Salvar cartão</label></div>'
       +'<button onclick="payEntry(\''+eventId+'\',\''+eventName.replace(/'/g,"\\'")+'\','+price+')" style="width:100%;padding:.65rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer" id="entryPayBtn">🎫 Pagar '+priceLabel+'</button>'
-      +'<button onclick="goHome()" style="width:100%;padding:.3rem;border:none;background:transparent;color:var(--t3);font-size:.55rem;font-family:inherit;cursor:pointer;margin-top:.3rem">Cancelar</button>'
+      +'<button onclick="showEventView(\''+eventId+'\',\''+eventName.replace(/'/g,"\\'")+'\');" style="width:100%;padding:.45rem;border:none;background:transparent;color:var(--ac);font-size:.6rem;font-family:inherit;cursor:pointer;margin-top:.3rem">Entrar sem pagar agora →</button>'
       +'</div>';
   }
 }
@@ -3431,8 +3441,8 @@ async function payEntry(eventId,eventName,price){
     }
   }catch(e){
     console.error('Entry pay error:',e);
-    showToast('Erro: '+(e.message||'Tente novamente'));
-    if(btn){btn.disabled=false;btn.textContent='🎫 Pagar R$'+price.toFixed(2).replace('.',',')}
+    showToast('Erro no pagamento: '+(e.message||'Tente novamente'));
+    if(btn){btn.disabled=false;btn.textContent='🎫 Tentar novamente'}
   }
 }
 

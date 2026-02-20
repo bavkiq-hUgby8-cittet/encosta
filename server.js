@@ -4696,52 +4696,55 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
 
     // One-tap: create token server-side from saved card
     if (useSavedCard && user.savedCard?.customerId && user.savedCard?.cardId) {
-      // Verify customer exists
-      let entryCustId = user.savedCard.customerId;
-      const custCheck = await fetch('https://api.mercadopago.com/v1/customers/' + entryCustId, {
-        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
-      });
-      if (!custCheck.ok) {
-        // Customer not found — try to find by email
-        const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
-        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
-        const searchData = await searchResp.json();
-        if (searchData.results && searchData.results.length > 0) {
-          entryCustId = searchData.results[0].id;
-          user.savedCard.customerId = entryCustId;
-          saveDB('users');
-        } else {
-          delete user.savedCard; saveDB('users');
-          return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true });
-        }
-      }
-      const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + entryCustId + '/cards', {
-        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
-      });
-      const cards = cardsResp.ok ? await cardsResp.json() : [];
-      if (!Array.isArray(cards) || cards.length === 0) {
-        delete user.savedCard; saveDB('users');
-        return res.status(400).json({ error: 'Cartão salvo expirou.', cardExpired: true });
-      }
-      const card = cards.find(c => c.id === user.savedCard.cardId) || cards[0];
-      // Token with fallback
-      let tokenData;
-      const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ card_id: card.id, customer_id: entryCustId })
-      });
-      tokenData = await tokenResp.json();
-      if (!tokenData.id) {
-        const fb = await fetch('https://api.mercadopago.com/v1/card_tokens', {
-          method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ card_id: card.id })
+      try {
+        let entryCustId = user.savedCard.customerId;
+        const custCheck = await fetch('https://api.mercadopago.com/v1/customers/' + entryCustId, {
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
         });
-        tokenData = await fb.json();
-        if (!tokenData.id) return res.status(400).json({ error: 'Erro ao processar cartão.', cardExpired: true });
+        if (!custCheck.ok) {
+          const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
+          const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
+          const searchData = await searchResp.json();
+          if (searchData.results && searchData.results.length > 0) {
+            entryCustId = searchData.results[0].id;
+            user.savedCard.customerId = entryCustId;
+            saveDB('users');
+          } else {
+            delete user.savedCard; saveDB('users');
+            return res.status(400).json({ error: 'Cadastre o cartão novamente.', cardExpired: true });
+          }
+        }
+        const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + entryCustId + '/cards', {
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+        });
+        const cards = cardsResp.ok ? await cardsResp.json() : [];
+        if (!Array.isArray(cards) || cards.length === 0) {
+          delete user.savedCard; saveDB('users');
+          return res.status(400).json({ error: 'Cartão salvo expirou.', cardExpired: true });
+        }
+        const card = cards.find(c => c.id === user.savedCard.cardId) || cards[0];
+        let tokenData;
+        const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ card_id: card.id, customer_id: entryCustId })
+        });
+        tokenData = await tokenResp.json();
+        if (!tokenData.id) {
+          const fb = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_id: card.id })
+          });
+          tokenData = await fb.json();
+          if (!tokenData.id) return res.status(400).json({ error: 'Erro ao processar cartão.', cardExpired: true });
+        }
+        paymentToken = tokenData.id;
+        var pmId = card.payment_method?.id || user.savedCard.paymentMethodId || 'visa';
+      } catch (mpErr) {
+        console.error('🎫 One-tap MP error:', mpErr.message);
+        // Any MP API error → tell frontend to show card form
+        return res.status(400).json({ error: 'Erro com cartão salvo.', cardExpired: true });
       }
-      paymentToken = tokenData.id;
-      var pmId = card.payment_method?.id || user.savedCard.paymentMethodId || 'visa';
     }
 
     const paymentData = {
