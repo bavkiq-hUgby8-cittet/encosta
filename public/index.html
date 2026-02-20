@@ -124,8 +124,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .be::before{content:'';position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,var(--ac),var(--pk),#9333ea,var(--ac));z-index:-1;animation:rs 4s linear infinite;opacity:.3;filter:blur(4px)}
 .be.service-mode{background:radial-gradient(circle at 35% 35%,#444,#222 50%,#111)!important;box-shadow:0 0 50px rgba(0,0,0,.5),0 0 100px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.1)!important}
 .be.service-mode::before{background:conic-gradient(from 0deg,#555,#333,#555)!important;opacity:.3}
-.service-toggle{display:flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:2rem;font-size:.7rem;font-weight:600;color:var(--t2);background:rgba(255,255,255,.06);cursor:pointer;margin-bottom:.5rem;transition:all .2s}
-.service-toggle.active{background:#333;color:#fff;border:1px solid #555}
+.service-toggle{display:flex;align-items:center;gap:.35rem;padding:.35rem .75rem;border-radius:2rem;font-size:.65rem;font-weight:600;color:var(--t3);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);cursor:pointer;margin-bottom:.5rem;transition:all .25s;letter-spacing:.02em}
+.service-toggle.active{background:rgba(99,102,241,.15);color:#a5b4fc;border:1px solid rgba(99,102,241,.3)}
 .be::after{content:'';position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.08),transparent 70%);z-index:-2;animation:bb 3s ease-in-out infinite}
 /* Energized state */
 .be.energized{animation:sonic-energy .6s ease-in-out infinite alternate;box-shadow:0 0 60px rgba(255,107,53,.2),0 0 120px rgba(255,107,53,.1),0 0 200px rgba(255,61,113,.04);background:rgba(255,107,53,.25);border-color:rgba(255,107,53,.5)}
@@ -1040,7 +1040,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
   <!-- CENTER: botão TOUCH grande -->
   <div class="hc">
-    <div class="service-toggle hidden" id="serviceToggle" onclick="toggleServiceMode()"><span id="serviceToggleIcon">💼</span> <span id="serviceToggleLabel">Modo Serviço</span></div>
+    <div class="service-toggle hidden" id="serviceToggle" onclick="toggleServiceMode()"><span id="serviceToggleIcon" style="display:inline-flex;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg></span> <span id="serviceToggleLabel">Modo Serviço</span></div>
     <div class="hm" id="homeMotivation">Nada acontece<br>à distância.</div>
     <div style="position:relative;display:flex;align-items:center;justify-content:center">
       <div class="sonic-bars left" id="sonicBarsL"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
@@ -2485,7 +2485,7 @@ function toggleServiceMode(){
   const btn=$('mainBtn');
   if(serviceMode){
     toggle.classList.add('active');
-    $('serviceToggleLabel').textContent='SERVIÇO ATIVO';
+    $('serviceToggleLabel').textContent='Serviço ativo';
     btn.classList.add('service-mode');
     $('mainBtnText').textContent='SERVIÇO';
     haptic([60,20,60]);
@@ -5540,8 +5540,9 @@ function showMyProfileSheet(){
   const isPrestador=localStorage.getItem('touch_isPrestador')==='1';
   const hasFace=!!state.userFaceEnrolled;
   const hasDoc=!!state.userDocVerified;
-  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem">'
+  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem" id="profileSheet">'
     +'<div class="more-menu-handle"></div>'
+    +'<button onclick="this.closest(\'.my-profile-overlay\').remove()" style="position:absolute;top:.8rem;right:.8rem;width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.06);color:var(--t3);font-size:.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1">&times;</button>'
     // Header: avatar + name block redesigned — nick is HERO
     +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">'
     +avatarHtml
@@ -5580,10 +5581,8 @@ function showMyProfileSheet(){
     +'<div style="font-size:.48rem;color:'+(hasDoc?'#a855f7':'var(--t3)')+';margin-top:.1rem">'+(hasDoc?'✓ enviado':'verificar')+'</div>'
     +'</button>'
     +'</div>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico" style="font-style:normal">≡</span>Histórico</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>Touch? Plus'+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">ativo</span>':'')+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>Serviços</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico" style="font-style:normal">?</span>Tutorial</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
     +'<div class="my-pf-divider"></div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">i</span>Sobre o Touch</button>'
@@ -5591,6 +5590,19 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">x</span>Sair</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
+  // Swipe-down to dismiss
+  const sheet=overlay.querySelector('.more-menu-sheet');
+  let _pfTouchY=0,_pfDelta=0;
+  sheet.addEventListener('touchstart',function(e){_pfTouchY=e.touches[0].clientY;_pfDelta=0;sheet.style.transition='none'},{passive:true});
+  sheet.addEventListener('touchmove',function(e){
+    _pfDelta=e.touches[0].clientY-_pfTouchY;
+    if(_pfDelta>0){sheet.style.transform='translateY('+_pfDelta+'px)';sheet.style.opacity=Math.max(0.4,1-_pfDelta/400)}
+  },{passive:true});
+  sheet.addEventListener('touchend',function(){
+    sheet.style.transition='transform .25s ease,opacity .25s ease';
+    if(_pfDelta>100){sheet.style.transform='translateY(100%)';sheet.style.opacity='0';setTimeout(()=>overlay.remove(),250)}
+    else{sheet.style.transform='';sheet.style.opacity=''}
+  },{passive:true});
 }
 
 // ═══ SUBSCRIPTION ═══
