@@ -475,7 +475,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Node detail overlay */
 .const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,rgba(12,12,18,.98) 0%,rgba(8,8,12,.99) 100%);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);padding:0;padding-bottom:max(env(safe-area-inset-bottom),.8rem);opacity:0;transform:translateY(100%);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;max-height:80vh;overflow-y:auto;overscroll-behavior:contain}
 .const-detail.visible{opacity:1;transform:translateY(0);pointer-events:auto}
-.cd-handle{width:36px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;margin:10px auto 6px;cursor:grab}
+.cd-handle{width:40px;height:5px;background:rgba(255,255,255,.22);border-radius:3px;margin:10px auto 6px;cursor:grab;touch-action:none}
 /* Hero section: centered avatar with orbiting stars */
 .cd-hero{display:flex;flex-direction:column;align-items:center;padding:.6rem 1.2rem .3rem;position:relative}
 .cd-avatar-wrap{position:relative;width:76px;height:76px;margin-bottom:.4rem}
@@ -5155,47 +5155,54 @@ function openHistoryPanel(){
 function closeHistoryPanel(){
   $('cdHistoryPanel').classList.remove('visible');
 }
-// ── Swipe-to-dismiss on detail card handle ──
+// ── Swipe-to-dismiss on entire detail card ──
 (function(){
-  let startY=0,curY=0,dragging=false;
+  let startY=0,curY=0,dragging=false,scrollTop0=0;
   function onStart(e){
+    const detail=$('constDetail');
+    if(!detail.classList.contains('visible'))return;
+    scrollTop0=detail.scrollTop;
+    // Only start drag if at top of scroll
+    if(scrollTop0>5)return;
     const t=e.touches?e.touches[0]:e;
     startY=t.clientY;curY=startY;dragging=true;
-    const detail=$('constDetail');
     detail.style.transition='none';
   }
   function onMove(e){
     if(!dragging)return;
+    const detail=$('constDetail');
     const t=e.touches?e.touches[0]:e;
     curY=t.clientY;
     const dy=curY-startY;
-    if(dy>0){
-      $('constDetail').style.transform='translateY('+dy+'px)';
+    // If trying to scroll up (dy<0), cancel drag and let scroll work
+    if(dy<0){dragging=false;detail.style.transition='';detail.style.transform='';return}
+    if(dy>8){
+      // Resist slightly — use 0.6 factor for rubber-band feel
+      const offset=dy*0.6;
+      detail.style.transform='translateY('+offset+'px)';
+      detail.style.opacity=Math.max(0.3,1-offset/300);
       e.preventDefault();
     }
   }
   function onEnd(){
     if(!dragging)return;
     dragging=false;
-    const dy=curY-startY;
+    const dy=(curY-startY)*0.6;
     const detail=$('constDetail');
     detail.style.transition='';
-    if(dy>80){
+    detail.style.opacity='';
+    if(dy>60){
       hideConstDetail();
     }else{
       detail.style.transform='';
     }
   }
-  // Attach after DOM is ready
   setTimeout(()=>{
-    const handle=$('cdHandle');
-    if(!handle)return;
-    handle.addEventListener('touchstart',onStart,{passive:false});
-    handle.addEventListener('touchmove',onMove,{passive:false});
-    handle.addEventListener('touchend',onEnd);
-    handle.addEventListener('mousedown',onStart);
-    document.addEventListener('mousemove',onMove);
-    document.addEventListener('mouseup',onEnd);
+    const detail=$('constDetail');
+    if(!detail)return;
+    detail.addEventListener('touchstart',onStart,{passive:true});
+    detail.addEventListener('touchmove',onMove,{passive:false});
+    detail.addEventListener('touchend',onEnd);
   },500);
 })();
 
