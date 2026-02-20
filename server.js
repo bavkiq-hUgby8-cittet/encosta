@@ -4035,11 +4035,11 @@ app.post('/api/tip/save-card', async (req, res) => {
     if (!customerId) {
       const custResp = await fetch('https://api.mercadopago.com/v1/customers', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email || userId + '@touch.app', first_name: user.name || user.nickname || 'Touch User' })
+        body: JSON.stringify({ email: user.email || email || 'pagamento@encosta.app', first_name: user.name || user.nickname || 'Touch User' })
       });
       // If email already exists, search for existing customer
       if (custResp.status === 400) {
-        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(user.email || userId + '@touch.app'), {
+        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(user.email || email || 'pagamento@encosta.app'), {
           headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
         });
         const searchData = await searchResp.json();
@@ -4071,7 +4071,7 @@ app.post('/api/tip/save-card', async (req, res) => {
       brand: cardData.payment_method?.name || cardData.issuer?.name || 'Cartão',
       paymentMethodId: cardData.payment_method?.id || 'visa',
       firstSix: cardData.first_six_digits,
-      email: email || user.email || userId + '@touch.app',
+      email: email || user.email || '',
       cpf: cpf || user.cpf || '',
       savedAt: Date.now()
     };
@@ -4109,7 +4109,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
     if (!custCheck.ok) {
       console.log('⚠️ Customer not found, recreating...', customerId);
       // Customer doesn't exist — recreate customer + re-add card
-      const email = payer.email || payer.savedCard.email || payerId + '@touch.app';
+      const email = payer.email || payer.savedCard?.email || 'pagamento@encosta.app';
       const newCustResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), {
         headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
       });
@@ -4200,8 +4200,8 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       payment_method_id: card.payment_method?.id || payer.savedCard.paymentMethodId || 'visa',
       installments: 1,
       payer: {
-        email: payer.email || payer.savedCard.email || payerId + '@touch.app',
-        identification: { type: 'CPF', number: payer.cpf || payer.savedCard.cpf || '' }
+        email: payer.email || payer.savedCard?.email || 'pagamento@encosta.app',
+        identification: { type: 'CPF', number: (payer.cpf || payer.savedCard?.cpf || '').replace(/\D/g, '') }
       },
       description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
       statement_descriptor: 'TOUCH GORJETA',
@@ -4279,7 +4279,7 @@ app.post('/api/subscription/create-card', async (req, res) => {
     });
     if (!custCheck.ok) {
       console.log('⚠️ Sub: Customer not found, searching by email...');
-      const email = user.email || userId + '@touch.app';
+      const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
       const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), {
         headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
       });
@@ -4656,12 +4656,17 @@ app.post('/api/operator/event/create', (req, res) => {
 // ═══ PAY EVENT ENTRY — charge entry fee on check-in ═══
 app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
   const { userId, token, paymentMethodId, payerEmail, payerCPF, useSavedCard } = req.body;
+  console.log('🎫 pay-entry request:', { eventId: req.params.eventId, userId: userId?.slice(0,12), hasToken: !!token, useSavedCard, hasEmail: !!payerEmail });
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
   if (!ev.entryPrice || ev.entryPrice <= 0) return res.status(400).json({ error: 'Evento sem cobrança de ingresso.' });
+  if (!userId) return res.status(400).json({ error: 'userId é obrigatório.' });
   const user = db.users[userId];
-  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  if (!user) {
+    console.error('🎫 User not found in db.users:', userId, 'Total users:', Object.keys(db.users).length);
+    return res.status(404).json({ error: 'Usuário não encontrado. Faça login novamente.' });
+  }
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
 
   const amount = ev.entryPrice;
@@ -4680,7 +4685,7 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
       });
       if (!custCheck.ok) {
         // Customer not found — try to find by email
-        const email = user.email || user.savedCard.email || userId + '@touch.app';
+        const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
         const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
         const searchData = await searchResp.json();
         if (searchData.results && searchData.results.length > 0) {

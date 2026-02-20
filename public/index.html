@@ -1695,7 +1695,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',userPhoto:localStorage.getItem('touch_userPhoto')||null,currentSession:null,currentRelation:null,timerInterval:null};
+let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',userPhoto:localStorage.getItem('touch_userPhoto')||null,email:localStorage.getItem('touch_email')||null,currentSession:null,currentRelation:null,timerInterval:null};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ FIREBASE AUTH ═══
@@ -1732,9 +1732,12 @@ async function linkFirebaseToEncosta(user){
       state.userName=d.user.nickname||d.user.name;
       state.userColor=d.user.color||'';
       state.userPhoto=d.user.profilePhoto||d.user.photoURL||null;
+      state.email=d.user.email||null;
+      state.userCpf=d.user.cpf||null;
       localStorage.setItem('touch_userId',d.userId);
       localStorage.setItem('touch_userName',state.userName);
       localStorage.setItem('touch_userColor',state.userColor);
+      if(state.email)localStorage.setItem('touch_email',state.email);
       if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
       // If user still needs to set nickname/birthdate, show register
       if(!d.user.birthdate){
@@ -2264,11 +2267,14 @@ async function refreshHome(){
       state.userStarsCount=mp.starsReceived||0;
       state.userFaceEnrolled=!!mp.faceEnrolled;
       state.userDocVerified=!!mp.docSubmitted;
+      state.userDocStatus=mp.docStatus||null;
       state.userScore=mp.score||0;
       state.userTopTag=mp.topTag||null;
       state.userRealName=mp.realName||'';
       state.userUniqueConnections=mp.uniqueConnections||0;
       state.userIsSubscriber=!!mp.isSubscriber;
+      if(mp.email)state.email=mp.email;
+      if(mp.cpf)state.userCpf=mp.cpf;
       state.userGiftsReceived=mp.giftsReceived||0;
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
@@ -3266,6 +3272,7 @@ function openTipFromReveal(){
 
 // ═══ ENTRY PAYMENT — pay to enter operator event ═══
 async function showEntryPayment(eventId,eventName,price,operatorId){
+  if(!state.userId){showToast('Faça login para continuar.');return}
   const priceLabel='R$'+price.toFixed(2).replace('.',',');
   const secRow=document.querySelector('#revealActions .rv-sec-row');
   const enterBtn=$('revealEnterBtn');
@@ -6876,7 +6883,7 @@ async function payWithNewCard() {
           if (saveToken?.id) {
             await fetch('/api/tip/save-card', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: state.userId, token: saveToken.id, email: state.email || state.userId + '@touch.app', cpf })
+              body: JSON.stringify({ userId: state.userId, token: saveToken.id, email: state.email || '', cpf })
             });
           }
         } catch (saveErr) { console.error('Save card error:', saveErr); }
