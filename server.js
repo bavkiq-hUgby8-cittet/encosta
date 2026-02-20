@@ -1078,22 +1078,31 @@ app.get('/api/constellation/:userId', (req, res) => {
     if (e.timestamp < byPerson[e.with].firstDate) byPerson[e.with].firstDate = e.timestamp;
     if (e.timestamp > byPerson[e.with].lastDate) byPerson[e.with].lastDate = e.timestamp;
   });
-  // Enrich with selfie from last relation and real identity if revealed
+  // Enrich with selfies from all relations and real identity if revealed
   Object.values(byPerson).forEach(p => {
-    // Find last relation between these two to get selfie
     const rels = Object.values(db.relations).filter(r =>
       (r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)
     ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    // Collect ALL selfies from all relations (both mine and theirs)
+    p.allSelfies = [];
+    rels.forEach(r => {
+      if (r.selfie) {
+        // Both sides' selfies from this relation
+        Object.entries(r.selfie).forEach(([uid, data]) => {
+          if (data) p.allSelfies.push({ url: data, userId: uid, relationId: r.id, date: r.createdAt || 0 });
+        });
+      }
+    });
+    p.allSelfies.sort((a, b) => b.date - a.date);
     if (rels.length > 0 && rels[0].selfie) {
-      // Get the other person's selfie
       p.lastSelfie = rels[0].selfie[p.id] || null;
     }
     const other = db.users[p.id];
     if (other) {
-      // If user has revealed real identity, use real name/photo
       p.realName = other.realName || null;
       p.profilePhoto = other.profilePhoto || other.photoURL || null;
       p.revealedTo = other.revealedTo || [];
+      p.whatsapp = other.whatsapp || other.phone || null;
     }
   });
   const nodes = Object.values(byPerson).map(p => {
@@ -1136,7 +1145,11 @@ app.get('/api/constellation/:userId', (req, res) => {
         const pr = Object.values(db.revealRequests).find(rr => rr.status === 'pending' && ((rr.fromUserId === req.params.userId && rr.toUserId === p.id) || (rr.fromUserId === p.id && rr.toUserId === req.params.userId)));
         if (!pr) return null;
         return pr.fromUserId === req.params.userId ? 'sent' : 'received';
-      })()
+      })(),
+      // All selfies from encounters together
+      allSelfies: (p.allSelfies || []).slice(0, 20),
+      // WhatsApp (only when revealed)
+      whatsapp: iCanSeeThem ? (p.whatsapp || null) : null
     };
   });
   // Add event nodes — events the user participated in
@@ -1327,6 +1340,40 @@ app.post('/api/selfie/:relationId', (req, res) => {
     // Notify partner that selfie was requested
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('selfie-request', { relationId: req.params.relationId, from: userId });
+  }
+  res.json({ ok: true });
+});
+
+// Delete a specific selfie from a relation
+app.delete('/api/selfie/:relationId/:userId', (req, res) => {
+  const rel = db.relations[req.params.relationId];
+  if (!rel) return res.status(404).json({ error: 'Não encontrada.' });
+  if (rel.selfie && rel.selfie[req.params.userId]) {
+    delete rel.selfie[req.params.userId];
+    if (Object.keys(rel.selfie).length === 0) rel.selfie = null;
+    saveDB();
+  }
+  res.json({ ok: true });
+});
+
+// Toggle reveal — user can hide their identity from a partner (unreveal)
+app.post('/api/reveal/toggle', (req, res) => {
+  const { userId, partnerId, reveal } = req.body;
+  if (!userId || !partnerId) return res.status(400).json({ error: 'Dados incompletos.' });
+  const partner = db.users[partnerId];
+  if (!partner) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  if (!reveal) {
+    // Unreveal: remove myself from partner's canSee
+    if (partner.canSee && partner.canSee[userId]) {
+      delete partner.canSee[userId];
+    }
+    // Also remove from revealedTo array if it exists
+    if (partner.revealedTo) {
+      partner.revealedTo = partner.revealedTo.filter(id => id !== userId);
+    }
+    // Notify partner
+    io.to(`user:${partnerId}`).emit('reveal-revoked', { userId });
+    saveDB();
   }
   res.json({ ok: true });
 });

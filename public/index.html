@@ -470,7 +470,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-time span{display:flex;align-items:center;gap:.2rem}
 .cd-insta{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .7rem;background:linear-gradient(135deg,rgba(225,48,108,.12),rgba(131,58,180,.1));border:1px solid rgba(225,48,108,.18);border-radius:20px;color:#e1306c;font-size:.72rem;font-weight:500;text-decoration:none;transition:all .2s}
 .cd-insta:active{transform:scale(.96);background:rgba(225,48,108,.2)}
-.cd-selfie{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.06);margin-left:.5rem}
+.cd-selfie{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.06);margin-left:.3rem;cursor:pointer;transition:transform .15s}
+.cd-selfie:active{transform:scale(.95)}
+.cd-selfies-row{display:flex;gap:.3rem;padding:.3rem 0;flex-wrap:wrap}
+.cd-selfie-zoom{position:fixed;top:0;left:0;right:0;bottom:0;z-index:500;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;transition:opacity .25s}
+.cd-selfie-zoom.visible{opacity:1}
+.cd-selfie-zoom img{max-width:85vw;max-height:70vh;border-radius:14px;object-fit:contain}
+.cd-selfie-zoom .cd-zoom-delete{position:absolute;bottom:max(env(safe-area-inset-bottom),1.5rem);left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;border-radius:12px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.12);color:#ef4444;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;opacity:0;transition:opacity .3s}
+.cd-selfie-zoom.hold-active .cd-zoom-delete{opacity:1}
 .cd-actions{display:flex;gap:.4rem;padding:.4rem 1.2rem .2rem;flex-wrap:wrap}
 .cd-action{flex:1;min-width:0;padding:.5rem .4rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);color:var(--t1);font-size:.72rem;font-weight:600;font-family:inherit;cursor:pointer;text-align:center;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cd-action:active{transform:scale(.97);background:rgba(255,255,255,.08)}
@@ -1197,7 +1204,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cd-divider"></div>
     <div class="cd-section" id="cdMeta"></div>
     <div class="cd-actions" id="cdActions" onclick="event.stopPropagation()"></div>
-    <div class="cd-section hidden" id="cdTipWrap"><button class="cd-tip-btn" id="cdTipBtn" onclick="event.stopPropagation();constTipAction()">💰 Dar gorjeta</button></div>
+    <div class="cd-section hidden" id="cdTipWrap"><button class="cd-tip-btn" id="cdTipBtn" onclick="event.stopPropagation();constTipAction()">Dar gorjeta</button></div>
+  </div>
+  <!-- Selfie zoom overlay -->
+  <div class="cd-selfie-zoom" id="selfieZoom" onclick="closeSelfieZoom()">
+    <img id="selfieZoomImg" src="" alt="">
+    <button class="cd-zoom-delete" id="selfieZoomDelete" onclick="event.stopPropagation();deleteSelfieFromZoom()">Apagar foto</button>
   </div>
 </div>
 
@@ -4174,21 +4186,46 @@ function showConstDetail(node){
   statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.touchers||0)+'</div><div class="cd-stat-lbl">pessoas</div></div>';
   if(theyRevealed)statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.likesCount||0)+'</div><div class="cd-stat-lbl">curtidas</div></div>';
   statsEl.innerHTML=statsHtml;
-  // Meta section: clean — just time ago, instagram, selfie (no emojis, no money, no date)
+  // Meta section: time, social links with logos, selfies gallery
   const metaEl=$('cdMeta');
   let metaHtml='';
   const lastD=node.lastDate?new Date(node.lastDate):null;
   if(lastD){
     metaHtml+='<div class="cd-time"><span style="color:var(--t3);font-size:.65rem">'+timeAgo(lastD)+'</span></div>';
   }
-  if(theyRevealed&&node.instagram){
-    const handle=node.instagram.replace(/^@/,'').trim();
-    metaHtml+='<a class="cd-insta" href="https://instagram.com/'+esc(handle)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">@'+esc(handle)+'</a> ';
+  // Social links with logos (only when revealed)
+  if(theyRevealed){
+    let socialHtml='<div style="display:flex;gap:.4rem;margin:.3rem 0;flex-wrap:wrap">';
+    if(node.instagram){
+      const handle=node.instagram.replace(/^@/,'').trim();
+      socialHtml+='<a href="https://instagram.com/'+esc(handle)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .6rem;background:linear-gradient(135deg,rgba(225,48,108,.12),rgba(131,58,180,.1));border:1px solid rgba(225,48,108,.18);border-radius:16px;color:#e1306c;font-size:.65rem;font-weight:500;text-decoration:none">'
+        +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#e1306c" stroke-width="2"/><circle cx="12" cy="12" r="5" stroke="#e1306c" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="#e1306c"/></svg>'
+        +' @'+esc(handle)+'</a>';
+    }
+    if(node.whatsapp){
+      const num=node.whatsapp.replace(/\D/g,'');
+      const waNum=num.startsWith('55')?num:'55'+num;
+      socialHtml+='<a href="https://wa.me/'+waNum+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .6rem;background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.18);border-radius:16px;color:#25d366;font-size:.65rem;font-weight:500;text-decoration:none">'
+        +'<svg width="14" height="14" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="none" stroke="#25d366" stroke-width="1.5"/></svg>'
+        +' WhatsApp</a>';
+    }
+    socialHtml+='</div>';
+    if(node.instagram||node.whatsapp)metaHtml+=socialHtml;
   }
-  if(node.lastSelfie)metaHtml+='<img class="cd-selfie" src="'+node.lastSelfie+'" alt="">';
+  // Selfies gallery — clickable thumbnails
+  const selfies=node.allSelfies||[];
+  if(selfies.length>0){
+    metaHtml+='<div class="cd-selfies-row">';
+    selfies.forEach((s,i)=>{
+      metaHtml+='<img class="cd-selfie" src="'+s.url+'" alt="" onclick="event.stopPropagation();openSelfieZoom('+i+',\''+node.id+'\')">';
+    });
+    metaHtml+='</div>';
+  } else if(node.lastSelfie){
+    metaHtml+='<img class="cd-selfie" src="'+node.lastSelfie+'" alt="" onclick="event.stopPropagation();openSelfieZoom(0,\''+node.id+'\')">';
+  }
   metaEl.innerHTML=metaHtml;
   metaEl.style.display=metaHtml?'':'none';
-  // Actions
+  // Actions — toggle reveal (liga/desliga), reworded labels
   const actEl=$('cdActions');
   const isLiked=!!node.likedByMe;
   const pending=node.pendingReveal||state.pendingReveals[node.id]||null;
@@ -4196,28 +4233,27 @@ function showConstDetail(node){
   // Like
   aHtml+='<button class="cd-action" id="constLikeBtn" onclick="toggleLike(\''+node.id+'\')">'+(isLiked?'❤️ Curtido':'🤍 Curtir')+'</button>';
   // Star
-  aHtml+='<button class="cd-action" id="constStarBtn" onclick="donateStar(\''+node.id+'\')" style="display:none">⭐ Doar</button>';
-  // Reveal me
+  aHtml+='<button class="cd-action" id="constStarBtn" onclick="donateStar(\''+node.id+'\')" style="display:none">★ Doar estrela</button>';
+  // Reveal me — TOGGLE (on/off)
   if(iRevealed){
-    aHtml+='<button class="cd-action done">✅ Revelado</button>';
+    aHtml+='<button class="cd-action primary" onclick="toggleMyReveal(\''+node.id+'\',false)" style="background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.2);color:#86efac">Visível ●</button>';
   }else{
-    aHtml+='<button class="cd-action primary" onclick="revealFromConstellation(\''+node.id+'\')">🪪 Me revelar</button>';
+    aHtml+='<button class="cd-action primary" onclick="toggleMyReveal(\''+node.id+'\',true)">Revelar-me</button>';
   }
-  // Request reveal / they revealed
+  // They revealed to me — TOGGLE
   if(theyRevealed){
-    aHtml+='<button class="cd-action done">✅ Te viu</button>';
+    aHtml+='<button class="cd-action" style="background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.15);color:#86efac;opacity:.7">Revelado(a)</button>';
   }else if(pending==='sent'){
-    aHtml+='<button class="cd-action done">⏳ Pedido enviado</button>';
+    aHtml+='<button class="cd-action" style="opacity:.5">Pedido enviado</button>';
   }else if(pending==='received'){
-    aHtml+='<button class="cd-action success" onclick="acceptRevealRequest(\''+node.id+'\');hideConstDetail()">🪪 Aceitar pedido</button>';
+    aHtml+='<button class="cd-action success" onclick="acceptRevealRequest(\''+node.id+'\');hideConstDetail()">Aceitar reveal</button>';
   }else{
-    aHtml+='<button class="cd-action" onclick="requestRevealFromConstellation(\''+node.id+'\')">👁 Pedir reveal</button>';
+    aHtml+='<button class="cd-action" onclick="requestRevealFromConstellation(\''+node.id+'\')">Pedir reveal</button>';
   }
-  actEl.innerHTML=aHtml;
   // Chat button (discreet) if active relation or <24h
   const lastMs=node.lastDate?Date.now()-new Date(node.lastDate).getTime():999999999;
   if(node.hasActiveRelation||lastMs<86400000){
-    aHtml+='<button class="cd-action" onclick="openChatFromConst(\''+node.id+'\')" style="opacity:.6;font-size:.7rem">💬 Chat</button>';
+    aHtml+='<button class="cd-action" onclick="openChatFromConst(\''+node.id+'\')" style="opacity:.7;font-size:.65rem">Chat</button>';
   }
   actEl.innerHTML=aHtml;
   // Tip
@@ -4240,6 +4276,82 @@ function timeAgo(date){
   return date.toLocaleDateString('pt-BR');
 }
 function hideConstDetail(){$('constDetail').classList.remove('visible');constState.selectedNode=null}
+
+// ── Selfie zoom / gallery ──
+let _selfieZoomData={selfies:[],idx:0,nodeId:null,holdTimer:null};
+function openSelfieZoom(idx,nodeId){
+  const node=constState.selectedNode;
+  if(!node)return;
+  const selfies=node.allSelfies||(node.lastSelfie?[{url:node.lastSelfie,userId:'',relationId:'',date:0}]:[]);
+  if(!selfies.length)return;
+  _selfieZoomData={selfies,idx:Math.min(idx,selfies.length-1),nodeId};
+  const zoom=$('selfieZoom');
+  $('selfieZoomImg').src=selfies[_selfieZoomData.idx].url;
+  zoom.classList.remove('hold-active');
+  zoom.style.display='flex';
+  requestAnimationFrame(()=>zoom.classList.add('visible'));
+  // Long press to show delete
+  const img=$('selfieZoomImg');
+  img.addEventListener('pointerdown',selfieHoldStart);
+  img.addEventListener('pointerup',selfieHoldEnd);
+  img.addEventListener('pointercancel',selfieHoldEnd);
+}
+function selfieHoldStart(e){
+  _selfieZoomData.holdTimer=setTimeout(()=>{
+    $('selfieZoom').classList.add('hold-active');
+    haptic&&haptic([40]);
+  },600);
+}
+function selfieHoldEnd(){
+  if(_selfieZoomData.holdTimer){clearTimeout(_selfieZoomData.holdTimer);_selfieZoomData.holdTimer=null}
+}
+function closeSelfieZoom(){
+  const zoom=$('selfieZoom');
+  zoom.classList.remove('visible','hold-active');
+  setTimeout(()=>{zoom.style.display='none'},250);
+  const img=$('selfieZoomImg');
+  img.removeEventListener('pointerdown',selfieHoldStart);
+  img.removeEventListener('pointerup',selfieHoldEnd);
+  img.removeEventListener('pointercancel',selfieHoldEnd);
+}
+async function deleteSelfieFromZoom(){
+  const s=_selfieZoomData.selfies[_selfieZoomData.idx];
+  if(!s||!s.relationId)return;
+  if(!confirm('Apagar esta foto?'))return;
+  try{
+    await fetch('/api/selfie/'+s.relationId+'/'+s.userId,{method:'DELETE'});
+    showToast('Foto apagada');
+    closeSelfieZoom();
+    // Refresh constellation
+    if(constState.selectedNode)showConstDetail(constState.selectedNode);
+  }catch(e){showToast('Erro ao apagar')}
+}
+
+// ── Toggle reveal (on/off) ──
+async function toggleMyReveal(partnerId,reveal){
+  try{
+    if(reveal){
+      await revealFromConstellation(partnerId);
+    }else{
+      // Unreveal — remove canSee
+      await fetch('/api/reveal/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,partnerId,reveal:false})});
+      showToast('Identidade ocultada');
+      // Refresh node
+      reloadConstellation();
+    }
+  }catch(e){showToast('Erro: '+e.message)}
+}
+function reloadConstellation(){
+  fetch('/api/constellation/'+state.userId).then(r=>r.json()).then(d=>{
+    if(d.nodes)constState.nodes=d.nodes;
+    const sel=constState.selectedNode;
+    if(sel){
+      const updated=d.nodes.find(n=>n.id===sel.id);
+      if(updated)showConstDetail(updated);
+    }
+  }).catch(()=>{});
+}
+
 function constTipAction(){
   const btn=$('cdTipBtn');
   if(btn&&btn.dataset.receiverId){hideConstDetail();showTipScreen(btn.dataset.receiverId)}
