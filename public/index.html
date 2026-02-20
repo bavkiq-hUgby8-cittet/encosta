@@ -2188,6 +2188,8 @@ function closeEventView(){
   if(savedId){
     localStorage.setItem('activeEventId',savedId);
     localStorage.setItem('activeEventName',savedName);
+    // Only set role if not already set (don't overwrite 'operator' with 'visitor')
+    if(!localStorage.getItem('activeEventRole'))localStorage.setItem('activeEventRole','visitor');
     showFloatingEventBtn(savedId,savedName);
   }
   goHome();
@@ -2215,6 +2217,7 @@ function hideFloatingEventBtn(){
   const btn=$('floatingEventBtn');if(btn)btn.style.display='none';
   localStorage.removeItem('activeEventId');
   localStorage.removeItem('activeEventName');
+  localStorage.removeItem('activeEventRole');
 }
 
 function reopenEventView(){
@@ -2555,10 +2558,11 @@ async function handleMainButton(){
     if(!homeSonicActive)return;
     sts.textContent='Conectando ao servidor...';
 
-    // 2. Get frequency from server (detect if operator has active event)
-    const _activeEvId=evViewEventId||localStorage.getItem('activeEventId')||null;
-    const _isCheckin=!!_activeEvId;
-    socket.emit('sonic-start',{userId:state.userId,isServiceTouch:!!serviceMode,isCheckin:_isCheckin,eventId:_activeEvId});
+    // 2. Get frequency from server (only operator sends isCheckin, never visitors)
+    const _activeEvId=localStorage.getItem('activeEventId')||null;
+    const _isOperator=localStorage.getItem('activeEventRole')==='operator';
+    const _isCheckin=!!(_activeEvId&&_isOperator);
+    socket.emit('sonic-start',{userId:state.userId,isServiceTouch:!!serviceMode,isCheckin:_isCheckin,eventId:_isCheckin?_activeEvId:null});
     const freq=await new Promise((resolve,reject)=>{
       const t=setTimeout(()=>reject(new Error('Timeout')),5000);
       socket.once('sonic-assigned',({freq})=>{clearTimeout(t);resolve(freq)});
@@ -2787,7 +2791,10 @@ function stopSonicMode(){
   if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop())}
   if(sonicAnimFrame)cancelAnimationFrame(sonicAnimFrame);
   sonicOsc=null;sonicEmitCtx=null;sonicMicCtx=null;sonicStream=null;sonicAnalyser=null;sonicAnimFrame=null;sonicMyFreq=0;
-  if(socket&&socket.connected)socket.emit('sonic-stop',{userId:state.userId});
+  if(socket&&socket.connected){
+    const _evId=localStorage.getItem('activeEventRole')==='operator'?localStorage.getItem('activeEventId'):null;
+    socket.emit('sonic-stop',{userId:state.userId,eventId:_evId});
+  }
 }
 
 // ═══ ELECTRIC TOUCH — epic connection animation ═══
@@ -6252,6 +6259,12 @@ async function createEvent(){
     if(d.error)return showToast(d.error);
     showToast(i18n('evt_created'));haptic([50,30,50]);
     const evtId=d.event?d.event.id:d.id;
+    const evtName=name;
+    // Mark this user as the event OPERATOR so sonic-start sends isCheckin
+    localStorage.setItem('activeEventId',evtId);
+    localStorage.setItem('activeEventName',evtName);
+    localStorage.setItem('activeEventRole','operator');
+    showFloatingEventBtn(evtId,evtName);
     openEventDetail(evtId);
   }catch(e){showToast('Erro ao criar evento.')}
 }

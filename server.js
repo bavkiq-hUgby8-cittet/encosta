@@ -2964,7 +2964,7 @@ app.post('/api/event/create', (req, res) => {
   const id = uuidv4();
   const code = 'EVT-' + Math.floor(100 + Math.random() * 900);
   const creator = db.users[userId];
-  db.events[id] = {
+  const eventData = {
     id, code, name: name.trim(), description: (description || '').trim(),
     lat, lng, radius: radius || 200,
     creatorId: userId, creatorName: creator.nickname || creator.name, creatorColor: creator.color,
@@ -2972,8 +2972,18 @@ app.post('/api/event/create', (req, res) => {
     participants: [userId],
     createdAt: Date.now()
   };
-  saveDB('operatorEvents');
-  res.json({ event: db.events[id] });
+  db.events[id] = eventData;
+  // Also create in operatorEvents so sonic checkin system can find it
+  db.operatorEvents[id] = {
+    id, name: eventData.name, description: eventData.description,
+    creatorId: userId, creatorName: eventData.creatorName,
+    active: true, participants: [userId], checkinCount: 0,
+    acceptsTips: false, serviceLabel: '',
+    entryPrice: 0, revenue: 0, paidCheckins: 0,
+    createdAt: Date.now()
+  };
+  saveDB('events', 'operatorEvents');
+  res.json({ event: eventData });
 });
 
 // List nearby events
