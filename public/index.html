@@ -5754,7 +5754,7 @@ function showMyProfileSheet(){
     +'</div></div>'
     // Menu buttons — clean
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>Meu Cartão</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>Cadastro'+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>Touch? Plus'+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">ativo</span>':'')+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>Serviços</button>'
@@ -7174,17 +7174,168 @@ function showServicosScreen(){
   const overlay=document.createElement('div');
   overlay.className='more-menu-overlay';
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
-  let btns='<button class="my-pf-btn" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()" style="margin-bottom:.4rem"><span class="my-pf-ico">edit</span>Cadastro de serviço</button>';
+  let btns='<button class="my-pf-btn" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()" style="margin-bottom:.4rem"><span class="my-pf-ico">edit</span>Cadastro de prestador</button>';
   if(isPrestador){
     btns+='<button class="my-pf-btn" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorDash()"><span class="my-pf-ico">$</span>Painel financeiro</button>';
   }
+  // Credit card management button
+  btns+='<button class="my-pf-btn" onclick="this.closest(\'.more-menu-overlay\').remove();showCardManagement()" style="margin-top:.4rem"><span class="my-pf-ico">💳</span>Cartão de crédito</button>';
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.5rem">'
     +'<div class="more-menu-handle"></div>'
     +'<div style="font-size:.9rem;font-weight:700;margin-bottom:.8rem">Serviços</div>'
-    +'<div style="font-size:.65rem;color:var(--t3);margin-bottom:1rem">Cadastre-se como prestador para receber gorjetas e gerencie seu painel financeiro.</div>'
+    +'<div style="font-size:.65rem;color:var(--t3);margin-bottom:1rem">Cadastre-se como prestador, gerencie seu painel financeiro e configure seu cartão para pagamentos.</div>'
     +btns
     +'</div>';
   document.body.appendChild(overlay);
+}
+
+// ═══ CARD MANAGEMENT ═══
+async function showCardManagement(){
+  haptic([30]);
+  const overlay=document.createElement('div');
+  overlay.className='more-menu-overlay';
+  overlay.id='cardMgmtOverlay';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
+  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.5rem;max-height:85vh;overflow-y:auto">'
+    +'<div class="more-menu-handle"></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">'
+    +'<div style="font-size:.9rem;font-weight:700">Cartão de crédito</div>'
+    +'<button class="chb" onclick="this.closest(\'.more-menu-overlay\').remove()" style="font-size:.8rem">✕</button>'
+    +'</div>'
+    +'<div style="font-size:.65rem;color:var(--t3);margin-bottom:1rem">Salve seu cartão para pagar gorjetas, ingressos e assinaturas com um toque.</div>'
+    +'<div id="cmSaved" style="display:none">'
+    +'<div style="padding:.8rem;border-radius:14px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15)">'
+    +'<div style="display:flex;align-items:center;gap:.6rem">'
+    +'<div id="cmBrandIcon" style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;background:#6366f1;color:#fff">?</div>'
+    +'<div style="flex:1"><div id="cmCardLabel" style="font-size:.75rem;font-weight:700;color:var(--t1)"></div>'
+    +'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">Cartão salvo para pagamentos</div></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:.5rem;margin-top:.6rem">'
+    +'<button onclick="cmRemoveCard()" style="flex:1;padding:.45rem;border-radius:10px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.06);color:#ef4444;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Remover cartão</button>'
+    +'<button onclick="cmShowNewForm()" style="flex:1;padding:.45rem;border-radius:10px;border:1px solid rgba(99,102,241,.2);background:rgba(99,102,241,.06);color:#6366f1;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Trocar cartão</button>'
+    +'</div></div></div>'
+    +'<div id="cmNewForm" style="display:none">'
+    +'<div style="display:flex;flex-direction:column;gap:.5rem">'
+    +'<div style="position:relative"><input id="cmCardNum" type="tel" inputmode="numeric" maxlength="19" placeholder="Número do cartão" style="width:100%;padding:.6rem .8rem .6rem 2.4rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.75rem;font-family:inherit;outline:none;box-sizing:border-box" oninput="cmFormatCard(this)">'
+    +'<div id="cmBrandBadge" style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);width:22px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.5rem;font-weight:800;background:rgba(255,255,255,.08);color:var(--t3)">?</div></div>'
+    +'<div style="display:flex;gap:.4rem">'
+    +'<input id="cmExpiry" type="tel" inputmode="numeric" maxlength="5" placeholder="MM/AA" style="flex:1;padding:.6rem .8rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.75rem;font-family:inherit;outline:none" oninput="cmFormatExpiry(this)">'
+    +'<input id="cmCVV" type="tel" inputmode="numeric" maxlength="4" placeholder="CVV" style="flex:1;padding:.6rem .8rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.75rem;font-family:inherit;outline:none">'
+    +'</div>'
+    +'<input id="cmHolder" type="text" placeholder="Nome impresso no cartão" style="width:100%;padding:.6rem .8rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.75rem;font-family:inherit;outline:none;box-sizing:border-box;text-transform:uppercase">'
+    +'<input id="cmCPF" type="tel" inputmode="numeric" maxlength="14" placeholder="CPF do titular" style="width:100%;padding:.6rem .8rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.75rem;font-family:inherit;outline:none;box-sizing:border-box" oninput="cmFormatCPF(this)">'
+    +'<button id="cmSaveBtn" onclick="cmSaveCard()" style="width:100%;padding:.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.75rem;font-weight:700;font-family:inherit;cursor:pointer;margin-top:.3rem">Salvar cartão</button>'
+    +'</div></div>'
+    +'<div id="cmStatus" style="display:none;text-align:center;padding:.6rem;border-radius:10px;font-size:.65rem;margin-top:.5rem"></div>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  // Load saved card status
+  cmLoadCard();
+}
+async function cmLoadCard(){
+  try{
+    const r=await fetch('/api/tip/saved-card/'+state.userId);
+    const d=await r.json();
+    if(d.hasSaved){
+      const brandKey=(d.brand||'').toLowerCase();
+      const bi=CARD_BRANDS[brandKey==='mastercard'?'master':brandKey]||null;
+      const icon=$('cmBrandIcon');
+      if(icon&&bi){icon.style.background=bi.color;icon.textContent=bi.icon}
+      else if(icon){icon.textContent=(d.brand||'?').slice(0,2).toUpperCase()}
+      $('cmCardLabel').textContent=(d.brand||'Cartão')+' •••• '+d.lastFour;
+      $('cmSaved').style.display='';
+      $('cmNewForm').style.display='none';
+    }else{
+      $('cmSaved').style.display='none';
+      $('cmNewForm').style.display='';
+    }
+  }catch(e){$('cmSaved').style.display='none';$('cmNewForm').style.display=''}
+}
+function cmShowNewForm(){
+  $('cmSaved').style.display='none';
+  $('cmNewForm').style.display='';
+}
+async function cmRemoveCard(){
+  if(!confirm('Remover cartão salvo?'))return;
+  try{
+    await fetch('/api/tip/saved-card/'+state.userId,{method:'DELETE'});
+    $('cmSaved').style.display='none';
+    $('cmNewForm').style.display='';
+    cmShowStatus('Cartão removido.','var(--t3)');
+    // Also clear tip screen saved card
+    if(typeof tipState!=='undefined')tipState.savedCard=null;
+    const tsc=$('tipSavedCard');if(tsc)tsc.style.display='none';
+    showToast('Cartão removido.');
+  }catch(e){showToast('Erro ao remover.')}
+}
+function cmShowStatus(msg,color){
+  const el=$('cmStatus');if(!el)return;
+  el.style.display='';el.style.color=color||'var(--t3)';el.textContent=msg;
+  setTimeout(()=>{el.style.display='none'},4000);
+}
+function cmFormatCard(el){
+  let v=el.value.replace(/\D/g,'');
+  if(v.length>16)v=v.slice(0,16);
+  el.value=v.replace(/(.{4})/g,'$1 ').trim();
+  // Update brand badge
+  const brand=detectBrand(v);
+  const badge=$('cmBrandBadge');
+  if(badge&&brand){badge.style.background=brand.color;badge.style.color='#fff';badge.textContent=brand.icon}
+  else if(badge){badge.style.background='rgba(255,255,255,.08)';badge.style.color='var(--t3)';badge.textContent='?'}
+}
+function cmFormatExpiry(el){
+  let v=el.value.replace(/\D/g,'');
+  if(v.length>4)v=v.slice(0,4);
+  if(v.length>=3)v=v.slice(0,2)+'/'+v.slice(2);
+  el.value=v;
+}
+function cmFormatCPF(el){
+  let v=el.value.replace(/\D/g,'');
+  if(v.length>11)v=v.slice(0,11);
+  if(v.length>9)v=v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+  else if(v.length>6)v=v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+  else if(v.length>3)v=v.slice(0,3)+'.'+v.slice(3);
+  el.value=v;
+}
+async function cmSaveCard(){
+  const cardNum=$('cmCardNum').value.replace(/\s/g,'');
+  const expiry=$('cmExpiry').value;
+  const cvv=$('cmCVV').value;
+  const holder=$('cmHolder').value.trim();
+  const cpf=$('cmCPF').value.replace(/\D/g,'');
+  if(!cardNum||cardNum.length<13)return showToast('Número do cartão inválido.');
+  if(!expiry||expiry.length<5)return showToast('Data de validade inválida.');
+  if(!cvv||cvv.length<3)return showToast('CVV inválido.');
+  if(!holder)return showToast('Nome no cartão obrigatório.');
+  if(!cpf||cpf.length<11)return showToast('CPF inválido.');
+  const btn=$('cmSaveBtn');
+  btn.disabled=true;btn.innerHTML='<span style="display:inline-flex;align-items:center;gap:.3rem"><span class="pay-spinner"></span>Salvando...</span>';
+  try{
+    const mp=await getMpSdk();
+    if(!mp)throw new Error('SDK de pagamento não disponível.');
+    const[expMonth,expYear]=expiry.split('/');
+    const tokenResult=await mp.createCardToken({
+      cardNumber:cardNum,cardholderName:holder,
+      cardExpirationMonth:expMonth,cardExpirationYear:'20'+expYear,
+      securityCode:cvv,identificationType:'CPF',identificationNumber:cpf
+    });
+    if(!tokenResult||!tokenResult.id)throw new Error('Erro ao tokenizar cartão.');
+    const resp=await fetch('/api/tip/save-card',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,token:tokenResult.id,email:state.email||'',cpf})
+    });
+    const result=await resp.json();
+    if(result.error)throw new Error(result.error);
+    btn.disabled=false;btn.textContent='Salvar cartão';
+    cmShowStatus('✅ Cartão salvo com sucesso!','#10b981');
+    haptic([30,20,30]);
+    showToast('Cartão salvo!');
+    cmLoadCard();
+  }catch(e){
+    console.error('Card save error:',e);
+    btn.disabled=false;btn.textContent='Salvar cartão';
+    cmShowStatus('❌ '+(e.message||'Erro ao salvar. Tente novamente.'),'#ef4444');
+  }
 }
 
 // ═══ PRESTADOR REGISTER ═══
