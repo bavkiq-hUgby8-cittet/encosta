@@ -386,6 +386,25 @@ function rebuildIndexes() {
       IDX.operatorByCreator.get(ev.creatorId).push(eid);
     }
   }
+  // Firebase RTDB converts arrays with numeric keys to objects — convert back to arrays
+  // Affects: encounters[userId], messages[relId], gifts[userId], declarations[userId]
+  let arrayFixCount = 0;
+  for (const col of ['encounters', 'messages', 'gifts', 'declarations']) {
+    for (const key of Object.keys(db[col] || {})) {
+      const val = db[col][key];
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        db[col][key] = Object.values(val);
+        arrayFixCount++;
+      }
+    }
+  }
+  if (arrayFixCount > 0) console.log(`🔧 Fixed ${arrayFixCount} array entries (Firebase object→array conversion)`);
+  // Same fix for user arrays: stars, likedBy, revealedTo
+  for (const u of Object.values(db.users)) {
+    if (u.stars && !Array.isArray(u.stars)) u.stars = Object.values(u.stars);
+    if (u.likedBy && !Array.isArray(u.likedBy)) u.likedBy = Object.values(u.likedBy);
+    if (u.revealedTo && !Array.isArray(u.revealedTo)) u.revealedTo = Object.values(u.revealedTo);
+  }
   console.log(`🗂️ Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations, ${IDX.relationsByUser.size} userRels`);
 }
 
