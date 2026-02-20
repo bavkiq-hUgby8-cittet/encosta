@@ -472,6 +472,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-alias{font-size:.7rem;color:var(--t3);margin-top:1px}
 .cd-tag{display:inline-block;font-size:.5rem;font-weight:800;padding:1px 6px;border-radius:6px;color:#111;vertical-align:middle;margin-left:.4rem;text-transform:uppercase}
 .cd-close{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.06);border:none;color:var(--t3);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cd-anon-preview{display:flex;align-items:center;gap:.45rem;flex-shrink:0;margin-left:auto;margin-right:.3rem}
+.cd-anon-ball{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;color:#fff;border:1.5px solid rgba(255,255,255,.12);opacity:.7;flex-shrink:0}
+.cd-anon-nick{font-size:.6rem;color:var(--t3);max-width:55px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.cd-anon-label{font-size:.5rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.05em}
 .cd-close:active{background:rgba(255,255,255,.12)}
 .cd-stats{display:flex;gap:0;padding:0 1.2rem .3rem;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .cd-stat{flex:1;text-align:center;padding:.45rem .2rem;min-width:0}
@@ -1222,6 +1226,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="cd-header-info">
         <div class="cd-name" id="cdName"></div>
         <div class="cd-alias" id="cdAlias"></div>
+      </div>
+      <div class="cd-anon-preview hidden" id="cdAnonPreview">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div class="cd-anon-ball" id="cdAnonBall"></div>
+          <div class="cd-anon-nick" id="cdAnonNick"></div>
+          <div class="cd-anon-label">anônimo</div>
+        </div>
       </div>
       <button class="cd-close" onclick="hideConstDetail()">✕</button>
     </div>
@@ -4227,6 +4238,7 @@ function showConstDetail(node){
     const lastD=node.lastDate?new Date(node.lastDate):null;
     metaEl.innerHTML=lastD?'<div class="cd-time"><span>🕐 '+timeAgo(lastD)+'</span></div>':'';
     $('cdActions').innerHTML='';
+    $('cdAnonPreview').classList.add('hidden');
     $('constDetail').classList.add('visible');
     return;
   }
@@ -4253,6 +4265,18 @@ function showConstDetail(node){
     nameHtml+='<span class="cd-tag" style="background:'+(tagColors[node.topTag]||'#888')+'">'+node.topTag.replace('top','TOP ')+'</span>';
   }
   nameEl.innerHTML=nameHtml;
+  // Anonymous preview ball (shows what others see before reveal)
+  const anonPreview=$('cdAnonPreview');
+  const anonBall=$('cdAnonBall');
+  const anonNick=$('cdAnonNick');
+  if(theyRevealed&&node.realName&&node.realName!==node.nickname){
+    anonBall.textContent=(node.nickname||'??').slice(0,2).toUpperCase();
+    anonBall.style.background=node.color;
+    anonNick.textContent=node.nickname;
+    anonPreview.classList.remove('hidden');
+  }else{
+    anonPreview.classList.add('hidden');
+  }
   // Alias
   const aliasEl=$('cdAlias');
   let aliasParts=[];
