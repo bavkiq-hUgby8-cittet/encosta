@@ -1397,6 +1397,8 @@ app.get('/api/profile/:userId', (req, res) => {
     totalEncounters: enc.length,
     uniquePeople: unique,
     memberSince: user.createdAt,
+    isSubscriber: !!user.isSubscriber,
+    isPrestador: !!user.isPrestador,
     declarations: decls.slice(-30),
     gifts: gifts.slice(-30)
   });
@@ -1435,6 +1437,8 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     declarations: decls.slice(-50),
     gifts: gifts.slice(-50),
     canInteract: true,
+    isSubscriber: !!user.isSubscriber,
+    isPrestador: !!user.isPrestador,
     // Real identity if revealed
     realName: isRevealed ? (user.realName || null) : null,
     profilePhoto: isRevealed ? (user.profilePhoto || user.photoURL || null) : null,
@@ -2756,6 +2760,201 @@ app.delete('/api/tip/saved-card/:userId', (req, res) => {
   delete user.savedCard;
   saveDB();
   res.json({ ok: true });
+});
+
+// ═══ ASSINATURA / SUBSCRIPTION ═══
+const SUBSCRIPTION_PLANS = {
+  touch_plus: {
+    id: 'touch_plus',
+    name: 'Touch? Plus',
+    amount: 9.90,
+    currency: 'BRL',
+    frequency: 1, // months
+    description: 'Assinatura mensal Touch? Plus',
+    benefits: ['Perfil verificado', 'Prioridade na constelação', 'Badge exclusivo', 'Sem limites de conexões', 'Acesso antecipado a novidades']
+  }
+};
+
+// Initialize subscriptions DB
+if (!db.subscriptions) db.subscriptions = {};
+
+// Get subscription plans
+app.get('/api/subscription/plans', (req, res) => {
+  res.json(Object.values(SUBSCRIPTION_PLANS));
+});
+
+// Get user subscription status
+app.get('/api/subscription/status/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const sub = db.subscriptions[userId];
+  if (!sub || sub.status === 'cancelled') {
+    return res.json({ active: false, plan: null });
+  }
+  // Check if still valid
+  const now = Date.now();
+  if (sub.expiresAt && sub.expiresAt < now && sub.status !== 'authorized') {
+    sub.status = 'expired';
+    saveDB();
+    return res.json({ active: false, plan: sub.planId, status: 'expired' });
+  }
+  res.json({
+    active: sub.status === 'authorized' || sub.status === 'active' || (sub.expiresAt && sub.expiresAt > now),
+    plan: sub.planId,
+    status: sub.status,
+    expiresAt: sub.expiresAt,
+    startedAt: sub.startedAt,
+    mpPreapprovalId: sub.mpPreapprovalId
+  });
+});
+
+// Create subscription via MP Checkout Pro (simpler: recurring preference)
+app.post('/api/subscription/create', async (req, res) => {
+  const { userId, planId } = req.body;
+  if (!userId || !planId) return res.status(400).json({ error: 'Dados incompletos.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const plan = SUBSCRIPTION_PLANS[planId];
+  if (!plan) return res.status(400).json({ error: 'Plano não encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
+
+  const baseUrl = MP_REDIRECT_URI.replace('/mp/callback', '');
+  const subId = uuidv4();
+
+  try {
+    // Use MP Preapproval API (auto_recurring subscription)
+    const preapprovalData = {
+      reason: plan.description,
+      auto_recurring: {
+        frequency: plan.frequency,
+        frequency_type: 'months',
+        transaction_amount: plan.amount,
+        currency_id: plan.currency
+      },
+      back_url: baseUrl + '/sub-result?subId=' + subId + '&userId=' + userId,
+      payer_email: user.email || '',
+      external_reference: subId,
+      notification_url: baseUrl + '/mp/webhook/subscription'
+    };
+
+    const mpResp = await fetch('https://api.mercadopago.com/preapproval', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + MP_ACCESS_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(preapprovalData)
+    });
+    const preapproval = await mpResp.json();
+
+    if (preapproval.error) {
+      console.error('MP Preapproval error:', preapproval);
+      throw new Error(preapproval.message || 'Erro ao criar assinatura');
+    }
+
+    console.log('📋 Subscription created:', { id: preapproval.id, status: preapproval.status });
+
+    // Save subscription
+    db.subscriptions[userId] = {
+      id: subId,
+      userId,
+      planId: plan.id,
+      mpPreapprovalId: preapproval.id,
+      status: preapproval.status || 'pending',
+      startedAt: Date.now(),
+      expiresAt: Date.now() + 30 * 86400000, // 30 days initial
+      amount: plan.amount,
+      createdAt: Date.now()
+    };
+    user.isSubscriber = false; // Will be activated on webhook confirmation
+    saveDB();
+
+    res.json({
+      subId,
+      initPoint: preapproval.init_point,
+      sandboxInitPoint: preapproval.sandbox_init_point,
+      status: preapproval.status
+    });
+  } catch (e) {
+    console.error('Subscription error:', e.message);
+    res.status(500).json({ error: 'Erro ao criar assinatura: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// Subscription return page
+app.get('/sub-result', (req, res) => {
+  const { subId, userId } = req.query;
+  if (subId && userId && db.subscriptions[userId]) {
+    const sub = db.subscriptions[userId];
+    if (sub.id === subId) {
+      sub.status = 'authorized';
+      const user = db.users[userId];
+      if (user) user.isSubscriber = true;
+      saveDB();
+    }
+  }
+  res.redirect('/?subResult=ok');
+});
+
+// Subscription webhook
+app.post('/mp/webhook/subscription', (req, res) => {
+  const { type, data } = req.body;
+  if (type === 'subscription_preapproval' && data && data.id) {
+    // Fetch latest status
+    fetch('https://api.mercadopago.com/preapproval/' + data.id, {
+      headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+    }).then(r => r.json()).then(pa => {
+      // Find subscription by mpPreapprovalId
+      const entry = Object.entries(db.subscriptions).find(([k, v]) => v.mpPreapprovalId === data.id);
+      if (entry) {
+        const [uid, sub] = entry;
+        sub.status = pa.status; // authorized, paused, cancelled
+        const user = db.users[uid];
+        if (user) {
+          user.isSubscriber = (pa.status === 'authorized');
+        }
+        if (pa.status === 'cancelled') {
+          sub.cancelledAt = Date.now();
+        }
+        saveDB();
+        console.log('📋 Subscription webhook:', { userId: uid, status: pa.status });
+      }
+    }).catch(e => console.error('Sub webhook error:', e));
+  }
+  res.sendStatus(200);
+});
+
+// Cancel subscription
+app.post('/api/subscription/cancel', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatório.' });
+  const sub = db.subscriptions[userId];
+  if (!sub) return res.status(404).json({ error: 'Assinatura não encontrada.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
+
+  try {
+    // Cancel on MP
+    if (sub.mpPreapprovalId) {
+      await fetch('https://api.mercadopago.com/preapproval/' + sub.mpPreapprovalId, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Bearer ' + MP_ACCESS_TOKEN,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+    }
+    sub.status = 'cancelled';
+    sub.cancelledAt = Date.now();
+    const user = db.users[userId];
+    if (user) user.isSubscriber = false;
+    saveDB();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Cancel sub error:', e);
+    res.status(500).json({ error: 'Erro ao cancelar: ' + e.message });
+  }
 });
 
 // ═══ OPERATOR / CHECK-IN ═══

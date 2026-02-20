@@ -1383,6 +1383,31 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="pf-scroll" id="pfScroll"></div>
 </div>
 
+<!-- SUBSCRIPTION SCREEN -->
+<div id="subscriptionScreen" class="screen">
+  <div class="tip-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2 style="font-size:1rem;font-weight:600">Touch? Plus</h2></div>
+  <div style="padding:0 1.2rem;overflow-y:auto;flex:1">
+    <!-- Current status -->
+    <div id="subCurrentStatus" style="margin-bottom:1rem"></div>
+    <!-- Plan card -->
+    <div style="background:linear-gradient(145deg,rgba(99,102,241,.12),rgba(168,85,247,.1));border:1px solid rgba(99,102,241,.25);border-radius:18px;padding:1.5rem;text-align:center;margin-bottom:1rem">
+      <div style="font-size:2rem;margin-bottom:.4rem">✦</div>
+      <div style="font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,#818cf8,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Touch? Plus</div>
+      <div style="font-size:1.6rem;font-weight:800;color:var(--t1);margin:.5rem 0">R$9,90<span style="font-size:.7rem;font-weight:400;color:var(--t3)">/mês</span></div>
+      <div id="subBenefitsList" style="text-align:left;margin:.8rem auto;max-width:260px"></div>
+      <button id="subActionBtn" onclick="startSubscription()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;margin-top:.6rem;transition:all .2s">Assinar agora</button>
+      <div style="font-size:.55rem;color:var(--t3);margin-top:.5rem">Cancele quando quiser. Renovação automática mensal via Mercado Pago.</div>
+    </div>
+    <!-- FAQ -->
+    <div style="font-size:.7rem;color:var(--t3);padding:.5rem 0 2rem">
+      <div style="font-weight:600;color:var(--t2);margin-bottom:.4rem">Perguntas frequentes</div>
+      <div style="margin-bottom:.4rem"><strong style="color:var(--t2)">Como funciona?</strong> Ao assinar, você é redirecionado para o Mercado Pago para confirmar. O pagamento é recorrente mensal.</div>
+      <div style="margin-bottom:.4rem"><strong style="color:var(--t2)">Posso cancelar?</strong> Sim, a qualquer momento. Basta clicar em "Cancelar assinatura" aqui no perfil.</div>
+      <div><strong style="color:var(--t2)">Os benefícios são imediatos?</strong> Sim! Assim que o pagamento for confirmado, sua conta é atualizada automaticamente.</div>
+    </div>
+  </div>
+</div>
+
 <div id="giftModal" class="hidden"></div>
 <div id="declModal" class="hidden"></div>
 
@@ -4471,7 +4496,7 @@ function renderProfile(d,userId){
   }else{
     html+=makeAvatar(d.nickname,d.color,64);
   }
-  html+='<div style="margin-top:.8rem;font-size:1.1rem;font-weight:700">'+esc(displayName)+'</div>';
+  html+='<div style="margin-top:.8rem;font-size:1.1rem;font-weight:700">'+esc(displayName)+(d.isSubscriber?' <span style="font-size:.6rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:.1rem .4rem;border-radius:8px;font-weight:600;vertical-align:middle">✦ Plus</span>':'')+'</div>';
   if(d.realName&&d.realName!==d.nickname){
     html+='<div style="font-size:.72rem;color:var(--t2);margin-top:.1rem">@'+esc(d.nickname)+' <span style="font-size:.58rem;color:var(--ok)">✓ ID revelado para você</span></div>';
   }else{
@@ -4519,6 +4544,12 @@ function renderProfile(d,userId){
     });
   }else html+='<div class="pf-empty">Nenhum presente ainda.</div>';
   html+='</div>';
+  // Subscription card (only on own profile)
+  if(userId===state.userId){
+    html+='<div class="pf-section" id="pfSubSection"><div class="pf-section-title">✦ Touch? Plus</div>';
+    html+='<div id="pfSubCard" style="padding:.6rem;background:linear-gradient(145deg,rgba(99,102,241,.08),rgba(168,85,247,.06));border:1px solid rgba(99,102,241,.15);border-radius:12px;text-align:center"><div style="font-size:.7rem;color:var(--t3)">Carregando...</div></div>';
+    html+='</div>';
+  }
   // Logout button (only on own profile)
   if(userId===state.userId){
     html+='<div style="margin-top:2rem;text-align:center;padding-bottom:2rem">';
@@ -4527,6 +4558,8 @@ function renderProfile(d,userId){
     html+='</div>';
   }
   s.innerHTML=html;
+  // Load subscription status for own profile
+  if(userId===state.userId)loadSubStatus();
 }
 function closeProfile(){
   if(profileReturnTo==='chat'&&state.currentRelation)showScreen('chat');
@@ -4567,12 +4600,133 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">🪪</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">✏️</span>'+cadastroLabel+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">📋</span>Histórico</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">✦</span>Touch? Plus</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showPrestadorRegister()"><span class="my-pf-ico">💼</span>Prestador</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">❓</span>Tutorial</button>'
     +'<div style="height:1px;background:var(--b1);margin:.3rem 0"></div>'
     +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">🚪</span>Sair da conta</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
+}
+
+// ═══ SUBSCRIPTION ═══
+async function showSubscriptionScreen() {
+  showScreen('subscriptionScreen');
+  // Load plan benefits
+  try {
+    const plans = await (await fetch('/api/subscription/plans')).json();
+    const plan = plans[0]; // touch_plus
+    if (plan && plan.benefits) {
+      $('subBenefitsList').innerHTML = plan.benefits.map(b =>
+        '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem"><span style="color:#818cf8;font-size:.8rem">✓</span><span style="font-size:.72rem;color:var(--t2)">' + esc(b) + '</span></div>'
+      ).join('');
+    }
+  } catch (e) {}
+  // Load current status
+  await loadSubStatus();
+}
+
+async function loadSubStatus() {
+  if (!state.userId) return;
+  try {
+    const sub = await (await fetch('/api/subscription/status/' + state.userId)).json();
+    const statusEl = $('subCurrentStatus');
+    const btn = $('subActionBtn');
+    if (sub.active) {
+      const expDate = sub.expiresAt ? new Date(sub.expiresAt).toLocaleDateString('pt-BR') : '';
+      statusEl.innerHTML = '<div style="padding:.8rem;background:rgba(0,220,130,.08);border:1px solid rgba(0,220,130,.2);border-radius:12px;text-align:center">'
+        + '<div style="font-size:.85rem;font-weight:700;color:var(--ok)">✓ Assinatura ativa</div>'
+        + '<div style="font-size:.65rem;color:var(--t3);margin-top:.2rem">Próxima renovação: ' + expDate + '</div>'
+        + '</div>';
+      btn.textContent = 'Cancelar assinatura';
+      btn.style.background = 'rgba(255,68,102,.15)';
+      btn.style.color = '#ff4466';
+      btn.onclick = cancelSubscription;
+    } else {
+      statusEl.innerHTML = '';
+      btn.textContent = 'Assinar agora';
+      btn.style.background = 'linear-gradient(135deg,#6366f1,#8b5cf6)';
+      btn.style.color = '#fff';
+      btn.onclick = startSubscription;
+    }
+    // Also update profile card if visible
+    const pfCard = $('pfSubCard');
+    if (pfCard) {
+      if (sub.active) {
+        pfCard.innerHTML = '<div style="font-size:.75rem;font-weight:600;color:var(--ok)">✦ Plus ativo</div><div style="font-size:.6rem;color:var(--t3);margin-top:.15rem">Assinatura mensal · R$9,90</div>';
+      } else {
+        pfCard.innerHTML = '<div style="font-size:.7rem;color:var(--t2)">Assine o Touch? Plus por R$9,90/mês</div><button onclick="showSubscriptionScreen()" style="margin-top:.4rem;padding:.35rem .8rem;border-radius:10px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.1);color:#818cf8;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Ver plano</button>';
+      }
+    }
+  } catch (e) { console.error('Sub status error:', e); }
+}
+
+async function startSubscription() {
+  const btn = $('subActionBtn');
+  btn.disabled = true; btn.textContent = 'Abrindo...';
+  try {
+    const resp = await fetch('/api/subscription/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: state.userId, planId: 'touch_plus' })
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+    const url = result.initPoint || result.sandboxInitPoint;
+    if (url) {
+      window.open(url, '_blank');
+      btn.textContent = '✅ Checkout aberto';
+      showToast('Complete a assinatura na janela do Mercado Pago.');
+      // Poll for confirmation
+      let polls = 0;
+      const iv = setInterval(async () => {
+        polls++;
+        if (polls > 60) { clearInterval(iv); return; }
+        try {
+          const sub = await (await fetch('/api/subscription/status/' + state.userId)).json();
+          if (sub.active) {
+            clearInterval(iv);
+            showToast('Assinatura ativada! ✦');
+            haptic([50, 30, 50]);
+            await loadSubStatus();
+          }
+        } catch (e) {}
+      }, 5000);
+    } else throw new Error('URL do checkout não disponível.');
+  } catch (e) {
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    btn.disabled = false;
+    btn.textContent = 'Assinar agora';
+  }
+}
+
+async function cancelSubscription() {
+  if (!confirm('Cancelar assinatura Touch? Plus?\nVocê perderá os benefícios ao final do período.')) return;
+  const btn = $('subActionBtn');
+  btn.disabled = true; btn.textContent = 'Cancelando...';
+  try {
+    const resp = await fetch('/api/subscription/cancel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: state.userId })
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+    showToast('Assinatura cancelada.');
+    await loadSubStatus();
+  } catch (e) {
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    btn.disabled = false;
+    btn.textContent = 'Cancelar assinatura';
+  }
+}
+
+// Check subscription result from URL param
+function checkSubResultParam() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('subResult') === 'ok') {
+    showToast('Assinatura processada! Verificando... ✦');
+    window.history.replaceState({}, '', window.location.pathname);
+    setTimeout(() => loadSubStatus(), 1000);
+  }
 }
 
 // ═══ GIFT PICKER ═══
@@ -5707,7 +5861,7 @@ window.addEventListener('load',()=>{
       const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
       if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
       else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
-      refreshHome();restoreFloatingEvent();checkTipResultParam();
+      refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
     }else{
       // Show onboarding for first-time users, login for returning
       if(!localStorage.getItem('touch_onboarded')){
