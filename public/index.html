@@ -101,6 +101,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .home-realname{font-size:.65rem;color:var(--t3);font-weight:400;letter-spacing:.02em;line-height:1}
 .home-user-meta{display:flex;align-items:center;gap:.5rem;font-size:.68rem}
 .home-icons{display:flex;gap:.5rem;align-items:center}
+/* Verified badge */
+.verified-wrap{position:relative;display:inline-flex}
+.verified-badge{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);border:2px solid var(--bg,#0a0a0f);display:flex;align-items:center;justify-content:center;z-index:3;box-shadow:0 0 6px rgba(59,130,246,.5)}
+.verified-badge svg{width:10px;height:10px;fill:#fff}
+.verified-badge-sm{width:14px;height:14px;bottom:-1px;right:-1px;border-width:1.5px}
+.verified-badge-sm svg{width:8px;height:8px}
+.verified-badge-lg{width:22px;height:22px;bottom:-2px;right:-2px;border-width:2.5px}
+.verified-badge-lg svg{width:13px;height:13px}
+.home-verified-row{display:flex;align-items:center;gap:.4rem;margin-top:.1rem}
+.home-stars-mini{font-size:.7rem;color:#fbbf24;letter-spacing:-.02em}
+.home-verified-mini{width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.home-verified-mini svg{width:8px;height:8px;fill:#fff}
 /* Center section — takes all available space, centers the button */
 .hc{text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;flex:1;position:relative;z-index:1;width:100%;padding:0 1.2rem}
 .hm{font-size:.82rem;color:var(--t3);font-weight:300;font-style:italic;line-height:1.6;max-width:220px;letter-spacing:.01em}
@@ -1003,11 +1015,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <!-- TOP: perfil+nick+nome real à esquerda, chat+rede à direita -->
   <div class="home-top">
     <div class="home-user" onclick="showMyProfileSheet()">
-      <div class="home-avatar" id="homeAvatar"></div>
+      <div class="verified-wrap">
+        <div class="home-avatar" id="homeAvatar"></div>
+        <div class="verified-badge hidden" id="homeVerifiedBadge"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+      </div>
       <div class="home-user-info">
         <div class="hg" id="homeGreeting">Olá</div>
         <div class="home-realname" id="homeRealName"></div>
-        <div class="home-user-meta"><div class="cd" id="connDot"></div></div>
+        <div class="home-verified-row">
+          <div class="cd" id="connDot"></div>
+          <div class="home-stars-mini hidden" id="homeStarsMini"></div>
+          <div class="home-verified-mini hidden" id="homeVerifiedMini"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+        </div>
       </div>
     </div>
     <div class="home-icons">
@@ -1196,7 +1215,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-detail" id="constDetail">
     <div class="cd-handle"></div>
     <div class="cd-header">
-      <div class="cd-avatar" id="cdAvatar"></div>
+      <div class="verified-wrap">
+        <div class="cd-avatar" id="cdAvatar"></div>
+        <div class="verified-badge hidden" id="cdVerifiedBadge"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+      </div>
       <div class="cd-header-info">
         <div class="cd-name" id="cdName"></div>
         <div class="cd-alias" id="cdAlias"></div>
@@ -1231,7 +1253,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <button class="bs" onclick="copyTouchLink()" type="button" style="font-size:.65rem;margin-bottom:.8rem;padding:.35rem .8rem">Copiar link</button>
       <!-- Compact identity -->
       <div style="display:flex;align-items:center;gap:.7rem;justify-content:center;margin-bottom:.6rem">
-        <div class="bp-avatar" id="bpAvatar" style="width:40px;height:40px;border-radius:50%;font-size:.9rem;font-weight:800;display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.1)"></div>
+        <div class="verified-wrap">
+          <div class="bp-avatar" id="bpAvatar" style="width:40px;height:40px;border-radius:50%;font-size:.9rem;font-weight:800;display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.1)"></div>
+          <div class="verified-badge hidden" id="bpVerifiedBadge"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+        </div>
         <div style="text-align:left">
           <div class="bp-name" id="bpName" style="font-size:.9rem;font-weight:700;margin:0">Nome</div>
           <div class="bp-since" id="bpSince" style="font-size:.55rem;color:var(--t3);margin:0"></div>
@@ -1928,7 +1953,7 @@ function addEvNode(d,instant){
   const dist=maxDist-(stars/Math.max(1,maxStars))*(maxDist-minDist);
   const angle=Math.random()*Math.PI*2;
   const baseR=7+Math.min(stars*.3,5);
-  const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0};
+  const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0,verified:!!d.verified};
   if(n.revealed&&n.profilePhoto){
     const img=new Image();img.crossOrigin='anonymous';
     img.onload=()=>{n.photoImg=img;n.photoLoaded=true};
@@ -1987,6 +2012,10 @@ function renderEvCanvas(){
       if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1;c.stroke()}
       if(r>4){const ini2=(s)=>{if(!s)return'?';const p=s.trim().split(/\s+/);return p.length>1?(p[0][0]+p[1][0]).toUpperCase():s.slice(0,2).toUpperCase()};
         c.fillStyle='#fff';c.font='600 '+(r*.55)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini2(n.name),n.x,n.y+.5)}}
+    // Verified badge on canvas
+    if(n.verified&&r>5){const bx=n.x+r*.6,by=n.y+r*.6,br=Math.max(4,r*.35);
+      c.beginPath();c.arc(bx,by,br,0,Math.PI*2);c.fillStyle='#3b82f6';c.fill();c.strokeStyle='#0a0a0f';c.lineWidth=1.2;c.stroke();
+      c.fillStyle='#fff';c.font='700 '+(br*1.1)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText('✓',bx,by+.3)}
     // Name + stars below
     if(r>6){const dName=n.revealed&&n.revealData&&n.revealData.realName?n.revealData.realName:n.name;
       c.fillStyle='rgba(255,255,255,.3)';c.font='400 6px Inter';c.textAlign='center';
@@ -2094,6 +2123,9 @@ async function refreshHome(){
         Object.keys(mp.canSee).forEach(k=>{if(!state.revealedIds[k])state.revealedIds[k]=mp.canSee[k]});
       }
       if(mp.isPrestador)localStorage.setItem('touch_isPrestador','1');
+      state.userVerified=!!mp.verified;
+      state.userIsAdmin=!!mp.isAdmin;
+      state.userStarsCount=(mp.stars||[]).length;
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
     }catch(e){}
@@ -2109,6 +2141,15 @@ async function refreshHome(){
         av.textContent=(state.userName||'??').slice(0,2).toUpperCase();av.style.background=state.userColor||nickColor(state.userName);
       }
     }
+    // Show verified badge on home avatar
+    const hvb=$('homeVerifiedBadge');
+    if(hvb){if(state.userVerified)hvb.classList.remove('hidden');else hvb.classList.add('hidden')}
+    // Show stars mini
+    const hsm=$('homeStarsMini');
+    if(hsm){if(state.userStarsCount>0){hsm.classList.remove('hidden');hsm.textContent='★'.repeat(Math.min(state.userStarsCount,5))+(state.userStarsCount>5?'+':'')}else hsm.classList.add('hidden')}
+    // Show verified mini
+    const hvm=$('homeVerifiedMini');
+    if(hvm){if(state.userVerified)hvm.classList.remove('hidden');else hvm.classList.add('hidden')}
   }
   try{
     const [d,cn]=await Promise.all([
@@ -2234,13 +2275,20 @@ function checkNick(val){
   },400);
 }
 function nickColor(nick){let h=0;for(let i=0;i<nick.length;i++)h=nick.charCodeAt(i)+((h<<5)-h);return'hsl('+Math.abs(h)%360+',65%,55%)'}
-function makeAvatar(nick,color,size,photo){
+const VERIFIED_SVG='<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>';
+function verifiedBadge(sizeClass){return '<div class="verified-badge '+(sizeClass||'')+'">'+VERIFIED_SVG+'</div>'}
+function makeAvatar(nick,color,size,photo,verified){
   size=size||44;
+  const sizeClass=size<=30?'verified-badge-sm':size>=60?'verified-badge-lg':'';
+  let inner;
   if(photo&&photo.length>10){
-    return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+  } else {
+    const initials=(nick||'??').slice(0,2).toUpperCase();
+    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:'+(size*.36)+'px;font-weight:800;color:#fff;letter-spacing:.03em;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+esc(initials)+'</div>';
   }
-  const initials=(nick||'??').slice(0,2).toUpperCase();
-  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:'+(size*.36)+'px;font-weight:800;color:#fff;letter-spacing:.03em;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+esc(initials)+'</div>';
+  if(verified) return '<div class="verified-wrap">'+inner+verifiedBadge(sizeClass)+'</div>';
+  return inner;
 }
 async function doRegister(){
   const nick=$('regNick').value.trim(),birth=$('regBirth').value,terms=$('regTerms').checked,termsUso=$('regTermsUso').checked;
@@ -2870,15 +2918,19 @@ function doReveal(data){
   // 1. Avatars — always try photo first (profilePhoto, photoURL, state)
   const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;
   const theirPhoto=them.profilePhoto||them.photoURL;
+  const myVerified=!!me.verified;
+  const theirVerified=!!them.verified;
   if(myPhoto){
-    $('rvAvatarMeInner').innerHTML='<img class="rv-avatar-img" src="'+esc(myPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(me.name||'??').replace(/'/g,"\\'")+'\',\''+esc(meColor)+'\',56)">';
+    let myAv='<img class="rv-avatar-img" src="'+esc(myPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(me.name||'??').replace(/'/g,"\\'")+'\',\''+esc(meColor)+'\',56)">';
+    $('rvAvatarMeInner').innerHTML=myVerified?'<div class="verified-wrap">'+myAv+verifiedBadge('verified-badge-lg')+'</div>':myAv;
   }else{
-    $('rvAvatarMeInner').innerHTML=makeAvatar(me.name,meColor,56);
+    $('rvAvatarMeInner').innerHTML=makeAvatar(me.name,meColor,56,null,myVerified);
   }
   if(theirPhoto){
-    $('rvAvatarThemInner').innerHTML='<img class="rv-avatar-img" src="'+esc(theirPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(them.name||'??').replace(/'/g,"\\'")+'\',\''+esc(themColor)+'\',56)">';
+    let thAv='<img class="rv-avatar-img" src="'+esc(theirPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(them.name||'??').replace(/'/g,"\\'")+'\',\''+esc(themColor)+'\',56)">';
+    $('rvAvatarThemInner').innerHTML=theirVerified?'<div class="verified-wrap">'+thAv+verifiedBadge('verified-badge-lg')+'</div>':thAv;
   }else{
-    $('rvAvatarThemInner').innerHTML=makeAvatar(them.name,themColor,56);
+    $('rvAvatarThemInner').innerHTML=makeAvatar(them.name,themColor,56,null,theirVerified);
   }
   $('rvNameMe').textContent=me.realName||me.name||'?';
   $('rvNameThem').textContent=them.realName||them.name||'?';
@@ -3511,8 +3563,10 @@ async function showRelations(){
       }else{
         displayName=r.partnerRealName||r.partnerName;
         const isRevealed=r.partnerRealName&&r.partnerRealName!==r.partnerName;
-        photoHtml=r.partnerPhoto?'<div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12)"><img src="'+r.partnerPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>':makeAvatar(r.partnerName,pColor,48);
-        nameHtml='<div class="rn">'+esc(displayName)+(isRevealed?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>'+(isRevealed?'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">@'+esc(r.partnerName)+'</div>':'');
+        const pVerified=!!r.partnerVerified;
+        let pAvInner=r.partnerPhoto?'<div style="width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12)"><img src="'+r.partnerPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>':makeAvatar(r.partnerName,pColor,48);
+        photoHtml=pVerified?'<div class="verified-wrap">'+pAvInner+verifiedBadge()+'</div>':pAvInner;
+        nameHtml='<div class="rn">'+esc(displayName)+(pVerified?' <span style="color:#3b82f6;font-size:.6rem">✓</span>':'')+(isRevealed?' <span style="font-size:.55rem;color:var(--ok)">✓ ID</span>':'')+'</div>'+(isRevealed?'<div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">@'+esc(r.partnerName)+'</div>':'');
       }
       // Unread count for this relation
       const lastRead=parseInt(localStorage.getItem('lastRead_'+r.id)||'0');
@@ -3994,6 +4048,11 @@ function initConstCanvas(){
           ctx.fillText(tagTxt,sx,tagY+tagH/2);
         }
       }
+      // Verified badge on constellation canvas
+      if(n.verified&&r>4){const bx=sx+r*.6,by=sy+r*.6,br=Math.max(3,r*.28);
+        ctx.beginPath();ctx.arc(bx,by,br,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();
+        ctx.strokeStyle='#0a0a0f';ctx.lineWidth=Math.max(.5,1*scale);ctx.stroke();
+        ctx.fillStyle='#fff';ctx.font='700 '+Math.max(3,br*1.1)+'px Inter';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',bx,by+.2)}
       // Label — show nickname only (real name only if revealed)
       if(r>3){
         const label=n._revealed?(n.realName||n.nickname):n.nickname;
@@ -4169,9 +4228,13 @@ function showConstDetail(node){
   }else{
     av.innerHTML='';av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();av.style.background=node.color;
   }
+  // Verified badge
+  const cvb=$('cdVerifiedBadge');
+  if(cvb){if(node.verified)cvb.classList.remove('hidden');else cvb.classList.add('hidden')}
   // Name + tag
   const nameEl=$('cdName');
   let nameHtml=esc(theyRevealed?(node.realName||node.nickname):node.nickname);
+  if(node.verified)nameHtml+=' <span style="color:#3b82f6;font-size:.65rem">✓</span>';
   if(node.topTag){
     const tagColors={top1:'#ffd700',top5:'#c0c0c0',top50:'#cd7f32',top100:'#e8a0bf',top1000:'#7ec8e3',top5000:'#b5e3b5',top10000:'#ddd',top100000:'#999'};
     nameHtml+='<span class="cd-tag" style="background:'+(tagColors[node.topTag]||'#888')+'">'+node.topTag.replace('top','TOP ')+'</span>';
@@ -4455,6 +4518,7 @@ function showMoreMenu(){
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showManual()"><div class="mm-ico">❓</div><div class="mm-lbl">Tutorial</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/site\',\'_blank\')"><div class="mm-ico">🌐</div><div class="mm-lbl">Sobre o Touch</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/termos\',\'_blank\')"><div class="mm-ico">📜</div><div class="mm-lbl">Termos de Uso</div></div>'
+    +(state.userIsAdmin?'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showVerificationPanel()"><div class="mm-ico" style="color:#3b82f6">✓</div><div class="mm-lbl">Verificações</div></div>':'')
     +'</div></div>';
   document.body.appendChild(overlay);
 }
@@ -4490,13 +4554,16 @@ async function showEncounterLog(){
       html+='<div class="elog-item" data-ts="'+enc.timestamp+'">';
       html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')">Apagar</div>';
       html+='<div class="elog-item-inner">';
+      const encVerified=!!enc.verified;
       if(photo){
-        html+='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+';overflow:hidden"><img src="'+esc(photo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+        let avHtml='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+';overflow:hidden"><img src="'+esc(photo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+        html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
       }else{
-        html+='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+'">'+(enc.withName||'??').slice(0,2).toUpperCase()+'</div>';
+        let avHtml='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+'">'+(enc.withName||'??').slice(0,2).toUpperCase()+'</div>';
+        html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
       }
       html+='<div style="flex:1;min-width:0">';
-      html+='<div class="elog-name" style="font-size:.8rem">'+esc(displayName)+'</div>';
+      html+='<div class="elog-name" style="font-size:.8rem">'+esc(displayName)+(encVerified?' <span style="color:#3b82f6;font-size:.6rem">✓</span>':'')+'</div>';
       html+='<div class="elog-meta" style="margin-top:.15rem">';
       html+='<span>'+typeIcon+' '+timeStr+'</span>';
       if(enc.points)html+='<span>+'+enc.points+'pts</span>';
@@ -4898,6 +4965,7 @@ async function showBoardingPass(){
     $('bpPeople').textContent=d.uniquePeople;
     $('bpLikes').textContent=d.likesCount||0;
     const tagEl=$('bpTag');if(tagEl)tagEl.textContent=d.topTag?d.topTag.replace('top','TOP '):'—';
+    const bpvb=$('bpVerifiedBadge');if(bpvb){if(state.userVerified)bpvb.classList.remove('hidden');else bpvb.classList.add('hidden')}
     loadTouchLink();
     showScreen('boardingPass');
   }catch(e){showToast('Erro ao carregar bilhete.')}
@@ -5076,9 +5144,11 @@ function showMyProfileSheet(){
   const email=fbUser?(fbUser.email||fbUser.displayName||''):'';
   // Avatar: use real photo if available
   const hasPhoto=state.userPhoto&&state.userPhoto.length>10;
-  const avatarHtml=hasPhoto
+  const isVerified=!!state.userVerified;
+  let avatarInner=hasPhoto
     ?'<div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.12);flex-shrink:0"><img src="'+state.userPhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>'
     :'<div style="width:56px;height:56px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.12);flex-shrink:0">'+esc(initials)+'</div>';
+  const avatarHtml=isVerified?'<div class="verified-wrap">'+avatarInner+verifiedBadge('verified-badge-lg')+'</div>':avatarInner;
   // Cadastro tag
   const profileMostlyComplete=hasPhoto&&state.userRealName;
   const cadastroTag=profileMostlyComplete?'':'<span class="my-pf-tag">completar</span>';
@@ -5090,7 +5160,7 @@ function showMyProfileSheet(){
     // Header: avatar + name + nick label
     +'<div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1rem">'
     +avatarHtml
-    +'<div style="flex:1"><div style="font-size:1.05rem;font-weight:700;color:var(--t1)">'+esc(state.userName||'??')+'</div>'
+    +'<div style="flex:1"><div style="font-size:1.05rem;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:.35rem">'+esc(state.userName||'??')+(isVerified?' <span style="color:#3b82f6;font-size:.8rem" title="Verificado">✓</span>':'')+(state.userStarsCount>0?' <span style="color:#fbbf24;font-size:.7rem">'+'★'.repeat(Math.min(state.userStarsCount,5))+'</span>':'')+'</div>'
     +realNameLine
     +'<div style="font-size:.6rem;color:var(--t3);margin-top:.15rem;letter-spacing:.04em">nick</div></div></div>'
     // Menu buttons — clean, no emojis
@@ -6665,6 +6735,102 @@ window.addEventListener('load',()=>{
     }
   },1800);
 });
+
+// ═══ ADMIN VERIFICATION PANEL ═══
+async function showVerificationPanel(){
+  const existing=document.querySelector('.verify-panel-overlay');if(existing){existing.remove();return}
+  const overlay=document.createElement('div');
+  overlay.className='more-menu-overlay verify-panel-overlay';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
+  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.5rem;max-height:85vh;overflow-y:auto"><div class="more-menu-handle"></div><div style="text-align:center;padding:1rem;color:var(--t3)">Carregando...</div></div>';
+  document.body.appendChild(overlay);
+  try{
+    const d=await(await fetch('/api/admin/verifications/'+state.userId)).json();
+    if(d.error){overlay.querySelector('.more-menu-sheet').innerHTML='<div class="more-menu-handle"></div><p style="color:var(--err);padding:1rem;text-align:center">'+d.error+'</p>';return}
+    let html='<div class="more-menu-handle"></div>';
+    html+='<h3 style="font-size:1rem;font-weight:700;color:var(--t1);margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem"><span style="color:#3b82f6">✓</span> Painel de Verificação</h3>';
+    // Verified users
+    html+='<div style="font-size:.75rem;font-weight:600;color:var(--t2);margin-bottom:.4rem">Usuários verificados ('+d.verifiedUsers.length+')</div>';
+    if(d.verifiedUsers.length===0)html+='<p style="font-size:.72rem;color:var(--t3);margin-bottom:.8rem">Nenhum verificado ainda.</p>';
+    d.verifiedUsers.forEach(u=>{
+      const av=u.profilePhoto?'<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="'+u.profilePhoto+'" style="width:100%;height:100%;object-fit:cover"></div>':'<div style="width:32px;height:32px;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#fff;flex-shrink:0">'+(u.nickname||'??').slice(0,2).toUpperCase()+'</div>';
+      html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:.3rem">';
+      html+='<div class="verified-wrap">'+av+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:.78rem;font-weight:600;color:var(--t1)">'+esc(u.nickname)+'</div><div style="font-size:.6rem;color:var(--t3)">★'+u.stars+' · score '+u.score+'</div></div>';
+      html+='<button onclick="unverifyUser(\''+u.id+'\',this)" style="font-size:.6rem;padding:.25rem .5rem;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);border-radius:8px;color:#f87171;cursor:pointer">Revogar</button>';
+      html+='</div>';
+    });
+    // Verified events
+    html+='<div style="font-size:.75rem;font-weight:600;color:var(--t2);margin:.8rem 0 .4rem">Eventos verificados ('+d.verifiedEvents.length+')</div>';
+    d.verifiedEvents.forEach(e=>{
+      html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:.3rem">';
+      html+='<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:.9rem">📍</div>';
+      html+='<div style="flex:1"><div style="font-size:.78rem;font-weight:600;color:var(--t1)">'+esc(e.name)+' <span style="color:#3b82f6;font-size:.6rem">✓</span></div><div style="font-size:.6rem;color:var(--t3)">'+e.participants+' participantes</div></div>';
+      html+='</div>';
+    });
+    // Add verification section
+    html+='<div style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--b1)">';
+    html+='<div style="font-size:.75rem;font-weight:600;color:var(--ac);margin-bottom:.5rem">Verificar usuário</div>';
+    html+='<div style="display:flex;gap:.3rem;margin-bottom:.5rem"><input type="text" id="verifySearchInput" placeholder="Buscar por nickname..." style="flex:1;padding:.5rem .7rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.75rem;outline:none" oninput="filterVerifyUsers(this.value)"><button onclick="filterVerifyUsers($$(\'verifySearchInput\').value)" style="padding:.5rem .7rem;background:var(--ac);border:none;border-radius:10px;color:#fff;font-size:.7rem;font-weight:600;cursor:pointer">Buscar</button></div>';
+    html+='<div id="verifyUserResults" style="max-height:200px;overflow-y:auto">';
+    d.allUsers.filter(u=>!u.verified).slice(0,20).forEach(u=>{
+      const av2=u.profilePhoto?'<img src="'+u.profilePhoto+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">':'<div style="width:28px;height:28px;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:800;color:#fff">'+(u.nickname||'??').slice(0,2).toUpperCase()+'</div>';
+      html+='<div class="verify-user-row" data-nick="'+esc(u.nickname.toLowerCase())+'" style="display:flex;align-items:center;gap:.4rem;padding:.35rem;cursor:pointer;border-radius:8px;margin-bottom:.15rem" onmouseover="this.style.background=\'var(--s2)\'" onmouseout="this.style.background=\'none\'">';
+      html+=av2;
+      html+='<div style="flex:1;font-size:.72rem;color:var(--t1)">'+esc(u.nickname)+' <span style="color:var(--t3);font-size:.6rem">★'+u.stars+'</span></div>';
+      html+='<button onclick="event.stopPropagation();verifyUser(\''+u.id+'\',this)" style="font-size:.58rem;padding:.2rem .5rem;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:8px;color:#3b82f6;cursor:pointer;font-weight:600">Verificar</button>';
+      html+='</div>';
+    });
+    html+='</div></div>';
+    // Verify event section
+    html+='<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--b1)">';
+    html+='<div style="font-size:.75rem;font-weight:600;color:#60a5fa;margin-bottom:.5rem">Verificar evento</div>';
+    html+='<div id="verifyEventResults">';
+    d.allEvents.filter(e=>!e.verified).forEach(e=>{
+      html+='<div style="display:flex;align-items:center;gap:.4rem;padding:.35rem;margin-bottom:.15rem">';
+      html+='<span style="font-size:.85rem">📍</span>';
+      html+='<div style="flex:1;font-size:.72rem;color:var(--t1)">'+esc(e.name)+' <span style="color:var(--t3);font-size:.6rem">'+e.participants+' pax</span></div>';
+      html+='<button onclick="event.stopPropagation();verifyEvent(\''+e.id+'\',this)" style="font-size:.58rem;padding:.2rem .5rem;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:8px;color:#3b82f6;cursor:pointer;font-weight:600">Verificar</button>';
+      html+='</div>';
+    });
+    html+='</div></div>';
+    overlay.querySelector('.more-menu-sheet').innerHTML=html;
+  }catch(e){overlay.querySelector('.more-menu-sheet').innerHTML='<div class="more-menu-handle"></div><p style="color:var(--err);padding:1rem">Erro ao carregar.</p>'}
+}
+function $$(_id){return document.getElementById(_id)}
+function filterVerifyUsers(q){
+  q=q.toLowerCase().trim();
+  document.querySelectorAll('.verify-user-row').forEach(r=>{
+    r.style.display=!q||r.dataset.nick.includes(q)?'flex':'none';
+  });
+}
+async function verifyUser(targetId,btn){
+  btn.disabled=true;btn.textContent='...';
+  try{
+    const r=await fetch('/api/admin/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminId:state.userId,targetId})});
+    const d=await r.json();
+    if(d.ok){btn.textContent='Verificado ✓';btn.style.background='rgba(52,211,153,.1)';btn.style.color='#34d399';btn.style.borderColor='rgba(52,211,153,.2)';showToast('Usuário verificado!')}
+    else{btn.textContent='Erro';showToast(d.error||'Erro')}
+  }catch(e){btn.textContent='Erro';btn.disabled=false}
+}
+async function unverifyUser(targetId,btn){
+  btn.disabled=true;btn.textContent='...';
+  try{
+    const r=await fetch('/api/admin/unverify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminId:state.userId,targetId})});
+    const d=await r.json();
+    if(d.ok){btn.closest('div[style]').style.opacity='.4';btn.textContent='Revogado';showToast('Verificação revogada.')}
+    else{btn.textContent='Erro';showToast(d.error||'Erro')}
+  }catch(e){btn.textContent='Erro';btn.disabled=false}
+}
+async function verifyEvent(eventId,btn){
+  btn.disabled=true;btn.textContent='...';
+  try{
+    const r=await fetch('/api/admin/verify-event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminId:state.userId,eventId})});
+    const d=await r.json();
+    if(d.ok){btn.textContent='Verificado ✓';btn.style.background='rgba(52,211,153,.1)';btn.style.color='#34d399';showToast('Evento verificado!')}
+    else{btn.textContent='Erro';showToast(d.error||'Erro')}
+  }catch(e){btn.textContent='Erro';btn.disabled=false}
+}
 </script>
 </body>
 </html>

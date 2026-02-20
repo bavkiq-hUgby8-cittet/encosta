@@ -882,8 +882,8 @@ app.post('/api/touch-link/connect', (req, res) => {
   const zodiacPhrase = getZodiacPhrase(signOwner, signVisitor);
   const responseData = {
     relationId: existing ? existing.id : relationId, phrase, expiresAt, renewed: !!existing,
-    userA: { id: owner.id, name: owner.nickname, realName: owner.realName || null, color: owner.color, profilePhoto: owner.profilePhoto || null, photoURL: owner.photoURL || null, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '' },
-    userB: { id: visitor.id, name: visitor.nickname, realName: visitor.realName || null, color: visitor.color, profilePhoto: visitor.profilePhoto || null, photoURL: visitor.photoURL || null, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '' },
+    userA: { id: owner.id, name: owner.nickname, realName: owner.realName || null, color: owner.color, profilePhoto: owner.profilePhoto || null, photoURL: owner.photoURL || null, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '', verified: !!owner.verified },
+    userB: { id: visitor.id, name: visitor.nickname, realName: visitor.realName || null, color: visitor.color, profilePhoto: visitor.profilePhoto || null, photoURL: visitor.photoURL || null, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '', verified: !!visitor.verified },
     zodiacPhrase
   };
   io.to(`user:${owner.id}`).emit('relation-created', responseData);
@@ -1120,8 +1120,8 @@ app.post('/api/session/join', (req, res) => {
       requireReveal: !!opRequireRevealJoin,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
-      userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
-      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true },
+      userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
+      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, verified: !!(sessionEventObj && sessionEventObj.verified) },
       zodiacPhrase: null
     };
   } else {
@@ -1130,8 +1130,8 @@ app.post('/api/session/join', (req, res) => {
       isServiceTouch: !!session.isServiceTouch, isCheckin: false,
       requireReveal: !!opRequireRevealJoin,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
-      userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-      userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
+      userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '', verified: !!userA.verified },
+      userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
       zodiacPhrase
     };
   }
@@ -1183,7 +1183,8 @@ app.get('/api/relations/:userId', (req, res) => {
       eventName: isEvent ? (evObj?.name || r.eventName || null) : null,
       lastMessageTime,
       lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').slice(0, 40)) : null,
-      lastMessageUserId: lastMsg ? lastMsg.userId : null
+      lastMessageUserId: lastMsg ? lastMsg.userId : null,
+      partnerVerified: isEvent ? !!(evObj && evObj.verified) : !!(p && p.verified)
     };
   });
   // Sort by last message time descending (most recent first)
@@ -1203,7 +1204,7 @@ app.get('/api/encounters/:userId', (req, res) => {
   const enriched = list.slice().reverse().map(e => {
     const other = db.users[e.with];
     const isRevealed = other?.revealedTo?.includes(req.params.userId);
-    return { ...e, realName: isRevealed ? (other?.realName || null) : null, profilePhoto: isRevealed ? (other?.profilePhoto || other?.photoURL || null) : null };
+    return { ...e, realName: isRevealed ? (other?.realName || null) : null, profilePhoto: isRevealed ? (other?.profilePhoto || other?.photoURL || null) : null, verified: !!(other && other.verified) };
   });
   res.json(enriched); // newest first
 });
@@ -1307,6 +1308,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       likedByMe: !!(other && other.likedBy && other.likedBy.includes(req.params.userId)),
       isPrestador: !!(other && other.isPrestador),
       serviceLabel: (other && other.serviceLabel) || null,
+      verified: !!(other && other.verified),
       pendingReveal: (() => {
         const pr = Object.values(db.revealRequests).find(rr => rr.status === 'pending' && ((rr.fromUserId === req.params.userId && rr.toUserId === p.id) || (rr.fromUserId === p.id && rr.toUserId === req.params.userId)));
         if (!pr) return null;
@@ -1332,7 +1334,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       iRevealedToPartner: false, partnerRevealedToMe: false,
       hasActiveRelation: ev.active, topTag: null, touchers: (ev.participants || []).length,
       likesCount: 0, starsCount: 0, likedByMe: false,
-      isPrestador: false, serviceLabel: null, pendingReveal: null,
+      isPrestador: false, serviceLabel: null, pendingReveal: null, verified: !!ev.verified,
       eventActive: ev.active, eventParticipants: (ev.participants || []).length
     };
   });
@@ -2124,6 +2126,84 @@ app.post('/api/admin/game-config', (req, res) => {
   res.json({ ok: true, applied, current: getGameConfig() });
 });
 
+// ═══ VERIFICATION SYSTEM ═══
+if (!db.verifications) db.verifications = {};
+
+// Admin: verify a user
+app.post('/api/admin/verify', (req, res) => {
+  const { adminId, targetId, type, note } = req.body;
+  if (!adminId || !targetId) return res.status(400).json({ error: 'adminId e targetId obrigatórios.' });
+  const admin = db.users[adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin pode verificar.' });
+  const target = db.users[targetId];
+  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  target.verified = true;
+  target.verifiedAt = Date.now();
+  target.verifiedBy = adminId;
+  target.verificationType = type || 'standard';
+  db.verifications[targetId] = { userId: targetId, verifiedAt: Date.now(), by: adminId, type: type || 'standard', note: note || '' };
+  saveDB();
+  res.json({ ok: true, user: { id: targetId, nickname: target.nickname, verified: true, verificationType: target.verificationType } });
+});
+
+// Admin: revoke verification
+app.post('/api/admin/unverify', (req, res) => {
+  const { adminId, targetId } = req.body;
+  if (!adminId || !targetId) return res.status(400).json({ error: 'adminId e targetId obrigatórios.' });
+  const admin = db.users[adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const target = db.users[targetId];
+  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  target.verified = false;
+  delete target.verifiedAt;
+  delete target.verifiedBy;
+  delete target.verificationType;
+  delete db.verifications[targetId];
+  saveDB();
+  res.json({ ok: true });
+});
+
+// Admin: verify an event
+app.post('/api/admin/verify-event', (req, res) => {
+  const { adminId, eventId, note } = req.body;
+  if (!adminId || !eventId) return res.status(400).json({ error: 'adminId e eventId obrigatórios.' });
+  const admin = db.users[adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  ev.verified = true;
+  ev.verifiedAt = Date.now();
+  ev.verifiedBy = adminId;
+  saveDB();
+  res.json({ ok: true, event: { id: eventId, name: ev.name, verified: true } });
+});
+
+// Admin: list all verifications
+app.get('/api/admin/verifications/:adminId', (req, res) => {
+  const admin = db.users[req.params.adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const users = Object.values(db.users).filter(u => u.verified).map(u => ({
+    id: u.id, nickname: u.nickname, name: u.name || u.nickname, verified: true,
+    verifiedAt: u.verifiedAt, verificationType: u.verificationType || 'standard',
+    stars: (u.stars || []).length, score: calcScore(u.id),
+    profilePhoto: u.profilePhoto || u.photoURL || null
+  }));
+  const events = Object.values(db.operatorEvents).filter(e => e.verified).map(e => ({
+    id: e.id, name: e.name, verified: true, verifiedAt: e.verifiedAt,
+    participants: (e.participants || []).length, active: e.active
+  }));
+  const allUsers = Object.values(db.users).map(u => ({
+    id: u.id, nickname: u.nickname, name: u.name || u.nickname,
+    verified: !!u.verified, stars: (u.stars || []).length,
+    profilePhoto: u.profilePhoto || u.photoURL || null
+  }));
+  const allEvents = Object.values(db.operatorEvents).map(e => ({
+    id: e.id, name: e.name, verified: !!e.verified,
+    participants: (e.participants || []).length, active: e.active
+  }));
+  res.json({ verifiedUsers: users, verifiedEvents: events, allUsers, allEvents });
+});
+
 // Full score breakdown for a user
 app.get('/api/score/breakdown/:userId', (req, res) => {
   const user = db.users[req.params.userId];
@@ -2166,7 +2246,8 @@ app.get('/api/myprofile/:userId', (req, res) => {
     starsEarned: user.starsEarned || 0, likesCount: user.likesCount || 0,
     starsReceived: (user.stars || []).length, score: calcScore(req.params.userId),
     uniqueConnections: getUniqueConnections(req.params.userId),
-    topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0
+    topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0,
+    verified: !!user.verified, isAdmin: !!user.isAdmin
   });
 });
 
@@ -2207,7 +2288,7 @@ app.get('/api/nearby/:userId', (req, res) => {
     if (dist <= radius) {
       const u = db.users[uid];
       if (!u) continue;
-      nearby.push({ id: uid, nickname: u.nickname || u.name, color: u.color, score: calcScore(uid), stars: (u.stars || []).length, distance: Math.round(dist) });
+      nearby.push({ id: uid, nickname: u.nickname || u.name, color: u.color, score: calcScore(uid), stars: (u.stars || []).length, distance: Math.round(dist), verified: !!u.verified });
     }
   }
   nearby.sort((a, b) => a.distance - b.distance);
@@ -2273,7 +2354,7 @@ app.get('/api/event/:eventId', (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   const participants = ev.participants.map(pid => {
     const u = db.users[pid];
-    return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length } : null;
+    return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length, verified: !!u.verified } : null;
   }).filter(Boolean);
   res.json({ ...ev, participantsData: participants });
 });
