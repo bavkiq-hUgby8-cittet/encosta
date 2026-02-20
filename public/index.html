@@ -1270,22 +1270,23 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <input type="number" id="tipCustomAmount" placeholder="R$" min="1" max="500" oninput="selectTipCustom()">
   </div>
 
-  <!-- SAVED CARD — CVV + confirm -->
+  <!-- SAVED CARD — TRUE ONE-TAP (no CVV needed, server-side charge) -->
   <div id="tipSavedCard" style="display:none;margin-top:.8rem">
-    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:16px;padding:.8rem">
-      <div style="display:flex;align-items:center;gap:.6rem;justify-content:center">
-        <div style="font-size:1.8rem">💳</div>
-        <div>
-          <div id="tipSavedCardLabel" style="font-size:.85rem;font-weight:700;color:var(--t1)"></div>
-          <div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">Cartão salvo</div>
+    <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:18px;padding:1rem">
+      <div style="display:flex;align-items:center;gap:.8rem">
+        <div style="width:48px;height:32px;border-radius:6px;background:linear-gradient(135deg,#1a1a2e,#2d2d44);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:rgba(255,255,255,.5);flex-shrink:0" id="tipSavedBrandIcon">💳</div>
+        <div style="flex:1">
+          <div id="tipSavedCardLabel" style="font-size:.8rem;font-weight:700;color:var(--t1)"></div>
+          <div style="font-size:.55rem;color:var(--t3)">Pagamento seguro com 1 clique</div>
         </div>
+        <div style="width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
       </div>
-      <div style="margin-top:.6rem;display:flex;gap:.4rem;align-items:center">
-        <input type="text" id="tipSavedCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" style="flex:0 0 80px;text-align:center;font-size:.9rem;letter-spacing:2px">
-        <button class="tip-pay-btn" id="tipQuickPayBtn" onclick="quickPay()" disabled style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:.85rem;padding:.65rem;border-radius:14px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer;margin:0">Confirmar</button>
-      </div>
+      <button class="tip-pay-btn" id="tipQuickPayBtn" onclick="quickPay()" disabled style="margin-top:.7rem;width:100%;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:.9rem;padding:.75rem;border-radius:14px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Pagar</button>
     </div>
-    <button onclick="showNewCardForm()" style="margin-top:.4rem;width:100%;padding:.3rem;border:none;background:transparent;color:var(--t3);font-size:.6rem;font-family:inherit;cursor:pointer;text-decoration:underline">Usar outro cartão</button>
+    <div style="display:flex;justify-content:center;gap:1rem;margin-top:.5rem">
+      <button onclick="showNewCardForm()" style="padding:.2rem;border:none;background:transparent;color:var(--t3);font-size:.58rem;font-family:inherit;cursor:pointer">Usar outro cartão</button>
+      <button onclick="removeSavedCard()" style="padding:.2rem;border:none;background:transparent;color:var(--err);font-size:.58rem;font-family:inherit;cursor:pointer;opacity:.6">Remover cartão</button>
+    </div>
   </div>
 
   <!-- NEW CARD FORM — first time or change card -->
@@ -5574,15 +5575,15 @@ function selectTipCustom() {
 function updateTipBtns() {
   const has = tipState.amount > 0;
   const label = has ? ' R$' + tipState.amount.toFixed(2).replace('.', ',') : '';
-  // Quick pay button
-  $('tipQuickPayBtn').disabled = !has;
-  $('tipQuickPayBtn').textContent = has ? 'Confirmar' + label : 'Confirmar pagamento';
+  // One-tap button (saved card)
+  const qpBtn = $('tipQuickPayBtn');
+  if (qpBtn) { qpBtn.disabled = !has; qpBtn.textContent = has ? 'Pagar' + label : 'Pagar'; }
   // New card button
-  $('tipCardPayBtn').disabled = !has;
-  $('tipCardPayBtn').textContent = has ? '💳 Pagar' + label : '💳 Pagar';
+  const cpBtn = $('tipCardPayBtn');
+  if (cpBtn) { cpBtn.disabled = !has; cpBtn.textContent = has ? '💳 Pagar' + label : '💳 Pagar'; }
   // PIX button
-  $('tipPixBtn').disabled = !has;
-  $('tipPixBtn').textContent = has ? '⚡ PIX' + label : '⚡ Gerar PIX';
+  const pxBtn = $('tipPixBtn');
+  if (pxBtn) { pxBtn.disabled = !has; pxBtn.textContent = has ? '⚡ PIX' + label : '⚡ Gerar PIX'; }
 }
 
 function formatCardNumber(el) {
@@ -5684,48 +5685,55 @@ async function getMpSdk() {
   } catch (e) { console.error('MP SDK init error:', e); return null; }
 }
 
-// ── Quick Pay with saved card + CVV ──
+// ── One-Tap Pay — server-side saved card charge, zero friction ──
 async function quickPay() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
-  const cvv = $('tipSavedCVV').value.trim();
-  if (!cvv || cvv.length < 3) return showToast('Digite o CVV do cartão.');
   const btn = $('tipQuickPayBtn');
   btn.disabled = true; btn.textContent = 'Processando...';
+  haptic([30]);
   try {
-    const mp = await getMpSdk();
-    if (!mp) throw new Error('SDK não disponível.');
-    // Create token from saved card + CVV
-    const tokenResult = await mp.createCardToken({
-      cardId: tipState.savedCard.cardId,
-      securityCode: cvv
-    });
-    if (!tokenResult || !tokenResult.id) throw new Error('Erro ao validar CVV.');
-    // Pay with token via existing /api/tip/create
-    const resp = await fetch('/api/tip/create', {
+    const resp = await fetch('/api/tip/quick-pay', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount,
-        token: tokenResult.id, paymentMethodId: tokenResult.payment_method?.id || 'master',
-        payerEmail: state.email || state.userId + '@touch.app', payerCPF: '00000000000'
-      })
+      body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount })
     });
     const result = await resp.json();
-    if (result.error) throw new Error(result.error);
+    if (result.error) {
+      // If card expired/invalid, show new card form
+      if (result.cardExpired) {
+        tipState.savedCard = null;
+        $('tipSavedCard').style.display = 'none';
+        $('tipNewCard').style.display = '';
+        showToast('Cartão expirado. Cadastre novamente.');
+        return;
+      }
+      throw new Error(result.error);
+    }
     if (result.status === 'approved') {
       showTipResult('✅', 'Gorjeta enviada!<br>R$' + tipState.amount.toFixed(2).replace('.', ','));
       haptic([50, 30, 50, 30, 50]);
     } else if (result.status === 'in_process' || result.status === 'pending') {
-      showTipResult('⏳', 'Processando...');
+      showTipResult('⏳', 'Processando...<br>Aguarde confirmação.');
       if (result.tipId) pollTipStatus(result.tipId);
     } else {
       throw new Error(result.statusDetail || 'Pagamento recusado');
     }
   } catch (e) {
-    console.error('Quick-pay error:', e);
+    console.error('One-tap error:', e);
     showToast('Erro: ' + (e.message || 'Tente novamente'));
     btn.disabled = false;
-    btn.textContent = 'Confirmar R$' + tipState.amount.toFixed(2).replace('.', ',');
+    btn.textContent = 'Pagar R$' + tipState.amount.toFixed(2).replace('.', ',');
   }
+}
+
+async function removeSavedCard() {
+  if (!confirm('Remover cartão salvo?')) return;
+  try {
+    await fetch('/api/tip/saved-card/' + state.userId, { method: 'DELETE' });
+    tipState.savedCard = null;
+    $('tipSavedCard').style.display = 'none';
+    $('tipNewCard').style.display = '';
+    showToast('Cartão removido.');
+  } catch (e) { showToast('Erro ao remover.'); }
 }
 
 // ── Pay with new card (tokenize → pay → save) ──
@@ -5796,7 +5804,7 @@ async function payWithNewCard() {
           if (saveToken?.id) {
             await fetch('/api/tip/save-card', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: state.userId, token: saveToken.id })
+              body: JSON.stringify({ userId: state.userId, token: saveToken.id, email: state.email || state.userId + '@touch.app', cpf })
             });
           }
         } catch (saveErr) { console.error('Save card error:', saveErr); }

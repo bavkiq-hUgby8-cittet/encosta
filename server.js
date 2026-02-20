@@ -2457,11 +2457,6 @@ app.post('/api/tip/create', async (req, res) => {
     return res.status(500).json({ error: 'Sistema de pagamento não configurado. Configure MP_ACCESS_TOKEN.' });
   }
 
-  // Saved card: cannot re-use a saved token — require fresh tokenization
-  if (token === '__saved__') {
-    return res.status(400).json({ error: 'Cartão salvo não pode ser reutilizado. Por favor, insira os dados novamente.' });
-  }
-
   try {
     const paymentData = {
       transaction_amount: tipAmount,
@@ -2822,7 +2817,7 @@ app.get('/api/tip/saved-card/:userId', (req, res) => {
 
 // Save card: tokenize → create MP customer → save card to customer
 app.post('/api/tip/save-card', async (req, res) => {
-  const { userId, token } = req.body;
+  const { userId, token, email, cpf } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'User not found' });
   if (!token) return res.status(400).json({ error: 'Token do cartão é obrigatório.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
@@ -2861,13 +2856,16 @@ app.post('/api/tip/save-card', async (req, res) => {
       console.error('Save card error:', cardData);
       return res.status(400).json({ error: cardData.message || 'Erro ao salvar cartão.' });
     }
-    // Store in DB
+    // Store in DB — keep all we need for one-tap payments
     user.savedCard = {
       customerId,
       cardId: cardData.id,
       lastFour: cardData.last_four_digits,
       brand: cardData.payment_method?.name || cardData.issuer?.name || 'Cartão',
+      paymentMethodId: cardData.payment_method?.id || 'visa',
       firstSix: cardData.first_six_digits,
+      email: email || user.email || userId + '@touch.app',
+      cpf: cpf || user.cpf || '',
       savedAt: Date.now()
     };
     saveDB();
@@ -2879,43 +2877,69 @@ app.post('/api/tip/save-card', async (req, res) => {
   }
 });
 
-// Quick pay with saved card — ONE-TAP payment!
+// ═══ ONE-TAP PAYMENT — Server-side saved card charge (no CVV needed) ═══
 app.post('/api/tip/quick-pay', async (req, res) => {
   const { payerId, receiverId, amount } = req.body;
   if (!payerId || !receiverId || !amount) return res.status(400).json({ error: 'Dados incompletos.' });
   const payer = db.users[payerId];
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
-  if (!payer.savedCard?.customerId || !payer.savedCard?.cardId) return res.status(400).json({ error: 'Nenhum cartão salvo. Cadastre um cartão primeiro.' });
+  if (!payer.savedCard?.customerId || !payer.savedCard?.cardId) return res.status(400).json({ error: 'Nenhum cartão salvo.' });
   const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
   if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
   const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100;
+
   try {
-    // Get customer's cards to get current token
+    // 1. Verify the card still exists on MP
     const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + payer.savedCard.customerId + '/cards', {
       headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
     });
     const cards = await cardsResp.json();
+    if (!Array.isArray(cards)) {
+      console.error('⚠️ Cards API returned non-array:', cards);
+      // Customer might be invalid — clear saved card
+      delete payer.savedCard;
+      saveDB();
+      return res.status(400).json({ error: 'Cartão salvo expirou. Cadastre novamente.', cardExpired: true });
+    }
     const card = cards.find(c => c.id === payer.savedCard.cardId) || cards[0];
-    if (!card) return res.status(400).json({ error: 'Cartão não encontrado. Cadastre novamente.' });
+    if (!card) {
+      delete payer.savedCard;
+      saveDB();
+      return res.status(400).json({ error: 'Cartão não encontrado. Cadastre novamente.', cardExpired: true });
+    }
 
+    // 2. Create a card token server-side using the saved card
+    const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_id: card.id, customer_id: payer.savedCard.customerId })
+    });
+    const tokenData = await tokenResp.json();
+    if (!tokenData.id) {
+      console.error('⚠️ Token creation failed:', tokenData);
+      return res.status(400).json({ error: 'Erro ao processar cartão salvo. Tente outro cartão.', cardExpired: true });
+    }
+
+    // 3. Create payment using the fresh token
     const paymentData = {
       transaction_amount: tipAmount,
-      payment_method_id: card.payment_method.id,
-      payer: {
-        id: payer.savedCard.customerId,
-        type: 'customer'
-      },
-      token: card.id, // card ID as token for saved cards
-      description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
+      token: tokenData.id,
+      payment_method_id: card.payment_method?.id || payer.savedCard.paymentMethodId || 'visa',
       installments: 1,
+      payer: {
+        email: payer.email || payer.savedCard.email || payerId + '@touch.app',
+        identification: { type: 'CPF', number: payer.cpf || payer.savedCard.cpf || '00000000000' }
+      },
+      description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
       statement_descriptor: 'TOUCH GORJETA',
-      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
+      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip', method: 'one_tap' }
     };
-    console.log('⚡ Quick-pay with saved card:', { amount: tipAmount, customer: payer.savedCard.customerId, card: card.id, last4: card.last_four_digits });
+
+    console.log('⚡ One-tap pay:', { amount: tipAmount, customer: payer.savedCard.customerId, card: card.id, last4: card.last_four_digits, method: card.payment_method?.id });
 
     let result;
     if (receiver.mpConnected && receiver.mpAccessToken) {
@@ -2926,10 +2950,10 @@ app.post('/api/tip/quick-pay', async (req, res) => {
     } else {
       result = await mpPayment.create({ body: paymentData });
     }
-    console.log('⚡ Quick-pay result:', { id: result.id, status: result.status, detail: result.status_detail });
+    console.log('⚡ One-tap result:', { id: result.id, status: result.status, detail: result.status_detail });
     return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
   } catch (e) {
-    console.error('Quick-pay error:', e.message, e.cause || '');
+    console.error('One-tap error:', e.message, e.cause || '');
     res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
   }
 });
