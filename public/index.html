@@ -1090,8 +1090,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div id="selfiePreview" style="display:none;margin:0 auto"></div>
     <div class="rv-actions" id="revealActions">
       <div class="rv-btn-row">
-        <button type="button" class="rv-btn-enter" onclick="enterChat()">Abrir conexão</button>
-        <button type="button" class="rv-btn-skip" onclick="goHome()">Pular</button>
+        <button type="button" class="rv-btn-enter" id="revealEnterBtn" onclick="enterChat()">Abrir conexão</button>
+        <button type="button" class="rv-btn-skip" id="revealSkipBtn" onclick="goHome()">Pular</button>
       </div>
       <div class="rv-sec-row">
         <button type="button" class="rv-btn-mini" id="selfieCapBtn" onclick="revealCaptureSelfie()"><span class="rv-ico">📸</span>Selfie</button>
@@ -1297,12 +1297,20 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <button class="tip-pay-btn" id="tipCardPayBtn" onclick="payWithNewCard()" disabled style="margin-top:.6rem;background:linear-gradient(135deg,#6366f1,#4f46e5)">💳 Pagar</button>
   </div>
 
-  <!-- PIX OPTION -->
-  <div id="tipPixToggle" style="margin-top:.6rem;text-align:center">
-    <button onclick="togglePixSection()" style="padding:.3rem .8rem;border:1px solid rgba(0,220,130,.2);background:rgba(0,220,130,.05);border-radius:10px;color:#00dc82;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer">⚡ Prefiro pagar com PIX</button>
+  <!-- OTHER METHODS -->
+  <div id="tipOtherMethods" style="margin-top:.8rem;text-align:center">
+    <div style="font-size:.6rem;color:var(--t3);margin-bottom:.5rem">Outros métodos de pagamento</div>
+    <div style="display:flex;gap:.4rem;justify-content:center">
+      <button onclick="processCheckoutTip()" id="tipMpBtn" style="flex:1;max-width:48%;padding:.5rem;border-radius:12px;border:1px solid rgba(0,158,227,.2);background:rgba(0,158,227,.06);color:#009ee3;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;line-height:1.4">
+        <div style="font-size:1rem;margin-bottom:.15rem">🛒</div>Apple Pay · Google Pay<br>Cartão · Saldo MP
+      </button>
+      <button onclick="togglePixSection()" id="tipPixToggleBtn" style="flex:1;max-width:48%;padding:.5rem;border-radius:12px;border:1px solid rgba(0,220,130,.2);background:rgba(0,220,130,.06);color:#00dc82;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;line-height:1.4">
+        <div style="font-size:1rem;margin-bottom:.15rem">⚡</div>PIX<br>Instantâneo · Sem taxa
+      </button>
+    </div>
   </div>
   <div id="tipPixSection" style="display:none;margin-top:.6rem">
-    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">PIX — funciona com qualquer banco. Instantâneo e sem taxa.</div>
+    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">PIX — funciona com qualquer banco.</div>
     <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem">
     <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)">
     <button class="tip-pay-btn" id="tipPixBtn" onclick="processPixTip()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#00dc82,#00b36b)">⚡ Gerar PIX</button>
@@ -2856,8 +2864,8 @@ function doReveal(data){
 
   // 8. Configure action buttons based on mode
   const tipBtn=$('revealTipBtn');
-  const enterBtn=document.querySelector('#revealActions .rv-btn-enter');
-  const skipBtn=document.querySelector('#revealActions .rv-btn-skip');
+  const enterBtn=$('revealEnterBtn');
+  const skipBtn=$('revealSkipBtn');
   const secRow=document.querySelector('#revealActions .rv-sec-row');
 
   // Reset buttons to default state first
@@ -5476,7 +5484,7 @@ function showTipScreen(receiverId) {
   $('tipSavedCard').style.display = 'none';
   $('tipNewCard').style.display = 'none';
   $('tipPixSection').style.display = 'none';
-  $('tipPixToggle').style.display = '';
+  $('tipOtherMethods').style.display = '';
   $('tipPixBtn').disabled = true;
   $('tipPixQR').classList.add('hidden');
   $('tipPixEmail').value = '';
@@ -5525,8 +5533,27 @@ function showNewCardForm() {
 function togglePixSection() {
   const sec = $('tipPixSection');
   sec.style.display = sec.style.display === 'none' ? '' : 'none';
-  $('tipSavedCard').style.display = 'none';
-  $('tipNewCard').style.display = 'none';
+}
+
+async function processCheckoutTip() {
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  const btn = $('tipMpBtn');
+  if(btn){btn.disabled=true;btn.style.opacity='.5';}
+  try {
+    const resp = await fetch('/api/tip/checkout', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount })
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+    const url = result.initPoint || result.sandboxInitPoint;
+    if (url) { window.location.href = url; }
+    else { throw new Error('URL não disponível.'); }
+  } catch (e) {
+    console.error('Checkout error:', e);
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    if(btn){btn.disabled=false;btn.style.opacity='';}
+  }
 }
 
 function selectTipAmount(val) {
@@ -5793,7 +5820,7 @@ function showTipResult(icon, text) {
   $('tipSavedCard').style.display = 'none';
   $('tipNewCard').style.display = 'none';
   $('tipPixSection').style.display = 'none';
-  $('tipPixToggle').style.display = 'none';
+  $('tipOtherMethods').style.display = 'none';
   $('tipScreen').querySelector('.tip-amounts').style.display = 'none';
   $('tipScreen').querySelector('.tip-custom').style.display = 'none';
 }
