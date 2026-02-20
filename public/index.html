@@ -2116,6 +2116,15 @@ function initSocket(){
   socket.on('disconnect',()=>updateConn('offline'));
   socket.io.on('reconnect_attempt',()=>updateConn('reconnecting'));
 
+  // Server says: you matched another visitor, not the operator — keep listening
+  socket.on('sonic-retry',({reason})=>{
+    console.log('[sonic-retry]',reason);
+    // Re-enable detection so the phone keeps looking for the operator
+    sonicActive=true;
+    const sts=document.querySelector('.sonic-status');
+    if(sts)sts.textContent=reason||'Procurando operador...';
+  });
+
   socket.on('relation-created',d=>{
     if(homeSonicActive)stopHomeSonic();
     if(sonicActive)stopSonicMode();
@@ -2847,9 +2856,11 @@ async function handleMainButton(){
     sts.textContent='Encoste os alto-falantes 🔊';
     setTimeout(()=>{if(homeSonicActive){fb.classList.add('active');sts.textContent='Encoste os alto-falantes ou use código'}},10000);
 
-    let confirmHits=0,lastSnapped=0,_dbgFrames=0;
+    let confirmHits=0,lastSnapped=0,_dbgFrames=0,_sonicCooldown=0;
     function detect(){
       if(!sonicActive)return;
+      // Cooldown after detection — wait for server response
+      if(_sonicCooldown>0){_sonicCooldown--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
       const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
       let peakVal=0,peakBin=0;
@@ -2869,7 +2880,17 @@ async function handleMainButton(){
             haptic([100,30,100]);
             txt.textContent='CONECTOU!';sts.textContent='Encontramos alguém!';
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-            sonicActive=false;return;
+            // Don't stop immediately — wait for server confirmation
+            // Enter cooldown: skip detection for ~3 seconds (180 frames)
+            _sonicCooldown=180;confirmHits=0;lastSnapped=0;
+            // Timeout: if relation-created doesn't arrive in 12s, show retry
+            setTimeout(()=>{
+              if(sonicActive&&!state.currentRelation){
+                sts.textContent='Conexão não completou. Tentando novamente...';
+                txt.textContent='OUVINDO';
+                _sonicCooldown=0; // re-enable detection
+              }
+            },12000);
           }
         }
       }else if(confirmHits>0)confirmHits=Math.max(0,confirmHits-1);
@@ -2998,10 +3019,11 @@ async function initSonic(label,status,circle){
     if(label)label.textContent='TOUCH!';
     if(status)status.textContent='Aproxime os celulares...';
 
-    let confirmHits=0,lastSnapped=0,_dbgF2=0;
+    let confirmHits=0,lastSnapped=0,_dbgF2=0,_sonicCooldown2=0;
 
     function detect(){
       if(!sonicActive)return;
+      if(_sonicCooldown2>0){_sonicCooldown2--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
       const minBin=Math.floor(18000/freqPerBin);
       const maxBin=Math.ceil(20000/freqPerBin);
@@ -3022,18 +3044,23 @@ async function initSonic(label,status,circle){
           if(snapped===lastSnapped){confirmHits++}else{confirmHits=1;lastSnapped=snapped}
           if(status)status.textContent='Detectando! '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
-            // Confirmed detection!
             haptic([100,30,100]);
             if(circle){circle.classList.remove('listening');circle.classList.add('bumped')}
             if(label)label.textContent='CONECTOU!';
             if(status)status.textContent='Conectando...';
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-            sonicActive=false;
-            return;
+            _sonicCooldown2=180;confirmHits=0;lastSnapped=0;
+            setTimeout(()=>{
+              if(sonicActive&&!state.currentRelation){
+                if(status)status.textContent='Tentando novamente...';
+                if(label)label.textContent='TOUCH!';
+                if(circle){circle.classList.remove('bumped');circle.classList.add('listening')}
+                _sonicCooldown2=0;
+              }
+            },12000);
           }
         }
       }else{
-        // Reset if signal lost
         if(confirmHits>0)confirmHits=Math.max(0,confirmHits-1);
       }
       sonicAnimFrame=requestAnimationFrame(detect);

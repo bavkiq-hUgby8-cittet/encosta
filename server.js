@@ -3371,9 +3371,13 @@ function findSonicEntryByUserId(userId) {
 }
 
 function createSonicConnection(userIdA, userIdB) {
+  console.log('[createSonicConnection] START — A:', userIdA?.slice(0,12), 'B:', userIdB?.slice(0,12));
   const userA = db.users[userIdA];
   const userB = db.users[userIdB];
-  if (!userA || !userB) return;
+  if (!userA || !userB) {
+    console.log('[createSonicConnection] ABORT — userA:', !!userA, 'userB:', !!userB, '(user not in db.users)');
+    return;
+  }
   const now = Date.now();
 
   // Check if either user is in checkin or service mode (search by userId since operators use 'evt:' keys)
@@ -3382,6 +3386,7 @@ function createSonicConnection(userIdA, userIdB) {
   const isCheckin = !!(entryA && entryA.isCheckin) || !!(entryB && entryB.isCheckin);
   const isServiceTouch = !!(entryA && entryA.isServiceTouch) || !!(entryB && entryB.isServiceTouch)
     || (userA.isPrestador && userA.serviceModeActive) || (userB.isPrestador && userB.serviceModeActive);
+  console.log('[createSonicConnection] entryA:', entryA ? {userId:entryA.userId?.slice(0,8),isCheckin:entryA.isCheckin,freq:entryA.freq} : 'NONE', 'entryB:', entryB ? {userId:entryB.userId?.slice(0,8),isCheckin:entryB.isCheckin,freq:entryB.freq} : 'NONE', 'isCheckin:', isCheckin, 'isServiceTouch:', isServiceTouch);
   const operatorId = isCheckin ? (entryA && entryA.isCheckin ? userIdA : userIdB) : null;
   const operatorEntry = operatorId ? (operatorId === userIdA ? entryA : entryB) : null;
   const eventId = operatorEntry ? operatorEntry.eventId : null;
@@ -3482,12 +3487,19 @@ function createSonicConnection(userIdA, userIdB) {
     delete sonicQueue[userIdB];
   }
   if (isCheckin && operatorId && visitorId) {
+    // Check socket rooms exist
+    const visitorRoom = io.sockets.adapter.rooms.get(`user:${visitorId}`);
+    const operatorRoom = io.sockets.adapter.rooms.get(`user:${operatorId}`);
+    console.log('[createSonicConnection] CHECKIN emit — visitorRoom:', visitorRoom ? visitorRoom.size + ' sockets' : 'EMPTY/MISSING', 'operatorRoom:', operatorRoom ? operatorRoom.size + ' sockets' : 'EMPTY/MISSING');
     // Only emit to VISITOR (operator doesn't get personal relation, only checkin-created)
     io.to(`user:${visitorId}`).emit('relation-created', responseData);
     io.to(`user:${visitorId}`).emit('sonic-matched', { withUser: 'evt:' + eventId });
     // Operator gets sonic-matched so dashboard re-registers
     io.to(`user:${operatorId}`).emit('sonic-matched', { withUser: visitorId });
   } else {
+    const roomA = io.sockets.adapter.rooms.get(`user:${userIdA}`);
+    const roomB = io.sockets.adapter.rooms.get(`user:${userIdB}`);
+    console.log('[createSonicConnection] REGULAR emit — roomA:', roomA ? roomA.size + ' sockets' : 'EMPTY/MISSING', 'roomB:', roomB ? roomB.size + ' sockets' : 'EMPTY/MISSING');
     io.to(`user:${userIdA}`).emit('relation-created', responseData);
     io.to(`user:${userIdB}`).emit('relation-created', responseData);
     io.to(`user:${userIdA}`).emit('sonic-matched', { withUser: userIdB });
@@ -3564,20 +3576,30 @@ app.post('/api/admin/reset-db', (req, res) => {
   if (confirm !== 'RESET') return res.status(400).json({ error: 'Send { confirm: "RESET" } to confirm.' });
   const userCount = Object.keys(db.users).length;
   const relationCount = Object.keys(db.relations).length;
-  const eventCount = Object.keys(db.events).length;
+  const eventCount = Object.keys(db.operatorEvents || {}).length;
   const encounterCount = Object.keys(db.encounters).length;
   const msgCount = Object.keys(db.messages).length;
   if (keepUsers) {
     // Reset everything except users
     DB_COLLECTIONS.forEach(c => { if (c !== 'users') db[c] = {}; });
-    // Clear user transient data but keep profiles
+    // Clear user transient data but keep profiles (name, nickname, email, color, etc)
     Object.values(db.users).forEach(u => {
-      u.stars = []; u.score = 0;
+      u.stars = []; u.points = 0; u.pointLog = [];
+      u.canSee = {}; u.revealedTo = [];
+    });
+    // Rebuild user index
+    IDX.nickname.clear(); IDX.firebaseUid.clear();
+    Object.values(db.users).forEach(u => {
+      if (u.nickname) IDX.nickname.set(u.nickname.toLowerCase(), u.id);
+      if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, u.id);
     });
   } else {
     DB_COLLECTIONS.forEach(c => { db[c] = {}; });
+    IDX.nickname.clear(); IDX.firebaseUid.clear();
   }
-  saveDB('users');
+  // Save all collections to Firebase
+  DB_COLLECTIONS.forEach(c => saveDB(c));
+  console.log('🗑️ DATABASE RESET — keepUsers:', !!keepUsers, 'cleared:', { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount });
   res.json({ ok: true, cleared: { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount } });
 });
 
@@ -3674,9 +3696,24 @@ io.on('connection', (socket) => {
   socket.on('sonic-detected', ({ userId, detectedFreq }) => {
     if (!userId || !db.users[userId]) return;
     const emitter = findSonicUserByFreq(detectedFreq);
-    console.log('[sonic-detected] user:', userId, 'detected freq:', detectedFreq, '→ emitter:', emitter ? emitter.userId : 'NOT FOUND', '| queue:', Object.keys(sonicQueue).map(k => k.slice(0,8)+'..freq:'+sonicQueue[k].freq).join(', '));
+    console.log('[sonic-detected] user:', userId?.slice(0,12), 'detected freq:', detectedFreq, '→ emitter:', emitter ? emitter.userId?.slice(0,12) : 'NOT FOUND', '| queue:', Object.keys(sonicQueue).map(k => k.slice(0,12)+'..freq:'+sonicQueue[k].freq).join(', '));
     if (emitter && emitter.userId !== userId) {
-      createSonicConnection(emitter.userId, userId);
+      // Prevent visitor-to-visitor connections when checkin operators are in queue
+      const detectorEntry = findSonicEntryByUserId(userId);
+      const emitterIsCheckin = emitter.isCheckin;
+      const detectorIsCheckin = detectorEntry && detectorEntry.isCheckin;
+      const hasActiveCheckinOps = Object.values(sonicQueue).some(s => s.isCheckin);
+      if (!emitterIsCheckin && !detectorIsCheckin && hasActiveCheckinOps) {
+        // Both are visitors but there's an operator — don't connect them, tell detector to retry
+        console.log('[sonic-detected] SKIP visitor-to-visitor (checkin operators active) — sending sonic-retry');
+        socket.emit('sonic-retry', { reason: 'Procurando o operador do evento...' });
+        return;
+      }
+      try {
+        createSonicConnection(emitter.userId, userId);
+      } catch (e) {
+        console.error('[sonic-detected] createSonicConnection ERROR:', e.message, e.stack);
+      }
     }
   });
 
@@ -5014,27 +5051,33 @@ app.post('/api/operator/event/:eventId/leave', (req, res) => {
 });
 
 app.get('/api/operator/event/:eventId/attendees', (req, res) => {
-  const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
-  const totalUsers = Object.keys(db.users).length;
-  const attendees = ev.participants.map(uid => {
-    const u = db.users[uid];
-    if (!u) return null;
-    const stars = (u.stars || []).length;
-    const order = u.registrationOrder || 9999;
-    const topTag = calculateTopTag(order, totalUsers);
-    // Check if this user revealed to the event creator
-    const creatorUser = db.users[ev.creatorId];
-    const revealed = !!(creatorUser && creatorUser.canSee && creatorUser.canSee[uid]);
-    const revealData = revealed ? creatorUser.canSee[uid] : null;
-    return {
-      userId: uid, nickname: u.nickname || u.name, color: u.color,
-      profilePhoto: u.profilePhoto || u.photoURL || null,
-      stars, topTag, revealed, revealData,
-      score: calcScore(uid)
-    };
-  }).filter(Boolean);
-  res.json({ attendees, eventName: ev.name, active: ev.active });
+  try {
+    const ev = db.operatorEvents[req.params.eventId];
+    if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+    const totalUsers = Object.keys(db.users).length;
+    const attendees = (ev.participants || []).map(uid => {
+      try {
+        const u = db.users[uid];
+        if (!u) return null;
+        const stars = (u.stars || []).length;
+        const order = u.registrationOrder || 9999;
+        const topTag = calculateTopTag(order, totalUsers);
+        const creatorUser = db.users[ev.creatorId];
+        const revealed = !!(creatorUser && creatorUser.canSee && creatorUser.canSee[uid]);
+        const revealData = revealed ? creatorUser.canSee[uid] : null;
+        return {
+          userId: uid, nickname: u.nickname || u.name, color: u.color,
+          profilePhoto: u.profilePhoto || u.photoURL || null,
+          stars, topTag, revealed, revealData,
+          score: calcScore(uid)
+        };
+      } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
+    }).filter(Boolean);
+    res.json({ attendees, eventName: ev.name, active: ev.active });
+  } catch (e) {
+    console.error('[attendees] 500:', e.message, e.stack);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
