@@ -2168,6 +2168,169 @@ app.post('/api/admin/game-config', (req, res) => {
   res.json({ ok: true, applied, current: getGameConfig() });
 });
 
+// ═══ FACE ID — BIOMETRIC ENROLLMENT & VERIFICATION ═══
+// Face descriptors are 128-dimensional float arrays from face-api.js
+// We store ONLY the mathematical descriptors, never raw photos (LGPD Art.11 compliance)
+if (!db.faceData) db.faceData = {};
+
+// Enroll face descriptors
+app.post('/api/face/enroll', (req, res) => {
+  const { userId, descriptors, capturedAt, angles } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!descriptors || !Array.isArray(descriptors) || descriptors.length < 3) {
+    return res.status(400).json({ error: 'Mínimo 3 capturas faciais necessárias.' });
+  }
+  // Validate descriptors (each should be array of 128 floats)
+  for (const d of descriptors) {
+    if (!Array.isArray(d) || d.length !== 128) {
+      return res.status(400).json({ error: 'Descriptor inválido (esperado 128 dimensões).' });
+    }
+  }
+  // Compute average descriptor for faster matching
+  const avg = new Array(128).fill(0);
+  descriptors.forEach(d => d.forEach((v, i) => avg[i] += v));
+  avg.forEach((v, i) => avg[i] = v / descriptors.length);
+
+  db.faceData[userId] = {
+    userId,
+    descriptors, // all captured angles
+    averageDescriptor: avg, // for quick matching
+    capturedAt: capturedAt || Date.now(),
+    angles: angles || descriptors.length,
+    enrolledAt: Date.now(),
+    version: 1 // for future model upgrades
+  };
+  db.users[userId].faceEnrolled = true;
+  db.users[userId].faceEnrolledAt = Date.now();
+  saveDB();
+  res.json({ ok: true, enrolled: true });
+});
+
+// Remove face data
+app.post('/api/face/remove', (req, res) => {
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  delete db.faceData[userId];
+  db.users[userId].faceEnrolled = false;
+  delete db.users[userId].faceEnrolledAt;
+  saveDB();
+  res.json({ ok: true });
+});
+
+// Verify face — compare a live descriptor against enrolled data
+// Returns match score and whether it passes threshold
+app.post('/api/face/verify', (req, res) => {
+  const { targetUserId, liveDescriptor } = req.body;
+  if (!targetUserId) return res.status(400).json({ error: 'targetUserId obrigatório.' });
+  if (!liveDescriptor || !Array.isArray(liveDescriptor) || liveDescriptor.length !== 128) {
+    return res.status(400).json({ error: 'liveDescriptor inválido (128 dimensões).' });
+  }
+  const faceRecord = db.faceData[targetUserId];
+  if (!faceRecord) return res.status(404).json({ error: 'Face ID não cadastrado para este usuário.', enrolled: false });
+
+  // Euclidean distance between two 128-d vectors
+  function euclideanDist(a, b) {
+    let sum = 0;
+    for (let i = 0; i < 128; i++) sum += (a[i] - b[i]) ** 2;
+    return Math.sqrt(sum);
+  }
+
+  // Compare against all stored descriptors and average
+  const distances = faceRecord.descriptors.map(d => euclideanDist(liveDescriptor, d));
+  const avgDist = euclideanDist(liveDescriptor, faceRecord.averageDescriptor);
+  const minDist = Math.min(...distances);
+  const meanDist = distances.reduce((a, b) => a + b, 0) / distances.length;
+
+  // Threshold: face-api.js typically uses 0.6 as "same person" threshold
+  const THRESHOLD = 0.6;
+  const match = minDist < THRESHOLD;
+  const confidence = Math.max(0, Math.min(1, 1 - (minDist / THRESHOLD)));
+
+  res.json({
+    match,
+    confidence: Math.round(confidence * 100),
+    minDistance: Math.round(minDist * 1000) / 1000,
+    avgDistance: Math.round(avgDist * 1000) / 1000,
+    threshold: THRESHOLD,
+    user: match ? { id: targetUserId, nickname: db.users[targetUserId]?.nickname } : null
+  });
+});
+
+// Identify face — search across ALL enrolled users
+// For portaria/condominium access: "who is this person?"
+app.post('/api/face/identify', (req, res) => {
+  const { liveDescriptor, context } = req.body;
+  if (!liveDescriptor || !Array.isArray(liveDescriptor) || liveDescriptor.length !== 128) {
+    return res.status(400).json({ error: 'liveDescriptor inválido (128 dimensões).' });
+  }
+
+  function euclideanDist(a, b) {
+    let sum = 0;
+    for (let i = 0; i < 128; i++) sum += (a[i] - b[i]) ** 2;
+    return Math.sqrt(sum);
+  }
+
+  const THRESHOLD = 0.6;
+  const results = [];
+
+  for (const [uid, faceRecord] of Object.entries(db.faceData)) {
+    const distances = faceRecord.descriptors.map(d => euclideanDist(liveDescriptor, d));
+    const minDist = Math.min(...distances);
+    if (minDist < THRESHOLD) {
+      const user = db.users[uid];
+      const confidence = Math.max(0, Math.min(1, 1 - (minDist / THRESHOLD)));
+      results.push({
+        userId: uid,
+        nickname: user?.nickname || '??',
+        realName: user?.realName || null,
+        verified: !!user?.verified,
+        profilePhoto: user?.profilePhoto || null,
+        distance: Math.round(minDist * 1000) / 1000,
+        confidence: Math.round(confidence * 100)
+      });
+    }
+  }
+
+  // Sort by confidence (best match first)
+  results.sort((a, b) => b.confidence - a.confidence);
+
+  // Log access for audit trail
+  if (results.length > 0) {
+    if (!db.faceAccessLog) db.faceAccessLog = [];
+    db.faceAccessLog.push({
+      timestamp: Date.now(),
+      matchedUserId: results[0].userId,
+      confidence: results[0].confidence,
+      context: context || 'unknown',
+      totalCandidates: Object.keys(db.faceData).length
+    });
+    if (db.faceAccessLog.length > 10000) db.faceAccessLog = db.faceAccessLog.slice(-5000);
+    saveDB();
+  }
+
+  res.json({
+    found: results.length > 0,
+    matches: results.slice(0, 3), // top 3 matches
+    scannedTotal: Object.keys(db.faceData).length
+  });
+});
+
+// Admin: list all face enrollments
+app.get('/api/face/admin/list/:adminId', (req, res) => {
+  const admin = db.users[req.params.adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const enrolled = Object.entries(db.faceData).map(([uid, fd]) => ({
+    userId: uid,
+    nickname: db.users[uid]?.nickname || '??',
+    realName: db.users[uid]?.realName || null,
+    enrolledAt: fd.enrolledAt,
+    angles: fd.angles,
+    verified: !!db.users[uid]?.verified
+  }));
+  const recentAccess = (db.faceAccessLog || []).slice(-20).reverse();
+  res.json({ enrolled, recentAccess, totalEnrolled: enrolled.length });
+});
+
 // ═══ VERIFICATION SYSTEM ═══
 if (!db.verifications) db.verifications = {};
 
@@ -2289,7 +2452,8 @@ app.get('/api/myprofile/:userId', (req, res) => {
     starsReceived: (user.stars || []).length, score: calcScore(req.params.userId),
     uniqueConnections: getUniqueConnections(req.params.userId),
     topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0,
-    verified: !!user.verified, isAdmin: !!user.isAdmin
+    verified: !!user.verified, isAdmin: !!user.isAdmin,
+    faceEnrolled: !!user.faceEnrolled, faceEnrolledAt: user.faceEnrolledAt || null
   });
 });
 

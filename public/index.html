@@ -1486,6 +1486,44 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
 </div>
 
+<div id="faceEnrollScreen" class="screen">
+  <div style="display:flex;align-items:center;padding:.8rem 1rem;background:rgba(18,18,26,.95);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)">
+    <button class="chb" onclick="goHome()">&#x2190;</button>
+    <div style="flex:1;text-align:center;font-size:.9rem;font-weight:700;color:var(--t1)">🔐 Face ID</div>
+    <div style="width:32px"></div>
+  </div>
+  <div style="padding:1.2rem;overflow-y:auto;flex:1;display:flex;flex-direction:column;align-items:center;gap:1rem">
+    <div id="faceStatus" style="text-align:center;padding:.8rem;width:100%">
+      <div style="font-size:.8rem;color:var(--t2);margin-bottom:.3rem">Reconhecimento facial para validação de identidade</div>
+      <div style="font-size:.6rem;color:var(--t3)">Portarias, eventos, check-ins seguros</div>
+    </div>
+    <div id="faceVideoWrap" style="position:relative;width:240px;height:240px;border-radius:50%;overflow:hidden;border:3px solid rgba(255,255,255,.08);background:#111;display:flex;align-items:center;justify-content:center">
+      <video id="faceVideo" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
+      <div id="faceOverlay" style="position:absolute;inset:0;border-radius:50%;border:3px solid transparent;pointer-events:none;transition:border-color .3s"></div>
+      <div id="faceGuide" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--t3)">Posicione seu rosto</div>
+    </div>
+    <div id="faceProgress" style="width:200px;height:4px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden">
+      <div id="faceProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,#06b6d4,#3b82f6,#8b5cf6);border-radius:4px;transition:width .3s"></div>
+    </div>
+    <div id="faceInstructions" style="font-size:.7rem;color:var(--t2);text-align:center;min-height:2rem">Toque em "Iniciar" para cadastrar</div>
+    <div id="faceCaptureCount" style="font-size:.6rem;color:var(--t3)"></div>
+    <div style="display:flex;gap:.6rem;margin-top:.5rem">
+      <button class="bs" id="faceStartBtn" onclick="startFaceEnroll()" style="padding:.6rem 1.4rem;font-size:.75rem">Iniciar captura</button>
+      <button class="bp hidden" id="faceSaveBtn" onclick="saveFaceData()" style="padding:.6rem 1.4rem;font-size:.75rem">Salvar Face ID</button>
+    </div>
+    <div id="faceEnrolledInfo" class="hidden" style="text-align:center;padding:.8rem;background:rgba(0,220,130,.06);border:1px solid rgba(0,220,130,.15);border-radius:12px;width:100%;margin-top:.5rem">
+      <div style="font-size:.8rem;font-weight:600;color:var(--ok)">✓ Face ID cadastrado</div>
+      <div style="font-size:.6rem;color:var(--t3);margin-top:.2rem">Seu rosto pode ser usado para verificação</div>
+      <button class="my-pf-btn my-pf-danger" onclick="removeFaceData()" style="margin-top:.6rem;justify-content:center;font-size:.7rem;padding:.45rem">Remover Face ID</button>
+    </div>
+    <div style="font-size:.5rem;color:rgba(255,255,255,.2);text-align:center;margin-top:auto;padding:.6rem">
+      Seus dados faciais são armazenados como vetores matemáticos (descritores).<br>
+      A foto original NÃO é salva. Apenas o mapa numérico do rosto.<br>
+      Conforme LGPD Art. 11 — dados biométricos sensíveis.
+    </div>
+  </div>
+</div>
+
 <div id="eventView" class="screen">
   <div style="display:flex;align-items:center;padding:.6rem 1rem;background:rgba(18,18,26,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)">
     <button class="chb" onclick="closeEventView()">&#x2190;</button>
@@ -1578,6 +1616,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -1913,6 +1952,8 @@ function showScreen(id){
     if(constState.animFrame){cancelAnimationFrame(constState.animFrame);constState.animFrame=null}
     if(constState._cleanGyro)constState._cleanGyro();
   }
+  // Stop face camera when leaving face enrollment
+  if(id!=='faceEnrollScreen'&&_faceStream){_faceStream.getTracks().forEach(t=>t.stop());_faceStream=null;_faceCapturing=false}
   // Stop home nodes animation when leaving home
   if(id!=='home'){
     if(_homeNodesAnim){cancelAnimationFrame(_homeNodesAnim);_homeNodesAnim=null}
@@ -2136,6 +2177,7 @@ async function refreshHome(){
       state.userVerified=!!mp.verified;
       state.userIsAdmin=!!mp.isAdmin;
       state.userStarsCount=(mp.stars||[]).length;
+      state.userFaceEnrolled=!!mp.faceEnrolled;
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
     }catch(e){}
@@ -5189,14 +5231,20 @@ function showMyProfileSheet(){
   const realNameLine=state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.1rem">'+esc(state.userRealName)+'</div>':'';
   // Prestador: "Serviços" with both cadastro and painel inside
   const isPrestador=localStorage.getItem('touch_isPrestador')==='1';
+  const hasFace=!!state.userFaceEnrolled;
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem">'
     +'<div class="more-menu-handle"></div>'
-    // Header: avatar + name + nick label
-    +'<div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1rem">'
+    // Header: avatar + name block redesigned — nick is HERO
+    +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">'
     +avatarHtml
-    +'<div style="flex:1"><div style="font-size:1.05rem;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:.35rem">'+esc(state.userName||'??')+(isVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.8rem;font-weight:800" title="Verificado">✓</span>':'')+(state.userStarsCount>0?' <span style="color:#fbbf24;font-size:.7rem">'+'★'.repeat(Math.min(state.userStarsCount,5))+'</span>':'')+'</div>'
-    +realNameLine
-    +'<div style="font-size:.6rem;color:var(--t3);margin-top:.15rem;letter-spacing:.04em">nick</div></div></div>'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap"><span style="font-size:1.3rem;font-weight:900;color:#fff;letter-spacing:-.01em">'+esc(state.userName||'??')+'</span>'+(isVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.9rem;font-weight:800" title="Verificado">✓</span>':'')+'</div>'
+    +(state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.15rem">'+esc(state.userRealName)+'</div>':'')
+    +'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.25rem">'
+    +(state.userStarsCount>0?'<span style="font-size:.6rem;color:#fbbf24;letter-spacing:1px">'+'★'.repeat(Math.min(state.userStarsCount,5))+(state.userStarsCount>5?' +':'')+'</span>':'')
+    +(hasFace?'<span style="font-size:.55rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">🔐 Face ID</span>':'')
+    +'</div>'
+    +'</div></div>'
     // Menu buttons — clean, no emojis
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>Meu Cartão</button>'
@@ -5204,6 +5252,7 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">log</span>Histórico</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">+</span>Touch? Plus</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico">srv</span>Serviços</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showFaceEnrollment()"><span class="my-pf-ico" style="font-size:.65rem">🔐</span>Face ID'+(hasFace?' <span style="font-size:.5rem;color:var(--ok);margin-left:auto">ativo</span>':'')+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">?</span>Tutorial</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
     +'<div class="my-pf-divider"></div>'
@@ -6772,6 +6821,159 @@ window.addEventListener('load',()=>{
     }
   },1800);
 });
+
+// ═══ FACE ID — ENROLLMENT & VERIFICATION ═══
+let _faceModelsLoaded=false;
+let _faceStream=null;
+let _faceDescriptors=[];
+let _faceCapturing=false;
+const FACE_CAPTURES_NEEDED=5; // 5 angles
+
+async function loadFaceModels(){
+  if(_faceModelsLoaded)return true;
+  try{
+    const MODEL_URL='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+    ]);
+    _faceModelsLoaded=true;
+    return true;
+  }catch(e){
+    console.error('Face model load error:',e);
+    showToast('Erro ao carregar modelos faciais');
+    return false;
+  }
+}
+
+async function showFaceEnrollment(){
+  showScreen('faceEnrollScreen');
+  _faceDescriptors=[];
+  _faceCapturing=false;
+  $('faceProgressBar').style.width='0%';
+  $('faceCaptureCount').textContent='';
+  $('faceGuide').textContent='Posicione seu rosto';
+  $('faceGuide').style.display='';
+  $('faceOverlay').style.borderColor='transparent';
+  $('faceStartBtn').classList.remove('hidden');
+  $('faceSaveBtn').classList.add('hidden');
+  $('faceInstructions').textContent='Toque em "Iniciar" para cadastrar';
+  // Check if already enrolled
+  if(state.userFaceEnrolled){
+    $('faceEnrolledInfo').classList.remove('hidden');
+    $('faceStartBtn').textContent='Recadastrar';
+  }else{
+    $('faceEnrolledInfo').classList.add('hidden');
+    $('faceStartBtn').textContent='Iniciar captura';
+  }
+  // Start camera
+  try{
+    if(_faceStream){_faceStream.getTracks().forEach(t=>t.stop())}
+    _faceStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:320},height:{ideal:320}}});
+    $('faceVideo').srcObject=_faceStream;
+  }catch(e){
+    $('faceInstructions').textContent='Câmera não disponível: '+e.message;
+  }
+}
+
+const _faceAngles=['Olhe para frente','Vire levemente à esquerda','Vire levemente à direita','Levante o queixo','Abaixe o queixo'];
+
+async function startFaceEnroll(){
+  $('faceInstructions').textContent='Carregando modelos...';
+  const ok=await loadFaceModels();
+  if(!ok)return;
+  _faceDescriptors=[];
+  _faceCapturing=true;
+  $('faceStartBtn').classList.add('hidden');
+  $('faceSaveBtn').classList.add('hidden');
+  $('faceEnrolledInfo').classList.add('hidden');
+  captureNextAngle(0);
+}
+
+async function captureNextAngle(idx){
+  if(idx>=FACE_CAPTURES_NEEDED){
+    // Done capturing
+    _faceCapturing=false;
+    $('faceOverlay').style.borderColor='#00dc82';
+    $('faceGuide').textContent='✓ Captura completa!';
+    $('faceInstructions').textContent='Toque em "Salvar" para registrar seu Face ID';
+    $('faceSaveBtn').classList.remove('hidden');
+    $('faceProgressBar').style.width='100%';
+    haptic([40,20,40,20,40]);
+    return;
+  }
+  $('faceInstructions').textContent=_faceAngles[idx];
+  $('faceCaptureCount').textContent=(idx+1)+'/'+FACE_CAPTURES_NEEDED;
+  $('faceProgressBar').style.width=(idx/FACE_CAPTURES_NEEDED*100)+'%';
+  $('faceOverlay').style.borderColor='#3b82f6';
+  $('faceGuide').style.display='none';
+  // Wait a moment then detect
+  await new Promise(r=>setTimeout(r,1200));
+  if(!_faceCapturing)return;
+  const video=$('faceVideo');
+  try{
+    const detection=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}))
+      .withFaceLandmarks(true)
+      .withFaceDescriptor();
+    if(!detection){
+      $('faceInstructions').textContent='Rosto não detectado — '+_faceAngles[idx];
+      setTimeout(()=>captureNextAngle(idx),800);
+      return;
+    }
+    // Got descriptor (128-dimensional Float32Array)
+    _faceDescriptors.push(Array.from(detection.descriptor));
+    $('faceOverlay').style.borderColor='#00dc82';
+    haptic([25]);
+    await new Promise(r=>setTimeout(r,400));
+    captureNextAngle(idx+1);
+  }catch(e){
+    $('faceInstructions').textContent='Erro na detecção — tentando novamente...';
+    setTimeout(()=>captureNextAngle(idx),1000);
+  }
+}
+
+async function saveFaceData(){
+  if(!_faceDescriptors.length){return showToast('Nenhuma captura facial')}
+  $('faceSaveBtn').disabled=true;
+  $('faceInstructions').textContent='Salvando...';
+  try{
+    const r=await fetch('/api/face/enroll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      userId:state.userId,
+      descriptors:_faceDescriptors,
+      capturedAt:Date.now(),
+      angles:FACE_CAPTURES_NEEDED
+    })});
+    const d=await r.json();
+    if(d.error){showToast(d.error);$('faceSaveBtn').disabled=false;return}
+    state.userFaceEnrolled=true;
+    showToast('Face ID cadastrado com sucesso!');
+    haptic([40,20,60]);
+    $('faceEnrolledInfo').classList.remove('hidden');
+    $('faceSaveBtn').classList.add('hidden');
+    $('faceInstructions').textContent='Face ID ativo';
+    // Stop camera
+    if(_faceStream){_faceStream.getTracks().forEach(t=>t.stop());_faceStream=null}
+  }catch(e){
+    showToast('Erro ao salvar Face ID');
+    $('faceSaveBtn').disabled=false;
+  }
+}
+
+async function removeFaceData(){
+  if(!confirm('Remover seu Face ID?'))return;
+  try{
+    const r=await fetch('/api/face/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+    const d=await r.json();
+    if(d.ok){
+      state.userFaceEnrolled=false;
+      showToast('Face ID removido');
+      $('faceEnrolledInfo').classList.add('hidden');
+      $('faceStartBtn').classList.remove('hidden');
+      $('faceStartBtn').textContent='Iniciar captura';
+    }
+  }catch(e){showToast('Erro ao remover')}
+}
 
 // ═══ ADMIN VERIFICATION PANEL ═══
 async function showVerificationPanel(){
