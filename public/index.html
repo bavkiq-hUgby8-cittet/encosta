@@ -959,9 +959,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="home" class="screen">
-  <!-- Floating event button (persistent while event active) -->
-  <div id="floatingEventBtn" style="display:none;position:absolute;bottom:180px;left:50%;transform:translateX(-50%);z-index:20;padding:.6rem 1.2rem;background:rgba(96,165,250,.15);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.3);border-radius:20px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
-    <span style="font-size:.75rem;font-weight:600;color:#60a5fa">📍 <span id="floatingEventName"></span> · Ver quem está</span>
+  <!-- Floating event button (persistent while event active) - positioned below daily counter -->
+  <div id="floatingEventBtn" style="display:none;position:absolute;top:auto;bottom:calc(50% - 110px);left:50%;transform:translateX(-50%);z-index:8;padding:.5rem 1rem;background:rgba(96,165,250,.12);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.25);border-radius:16px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
+    <span style="font-size:.7rem;font-weight:600;color:#60a5fa">📍 <span id="floatingEventName"></span> · Ver evento</span>
   </div>
   <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
   <div class="ptr-indicator" id="ptrIndicator"><div class="ptr-spinner"></div></div>
@@ -1275,7 +1275,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <span class="tsc-info"><span class="tsc-brand" id="tscBrand">Visa</span> •••• <span id="tscLast4">0000</span></span>
       <span class="tsc-check" id="tscCheck">✓</span>
     </button>
-    <button class="tip-new-card-link" onclick="showNewCardForm()">Usar outro cartão</button>
+    <div style="font-size:.7rem;color:var(--t3);margin-top:.3rem;text-align:center">Último cartão usado. Preencha os dados abaixo para pagar.</div>
   </div>
   <div class="tip-card-section" id="tipCardSection">
     <h3>Cartão de crédito</h3>
@@ -5305,6 +5305,7 @@ function showTipScreen(receiverId) {
   $('tipCustomAmount').value = '';
   $('tipPayBtn').disabled = true;
   $('tipPayBtn').textContent = 'Confirmar gorjeta';
+  $('tipPayBtn').style.display = '';
   $('tipResult').classList.add('hidden');
   $('tipCardSection').style.display = '';
   $('tipScreen').querySelector('.tip-amounts').style.display = '';
@@ -5332,8 +5333,7 @@ function showTipScreen(receiverId) {
       $('tscBrand').textContent = sc.brand || 'Cartão';
       $('tscLast4').textContent = sc.lastFour || '****';
       $('tipSavedSection').classList.remove('hidden');
-      // Auto-select saved card
-      useSavedCard();
+      // Show info only — always require fresh card entry
     }
   }).catch(() => {});
 
@@ -5342,9 +5342,11 @@ function showTipScreen(receiverId) {
 }
 
 function useSavedCard() {
-  tipState.useSaved = true;
+  // Saved card info is display-only; always require fresh card entry
+  tipState.useSaved = false;
   $('tipSavedCardBtn').classList.add('active');
-  $('tipCardSection').style.display = 'none';
+  $('tipCardSection').style.display = '';
+  initMPSecureFields();
   updateTipBtn();
 }
 function showNewCardForm() {
@@ -5420,25 +5422,20 @@ async function processTip() {
 
   try {
     let tokenId, pmId;
-    if (tipState.useSaved) {
-      // Use saved card — server will handle via customer_id
-      tokenId = '__saved__';
-      pmId = 'saved';
-    } else {
-      if (!tipState.mpInstance) return showToast('Carregando pagamento...');
-      const holderName = $('mpCardHolderInput') ? $('mpCardHolderInput').value : '';
-      const tokenResult = await tipState.mpInstance.fields.createCardToken({ cardholderName: holderName });
-      if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão.');
-      tokenId = tokenResult.id;
-      pmId = tokenResult.payment_method_id || 'visa';
-      // Save card if checkbox checked
-      const saveCb = $('tipSaveCardCb');
-      if (saveCb && saveCb.checked && tokenResult.last_four_digits) {
-        fetch('/api/tip/save-card', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: state.userId, lastFour: tokenResult.last_four_digits, brand: tokenResult.cardholder?.name ? pmId : pmId, customerId: tokenResult.cardholder?.id || null })
-        }).catch(() => {});
-      }
+    // Always tokenize fresh — saved card tokens are not reusable with MP API
+    if (!tipState.mpInstance) return showToast('Carregando pagamento...');
+    const holderName = $('mpCardHolderInput') ? $('mpCardHolderInput').value : '';
+    const tokenResult = await tipState.mpInstance.fields.createCardToken({ cardholderName: holderName });
+    if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão. Preencha todos os campos.');
+    tokenId = tokenResult.id;
+    pmId = tokenResult.payment_method_id || 'visa';
+    // Save card info for display if checkbox checked
+    const saveCb = $('tipSaveCardCb');
+    if (saveCb && saveCb.checked && tokenResult.last_four_digits) {
+      fetch('/api/tip/save-card', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: state.userId, lastFour: tokenResult.last_four_digits, brand: pmId, customerId: null })
+      }).catch(() => {});
     }
 
     const payerEmail = ($('tipPayerEmail') ? $('tipPayerEmail').value.trim() : '') || 'test@testuser.com';

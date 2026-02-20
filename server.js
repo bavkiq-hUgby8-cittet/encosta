@@ -2431,7 +2431,9 @@ app.post('/api/tip/create', async (req, res) => {
   const payer = db.users[payerId];
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
-  if (!receiver || !receiver.isPrestador) return res.status(400).json({ error: 'Destinatário não é prestador.' });
+  // Accept tips for prestadores OR operators with acceptsTips events
+  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
 
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
@@ -2439,6 +2441,17 @@ app.post('/api/tip/create', async (req, res) => {
 
   const email = payerEmail || payer.email || 'test@testuser.com';
   const cpf = payerCPF || payer.cpf || '12345678909';
+
+  // Validate MP credentials
+  if (!MP_ACCESS_TOKEN) {
+    console.error('MP_ACCESS_TOKEN not configured!');
+    return res.status(500).json({ error: 'Sistema de pagamento não configurado. Configure MP_ACCESS_TOKEN.' });
+  }
+
+  // Saved card: cannot re-use a saved token — require fresh tokenization
+  if (token === '__saved__') {
+    return res.status(400).json({ error: 'Cartão salvo não pode ser reutilizado. Por favor, insira os dados novamente.' });
+  }
 
   try {
     const paymentData = {
@@ -2454,22 +2467,29 @@ app.post('/api/tip/create', async (req, res) => {
       statement_descriptor: 'TOUCH GORJETA',
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
     };
+
+    console.log('💳 Processing payment:', { amount: tipAmount, method: paymentMethodId, email, receiverId, hasToken: !!token });
+
     // If receiver has MP OAuth, use split payment
     if (receiver.mpConnected && receiver.mpAccessToken) {
       paymentData.application_fee = touchFee;
-      // Use receiver's access token for split
       const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
       const receiverPayment = new Payment(receiverClient);
       const result = await receiverPayment.create({ body: paymentData });
+      console.log('💳 Split payment result:', { id: result.id, status: result.status, detail: result.status_detail });
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     } else {
-      // Fallback: process through main account (manual payout later)
       const result = await mpPayment.create({ body: paymentData });
+      console.log('💳 Direct payment result:', { id: result.id, status: result.status, detail: result.status_detail });
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     }
   } catch (e) {
-    console.error('Payment error:', e);
-    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente.') });
+    console.error('Payment error:', e.message, e.cause || '');
+    const errMsg = e.message || 'tente novamente';
+    // Provide more useful error messages
+    if (errMsg.includes('token')) res.status(400).json({ error: 'Token do cartão inválido ou expirado. Tente novamente.' });
+    else if (errMsg.includes('access_token') || errMsg.includes('401')) res.status(500).json({ error: 'Credenciais do Mercado Pago inválidas. Contate o suporte.' });
+    else res.status(500).json({ error: 'Erro no pagamento: ' + errMsg });
   }
 });
 
