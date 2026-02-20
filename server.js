@@ -2031,7 +2031,8 @@ app.get('/api/notifications/:userId', (req, res) => {
     const liker = db.users[likerId];
     if (!liker) return;
     const iCanSee = user.canSee && user.canSee[likerId];
-    const ts = liker._likedAt?.[userId] || Date.now();
+    const ts = liker._likedAt?.[userId] || 0;
+    if (!ts) return; // skip if no timestamp
     notifs.push({
       type: 'like',
       fromId: likerId,
@@ -2046,7 +2047,8 @@ app.get('/api/notifications/:userId', (req, res) => {
   // 2. Stars received
   (user.stars || []).forEach(star => {
     const giver = db.users[star.from];
-    const ts = star.donatedAt || star.at || Date.now();
+    const ts = star.donatedAt || star.at || 0;
+    if (!ts) return; // skip if no timestamp
     notifs.push({
       type: 'star',
       fromId: star.from,
@@ -2063,7 +2065,8 @@ app.get('/api/notifications/:userId', (req, res) => {
     if (rr.toUserId === userId && rr.status === 'pending') {
       const from = db.users[rr.fromUserId];
       if (!from) return;
-      const ts = rr.createdAt || Date.now();
+      const ts = rr.createdAt || 0;
+      if (!ts) return;
       notifs.push({
         type: 'reveal-request',
         fromId: rr.fromUserId,
@@ -2084,7 +2087,8 @@ app.get('/api/notifications/:userId', (req, res) => {
     // Show last 3 stars from each friend (recent ones)
     friend.stars.slice(-3).forEach(star => {
       if (star.from === userId) return; // skip my own stars to them
-      const ts = star.donatedAt || star.at || Date.now();
+      const ts = star.donatedAt || star.at || 0;
+      if (!ts) return; // skip if no timestamp
       notifs.push({
         type: 'friend-star',
         fromId: fid,
@@ -2100,7 +2104,8 @@ app.get('/api/notifications/:userId', (req, res) => {
   Object.entries(user.canSee || {}).forEach(([pid, data]) => {
     const p = db.users[pid];
     if (!p) return;
-    const ts = data.revealedAt || Date.now();
+    const ts = data.revealedAt || 0;
+    if (!ts) return;
     notifs.push({
       type: 'identity-revealed',
       fromId: pid,
@@ -2122,7 +2127,8 @@ app.get('/api/notifications/:userId', (req, res) => {
   recentDonations.forEach(d => {
     const recip = db.users[d.toUserId];
     if (!recip) return;
-    const ts = d.timestamp || Date.now();
+    const ts = d.timestamp || 0;
+    if (!ts) return;
     notifs.push({
       type: 'network-star',
       fromId: d.toUserId,
@@ -2137,6 +2143,27 @@ app.get('/api/notifications/:userId', (req, res) => {
   const all = notifs.slice(0, 50);
   const unseenCount = all.filter(n => !n.seen).length;
   res.json({ notifications: all, unseenCount });
+});
+
+// Mark network as seen (for badge on rede icon)
+app.post('/api/network/seen', (req, res) => {
+  const { userId } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  user.networkSeenAt = Date.now();
+  saveDB('users');
+  res.json({ ok: true });
+});
+
+// Get new connections count since last network view
+app.get('/api/network/new-count/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  const seenAt = user.networkSeenAt || 0;
+  const encounters = db.encounters[userId] || [];
+  const newCount = encounters.filter(e => (e.at || 0) > seenAt).length;
+  res.json({ newCount });
 });
 
 // Selfie for relation

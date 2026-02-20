@@ -1086,7 +1086,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       </div>
     </div>
     <div class="home-icons">
-      <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()">&#x2726;</div>
+      <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()" style="position:relative">&#x2726;<span class="network-badge hidden" id="networkBadge" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:#3b82f6;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span></div>
       <div class="rb hidden" id="relBadge" onclick="showRelations()">&#x1F4AC;<span class="ct" id="relCount">0</span></div>
     </div>
   </div>
@@ -1246,7 +1246,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="history" class="screen">
-  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Constelação</h2></div>
+  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Rede</h2></div>
   <div style="display:flex;gap:.35rem;padding:0 .8rem .3rem;justify-content:center;flex-wrap:wrap">
     <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.25rem .65rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
     <button class="const-filter-btn" id="constFilterRevealed" onclick="setConstFilter('revealed')" style="padding:.25rem .65rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🟢 Revelados</button>
@@ -1259,7 +1259,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas></div>
   <div class="const-empty hidden" id="constEmpty">
     <div class="const-empty-icon">✦</div>
-    <div class="const-empty-text">Nenhum encontro ainda.<br>Dê um touch em alguém para começar sua constelação.</div>
+    <div class="const-empty-text">Nenhum encontro ainda.<br>Dê um touch em alguém para começar sua rede.</div>
   </div>
   <!-- Notification panel -->
   <div class="notif-panel" id="notifPanel">
@@ -2291,15 +2291,18 @@ function initSocket(){
   socket.on('star-received',({fromUserId,fromName,total})=>{
     haptic([80,40,80,40,80]);playSound('connect');
     showToast('⭐ '+fromName+' te deu uma estrela! (Total: '+total+')');
+    updateNotifBadge();
   });
   // Network notification: someone donated a star
   socket.on('star-donated-notification',({recipientName,donorName,recipientStars})=>{
     showToast('⭐ '+recipientName+' ganhou estrela de '+donorName+'!');
+    updateNotifBadge();
   });
   socket.on('like-toggled',({fromUserId,liked})=>{
     haptic([30,20,30]);
     if(liked)showToast('Alguém curtiu seu perfil! ❤️');
     refreshRelations();
+    updateNotifBadge();
   });
   socket.on('streak-unlock',data=>showStreakUnlock(data));
   socket.on('tip-received',({amount,from,status})=>{
@@ -2604,7 +2607,7 @@ async function refreshHome(){
     ]);
     const c=$('dailyCounter'),n=$('dailyNum');
     if(d.count>0){c.classList.remove('hidden');n.textContent=d.count}else c.classList.add('hidden');
-    if(cn.total>0)$('constBtn').classList.remove('hidden');
+    if(cn.total>0){$('constBtn').classList.remove('hidden');updateNetworkBadge()}
     // Update home background nodes
     initHomeNodes(cn.nodes||[]);
   }catch(e){}
@@ -4067,11 +4070,15 @@ function setConstFilter(f){
 }
 let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,animFrame:null,selectedNode:null,
   fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0};
-const CONST_FEEDBACK=['Um novo ponto surgiu.','Sua rede cresceu hoje.','Um encontro deixou rastro.','Um elo foi reforçado.','Algo ficou marcado.','A constelação se expandiu.'];
+const CONST_FEEDBACK=['Um novo ponto surgiu.','Sua rede cresceu hoje.','Um encontro deixou rastro.','Um elo foi reforçado.','Algo ficou marcado.','Sua rede se expandiu.'];
 
 async function showHistory(){
   haptic([30]);
   updateNotifBadge();
+  // Mark network as seen and clear badge
+  const nbadge=$('networkBadge');
+  if(nbadge){nbadge.textContent='0';nbadge.classList.add('hidden')}
+  fetch('/api/network/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
   try{
     const data=await(await fetch('/api/constellation/'+state.userId)).json();
     const empty=$('constEmpty');
@@ -5077,50 +5084,66 @@ function toggleNotifPanel(){
   if(panel.classList.contains('visible')){
     panel.classList.remove('visible');
   }else{
+    // Clear badge immediately when opening
+    const badge=$('constNotifBadge');
+    if(badge){badge.textContent='0';badge.classList.add('hidden')}
     panel.classList.add('visible');
     loadNotifications();
   }
 }
 async function loadNotifications(){
   const list=$('notifList');
-  list.innerHTML='<div class="notif-empty">Carregando...</div>';
+  list.innerHTML='<div class="notif-empty" style="opacity:.5">Carregando...</div>';
   try{
     const data=await(await fetch('/api/notifications/'+state.userId)).json();
     const notifs=data.notifications||[];
-    if(!notifs.length){list.innerHTML='<div class="notif-empty">Nenhuma atividade ainda</div>';return}
-    // Mark as seen
+    if(!notifs.length){list.innerHTML='<div class="notif-empty"><div style="font-size:1.8rem;margin-bottom:.5rem;opacity:.4">🔕</div>Nenhuma atividade ainda<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;opacity:.5">Curtas, estrelas e revelações aparecem aqui</div></div>';return}
+    // Mark as seen on server
     fetch('/api/notifications/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
     let html='';
+    let lastDateLabel='';
     notifs.forEach(n=>{
       const name=n.realName||n.nickname||'Alguém';
       const photo=n.profilePhoto;
       const icoHtml=photo
         ?'<div class="notif-ico" style="background:'+(n.color||'var(--ac)')+'"><img src="'+esc(photo)+'" alt=""></div>'
         :'<div class="notif-ico" style="background:'+(n.color||'var(--ac)')+'">'+esc((n.nickname||'?').slice(0,2).toUpperCase())+'</div>';
-      let text='';
-      if(n.type==='like')text='<strong>'+esc(name)+'</strong> curtiu você ❤️';
-      else if(n.type==='star')text='<strong>'+esc(name)+'</strong> te deu uma ⭐';
-      else if(n.type==='friend-star')text='<strong>'+esc(name)+'</strong> ganhou uma ⭐';
-      else if(n.type==='network-star')text='<strong>'+esc(name)+'</strong> ganhou uma ⭐';
-      else if(n.type==='reveal-request')text='<strong>'+esc(name)+'</strong> pediu seu ID 👁';
-      else if(n.type==='identity-revealed')text='<strong>'+esc(name)+'</strong> revelou o ID pra você 🪪';
-      // Timestamp formatting
+      let text='',icon='';
+      if(n.type==='like'){icon='❤️';text='<strong>'+esc(name)+'</strong> curtiu você'}
+      else if(n.type==='star'){icon='⭐';text='<strong>'+esc(name)+'</strong> te deu uma estrela'}
+      else if(n.type==='friend-star'){icon='✨';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
+      else if(n.type==='network-star'){icon='✨';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
+      else if(n.type==='reveal-request'){icon='👁';text='<strong>'+esc(name)+'</strong> pediu seu ID'}
+      else if(n.type==='identity-revealed'){icon='🪪';text='<strong>'+esc(name)+'</strong> revelou o ID pra você'}
+      // Better timestamp formatting
       const ts=n.timestamp;
       let timeStr='';
-      if(ts){
+      if(ts&&ts>0){
         const d=new Date(ts);
         const now=new Date();
         const diff=now-d;
-        if(diff<60000)timeStr='agora';
-        else if(diff<3600000)timeStr=Math.floor(diff/60000)+'min';
-        else if(diff<86400000)timeStr=Math.floor(diff/3600000)+'h';
-        else if(diff<604800000)timeStr=Math.floor(diff/86400000)+'d';
-        else timeStr=d.getDate()+'/'+(d.getMonth()+1);
+        if(diff<0)timeStr='agora';
+        else if(diff<60000)timeStr='agora';
+        else if(diff<3600000)timeStr=Math.floor(diff/60000)+' min';
+        else if(diff<86400000)timeStr=Math.floor(diff/3600000)+'h atrás';
+        else if(diff<172800000)timeStr='ontem';
+        else if(diff<604800000)timeStr=Math.floor(diff/86400000)+' dias';
+        else{const dd=String(d.getDate()).padStart(2,'0');const mm=String(d.getMonth()+1).padStart(2,'0');timeStr=dd+'/'+mm}
+        // Date section labels
+        let dateLabel='';
+        if(diff<86400000)dateLabel='Hoje';
+        else if(diff<172800000)dateLabel='Ontem';
+        else if(diff<604800000)dateLabel='Esta semana';
+        else dateLabel='Anteriores';
+        if(dateLabel!==lastDateLabel){
+          html+='<div style="font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:.6rem 1rem .2rem;font-weight:600;opacity:.5">'+dateLabel+'</div>';
+          lastDateLabel=dateLabel;
+        }
       }
-      const unseenDot=n.seen?'':'<div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0;margin-left:auto"></div>';
+      const unseenDot=n.seen?'':'<div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0;margin-left:4px"></div>';
       const clickAction=n.fromId?'onclick="navigateToConstNode(\''+esc(n.fromId)+'\')" style="cursor:pointer"':'';
       const bg=n.seen?'':'background:rgba(59,130,246,.04);';
-      html+='<div class="notif-item" '+clickAction+' style="'+bg+'">'+icoHtml+'<div class="notif-content"><div class="notif-text">'+text+'</div>'+(timeStr?'<div class="notif-time">'+timeStr+'</div>':'')+'</div>'+unseenDot+'</div>';
+      html+='<div class="notif-item" '+clickAction+' style="'+bg+'">'+icoHtml+'<div class="notif-content"><div class="notif-text">'+icon+' '+text+'</div>'+(timeStr?'<div class="notif-time">'+timeStr+'</div>':'')+'</div>'+unseenDot+'</div>';
     });
     list.innerHTML=html;
     // Update badge to 0 (just seen them)
@@ -5136,6 +5159,16 @@ function updateNotifBadge(){
   fetch('/api/notifications/'+state.userId).then(r=>r.json()).then(data=>{
     const count=data.unseenCount||0;
     const badge=$('constNotifBadge');
+    if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
+  }).catch(()=>{});
+}
+
+// ═══ NETWORK BADGE (new connections on rede icon) ═══
+function updateNetworkBadge(){
+  if(!state.userId)return;
+  fetch('/api/network/new-count/'+state.userId).then(r=>r.json()).then(data=>{
+    const count=data.newCount||0;
+    const badge=$('networkBadge');
     if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
   }).catch(()=>{});
 }
@@ -6782,7 +6815,7 @@ pt:{
   // Boarding
   bp_title:'Touch? Pass',bp_encounters:'encontros',bp_since:'desde',bp_save:'Salvar Imagem',
   // History
-  hist_title:'Constelação',hist_empty:'Nenhum encontro ainda.',hist_save:'Salvar',hist_share:'Compartilhar'
+  hist_title:'Minha Rede',hist_empty:'Nenhum encontro ainda.',hist_save:'Salvar',hist_share:'Compartilhar'
 },
 en:{
   loc_btn:'Location',ticket_btn:'My Ticket',loc_title:'Explore nearby',
@@ -6818,7 +6851,7 @@ en:{
   decl_ph:'Write your declaration...',decl_publish:'Publish',decl_min:'Write at least 3 characters.',
   decl_ok:'Declaration published!',
   bp_title:'Touch? Ticket',bp_encounters:'encounters',bp_since:'since',bp_save:'Save Image',
-  hist_title:'Constellation',hist_empty:'No encounters yet.',hist_save:'Save',hist_share:'Share'
+  hist_title:'My Network',hist_empty:'No encounters yet.',hist_save:'Save',hist_share:'Share'
 },
 es:{
   loc_btn:'Ubicación',ticket_btn:'Mi Boleto',loc_title:'Explorar alrededor',
@@ -6854,7 +6887,7 @@ es:{
   decl_ph:'Escribe tu declaración...',decl_publish:'Publicar',decl_min:'Escribe al menos 3 caracteres.',
   decl_ok:'¡Declaración publicada!',
   bp_title:'Touch? Pass',bp_encounters:'encuentros',bp_since:'desde',bp_save:'Guardar Imagen',
-  hist_title:'Constelación',hist_empty:'Sin encuentros aún.',hist_save:'Guardar',hist_share:'Compartir'
+  hist_title:'Mi Red',hist_empty:'Sin encuentros aún.',hist_save:'Guardar',hist_share:'Compartir'
 }
 };
 let currentLang=localStorage.getItem('touch_lang')||'pt';
