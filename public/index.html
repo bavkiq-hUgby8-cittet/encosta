@@ -530,7 +530,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .elog-header h2{font-size:1rem;font-weight:700;flex:1}
 .elog-list{padding:.8rem 1rem;display:flex;flex-direction:column;gap:.6rem;padding-bottom:3rem}
 .elog-item{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.7rem .8rem;display:flex;gap:.6rem;align-items:center;position:relative;overflow:hidden;touch-action:pan-y}
-.elog-item-inner{display:flex;gap:.6rem;align-items:center;flex:1;min-width:0;transition:transform .2s ease;position:relative;z-index:1}
+.elog-item-inner{display:flex;gap:.6rem;align-items:center;flex:1;min-width:0;transition:transform .2s ease;position:relative;z-index:1;background:var(--s1);padding:.1rem 0;width:100%}
 .elog-delete{position:absolute;right:0;top:0;bottom:0;width:64px;background:rgba(239,68,68,.85);display:flex;align-items:center;justify-content:center;z-index:0}
 .elog-delete svg{width:18px;height:18px;stroke:#fff;stroke-width:2}
 .elog-tip-tag{display:inline-flex;align-items:center;gap:.2rem;background:rgba(34,197,94,.12);color:#4ade80;font-size:.58rem;font-weight:600;padding:.15rem .45rem;border-radius:6px;border:1px solid rgba(34,197,94,.15)}
@@ -1607,13 +1607,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div style="display:flex;align-items:center;padding:.6rem 1rem;background:rgba(18,18,26,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)">
     <button class="chb" onclick="closeEventView()">&#x2190;</button>
     <div style="flex:1;text-align:center">
-      <div style="font-size:.75rem;font-weight:700;color:#60a5fa">📍 Check-in</div>
+      <div style="font-size:.75rem;font-weight:700;color:#60a5fa;display:flex;align-items:center;gap:.3rem;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Check-in</div>
       <div style="font-size:.9rem;font-weight:600" id="evViewName"></div>
     </div>
     <div style="font-size:.7rem;color:var(--t2)" id="evViewCount">0</div>
   </div>
-  <div style="flex:1;position:relative;overflow:hidden;background:#050508">
-    <canvas id="evCanvas" style="width:100%;height:100%"></canvas>
+  <div style="flex:1;position:relative;overflow:hidden;background:#050508;touch-action:none">
+    <canvas id="evCanvas" style="width:100%;height:100%;touch-action:none"></canvas>
     <!-- Leave event button -->
     <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Saí do evento</button>
   </div>
@@ -2094,7 +2094,7 @@ function addEvNode(d,instant){
   const minDist=35;
   const dist=maxDist-(stars/Math.max(1,maxStars))*(maxDist-minDist);
   const angle=Math.random()*Math.PI*2;
-  const baseR=7+Math.min(stars*.3,5);
+  const baseR=5+Math.min(stars*.25,4);
   const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0,verified:!!d.verified};
   if(n.revealed&&n.profilePhoto){
     const img=new Image();img.crossOrigin='anonymous';
@@ -2126,10 +2126,10 @@ function renderEvCanvas(){
     // Line to center
     const la=.05+Math.sin(t*.8+n.phase)*.02;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.6;c.stroke();
   });
-  // Center — event icon
-  const cs=18+Math.sin(t*2)*1;
-  c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle='#60a5fa';c.fill();c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=1.5;c.stroke();
-  c.fillStyle='#fff';c.font='700 10px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText('📍',cx,cy);
+  // Center — event pin (smaller)
+  const cs=12+Math.sin(t*2)*.6;
+  c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle='rgba(96,165,250,.25)';c.fill();c.strokeStyle='rgba(96,165,250,.4)';c.lineWidth=1;c.stroke();
+  c.beginPath();c.arc(cx,cy,cs*.5,0,Math.PI*2);c.fillStyle='#60a5fa';c.fill();
   // Nodes
   evNodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.3);const pulse=1+Math.sin(t*1.2+n.phase)*.04;const r=n.r*pulse;
     // Glow
@@ -2144,26 +2144,28 @@ function renderEvCanvas(){
         c.fillStyle=tagCol;c.globalAlpha=.85;
         c.beginPath();const br=3;c.moveTo(tx-tw/2+br,ty-th/2);c.lineTo(tx+tw/2-br,ty-th/2);c.quadraticCurveTo(tx+tw/2,ty-th/2,tx+tw/2,ty-th/2+br);c.lineTo(tx+tw/2,ty+th/2-br);c.quadraticCurveTo(tx+tw/2,ty+th/2,tx+tw/2-br,ty+th/2);c.lineTo(tx-tw/2+br,ty+th/2);c.quadraticCurveTo(tx-tw/2,ty+th/2,tx-tw/2,ty+th/2-br);c.lineTo(tx-tw/2,ty-th/2+br);c.quadraticCurveTo(tx-tw/2,ty-th/2,tx-tw/2+br,ty-th/2);c.fill();
         c.globalAlpha=1;c.fillStyle='#000';c.fillText(tagLbl,tx,ty+.5);c.restore()}}
-    // Node — photo or color
+    // Node — photo (revealed) or anonymous dot
     if(n.revealed&&n.photoLoaded&&n.photoImg){
       c.save();c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.clip();
       c.drawImage(n.photoImg,n.x-r,n.y-r,r*2,r*2);c.restore();
       c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.6)';c.lineWidth=1.5;c.stroke();
-    }else{
-      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=.6;c.stroke();
-      if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1;c.stroke()}
+    }else if(n.revealed){
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1;c.stroke();
       if(r>4){const ini2=(s)=>{if(!s)return'?';const p=s.trim().split(/\s+/);return p.length>1?(p[0][0]+p[1][0]).toUpperCase():s.slice(0,2).toUpperCase()};
-        c.fillStyle='#fff';c.font='600 '+(r*.55)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini2(n.name),n.x,n.y+.5)}}
+        c.fillStyle='#fff';c.font='600 '+(r*.55)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini2(n.name),n.x,n.y+.5)}
+    }else{
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.globalAlpha=.5;c.fill();c.globalAlpha=1;c.strokeStyle='rgba(255,255,255,.06)';c.lineWidth=.4;c.stroke();
+    }
     // Verified badge on canvas
     if(n.verified&&r>5){const br=Math.max(6,r*.5);const bx=n.x+r*.55,by=n.y+r*.55;
       const vg=c.createLinearGradient(bx-br,by-br,bx+br,by+br);vg.addColorStop(0,'#06b6d4');vg.addColorStop(.5,'#3b82f6');vg.addColorStop(1,'#8b5cf6');
       c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4-Math.PI/2;const ri=i%2===0?br:br*.6;c.lineTo(bx+Math.cos(a)*ri,by+Math.sin(a)*ri)}c.closePath();c.fillStyle=vg;c.fill();c.strokeStyle='#0a0a0f';c.lineWidth=1.5;c.stroke();
       c.fillStyle='#fff';c.font='700 '+(br*.85)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText('✓',bx,by+.3)}
-    // Name + stars below
-    if(r>6){const dName=n.revealed&&n.revealData&&n.revealData.realName?n.revealData.realName:n.name;
-      c.fillStyle='rgba(255,255,255,.3)';c.font='400 6px Inter';c.textAlign='center';
+    // Name + stars below (only for revealed users)
+    if(r>6&&n.revealed){const dName=n.revealData&&n.revealData.realName?n.revealData.realName:n.name;
+      c.fillStyle='rgba(255,255,255,.4)';c.font='400 6px Inter';c.textAlign='center';
       c.fillText(dName.length>12?dName.slice(0,12)+'…':dName,n.x,n.y+r+8);
-      if(n.stars>0){c.fillStyle='rgba(255,215,0,.5)';c.font='400 5px Inter';c.fillText('⭐'+n.stars,n.x,n.y+r+15)}}
+      if(n.stars>0){c.fillStyle='rgba(255,215,0,.5)';c.font='400 5px Inter';c.fillText('★'+n.stars,n.x,n.y+r+15)}}
   });
   evViewAnim=requestAnimationFrame(renderEvCanvas);
 }
