@@ -235,8 +235,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd.offline{background:var(--err);box-shadow:0 0 8px rgba(248,113,113,.6)}
 .cd.reconnecting{background:var(--warn);box-shadow:0 0 8px rgba(251,191,36,.5);animation:bk 1s infinite}
 @keyframes bk{0%,100%{opacity:1}50%{opacity:.3}}
-.constellation-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;position:relative}
+.constellation-btn{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.25),rgba(255,107,53,.08));border:2px solid rgba(255,107,53,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.15rem;position:relative;color:#fff;box-shadow:0 0 12px rgba(255,107,53,.5),0 0 24px rgba(255,107,53,.3),0 0 48px rgba(255,107,53,.15);animation:constGlow 2s ease-in-out infinite;z-index:10}
 .constellation-btn:active{transform:scale(.93)}
+@keyframes constGlow{0%,100%{box-shadow:0 0 12px rgba(255,107,53,.5),0 0 24px rgba(255,107,53,.3),0 0 48px rgba(255,107,53,.15);border-color:rgba(255,107,53,.6);filter:brightness(1)}50%{box-shadow:0 0 20px rgba(255,107,53,.8),0 0 40px rgba(255,107,53,.5),0 0 70px rgba(255,107,53,.25),0 0 100px rgba(255,107,53,.1);border-color:rgba(255,107,53,.9);filter:brightness(1.3)}}
 
 /* ENCOUNTER */
 #encounter{padding:2rem 1.5rem;justify-content:center;align-items:center;text-align:center}
@@ -949,6 +950,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <input type="password" class="login-input" id="loginPass" placeholder="Senha" autocomplete="current-password">
     <input type="text" class="login-input hidden" id="loginNick" placeholder="Nickname (será seu nome anônimo)" maxlength="20" autocomplete="off">
     <div class="login-nick-explain hidden" id="loginNickExplain">Seu nickname é como as pessoas te veem antes de você revelar quem é de verdade.</div>
+    <div class="tc hidden" id="loginTermsUso" style="margin:.5rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
     <button class="bp" id="loginBtn" onclick="loginWithEmail()">ENTRAR</button>
     <div class="login-err" id="loginErr"></div>
     <div class="login-toggle" id="loginToggle" onclick="toggleLoginMode()">Não tem conta? <strong>Criar agora — é rápido</strong></div>
@@ -965,6 +967,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="reg-nick-info">Escolha um apelido criativo! Não use seu nome real — ele será seu segredo até você decidir revelar para alguém.</div>
   <div class="fg"><label>Data de nascimento</label><input type="date" id="regBirth"></div>
   <div class="tc"><input type="checkbox" id="regTerms"><span>Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.</span></div>
+  <div class="tc"><input type="checkbox" id="regTermsUso"><span>Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
   <button class="bp" onclick="doRegister()">ENTRAR</button>
 </div>
 
@@ -1034,7 +1037,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="home-bottom">
     <div class="home-nav">
       <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico">📍</span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
-      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico">❓</span><span class="hn-lbl">Ajuda</span></button>
+      <button class="hn-btn" onclick="showMoreMenu()"><span class="hn-ico">☰</span><span class="hn-lbl">Mais</span></button>
     </div>
     <div class="home-brand-row">
       <span class="home-brand" id="homeBrand">Touch?</span>
@@ -1631,6 +1634,7 @@ async function loginWithEmail(){
       const nick=$('loginNick')?$('loginNick').value.trim():'';
       if(!nick||nick.length<2)return $('loginErr').textContent='Escolha um nickname (mín. 2 caracteres).';
       if(pass.length<6)return $('loginErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
+      if(!$('loginTermsCheck').checked)return $('loginErr').textContent='Aceite os Termos de Uso para continuar.';
       window._pendingNickname=nick;
       await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
     }else{
@@ -1650,6 +1654,7 @@ function toggleLoginMode(){
   $('loginErr').textContent='';
   $('loginNick').classList.toggle('hidden',!loginIsRegister);
   $('loginNickExplain').classList.toggle('hidden',!loginIsRegister);
+  $('loginTermsUso').classList.toggle('hidden',!loginIsRegister);
   if(loginIsRegister)$('loginPass').placeholder='Crie uma senha (mín. 6 caracteres)';
   else $('loginPass').placeholder='Senha';
 }
@@ -2238,8 +2243,8 @@ function makeAvatar(nick,color,size,photo){
   return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:'+(size*.36)+'px;font-weight:800;color:#fff;letter-spacing:.03em;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+esc(initials)+'</div>';
 }
 async function doRegister(){
-  const nick=$('regNick').value.trim(),birth=$('regBirth').value,terms=$('regTerms').checked;
-  if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');if(!terms)return showToast('Aceite os termos.');
+  const nick=$('regNick').value.trim(),birth=$('regBirth').value,terms=$('regTerms').checked,termsUso=$('regTermsUso').checked;
+  if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');if(!terms)return showToast('Aceite os termos.');if(!termsUso)return showToast('Aceite os Termos de Uso.');
   if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return showToast('Nickname: só letras, números, _ . -');
   try{
     // If user already has ID (came from Firebase link), use update; else register new
@@ -4448,6 +4453,8 @@ function showMoreMenu(){
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showBoardingPass()"><div class="mm-ico">🪪</div><div class="mm-lbl">ID</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()"><div class="mm-ico">💼</div><div class="mm-lbl">Prestador</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showManual()"><div class="mm-ico">❓</div><div class="mm-lbl">Tutorial</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/site\',\'_blank\')"><div class="mm-ico">🌐</div><div class="mm-lbl">Sobre o Touch</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/termos\',\'_blank\')"><div class="mm-ico">📜</div><div class="mm-lbl">Termos de Uso</div></div>'
     +'</div></div>';
   document.body.appendChild(overlay);
 }

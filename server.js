@@ -17,6 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Clean URL routes for static pages
 app.get('/site', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
 app.get('/sobre', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
+app.get('/termos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'termos.html')));
 
 // ── Firebase Admin SDK ──
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -263,80 +264,166 @@ setInterval(() => {
   saveDB();
 }, 60000);
 
-// ── PHRASES BANK ──
+// ── PHRASES BANK v2 ── Hundreds of phrases by category + re-encounter tiers
 const PHRASES = {
-  amizade: [
-    "Presença aceita.",
-    "Dois mundos, um gesto.",
-    "Sem esforço. Só verdade.",
-    "Afinidade instantânea.",
-    "Conforto raro. Aproveitem.",
-    "Amizade sem introdução.",
-    "Se reconheceram de primeira.",
-    "Isso não se planeja.",
-    "O silêncio já basta.",
-    "Encontro que já valeu.",
-    "Dois estranhos a menos.",
-    "Sintonia no improviso.",
-    "O gesto disse tudo.",
-    "Conexão sem filtro.",
-    "O acaso acertou.",
+  // ── FIRST ENCOUNTER — nunca se viram ──
+  primeiro: [
+    "Presença aceita.", "Dois mundos, um gesto.", "Sem esforço. Só verdade.",
+    "Afinidade instantânea.", "Conforto raro.", "Se reconheceram de primeira.",
+    "Isso não se planeja.", "Encontro que já valeu.", "Dois estranhos a menos.",
+    "Sintonia no improviso.", "O gesto disse tudo.", "Conexão sem filtro.",
+    "O acaso acertou.", "A cidade conspirou.", "Dois caminhos cruzados.",
+    "Universos se tocaram.", "Um toque. Tudo mudou.", "Desconhecidos? Não mais.",
+    "O primeiro gesto.", "Começo de tudo.", "O ar mudou.",
+    "Algo começou aqui.", "Gravidade entre dois.", "Química de surpresa.",
+    "Impossível ignorar.", "O toque ficou.", "Curiosidade recíproca.",
+    "Fio invisível.", "Olharam e souberam.", "Isso vai ecoar.",
+    "A peça que faltava.", "Mentes em sincronia.", "Potencial detectado.",
+    "Sinergia imediata.", "Respeito mútuo.", "Complementares.",
+    "Encontro com futuro.", "Parceria inesperada.", "Paletas misturadas.",
+    "Faísca criativa.", "Frequência rara.", "Dois universos, uma porta.",
+    "Energia que cria.", "O improviso acendeu.", "Tela em branco, a dois.",
+    "Encostou. Conectou.", "Sem roteiro. Perfeito.", "Ponto de partida.",
+    "Dois sinais. Uma frequência.", "A sorte encontrou vocês.",
+    "Zero forçação. Pura sintonia.", "Primeiro capítulo.",
+    "O mundo ficou menor.", "Coincidência? Talvez não.",
+    "Conexão registrada. Pra sempre.", "Caminhos que se cruzam.",
+    "Nem precisou de palavras.", "O universo apresentou vocês.",
+    "Um toque vale mil follows.", "Estranhos com afinidade.",
+    "Sem script. Funcionou.", "O acaso tem bom gosto.",
+    "Duas órbitas, um ponto.", "Encontro não planejado. O melhor tipo.",
+    "A vida real surpreende.", "Ninguém esperava. Todos sentiram.",
+    "Presentes no mesmo instante.", "Cruzaram no momento certo.",
+    "Surpresa bem-vinda.", "Timing perfeito.",
   ],
-  interesse: [
-    "O ar mudou.",
-    "Algo começou aqui.",
-    "Antes e depois.",
-    "Gravidade entre dois.",
-    "Tensão bonita.",
-    "Química de surpresa.",
-    "Impossível ignorar.",
-    "O toque ficou.",
-    "Curiosidade recíproca.",
-    "O primeiro gesto.",
-    "Fio invisível.",
-    "Coragem de continuar.",
-    "Olharam e souberam.",
-    "Isso vai ecoar.",
-    "Começo de tudo.",
+  // ── RE-ENCOUNTER 2 — segunda vez ──
+  reencontro2: [
+    "De novo vocês.", "Não foi coincidência.", "O destino insiste.",
+    "Segundo round.", "A vida juntou de novo.", "Parece que gostaram.",
+    "Voltaram. Bom sinal.", "O universo repetiu.", "Reencontro confirmado.",
+    "Dois toques. Zero dúvida.", "De volta ao jogo.", "Repetição com propósito.",
+    "Já era esperado.", "Pois é. De novo.", "Sem surpresa. Com alegria.",
+    "Quem diria... de novo.", "A sintonia continua.", "Reencontro merecido.",
+    "Parece que funciona.", "Segundo capítulo.", "O vínculo fortaleceu.",
+    "Não foi à toa da primeira vez.", "De novo? De novo.",
+    "O toque lembrou.", "Continuação natural.", "A conexão pediu mais.",
+    "Reencontro com gosto de 'eu sabia'.", "Duas vezes não é acaso.",
+    "Voltaram com mais certeza.", "O primeiro touch pediu bis.",
   ],
-  profissional: [
-    "A peça que faltava.",
-    "Mentes em sincronia.",
-    "Potencial detectado.",
-    "Conexão com propósito.",
-    "Visões que se somam.",
-    "Sinergia imediata.",
-    "O próximo passo.",
-    "Respeito mútuo.",
-    "Energia que gera.",
-    "Complementares.",
-    "Encontro com futuro.",
-    "Ideias em colisão.",
-    "Parceria inesperada.",
-    "Resultado no ar.",
-    "Juntos vão mais longe.",
+  // ── RE-ENCOUNTER 3-5 — já são chegados ──
+  reencontro3a5: [
+    "Esses são chegados.", "Já virou rotina boa.", "Amizade em construção.",
+    "Terceira vez. Já conta como amigo.", "Vínculo em andamento.",
+    "Vocês não desgrudam.", "Relação que cresce.", "Já são parte da paisagem um do outro.",
+    "Trio de encontros. Cumplicidade.", "Relação real, confirmada.",
+    "Quem encontra 3 vezes, fica.", "Consistência. O segredo do vínculo.",
+    "Presença constante.", "Esses se conhecem de verdade.",
+    "Mais que conhecidos. Menos que irmãos. Por enquanto.",
+    "Se veem tanto que já é rotina.", "Frequência de quem se gosta.",
+    "O touch virou hábito.", "Já nem precisa de motivo.",
+    "Encontro número e tanto. Quem conta?", "Relação que já tem história.",
+    "Esses vivem juntos.", "A constelação agradece.",
+    "Firmes. Presentes. Juntos.", "Laço real em formação.",
+    "Eles de novo. E a gente adorando.", "Os inseparáveis.",
+    "Já são parte da constelação um do outro.", "Vínculo que o tempo prova.",
+    "Se perderam, se acharam de novo.", "Consistência é o novo like.",
   ],
-  criativo: [
-    "Paletas misturadas.",
-    "Faísca criativa.",
-    "Cor e textura.",
-    "Fora da caixa, juntos.",
-    "Inspiração mútua.",
-    "Frequência rara.",
-    "Colisão de ideias.",
-    "Criatividade contagiosa.",
-    "Dois universos, uma porta.",
-    "Tela em branco, a dois.",
-    "Cores diferentes, funcionam.",
-    "Invenção no ar.",
-    "Energia que cria.",
-    "Imaginação dobrada.",
-    "O improviso acendeu.",
+  // ── RE-ENCOUNTER 6-10 — frequência alta ──
+  reencontro6a10: [
+    "Isso aqui já é família.", "Dupla imbatível.", "Encontro de veteranos.",
+    "Conexão blindada.", "Relação que não precisa de wi-fi.",
+    "Vocês são prova de que presença importa.", "Os fiéis.",
+    "Se o touch tivesse prêmio, era de vocês.", "Parceria sólida.",
+    "Nível: melhores amigos.", "Laço que ninguém corta.",
+    "Juntos de novo. Como sempre.", "A rotina mais bonita.",
+    "Quem dera todo mundo tivesse isso.", "Relação real. Sem filtro. Sem prazo.",
+    "Os que sempre se encontram.", "Amizade nível estrela.",
+    "Isso não é encontro. É compromisso.", "Presença garantida.",
+    "Vocês redefinem proximidade.", "Relação que inspira.",
+    "Os que provam que o físico importa.", "Touch level: expert.",
+    "Referência de conexão real.", "Esses dois... inseparáveis.",
+    "Encontro marcado pela vida.", "Consistência que emociona.",
+    "Amizade que a constelação celebra.", "Frequência de irmãos.",
+    "Vocês são o motivo do Touch existir.",
+  ],
+  // ── RE-ENCOUNTER 11+ — lendários ──
+  reencontro11: [
+    "Lendários.", "Relação que virou referência.", "Vocês são o Touch.",
+    "A constelação gira em torno disso.", "Os eternos.",
+    "Se existisse um hall da fama, vocês estariam lá.",
+    "Conexão nível: patrimônio.", "Mais que amigos. Constelação.",
+    "Relação que merece documentário.", "Vocês transcenderam o app.",
+    "Não precisa mais de pontos. Já é estrela.", "Os imbatíveis.",
+    "Encontro número... perdemos a conta.", "Lenda viva.",
+    "Relação que a cidade conhece.", "Juntos até a última órbita.",
+    "Influenciadores físicos de verdade.", "Top do Touch. Sem contestação.",
+    "Vocês são inspiração pra quem começa.", "Conexão que virou história.",
+    "Se o Touch fosse livro, vocês seriam o capítulo principal.",
+    "Parceria que desafia o tempo.", "Eternos na constelação.",
+    "Isso aqui não é app. É vida.", "Os que nunca param de se encontrar.",
+    "Relação intocável.", "Amizade com todas as estrelas.",
+    "Juntos do começo ao fim.", "Referência absoluta.",
+    "A definição de conexão real.",
+  ],
+  // ── GENERAL / CREATIVE — miscelânea inspiracional ──
+  geral: [
+    "Conexão com propósito.", "Visões que se somam.", "O próximo passo.",
+    "Energia que gera.", "Ideias em colisão.", "Resultado no ar.",
+    "Juntos vão mais longe.", "Cor e textura.", "Fora da caixa, juntos.",
+    "Inspiração mútua.", "Colisão de ideias.", "Criatividade contagiosa.",
+    "Cores diferentes, funcionam.", "Invenção no ar.", "Imaginação dobrada.",
+    "Antes e depois.", "Tensão bonita.", "Coragem de continuar.",
+    "O silêncio já basta.", "Amizade sem introdução.",
+    "Momento presente. Pessoas reais.", "O melhor algoritmo é o acaso.",
+    "Nenhum feed mostra isso.", "Isso aqui é ao vivo.",
+    "Sem replay. Só o momento.", "O encontro é o conteúdo.",
+    "A vida offline tem mais resolução.", "Presente no presente.",
+    "O real não precisa de legenda.", "Aconteceu de verdade.",
+    "Memória que nenhuma nuvem guarda.", "Touch > scroll.",
+    "O melhor post é estar aqui.", "Fora da bolha. No mundo.",
+    "Presença é a rede social mais rara.", "A melhor notificação é um abraço.",
+    "Onde o sinal acaba, a conexão começa.", "Viver > assistir.",
+    "O toque que nenhuma tela substitui.", "Offline nunca foi tão bom.",
+  ],
+  // ── EVENTS ──
+  evento: [
+    "Check-in com estilo.", "Presente no rolê.", "A noite começou.",
+    "Entrou na história do evento.", "O rolê ficou melhor.",
+    "Presença confirmada.", "Chegou quem faltava.", "A festa agradece.",
+    "Mais um na pista.", "O evento acaba de começar pra você.",
+    "Registrado. Agora aproveita.", "A energia subiu.", "Bem-vindo ao momento.",
+    "O rolê é real.", "Check-in feito. Lembranças garantidas.",
+  ],
+  // ── TIPS / SERVICE ──
+  servico: [
+    "Gratidão registrada.", "O serviço merece reconhecimento.",
+    "Valorizar quem faz bem.", "Gorjeta de quem sentiu.",
+    "O trabalho foi notado.", "Presença que valoriza.",
+    "Reconhecimento merecido.", "Obrigado pelo serviço.",
+    "Conexão profissional, gratidão real.", "O gesto vale mais que o valor.",
   ]
 };
 
-const ALL_PHRASES = [...PHRASES.amizade, ...PHRASES.interesse, ...PHRASES.profissional, ...PHRASES.criativo];
-function randomPhrase() { return ALL_PHRASES[Math.floor(Math.random() * ALL_PHRASES.length)]; }
+// Build flat arrays
+const FIRST_PHRASES = [...PHRASES.primeiro, ...PHRASES.geral];
+const ALL_PHRASES = [...PHRASES.primeiro, ...PHRASES.geral, ...PHRASES.evento, ...PHRASES.servico];
+
+function randomPhrase() { return FIRST_PHRASES[Math.floor(Math.random() * FIRST_PHRASES.length)]; }
+
+// Smart phrase selection based on encounter count
+function smartPhrase(userAId, userBId) {
+  const encounters = (db.encounters[userAId] || []).filter(e => e.with === userBId);
+  const count = encounters.length; // how many times they've met BEFORE this one
+  let pool;
+  if (count === 0) pool = PHRASES.primeiro;
+  else if (count === 1) pool = PHRASES.reencontro2;
+  else if (count <= 4) pool = PHRASES.reencontro3a5;
+  else if (count <= 9) pool = PHRASES.reencontro6a10;
+  else pool = PHRASES.reencontro11;
+  // Mix in some general phrases (20% chance)
+  if (Math.random() < 0.2) pool = [...pool, ...PHRASES.geral];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 function generateCode() { return `ENC-${Math.floor(100 + Math.random() * 900)}`; }
 
 // ── ZODIAC SYSTEM ──
@@ -768,7 +855,7 @@ app.post('/api/touch-link/connect', (req, res) => {
   if (visitor.id === owner.id) return res.status(400).json({ error: 'Não pode dar touch em si mesmo.' });
   // Create relation
   const now = Date.now();
-  const phrase = randomPhrase();
+  const phrase = smartPhrase(owner.id, visitor.id);
   const relationId = uuidv4();
   // Check existing
   const existing = Object.values(db.relations).find(r =>
@@ -975,9 +1062,9 @@ app.post('/api/session/join', (req, res) => {
 
   let relationId, phrase, expiresAt;
   const getPhrase = () => {
-    if (isSessionCheckin) return 'Check-in realizado';
-    if (session.isServiceTouch) return 'Serviço realizado';
-    return randomPhrase();
+    if (isSessionCheckin) return PHRASES.evento[Math.floor(Math.random() * PHRASES.evento.length)];
+    if (session.isServiceTouch) return PHRASES.servico[Math.floor(Math.random() * PHRASES.servico.length)];
+    return smartPhrase(session.userA, session.userB);
   };
 
   if (existing) {
@@ -2239,12 +2326,12 @@ app.post('/api/event/encosta-accept', (req, res) => {
   let relationId, phrase, expiresAt;
   if (existing) {
     existing.expiresAt = now + DIGITAL_DURATION;
-    existing.phrase = randomPhrase();
+    existing.phrase = smartPhrase(fromUserId, userId);
     existing.renewed = (existing.renewed || 0) + 1;
     existing.provocations = {};
     relationId = existing.id; phrase = existing.phrase; expiresAt = existing.expiresAt;
   } else {
-    phrase = randomPhrase();
+    phrase = smartPhrase(fromUserId, userId);
     relationId = uuidv4();
     db.relations[relationId] = { id: relationId, userA: fromUserId, userB: userId, phrase, type: 'digital', createdAt: now, expiresAt: now + DIGITAL_DURATION, provocations: {}, renewed: 0, selfie: null, eventId };
     db.messages[relationId] = [];
@@ -2390,7 +2477,7 @@ function createSonicConnection(userIdA, userIdB) {
   const eventId = operatorEntry ? operatorEntry.eventId : null;
   const serviceProviderId = isServiceTouch ? (entryA && entryA.isServiceTouch ? userIdA : (entryB && entryB.isServiceTouch ? userIdB : (userA.isPrestador ? userIdA : userIdB))) : null;
 
-  const phrase = isCheckin ? 'Check-in realizado' : (isServiceTouch ? 'Serviço realizado' : randomPhrase());
+  const phrase = isCheckin ? PHRASES.evento[Math.floor(Math.random() * PHRASES.evento.length)] : (isServiceTouch ? PHRASES.servico[Math.floor(Math.random() * PHRASES.servico.length)] : smartPhrase(userIdA, userIdB));
   const encounterType = isCheckin ? 'checkin' : (isServiceTouch ? 'service' : 'physical');
 
   // For check-ins: relation is between VISITOR and EVENT (not operator personally)
