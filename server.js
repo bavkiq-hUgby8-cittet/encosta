@@ -7,6 +7,14 @@ const path = require('path');
 const { MercadoPagoConfig, Payment, Preference, OAuth } = require('mercadopago');
 const admin = require('firebase-admin');
 
+// ── Crash protection: prevent server from dying on unhandled errors ──
+process.on('uncaughtException', (err) => {
+  console.error('🔴 Uncaught Exception:', err.message, err.stack?.split('\n').slice(0,3).join('\n'));
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('🔴 Unhandled Rejection:', reason?.message || reason);
+});
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
