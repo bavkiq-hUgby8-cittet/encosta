@@ -3571,9 +3571,30 @@ app.post('/api/admin/reset-reveals', (req, res) => {
 });
 
 // ── DATABASE RESET ──
+// ── SAFE RESET: only clear events & checkins, preserve relations/encounters/messages ──
+app.post('/api/admin/reset-events', (req, res) => {
+  const { confirm } = req.body;
+  if (confirm !== 'RESET_EVENTS') return res.status(400).json({ error: 'Send { confirm: "RESET_EVENTS" } to confirm.' });
+  const eventCount = Object.keys(db.operatorEvents || {}).length;
+  const checkinRelations = Object.values(db.relations).filter(r => r.type === 'checkin' || r.isCheckin);
+  const checkinCount = checkinRelations.length;
+  // Only remove checkin-type relations, keep friendship/service/sonic
+  checkinRelations.forEach(r => delete db.relations[r.id]);
+  // Clear operator events
+  db.operatorEvents = {};
+  // Clear sessions (temporary connection data)
+  if (db.sessions) db.sessions = {};
+  const cleared = { operatorEvents: eventCount, checkinRelations: checkinCount };
+  const preserved = { relations: Object.keys(db.relations).length, encounters: Object.keys(db.encounters).length, messages: Object.keys(db.messages).length, users: Object.keys(db.users).length };
+  saveDB('operatorEvents'); saveDB('relations'); saveDB('sessions');
+  console.log('🧹 SAFE RESET (events only) — cleared:', cleared, 'preserved:', preserved);
+  res.json({ ok: true, cleared, preserved });
+});
+
+// ── FULL RESET: dangerous, clears everything ──
 app.post('/api/admin/reset-db', (req, res) => {
   const { confirm, keepUsers } = req.body;
-  if (confirm !== 'RESET') return res.status(400).json({ error: 'Send { confirm: "RESET" } to confirm.' });
+  if (confirm !== 'FULL_RESET_DANGEROUS') return res.status(400).json({ error: 'DANGEROUS: Send { confirm: "FULL_RESET_DANGEROUS" } to confirm. Use /api/admin/reset-events for safe reset.' });
   const userCount = Object.keys(db.users).length;
   const relationCount = Object.keys(db.relations).length;
   const eventCount = Object.keys(db.operatorEvents || {}).length;
@@ -3599,7 +3620,7 @@ app.post('/api/admin/reset-db', (req, res) => {
   }
   // Save all collections to Firebase
   DB_COLLECTIONS.forEach(c => saveDB(c));
-  console.log('🗑️ DATABASE RESET — keepUsers:', !!keepUsers, 'cleared:', { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount });
+  console.log('🗑️ FULL DATABASE RESET — keepUsers:', !!keepUsers, 'cleared:', { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount });
   res.json({ ok: true, cleared: { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount } });
 });
 
