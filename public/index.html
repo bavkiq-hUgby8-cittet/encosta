@@ -1745,6 +1745,7 @@ async function showEventView(eventId,eventName){
   // Socket listeners
   if(socket){
     socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' pessoas'}});
+    socket.on('event-attendee-left',d=>{if(d.eventId===evViewEventId){evNodes=evNodes.filter(n=>n.userId!==d.userId);$('evViewCount').textContent=evNodes.length+' pessoas'}});
     socket.on('event-ended',d=>{if(d.eventId===evViewEventId){showToast('Evento encerrado: '+(d.name||''));closeEventView()}});
   }
   if(evViewAnim)cancelAnimationFrame(evViewAnim);
@@ -1832,7 +1833,7 @@ function closeEventView(){
   const savedId=evViewEventId;
   const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evViewCtx=null;
-  if(socket){socket.off('event-attendee-joined');socket.off('event-ended')}
+  if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended')}
   // Persist active event in localStorage for floating button
   if(savedId){
     localStorage.setItem('activeEventId',savedId);
@@ -1885,7 +1886,7 @@ async function leaveEvent(){
   hideFloatingEventBtn();
   if(evViewAnim){cancelAnimationFrame(evViewAnim);evViewAnim=null}
   evViewEventId=null;evNodes.length=0;evViewCtx=null;
-  if(socket){socket.off('event-attendee-joined');socket.off('event-ended')}
+  if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended')}
   showToast('Você saiu do evento');
   goHome();
 }

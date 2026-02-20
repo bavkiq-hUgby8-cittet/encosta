@@ -672,6 +672,17 @@ function initSocket(){
       $('opChatInfo').innerHTML=info;
     }
   });
+  S.socket.on('event-attendee-left',d=>{
+    if(!d||!d.userId)return;
+    S.checkins=S.checkins.filter(c=>c.userId!==d.userId);
+    const items=document.querySelectorAll('.op-checkin-item');
+    items.forEach(it=>{if(it.dataset.userId===d.userId)it.remove()});
+    const idx=nodes.findIndex(n=>n.userId===d.userId);
+    if(idx>=0)nodes.splice(idx,1);
+    $('opCount').textContent=S.checkins.length;
+    $('opListCount').textContent=S.checkins.length;
+    if(S.checkins.length===0){const e=$('opEmpty');if(e)e.style.display=''}
+  });
   S.socket.on('sonic-matched',()=>{
     // Operator STAYS in sonicQueue after connection (server keeps it).
     // Do NOT re-register — that would assign a new freq while oscillator plays old freq.
