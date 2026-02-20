@@ -3865,15 +3865,33 @@ app.post('/api/tip/create', async (req, res) => {
   }
 
   try {
+    const payerUser = db.users[payerId];
+    const payerName = payerUser ? (payerUser.name || payerUser.nickname || 'Pagador') : 'Pagador';
     const paymentData = {
       transaction_amount: tipAmount,
       token,
       description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
       installments: installments || 1,
       payment_method_id: paymentMethodId || 'visa',
+      binary_mode: true,
       payer: {
         email: email,
-        identification: { type: 'CPF', number: cpf }
+        first_name: payerName.split(' ')[0],
+        last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0],
+        identification: cpf ? { type: 'CPF', number: cpf } : undefined
+      },
+      additional_info: {
+        items: [{
+          id: 'tip-' + receiverId,
+          title: 'Gorjeta para ' + (receiver.nickname || receiver.name),
+          category_id: 'services',
+          quantity: 1,
+          unit_price: tipAmount
+        }],
+        payer: {
+          first_name: payerName.split(' ')[0],
+          last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]
+        }
       },
       statement_descriptor: 'TOUCH GORJETA',
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
@@ -4938,14 +4956,34 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
       }
     }
 
+    const payerEmailFinal = payerEmail || user.email || '';
+    const payerCPFFinal = (payerCPF || user.cpf || user.savedCard?.cpf || '').replace(/\D/g, '');
+    const payerName = user.name || user.nickname || 'Visitante';
     const paymentData = {
       transaction_amount: amount,
       token: paymentToken,
       payment_method_id: pmId || paymentMethodId || 'visa',
       installments: 1,
+      binary_mode: true,
       payer: {
-        email: payerEmail || user.email || 'pagamento@encosta.app',
-        identification: { type: 'CPF', number: (payerCPF || user.cpf || user.savedCard?.cpf || '').replace(/\D/g, '') }
+        email: payerEmailFinal,
+        first_name: payerName.split(' ')[0],
+        last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0],
+        identification: payerCPFFinal ? { type: 'CPF', number: payerCPFFinal } : undefined
+      },
+      additional_info: {
+        items: [{
+          id: ev.id,
+          title: 'Ingresso ' + ev.name,
+          description: 'Check-in no evento ' + ev.name,
+          category_id: 'entertainment',
+          quantity: 1,
+          unit_price: amount
+        }],
+        payer: {
+          first_name: payerName.split(' ')[0],
+          last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]
+        }
       },
       description: 'Ingresso Touch? — ' + ev.name,
       statement_descriptor: 'TOUCH INGRESSO',
