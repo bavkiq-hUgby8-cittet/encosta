@@ -4905,25 +4905,15 @@ function showConstDetail(node){
   if(node.hasActiveRelation||lastMs<86400000){
     aHtml+='<button class="cd-action" onclick="openChatFromConst(\''+node.id+'\')" style="opacity:.7;font-size:.65rem">Chat</button>';
   }
+  // Star donate button — always visible, checks availability on click
+  if(!node.isMe){
+    aHtml+='<button class="cd-action" onclick="event.stopPropagation();donateStar(\''+node.id+'\')" style="background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.18);color:#fbbf24">⭐ Doar Estrela</button>';
+  }
   actEl.innerHTML=aHtml;
   // Tip
   const tipWrap=$('cdTipWrap');
   if(node.isPrestador){tipWrap.classList.remove('hidden');$('cdTipBtn').dataset.receiverId=node.id}
   else tipWrap.classList.add('hidden');
-  // Async: check if can donate stars — show subtle link
-  Promise.all([
-    fetch('/api/stars/available/'+state.userId).then(r=>r.json()).catch(()=>({available:0})),
-    fetch('/api/star/shop/'+state.userId).then(r=>r.json()).catch(()=>({spendablePoints:0,giftCost:999}))
-  ]).then(([avail,shop])=>{
-    const canDonate=avail.available>0;
-    const canBuy=shop.spendablePoints>=shop.giftCost;
-    if(canDonate||canBuy){
-      const donateEl=document.createElement('div');
-      donateEl.style.cssText='text-align:center;padding:.2rem 0 .1rem;';
-      donateEl.innerHTML='<span style="font-size:.6rem;color:var(--t3);cursor:pointer;opacity:.6" onclick="event.stopPropagation();'+(canDonate?'donateStar(\''+node.id+'\')':'buyStarForPerson(\''+node.id+'\')')+'">★ doar estrela</span>';
-      actEl.parentElement.insertBefore(donateEl,actEl.nextSibling);
-    }
-  });
   // === Stars orbit around avatar ===
   const orbitEl=$('cdStarsOrbit');
   orbitEl.innerHTML='';
