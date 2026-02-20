@@ -4824,6 +4824,8 @@ app.post('/api/operator/event/:eventId/leave', (req, res) => {
   }
   io.to('event:' + ev.id).emit('event-attendee-left', { userId, eventId: ev.id });
   io.to(`user:${ev.creatorId}`).emit('event-attendee-left', { userId, eventId: ev.id });
+  // Notify the removed user directly so their phone closes the event
+  io.to(`user:${userId}`).emit('event-kicked', { userId, eventId: ev.id });
   saveDB('operatorEvents');
   res.json({ ok: true });
 });

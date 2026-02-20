@@ -1918,6 +1918,14 @@ function initSocket(){
   socket.on('partner-typing',({relationId})=>{
     if(state.currentRelation?.relationId===relationId)showTyping()
   });
+  // Global listener: if user is removed from event while not on event screen
+  socket.on('event-kicked',d=>{
+    if(d.userId===state.userId){
+      hideFloatingEventBtn();
+      if(evViewEventId===d.eventId){closeEventView()}
+      showToast('Você foi removido do evento.');
+    }
+  });
   socket.on('pulse-received',({relationId})=>{
     // Heartbeat vibration: lub-dub, lub-dub, lub-dub
     const heartbeat=[120,60,80,300,120,60,80,300,120,60,80];
@@ -2080,7 +2088,7 @@ async function showEventView(eventId,eventName){
   // Socket listeners
   if(socket){
     socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' pessoas'}});
-    socket.on('event-attendee-left',d=>{if(d.eventId===evViewEventId){evNodes=evNodes.filter(n=>n.userId!==d.userId);$('evViewCount').textContent=evNodes.length+' pessoas'}});
+    socket.on('event-attendee-left',d=>{if(d.eventId===evViewEventId){if(d.userId===state.userId){showToast('Você foi removido do evento.');hideFloatingEventBtn();closeEventView();return}evNodes=evNodes.filter(n=>n.userId!==d.userId);$('evViewCount').textContent=evNodes.length+' pessoas'}});
     socket.on('event-ended',d=>{if(d.eventId===evViewEventId){showToast('Evento encerrado: '+(d.name||''));closeEventView()}});
   }
   if(evViewAnim)cancelAnimationFrame(evViewAnim);
@@ -2547,8 +2555,10 @@ async function handleMainButton(){
     if(!homeSonicActive)return;
     sts.textContent='Conectando ao servidor...';
 
-    // 2. Get frequency from server
-    socket.emit('sonic-start',{userId:state.userId,isServiceTouch:!!serviceMode});
+    // 2. Get frequency from server (detect if operator has active event)
+    const _activeEvId=evViewEventId||localStorage.getItem('activeEventId')||null;
+    const _isCheckin=!!_activeEvId;
+    socket.emit('sonic-start',{userId:state.userId,isServiceTouch:!!serviceMode,isCheckin:_isCheckin,eventId:_activeEvId});
     const freq=await new Promise((resolve,reject)=>{
       const t=setTimeout(()=>reject(new Error('Timeout')),5000);
       socket.once('sonic-assigned',({freq})=>{clearTimeout(t);resolve(freq)});
