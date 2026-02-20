@@ -3947,6 +3947,53 @@ app.post('/api/admin/reset-db', adminLimiter, requireAdmin, async (req, res) => 
   res.json({ ok: true, cleared: { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount } });
 });
 
+// ── RECOVER ENCOUNTERS FROM RELATIONS (one-time fix) ──
+app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req, res) => {
+  await createBackup('auto:before-recover-encounters');
+  let created = 0;
+  for (const [rid, r] of Object.entries(db.relations)) {
+    if (!r.userA || !r.userB) continue;
+    const uA = db.users[r.userA], uB = db.users[r.userB];
+    if (!uA || !uB) continue;
+    const ts = r.createdAt || Date.now();
+    const date = new Date(ts).toISOString().slice(0, 10);
+    const phrase = r.phrase || 'Encontro recuperado';
+    const type = r.isEventCheckin ? 'checkin' : (r.type || 'physical');
+    // Create encounter for userA
+    if (!db.encounters[r.userA]) db.encounters[r.userA] = [];
+    const alreadyA = db.encounters[r.userA].some(e => e.with === r.userB && Math.abs(e.timestamp - ts) < 60000);
+    if (!alreadyA) {
+      db.encounters[r.userA].push({ with: r.userB, withName: uB.nickname || uB.name || '?', withColor: uB.color, phrase, timestamp: ts, date, type, points: 10, scoreType: 'first_encounter', chatDurationH: 24, relationId: rid });
+      created++;
+    }
+    // Create encounter for userB
+    if (!db.encounters[r.userB]) db.encounters[r.userB] = [];
+    const alreadyB = db.encounters[r.userB].some(e => e.with === r.userA && Math.abs(e.timestamp - ts) < 60000);
+    if (!alreadyB) {
+      db.encounters[r.userB].push({ with: r.userA, withName: uA.nickname || uA.name || '?', withColor: uA.color, phrase, timestamp: ts, date, type, points: 10, scoreType: 'first_encounter', chatDurationH: 24, relationId: rid });
+      created++;
+    }
+    // If relation was renewed, add renewal encounters
+    if (r.renewed && r.renewed > 0) {
+      const renewTs = r.expiresAt ? r.expiresAt - 86400000 : ts + 86400000;
+      const renewDate = new Date(renewTs).toISOString().slice(0, 10);
+      const alreadyRA = db.encounters[r.userA].some(e => e.with === r.userB && Math.abs(e.timestamp - renewTs) < 60000);
+      if (!alreadyRA) {
+        db.encounters[r.userA].push({ with: r.userB, withName: uB.nickname || uB.name || '?', withColor: uB.color, phrase: 'Reencontro', timestamp: renewTs, date: renewDate, type, points: 8, scoreType: 're_encounter_diff_day', chatDurationH: 24, relationId: rid });
+        created++;
+      }
+      const alreadyRB = db.encounters[r.userB].some(e => e.with === r.userA && Math.abs(e.timestamp - renewTs) < 60000);
+      if (!alreadyRB) {
+        db.encounters[r.userB].push({ with: r.userA, withName: uA.nickname || uA.name || '?', withColor: uA.color, phrase: 'Reencontro', timestamp: renewTs, date: renewDate, type, points: 8, scoreType: 're_encounter_diff_day', chatDurationH: 24, relationId: rid });
+        created++;
+      }
+    }
+  }
+  saveDB('encounters');
+  console.log(`🔧 Recovered ${created} encounter entries from ${Object.keys(db.relations).length} relations`);
+  res.json({ ok: true, created, encounterUsers: Object.keys(db.encounters).length, totalEncounters: Object.values(db.encounters).reduce((s, a) => s + a.length, 0) });
+});
+
 // ── STATUS / HEALTH ──
 app.get('/api/status', (req, res) => {
   res.json({
