@@ -4140,6 +4140,49 @@ app.get('/api/tips/:userId', (req, res) => {
   res.json(enriched);
 });
 
+// Full transaction history for a user (tips, entries, encounters)
+app.get('/api/user/:userId/transactions', (req, res) => {
+  const userId = req.params.userId;
+  if (!db.users[userId]) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const transactions = [];
+  // 1. Tips/payments
+  Object.values(db.tips).forEach(t => {
+    if (t.payerId !== userId && t.receiverId !== userId) return;
+    const isSender = t.payerId === userId;
+    const otherUser = db.users[isSender ? t.receiverId : t.payerId];
+    transactions.push({
+      id: t.id,
+      type: t.type === 'entry' ? 'entry' : 'tip',
+      direction: isSender ? 'sent' : 'received',
+      amount: t.amount || 0,
+      fee: t.fee || 0,
+      status: t.status || 'unknown',
+      statusDetail: t.statusDetail || '',
+      otherName: otherUser ? (otherUser.nickname || otherUser.name) : (t.eventName || '?'),
+      otherColor: otherUser ? otherUser.color : '#60a5fa',
+      eventName: t.eventName || null,
+      timestamp: t.createdAt || 0
+    });
+  });
+  // 2. Encounters (connections)
+  (db.encounters[userId] || []).forEach(e => {
+    transactions.push({
+      id: 'enc-' + e.timestamp,
+      type: e.type === 'checkin' ? 'checkin' : (e.type === 'service' ? 'service' : 'connection'),
+      direction: null,
+      amount: 0,
+      status: 'ok',
+      otherName: e.withName || '?',
+      otherColor: e.withColor || '#888',
+      phrase: e.phrase || null,
+      eventName: e.isEvent ? e.withName : null,
+      timestamp: e.timestamp || 0
+    });
+  });
+  transactions.sort((a, b) => b.timestamp - a.timestamp);
+  res.json({ transactions: transactions.slice(0, 100) });
+});
+
 // ── Prestador Dashboard API ──
 app.get('/api/prestador/:userId/dashboard', (req, res) => {
   const userId = req.params.userId;
@@ -5004,22 +5047,23 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
 
     console.log('🎫 Entry result:', { id: result.id, status: result.status, detail: result.status_detail });
 
+    // Always save payment record (approved, rejected, pending)
+    const tipId = uuidv4();
+    db.tips[tipId] = {
+      id: tipId, payerId: userId, receiverId: ev.creatorId,
+      amount, fee: touchFee, mpPaymentId: result.id,
+      status: result.status, statusDetail: result.status_detail,
+      type: 'entry', eventId: ev.id, eventName: ev.name,
+      createdAt: Date.now()
+    };
+
     if (result.status === 'approved') {
-      // Track revenue
       ev.revenue = (ev.revenue || 0) + amount;
       ev.paidCheckins = (ev.paidCheckins || 0) + 1;
-      // Record as tip for dashboard tracking
-      const tipId = uuidv4();
-      db.tips[tipId] = {
-        id: tipId, payerId: userId, receiverId: ev.creatorId,
-        amount, fee: touchFee, mpPaymentId: result.id,
-        status: 'approved', statusDetail: result.status_detail,
-        type: 'entry', eventId: ev.id, eventName: ev.name,
-        createdAt: Date.now()
-      };
       saveDB('operatorEvents');
       io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount, eventId: ev.id, nickname: user.nickname || user.name });
     }
+    saveDB('tips');
 
     res.json({ status: result.status, statusDetail: result.status_detail, mpPaymentId: result.id });
   } catch (e) {

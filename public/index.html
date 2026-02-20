@@ -1293,6 +1293,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cd-actions" id="cdActions" onclick="event.stopPropagation()"></div>
     <div class="cd-section hidden" id="cdTipWrap"><button class="cd-tip-btn" id="cdTipBtn" onclick="event.stopPropagation();constTipAction()">Dar gorjeta</button></div>
     <div class="cd-divider"></div>
+    <div class="cd-section hidden" id="cdTransactions" style="max-height:220px;overflow-y:auto"></div>
+    <div class="cd-divider"></div>
     <div class="cd-section" id="cdDeclarations" style="max-height:160px;overflow-y:auto"></div>
     <div class="cd-section hidden" id="cdDeclareWrap" onclick="event.stopPropagation()">
       <div style="display:flex;gap:.4rem;align-items:center">
@@ -4823,6 +4825,8 @@ function showConstDetail(node){
     declWrap.classList.remove('hidden');
     $('cdDeclareInput').value='';
   }
+  // Load transactions history
+  loadTransactions(node.id, node.isMe);
   // Load declarations
   loadDeclarations(node.id);
   // Load gifts count async
@@ -4832,6 +4836,74 @@ function showConstDetail(node){
   }).catch(()=>{});
   $('constDetail').classList.add('visible');
   haptic([15]);
+}
+async function loadTransactions(nodeId, isMe){
+  const txEl=$('cdTransactions');
+  if(!txEl)return;
+  txEl.classList.remove('hidden');
+  txEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);padding:.2rem 0">Carregando histórico...</div>';
+  try{
+    const d=await(await fetch('/api/user/'+state.userId+'/transactions')).json();
+    let txList=d.transactions||[];
+    // If viewing another user, filter to only transactions involving them
+    if(!isMe&&nodeId){
+      txList=txList.filter(tx=>tx.otherName&&tx.otherName!=='?'||tx.type==='connection'||tx.type==='checkin');
+      // More precise: filter by nodeId in otherName comparison or encounter
+      // Actually use the node data we have
+      const nodeName=constState.selectedNode?.nickname||'';
+      if(nodeName)txList=txList.filter(tx=>(tx.otherName||'').toLowerCase()===nodeName.toLowerCase()||(tx.eventName||'').toLowerCase()===nodeName.toLowerCase());
+    }
+    if(!txList.length){
+      txEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);text-align:center;padding:.4rem 0;opacity:.5">Nenhuma atividade'+(isMe?'':' com essa pessoa')+'</div>';
+      return;
+    }
+    let html='<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.4rem">'+(isMe?'Histórico':'Histórico com '+(constState.selectedNode?.nickname||''))+'</div>';
+    d.transactions.slice(0,30).forEach(tx=>{
+      const dt=new Date(tx.timestamp);
+      const time=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      let icon='',label='',detail='',statusColor='';
+      if(tx.type==='tip'){
+        icon=tx.direction==='sent'?'💸':'💰';
+        label=tx.direction==='sent'?'Gorjeta para '+esc(tx.otherName):'Gorjeta de '+esc(tx.otherName);
+        detail='R$ '+tx.amount.toFixed(2).replace('.',',');
+      }else if(tx.type==='entry'){
+        icon='🎫';
+        label='Ingresso'+(tx.eventName?' — '+esc(tx.eventName):'');
+        detail='R$ '+tx.amount.toFixed(2).replace('.',',');
+      }else if(tx.type==='checkin'){
+        icon='📍';
+        label='Check-in'+(tx.eventName?' — '+esc(tx.eventName):'');
+        detail=tx.phrase?'"'+esc(tx.phrase)+'"':'';
+      }else if(tx.type==='connection'){
+        icon='🤝';
+        label='Conexão com '+esc(tx.otherName);
+        detail=tx.phrase?'"'+esc(tx.phrase)+'"':'';
+      }else if(tx.type==='service'){
+        icon='💼';
+        label='Serviço — '+esc(tx.otherName);
+        detail=tx.phrase?'"'+esc(tx.phrase)+'"':'';
+      }
+      if(tx.status==='approved')statusColor='#34d399';
+      else if(tx.status==='rejected'||tx.status==='cancelled')statusColor='#f87171';
+      else if(tx.status==='pending')statusColor='#fbbf24';
+      else statusColor='#94a3b8';
+      const statusLabel=tx.status==='approved'?'aprovado':tx.status==='rejected'?'recusado':tx.status==='pending'?'pendente':(tx.status==='ok'?'':''+tx.status);
+      html+='<div style="display:flex;align-items:flex-start;gap:.5rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+        +'<span style="font-size:.85rem;flex-shrink:0;margin-top:1px">'+icon+'</span>'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:.65rem;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>'
+          +'<div style="display:flex;align-items:center;gap:.4rem;margin-top:2px">'
+            +'<span style="font-size:.58rem;color:var(--t3)">'+time+'</span>'
+            +(statusLabel?'<span style="font-size:.52rem;font-weight:600;color:'+statusColor+';background:'+statusColor+'18;padding:1px 5px;border-radius:6px">'+statusLabel+'</span>':'')
+          +'</div>'
+        +'</div>'
+        +(detail?'<div style="font-size:.63rem;color:var(--t2);font-weight:600;flex-shrink:0;text-align:right">'+detail+'</div>':'')
+      +'</div>';
+    });
+    txEl.innerHTML=html;
+  }catch(e){
+    txEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);opacity:.5">Erro ao carregar</div>';
+  }
 }
 async function loadDeclarations(targetId){
   const declEl=$('cdDeclarations');
