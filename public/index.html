@@ -2847,17 +2847,24 @@ async function handleMainButton(){
     sts.textContent='Encoste os alto-falantes 🔊';
     setTimeout(()=>{if(homeSonicActive){fb.classList.add('active');sts.textContent='Encoste os alto-falantes ou use código'}},10000);
 
-    let confirmHits=0,lastSnapped=0;
+    let confirmHits=0,lastSnapped=0,_dbgFrames=0;
     function detect(){
       if(!sonicActive)return;
       sonicAnalyser.getByteFrequencyData(dataArr);
       const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
       let peakVal=0,peakBin=0;
       for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}}
+      // Show debug info every ~30 frames (~0.5s)
+      _dbgFrames++;
+      if(_dbgFrames%30===0&&sts){
+        const peakHz=Math.round(peakBin*freqPerBin);
+        sts.textContent='Ouvindo... sinal: '+peakVal+' freq: '+peakHz+'Hz'+(confirmHits>0?' ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')':'');
+      }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
         if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
+          if(sts)sts.textContent='Detectando! '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             haptic([100,30,100]);
             txt.textContent='CONECTOU!';sts.textContent='Encontramos alguém!';
@@ -2927,7 +2934,7 @@ function generateQR(code){
 // ═══ SONIC — ultrasonic phone-to-phone ═══
 let sonicActive=false,sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null,sonicMyFreq=0;
 const SONIC_FFT_SIZE=8192;
-const SONIC_DETECT_THRESHOLD=80; // lowered: phone mics pick up 18kHz weakly
+const SONIC_DETECT_THRESHOLD=50; // lowered further: phone speakers/mics are very weak at 18kHz+
 const SONIC_CONFIRM_COUNT=3; // need 3 consecutive detections to confirm (anti false-positive)
 
 // Request mic permission and return stream (reusable)
@@ -2991,7 +2998,7 @@ async function initSonic(label,status,circle){
     if(label)label.textContent='TOUCH!';
     if(status)status.textContent='Aproxime os celulares...';
 
-    let confirmHits=0,lastSnapped=0;
+    let confirmHits=0,lastSnapped=0,_dbgF2=0;
 
     function detect(){
       if(!sonicActive)return;
@@ -3002,12 +3009,18 @@ async function initSonic(label,status,circle){
       for(let i=minBin;i<=maxBin&&i<bufLen;i++){
         if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}
       }
+      _dbgF2++;
+      if(_dbgF2%30===0&&status){
+        const peakHz=Math.round(peakBin*freqPerBin);
+        status.textContent='Ouvindo... sinal: '+peakVal+' freq: '+peakHz+'Hz'+(confirmHits>0?' ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')':'');
+      }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const detectedFreq=Math.round(peakBin*freqPerBin);
         const snapped=Math.round(detectedFreq/100)*100;
         // Ignore own frequency and out-of-range
         if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped){confirmHits++}else{confirmHits=1;lastSnapped=snapped}
+          if(status)status.textContent='Detectando! '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             // Confirmed detection!
             haptic([100,30,100]);
