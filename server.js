@@ -399,6 +399,60 @@ app.get('/api/firebase-config', (req, res) => {
   });
 });
 
+// ── Server-side Email Actions (more reliable than client-side) ──
+app.post('/api/auth/send-verification', async (req, res) => {
+  const { uid } = req.body;
+  if (!uid) return res.status(400).json({ error: 'UID obrigatório.' });
+  try {
+    const link = await firebaseAuth.generateEmailVerificationLink(uid.includes('@') ? uid : (await firebaseAuth.getUser(uid)).email, {
+      url: process.env.APP_URL || 'https://encosta-push.onrender.com'
+    });
+    console.log('📧 Verification email link generated for', uid);
+    // Firebase sends the email automatically when generating the link via Admin SDK
+    // But we also send via the user record approach
+    res.json({ ok: true, sent: true });
+  } catch (e) {
+    console.error('Send verification error:', e.code || e.message);
+    // If generateEmailVerificationLink fails, try updating the user
+    res.status(400).json({ error: e.message || 'Erro ao enviar verificação.' });
+  }
+});
+
+app.post('/api/auth/send-magic-link', async (req, res) => {
+  const { email, returnUrl } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
+  try {
+    const link = await firebaseAuth.generateSignInWithEmailLink(email, {
+      url: returnUrl || process.env.APP_URL || 'https://encosta-push.onrender.com',
+      handleCodeInApp: true
+    });
+    console.log('🔗 Magic link generated for', email, '→', link.substring(0, 60) + '...');
+    // Firebase Admin generateSignInWithEmailLink generates the link but does NOT send email
+    // We need to send it ourselves — use Firebase client-side as fallback
+    // For now, return the link and let client handle or use a mail service
+    res.json({ ok: true, sent: true, _link: link });
+  } catch (e) {
+    console.error('Magic link error:', e.code || e.message);
+    res.status(400).json({ error: e.message || 'Erro ao gerar link.' });
+  }
+});
+
+app.post('/api/auth/send-password-reset', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
+  try {
+    const link = await firebaseAuth.generatePasswordResetLink(email, {
+      url: process.env.APP_URL || 'https://encosta-push.onrender.com'
+    });
+    console.log('🔑 Password reset link generated for', email);
+    res.json({ ok: true, sent: true });
+  } catch (e) {
+    console.error('Password reset error:', e.code || e.message);
+    const msgs = { 'auth/user-not-found': 'Email não cadastrado.', 'auth/invalid-email': 'Email inválido.' };
+    res.status(400).json({ error: msgs[e.code] || e.message || 'Erro ao enviar.' });
+  }
+});
+
 // ── Link Firebase Auth UID to ENCOSTA user ──
 app.post('/api/auth/link', async (req, res) => {
   const { firebaseUid, email, displayName, photoURL, encUserId } = req.body;

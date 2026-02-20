@@ -72,8 +72,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .login-google img{width:20px;height:20px}
 .login-divider{display:flex;align-items:center;gap:1rem;width:100%;max-width:340px;color:var(--t3);font-size:.75rem}
 .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--b1)}
-.login-toggle{font-size:.82rem;color:var(--ac);cursor:pointer;text-align:center;margin-top:.5rem}
-.login-links{display:flex;gap:.4rem;justify-content:center;margin-top:.6rem;align-items:center}
+.auth-tabs{display:flex;width:100%;max-width:340px;background:rgba(255,255,255,.04);border-radius:12px;padding:3px;margin-bottom:1rem;gap:3px}
+.auth-tab{flex:1;padding:.55rem;border:none;border-radius:10px;background:transparent;color:var(--t3);font-size:.8rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s}
+.auth-tab.active{background:var(--ac);color:#fff}
 .login-err{font-size:.78rem;color:var(--err);text-align:center;min-height:1.1rem}
 .login-nick-explain{font-size:.7rem;color:var(--t3);text-align:center;line-height:1.5;padding:0 .5rem;font-style:italic}
 .reg-nick-info{font-size:.7rem;color:var(--ac2);background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.12);border-radius:10px;padding:.6rem .8rem;margin:-.5rem 0 1.2rem;line-height:1.5;text-align:center}
@@ -976,34 +977,53 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="login" class="screen">
   <div class="login-logo">Touch?</div>
   <div class="login-sub">encontros reais, conexões efêmeras</div>
-  <button class="login-google" onclick="loginWithGoogle()">
-    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
-    Entrar com Google
-  </button>
-  <div class="login-divider">ou</div>
+
+  <!-- TAB SELECTOR -->
+  <div class="auth-tabs" id="authTabs">
+    <button class="auth-tab active" id="tabEntrar" onclick="switchAuthTab('login')">Entrar</button>
+    <button class="auth-tab" id="tabCriar" onclick="switchAuthTab('register')">Criar conta</button>
+  </div>
+
+  <!-- LOGIN FORM -->
   <div class="login-form" id="loginForm">
     <input type="email" class="login-input" id="loginEmail" placeholder="E-mail" autocomplete="email">
     <input type="password" class="login-input" id="loginPass" placeholder="Senha" autocomplete="current-password">
-    <input type="text" class="login-input hidden" id="loginNick" placeholder="Nickname (será seu nome anônimo)" maxlength="20" autocomplete="off">
-    <div class="login-nick-explain hidden" id="loginNickExplain">Seu nickname é como as pessoas te veem antes de você revelar quem é de verdade.</div>
-    <div class="tc hidden" id="loginTermsUso" style="margin:.5rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
     <button class="bp" id="loginBtn" onclick="loginWithEmail()">ENTRAR</button>
     <div class="login-err" id="loginErr"></div>
-    <div class="login-toggle" id="loginToggle" onclick="toggleLoginMode()">Não tem conta? <strong>Criar agora — é rápido</strong></div>
-    <div class="login-links">
-      <span onclick="showMagicLogin()" style="color:var(--ac);cursor:pointer;font-size:.72rem">Entrar sem senha</span>
-      <span style="color:var(--t3);font-size:.72rem">·</span>
-      <span onclick="forgotPassword()" style="color:var(--t3);cursor:pointer;font-size:.72rem">Esqueci a senha</span>
-    </div>
+    <div onclick="forgotPassword()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.2rem">Esqueci minha senha</div>
   </div>
-  <!-- Magic link login -->
-  <div id="magicLoginWrap" class="hidden" style="padding:.8rem;text-align:center">
-    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.6rem">Digite seu email e enviaremos um link de acesso:</div>
+
+  <!-- REGISTER FORM -->
+  <div class="login-form hidden" id="registerForm">
+    <input type="text" class="login-input" id="loginNick" placeholder="Nickname (seu nome anônimo)" maxlength="20" autocomplete="off">
+    <div class="login-nick-explain" id="loginNickExplain">Como as pessoas te veem antes de você revelar quem é.</div>
+    <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email">
+    <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password">
+    <div class="tc" id="loginTermsUso" style="margin:.2rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
+    <button class="bp" id="regBtn" onclick="registerWithEmail()">CRIAR CONTA</button>
+    <div class="login-err" id="regErr"></div>
+  </div>
+
+  <!-- MAGIC LINK -->
+  <div class="login-form hidden" id="magicLoginWrap">
+    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.3rem;text-align:center">Receba um link de acesso no seu email:</div>
     <input type="email" class="login-input" id="magicEmail" placeholder="seu@email.com" autocomplete="email">
-    <button class="bp" style="margin-top:.5rem;width:100%" onclick="sendMagicLink()">Enviar link</button>
+    <button class="bp" onclick="sendMagicLink()">Enviar link de acesso</button>
     <div class="login-err" id="magicErr"></div>
-    <div onclick="hideMagicLogin()" style="color:var(--t3);cursor:pointer;font-size:.68rem;margin-top:.5rem">← Voltar ao login normal</div>
+    <div onclick="hideMagicLogin()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.2rem">← Voltar</div>
   </div>
+
+  <!-- DIVIDER -->
+  <div class="login-divider" id="authDivider">ou</div>
+
+  <!-- SOCIAL LOGINS -->
+  <button class="login-google" onclick="loginWithGoogle()">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+    Continuar com Google
+  </button>
+
+  <!-- MAGIC LINK SHORTCUT -->
+  <div id="authMagicLink" onclick="showMagicLogin()" style="color:var(--ac);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.6rem">🔗 Entrar sem senha (link por email)</div>
 </div>
 
 <div id="register" class="screen">
@@ -1829,43 +1849,60 @@ async function loginWithGoogle(){
   }
 }
 
+function switchAuthTab(tab){
+  $('tabEntrar').classList.toggle('active',tab==='login');
+  $('tabCriar').classList.toggle('active',tab==='register');
+  $('loginForm').classList.toggle('hidden',tab!=='login');
+  $('registerForm').classList.toggle('hidden',tab!=='register');
+  $('magicLoginWrap').classList.add('hidden');
+  $('authTabs').style.display='';
+  $('authDivider').style.display='';
+  $('authMagicLink').style.display='';
+  document.querySelector('.login-google').style.display='';
+  loginIsRegister=tab==='register';
+}
+
 async function loginWithEmail(){
   const email=$('loginEmail').value.trim();
   const pass=$('loginPass').value;
-  $('loginErr').textContent='';
+  $('loginErr').textContent='';$('loginErr').style.color='var(--err)';
   if(!email||!pass)return $('loginErr').textContent='Preencha e-mail e senha.';
   try{
-    if(loginIsRegister){
-      const nick=$('loginNick')?$('loginNick').value.trim():'';
-      if(!nick||nick.length<2)return $('loginErr').textContent='Escolha um nickname (mín. 2 caracteres).';
-      if(pass.length<6)return $('loginErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
-      if(!$('loginTermsCheck').checked)return $('loginErr').textContent='Aceite os Termos de Uso para continuar.';
-      window._pendingNickname=nick;
-      const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
-      // Send verification email
-      if(cred.user&&!cred.user.emailVerified){
-        try{await cred.user.sendEmailVerification()}catch(ve){}
-      }
-    }else{
-      await firebaseAuthInstance.signInWithEmailAndPassword(email,pass);
-    }
-    // onAuthStateChanged will handle the rest
+    await firebaseAuthInstance.signInWithEmailAndPassword(email,pass);
   }catch(e){
     const msgs={'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/invalid-email':'E-mail inválido.','auth/user-not-found':'Usuário não encontrado.','auth/wrong-password':'Senha incorreta.','auth/invalid-credential':'E-mail ou senha incorretos.','auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).'};
     $('loginErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
   }
 }
 
-function toggleLoginMode(){
-  loginIsRegister=!loginIsRegister;
-  $('loginBtn').textContent=loginIsRegister?'CRIAR CONTA':'ENTRAR';
-  $('loginToggle').innerHTML=loginIsRegister?'Já tem conta? <strong>Entrar</strong>':'Não tem conta? <strong>Criar agora — é rápido</strong>';
-  $('loginErr').textContent='';
-  $('loginNick').classList.toggle('hidden',!loginIsRegister);
-  $('loginNickExplain').classList.toggle('hidden',!loginIsRegister);
-  $('loginTermsUso').classList.toggle('hidden',!loginIsRegister);
-  if(loginIsRegister)$('loginPass').placeholder='Crie uma senha (mín. 6 caracteres)';
-  else $('loginPass').placeholder='Senha';
+async function registerWithEmail(){
+  const nick=$('loginNick').value.trim();
+  const email=$('regEmail').value.trim();
+  const pass=$('regPass').value;
+  $('regErr').textContent='';$('regErr').style.color='var(--err)';
+  if(!nick||nick.length<2)return $('regErr').textContent='Escolha um nickname (mín. 2 caracteres).';
+  if(!email)return $('regErr').textContent='Preencha seu e-mail.';
+  if(pass.length<6)return $('regErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
+  if(!$('loginTermsCheck').checked)return $('regErr').textContent='Aceite os Termos de Uso para continuar.';
+  window._pendingNickname=nick;
+  try{
+    const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
+    // Send verification email via server (more reliable)
+    if(cred.user){
+      try{
+        await fetch('/api/auth/send-verification',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({uid:cred.user.uid})
+        });
+      }catch(ve){
+        // Fallback to client-side
+        try{await cred.user.sendEmailVerification()}catch(ve2){}
+      }
+    }
+  }catch(e){
+    const msgs={'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).'};
+    $('regErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+  }
 }
 
 // ═══ EMAIL VERIFICATION ═══
@@ -1879,52 +1916,95 @@ async function resendEmailVerification(){
     return;
   }
   try{
-    await fbUser.sendEmailVerification();
-    showToast('Email de verificação enviado!');
+    // Try server-side first (more reliable delivery)
+    const resp=await fetch('/api/auth/send-verification',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid:fbUser.uid})
+    });
+    const d=await resp.json();
+    if(d.error)throw new Error(d.error);
+    showToast('✉ Email de verificação enviado!');
   }catch(e){
-    if(e.code==='auth/too-many-requests')showToast('Aguarde antes de reenviar.');
-    else showToast('Erro: '+(e.message||'tente novamente'));
+    // Fallback to client-side
+    try{
+      await fbUser.sendEmailVerification();
+      showToast('✉ Email de verificação enviado!');
+    }catch(e2){
+      if(e2.code==='auth/too-many-requests')showToast('Aguarde antes de reenviar.');
+      else showToast('Erro: '+(e2.message||e.message||'tente novamente'));
+    }
   }
 }
 
 // ═══ MAGIC LINK LOGIN ═══
 function showMagicLogin(){
   $('loginForm').classList.add('hidden');
+  $('registerForm').classList.add('hidden');
   $('magicLoginWrap').classList.remove('hidden');
+  $('authTabs').style.display='none';
+  $('authDivider').style.display='none';
+  $('authMagicLink').style.display='none';
+  document.querySelector('.login-google').style.display='none';
   $('magicEmail').value=$('loginEmail').value||'';
   $('magicErr').textContent='';
 }
 function hideMagicLogin(){
-  $('loginForm').classList.remove('hidden');
-  $('magicLoginWrap').classList.add('hidden');
+  switchAuthTab(loginIsRegister?'register':'login');
 }
 async function sendMagicLink(){
   const email=$('magicEmail').value.trim();
-  $('magicErr').textContent='';
+  $('magicErr').textContent='';$('magicErr').style.color='#f87171';
   if(!email)return $('magicErr').textContent='Digite seu email.';
   try{
-    const actionCodeSettings={url:window.location.origin+'/?finishLogin=1',handleCodeInApp:true};
-    await firebaseAuthInstance.sendSignInLinkToEmail(email,actionCodeSettings);
+    // Try server-side first (more reliable, bypasses Firebase Console config issues)
+    const resp=await fetch('/api/auth/send-magic-link',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,returnUrl:window.location.origin+'/?finishLogin=1'})
+    });
+    const d=await resp.json();
+    if(d.error)throw new Error(d.error);
     localStorage.setItem('touch_magicEmail',email);
     $('magicErr').style.color='var(--ok)';
-    $('magicErr').textContent='Link enviado! Verifique seu email.';
+    $('magicErr').textContent='✉ Link enviado! Verifique seu email (inclusive spam).';
   }catch(e){
-    $('magicErr').style.color='#f87171';
-    const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não encontrado.'};
-    $('magicErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+    // Fallback to client-side Firebase
+    try{
+      const actionCodeSettings={url:window.location.origin+'/?finishLogin=1',handleCodeInApp:true};
+      await firebaseAuthInstance.sendSignInLinkToEmail(email,actionCodeSettings);
+      localStorage.setItem('touch_magicEmail',email);
+      $('magicErr').style.color='var(--ok)';
+      $('magicErr').textContent='✉ Link enviado! Verifique seu email (inclusive spam).';
+    }catch(e2){
+      const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não cadastrado.','auth/operation-not-allowed':'Login sem senha não está habilitado. Use email e senha.'};
+      $('magicErr').textContent=msgs[e2.code]||('Erro: '+(e2.message||e.message||'tente novamente'));
+    }
   }
 }
 async function forgotPassword(){
   const email=$('loginEmail').value.trim();
+  $('loginErr').style.color='var(--err)';
   if(!email)return $('loginErr').textContent='Preencha o email acima primeiro.';
   try{
-    await firebaseAuthInstance.sendPasswordResetEmail(email);
+    // Try server-side first
+    const resp=await fetch('/api/auth/send-password-reset',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+    const d=await resp.json();
+    if(d.error)throw new Error(d.error);
     $('loginErr').style.color='var(--ok)';
-    $('loginErr').textContent='Email de recuperação enviado!';
+    $('loginErr').textContent='✉ Email de recuperação enviado! Verifique sua caixa.';
   }catch(e){
-    $('loginErr').style.color='#f87171';
-    const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não cadastrado.'};
-    $('loginErr').textContent=msgs[e.code]||('Erro: '+(e.message||''));
+    // Fallback to client-side
+    try{
+      await firebaseAuthInstance.sendPasswordResetEmail(email);
+      $('loginErr').style.color='var(--ok)';
+      $('loginErr').textContent='✉ Email de recuperação enviado!';
+    }catch(e2){
+      $('loginErr').style.color='#f87171';
+      const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não cadastrado.'};
+      $('loginErr').textContent=msgs[e2.code]||('Erro: '+(e2.message||e.message||''));
+    }
   }
 }
 // Check if returning from magic link
