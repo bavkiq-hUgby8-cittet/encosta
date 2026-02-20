@@ -84,26 +84,38 @@ function calculateTopTag(order, totalUsers) {
   return null;
 }
 
+// Helper: promise with timeout
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout (${ms}ms): ${label}`)), ms))
+  ]);
+}
+
 async function loadDB() {
+  console.log('🔄 loadDB() iniciando... RTDB URL:', FIREBASE_DB_URL);
   try {
-    // Load from Firebase Realtime Database
-    const snapshot = await rtdb.ref('/').once('value');
+    // Load from Firebase Realtime Database (with 15s timeout)
+    console.log('📡 Tentando conectar ao RTDB...');
+    const snapshot = await withTimeout(rtdb.ref('/').once('value'), 15000, 'RTDB read');
     const data = snapshot.val();
     if (data) {
       DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
-      console.log('✅ DB carregado do Firebase Realtime Database');
+      const userCount = Object.keys(db.users).length;
+      console.log(`✅ DB carregado do Firebase Realtime Database (${userCount} users)`);
     } else {
+      console.log('ℹ️ RTDB vazio, tentando migração...');
       // Try Firestore migration (one-time)
       try {
         const firestore = admin.firestore();
-        const fsDoc = await firestore.collection('app').doc('state').get();
+        const fsDoc = await withTimeout(firestore.collection('app').doc('state').get(), 10000, 'Firestore read');
         if (fsDoc.exists) {
           const fsData = fsDoc.data();
           DB_COLLECTIONS.forEach(c => { db[c] = fsData[c] || {}; });
           // Migrate to RTDB
           const updates = {};
           DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
-          await rtdb.ref('/').update(updates);
+          await withTimeout(rtdb.ref('/').update(updates), 15000, 'RTDB migration write');
           console.log('✅ DB migrado do Firestore → Realtime Database');
         }
       } catch (migErr) {
@@ -115,27 +127,37 @@ async function loadDB() {
         if (fs.existsSync(DB_FILE)) {
           const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
           DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
-          // Migrate to RTDB
-          const updates = {};
-          DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
-          await rtdb.ref('/').update(updates);
-          console.log('✅ DB migrado de db.json → Realtime Database');
+          // Migrate to RTDB (best effort)
+          try {
+            const updates = {};
+            DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
+            await withTimeout(rtdb.ref('/').update(updates), 10000, 'RTDB db.json migration');
+            console.log('✅ DB migrado de db.json → Realtime Database');
+          } catch (migErr2) {
+            console.warn('⚠️ db.json carregado mas não migrou para RTDB:', migErr2.message);
+          }
         } else {
-          console.log('📦 DB novo criado');
+          console.log('📦 DB novo criado (vazio)');
         }
       }
     }
     dbLoaded = true;
     initRegistrationCounter();
   } catch (e) {
-    console.error('Erro ao carregar DB:', e.message);
+    console.error('❌ Erro ao carregar DB:', e.message);
+    console.log('🔄 Usando fallback local...');
     const DB_FILE = path.join(__dirname, 'db.json');
     try {
       if (fs.existsSync(DB_FILE)) {
         const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
         DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
+        console.log('✅ DB carregado de db.json (fallback)');
+      } else {
+        console.log('📦 DB novo criado (sem RTDB, sem db.json)');
       }
-    } catch (e2) { /* start fresh */ }
+    } catch (e2) {
+      console.error('❌ Fallback db.json também falhou:', e2.message);
+    }
     dbLoaded = true;
     initRegistrationCounter();
   }
@@ -319,7 +341,7 @@ async function flushToRTDB() {
   try {
     const updates = {};
     cols.forEach(c => { updates[c] = db[c] || {}; });
-    await rtdb.ref('/').update(updates);
+    await withTimeout(rtdb.ref('/').update(updates), 15000, 'RTDB flush');
   } catch (e) {
     console.error('❌ RTDB save error:', e.message);
     // Re-add failed collections for retry
@@ -4799,9 +4821,16 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-// Async startup: load DB from Firestore before accepting connections
+// Async startup: load DB then start server (always starts even if DB fails)
 (async () => {
-  await loadDB();
+  console.log(`🚀 Iniciando servidor... (PORT=${PORT})`);
+  try {
+    await loadDB();
+  } catch (e) {
+    console.error('❌ loadDB falhou completamente:', e.message);
+    dbLoaded = true; // start with empty DB
+  }
+  console.log('✅ loadDB concluído, abrindo porta...');
   server.listen(PORT, '0.0.0.0', () => {
     const nets = require('os').networkInterfaces();
     let localIP = 'localhost';
