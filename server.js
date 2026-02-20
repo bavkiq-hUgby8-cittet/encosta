@@ -134,14 +134,18 @@ const IDX = {
   touchCode: new Map(),     // touchCode → userId
   nickname: new Map(),      // nickname.toLowerCase() → userId
   relationPair: new Map(),  // "a_b" (sorted) → relationId
+  relationsByUser: new Map(), // userId → Set of relationIds
   donationsByFrom: new Map(), // fromUserId → [donationIds]
   donationsByPair: new Map(), // "from_to" → count
   uniqueConns: new Map(),   // userId → count (cache)
+  operatorByCreator: new Map(), // creatorId → [eventIds]
 };
 
 function rebuildIndexes() {
   IDX.firebaseUid.clear(); IDX.touchCode.clear(); IDX.nickname.clear();
-  IDX.relationPair.clear(); IDX.donationsByFrom.clear(); IDX.donationsByPair.clear();
+  IDX.relationPair.clear(); IDX.relationsByUser.clear();
+  IDX.donationsByFrom.clear(); IDX.donationsByPair.clear();
+  IDX.operatorByCreator.clear();
   for (const [uid, u] of Object.entries(db.users)) {
     if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, uid);
     if (u.touchCode) IDX.touchCode.set(u.touchCode, uid);
@@ -151,6 +155,10 @@ function rebuildIndexes() {
     if (r.userA && r.userB) {
       const key = [r.userA, r.userB].sort().join('_');
       IDX.relationPair.set(key, rid);
+      if (!IDX.relationsByUser.has(r.userA)) IDX.relationsByUser.set(r.userA, new Set());
+      if (!IDX.relationsByUser.has(r.userB)) IDX.relationsByUser.set(r.userB, new Set());
+      IDX.relationsByUser.get(r.userA).add(rid);
+      IDX.relationsByUser.get(r.userB).add(rid);
     }
   }
   for (const [did, d] of Object.entries(db.starDonations || {})) {
@@ -159,7 +167,13 @@ function rebuildIndexes() {
     const pk = d.fromUserId + '_' + d.toUserId;
     IDX.donationsByPair.set(pk, (IDX.donationsByPair.get(pk) || 0) + 1);
   }
-  console.log(`🗂️ Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations`);
+  for (const [eid, ev] of Object.entries(db.operatorEvents || {})) {
+    if (ev.creatorId) {
+      if (!IDX.operatorByCreator.has(ev.creatorId)) IDX.operatorByCreator.set(ev.creatorId, []);
+      IDX.operatorByCreator.get(ev.creatorId).push(eid);
+    }
+  }
+  console.log(`🗂️ Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations, ${IDX.relationsByUser.size} userRels`);
 }
 
 // Helper: find active relation between two users in O(1)
@@ -178,6 +192,29 @@ function isNickTaken(nick) { return IDX.nickname.has(nick.toLowerCase()); }
 function idxAddRelation(relationId, userA, userB) {
   const key = [userA, userB].sort().join('_');
   IDX.relationPair.set(key, relationId);
+  if (!IDX.relationsByUser.has(userA)) IDX.relationsByUser.set(userA, new Set());
+  if (!IDX.relationsByUser.has(userB)) IDX.relationsByUser.set(userB, new Set());
+  IDX.relationsByUser.get(userA).add(relationId);
+  IDX.relationsByUser.get(userB).add(relationId);
+}
+function getActiveRelationsForUser(userId) {
+  const rids = IDX.relationsByUser.get(userId);
+  if (!rids) return [];
+  const now = Date.now();
+  const active = [];
+  for (const rid of rids) {
+    const r = db.relations[rid];
+    if (r && r.expiresAt > now) active.push(r);
+  }
+  return active;
+}
+function isOperatorWithTipsCheck(receiverId) {
+  const evIds = IDX.operatorByCreator.get(receiverId);
+  if (!evIds) return false;
+  return evIds.some(eid => {
+    const ev = db.operatorEvents[eid];
+    return ev && ev.acceptsTips;
+  });
 }
 
 // Helper: register new user in indexes
@@ -969,13 +1006,14 @@ app.post('/api/touch-link/connect', (req, res) => {
   const nick = visitorNickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname: 2 a 20 caracteres.' });
   // Check if visitor already exists
-  let visitor = Object.values(db.users).find(u => u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
+  const existingVisitorId = IDX.nickname.get(nick.toLowerCase());
+  let visitor = existingVisitorId ? db.users[existingVisitorId] : null;
   if (!visitor) {
-    // Create temporary visitor account
     const id = uuidv4();
     const color = nickColor(nick);
     visitor = { id, nickname: nick, name: nick, birthdate: null, avatar: null, color, createdAt: Date.now(), points: 0, pointLog: [], stars: [], isGuest: true };
     db.users[id] = visitor;
+    idxAddUser(visitor);
   }
   if (visitor.id === owner.id) return res.status(400).json({ error: 'Não pode dar touch em si mesmo.' });
   // Create relation
@@ -1110,8 +1148,10 @@ app.post('/api/register', (req, res) => {
   if (userId && db.users[userId]) {
     const existing = db.users[userId];
     // Check nick uniqueness (exclude self)
-    const taken = Object.values(db.users).some(u => u.id !== userId && u.nickname && u.nickname.toLowerCase() === nick.toLowerCase());
-    if (taken) return res.status(400).json({ error: 'Esse nickname já existe.' });
+    const existingNickId = IDX.nickname.get(nick.toLowerCase());
+    if (existingNickId && existingNickId !== userId) return res.status(400).json({ error: 'Esse nickname já existe.' });
+    if (existing.nickname) IDX.nickname.delete(existing.nickname.toLowerCase());
+    IDX.nickname.set(nick.toLowerCase(), userId);
     existing.nickname = nick;
     existing.name = existing.name || nick;
     existing.birthdate = birthdate;
@@ -1278,7 +1318,7 @@ app.post('/api/session/join', (req, res) => {
 
 app.get('/api/relations/:userId', (req, res) => {
   const userId = req.params.userId, now = Date.now();
-  const active = Object.values(db.relations).filter(r => (r.userA === userId || r.userB === userId) && r.expiresAt > now);
+  const active = getActiveRelationsForUser(userId);
   const results = active.map(r => {
     const pid = r.userA === userId ? r.userB : r.userA;
     // Check if partner is an event (evt:xxx)
@@ -1355,7 +1395,7 @@ app.get('/api/today/:userId', (req, res) => {
 // Constellation — visual network of encounters (no scores exposed)
 app.get('/api/constellation/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
-  if (!list.length) return res.json({ nodes: [], total: 0 });
+  if (!list.length) return res.json({ nodes: [], links: [], total: 0 });
   // Group by person (skip event encounters — they become event nodes)
   const byPerson = {};
   list.forEach(e => {
@@ -1369,9 +1409,8 @@ app.get('/api/constellation/:userId', (req, res) => {
   });
   // Enrich with selfies from all relations and real identity if revealed
   Object.values(byPerson).forEach(p => {
-    const rels = Object.values(db.relations).filter(r =>
-      (r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId)
-    ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const myRids = IDX.relationsByUser.get(req.params.userId);
+    const rels = myRids ? [...myRids].map(rid => db.relations[rid]).filter(r => r && ((r.userA === req.params.userId && r.userB === p.id) || (r.userA === p.id && r.userB === req.params.userId))).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : [];
     // Collect ALL selfies from all relations (both mine and theirs)
     p.allSelfies = [];
     rels.forEach(r => {
@@ -1447,7 +1486,8 @@ app.get('/api/constellation/:userId', (req, res) => {
   });
   // Add event nodes — events the user participated in
   const eventNodes = Object.values(db.operatorEvents).filter(ev => ev.participants && ev.participants.includes(req.params.userId)).map(ev => {
-    const lastRel = Object.values(db.relations).find(r => r.eventId === ev.id && (r.userA === req.params.userId || r.userB === req.params.userId));
+    const userRids = IDX.relationsByUser.get(req.params.userId);
+    const lastRel = userRids ? [...userRids].map(rid => db.relations[rid]).find(r => r && r.eventId === ev.id) : null;
     return {
       id: 'evt:' + ev.id, isEvent: true, eventId: ev.id,
       nickname: ev.name, color: '#60a5fa',
@@ -1466,11 +1506,17 @@ app.get('/api/constellation/:userId', (req, res) => {
   nodes.push(...eventNodes);
   // Sort by most recent encounter
   nodes.sort((a, b) => b.lastDate - a.lastDate);
-  res.json({ nodes, total: nodes.length });
+  res.json({ nodes, links: [], total: nodes.length });
 });
 
 // Score — calculated with decay
 app.get('/api/points/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  res.json({ score: calcScore(req.params.userId), stars: (user.stars || []).length, name: user.name });
+});
+// Alias for tests
+app.get('/api/score/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
   res.json({ score: calcScore(req.params.userId), stars: (user.stars || []).length, name: user.name });
@@ -1856,9 +1902,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
   // Check active relation
   const now = Date.now();
-  const hasRelation = Object.values(db.relations).some(r =>
-    ((r.userA === req.params.userId && r.userB === viewerId) || (r.userA === viewerId && r.userB === req.params.userId)) && r.expiresAt > now
-  );
+  const hasRelation = !!findActiveRelation(req.params.userId, viewerId);
   if (!hasRelation) return res.status(403).json({ error: 'Sem conexão ativa. Perfil visível apenas durante as 24h.' });
   const enc = db.encounters[req.params.userId] || [];
   const unique = [...new Set(enc.map(e => e.with))].length;
@@ -1921,7 +1965,10 @@ app.post('/api/profile/update', (req, res) => {
   if (instagram !== undefined) user.instagram = instagram;
   if (twitter !== undefined) user.twitter = twitter;
   if (bio !== undefined) user.bio = bio;
-  if (profilePhoto !== undefined) user.profilePhoto = profilePhoto; // base64
+  if (profilePhoto !== undefined) {
+    if (profilePhoto && profilePhoto.length > 500000) return res.status(400).json({ error: 'Foto muito grande (máx 500KB).' });
+    user.profilePhoto = profilePhoto;
+  }
   if (email !== undefined && email.trim()) user.email = email.trim();
   if (cpf !== undefined && cpf.trim()) user.cpf = cpf.trim();
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
@@ -3494,7 +3541,7 @@ app.post('/api/tip/create', async (req, res) => {
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
   // Accept tips for prestadores OR operators with acceptsTips events
-  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
   if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
 
   const tipAmount = parseFloat(amount);
@@ -3595,7 +3642,7 @@ app.post('/api/tip/pix', async (req, res) => {
   const payer = db.users[payerId];
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
-  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
   if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
@@ -3662,7 +3709,7 @@ app.post('/api/tip/checkout', async (req, res) => {
   const payer = db.users[payerId];
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
-  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
   if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
@@ -3938,7 +3985,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
   if (!payer.savedCard?.customerId || !payer.savedCard?.cardId) return res.status(400).json({ error: 'Nenhum cartão salvo.' });
-  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
   if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
@@ -4616,7 +4663,8 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
 
 app.get('/api/operator/events/:userId', (req, res) => {
   const userId = req.params.userId;
-  const events = Object.values(db.operatorEvents).filter(e => e.creatorId === userId);
+  const evIds = IDX.operatorByCreator.get(userId) || [];
+  const events = evIds.map(eid => db.operatorEvents[eid]).filter(Boolean);
   events.sort((a, b) => b.createdAt - a.createdAt);
   res.json({ events });
 });
