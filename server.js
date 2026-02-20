@@ -659,7 +659,7 @@ const DEFAULT_GAME_CONFIG = {
   starRarityMultiplier: 1.15,     // Each star costs 15% more points than the last
 
   // Max stars one person can give to another
-  maxStarsPerPersonToPerson: 1,   // A can give max N stars to B
+  maxStarsPerPersonToPerson: 10,  // A can give max N stars to B
 
   // Top 1 creator privileges
   top1CanSetConfig: true,         // Top 1 user can adjust these parameters
@@ -764,9 +764,10 @@ function cleanExpiredPoints() {
   }
 }
 
-// ══ STARS SYSTEM v2 ══
-// Stars are permanent reputation. Earned via milestones, streaks, or purchased with score.
-// Stars get RARER over time: each successive star costs more.
+// ══ STARS SYSTEM v3 ══
+// Stars earned via streaks/milestones MUST be donated immediately.
+// Stars bought with points go to self or recipient directly.
+// Notification: "fulano ganhou estrela de beltrano" broadcast to network.
 
 function getStars(userId) {
   const user = db.users[userId];
@@ -778,7 +779,18 @@ function earnStarForUser(userId, reason, context = '') {
   const user = db.users[userId];
   if (!user) return;
   user.starsEarned = (user.starsEarned || 0) + 1;
-  io.to(`user:${userId}`).emit('star-earned', { reason, context, totalEarned: user.starsEarned });
+  // Create pending star that MUST be donated
+  if (!user.pendingStars) user.pendingStars = [];
+  const pendingId = uuidv4();
+  user.pendingStars.push({ id: pendingId, reason, context, earnedAt: Date.now() });
+  // Emit forced donation event — user MUST choose someone to give this star to
+  io.to(`user:${userId}`).emit('star-must-donate', {
+    pendingStarId: pendingId,
+    reason,
+    context,
+    totalEarned: user.starsEarned,
+    pendingCount: user.pendingStars.length
+  });
   saveDB();
 }
 
@@ -2027,35 +2039,88 @@ app.post('/api/like/toggle', (req, res) => {
   res.json({ ok: true, liked, count: target.likesCount || 0 });
 });
 
-// ══ STAR DONATION SYSTEM v2 ══
-// Stars can be: (1) earned via milestones/streaks, (2) bought with score points
-// Earned stars must be donated. Bought stars go directly to self or recipient.
+// ══ STAR DONATION SYSTEM v3 ══
+// Earned stars MUST be donated immediately. pendingStarId identifies which pending star.
+// Bought stars go directly to self or recipient.
+
+// Search people to donate to (by nickname)
+app.get('/api/star/search-people/:userId', (req, res) => {
+  const q = (req.query.q || '').toLowerCase().trim();
+  const userId = req.params.userId;
+  if (!q || q.length < 1) return res.json({ results: [] });
+  const results = [];
+  for (const [uid, u] of Object.entries(db.users)) {
+    if (uid === userId) continue;
+    if (!u.nickname && !u.name) continue;
+    const nick = (u.nickname || u.name || '').toLowerCase();
+    if (nick.includes(q)) {
+      results.push({ id: uid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, stars: (u.stars || []).length, verified: !!u.verified });
+    }
+    if (results.length >= 20) break;
+  }
+  res.json({ results });
+});
+
+// Check pending stars
+app.get('/api/star/pending/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  res.json({ pending: user.pendingStars || [], count: (user.pendingStars || []).length });
+});
 
 app.post('/api/star/donate', (req, res) => {
-  const { fromUserId, toUserId } = req.body;
-  const cfg = getGameConfig();
+  const { fromUserId, toUserId, pendingStarId } = req.body;
   if (!fromUserId || !db.users[fromUserId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!toUserId || !db.users[toUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   if (fromUserId === toUserId) return res.status(400).json({ error: 'Não pode doar estrela pra si mesmo.' });
   const fromUser = db.users[fromUserId];
   const toUser = db.users[toUserId];
-  // Check max stars per person-to-person
-  const existingDonations = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId && d.toUserId === toUserId);
-  if (existingDonations.length >= cfg.maxStarsPerPersonToPerson) {
-    return res.status(400).json({ error: `Você já deu o máximo de ${cfg.maxStarsPerPersonToPerson} estrela(s) para essa pessoa.` });
+
+  // If pendingStarId provided, remove it from pending
+  if (pendingStarId) {
+    if (!fromUser.pendingStars) fromUser.pendingStars = [];
+    const idx = fromUser.pendingStars.findIndex(p => p.id === pendingStarId);
+    if (idx === -1) return res.status(400).json({ error: 'Estrela pendente não encontrada.' });
+    fromUser.pendingStars.splice(idx, 1);
+  } else {
+    // Legacy: check available stars (earned - donated)
+    const totalEarned = (fromUser.starsEarned || 0);
+    const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId).length;
+    const available = totalEarned - totalDonated;
+    if (available <= 0) return res.status(400).json({ error: 'Sem estrelas disponíveis para doar.' });
   }
-  // Check available stars
-  const totalEarned = (fromUser.starsEarned || 0);
-  const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId).length;
-  const available = totalEarned - totalDonated;
-  if (available <= 0) return res.status(400).json({ error: 'Sem estrelas disponíveis para doar. Continue conectando para ganhar!' });
+
   const donationId = uuidv4();
-  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: 'earned' };
+  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: 'earned', pendingStarId };
   if (!toUser.stars) toUser.stars = [];
   toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: 'earned' });
   saveDB();
+
+  // Notify recipient
   io.to(`user:${toUserId}`).emit('star-received', { fromUserId, fromName: fromUser.nickname, total: toUser.stars.length });
-  res.json({ ok: true, donationId, recipientStars: toUser.stars.length });
+
+  // Broadcast to network: "fulano ganhou estrela de beltrano"
+  const notifPayload = {
+    recipientId: toUserId,
+    recipientName: toUser.nickname || toUser.name,
+    donorId: fromUserId,
+    donorName: fromUser.nickname || fromUser.name,
+    recipientStars: toUser.stars.length,
+    timestamp: Date.now()
+  };
+  // Send to all users who have encountered either person
+  const encA = new Set((db.encounters[fromUserId] || []).map(e => e.with));
+  const encB = new Set((db.encounters[toUserId] || []).map(e => e.with));
+  const network = new Set([...encA, ...encB]);
+  network.delete(fromUserId);
+  network.delete(toUserId);
+  network.forEach(uid => {
+    io.to(`user:${uid}`).emit('star-donated-notification', notifPayload);
+  });
+  // Also notify donor confirmation
+  io.to(`user:${fromUserId}`).emit('star-donation-confirmed', { toUserId, toName: toUser.nickname, recipientStars: toUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
+
+  res.json({ ok: true, donationId, recipientStars: toUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
 });
 
 // ══ STAR SHOP — Buy stars with score points ══
@@ -2213,6 +2278,81 @@ app.get('/api/declarations/:userId', (req, res) => {
   // Sort newest first
   decls.sort((a, b) => b.createdAt - a.createdAt);
   res.json({ declarations: decls, count: decls.length });
+});
+
+// ═══ DOC ID — DOCUMENT VERIFICATION ═══
+if (!db.docVerifications) db.docVerifications = {};
+
+app.post('/api/doc/submit', (req, res) => {
+  const { userId, docPhoto, selfiePhoto, docName, cpf, submittedAt } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!docPhoto || !selfiePhoto) return res.status(400).json({ error: 'Fotos obrigatórias.' });
+  if (!docName || docName.trim().length < 3) return res.status(400).json({ error: 'Nome do documento obrigatório (mín 3 caracteres).' });
+
+  db.docVerifications[userId] = {
+    userId,
+    docPhoto, // base64 of document front
+    selfiePhoto, // base64 of selfie holding doc
+    docName: docName.trim(),
+    cpf: cpf || null,
+    submittedAt: submittedAt || Date.now(),
+    status: 'pending', // pending, approved, rejected
+    reviewedAt: null,
+    reviewedBy: null
+  };
+  db.users[userId].docSubmitted = true;
+  db.users[userId].docSubmittedAt = Date.now();
+  db.users[userId].docStatus = 'pending';
+  saveDB();
+  res.json({ ok: true, status: 'pending' });
+});
+
+app.get('/api/doc/status/:userId', (req, res) => {
+  const doc = db.docVerifications[req.params.userId];
+  if (!doc) return res.json({ submitted: false });
+  res.json({ submitted: true, status: doc.status, submittedAt: doc.submittedAt, docName: doc.docName });
+});
+
+// Admin: approve/reject doc
+app.post('/api/doc/review', (req, res) => {
+  const { adminId, userId, action } = req.body;
+  const admin = db.users[adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const doc = db.docVerifications[userId];
+  if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
+  doc.status = action === 'approve' ? 'approved' : 'rejected';
+  doc.reviewedAt = Date.now();
+  doc.reviewedBy = adminId;
+  db.users[userId].docStatus = doc.status;
+  if (doc.status === 'approved') db.users[userId].docVerified = true;
+  saveDB();
+  res.json({ ok: true, status: doc.status });
+});
+
+// Admin: list all doc submissions
+app.get('/api/doc/admin/list/:adminId', (req, res) => {
+  const admin = db.users[req.params.adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const docs = Object.entries(db.docVerifications).map(([uid, d]) => ({
+    userId: uid,
+    nickname: db.users[uid]?.nickname || '??',
+    docName: d.docName,
+    status: d.status,
+    submittedAt: d.submittedAt,
+    // Don't send photos in list — too heavy
+    hasDoc: !!d.docPhoto,
+    hasSelfie: !!d.selfiePhoto
+  }));
+  res.json({ docs, total: docs.length });
+});
+
+// Admin: get specific doc for review (with photos)
+app.get('/api/doc/admin/review/:adminId/:userId', (req, res) => {
+  const admin = db.users[req.params.adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const doc = db.docVerifications[req.params.userId];
+  if (!doc) return res.status(404).json({ error: 'Não encontrado.' });
+  res.json(doc);
 });
 
 // ═══ GIFTS SYSTEM ═══
@@ -2511,6 +2651,7 @@ app.get('/api/myprofile/:userId', (req, res) => {
     topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0,
     verified: !!user.verified, isAdmin: !!user.isAdmin,
     faceEnrolled: !!user.faceEnrolled, faceEnrolledAt: user.faceEnrolledAt || null,
+    docSubmitted: !!user.docSubmitted, docStatus: user.docStatus || null, docVerified: !!user.docVerified,
     giftsReceived: (db.gifts[req.params.userId] || []).length
   });
 });

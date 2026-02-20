@@ -1532,6 +1532,52 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
 </div>
 
+<div id="docIdScreen" class="screen">
+  <div style="display:flex;align-items:center;padding:.8rem 1rem;background:rgba(18,18,26,.95);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)">
+    <button class="chb" onclick="goHome()">&#x2190;</button>
+    <div style="flex:1;text-align:center;font-size:.9rem;font-weight:700;color:var(--t1)">📄 Doc ID</div>
+    <div style="width:32px"></div>
+  </div>
+  <div style="padding:1.2rem;overflow-y:auto;flex:1;display:flex;flex-direction:column;align-items:center;gap:1rem">
+    <div style="text-align:center;padding:.5rem">
+      <div style="font-size:.8rem;color:var(--t2);margin-bottom:.3rem">Verificação por documento</div>
+      <div style="font-size:.6rem;color:var(--t3)">RG, CNH ou passaporte — frente do documento</div>
+    </div>
+    <div id="docPreviewWrap" style="width:280px;height:180px;border-radius:16px;overflow:hidden;border:2px dashed rgba(255,255,255,.12);background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative" onclick="$('docFileInput').click()">
+      <div id="docPlaceholder" style="text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:.4rem;opacity:.3">📄</div>
+        <div style="font-size:.65rem;color:var(--t3)">Toque para fotografar o documento</div>
+      </div>
+      <img id="docPreviewImg" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none">
+    </div>
+    <input type="file" id="docFileInput" accept="image/*" capture="environment" style="display:none" onchange="handleDocPhoto(this)">
+    <div id="docSelfieWrap" class="hidden" style="width:100%;text-align:center">
+      <div style="font-size:.7rem;color:var(--t2);margin-bottom:.5rem;font-weight:600">Agora uma selfie segurando o documento</div>
+      <div style="width:200px;height:200px;border-radius:50%;overflow:hidden;border:3px solid rgba(255,255,255,.08);background:#111;margin:0 auto;cursor:pointer;position:relative" onclick="$('docSelfieInput').click()">
+        <div id="docSelfiePlaceholder" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:2rem;opacity:.3">🤳</div>
+        <img id="docSelfieImg" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none">
+      </div>
+      <input type="file" id="docSelfieInput" accept="image/*" capture="user" style="display:none" onchange="handleDocSelfie(this)">
+    </div>
+    <div id="docNameField" class="hidden" style="width:100%">
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.3rem">Nome no documento</div>
+      <input type="text" id="docNameInput" placeholder="Nome como está no documento" maxlength="80" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.5rem .7rem;font-size:.75rem;color:var(--t1);font-family:inherit;outline:none;box-sizing:border-box">
+      <div style="font-size:.65rem;color:var(--t3);margin-top:.4rem;margin-bottom:.3rem">CPF (opcional)</div>
+      <input type="text" id="docCpfInput" placeholder="000.000.000-00" maxlength="14" style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.5rem .7rem;font-size:.75rem;color:var(--t1);font-family:inherit;outline:none;box-sizing:border-box">
+    </div>
+    <button class="bp hidden" id="docSaveBtn" onclick="saveDocId()" style="padding:.65rem 2rem;font-size:.8rem;margin-top:.5rem">Enviar para verificação</button>
+    <div id="docEnrolledInfo" class="hidden" style="text-align:center;padding:.8rem;background:rgba(0,220,130,.06);border:1px solid rgba(0,220,130,.15);border-radius:12px;width:100%">
+      <div style="font-size:.8rem;font-weight:600;color:var(--ok)">✓ Documento enviado</div>
+      <div style="font-size:.6rem;color:var(--t3);margin-top:.2rem" id="docStatusText">Aguardando validação</div>
+    </div>
+    <div style="font-size:.5rem;color:rgba(255,255,255,.2);text-align:center;margin-top:auto;padding:.6rem">
+      Seus dados são criptografados e armazenados com segurança.<br>
+      Usados exclusivamente para verificação de identidade.<br>
+      Conforme LGPD Art. 7 — tratamento de dados pessoais.
+    </div>
+  </div>
+</div>
+
 <div id="eventView" class="screen">
   <div style="display:flex;align-items:center;padding:.6rem 1rem;background:rgba(18,18,26,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)">
     <button class="chb" onclick="closeEventView()">&#x2190;</button>
@@ -1624,7 +1670,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -1921,19 +1967,29 @@ function initSocket(){
   });
   socket.on('contact-declined',({contactType})=>{showToast('Pedido de '+contactType+' recusado.');haptic([30])});
   socket.on('selfie-taken',({relationId})=>{showToast('Selfie registrado!');haptic([20,40,20])});
-  socket.on('star-earned',({star,total})=>{
+  // Star earned — MUST donate immediately
+  socket.on('star-must-donate',({pendingStarId,reason,context,totalEarned,pendingCount})=>{
     haptic([100,50,100,50,100]);playSound('connect');
-    const reason=star.reason==='gift'?'Presente de '+(star.fromName||'alguém'):star.reason==='organic'?'Conexão especial com '+(star.withName||'alguém'):star.reason==='streak'?'Streak com '+(star.withName||'alguém'):'Marco alcançado';
-    showToast('⭐ Nova estrela! '+reason+' (Total: '+total+')');
+    showStarDonateModal(pendingStarId,reason,context);
+  });
+  // Star donation confirmed
+  socket.on('star-donation-confirmed',({toUserId,toName,recipientStars,pendingRemaining})=>{
+    showToast('⭐ Estrela doada para '+toName+'!');
+    // If more pending, next modal will come via star-must-donate
+  });
+  // Star received from someone
+  socket.on('star-received',({fromUserId,fromName,total})=>{
+    haptic([80,40,80,40,80]);playSound('connect');
+    showToast('⭐ '+fromName+' te deu uma estrela! (Total: '+total+')');
+  });
+  // Network notification: someone donated a star
+  socket.on('star-donated-notification',({recipientName,donorName,recipientStars})=>{
+    showToast('⭐ '+recipientName+' ganhou estrela de '+donorName+'!');
   });
   socket.on('like-toggled',({fromUserId,liked})=>{
     haptic([30,20,30]);
     if(liked)showToast('Alguém curtiu seu perfil! ❤️');
     refreshRelations();
-  });
-  socket.on('star-received',({fromUserId,reason})=>{
-    haptic([80,40,80,40,80]);playSound('connect');
-    showToast('⭐ Você recebeu uma estrela de presente!');
   });
   socket.on('streak-unlock',data=>showStreakUnlock(data));
   socket.on('tip-received',({amount,from,status})=>{
@@ -2186,12 +2242,20 @@ async function refreshHome(){
       state.userIsAdmin=!!mp.isAdmin;
       state.userStarsCount=(mp.stars||[]).length;
       state.userFaceEnrolled=!!mp.faceEnrolled;
+      state.userDocVerified=!!mp.docSubmitted;
       state.userScore=mp.score||0;
       state.userTopTag=mp.topTag||null;
       state.userRealName=mp.realName||'';
       state.userUniqueConnections=mp.uniqueConnections||0;
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
+      // Check for pending stars that need donation
+      try{
+        const pend=await fetch('/api/star/pending/'+state.userId).then(r2=>r2.json());
+        if(pend.count>0&&!_starModalOpen){
+          pend.pending.forEach(p=>showStarDonateModal(p.id,p.reason,p.context));
+        }
+      }catch(e2){}
     }catch(e){}
   }
   // Set homeAvatar
@@ -4939,10 +5003,118 @@ async function toggleLike(targetUserId){
   }catch(e){}
 }
 
-// Star donation
+// ══ STAR DONATION MODAL (forced — must donate earned star) ══
+let _starDonateQueue=[];
+let _starModalOpen=false;
+
+function showStarDonateModal(pendingStarId,reason,context){
+  _starDonateQueue.push({pendingStarId,reason,context});
+  if(!_starModalOpen)_showNextStarModal();
+}
+
+function _showNextStarModal(){
+  if(_starDonateQueue.length===0){_starModalOpen=false;return;}
+  _starModalOpen=true;
+  const item=_starDonateQueue.shift();
+  const overlay=document.createElement('div');
+  overlay.id='starDonateOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .3s ease';
+  const reasonText=item.reason==='streak'?'Streak! '+item.context:item.reason==='milestone'?'Marco: '+item.context:'Você ganhou uma estrela!';
+  overlay.innerHTML=`
+    <div style="background:var(--c2,#1a1a2e);border-radius:20px;padding:1.5rem;width:100%;max-width:380px;max-height:85vh;overflow-y:auto;border:1px solid rgba(251,191,36,.3);box-shadow:0 0 40px rgba(251,191,36,.15)">
+      <div style="text-align:center;margin-bottom:1rem">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;animation:pulse 1.5s ease infinite">⭐</div>
+        <div style="font-size:1rem;font-weight:700;color:#fbbf24;margin-bottom:.3rem">Você ganhou uma estrela!</div>
+        <div style="font-size:.72rem;color:var(--t2,#aaa)">${reasonText}</div>
+        <div style="font-size:.65rem;color:var(--t3,#777);margin-top:.4rem">Escolha alguém para presentear — a estrela deve ser doada agora!</div>
+      </div>
+      <div style="position:relative;margin-bottom:.8rem">
+        <input id="starSearchInput" type="text" placeholder="Buscar por nickname..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:.6rem .8rem .6rem 2rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;color:#fff;font-size:.8rem;outline:none">
+        <div style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);font-size:.75rem;opacity:.4">🔍</div>
+      </div>
+      <div id="starSearchResults" style="min-height:120px;max-height:300px;overflow-y:auto"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const inp=document.getElementById('starSearchInput');
+  const res=document.getElementById('starSearchResults');
+  let searchTimeout;
+  inp.addEventListener('input',()=>{
+    clearTimeout(searchTimeout);
+    searchTimeout=setTimeout(async()=>{
+      const q=inp.value.trim();
+      if(q.length<1){res.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3,#777);font-size:.7rem">Digite um nickname para buscar</div>';return;}
+      try{
+        const r2=await fetch('/api/star/search-people/'+state.userId+'?q='+encodeURIComponent(q));
+        const d=await r2.json();
+        if(!d.results||d.results.length===0){res.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3,#777);font-size:.7rem">Nenhum resultado para "'+q+'"</div>';return;}
+        res.innerHTML=d.results.map(p=>`
+          <div onclick="confirmStarDonate('${item.pendingStarId}','${p.id}','${(p.nickname||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:.6rem;padding:.55rem .6rem;margin-bottom:.3rem;background:rgba(255,255,255,.04);border-radius:12px;cursor:pointer;transition:background .2s" onmouseover="this.style.background='rgba(251,191,36,.1)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">
+            <div style="width:36px;height:36px;border-radius:50%;background:${p.color||'#666'};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0">${(p.nickname||'?').slice(0,2).toUpperCase()}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.78rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nickname||'?'} ${p.verified?'<span style="color:#3b82f6;font-size:.6rem">✓</span>':''}</div>
+              <div style="font-size:.6rem;color:var(--t3,#777)">⭐ ${p.stars||0} estrelas</div>
+            </div>
+            <div style="font-size:.65rem;color:#fbbf24;font-weight:600">Doar ⭐</div>
+          </div>`).join('');
+      }catch(e){res.innerHTML='<div style="text-align:center;padding:1rem;color:#f87171;font-size:.7rem">Erro na busca</div>';}
+    },300);
+  });
+  // Show recent connections as suggestions
+  _loadStarSuggestions(res,item.pendingStarId);
+  setTimeout(()=>inp.focus(),300);
+}
+
+async function _loadStarSuggestions(container,pendingStarId){
+  container.innerHTML='<div style="text-align:center;padding:1rem;color:var(--t3,#777);font-size:.65rem">Carregando sugestões...</div>';
+  try{
+    const r=await fetch('/api/constellation/'+state.userId);
+    const d=await r.json();
+    const nodes=(d.nodes||[]).filter(n=>n.id!==state.userId).slice(0,10);
+    if(nodes.length===0){container.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3,#777);font-size:.7rem">Busque por nickname acima</div>';return;}
+    container.innerHTML='<div style="font-size:.6rem;color:var(--t3,#777);padding:0 .3rem .4rem;font-weight:600">Suas conexões:</div>'+nodes.map(p=>`
+      <div onclick="confirmStarDonate('${pendingStarId}','${p.id}','${(p.nickname||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:.6rem;padding:.55rem .6rem;margin-bottom:.3rem;background:rgba(255,255,255,.04);border-radius:12px;cursor:pointer;transition:background .2s" onmouseover="this.style.background='rgba(251,191,36,.1)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">
+        <div style="width:36px;height:36px;border-radius:50%;background:${p.color||'#666'};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0">${(p.nickname||'?').slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.78rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nickname||'?'} ${p.verified?'<span style="color:#3b82f6;font-size:.6rem">✓</span>':''}</div>
+          <div style="font-size:.6rem;color:var(--t3,#777)">⭐ ${p.starsCount||0} estrelas</div>
+        </div>
+        <div style="font-size:.65rem;color:#fbbf24;font-weight:600">Doar ⭐</div>
+      </div>`).join('');
+  }catch(e){container.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3,#777);font-size:.7rem">Busque por nickname acima</div>';}
+}
+
+async function confirmStarDonate(pendingStarId,targetId,targetName){
+  if(!confirm('Doar ⭐ estrela para '+targetName+'?'))return;
+  try{
+    const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:state.userId,toUserId:targetId,pendingStarId})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    haptic([60,30,60,30,100]);
+    showToast('⭐ Estrela doada para '+targetName+'!');
+    // Close modal
+    const ov=document.getElementById('starDonateOverlay');
+    if(ov)ov.remove();
+    // Process next pending star if any
+    setTimeout(()=>_showNextStarModal(),500);
+  }catch(e){showToast('Erro ao doar estrela.');}
+}
+
+// Direct donate from constellation detail (uses available earned stars)
 async function donateStar(targetUserId){
   if(!state.userId||!targetUserId)return;
   try{
+    const pend=await(await fetch('/api/star/pending/'+state.userId)).json();
+    if(pend.count>0){
+      // Has pending — use first pending star
+      const pendingStarId=pend.pending[0].id;
+      const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:state.userId,toUserId:targetUserId,pendingStarId})});
+      const d=await r.json();
+      if(d.error)return showToast(d.error);
+      haptic([60,30,60,30,100]);
+      showToast('⭐ Estrela doada!');
+      return;
+    }
+    // No pending — check legacy available
     const avail=await(await fetch('/api/stars/available/'+state.userId)).json();
     if(avail.available<=0)return showToast('Sem estrelas para doar. Continue conectando!');
     if(!confirm('Doar ⭐ estrela para essa pessoa? (Você tem '+avail.available+' disponíveis)'))return;
@@ -4954,7 +5126,7 @@ async function donateStar(targetUserId){
   }catch(e){showToast('Erro ao doar.')}
 }
 
-// Buy star with score points
+// Buy star with score points (for yourself)
 async function buyStarForPerson(targetUserId){
   if(!state.userId||!targetUserId)return;
   try{
@@ -5321,6 +5493,7 @@ function showMyProfileSheet(){
   // Prestador: "Serviços" with both cadastro and painel inside
   const isPrestador=localStorage.getItem('touch_isPrestador')==='1';
   const hasFace=!!state.userFaceEnrolled;
+  const hasDoc=!!state.userDocVerified;
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem">'
     +'<div class="more-menu-handle"></div>'
     // Header: avatar + name block redesigned — nick is HERO
@@ -5331,18 +5504,31 @@ function showMyProfileSheet(){
     +(state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.15rem">'+esc(state.userRealName)+'</div>':'')
     +'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.25rem">'
     +(state.userStarsCount>0?'<span style="font-size:.6rem;color:#fbbf24;letter-spacing:1px">'+'★'.repeat(Math.min(state.userStarsCount,5))+(state.userStarsCount>5?' +':'')+'</span>':'')
-    +(hasFace?'<span style="font-size:.55rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">🔐 Face ID</span>':'')
+    +(hasFace?'<span style="font-size:.55rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">🔐 Face</span>':'')
+    +(hasDoc?'<span style="font-size:.55rem;color:#a855f7;background:rgba(168,85,247,.1);padding:1px 6px;border-radius:6px;font-weight:600">📄 Doc</span>':'')
     +'</div>'
     +'</div></div>'
     // Menu buttons — clean, no emojis
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>Meu Cartão</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">edit</span>Cadastro'+cadastroTag+'</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">log</span>Histórico</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">+</span>Touch? Plus</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico">srv</span>Serviços</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showFaceEnrollment()"><span class="my-pf-ico" style="font-size:.65rem">🔐</span>Face ID'+(hasFace?' <span style="font-size:.5rem;color:var(--ok);margin-left:auto">ativo</span>':'')+'</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">?</span>Tutorial</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico">✏️</span>Cadastro'+cadastroTag+'</button>'
+    // Verification cards row
+    +'<div style="display:flex;gap:.4rem;margin:.15rem 0">'
+    +'<button onclick="this.closest(\'.my-profile-overlay\').remove();showFaceEnrollment()" style="flex:1;padding:.55rem .4rem;border-radius:14px;border:1px solid '+(hasFace?'rgba(6,182,212,.3)':'rgba(255,255,255,.06)')+';background:'+(hasFace?'rgba(6,182,212,.06)':'rgba(255,255,255,.02)')+';cursor:pointer;text-align:center;font-family:inherit;transition:all .15s">'
+    +'<div style="font-size:1.3rem;margin-bottom:.2rem">🔐</div>'
+    +'<div style="font-size:.62rem;font-weight:700;color:'+(hasFace?'#06b6d4':'var(--t1)')+'">Face ID</div>'
+    +'<div style="font-size:.48rem;color:'+(hasFace?'#06b6d4':'var(--t3)')+';margin-top:.1rem">'+(hasFace?'✓ ativo':'configurar')+'</div>'
+    +'</button>'
+    +'<button onclick="this.closest(\'.my-profile-overlay\').remove();showDocIdScreen()" style="flex:1;padding:.55rem .4rem;border-radius:14px;border:1px solid '+(hasDoc?'rgba(168,85,247,.3)':'rgba(255,255,255,.06)')+';background:'+(hasDoc?'rgba(168,85,247,.06)':'rgba(255,255,255,.02)')+';cursor:pointer;text-align:center;font-family:inherit;transition:all .15s">'
+    +'<div style="font-size:1.3rem;margin-bottom:.2rem">📄</div>'
+    +'<div style="font-size:.62rem;font-weight:700;color:'+(hasDoc?'#a855f7':'var(--t1)')+'">Doc ID</div>'
+    +'<div style="font-size:.48rem;color:'+(hasDoc?'#a855f7':'var(--t3)')+';margin-top:.1rem">'+(hasDoc?'✓ enviado':'verificar')+'</div>'
+    +'</button>'
+    +'</div>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showEncounterLog()"><span class="my-pf-ico">📋</span>Histórico</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">⭐</span>Touch? Plus</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico">💼</span>Serviços</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">❓</span>Tutorial</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
     +'<div class="my-pf-divider"></div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico">☷</span>Sobre o Touch</button>'
@@ -6921,17 +7107,17 @@ const FACE_CAPTURES_NEEDED=5; // 5 angles
 async function loadFaceModels(){
   if(_faceModelsLoaded)return true;
   try{
-    const MODEL_URL='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+    const MODEL_URL='https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
     await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
     ]);
     _faceModelsLoaded=true;
     return true;
   }catch(e){
     console.error('Face model load error:',e);
-    showToast('Erro ao carregar modelos faciais');
+    showToast('Erro ao carregar modelos: '+e.message);
     return false;
   }
 }
@@ -7002,8 +7188,8 @@ async function captureNextAngle(idx){
   if(!_faceCapturing)return;
   const video=$('faceVideo');
   try{
-    const detection=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}))
-      .withFaceLandmarks(true)
+    const detection=await faceapi.detectSingleFace(video,new faceapi.SsdMobilenetv1Options({minConfidence:0.5}))
+      .withFaceLandmarks()
       .withFaceDescriptor();
     if(!detection){
       $('faceInstructions').textContent='Rosto não detectado — '+_faceAngles[idx];
@@ -7062,6 +7248,111 @@ async function removeFaceData(){
       $('faceStartBtn').textContent='Iniciar captura';
     }
   }catch(e){showToast('Erro ao remover')}
+}
+
+// ═══ DOC ID — DOCUMENT VERIFICATION ═══
+let _docPhotoData=null;
+let _docSelfieData=null;
+
+function showDocIdScreen(){
+  showScreen('docIdScreen');
+  _docPhotoData=null;_docSelfieData=null;
+  $('docPreviewImg').style.display='none';
+  $('docPlaceholder').style.display='';
+  $('docSelfieImg').style.display='none';
+  $('docSelfiePlaceholder').style.display='';
+  $('docSelfieWrap').classList.add('hidden');
+  $('docNameField').classList.add('hidden');
+  $('docSaveBtn').classList.add('hidden');
+  $('docNameInput').value='';
+  $('docCpfInput').value='';
+  if(state.userDocVerified){
+    $('docEnrolledInfo').classList.remove('hidden');
+    $('docStatusText').textContent=state.userDocStatus==='approved'?'Documento verificado ✓':'Aguardando validação...';
+  }else{
+    $('docEnrolledInfo').classList.add('hidden');
+  }
+}
+
+function handleDocPhoto(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  if(file.size>8*1024*1024)return showToast('Arquivo muito grande (máx 8MB)');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const canvas=document.createElement('canvas');
+      const max=800;
+      let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=h*(max/w);w=max}else{w=w*(max/h);h=max}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      _docPhotoData=canvas.toDataURL('image/jpeg',0.8);
+      $('docPreviewImg').src=_docPhotoData;
+      $('docPreviewImg').style.display='';
+      $('docPlaceholder').style.display='none';
+      $('docSelfieWrap').classList.remove('hidden');
+      haptic([20]);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleDocSelfie(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  if(file.size>8*1024*1024)return showToast('Arquivo muito grande (máx 8MB)');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const canvas=document.createElement('canvas');
+      const max=600;
+      let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=h*(max/w);w=max}else{w=w*(max/h);h=max}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      _docSelfieData=canvas.toDataURL('image/jpeg',0.75);
+      $('docSelfieImg').src=_docSelfieData;
+      $('docSelfieImg').style.display='';
+      $('docSelfiePlaceholder').style.display='none';
+      $('docNameField').classList.remove('hidden');
+      $('docSaveBtn').classList.remove('hidden');
+      haptic([20]);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveDocId(){
+  if(!_docPhotoData)return showToast('Tire a foto do documento');
+  if(!_docSelfieData)return showToast('Tire a selfie com o documento');
+  const name=$('docNameInput').value.trim();
+  if(!name)return showToast('Digite o nome no documento');
+  $('docSaveBtn').disabled=true;
+  try{
+    const r=await fetch('/api/doc/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      userId:state.userId,
+      docPhoto:_docPhotoData,
+      selfiePhoto:_docSelfieData,
+      docName:name,
+      cpf:$('docCpfInput').value.trim(),
+      submittedAt:Date.now()
+    })});
+    const d=await r.json();
+    if(d.error){showToast(d.error);$('docSaveBtn').disabled=false;return}
+    state.userDocVerified=true;
+    showToast('Documento enviado para verificação!');
+    haptic([40,20,60]);
+    $('docEnrolledInfo').classList.remove('hidden');
+    $('docSaveBtn').classList.add('hidden');
+  }catch(e){
+    showToast('Erro ao enviar');
+    $('docSaveBtn').disabled=false;
+  }
 }
 
 // ═══ ADMIN VERIFICATION PANEL ═══
