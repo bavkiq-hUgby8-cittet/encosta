@@ -5709,6 +5709,23 @@ async function payWithNewCard() {
     if (!mp) throw new Error('SDK de pagamento não disponível.');
 
     const [expMonth, expYear] = expiry.split('/');
+    // Detect payment method from BIN
+    const bin = cardNum.substring(0, 6);
+    let payMethodId = 'visa';
+    try {
+      const pmResp = await fetch('https://api.mercadopago.com/v1/payment_methods/search?bins=' + bin + '&marketplace=NONE', {
+        headers: { 'Authorization': 'Bearer ' + (await (await fetch('/api/mp-public-key')).json()).publicKey }
+      });
+      // Fallback: detect from first digit
+    } catch(e) {}
+    // Simple BIN detection fallback
+    const d1 = cardNum[0], d2 = cardNum.substring(0,2);
+    if (d1 === '5' || d2 === '22' || d2 === '23' || d2 === '24' || d2 === '25' || d2 === '26' || d2 === '27') payMethodId = 'master';
+    else if (d1 === '4') payMethodId = 'visa';
+    else if (d2 === '34' || d2 === '37') payMethodId = 'amex';
+    else if (d2 === '60' || d2 === '65' || d2 === '63') payMethodId = 'elo';
+    else if (d2 === '38' || d2 === '30') payMethodId = 'diners';
+
     const tokenResult = await mp.createCardToken({
       cardNumber: cardNum, cardholderName: holder,
       cardExpirationMonth: expMonth, cardExpirationYear: '20' + expYear,
@@ -5720,7 +5737,7 @@ async function payWithNewCard() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount,
-        token: tokenResult.id, paymentMethodId: tokenResult.payment_method?.id || 'visa',
+        token: tokenResult.id, paymentMethodId: payMethodId,
         payerEmail: state.email || state.userId + '@touch.app', payerCPF: cpf
       })
     });
