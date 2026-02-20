@@ -399,21 +399,92 @@ app.get('/api/firebase-config', (req, res) => {
   });
 });
 
-// ── Server-side Email Actions (more reliable than client-side) ──
+// ── Server-side Email Actions ──
+// Firebase Admin SDK generates links but does NOT send emails.
+// We use nodemailer to actually deliver them.
+const nodemailer = require('nodemailer');
+
+// SMTP transporter — uses env vars, falls back to Firebase SMTP relay
+let _mailTransporter = null;
+function getMailTransporter() {
+  if (_mailTransporter) return _mailTransporter;
+  // Option 1: Custom SMTP (Gmail app password, SendGrid, etc.)
+  if (process.env.SMTP_HOST) {
+    _mailTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+  }
+  // Option 2: Gmail with app password
+  else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    _mailTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD }
+    });
+  }
+  return _mailTransporter;
+}
+
+async function sendTouchEmail(to, subject, html) {
+  const transporter = getMailTransporter();
+  if (!transporter) return false;
+  try {
+    await transporter.sendMail({
+      from: process.env.MAIL_FROM || process.env.GMAIL_USER || '"Touch?" <noreply@touchirl.com>',
+      to, subject, html
+    });
+    console.log('📧 Email sent to', to, '—', subject);
+    return true;
+  } catch (e) {
+    console.error('📧 Email send failed:', e.message);
+    return false;
+  }
+}
+
+function emailTemplate(title, body, btnText, btnUrl) {
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0">
+<div style="max-width:480px;margin:0 auto;padding:2rem 1.5rem">
+<div style="text-align:center;margin-bottom:1.5rem"><span style="font-size:2rem;font-weight:800;color:#ff6b35;letter-spacing:.2em">Touch?</span></div>
+<div style="background:#1a1a24;border-radius:16px;padding:1.5rem;border:1px solid rgba(255,255,255,.06)">
+<h2 style="margin:0 0 .8rem;color:#fff;font-size:1.1rem">${title}</h2>
+<p style="color:#a0a0b0;font-size:.9rem;line-height:1.6;margin:0 0 1.2rem">${body}</p>
+<div style="text-align:center"><a href="${btnUrl}" style="display:inline-block;padding:.75rem 2rem;background:linear-gradient(135deg,#ff6b35,#ff4500);color:#fff;text-decoration:none;border-radius:12px;font-weight:700;font-size:.9rem">${btnText}</a></div>
+</div>
+<p style="text-align:center;color:#555;font-size:.7rem;margin-top:1.5rem">Touch? — encontros reais, conexões efêmeras</p>
+</div></body></html>`;
+}
+
 app.post('/api/auth/send-verification', async (req, res) => {
   const { uid } = req.body;
   if (!uid) return res.status(400).json({ error: 'UID obrigatório.' });
   try {
-    const link = await firebaseAuth.generateEmailVerificationLink(uid.includes('@') ? uid : (await firebaseAuth.getUser(uid)).email, {
-      url: process.env.APP_URL || 'https://encosta-push.onrender.com'
-    });
-    console.log('📧 Verification email link generated for', uid);
-    // Firebase sends the email automatically when generating the link via Admin SDK
-    // But we also send via the user record approach
-    res.json({ ok: true, sent: true });
+    // Get user email from UID
+    const userRecord = await firebaseAuth.getUser(uid);
+    const email = userRecord.email;
+    if (!email) return res.status(400).json({ error: 'Usuário sem email.' });
+    if (userRecord.emailVerified) return res.json({ ok: true, alreadyVerified: true });
+    // Generate verification link
+    const appUrl = process.env.APP_URL || 'https://encosta-push.onrender.com';
+    const link = await firebaseAuth.generateEmailVerificationLink(email, { url: appUrl });
+    // Send via nodemailer
+    const sent = await sendTouchEmail(email,
+      'Verifique seu email — Touch?',
+      emailTemplate('Verificação de email',
+        'Clique no botão abaixo para verificar seu email e ativar sua conta Touch?.',
+        'Verificar email', link)
+    );
+    if (sent) {
+      console.log('📧 Verification email sent to', email);
+      res.json({ ok: true, sent: true });
+    } else {
+      // No SMTP configured — return link for client-side fallback
+      console.log('📧 No SMTP — returning verification link for', email);
+      res.json({ ok: true, sent: false, useClientFallback: true });
+    }
   } catch (e) {
     console.error('Send verification error:', e.code || e.message);
-    // If generateEmailVerificationLink fails, try updating the user
     res.status(400).json({ error: e.message || 'Erro ao enviar verificação.' });
   }
 });
@@ -422,18 +493,29 @@ app.post('/api/auth/send-magic-link', async (req, res) => {
   const { email, returnUrl } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
   try {
+    const appUrl = returnUrl || process.env.APP_URL || 'https://encosta-push.onrender.com';
     const link = await firebaseAuth.generateSignInWithEmailLink(email, {
-      url: returnUrl || process.env.APP_URL || 'https://encosta-push.onrender.com',
-      handleCodeInApp: true
+      url: appUrl, handleCodeInApp: true
     });
-    console.log('🔗 Magic link generated for', email, '→', link.substring(0, 60) + '...');
-    // Firebase Admin generateSignInWithEmailLink generates the link but does NOT send email
-    // We need to send it ourselves — use Firebase client-side as fallback
-    // For now, return the link and let client handle or use a mail service
-    res.json({ ok: true, sent: true, _link: link });
+    // Send via nodemailer
+    const sent = await sendTouchEmail(email,
+      'Seu link de acesso — Touch?',
+      emailTemplate('Login sem senha',
+        'Você solicitou acesso ao Touch? sem senha. Clique no botão abaixo para entrar. Este link expira em 1 hora.',
+        'Entrar no Touch?', link)
+    );
+    if (sent) {
+      console.log('🔗 Magic link email sent to', email);
+      res.json({ ok: true, sent: true });
+    } else {
+      // No SMTP — return link for client to use fallback
+      console.log('🔗 No SMTP — returning magic link for client fallback');
+      res.json({ ok: true, sent: false, useClientFallback: true });
+    }
   } catch (e) {
     console.error('Magic link error:', e.code || e.message);
-    res.status(400).json({ error: e.message || 'Erro ao gerar link.' });
+    const msgs = { 'auth/user-not-found': 'Email não cadastrado. Crie uma conta primeiro.' };
+    res.status(400).json({ error: msgs[e.code] || e.message || 'Erro ao gerar link.' });
   }
 });
 
@@ -441,11 +523,23 @@ app.post('/api/auth/send-password-reset', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
   try {
-    const link = await firebaseAuth.generatePasswordResetLink(email, {
-      url: process.env.APP_URL || 'https://encosta-push.onrender.com'
-    });
-    console.log('🔑 Password reset link generated for', email);
-    res.json({ ok: true, sent: true });
+    const appUrl = process.env.APP_URL || 'https://encosta-push.onrender.com';
+    const link = await firebaseAuth.generatePasswordResetLink(email, { url: appUrl });
+    // Send via nodemailer
+    const sent = await sendTouchEmail(email,
+      'Recuperar senha — Touch?',
+      emailTemplate('Recuperação de senha',
+        'Você solicitou a recuperação da sua senha do Touch?. Clique no botão abaixo para criar uma nova senha.',
+        'Redefinir senha', link)
+    );
+    if (sent) {
+      console.log('🔑 Password reset email sent to', email);
+      res.json({ ok: true, sent: true });
+    } else {
+      // No SMTP — return link for client fallback
+      console.log('🔑 No SMTP — password reset link generated for', email);
+      res.json({ ok: true, sent: false, useClientFallback: true });
+    }
   } catch (e) {
     console.error('Password reset error:', e.code || e.message);
     const msgs = { 'auth/user-not-found': 'Email não cadastrado.', 'auth/invalid-email': 'Email inválido.' };

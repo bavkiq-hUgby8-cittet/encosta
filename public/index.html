@@ -1887,15 +1887,18 @@ async function registerWithEmail(){
   window._pendingNickname=nick;
   try{
     const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
-    // Send verification email via server (more reliable)
+    // Send verification email
     if(cred.user){
       try{
-        await fetch('/api/auth/send-verification',{
+        const vResp=await fetch('/api/auth/send-verification',{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({uid:cred.user.uid})
         });
+        const vData=await vResp.json();
+        if(vData.useClientFallback||vData.error){
+          await cred.user.sendEmailVerification();
+        }
       }catch(ve){
-        // Fallback to client-side
         try{await cred.user.sendEmailVerification()}catch(ve2){}
       }
     }
@@ -1916,16 +1919,20 @@ async function resendEmailVerification(){
     return;
   }
   try{
-    // Try server-side first (more reliable delivery)
+    // Try server-side first
     const resp=await fetch('/api/auth/send-verification',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({uid:fbUser.uid})
     });
     const d=await resp.json();
     if(d.error)throw new Error(d.error);
+    if(d.useClientFallback){
+      // Server has no SMTP — use client SDK
+      await fbUser.sendEmailVerification();
+    }
     showToast('✉ Email de verificação enviado!');
   }catch(e){
-    // Fallback to client-side
+    // Direct client-side fallback
     try{
       await fbUser.sendEmailVerification();
       showToast('✉ Email de verificação enviado!');
@@ -1956,18 +1963,23 @@ async function sendMagicLink(){
   $('magicErr').textContent='';$('magicErr').style.color='#f87171';
   if(!email)return $('magicErr').textContent='Digite seu email.';
   try{
-    // Try server-side first (more reliable, bypasses Firebase Console config issues)
+    // Try server-side first
     const resp=await fetch('/api/auth/send-magic-link',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({email,returnUrl:window.location.origin+'/?finishLogin=1'})
     });
     const d=await resp.json();
     if(d.error)throw new Error(d.error);
+    if(d.useClientFallback){
+      // Server generated link but has no SMTP — use Firebase client SDK to send
+      const actionCodeSettings={url:window.location.origin+'/?finishLogin=1',handleCodeInApp:true};
+      await firebaseAuthInstance.sendSignInLinkToEmail(email,actionCodeSettings);
+    }
     localStorage.setItem('touch_magicEmail',email);
     $('magicErr').style.color='var(--ok)';
     $('magicErr').textContent='✉ Link enviado! Verifique seu email (inclusive spam).';
   }catch(e){
-    // Fallback to client-side Firebase
+    // Direct client-side attempt
     try{
       const actionCodeSettings={url:window.location.origin+'/?finishLogin=1',handleCodeInApp:true};
       await firebaseAuthInstance.sendSignInLinkToEmail(email,actionCodeSettings);
@@ -1992,10 +2004,14 @@ async function forgotPassword(){
     });
     const d=await resp.json();
     if(d.error)throw new Error(d.error);
+    if(d.useClientFallback){
+      // Server has no SMTP — use Firebase client SDK
+      await firebaseAuthInstance.sendPasswordResetEmail(email);
+    }
     $('loginErr').style.color='var(--ok)';
     $('loginErr').textContent='✉ Email de recuperação enviado! Verifique sua caixa.';
   }catch(e){
-    // Fallback to client-side
+    // Direct client-side attempt
     try{
       await firebaseAuthInstance.sendPasswordResetEmail(email);
       $('loginErr').style.color='var(--ok)';
@@ -2009,17 +2025,25 @@ async function forgotPassword(){
 }
 // Check if returning from magic link
 (async function checkMagicLink(){
-  await new Promise(r=>setTimeout(r,1500)); // wait for firebase init
+  await new Promise(r=>setTimeout(r,2000)); // wait for firebase init
   if(!firebaseAuthInstance)return;
-  if(firebaseAuthInstance.isSignInWithEmailLink(window.location.href)){
+  const href=window.location.href;
+  if(firebaseAuthInstance.isSignInWithEmailLink(href)){
     let email=localStorage.getItem('touch_magicEmail');
     if(!email)email=prompt('Por favor, confirme seu email para login:');
     if(!email)return;
     try{
-      await firebaseAuthInstance.signInWithEmailLink(email,window.location.href);
+      await firebaseAuthInstance.signInWithEmailLink(email,href);
       localStorage.removeItem('touch_magicEmail');
       window.history.replaceState(null,'',window.location.pathname);
-    }catch(e){console.error('Magic link login failed:',e)}
+      console.log('🔗 Magic link login successful for',email);
+    }catch(e){
+      console.error('Magic link login failed:',e);
+      // Show error to user
+      const errEl=$('loginErr')||$('magicErr');
+      if(errEl){errEl.style.color='#f87171';errEl.textContent='Link expirado ou inválido. Tente novamente.'}
+      window.history.replaceState(null,'',window.location.pathname);
+    }
   }
 })();
 
