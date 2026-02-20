@@ -52,7 +52,9 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
       connectSrc: ["'self'", "https:", "wss:", "ws:"],
-      frameSrc: ["'self'", "https://sdk.mercadopago.com", "https://accounts.google.com"],
+      frameSrc: ["'self'", "https://sdk.mercadopago.com", "https://accounts.google.com", "https://*.firebaseapp.com"],
+      childSrc: ["'self'", "blob:", "https://accounts.google.com", "https://*.firebaseapp.com"],
+      formAction: ["'self'", "https://accounts.google.com", "https://*.google.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       workerSrc: ["'self'", "blob:"],
@@ -61,7 +63,7 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false, // Required for Google OAuth popup
+  crossOriginOpenerPolicy: { policy: "unsafe-none" }, // Required for Google OAuth popup
   crossOriginResourcePolicy: false // Required for external resources
 }));
 
