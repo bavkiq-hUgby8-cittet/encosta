@@ -47,18 +47,21 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.mercadopago.com", "https://http2.mlstatic.com", "https://www.googletagmanager.com", "https://www.google-analytics.com", "https://apis.google.com", "https://www.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.mercadopago.com", "https://http2.mlstatic.com", "https://www.googletagmanager.com", "https://www.google-analytics.com", "https://apis.google.com", "https://www.gstatic.com", "https://cdn.jsdelivr.net"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https://storage.googleapis.com", "https://lh3.googleusercontent.com", "https://*.mlstatic.com"],
-      connectSrc: ["'self'", "https://api.mercadopago.com", "https://encosta-f32e7-default-rtdb.firebaseio.com", "https://*.firebaseio.com", "wss:", "ws:", "https://ip-api.com", "https://identitytoolkit.googleapis.com", "https://securetoken.googleapis.com", "https://www.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      connectSrc: ["'self'", "https:", "wss:", "ws:"],
       frameSrc: ["'self'", "https://sdk.mercadopago.com", "https://accounts.google.com"],
       objectSrc: ["'none'"],
-      baseUri: ["'self'"]
+      baseUri: ["'self'"],
+      workerSrc: ["'self'", "blob:"],
+      mediaSrc: ["'self'", "blob:", "data:"]
     }
   },
-  crossOriginEmbedderPolicy: false, // Required for external scripts
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false, // Required for Google OAuth popup
+  crossOriginResourcePolicy: false // Required for external resources
 }));
 
 // ── Rate limiting ──
