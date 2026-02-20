@@ -107,18 +107,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .daily-counter{font-size:.7rem;color:var(--t2);font-weight:400;padding:.35rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:20px;margin-top:.2rem}
 .daily-counter strong{color:var(--ac);font-weight:700}
 /* Main TOUCH button */
-.be{width:clamp(150px,42vw,190px);height:clamp(150px,42vw,190px);border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff8f65,#ff6b35 50%,#e05520);border:none;color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 50px var(--gw),0 0 100px rgba(255,107,53,.08),inset 0 1px 0 rgba(255,255,255,.15);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem}
+.be{width:clamp(150px,42vw,190px);height:clamp(150px,42vw,190px);border-radius:50%;background:rgba(255,107,53,.18);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:2px solid rgba(255,107,53,.35);color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 50px rgba(255,107,53,.12),0 0 100px rgba(255,107,53,.04),inset 0 0 30px rgba(255,107,53,.08),inset 0 1px 0 rgba(255,255,255,.12);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem}
 .be:active{transform:scale(.92)}
 .be .be-icon{font-size:2.4rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));display:flex;align-items:center;justify-content:center}
 .be .be-text{font-size:.78rem;font-weight:800;letter-spacing:.25em}
-.be::before{content:'';position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,var(--ac),var(--pk),#9333ea,var(--ac));z-index:-1;animation:rs 4s linear infinite;opacity:.5;filter:blur(2px)}
+.be::before{content:'';position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,var(--ac),var(--pk),#9333ea,var(--ac));z-index:-1;animation:rs 4s linear infinite;opacity:.3;filter:blur(4px)}
 .be.service-mode{background:radial-gradient(circle at 35% 35%,#444,#222 50%,#111)!important;box-shadow:0 0 50px rgba(0,0,0,.5),0 0 100px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.1)!important}
 .be.service-mode::before{background:conic-gradient(from 0deg,#555,#333,#555)!important;opacity:.3}
 .service-toggle{display:flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:2rem;font-size:.7rem;font-weight:600;color:var(--t2);background:rgba(255,255,255,.06);cursor:pointer;margin-bottom:.5rem;transition:all .2s}
 .service-toggle.active{background:#333;color:#fff;border:1px solid #555}
 .be::after{content:'';position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.08),transparent 70%);z-index:-2;animation:bb 3s ease-in-out infinite}
 /* Energized state */
-.be.energized{animation:sonic-energy .6s ease-in-out infinite alternate;box-shadow:0 0 60px var(--gw2),0 0 120px rgba(255,107,53,.15),0 0 200px rgba(255,61,113,.06)}
+.be.energized{animation:sonic-energy .6s ease-in-out infinite alternate;box-shadow:0 0 60px rgba(255,107,53,.2),0 0 120px rgba(255,107,53,.1),0 0 200px rgba(255,61,113,.04);background:rgba(255,107,53,.25);border-color:rgba(255,107,53,.5)}
 .be.energized::before{animation:rs 1.5s linear infinite;opacity:.8;filter:blur(3px);inset:-8px}
 .be.energized::after{animation:sonic-waves 1s ease-out infinite}
 .be.energized .be-text{animation:sonic-text .8s ease infinite alternate}
@@ -127,6 +127,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes sonic-energy{0%{transform:scale(1);box-shadow:0 0 60px var(--gw2),0 0 120px rgba(255,107,53,.15)}100%{transform:scale(1.04);box-shadow:0 0 80px var(--gw2),0 0 150px rgba(255,107,53,.2),0 0 250px rgba(255,61,113,.08)}}
 @keyframes sonic-waves{0%{inset:-30px;opacity:.5}100%{inset:-80px;opacity:0}}
 @keyframes sonic-text{0%{opacity:1}100%{opacity:.6}}
+@keyframes touch-shake{0%{transform:scale(1) rotate(0deg)}10%{transform:scale(1.08) rotate(-4deg)}20%{transform:scale(1.1) rotate(3deg)}30%{transform:scale(1.06) rotate(-3deg)}40%{transform:scale(1.08) rotate(2.5deg)}50%{transform:scale(1.04) rotate(-2deg)}60%{transform:scale(1.06) rotate(1.5deg)}70%{transform:scale(1.03) rotate(-1deg)}80%{transform:scale(1.01) rotate(.5deg)}90%{transform:scale(1) rotate(-.3deg)}100%{transform:scale(1) rotate(0deg)}}
+.be.shake-activate{animation:touch-shake .7s ease-out!important}
 /* Sound wave bars on sides */
 .sonic-bars{position:absolute;top:50%;display:flex;flex-direction:column;gap:3px;transform:translateY(-50%);z-index:0;opacity:0;transition:opacity .3s}
 .sonic-bars.active{opacity:1}
@@ -1009,7 +1011,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div style="position:relative;display:flex;align-items:center;justify-content:center">
       <div class="sonic-bars left" id="sonicBarsL"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
       <button class="be" id="mainBtn" onclick="handleMainButton()">
-        <span class="be-icon"><svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="6" width="14" height="24" rx="3" stroke="#fff" stroke-width="1.8" fill="none" transform="rotate(-12 11 18)"/><rect x="26" y="6" width="14" height="24" rx="3" stroke="#fff" stroke-width="1.8" fill="none" transform="rotate(12 33 18)"/><circle cx="11" cy="26" r="1.2" fill="#fff" opacity=".5" transform="rotate(-12 11 26)"/><circle cx="33" cy="26" r="1.2" fill="#fff" opacity=".5" transform="rotate(12 33 26)"/><path d="M18 16 L26 16" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".6" stroke-dasharray="2 2"/><circle cx="22" cy="16" r="3" fill="rgba(255,255,255,.15)" stroke="#fff" stroke-width="1" opacity=".7"/></svg></span>
+        <span class="be-icon"><svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg"><!-- UFO body -->
+<ellipse cx="26" cy="28" rx="18" ry="6" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/><!-- Dome -->
+<path d="M18 28 Q18 16 26 14 Q34 16 34 28" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.45)" stroke-width="1.2" stroke-linecap="round"/><!-- Alien eyes -->
+<ellipse cx="22.5" cy="23" rx="2.8" ry="3.5" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width=".8"/><ellipse cx="29.5" cy="23" rx="2.8" ry="3.5" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width=".8"/><!-- Pupils -->
+<circle cx="23" cy="23.5" r="1" fill="rgba(255,255,255,.7)"/><circle cx="30" cy="23.5" r="1" fill="rgba(255,255,255,.7)"/><!-- Beam -->
+<path d="M20 34 L16 44 M26 34 L26 45 M32 34 L36 44" stroke="rgba(255,255,255,.2)" stroke-width="1" stroke-linecap="round" stroke-dasharray="2 3"/><!-- Antenna -->
+<line x1="26" y1="14" x2="26" y2="9" stroke="rgba(255,255,255,.4)" stroke-width="1"/><circle cx="26" cy="8" r="1.5" fill="rgba(255,107,53,.5)" stroke="rgba(255,255,255,.4)" stroke-width=".8"/><!-- Lights on UFO -->
+<circle cx="16" cy="28" r="1.2" fill="rgba(255,107,53,.6)"><animate attributeName="opacity" values=".3;.9;.3" dur="1.5s" repeatCount="indefinite"/></circle><circle cx="22" cy="30" r="1" fill="rgba(147,51,234,.5)"><animate attributeName="opacity" values=".4;1;.4" dur="1.2s" repeatCount="indefinite" begin=".3s"/></circle><circle cx="30" cy="30" r="1" fill="rgba(255,61,113,.5)"><animate attributeName="opacity" values=".4;1;.4" dur="1.3s" repeatCount="indefinite" begin=".6s"/></circle><circle cx="36" cy="28" r="1.2" fill="rgba(96,165,250,.5)"><animate attributeName="opacity" values=".3;.9;.3" dur="1.4s" repeatCount="indefinite" begin=".2s"/></circle></svg></span>
         <span class="be-text" id="mainBtnText">TOUCH</span>
       </button>
       <div class="sonic-bars right" id="sonicBarsR"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
@@ -2229,6 +2238,9 @@ async function handleMainButton(){
   sonicActive=true;sonicMyFreq=0;
   const btn=$('mainBtn'),txt=$('mainBtnText'),sts=$('sonicHomeStatus'),fb=$('sonicFallback');
   const barsL=$('sonicBarsL'),barsR=$('sonicBarsR'),fire=$('fireOverlay');
+  // Shake animation on activate
+  btn.classList.add('shake-activate');
+  setTimeout(()=>btn.classList.remove('shake-activate'),700);
   btn.classList.add('energized');
   txt.textContent='ATIVANDO...';
   // ALWAYS request fresh mic permission to avoid stuck loops
