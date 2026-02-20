@@ -531,8 +531,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .elog-list{padding:.8rem 1rem;display:flex;flex-direction:column;gap:.6rem;padding-bottom:3rem}
 .elog-item{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.7rem .8rem;display:flex;gap:.6rem;align-items:center;position:relative;overflow:hidden;touch-action:pan-y}
 .elog-item-inner{display:flex;gap:.6rem;align-items:center;flex:1;min-width:0;transition:transform .2s ease;position:relative;z-index:1}
-.elog-delete{position:absolute;right:0;top:0;bottom:0;width:70px;background:#ef4444;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:600;z-index:0}
-.elog-tip-btn{background:linear-gradient(135deg,#ff6b35,#e05520);border:none;color:#fff;font-size:.8rem;padding:.35rem .6rem;border-radius:1rem;cursor:pointer;flex-shrink:0;align-self:center}
+.elog-delete{position:absolute;right:0;top:0;bottom:0;width:64px;background:rgba(239,68,68,.9);display:flex;align-items:center;justify-content:center;z-index:0;flex-direction:column;gap:.15rem}
+.elog-delete svg{width:16px;height:16px;stroke:#fff;stroke-width:2}
+.elog-delete span{font-size:.55rem;color:rgba(255,255,255,.8);font-weight:500;letter-spacing:.02em}
+.elog-tip-tag{display:inline-flex;align-items:center;gap:.2rem;background:rgba(34,197,94,.12);color:#4ade80;font-size:.58rem;font-weight:600;padding:.15rem .45rem;border-radius:6px;border:1px solid rgba(34,197,94,.15)}
+.elog-tip-btn{display:inline-flex;align-items:center;gap:.2rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--t3);font-size:.58rem;font-weight:500;padding:.15rem .45rem;border-radius:6px;cursor:pointer;transition:all .2s;font-family:inherit}
+.elog-tip-btn:active{background:rgba(34,197,94,.15);color:#4ade80;border-color:rgba(34,197,94,.2)}
 .elog-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:#fff;flex-shrink:0}
 .elog-info{flex:1;min-width:0}
 .elog-name{font-size:.85rem;font-weight:600;color:var(--t1)}
@@ -1470,7 +1474,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="encounterLog" class="screen">
-  <div class="elog-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Histórico de encontros</h2></div>
+  <div class="elog-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Histórico</h2></div>
   <div class="elog-list" id="elogList"></div>
 </div>
 
@@ -4822,9 +4826,10 @@ async function showEncounterLog(){
       const displayName=revealed?(enc.realName||revData?.realName||enc.withName):enc.withName;
       const photo=revealed?(enc.profilePhoto||revData?.profilePhoto||null):null;
       const timeStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      const typeIcon=enc.type==='service'?'💼':(enc.type==='digital'?'📱':'📲');
+      const typeIco=enc.type==='service'?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg>':(enc.type==='digital'?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>');
+      const hasTip=enc.tipAmount&&enc.tipStatus==='approved';
       html+='<div class="elog-item" data-ts="'+enc.timestamp+'">';
-      html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')">Apagar</div>';
+      html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg><span>Apagar</span></div>';
       html+='<div class="elog-item-inner">';
       const encVerified=!!enc.verified;
       if(photo){
@@ -4837,8 +4842,10 @@ async function showEncounterLog(){
       html+='<div style="flex:1;min-width:0">';
       html+='<div class="elog-name" style="font-size:.8rem">'+esc(displayName)+(encVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.6rem;font-weight:800">✓</span>':'')+'</div>';
       html+='<div class="elog-meta" style="margin-top:.15rem">';
-      html+='<span>'+typeIcon+' '+timeStr+'</span>';
+      html+='<span>'+typeIco+' '+timeStr+'</span>';
       if(enc.points)html+='<span>+'+enc.points+'pts</span>';
+      if(hasTip)html+='<span class="elog-tip-tag"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> R$'+enc.tipAmount.toFixed(0)+'</span>';
+      else html+='<button class="elog-tip-btn" onclick="event.stopPropagation();showTipScreen(\''+esc(enc.with)+'\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Gorjeta</button>';
       html+='</div></div>';
       html+='</div></div>';
     });
