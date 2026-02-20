@@ -359,6 +359,101 @@ async function flushToRTDB() {
   }
 }
 
+// ── BACKUP SYSTEM: auto-snapshot before destructive ops, rollback support ──
+const MAX_BACKUPS = 5;
+
+async function createBackup(reason) {
+  try {
+    const ts = Date.now();
+    const backup = {};
+    DB_COLLECTIONS.forEach(c => {
+      const count = Object.keys(db[c] || {}).length;
+      if (count > 0) backup[c] = db[c];
+    });
+    const meta = {
+      timestamp: ts,
+      date: new Date(ts).toISOString(),
+      reason: reason || 'manual',
+      counts: {}
+    };
+    DB_COLLECTIONS.forEach(c => { meta.counts[c] = Object.keys(db[c] || {}).length; });
+    // Save to RTDB under /backups/{timestamp}
+    await withTimeout(rtdb.ref('/backups/' + ts).set({ meta, data: backup }), 20000, 'backup write');
+    console.log('💾 BACKUP created:', meta.date, '—', reason, '— counts:', JSON.stringify(meta.counts));
+    // Cleanup old backups (keep last MAX_BACKUPS)
+    try {
+      const bkSnap = await withTimeout(rtdb.ref('/backups').orderByKey().once('value'), 10000, 'backup list');
+      const bkData = bkSnap.val();
+      if (bkData) {
+        const keys = Object.keys(bkData).sort();
+        if (keys.length > MAX_BACKUPS) {
+          const toDelete = keys.slice(0, keys.length - MAX_BACKUPS);
+          const delUpdates = {};
+          toDelete.forEach(k => { delUpdates['/backups/' + k] = null; });
+          await rtdb.ref('/').update(delUpdates);
+          console.log('🧹 Cleaned', toDelete.length, 'old backups');
+        }
+      }
+    } catch (cleanErr) { console.error('Backup cleanup err:', cleanErr.message); }
+    return ts;
+  } catch (e) {
+    console.error('❌ Backup error:', e.message);
+    // Fallback: save to local file
+    try {
+      const bkFile = path.join(__dirname, 'backup-' + Date.now() + '.json');
+      fs.writeFileSync(bkFile, JSON.stringify(db), 'utf8');
+      console.log('💾 Local backup saved:', bkFile);
+    } catch (e2) {}
+    return null;
+  }
+}
+
+async function listBackups() {
+  try {
+    const snap = await withTimeout(rtdb.ref('/backups').once('value'), 10000, 'backup list');
+    const data = snap.val();
+    if (!data) return [];
+    return Object.entries(data).map(([k, v]) => ({ id: k, ...v.meta })).sort((a, b) => b.timestamp - a.timestamp);
+  } catch (e) { return []; }
+}
+
+async function restoreBackup(backupId) {
+  try {
+    const snap = await withTimeout(rtdb.ref('/backups/' + backupId).once('value'), 15000, 'backup read');
+    const bk = snap.val();
+    if (!bk || !bk.data) throw new Error('Backup não encontrado ou vazio');
+    // Create backup of CURRENT state before restoring
+    await createBackup('pre-restore-safety');
+    // Restore data
+    DB_COLLECTIONS.forEach(c => { db[c] = bk.data[c] || {}; });
+    // Rebuild indexes
+    IDX.nickname.clear(); IDX.firebaseUid.clear();
+    if (IDX.operatorByCreator) IDX.operatorByCreator.clear();
+    Object.values(db.users).forEach(u => {
+      if (u.nickname) IDX.nickname.set(u.nickname.toLowerCase(), u.id);
+      if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, u.id);
+    });
+    if (db.operatorEvents) {
+      Object.values(db.operatorEvents).forEach(ev => {
+        if (ev.creatorId && IDX.operatorByCreator) {
+          if (!IDX.operatorByCreator.has(ev.creatorId)) IDX.operatorByCreator.set(ev.creatorId, []);
+          IDX.operatorByCreator.get(ev.creatorId).push(ev.id);
+        }
+      });
+    }
+    // Flush to RTDB
+    DB_COLLECTIONS.forEach(c => _dirtyCollections.add(c));
+    await flushToRTDB();
+    const counts = {};
+    DB_COLLECTIONS.forEach(c => { counts[c] = Object.keys(db[c] || {}).length; });
+    console.log('✅ RESTORED from backup:', bk.meta.date, '— counts:', JSON.stringify(counts));
+    return { ok: true, restoredFrom: bk.meta, counts };
+  } catch (e) {
+    console.error('❌ Restore error:', e.message);
+    throw e;
+  }
+}
+
 // saveDB(collections...) — mark collections as dirty and schedule flush
 // Call with collection names: saveDB('users','relations')
 // Call with no args: marks ALL collections dirty (legacy fallback)
@@ -3571,10 +3666,37 @@ app.post('/api/admin/reset-reveals', (req, res) => {
 });
 
 // ── DATABASE RESET ──
+// ── BACKUP / ROLLBACK ENDPOINTS ──
+app.post('/api/admin/backup', async (req, res) => {
+  try {
+    const reason = req.body.reason || 'manual';
+    const id = await createBackup(reason);
+    if (id) res.json({ ok: true, backupId: id, message: 'Backup criado com sucesso.' });
+    else res.status(500).json({ error: 'Falha ao criar backup.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/backups', async (req, res) => {
+  const backups = await listBackups();
+  res.json({ backups });
+});
+
+app.post('/api/admin/rollback', async (req, res) => {
+  const { backupId, confirm } = req.body;
+  if (confirm !== 'ROLLBACK') return res.status(400).json({ error: 'Send { backupId, confirm: "ROLLBACK" } to confirm.' });
+  if (!backupId) return res.status(400).json({ error: 'backupId required. Use GET /api/admin/backups to list.' });
+  try {
+    const result = await restoreBackup(backupId);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── SAFE RESET: only clear events & checkins, preserve relations/encounters/messages ──
-app.post('/api/admin/reset-events', (req, res) => {
+app.post('/api/admin/reset-events', async (req, res) => {
   const { confirm } = req.body;
   if (confirm !== 'RESET_EVENTS') return res.status(400).json({ error: 'Send { confirm: "RESET_EVENTS" } to confirm.' });
+  // Auto-backup before any reset
+  await createBackup('auto:before-reset-events');
   const eventCount = Object.keys(db.operatorEvents || {}).length;
   const checkinRelations = Object.values(db.relations).filter(r => r.type === 'checkin' || r.isCheckin);
   const checkinCount = checkinRelations.length;
@@ -3592,9 +3714,11 @@ app.post('/api/admin/reset-events', (req, res) => {
 });
 
 // ── FULL RESET: dangerous, clears everything ──
-app.post('/api/admin/reset-db', (req, res) => {
+app.post('/api/admin/reset-db', async (req, res) => {
   const { confirm, keepUsers } = req.body;
   if (confirm !== 'FULL_RESET_DANGEROUS') return res.status(400).json({ error: 'DANGEROUS: Send { confirm: "FULL_RESET_DANGEROUS" } to confirm. Use /api/admin/reset-events for safe reset.' });
+  // Auto-backup before destructive operation
+  await createBackup('auto:before-full-reset');
   const userCount = Object.keys(db.users).length;
   const relationCount = Object.keys(db.relations).length;
   const eventCount = Object.keys(db.operatorEvents || {}).length;
