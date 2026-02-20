@@ -73,6 +73,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .login-divider{display:flex;align-items:center;gap:1rem;width:100%;max-width:340px;color:var(--t3);font-size:.75rem}
 .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--b1)}
 .login-toggle{font-size:.82rem;color:var(--ac);cursor:pointer;text-align:center;margin-top:.5rem}
+.login-links{display:flex;gap:.4rem;justify-content:center;margin-top:.6rem;align-items:center}
 .login-err{font-size:.78rem;color:var(--err);text-align:center;min-height:1.1rem}
 .login-nick-explain{font-size:.7rem;color:var(--t3);text-align:center;line-height:1.5;padding:0 .5rem;font-style:italic}
 .reg-nick-info{font-size:.7rem;color:var(--ac2);background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.12);border-radius:10px;padding:.6rem .8rem;margin:-.5rem 0 1.2rem;line-height:1.5;text-align:center}
@@ -989,6 +990,19 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <button class="bp" id="loginBtn" onclick="loginWithEmail()">ENTRAR</button>
     <div class="login-err" id="loginErr"></div>
     <div class="login-toggle" id="loginToggle" onclick="toggleLoginMode()">Não tem conta? <strong>Criar agora — é rápido</strong></div>
+    <div class="login-links">
+      <span onclick="showMagicLogin()" style="color:var(--ac);cursor:pointer;font-size:.72rem">Entrar sem senha</span>
+      <span style="color:var(--t3);font-size:.72rem">·</span>
+      <span onclick="forgotPassword()" style="color:var(--t3);cursor:pointer;font-size:.72rem">Esqueci a senha</span>
+    </div>
+  </div>
+  <!-- Magic link login -->
+  <div id="magicLoginWrap" class="hidden" style="padding:.8rem;text-align:center">
+    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.6rem">Digite seu email e enviaremos um link de acesso:</div>
+    <input type="email" class="login-input" id="magicEmail" placeholder="seu@email.com" autocomplete="email">
+    <button class="bp" style="margin-top:.5rem;width:100%" onclick="sendMagicLink()">Enviar link</button>
+    <div class="login-err" id="magicErr"></div>
+    <div onclick="hideMagicLogin()" style="color:var(--t3);cursor:pointer;font-size:.68rem;margin-top:.5rem">← Voltar ao login normal</div>
   </div>
 </div>
 
@@ -1509,6 +1523,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <!-- Verification -->
     <div class="cp-section-title">Verificação</div>
     <div class="cp-verif-row">
+      <button class="cp-verif-card" id="cpEmailCard" onclick="resendEmailVerification()">
+        <div class="cp-verif-ico">✉</div>
+        <div class="cp-verif-label">Email</div>
+        <div class="cp-verif-status" id="cpEmailStatus">verificar</div>
+      </button>
       <button class="cp-verif-card" id="cpFaceCard" onclick="goHome();setTimeout(()=>showFaceEnrollment(),100)">
         <div class="cp-verif-ico">⎔</div>
         <div class="cp-verif-label">Face ID</div>
@@ -1767,6 +1786,7 @@ async function linkFirebaseToEncosta(user){
       state.userColor=d.user.color||'';
       state.userPhoto=d.user.profilePhoto||d.user.photoURL||null;
       state.email=d.user.email||null;
+      state.emailVerified=user.emailVerified||false;
       state.userCpf=d.user.cpf||null;
       localStorage.setItem('touch_userId',d.userId);
       localStorage.setItem('touch_userName',state.userName);
@@ -1821,7 +1841,11 @@ async function loginWithEmail(){
       if(pass.length<6)return $('loginErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
       if(!$('loginTermsCheck').checked)return $('loginErr').textContent='Aceite os Termos de Uso para continuar.';
       window._pendingNickname=nick;
-      await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
+      const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
+      // Send verification email
+      if(cred.user&&!cred.user.emailVerified){
+        try{await cred.user.sendEmailVerification()}catch(ve){}
+      }
     }else{
       await firebaseAuthInstance.signInWithEmailAndPassword(email,pass);
     }
@@ -1843,6 +1867,81 @@ function toggleLoginMode(){
   if(loginIsRegister)$('loginPass').placeholder='Crie uma senha (mín. 6 caracteres)';
   else $('loginPass').placeholder='Senha';
 }
+
+// ═══ EMAIL VERIFICATION ═══
+async function resendEmailVerification(){
+  if(!fbUser)return showToast('Faça login primeiro.');
+  // Reload to get fresh emailVerified status
+  try{await fbUser.reload();fbUser=firebaseAuthInstance.currentUser}catch(e){}
+  if(fbUser.emailVerified){
+    showToast('Email já verificado!');
+    const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent='✓ verificado';$('cpEmailStatus').style.color='#22c55e'}
+    return;
+  }
+  try{
+    await fbUser.sendEmailVerification();
+    showToast('Email de verificação enviado!');
+  }catch(e){
+    if(e.code==='auth/too-many-requests')showToast('Aguarde antes de reenviar.');
+    else showToast('Erro: '+(e.message||'tente novamente'));
+  }
+}
+
+// ═══ MAGIC LINK LOGIN ═══
+function showMagicLogin(){
+  $('loginForm').classList.add('hidden');
+  $('magicLoginWrap').classList.remove('hidden');
+  $('magicEmail').value=$('loginEmail').value||'';
+  $('magicErr').textContent='';
+}
+function hideMagicLogin(){
+  $('loginForm').classList.remove('hidden');
+  $('magicLoginWrap').classList.add('hidden');
+}
+async function sendMagicLink(){
+  const email=$('magicEmail').value.trim();
+  $('magicErr').textContent='';
+  if(!email)return $('magicErr').textContent='Digite seu email.';
+  try{
+    const actionCodeSettings={url:window.location.origin+'/?finishLogin=1',handleCodeInApp:true};
+    await firebaseAuthInstance.sendSignInLinkToEmail(email,actionCodeSettings);
+    localStorage.setItem('touch_magicEmail',email);
+    $('magicErr').style.color='var(--ok)';
+    $('magicErr').textContent='Link enviado! Verifique seu email.';
+  }catch(e){
+    $('magicErr').style.color='#f87171';
+    const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não encontrado.'};
+    $('magicErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+  }
+}
+async function forgotPassword(){
+  const email=$('loginEmail').value.trim();
+  if(!email)return $('loginErr').textContent='Preencha o email acima primeiro.';
+  try{
+    await firebaseAuthInstance.sendPasswordResetEmail(email);
+    $('loginErr').style.color='var(--ok)';
+    $('loginErr').textContent='Email de recuperação enviado!';
+  }catch(e){
+    $('loginErr').style.color='#f87171';
+    const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não cadastrado.'};
+    $('loginErr').textContent=msgs[e.code]||('Erro: '+(e.message||''));
+  }
+}
+// Check if returning from magic link
+(async function checkMagicLink(){
+  await new Promise(r=>setTimeout(r,1500)); // wait for firebase init
+  if(!firebaseAuthInstance)return;
+  if(firebaseAuthInstance.isSignInWithEmailLink(window.location.href)){
+    let email=localStorage.getItem('touch_magicEmail');
+    if(!email)email=prompt('Por favor, confirme seu email para login:');
+    if(!email)return;
+    try{
+      await firebaseAuthInstance.signInWithEmailLink(email,window.location.href);
+      localStorage.removeItem('touch_magicEmail');
+      window.history.replaceState(null,'',window.location.pathname);
+    }catch(e){console.error('Magic link login failed:',e)}
+  }
+})();
 
 async function doLogout(){
   try{
@@ -2749,8 +2848,11 @@ async function initSonic(label,status,circle){
     sonicStream=await requestMic();
     if(status)status.textContent='Microfone OK. Conectando...';
 
-    // 2. Ask server for frequency
-    socket.emit('sonic-start',{userId:state.userId});
+    // 2. Ask server for frequency (include event/service context)
+    const _sEvId=localStorage.getItem('activeEventId')||null;
+    const _sIsOp=localStorage.getItem('activeEventRole')==='operator';
+    const _sIsCheckin=!!(_sEvId&&_sIsOp);
+    socket.emit('sonic-start',{userId:state.userId,isServiceTouch:!!serviceMode,isCheckin:_sIsCheckin,eventId:_sIsCheckin?_sEvId:null});
     const freq=await new Promise((resolve,reject)=>{
       const timeout=setTimeout(()=>reject(new Error('Server timeout')),5000);
       socket.once('sonic-assigned',({freq})=>{clearTimeout(timeout);resolve(freq)});
@@ -4943,7 +5045,14 @@ let cpPhotoData=null;
 async function openCompleteProfile(){
   haptic([30]);
   showScreen('completeProfile');
-  // Update face/doc cards
+  // Update email/face/doc cards
+  const emailVerified=!!(fbUser&&fbUser.emailVerified);
+  const emailCard=$('cpEmailCard');
+  if(emailCard){
+    emailCard.classList.toggle('active',emailVerified);
+    $('cpEmailStatus').textContent=emailVerified?'✓ verificado':'verificar';
+    $('cpEmailStatus').style.color=emailVerified?'#22c55e':'';
+  }
   const hasFace=!!state.userFaceEnrolled;
   const hasDoc=!!state.userDocVerified;
   const faceCard=$('cpFaceCard'),docCard=$('cpDocCard');
@@ -5615,6 +5724,7 @@ function showMyProfileSheet(){
   const realNameLine=state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.1rem">'+esc(state.userRealName)+'</div>':'';
   // Prestador: "Serviços" with both cadastro and painel inside
   const isPrestador=localStorage.getItem('touch_isPrestador')==='1';
+  const hasEmailVerified=!!(fbUser&&fbUser.emailVerified);
   const hasFace=!!state.userFaceEnrolled;
   const hasDoc=!!state.userDocVerified;
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem" id="profileSheet">'
@@ -5629,6 +5739,7 @@ function showMyProfileSheet(){
     +'<div style="display:flex;align-items:center;gap:.4rem;margin-top:.25rem;flex-wrap:wrap">'
     +(state.userIsSubscriber?'<span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 6px;border-radius:6px;font-weight:700">✦ Plus</span>':'')
     +(state.userStarsCount>0?'<span style="font-size:.55rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:1px 6px;border-radius:6px;font-weight:600">★ '+state.userStarsCount+'</span>':'')
+    +(hasEmailVerified?'<span style="font-size:.5rem;color:#22c55e;background:rgba(34,197,94,.1);padding:1px 6px;border-radius:6px;font-weight:600">Email</span>':'')
     +(hasFace?'<span style="font-size:.5rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">Face</span>':'')
     +(hasDoc?'<span style="font-size:.5rem;color:#a855f7;background:rgba(168,85,247,.1);padding:1px 6px;border-radius:6px;font-weight:600">Doc</span>':'')
     +(state.userTopTag?'<span style="font-size:.5rem;color:'+(state.userTopTag==='top1'?'#FFD700':state.userTopTag==='top5'?'#C0C0C0':'#CD7F32')+';background:rgba(255,215,0,.1);padding:1px 6px;border-radius:6px;font-weight:700">'+(state.userTopTag==='top1'?'🏆 TOP 1':state.userTopTag==='top5'?'🥈 TOP 5':state.userTopTag==='top50'?'🥉 TOP 50':'')+'</span>':'')
