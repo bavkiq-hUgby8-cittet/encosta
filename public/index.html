@@ -1269,29 +1269,43 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <label>Outro valor:</label>
     <input type="number" id="tipCustomAmount" placeholder="R$" min="1" max="500" oninput="selectTipCustom()">
   </div>
-  <div class="tip-saved-section hidden" id="tipSavedSection">
-    <button class="tip-saved-card" id="tipSavedCardBtn" onclick="useSavedCard()">
-      <span class="tsc-icon">💳</span>
-      <span class="tsc-info"><span class="tsc-brand" id="tscBrand">Visa</span> •••• <span id="tscLast4">0000</span></span>
-      <span class="tsc-check" id="tscCheck">✓</span>
+  <!-- PAYMENT METHOD TABS -->
+  <div id="tipMethodTabs" style="display:flex;gap:.4rem;margin:.8rem 0 .6rem">
+    <button class="tip-tab active" id="tipTabPix" onclick="selectPayMethod('pix')" style="flex:1;padding:.5rem;border-radius:12px;border:1px solid rgba(0,220,130,.3);background:rgba(0,220,130,.1);color:#00dc82;font-size:.7rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s">
+      <div style="font-size:1.2rem;margin-bottom:.15rem">⚡</div>PIX · Instantâneo
     </button>
-    <div style="font-size:.7rem;color:var(--t3);margin-top:.3rem;text-align:center">Último cartão usado. Preencha os dados abaixo para pagar.</div>
+    <button class="tip-tab" id="tipTabCheckout" onclick="selectPayMethod('checkout')" style="flex:1;padding:.5rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">
+      <div style="font-size:1.2rem;margin-bottom:.15rem">🛒</div>Cartão · Apple Pay
+    </button>
   </div>
-  <div class="tip-card-section" id="tipCardSection">
-    <h3>Cartão de crédito</h3>
-    <div class="tip-card-fields">
-      <div class="tip-field" id="mpCardNumber"></div>
-      <div class="tip-card-row">
-        <div class="tip-field" id="mpExpiry"></div>
-        <div class="tip-field" id="mpCVV"></div>
+  <!-- PIX SECTION -->
+  <div id="tipPixSection">
+    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">Pague com PIX — funciona com Nubank, Inter, Itaú, Bradesco, qualquer banco. Instantâneo e sem taxa extra.</div>
+    <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem">
+    <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)">
+    <button class="tip-pay-btn" id="tipPixBtn" onclick="processPixTip()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#00dc82,#00b36b)">⚡ Gerar PIX</button>
+    <div id="tipPixQR" class="hidden" style="text-align:center;padding:1rem 0">
+      <div style="font-size:.75rem;font-weight:600;color:var(--ok);margin-bottom:.5rem">PIX gerado! Escaneie ou copie:</div>
+      <img id="tipPixQRImg" style="width:200px;height:200px;border-radius:12px;background:#fff;padding:8px" alt="QR Code PIX">
+      <div style="margin-top:.6rem">
+        <button onclick="copyPixCode()" style="padding:.4rem 1rem;border-radius:10px;background:rgba(0,220,130,.12);border:1px solid rgba(0,220,130,.25);color:#00dc82;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer">📋 Copiar código PIX</button>
       </div>
-      <div class="tip-field" id="mpCardHolder"></div>
-      <input type="email" id="tipPayerEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email">
-      <input type="text" id="tipPayerCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off">
+      <input type="hidden" id="tipPixCode">
+      <div style="font-size:.6rem;color:var(--t3);margin-top:.5rem">Expira em 30 minutos. Após pagamento, será confirmado automaticamente.</div>
     </div>
-    <label class="tip-save-check" id="tipSaveCheck"><input type="checkbox" id="tipSaveCardCb"> Memorizar cartão para próximas gorjetas</label>
   </div>
-  <button class="tip-pay-btn" id="tipPayBtn" onclick="processTip()" disabled>Confirmar gorjeta</button>
+  <!-- CHECKOUT PRO SECTION (MP redirect — all methods) -->
+  <div id="tipCheckoutSection" style="display:none">
+    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">Abre o Mercado Pago com todos os métodos: cartão de crédito/débito, PIX, Apple Pay, Google Pay, saldo MP.</div>
+    <button class="tip-pay-btn" id="tipCheckoutBtn" onclick="processCheckoutTip()" disabled style="margin-top:.3rem;background:linear-gradient(135deg,#009ee3,#0077b6)">🛒 Pagar com Mercado Pago</button>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;margin-top:.6rem;opacity:.5">
+      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">💳 Crédito</span>
+      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">🏦 Débito</span>
+      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">⚡ PIX</span>
+      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px"> Apple Pay</span>
+      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">🔵 Google Pay</span>
+    </div>
+  </div>
   <div class="tip-result hidden" id="tipResult">
     <div class="tip-result-icon" id="tipResultIcon"></div>
     <div class="tip-result-text" id="tipResultText"></div>
@@ -5297,22 +5311,25 @@ function applyLang(){
 }
 
 // ═══ GORJETA / TIP ═══
-let tipState = { receiverId: null, amount: 0, mpInstance: null, cardToken: null, useSaved: false };
+let tipState = { receiverId: null, amount: 0, method: 'pix' };
 
 function showTipScreen(receiverId) {
-  tipState = { receiverId, amount: 0, mpInstance: null, cardToken: null, useSaved: false };
+  tipState = { receiverId, amount: 0, method: 'pix' };
   // Reset UI
   document.querySelectorAll('.tip-amount-btn').forEach(b => b.classList.remove('selected'));
   $('tipCustomAmount').value = '';
-  $('tipPayBtn').disabled = true;
-  $('tipPayBtn').textContent = 'Confirmar gorjeta';
-  $('tipPayBtn').style.display = '';
   $('tipResult').classList.add('hidden');
-  $('tipCardSection').style.display = '';
   $('tipScreen').querySelector('.tip-amounts').style.display = '';
   $('tipScreen').querySelector('.tip-custom').style.display = '';
-  $('tipSavedSection').classList.add('hidden');
-  const saveCb=$('tipSaveCardCb');if(saveCb)saveCb.checked=false;
+  $('tipMethodTabs').style.display = '';
+  $('tipPixBtn').disabled = true;
+  $('tipPixBtn').textContent = '⚡ Gerar PIX';
+  $('tipCheckoutBtn').disabled = true;
+  $('tipCheckoutBtn').textContent = '🛒 Pagar com Mercado Pago';
+  $('tipPixQR').classList.add('hidden');
+  $('tipPixEmail').value = '';
+  $('tipPixCPF').value = '';
+  selectPayMethod('pix');
 
   // Fetch receiver info
   fetch('/api/user/' + receiverId).then(r => r.json()).then(u => {
@@ -5328,34 +5345,23 @@ function showTipScreen(receiverId) {
       (serviceLabel ? '<div class="tip-receiver-service">' + esc(serviceLabel) + '</div>' : '');
   }).catch(() => {});
 
-  // Check for saved card
-  fetch('/api/tip/saved-card/' + state.userId).then(r => r.json()).then(sc => {
-    if (sc.hasSaved) {
-      $('tscBrand').textContent = sc.brand || 'Cartão';
-      $('tscLast4').textContent = sc.lastFour || '****';
-      $('tipSavedSection').classList.remove('hidden');
-      // Show info only — always require fresh card entry
-    }
-  }).catch(() => {});
-
   showScreen('tipScreen');
-  initMPSecureFields();
 }
 
-function useSavedCard() {
-  // Saved card info is display-only; always require fresh card entry
-  tipState.useSaved = false;
-  $('tipSavedCardBtn').classList.add('active');
-  $('tipCardSection').style.display = '';
-  initMPSecureFields();
-  updateTipBtn();
-}
-function showNewCardForm() {
-  tipState.useSaved = false;
-  $('tipSavedCardBtn').classList.remove('active');
-  $('tipCardSection').style.display = '';
-  initMPSecureFields();
-  updateTipBtn();
+function selectPayMethod(method) {
+  tipState.method = method;
+  const tabPix = $('tipTabPix'), tabCk = $('tipTabCheckout');
+  const secPix = $('tipPixSection'), secCk = $('tipCheckoutSection');
+  if (method === 'pix') {
+    tabPix.style.borderColor = 'rgba(0,220,130,.3)'; tabPix.style.background = 'rgba(0,220,130,.1)'; tabPix.style.color = '#00dc82';
+    tabCk.style.borderColor = 'rgba(255,255,255,.08)'; tabCk.style.background = 'rgba(255,255,255,.04)'; tabCk.style.color = 'var(--t3)';
+    secPix.style.display = ''; secCk.style.display = 'none';
+  } else {
+    tabCk.style.borderColor = 'rgba(0,158,227,.3)'; tabCk.style.background = 'rgba(0,158,227,.1)'; tabCk.style.color = '#009ee3';
+    tabPix.style.borderColor = 'rgba(255,255,255,.08)'; tabPix.style.background = 'rgba(255,255,255,.04)'; tabPix.style.color = 'var(--t3)';
+    secCk.style.display = ''; secPix.style.display = 'none';
+  }
+  updateTipBtns();
 }
 
 function selectTipAmount(val) {
@@ -5364,7 +5370,7 @@ function selectTipAmount(val) {
   document.querySelectorAll('.tip-amount-btn').forEach(b => {
     b.classList.toggle('selected', b.textContent === 'R$' + val);
   });
-  updateTipBtn();
+  updateTipBtns();
 }
 function selectTipCustom() {
   const v = parseFloat($('tipCustomAmount').value);
@@ -5372,103 +5378,135 @@ function selectTipCustom() {
     tipState.amount = v;
     document.querySelectorAll('.tip-amount-btn').forEach(b => b.classList.remove('selected'));
   }
-  updateTipBtn();
+  updateTipBtns();
 }
-function updateTipBtn() {
-  const btn = $('tipPayBtn');
-  if (tipState.amount > 0) {
-    btn.disabled = false;
-    btn.textContent = 'Pagar R$' + tipState.amount.toFixed(2).replace('.', ',');
-  } else {
-    btn.disabled = true;
-    btn.textContent = 'Confirmar gorjeta';
-  }
-}
-
-let mpSecureFieldsLoaded = false;
-function initMPSecureFields() {
-  if (!window.MercadoPago) {
-    // Load MP SDK
-    if (!mpSecureFieldsLoaded) {
-      const script = document.createElement('script');
-      script.src = 'https://sdk.mercadopago.com/js/v2';
-      script.onload = () => setupMPFields();
-      document.head.appendChild(script);
-      mpSecureFieldsLoaded = true;
-    }
-  } else {
-    setupMPFields();
-  }
+function updateTipBtns() {
+  const has = tipState.amount > 0;
+  const label = has ? 'R$' + tipState.amount.toFixed(2).replace('.', ',') : '';
+  $('tipPixBtn').disabled = !has;
+  if (has) $('tipPixBtn').textContent = '⚡ PIX ' + label;
+  else $('tipPixBtn').textContent = '⚡ Gerar PIX';
+  $('tipCheckoutBtn').disabled = !has;
+  if (has) $('tipCheckoutBtn').textContent = '🛒 Pagar ' + label;
+  else $('tipCheckoutBtn').textContent = '🛒 Pagar com Mercado Pago';
 }
 
-function setupMPFields() {
-  fetch('/api/mp/public-key').then(r => r.json()).then(({ publicKey }) => {
-    tipState.mpInstance = new window.MercadoPago(publicKey, { locale: 'pt-BR' });
-    const mp = tipState.mpInstance;
-    // Clear previous fields
-    ['mpCardNumber', 'mpExpiry', 'mpCVV', 'mpCardHolder'].forEach(id => { $(id).innerHTML = ''; });
-    const style = { color: '#f5f5f7', 'font-size': '14px', 'font-family': 'Inter, sans-serif', placeholder: { color: '#555568' } };
-    const cardNumber = mp.fields.create('cardNumber', { placeholder: 'Número do cartão', style }).mount('mpCardNumber');
-    mp.fields.create('expirationDate', { placeholder: 'MM/AA', style }).mount('mpExpiry');
-    mp.fields.create('securityCode', { placeholder: 'CVV', style }).mount('mpCVV');
-    // Card holder is a regular input
-    $('mpCardHolder').innerHTML = '<input type="text" placeholder="Nome no cartão" style="width:100%;background:transparent;border:none;color:var(--t1);font-size:14px;font-family:Inter,sans-serif;outline:none" id="mpCardHolderInput">';
-  }).catch(e => console.error('MP setup error:', e));
+function formatCPF(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+  el.value = v;
 }
 
-async function processTip() {
+// ── PIX Payment ──
+async function processPixTip() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
-  const btn = $('tipPayBtn');
-  btn.disabled = true; btn.textContent = 'Processando...';
+  const cpf = ($('tipPixCPF').value || '').replace(/\D/g, '');
+  if (!cpf || cpf.length < 11) return showToast('Informe seu CPF para PIX.');
+  const email = $('tipPixEmail').value.trim() || '';
+  if (!email) return showToast('Informe seu e-mail.');
 
+  const btn = $('tipPixBtn');
+  btn.disabled = true; btn.textContent = 'Gerando PIX...';
   try {
-    let tokenId, pmId;
-    // Always tokenize fresh — saved card tokens are not reusable with MP API
-    if (!tipState.mpInstance) return showToast('Carregando pagamento...');
-    const holderName = $('mpCardHolderInput') ? $('mpCardHolderInput').value : '';
-    const tokenResult = await tipState.mpInstance.fields.createCardToken({ cardholderName: holderName });
-    if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão. Preencha todos os campos.');
-    tokenId = tokenResult.id;
-    pmId = tokenResult.payment_method_id || 'visa';
-    // Save card info for display if checkbox checked
-    const saveCb = $('tipSaveCardCb');
-    if (saveCb && saveCb.checked && tokenResult.last_four_digits) {
-      fetch('/api/tip/save-card', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: state.userId, lastFour: tokenResult.last_four_digits, brand: pmId, customerId: null })
-      }).catch(() => {});
-    }
-
-    const payerEmail = ($('tipPayerEmail') ? $('tipPayerEmail').value.trim() : '') || 'test@testuser.com';
-    const payerCPF = ($('tipPayerCPF') ? $('tipPayerCPF').value.replace(/\D/g,'') : '') || '12345678909';
-    const resp = await fetch('/api/tip/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payerId: state.userId,
-        receiverId: tipState.receiverId,
-        amount: tipState.amount,
-        token: tokenId,
-        paymentMethodId: pmId,
-        installments: 1,
-        payerEmail,
-        payerCPF,
-        useSavedCard: tipState.useSaved
-      })
+    const resp = await fetch('/api/tip/pix', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount, payerEmail: email, payerCPF: cpf })
     });
     const result = await resp.json();
+    if (result.error) throw new Error(result.error);
 
-    if (result.status === 'approved') {
-      showTipResult('✅', 'Gorjeta enviada!<br>R$' + tipState.amount.toFixed(2).replace('.', ',') + ' chegou.');
-      haptic([50, 30, 50, 30, 50]);
-    } else if (result.status === 'pending' || result.status === 'in_process') {
-      showTipResult('⏳', 'Pagamento em processamento.<br>Você será notificado.');
+    // Show QR code
+    if (result.qrCodeBase64) {
+      $('tipPixQRImg').src = 'data:image/png;base64,' + result.qrCodeBase64;
+    } else if (result.ticketUrl) {
+      $('tipPixQRImg').src = result.ticketUrl;
+    }
+    $('tipPixCode').value = result.qrCode || '';
+    $('tipPixQR').classList.remove('hidden');
+    btn.textContent = '✅ PIX gerado!';
+    haptic([30, 20, 30]);
+
+    // Poll for payment confirmation
+    if (result.tipId) pollTipStatus(result.tipId);
+  } catch (e) {
+    console.error('PIX error:', e);
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    btn.disabled = false;
+    btn.textContent = '⚡ PIX R$' + tipState.amount.toFixed(2).replace('.', ',');
+  }
+}
+
+function copyPixCode() {
+  const code = $('tipPixCode').value;
+  if (!code) return showToast('Nenhum código PIX.');
+  navigator.clipboard.writeText(code).then(() => showToast('Código PIX copiado!')).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea'); ta.value = code; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    showToast('Código PIX copiado!');
+  });
+  haptic([20]);
+}
+
+function pollTipStatus(tipId) {
+  let polls = 0;
+  const iv = setInterval(async () => {
+    polls++;
+    if (polls > 60) { clearInterval(iv); return; } // Stop after 5 min
+    try {
+      const tips = await (await fetch('/api/tips/' + state.userId)).json();
+      const tip = tips.find(t => t.id === tipId);
+      if (tip && tip.status === 'approved') {
+        clearInterval(iv);
+        showTipResult('✅', 'PIX confirmado!<br>R$' + tip.amount.toFixed(2).replace('.', ',') + ' chegou.');
+        haptic([50, 30, 50, 30, 50]);
+      }
+    } catch (e) {}
+  }, 5000);
+}
+
+// ── Checkout Pro (redirect to MP) ──
+async function processCheckoutTip() {
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  const btn = $('tipCheckoutBtn');
+  btn.disabled = true; btn.textContent = 'Abrindo...';
+  try {
+    const resp = await fetch('/api/tip/checkout', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount })
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+    // Open MP checkout in new window/tab
+    const url = result.initPoint || result.sandboxInitPoint;
+    if (url) {
+      window.open(url, '_blank');
+      btn.textContent = '✅ Checkout aberto';
+      showToast('Complete o pagamento na janela do Mercado Pago.');
+      // Poll for result
+      if (result.tipId) pollTipStatus(result.tipId);
     } else {
-      showTipResult('❌', 'Pagamento não aprovado.<br>' + (result.statusDetail || 'Tente outro cartão.'));
+      throw new Error('URL do checkout não disponível.');
     }
   } catch (e) {
-    console.error('Tip error:', e);
-    showTipResult('❌', 'Erro: ' + (e.message || 'Tente novamente.'));
+    console.error('Checkout error:', e);
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    btn.disabled = false;
+    btn.textContent = '🛒 Pagar R$' + tipState.amount.toFixed(2).replace('.', ',');
+  }
+}
+
+// ── Check for tipResult URL param (return from Checkout Pro) ──
+function checkTipResultParam() {
+  const params = new URLSearchParams(window.location.search);
+  const tipResult = params.get('tipResult');
+  if (tipResult) {
+    if (tipResult === 'approved') showToast('Gorjeta confirmada! ✅');
+    else if (tipResult === 'pending') showToast('Pagamento em processamento ⏳');
+    else showToast('Pagamento não aprovado ❌');
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname);
   }
 }
 
@@ -5477,11 +5515,11 @@ function showTipResult(icon, text) {
   $('tipResultIcon').textContent = icon;
   $('tipResultText').innerHTML = text;
   // Hide form parts
-  $('tipCardSection').style.display = 'none';
-  $('tipSavedSection').classList.add('hidden');
+  $('tipPixSection').style.display = 'none';
+  $('tipCheckoutSection').style.display = 'none';
+  $('tipMethodTabs').style.display = 'none';
   $('tipScreen').querySelector('.tip-amounts').style.display = 'none';
   $('tipScreen').querySelector('.tip-custom').style.display = 'none';
-  $('tipPayBtn').style.display = 'none';
 }
 
 // ═══ PRESTADOR REGISTER ═══
@@ -5669,7 +5707,7 @@ window.addEventListener('load',()=>{
       const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
       if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
       else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
-      refreshHome();restoreFloatingEvent();
+      refreshHome();restoreFloatingEvent();checkTipResultParam();
     }else{
       // Show onboarding for first-time users, login for returning
       if(!localStorage.getItem('touch_onboarded')){

@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
-const { MercadoPagoConfig, Payment, OAuth } = require('mercadopago');
+const { MercadoPagoConfig, Payment, Preference, OAuth } = require('mercadopago');
 const admin = require('firebase-admin');
 
 const app = express();
@@ -2530,6 +2530,163 @@ function handlePaymentResult(result, payerId, receiverId, amount, fee, res) {
   io.to(`user:${receiverId}`).emit('tip-received', { amount, tipId, from: db.users[payerId]?.nickname || '?', status: result.status });
   res.json({ status: result.status, tipId, statusDetail: result.status_detail });
 }
+
+// ═══ PIX PAYMENT ═══
+app.post('/api/tip/pix', async (req, res) => {
+  const { payerId, receiverId, amount, payerEmail, payerCPF } = req.body;
+  if (!payerId || !receiverId || !amount) return res.status(400).json({ error: 'Dados incompletos.' });
+  const payer = db.users[payerId];
+  const receiver = db.users[receiverId];
+  if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
+  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  const tipAmount = parseFloat(amount);
+  if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
+
+  const email = payerEmail || payer.email || 'payer@touch.app';
+  const cpf = (payerCPF || payer.cpf || '').replace(/\D/g, '');
+  if (!cpf || cpf.length < 11) return res.status(400).json({ error: 'CPF é obrigatório para PIX.' });
+  const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100;
+
+  try {
+    const paymentData = {
+      transaction_amount: tipAmount,
+      description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || 'gorjeta'),
+      payment_method_id: 'pix',
+      payer: { email, identification: { type: 'CPF', number: cpf } },
+      statement_descriptor: 'TOUCH GORJETA',
+      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip_pix' },
+      notification_url: MP_REDIRECT_URI.replace('/mp/callback', '') + '/mp/webhook'
+    };
+
+    let result;
+    if (receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      result = await new Payment(receiverClient).create({ body: paymentData });
+    } else {
+      result = await mpPayment.create({ body: paymentData });
+    }
+
+    console.log('🟢 PIX payment created:', { id: result.id, status: result.status });
+
+    // Extract PIX data
+    const pixData = result.point_of_interaction?.transaction_data;
+    const qrCode = pixData?.qr_code || '';
+    const qrCodeBase64 = pixData?.qr_code_base64 || '';
+    const ticketUrl = pixData?.ticket_url || '';
+
+    // Save tip
+    const tipId = uuidv4();
+    db.tips[tipId] = {
+      id: tipId, payerId, receiverId, amount: tipAmount, fee: touchFee,
+      mpPaymentId: result.id, status: result.status, statusDetail: result.status_detail,
+      method: 'pix', createdAt: Date.now()
+    };
+    saveDB();
+    io.to(`user:${receiverId}`).emit('tip-received', { amount: tipAmount, tipId, from: payer.nickname || '?', status: 'pending', method: 'pix' });
+
+    res.json({
+      status: result.status, tipId,
+      qrCode, qrCodeBase64, ticketUrl,
+      expiresIn: 30 // minutes
+    });
+  } catch (e) {
+    console.error('PIX error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro ao gerar PIX: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// ═══ CHECKOUT PRO (redirect MP — all methods) ═══
+app.post('/api/tip/checkout', async (req, res) => {
+  const { payerId, receiverId, amount } = req.body;
+  if (!payerId || !receiverId || !amount) return res.status(400).json({ error: 'Dados incompletos.' });
+  const payer = db.users[payerId];
+  const receiver = db.users[receiverId];
+  if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
+  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  const tipAmount = parseFloat(amount);
+  if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
+
+  const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100;
+  const tipId = uuidv4();
+  const baseUrl = MP_REDIRECT_URI.replace('/mp/callback', '');
+
+  try {
+    const prefData = {
+      items: [{
+        id: 'tip_' + tipId,
+        title: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || 'gorjeta'),
+        quantity: 1,
+        unit_price: tipAmount,
+        currency_id: 'BRL'
+      }],
+      payer: { email: payer.email || 'payer@touch.app' },
+      back_urls: {
+        success: baseUrl + '/tip-result?status=approved&tipId=' + tipId,
+        failure: baseUrl + '/tip-result?status=rejected&tipId=' + tipId,
+        pending: baseUrl + '/tip-result?status=pending&tipId=' + tipId
+      },
+      auto_return: 'approved',
+      external_reference: tipId,
+      notification_url: baseUrl + '/mp/webhook',
+      statement_descriptor: 'TOUCH GORJETA',
+      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip_checkout' }
+    };
+
+    // If receiver connected via OAuth, use their credentials for split
+    let preference;
+    if (receiver.mpConnected && receiver.mpAccessToken) {
+      prefData.marketplace_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      preference = await new Preference(receiverClient).create({ body: prefData });
+    } else {
+      const mpPref = new Preference(mpClient);
+      preference = await mpPref.create({ body: prefData });
+    }
+
+    // Pre-save tip as pending
+    db.tips[tipId] = {
+      id: tipId, payerId, receiverId, amount: tipAmount, fee: touchFee,
+      mpPreferenceId: preference.id, status: 'pending', statusDetail: 'waiting_checkout',
+      method: 'checkout_pro', createdAt: Date.now()
+    };
+    saveDB();
+
+    console.log('🛒 Checkout Pro preference created:', preference.id);
+    res.json({
+      preferenceId: preference.id,
+      initPoint: preference.init_point, // Production URL
+      sandboxInitPoint: preference.sandbox_init_point, // Sandbox URL
+      tipId
+    });
+  } catch (e) {
+    console.error('Checkout Pro error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro ao criar checkout: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// Checkout Pro return page
+app.get('/tip-result', (req, res) => {
+  const { status, tipId, payment_id } = req.query;
+  // Update tip if we got a payment_id from MP
+  if (tipId && db.tips[tipId] && status) {
+    db.tips[tipId].status = status === 'approved' ? 'approved' : status === 'pending' ? 'pending' : 'rejected';
+    if (payment_id) db.tips[tipId].mpPaymentId = payment_id;
+    if (status === 'approved') {
+      const tip = db.tips[tipId];
+      const receiver = db.users[tip.receiverId];
+      if (receiver) { receiver.tipsReceived = (receiver.tipsReceived || 0) + 1; receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount; }
+      io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, tipId, from: db.users[tip.payerId]?.nickname || '?', status: 'approved' });
+    }
+    saveDB();
+  }
+  // Redirect back to app
+  res.redirect('/?tipResult=' + (status || 'unknown') + '&tipId=' + (tipId || ''));
+});
 
 // Tip history for user
 app.get('/api/tips/:userId', (req, res) => {
