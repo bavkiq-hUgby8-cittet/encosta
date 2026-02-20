@@ -995,7 +995,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="home" class="screen">
   <!-- Floating event button (persistent while event active) - positioned below daily counter -->
-  <div id="floatingEventBtn" style="display:none;position:absolute;top:auto;bottom:calc(50% + 55px);left:50%;transform:translateX(-50%);z-index:8;padding:.5rem 1rem;background:rgba(96,165,250,.12);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.25);border-radius:16px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
+  <div id="floatingEventBtn" style="display:none;position:absolute;top:12%;left:50%;transform:translateX(-50%);z-index:8;padding:.45rem .9rem;background:rgba(96,165,250,.12);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.25);border-radius:16px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
     <span style="font-size:.7rem;font-weight:600;color:#60a5fa">📍 <span id="floatingEventName"></span> · Ver evento</span>
   </div>
   <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
@@ -3305,51 +3305,8 @@ function openTipFromReveal(){
 // ═══ ENTRY PAYMENT — pay to enter operator event ═══
 async function showEntryPayment(eventId,eventName,price,operatorId){
   if(!state.userId){showToast('Faça login para continuar.');return}
-  const priceLabel='R$'+price.toFixed(2).replace('.',',');
-  const secRow=document.querySelector('#revealActions .rv-sec-row');
-  const enterBtn=$('revealEnterBtn');
-
-  // Check if user has saved card for one-tap
-  let hasSaved=false;
-  try{
-    const sc=await fetch('/api/tip/saved-card/'+state.userId).then(r=>r.json());
-    if(sc.hasSaved)hasSaved=true;
-  }catch(e){}
-
-  if(hasSaved){
-    // ONE-TAP: pay immediately with saved card
-    if(enterBtn){enterBtn.disabled=true;enterBtn.textContent='Processando...'}
-    try{
-      const resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({userId:state.userId,useSavedCard:true})
-      });
-      const result=await resp.json();
-      if(result.error){
-        if(result.cardExpired){
-          // Fallback to new card
-          showEntryCardForm(eventId,eventName,price,operatorId);
-          return;
-        }
-        throw new Error(result.error);
-      }
-      if(result.status==='approved'){
-        showToast('Ingresso pago! ✅');
-        haptic([50,30,50,30,50]);
-        showEventView(eventId,eventName);
-      }else{
-        showToast('Pagamento pendente ⏳');
-        showEventView(eventId,eventName);
-      }
-    }catch(e){
-      showToast('Erro no pagamento. Tente com outro cartão.');
-      // Fallback to card form instead of dead-end
-      showEntryCardForm(eventId,eventName,price,operatorId);
-    }
-  }else{
-    // No saved card — show card form inline
-    showEntryCardForm(eventId,eventName,price,operatorId);
-  }
+  // Always show card form for entry payments (no auto one-tap — avoids confusing errors)
+  showEntryCardForm(eventId,eventName,price,operatorId);
 }
 
 function showEntryCardForm(eventId,eventName,price,operatorId){
