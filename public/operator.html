@@ -279,6 +279,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <label class="op-login-label">Descreva o serviço</label>
       <input class="op-login-input" id="opServiceCustom" type="text" placeholder="Ex: Decoração, Segurança..." maxlength="30">
     </div>
+    <div class="op-login-field">
+      <label class="op-login-label">Valor do ingresso (opcional)</label>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <span style="font-size:.8rem;color:var(--t2);font-weight:600">R$</span>
+        <input class="op-login-input" id="opEntryPrice" type="number" placeholder="0,00" min="0" max="500" step="0.01" style="flex:1">
+      </div>
+      <div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">Deixe em branco ou 0 para entrada gratuita. 10% de taxa Touch?.</div>
+    </div>
     <div style="display:flex;align-items:center;gap:.6rem;padding:.3rem 0">
       <input type="checkbox" id="opAcceptsTips" style="accent-color:var(--ok);width:16px;height:16px;cursor:pointer">
       <label for="opAcceptsTips" style="font-size:.72rem;color:var(--t2);cursor:pointer">Aceitar gorjetas neste evento 💰</label>
@@ -505,7 +513,9 @@ async function showEventsScreen(){
         const dt=new Date(ev.createdAt);
         const dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
         const statusBadge=ev.active?'<span class="op-event-status active">Ativo</span>':'<span class="op-event-status ended">Encerrado</span>';
-        card.innerHTML='<div class="op-event-name">'+esc(ev.name)+' '+statusBadge+'</div><div class="op-event-meta">'+dateStr+' · '+((ev.participants||[]).length)+' participantes</div>';
+        const priceTag=ev.entryPrice>0?' · 🎫 R$'+ev.entryPrice.toFixed(2).replace('.',','):'';
+        const revTag=ev.revenue>0?' · 💰 R$'+ev.revenue.toFixed(2).replace('.',','):'';
+        card.innerHTML='<div class="op-event-name">'+esc(ev.name)+' '+statusBadge+'</div><div class="op-event-meta">'+dateStr+' · '+((ev.participants||[]).length)+' participantes'+priceTag+revTag+'</div>';
         if(ev.active){card.onclick=()=>opSelectEvent(ev.id,ev.name)}
         list.appendChild(card);
       });
@@ -525,12 +535,13 @@ async function opCreateEvent(){
   const serviceType=$('opServiceType').value;
   const serviceLabel=serviceType==='custom'?($('opServiceCustom').value.trim()||''):serviceType;
   const acceptsTips=$('opAcceptsTips').checked;
+  const entryPrice=parseFloat($('opEntryPrice').value)||0;
   err.textContent='Criando...';
   try{
-    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips})});
+    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error||'Erro ao criar.';return}
-    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';
+    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';
     opSelectEvent(d.event.id,d.event.name);
   }catch(e){err.textContent='Erro: '+e.message}
 }
@@ -634,6 +645,14 @@ function initSocket(){
   });
   // Use checkin-created as the primary event (avoids duplicates with relation-created)
   S.socket.on('checkin-created',d=>{handleNewCheckin(d)});
+  // Entry fee paid notification
+  S.socket.on('entry-paid',d=>{
+    const toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
+    toast.textContent='🎫 '+esc(d.nickname)+' pagou ingresso R$'+d.amount.toFixed(2).replace('.',',');
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),4000);
+  });
   // Chat messages
   S.socket.on('new-message',({relationId,message})=>{
     if(chatOpen&&chatRelationId===relationId)appendChatMsg(message);

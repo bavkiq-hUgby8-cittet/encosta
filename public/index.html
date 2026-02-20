@@ -2912,10 +2912,24 @@ function doReveal(data){
       secRow.innerHTML='<button type="button" class="rv-btn-mini" onclick="enterChat()"><span class="rv-ico">💬</span>Abrir chat</button>';
     }
   }else if(isCheckin){
-    // CHECKIN: revelar dados ou só check-in → go to event view
+    // CHECKIN: check entry price, reveal, go to event view
     const evId=data.eventId||null;
     const evName=data.eventName||data.operatorName||'Evento';
-    if(data.requireReveal){
+    const entryPrice=data.entryPrice||0;
+
+    if(entryPrice>0){
+      // ── PAID CHECK-IN — show payment first ──
+      const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
+      if(enterBtn){
+        enterBtn.textContent='🎫 Pagar ingresso '+priceLabel;
+        enterBtn.style.background='linear-gradient(135deg,#6366f1,#4f46e5)';
+        enterBtn.onclick=function(){showEntryPayment(evId,evName,entryPrice,them.id)}
+      }
+      if(skipBtn){skipBtn.textContent='Cancelar';skipBtn.onclick=function(){goHome()}}
+      if(secRow){
+        secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">🎫 Este evento cobra '+priceLabel+' de ingresso.</div>';
+      }
+    }else if(data.requireReveal){
       if(enterBtn){enterBtn.textContent='Revelar e continuar';enterBtn.style.background='linear-gradient(135deg,#34d399,#10b981)';enterBtn.onclick=function(){revealToOperator(them.id,evId,evName)}}
       if(skipBtn){skipBtn.textContent='Continuar anônimo';skipBtn.onclick=function(){if(evId)showEventView(evId,evName);else goHome()}}
       if(secRow){secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">📋 Este estabelecimento solicita identificação.<br>Revele sua identidade para uma experiência completa.</div>'}
@@ -2956,6 +2970,148 @@ function revealToOperator(operatorId,eventId,eventName){
 function openTipFromReveal(){
   const btn=$('revealTipBtn');
   if(btn&&btn.dataset.receiverId) showTipScreen(btn.dataset.receiverId);
+}
+
+// ═══ ENTRY PAYMENT — pay to enter operator event ═══
+async function showEntryPayment(eventId,eventName,price,operatorId){
+  const priceLabel='R$'+price.toFixed(2).replace('.',',');
+  const secRow=document.querySelector('#revealActions .rv-sec-row');
+  const enterBtn=$('revealEnterBtn');
+
+  // Check if user has saved card for one-tap
+  let hasSaved=false;
+  try{
+    const sc=await fetch('/api/tip/saved-card/'+state.userId).then(r=>r.json());
+    if(sc.hasSaved)hasSaved=true;
+  }catch(e){}
+
+  if(hasSaved){
+    // ONE-TAP: pay immediately with saved card
+    if(enterBtn){enterBtn.disabled=true;enterBtn.textContent='Processando...'}
+    try{
+      const resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({userId:state.userId,useSavedCard:true})
+      });
+      const result=await resp.json();
+      if(result.error){
+        if(result.cardExpired){
+          // Fallback to new card
+          showEntryCardForm(eventId,eventName,price,operatorId);
+          return;
+        }
+        throw new Error(result.error);
+      }
+      if(result.status==='approved'){
+        showToast('Ingresso pago! ✅');
+        haptic([50,30,50,30,50]);
+        showEventView(eventId,eventName);
+      }else{
+        showToast('Pagamento pendente ⏳');
+        showEventView(eventId,eventName);
+      }
+    }catch(e){
+      showToast('Erro: '+(e.message||'Tente novamente'));
+      if(enterBtn){enterBtn.disabled=false;enterBtn.textContent='🎫 Pagar ingresso '+priceLabel}
+    }
+  }else{
+    // No saved card — show card form inline
+    showEntryCardForm(eventId,eventName,price,operatorId);
+  }
+}
+
+function showEntryCardForm(eventId,eventName,price,operatorId){
+  const priceLabel='R$'+price.toFixed(2).replace('.',',');
+  const secRow=document.querySelector('#revealActions .rv-sec-row');
+  const enterBtn=$('revealEnterBtn');
+  const skipBtn=$('revealSkipBtn');
+
+  if(enterBtn)enterBtn.style.display='none';
+  if(skipBtn)skipBtn.style.display='none';
+
+  if(secRow){
+    secRow.style.display='';
+    secRow.innerHTML='<div style="width:100%;padding:.6rem">'
+      +'<div style="font-size:.7rem;font-weight:600;color:var(--t1);text-align:center;margin-bottom:.5rem">🎫 Ingresso '+priceLabel+' — '+esc(eventName)+'</div>'
+      +'<input type="text" id="entryCardNumber" class="tip-input" placeholder="Número do cartão" inputmode="numeric" maxlength="19" autocomplete="cc-number" oninput="formatCardNumber(this)" style="margin-bottom:.3rem">'
+      +'<div style="display:flex;gap:.3rem;margin-bottom:.3rem"><input type="text" id="entryCardExpiry" class="tip-input" placeholder="MM/AA" inputmode="numeric" maxlength="5" oninput="formatExpiry(this)" style="flex:1"><input type="text" id="entryCardCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" style="flex:1"></div>'
+      +'<input type="text" id="entryCardHolder" class="tip-input" placeholder="Nome no cartão" style="margin-bottom:.3rem">'
+      +'<input type="text" id="entryCardCPF" class="tip-input" placeholder="CPF" inputmode="numeric" maxlength="14" oninput="formatCPF(this)" style="margin-bottom:.3rem">'
+      +'<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.5rem"><input type="checkbox" id="entrySaveCard" checked style="accent-color:#6366f1"><label for="entrySaveCard" style="font-size:.55rem;color:var(--t3)">Salvar cartão</label></div>'
+      +'<button onclick="payEntry(\''+eventId+'\',\''+eventName.replace(/'/g,"\\'")+'\','+price+')" style="width:100%;padding:.65rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer" id="entryPayBtn">🎫 Pagar '+priceLabel+'</button>'
+      +'<button onclick="goHome()" style="width:100%;padding:.3rem;border:none;background:transparent;color:var(--t3);font-size:.55rem;font-family:inherit;cursor:pointer;margin-top:.3rem">Cancelar</button>'
+      +'</div>';
+  }
+}
+
+async function payEntry(eventId,eventName,price){
+  const cardNum=($('entryCardNumber')||{}).value?.replace(/\s/g,'')||'';
+  const expiry=($('entryCardExpiry')||{}).value||'';
+  const cvv=($('entryCardCVV')||{}).value||'';
+  const holder=($('entryCardHolder')||{}).value?.trim()||'';
+  const cpf=($('entryCardCPF')||{}).value?.replace(/\D/g,'')||'';
+  if(!cardNum||cardNum.length<13)return showToast('Número do cartão inválido.');
+  if(!expiry||expiry.length<5)return showToast('Data de validade inválida.');
+  if(!cvv||cvv.length<3)return showToast('CVV inválido.');
+  if(!holder)return showToast('Nome no cartão obrigatório.');
+  if(!cpf||cpf.length<11)return showToast('CPF inválido.');
+
+  const btn=$('entryPayBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...'}
+
+  try{
+    const mp=await getMpSdk();
+    if(!mp)throw new Error('SDK não disponível.');
+    const [expMonth,expYear]=expiry.split('/');
+    // BIN detection
+    const d1=cardNum[0],d2=cardNum.substring(0,2);
+    let pmId='visa';
+    if(d1==='5'||d2==='22'||d2==='23'||d2==='24'||d2==='25'||d2==='26'||d2==='27')pmId='master';
+    else if(d1==='4')pmId='visa';
+    else if(d2==='34'||d2==='37')pmId='amex';
+    else if(d2==='60'||d2==='65'||d2==='63')pmId='elo';
+
+    const tokenResult=await mp.createCardToken({
+      cardNumber:cardNum,cardholderName:holder,
+      cardExpirationMonth:expMonth,cardExpirationYear:'20'+expYear,
+      securityCode:cvv,identificationType:'CPF',identificationNumber:cpf
+    });
+    if(!tokenResult||!tokenResult.id)throw new Error('Erro ao tokenizar.');
+
+    const resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,token:tokenResult.id,paymentMethodId:pmId,payerEmail:state.email||state.userId+'@touch.app',payerCPF:cpf})
+    });
+    const result=await resp.json();
+    if(result.error)throw new Error(result.error);
+
+    // Save card if checked
+    if($('entrySaveCard')&&$('entrySaveCard').checked){
+      try{
+        const saveToken=await mp.createCardToken({
+          cardNumber:cardNum,cardholderName:holder,
+          cardExpirationMonth:expMonth,cardExpirationYear:'20'+expYear,
+          securityCode:cvv,identificationType:'CPF',identificationNumber:cpf
+        });
+        if(saveToken?.id){
+          await fetch('/api/tip/save-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,token:saveToken.id,email:state.email||'',cpf})});
+        }
+      }catch(e){console.error('Save card err:',e)}
+    }
+
+    if(result.status==='approved'){
+      showToast('Ingresso pago! ✅');
+      haptic([50,30,50,30,50]);
+      showEventView(eventId,eventName);
+    }else{
+      showToast('Pagamento pendente ⏳');
+      showEventView(eventId,eventName);
+    }
+  }catch(e){
+    console.error('Entry pay error:',e);
+    showToast('Erro: '+(e.message||'Tente novamente'));
+    if(btn){btn.disabled=false;btn.textContent='🎫 Pagar R$'+price.toFixed(2).replace('.',',')}
+  }
 }
 
 // ═══ CHAT ═══

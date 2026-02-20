@@ -2099,6 +2099,7 @@ function createSonicConnection(userIdA, userIdB) {
     eventName: eventObj ? eventObj.name : null,
     requireReveal: !!opRequireReveal,
     operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
+    entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
     userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
     userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
     zodiacPhrase
@@ -2897,10 +2898,15 @@ app.post('/api/tip/quick-pay', async (req, res) => {
     const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + payer.savedCard.customerId + '/cards', {
       headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
     });
+    if (!cardsResp.ok) {
+      console.error('⚠️ Cards API error:', cardsResp.status, await cardsResp.text().catch(() => ''));
+      delete payer.savedCard;
+      saveDB();
+      return res.status(400).json({ error: 'Cartão salvo não é mais válido. Cadastre novamente.', cardExpired: true });
+    }
     const cards = await cardsResp.json();
-    if (!Array.isArray(cards)) {
-      console.error('⚠️ Cards API returned non-array:', cards);
-      // Customer might be invalid — clear saved card
+    if (!Array.isArray(cards) || cards.length === 0) {
+      console.error('⚠️ Cards API returned:', cards);
       delete payer.savedCard;
       saveDB();
       return res.status(400).json({ error: 'Cartão salvo expirou. Cadastre novamente.', cardExpired: true });
@@ -3206,19 +3212,115 @@ app.post('/api/operator/settings', (req, res) => {
 
 // ═══ OPERATOR EVENTS ═══
 app.post('/api/operator/event/create', (req, res) => {
-  const { userId, name, description, acceptsTips, serviceLabel } = req.body;
+  const { userId, name, description, acceptsTips, serviceLabel, entryPrice } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
+  const price = parseFloat(entryPrice) || 0;
   db.operatorEvents[id] = {
     id, name: name.trim(), description: (description || '').trim(),
     creatorId: userId, creatorName: db.users[userId].nickname || db.users[userId].name,
     active: true, participants: [], checkinCount: 0,
     acceptsTips: !!acceptsTips, serviceLabel: (serviceLabel || '').trim(),
+    entryPrice: price > 0 ? price : 0,
+    revenue: 0, paidCheckins: 0,
     createdAt: Date.now()
   };
   saveDB();
   res.json({ event: db.operatorEvents[id] });
+});
+
+// ═══ PAY EVENT ENTRY — charge entry fee on check-in ═══
+app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
+  const { userId, token, paymentMethodId, payerEmail, payerCPF, useSavedCard } = req.body;
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
+  if (!ev.entryPrice || ev.entryPrice <= 0) return res.status(400).json({ error: 'Evento sem cobrança de ingresso.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
+
+  const amount = ev.entryPrice;
+  const touchFee = Math.round(amount * TOUCH_FEE_PERCENT) / 100;
+  const receiver = db.users[ev.creatorId];
+
+  try {
+    let paymentToken = token;
+
+    // One-tap: create token server-side from saved card
+    if (useSavedCard && user.savedCard?.customerId && user.savedCard?.cardId) {
+      const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + user.savedCard.customerId + '/cards', {
+        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+      });
+      const cards = await cardsResp.json();
+      if (!Array.isArray(cards) || cards.length === 0) {
+        delete user.savedCard; saveDB();
+        return res.status(400).json({ error: 'Cartão salvo expirou.', cardExpired: true });
+      }
+      const card = cards.find(c => c.id === user.savedCard.cardId) || cards[0];
+      const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ card_id: card.id, customer_id: user.savedCard.customerId })
+      });
+      const tokenData = await tokenResp.json();
+      if (!tokenData.id) return res.status(400).json({ error: 'Erro ao processar cartão.', cardExpired: true });
+      paymentToken = tokenData.id;
+      // Use stored payment method
+      var pmId = card.payment_method?.id || user.savedCard.paymentMethodId || 'visa';
+    }
+
+    const paymentData = {
+      transaction_amount: amount,
+      token: paymentToken,
+      payment_method_id: pmId || paymentMethodId || 'visa',
+      installments: 1,
+      payer: {
+        email: payerEmail || user.email || userId + '@touch.app',
+        identification: { type: 'CPF', number: (payerCPF || user.cpf || user.savedCard?.cpf || '00000000000').replace(/\D/g, '') }
+      },
+      description: 'Ingresso Touch? — ' + ev.name,
+      statement_descriptor: 'TOUCH INGRESSO',
+      metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry' }
+    };
+
+    console.log('🎫 Entry payment:', { amount, event: ev.name, user: userId.slice(0, 8), method: paymentData.payment_method_id });
+
+    let result;
+    if (receiver && receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      const receiverPayment = new Payment(receiverClient);
+      result = await receiverPayment.create({ body: paymentData });
+    } else {
+      result = await mpPayment.create({ body: paymentData });
+    }
+
+    console.log('🎫 Entry result:', { id: result.id, status: result.status, detail: result.status_detail });
+
+    if (result.status === 'approved') {
+      // Track revenue
+      ev.revenue = (ev.revenue || 0) + amount;
+      ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+      // Record as tip for dashboard tracking
+      const tipId = uuidv4();
+      db.tips[tipId] = {
+        id: tipId, payerId: userId, receiverId: ev.creatorId,
+        amount, fee: touchFee, mpPaymentId: result.id,
+        status: 'approved', statusDetail: result.status_detail,
+        type: 'entry', eventId: ev.id, eventName: ev.name,
+        createdAt: Date.now()
+      };
+      saveDB();
+      io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount, eventId: ev.id, nickname: user.nickname || user.name });
+    }
+
+    res.json({ status: result.status, statusDetail: result.status_detail, mpPaymentId: result.id });
+  } catch (e) {
+    console.error('Entry payment error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+  }
 });
 
 app.get('/api/operator/events/:userId', (req, res) => {
