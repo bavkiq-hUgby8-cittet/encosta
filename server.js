@@ -1227,7 +1227,29 @@ app.get('/api/notifications/:userId', (req, res) => {
       });
     }
   });
-  // 4. People who revealed to me (canSee entries)
+  // 4. Friends who earned stars (someone I've encountered got a star)
+  const myEncounters = db.encounters[userId] || [];
+  const myFriendIds = [...new Set(myEncounters.map(e => e.with))];
+  myFriendIds.forEach(fid => {
+    const friend = db.users[fid];
+    if (!friend || !friend.stars || !friend.stars.length) return;
+    const iCanSee = user.canSee && user.canSee[fid];
+    // Show last 3 stars from each friend (recent ones)
+    friend.stars.slice(-3).forEach(star => {
+      if (star.from === userId) return; // skip my own stars to them
+      notifs.push({
+        type: 'friend-star',
+        fromId: fid,
+        nickname: friend.nickname || friend.name,
+        realName: iCanSee ? (friend.realName || null) : null,
+        profilePhoto: iCanSee ? (friend.profilePhoto || friend.photoURL || null) : null,
+        color: friend.color,
+        topTag: friend.topTag || null,
+        timestamp: star.at || Date.now()
+      });
+    });
+  });
+  // 5. People who revealed to me (canSee entries)
   Object.entries(user.canSee || {}).forEach(([pid, data]) => {
     const p = db.users[pid];
     if (!p) return;

@@ -1169,9 +1169,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="history" class="screen">
   <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Constelação</h2></div>
-  <div style="display:flex;gap:.4rem;padding:0 1rem .3rem;justify-content:center">
-    <button class="const-filter-btn active" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">👤 Pessoas</button>
-    <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">📍 Eventos</button>
+  <div style="display:flex;gap:.35rem;padding:0 .8rem .3rem;justify-content:center;flex-wrap:wrap">
+    <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.25rem .65rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
+    <button class="const-filter-btn" id="constFilterRevealed" onclick="setConstFilter('revealed')" style="padding:.25rem .65rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🟢 Revelados</button>
+    <button class="const-filter-btn" id="constFilterAnon" onclick="setConstFilter('anon')" style="padding:.25rem .65rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🔴 Anônimos</button>
+    <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.25rem .65rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">📍 Eventos</button>
   </div>
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
@@ -3451,17 +3453,17 @@ async function showRelations(){
 }
 
 // ═══ CONSTELLATION ═══
-let constFilter='people'; // 'people' or 'events'
+let constFilter='all'; // 'all','revealed','anon','events'
 function setConstFilter(f){
   constFilter=f;
-  const bp=$('constFilterPeople'),be=$('constFilterEvents');
-  if(f==='people'){
-    bp.style.background='rgba(99,102,241,.15)';bp.style.borderColor='rgba(99,102,241,.3)';bp.style.color='#a78bfa';
-    be.style.background='rgba(255,255,255,.04)';be.style.borderColor='rgba(255,255,255,.08)';be.style.color='var(--t3)';
-  }else{
-    be.style.background='rgba(96,165,250,.15)';be.style.borderColor='rgba(96,165,250,.3)';be.style.color='#60a5fa';
-    bp.style.background='rgba(255,255,255,.04)';bp.style.borderColor='rgba(255,255,255,.08)';bp.style.color='var(--t3)';
-  }
+  const btns=['constFilterAll','constFilterRevealed','constFilterAnon','constFilterEvents'];
+  const activeColors={all:['rgba(99,102,241,.15)','rgba(99,102,241,.3)','#a78bfa'],revealed:['rgba(0,220,130,.12)','rgba(0,220,130,.3)','#00dc82'],anon:['rgba(255,68,102,.12)','rgba(255,68,102,.3)','#ff4466'],events:['rgba(96,165,250,.12)','rgba(96,165,250,.3)','#60a5fa']};
+  btns.forEach(id=>{
+    const el=$(id);if(!el)return;
+    const key=id.replace('constFilter','').toLowerCase();
+    if(key===f){const c=activeColors[f]||activeColors.all;el.style.background=c[0];el.style.borderColor=c[1];el.style.color=c[2]}
+    else{el.style.background='rgba(255,255,255,.04)';el.style.borderColor='rgba(255,255,255,.08)';el.style.color='var(--t3)'}
+  });
 }
 let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,animFrame:null,selectedNode:null,
   fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0};
@@ -3497,11 +3499,16 @@ async function showHistory(){
       const lastMs=n.lastDate?now-new Date(n.lastDate).getTime():999999999;
       const hrs=lastMs/3600000;
       let zDepth;
-      if(hrs<1)zDepth=48+Math.random()*32;            // <1h → close
-      else if(hrs<6)zDepth=96+Math.random()*48;       // <6h → medium
-      else if(hrs<12)zDepth=160+Math.random()*64;     // <12h → medium-far
-      else if(hrs<24)zDepth=256+Math.random()*80;     // <24h → far
-      else zDepth=360+Math.min(240,hrs*1.2)+Math.random()*64; // >24h → very far
+      // Active connections and recent encounters are closest
+      if(n.hasActiveRelation)zDepth=20+Math.random()*20;       // active → very close
+      else if(hrs<1)zDepth=48+Math.random()*28;                // <1h → close
+      else if(hrs<6)zDepth=80+Math.random()*40;                // <6h → medium-close
+      else if(hrs<12)zDepth=130+Math.random()*50;              // <12h → medium
+      else if(hrs<24)zDepth=200+Math.random()*60;              // <24h → medium-far
+      else if(hrs<72)zDepth=280+Math.random()*70;              // <3d → far
+      else zDepth=360+Math.min(200,hrs*0.8)+Math.random()*50;  // >3d → very far
+      // More encounters = slightly closer bonus
+      zDepth=Math.max(10,zDepth-Math.min(40,Math.log2(1+(n.encounters||1))*12));
       // XY spread — 20% reduced, scales with depth + bonus for few nodes
       const spread=128+fewBonus+zDepth*0.56+(Math.random()-.5)*48;
       // Size: smaller=newer, bigger=longer relationship (by time since first encounter)
@@ -3735,7 +3742,15 @@ function initConstCanvas(){
     // Filter nodes by constellation filter
     const filteredNodes=constState.nodes.filter(n=>{
       if(constFilter==='events')return !!n.isEvent;
-      return !n.isEvent;
+      if(constFilter==='revealed'){
+        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+        return !n.isEvent&&isRevealed;
+      }
+      if(constFilter==='anon'){
+        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+        return !n.isEvent&&!isRevealed;
+      }
+      return !n.isEvent; // 'all' = all people (no events)
     });
     const projected=filteredNodes.map(n=>{
       if(fpBlend<0.01){
@@ -3863,14 +3878,24 @@ function initConstCanvas(){
         ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
       }
 
-      // Floating star icon if user has stars
-      if(n.starsCount&&n.starsCount>0&&r>4){
-        const starFs=Math.max(6,Math.min(12,r*0.6));
-        ctx.font=starFs+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-        ctx.fillText('⭐',sx+r*0.7,sy-r*0.7);
-        if(n.starsCount>1){
-          ctx.font='bold '+Math.max(5,starFs*0.6)+'px Inter,sans-serif';
-          ctx.fillStyle='#ffd700';ctx.fillText(n.starsCount>9?'9+':''+n.starsCount,sx+r*0.7+starFs*0.5,sy-r*0.7);
+      // Stars around the ring — small dots filling the orbit
+      if(n.starsCount&&n.starsCount>0&&r>3){
+        const starR=r+3;// orbit radius
+        const maxStars=Math.min(n.starsCount,20);// cap at 20 visual stars
+        const starSize=Math.max(1,Math.min(2.5,r*0.12));
+        for(let si=0;si<maxStars;si++){
+          const sa=(si/Math.max(maxStars,12))*Math.PI*2-Math.PI/2;
+          const sSx=sx+Math.cos(sa)*starR;
+          const sSy=sy+Math.sin(sa)*starR;
+          const flicker=0.5+Math.sin(t*3+si*0.7)*0.3;
+          ctx.beginPath();ctx.arc(sSx,sSy,starSize,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,215,0,'+flicker.toFixed(2)+')';ctx.fill();
+        }
+        // Count label if many stars
+        if(n.starsCount>3&&r>5){
+          ctx.font='bold '+Math.max(4,Math.min(7,r*0.35))+'px Inter,sans-serif';
+          ctx.fillStyle='rgba(255,215,0,.6)';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('★'+n.starsCount,sx,sy-r-8);
         }
       }
       // Top tag badge above node
@@ -3947,9 +3972,11 @@ function initConstCanvas(){
     // ── Floating legend pill (hidden in FP mode) ──
     if(fpBlend>0.7)return; // skip pill in full FP
     const verified=constState.nodes.filter(n=>!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]))).length;
-    const anon=constState.nodes.length-verified;
+    const anon=constState.nodes.filter(n=>!n.isEvent).length-verified;
     const pillW=Math.min(W-24,260),pillH=32,pillX=(W-pillW)/2,pillY=H-48;
     ctx.save();ctx.globalAlpha=1-fpBlend;
+    // Store pill bounds for click detection
+    constState._pillBounds={x:pillX,y:pillY,w:pillW,h:pillH,revX:pillX,revW:pillW/2,anonX:pillX+pillW/2,anonW:pillW/2};
     ctx.beginPath();
     const pillR=pillH/2;
     ctx.moveTo(pillX+pillR,pillY);ctx.lineTo(pillX+pillW-pillR,pillY);
@@ -3960,17 +3987,24 @@ function initConstCanvas(){
     ctx.strokeStyle='rgba(100,160,255,.12)';ctx.lineWidth=0.5;ctx.stroke();
     const midY=pillY+pillH/2;
     let tx=pillX+14;
+    // Revealed section (clickable)
+    const revHighlight=constFilter==='revealed'?.9:.55;
     ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#00dc82';ctx.fill();
     tx+=10;
-    ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='500 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(255,255,255,'+revHighlight+')';ctx.font=(constFilter==='revealed'?'700':'500')+' 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
     ctx.fillText('Revelados: '+verified,tx,midY);
-    tx+=ctx.measureText('Verificados: '+verified).width+16;
+    const revEndX=tx+ctx.measureText('Revelados: '+verified).width;
+    constState._pillBounds.revEndX=revEndX+8;
+    tx=revEndX+16;
+    // Anon section (clickable)
+    const anonHighlight=constFilter==='anon'?.9:.55;
     ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#ff4466';ctx.fill();
     tx+=10;
-    ctx.fillStyle='rgba(255,255,255,.55)';
+    constState._pillBounds.anonStartX=tx-14;
+    ctx.fillStyle='rgba(255,255,255,'+anonHighlight+')';ctx.font=(constFilter==='anon'?'700':'500')+' 10px Inter,sans-serif';
     ctx.fillText('Anônimos: '+anon,tx,midY);
     ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='400 9px Inter,sans-serif';
-    ctx.fillText(constState.nodes.length+' conexões',pillX+pillW-14,midY);
+    ctx.fillText(filteredNodes.length+' nós',pillX+pillW-14,midY);
     ctx.restore();
     ctx.textBaseline='alphabetic';
   }
@@ -3978,6 +4012,18 @@ function initConstCanvas(){
 }
 
 function handleConstTap(tx,ty,W,H){
+  // Tap on legend pill → toggle filter
+  if(constState._pillBounds){
+    const pb=constState._pillBounds;
+    if(ty>=pb.y&&ty<=pb.y+pb.h&&tx>=pb.x&&tx<=pb.x+pb.w){
+      if(tx<(pb.revEndX||pb.x+pb.w/2)){
+        setConstFilter(constFilter==='revealed'?'all':'revealed');
+      }else if(tx>=(pb.anonStartX||pb.x+pb.w/2)){
+        setConstFilter(constFilter==='anon'?'all':'anon');
+      }
+      haptic([15]);return;
+    }
+  }
   // Tap center → toggle first-person mode
   if(constState._mcx!==undefined){
     const dCenter=Math.hypot(tx-constState._mcx,ty-constState._mcy);
@@ -4060,28 +4106,25 @@ function showConstDetail(node){
   if(node.isPrestador&&node.serviceLabel)aliasParts.push('💼 '+node.serviceLabel);
   aliasEl.textContent=aliasParts.join(' · ');
   aliasEl.style.display=aliasParts.length?'':'none';
-  // Stats row
+  // Stats row — clean: stars, people, likes (no encontros)
   const statsEl=$('cdStats');
-  let statsHtml='<div class="cd-stat"><div class="cd-stat-val">'+(node.encounters||0)+'</div><div class="cd-stat-lbl">encontros</div></div>';
-  statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.touchers||0)+'</div><div class="cd-stat-lbl">pessoas</div></div>';
+  let statsHtml='';
   if(node.starsCount)statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+node.starsCount+'</div><div class="cd-stat-lbl">estrelas</div></div>';
+  statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.touchers||0)+'</div><div class="cd-stat-lbl">pessoas</div></div>';
   if(theyRevealed)statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.likesCount||0)+'</div><div class="cd-stat-lbl">curtidas</div></div>';
   statsEl.innerHTML=statsHtml;
-  // Meta section: time, selfie, instagram, bio
+  // Meta section: clean — just time ago, instagram, selfie (no emojis, no money, no date)
   const metaEl=$('cdMeta');
   let metaHtml='';
   const lastD=node.lastDate?new Date(node.lastDate):null;
   if(lastD){
-    metaHtml+='<div class="cd-time"><span>🕐 '+timeAgo(lastD)+'</span>';
-    if(node.firstDate&&node.encounters>1)metaHtml+='<span>📅 '+new Date(node.firstDate).toLocaleDateString('pt-BR')+'</span>';
-    metaHtml+='</div>';
+    metaHtml+='<div class="cd-time"><span style="color:var(--t3);font-size:.65rem">'+timeAgo(lastD)+'</span></div>';
   }
   if(theyRevealed&&node.instagram){
     const handle=node.instagram.replace(/^@/,'').trim();
-    metaHtml+='<a class="cd-insta" href="https://instagram.com/'+esc(handle)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">📸 @'+esc(handle)+'</a> ';
+    metaHtml+='<a class="cd-insta" href="https://instagram.com/'+esc(handle)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">@'+esc(handle)+'</a> ';
   }
   if(node.lastSelfie)metaHtml+='<img class="cd-selfie" src="'+node.lastSelfie+'" alt="">';
-  if(node.tipsTotal>0)metaHtml+='<div class="cd-time" style="margin-top:.3rem">💰 R$'+node.tipsTotal.toFixed(2).replace('.',',')+'</div>';
   metaEl.innerHTML=metaHtml;
   metaEl.style.display=metaHtml?'':'none';
   // Actions
@@ -4108,6 +4151,12 @@ function showConstDetail(node){
     aHtml+='<button class="cd-action success" onclick="acceptRevealRequest(\''+node.id+'\');hideConstDetail()">🪪 Aceitar pedido</button>';
   }else{
     aHtml+='<button class="cd-action" onclick="requestRevealFromConstellation(\''+node.id+'\')">👁 Pedir reveal</button>';
+  }
+  actEl.innerHTML=aHtml;
+  // Chat button (discreet) if active relation or <24h
+  const lastMs=node.lastDate?Date.now()-new Date(node.lastDate).getTime():999999999;
+  if(node.hasActiveRelation||lastMs<86400000){
+    aHtml+='<button class="cd-action" onclick="openChatFromConst(\''+node.id+'\')" style="opacity:.6;font-size:.7rem">💬 Chat</button>';
   }
   actEl.innerHTML=aHtml;
   // Tip
@@ -4161,10 +4210,15 @@ async function loadNotifications(){
       let text='';
       if(n.type==='like')text='<strong>'+esc(name)+'</strong> curtiu você ❤️';
       else if(n.type==='star')text='<strong>'+esc(name)+'</strong> te deu uma ⭐';
+      else if(n.type==='friend-star'){
+        const tagHtml=n.topTag?'<span style="font-size:.55rem;background:#ffd700;color:#000;padding:.05rem .25rem;border-radius:4px;font-weight:700;margin-left:.2rem">'+n.topTag.replace('top','TOP ')+'</span>':'';
+        text='<strong>'+esc(name)+'</strong> ganhou uma ⭐'+tagHtml;
+      }
       else if(n.type==='reveal-request')text='<strong>'+esc(name)+'</strong> quer que você se revele 👁';
       else if(n.type==='identity-revealed')text='<strong>'+esc(name)+'</strong> se revelou pra você 🪪';
       const ago=n.timestamp?timeAgo(new Date(n.timestamp)):'';
-      html+='<div class="notif-item">'+icoHtml+'<div class="notif-content"><div class="notif-text">'+text+'</div>'+(ago?'<div class="notif-time">'+ago+'</div>':'')+'</div></div>';
+      const clickAction=n.fromId?'onclick="navigateToConstNode(\''+esc(n.fromId)+'\')" style="cursor:pointer"':'';
+      html+='<div class="notif-item" '+clickAction+'>'+icoHtml+'<div class="notif-content"><div class="notif-text">'+text+'</div>'+(ago?'<div class="notif-time">'+ago+'</div>':'')+'</div></div>';
     });
     list.innerHTML=html;
     // Update badge
@@ -4182,6 +4236,26 @@ function updateNotifBadge(){
     const badge=$('constNotifBadge');
     if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
   }).catch(()=>{});
+}
+
+function openChatFromConst(nodeId){
+  hideConstDetail();
+  // Find active relation with this user
+  fetch('/api/relations/'+state.userId).then(r=>r.json()).then(rels=>{
+    const rel=rels.find(r=>r.partnerId===nodeId&&r.expiresAt>Date.now());
+    if(rel){showScreen('chat');loadChat(rel.id,rel.partnerId,rel.partnerName,rel.partnerColor)}
+    else showToast('Conexão expirada');
+  }).catch(()=>showToast('Erro ao abrir chat'));
+}
+function navigateToConstNode(nodeId){
+  toggleNotifPanel();
+  const node=constState.nodes.find(n=>n.id===nodeId);
+  if(node){
+    // Center camera on this node
+    constState.cam.x=-node.x3d;constState.cam.y=-node.y3d;
+    constState.cam.zoom=Math.max(constState.cam.zoom,1.2);
+    showConstDetail(node);haptic([20]);
+  }
 }
 
 // ═══ MORE MENU ═══
