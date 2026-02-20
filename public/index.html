@@ -1012,14 +1012,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div style="position:relative;display:flex;align-items:center;justify-content:center">
       <div class="sonic-bars left" id="sonicBarsL"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
       <button class="be" id="mainBtn" onclick="handleMainButton()">
-        <span class="be-icon"><svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg"><!-- UFO body -->
-<ellipse cx="26" cy="28" rx="18" ry="6" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/><!-- Dome -->
-<path d="M18 28 Q18 16 26 14 Q34 16 34 28" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.45)" stroke-width="1.2" stroke-linecap="round"/><!-- Alien eyes -->
-<ellipse cx="22.5" cy="23" rx="2.8" ry="3.5" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width=".8"/><ellipse cx="29.5" cy="23" rx="2.8" ry="3.5" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width=".8"/><!-- Pupils -->
-<circle cx="23" cy="23.5" r="1" fill="rgba(255,255,255,.7)"/><circle cx="30" cy="23.5" r="1" fill="rgba(255,255,255,.7)"/><!-- Beam -->
-<path d="M20 34 L16 44 M26 34 L26 45 M32 34 L36 44" stroke="rgba(255,255,255,.2)" stroke-width="1" stroke-linecap="round" stroke-dasharray="2 3"/><!-- Antenna -->
-<line x1="26" y1="14" x2="26" y2="9" stroke="rgba(255,255,255,.4)" stroke-width="1"/><circle cx="26" cy="8" r="1.5" fill="rgba(255,107,53,.5)" stroke="rgba(255,255,255,.4)" stroke-width=".8"/><!-- Lights on UFO -->
-<circle cx="16" cy="28" r="1.2" fill="rgba(255,107,53,.6)"><animate attributeName="opacity" values=".3;.9;.3" dur="1.5s" repeatCount="indefinite"/></circle><circle cx="22" cy="30" r="1" fill="rgba(147,51,234,.5)"><animate attributeName="opacity" values=".4;1;.4" dur="1.2s" repeatCount="indefinite" begin=".3s"/></circle><circle cx="30" cy="30" r="1" fill="rgba(255,61,113,.5)"><animate attributeName="opacity" values=".4;1;.4" dur="1.3s" repeatCount="indefinite" begin=".6s"/></circle><circle cx="36" cy="28" r="1.2" fill="rgba(96,165,250,.5)"><animate attributeName="opacity" values=".3;.9;.3" dur="1.4s" repeatCount="indefinite" begin=".2s"/></circle></svg></span>
+        <span class="be-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><!-- Phone 1 --><rect x="8" y="10" width="14" height="24" rx="3" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/><circle cx="15" cy="30" r="1.2" fill="rgba(255,255,255,.3)"/><!-- Phone 2 --><rect x="26" y="14" width="14" height="24" rx="3" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/><circle cx="33" cy="34" r="1.2" fill="rgba(255,255,255,.3)"/><!-- Connection waves --><path d="M22 22 Q24 20 26 22" stroke="rgba(255,107,53,.6)" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M21 19 Q24 16 27 19" stroke="rgba(255,107,53,.4)" stroke-width="1" fill="none" stroke-linecap="round"/><path d="M20 16 Q24 12 28 16" stroke="rgba(255,107,53,.25)" stroke-width=".8" fill="none" stroke-linecap="round"/></svg></span>
         <span class="be-text" id="mainBtnText">TOUCH</span>
       </button>
       <div class="sonic-bars right" id="sonicBarsR"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
@@ -1279,59 +1272,93 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <input type="number" id="tipCustomAmount" placeholder="R$" min="1" max="500" oninput="selectTipCustom()">
   </div>
 
-  <!-- SAVED CARD — TRUE ONE-TAP (no CVV needed, server-side charge) -->
-  <div id="tipSavedCard" style="display:none;margin-top:.8rem">
-    <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:18px;padding:1rem">
-      <div style="display:flex;align-items:center;gap:.8rem">
-        <div style="width:48px;height:32px;border-radius:6px;background:linear-gradient(135deg,#1a1a2e,#2d2d44);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:rgba(255,255,255,.5);flex-shrink:0" id="tipSavedBrandIcon">💳</div>
-        <div style="flex:1">
-          <div id="tipSavedCardLabel" style="font-size:.8rem;font-weight:700;color:var(--t1)"></div>
-          <div style="font-size:.55rem;color:var(--t3)">Pagamento seguro com 1 clique</div>
+  <!-- PAYMENT METHODS — unified picker -->
+  <div id="tipPayMethods" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.5rem">
+
+    <!-- 1. SAVED CARD + CVV -->
+    <div id="tipSavedCard" style="display:none">
+      <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:16px;padding:.8rem">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem">
+          <div style="width:40px;height:28px;border-radius:5px;background:linear-gradient(135deg,#1a1a2e,#2d2d44);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:rgba(255,255,255,.5);flex-shrink:0" id="tipSavedBrandIcon">CARD</div>
+          <div style="flex:1">
+            <div id="tipSavedCardLabel" style="font-size:.75rem;font-weight:700;color:var(--t1)"></div>
+            <div style="font-size:.5rem;color:var(--t3)">Cartão salvo</div>
+          </div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
         </div>
-        <div style="width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <input type="text" id="tipSavedCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" autocomplete="cc-csc" style="width:80px;text-align:center;flex-shrink:0" oninput="validateSavedCVV()">
+          <button class="tip-pay-btn" id="tipQuickPayBtn" onclick="quickPay()" disabled style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:.8rem;padding:.65rem;border-radius:12px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Pagar</button>
+        </div>
+        <div style="display:flex;justify-content:center;gap:1rem;margin-top:.4rem">
+          <button onclick="showNewCardForm()" style="padding:.15rem;border:none;background:transparent;color:var(--t3);font-size:.52rem;font-family:inherit;cursor:pointer">Usar outro cartão</button>
+          <button onclick="removeSavedCard()" style="padding:.15rem;border:none;background:transparent;color:var(--err);font-size:.52rem;font-family:inherit;cursor:pointer;opacity:.6">Remover</button>
+        </div>
       </div>
-      <button class="tip-pay-btn" id="tipQuickPayBtn" onclick="quickPay()" disabled style="margin-top:.7rem;width:100%;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:.9rem;padding:.75rem;border-radius:14px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Pagar</button>
     </div>
-    <div style="display:flex;justify-content:center;gap:1rem;margin-top:.5rem">
-      <button onclick="showNewCardForm()" style="padding:.2rem;border:none;background:transparent;color:var(--t3);font-size:.58rem;font-family:inherit;cursor:pointer">Usar outro cartão</button>
-      <button onclick="removeSavedCard()" style="padding:.2rem;border:none;background:transparent;color:var(--err);font-size:.58rem;font-family:inherit;cursor:pointer;opacity:.6">Remover cartão</button>
+
+    <!-- 2. MERCADO PAGO — redirect -->
+    <button id="tipMPBtn" onclick="payWithMercadoPago()" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.7rem .8rem;border-radius:14px;border:1px solid rgba(0,158,227,.2);background:rgba(0,158,227,.06);cursor:pointer;font-family:inherit;transition:all .2s">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#009ee3" stroke="#009ee3" stroke-width=".5"/><path d="M7 17.5c0-3.5 2.5-7.5 7-7.5s7 4 7 7.5" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M9 17c0-2.5 2-5.5 5-5.5s5 3 5 5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="14" cy="17" r="1.5" fill="#fff"/></svg>
+      <div style="flex:1;text-align:left">
+        <div style="font-size:.75rem;font-weight:700;color:#009ee3">Mercado Pago</div>
+        <div style="font-size:.5rem;color:var(--t3)">Cartão, saldo ou parcelado</div>
+      </div>
+      <span style="font-size:.6rem;color:var(--t3)">→</span>
+    </button>
+
+    <!-- 3. PIX -->
+    <button id="tipPixToggle" onclick="togglePixSection()" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.7rem .8rem;border-radius:14px;border:1px solid rgba(0,220,130,.15);background:rgba(0,220,130,.04);cursor:pointer;font-family:inherit;transition:all .2s">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#00dc82,#00b36b);display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;font-weight:800;flex-shrink:0">P</div>
+      <div style="flex:1;text-align:left">
+        <div style="font-size:.75rem;font-weight:700;color:#00dc82">PIX</div>
+        <div style="font-size:.5rem;color:var(--t3)">Instantâneo, sem taxa</div>
+      </div>
+      <span style="font-size:.6rem;color:var(--t3)">→</span>
+    </button>
+
+    <!-- 4. NEW CARD (hidden, shows on "Usar outro cartão") -->
+    <button id="tipNewCardToggle" onclick="showNewCardForm()" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.6rem .8rem;border-radius:14px;border:1px dashed rgba(99,102,241,.2);background:transparent;cursor:pointer;font-family:inherit">
+      <div style="width:28px;height:28px;border-radius:50%;background:rgba(99,102,241,.1);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#6366f1;font-weight:700;flex-shrink:0">+</div>
+      <div style="font-size:.7rem;font-weight:600;color:var(--t2)">Adicionar cartão</div>
+    </button>
+  </div>
+
+  <!-- NEW CARD FORM — expandable -->
+  <div id="tipNewCard" style="display:none;margin-top:.6rem">
+    <div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);border-radius:16px;padding:.8rem">
+      <div style="font-size:.65rem;font-weight:600;color:var(--t2);margin-bottom:.4rem;text-align:center">Dados do cartão</div>
+      <input type="text" id="tipCardNumber" class="tip-input" placeholder="Número do cartão" inputmode="numeric" maxlength="19" autocomplete="cc-number" oninput="formatCardNumber(this)">
+      <div style="display:flex;gap:.4rem;margin-top:.4rem">
+        <input type="text" id="tipCardExpiry" class="tip-input" placeholder="MM/AA" inputmode="numeric" maxlength="5" autocomplete="cc-exp" oninput="formatExpiry(this)" style="flex:1">
+        <input type="text" id="tipCardCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" autocomplete="cc-csc" style="flex:1">
+      </div>
+      <input type="text" id="tipCardHolder" class="tip-input" placeholder="Nome no cartão" autocomplete="cc-name" style="margin-top:.4rem">
+      <input type="text" id="tipCardCPF" class="tip-input" placeholder="CPF do titular" inputmode="numeric" maxlength="14" oninput="formatCPF(this)" style="margin-top:.4rem">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-top:.4rem">
+        <input type="checkbox" id="tipSaveCardCheck" checked style="accent-color:#6366f1">
+        <label for="tipSaveCardCheck" style="font-size:.55rem;color:var(--t3)">Salvar cartão</label>
+      </div>
+      <button class="tip-pay-btn" id="tipCardPayBtn" onclick="payWithNewCard()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#6366f1,#4f46e5)">Pagar com cartão</button>
     </div>
   </div>
 
-  <!-- NEW CARD FORM — first time or change card -->
-  <div id="tipNewCard" style="display:none;margin-top:.8rem">
-    <div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.5rem;text-align:center">Dados do cartão</div>
-    <input type="text" id="tipCardNumber" class="tip-input" placeholder="Número do cartão" inputmode="numeric" maxlength="19" autocomplete="cc-number" oninput="formatCardNumber(this)">
-    <div style="display:flex;gap:.4rem;margin-top:.4rem">
-      <input type="text" id="tipCardExpiry" class="tip-input" placeholder="MM/AA" inputmode="numeric" maxlength="5" autocomplete="cc-exp" oninput="formatExpiry(this)" style="flex:1">
-      <input type="text" id="tipCardCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" autocomplete="cc-csc" style="flex:1">
-    </div>
-    <input type="text" id="tipCardHolder" class="tip-input" placeholder="Nome no cartão" autocomplete="cc-name" style="margin-top:.4rem">
-    <input type="text" id="tipCardCPF" class="tip-input" placeholder="CPF do titular" inputmode="numeric" maxlength="14" oninput="formatCPF(this)" style="margin-top:.4rem">
-    <div style="display:flex;align-items:center;gap:.4rem;margin-top:.5rem">
-      <input type="checkbox" id="tipSaveCardCheck" checked style="accent-color:#6366f1">
-      <label for="tipSaveCardCheck" style="font-size:.6rem;color:var(--t3)">Salvar cartão para próximas gorjetas</label>
-    </div>
-    <button class="tip-pay-btn" id="tipCardPayBtn" onclick="payWithNewCard()" disabled style="margin-top:.6rem;background:linear-gradient(135deg,#6366f1,#4f46e5)">💳 Pagar</button>
-  </div>
-
-  <!-- PIX -->
-  <div id="tipOtherMethods" style="margin-top:.6rem;text-align:center">
-    <button onclick="togglePixSection()" style="padding:.3rem .8rem;border:1px solid rgba(0,220,130,.15);background:rgba(0,220,130,.04);border-radius:10px;color:#00dc82;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer">⚡ Pagar com PIX</button>
-  </div>
+  <!-- PIX SECTION — expandable -->
   <div id="tipPixSection" style="display:none;margin-top:.6rem">
-    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">PIX — qualquer banco, instantâneo, sem taxa.</div>
-    <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem">
-    <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)">
-    <button class="tip-pay-btn" id="tipPixBtn" onclick="processPixTip()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#00dc82,#00b36b)">⚡ Gerar PIX</button>
-    <div id="tipPixQR" class="hidden" style="text-align:center;padding:1rem 0">
-      <div style="font-size:.75rem;font-weight:600;color:var(--ok);margin-bottom:.5rem">PIX gerado! Escaneie ou copie:</div>
-      <img id="tipPixQRImg" style="width:200px;height:200px;border-radius:12px;background:#fff;padding:8px" alt="QR Code PIX">
-      <div style="margin-top:.6rem">
-        <button onclick="copyPixCode()" style="padding:.4rem 1rem;border-radius:10px;background:rgba(0,220,130,.12);border:1px solid rgba(0,220,130,.25);color:#00dc82;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer">📋 Copiar código PIX</button>
+    <div style="background:rgba(0,220,130,.04);border:1px solid rgba(0,220,130,.12);border-radius:16px;padding:.8rem">
+      <div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:.5rem;line-height:1.4">PIX — qualquer banco, instantâneo</div>
+      <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem">
+      <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)">
+      <button class="tip-pay-btn" id="tipPixBtn" onclick="processPixTip()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#00dc82,#00b36b)">Gerar PIX</button>
+      <div id="tipPixQR" class="hidden" style="text-align:center;padding:.8rem 0">
+        <div style="font-size:.7rem;font-weight:600;color:var(--ok);margin-bottom:.4rem">PIX gerado! Escaneie ou copie:</div>
+        <img id="tipPixQRImg" style="width:180px;height:180px;border-radius:10px;background:#fff;padding:6px" alt="QR Code PIX">
+        <div style="margin-top:.5rem">
+          <button onclick="copyPixCode()" style="padding:.35rem .8rem;border-radius:10px;background:rgba(0,220,130,.12);border:1px solid rgba(0,220,130,.25);color:#00dc82;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar código PIX</button>
+        </div>
+        <input type="hidden" id="tipPixCode">
+        <div style="font-size:.5rem;color:var(--t3);margin-top:.4rem">Expira em 30 minutos.</div>
       </div>
-      <input type="hidden" id="tipPixCode">
-      <div style="font-size:.6rem;color:var(--t3);margin-top:.5rem">Expira em 30 minutos.</div>
     </div>
   </div>
 
@@ -1443,8 +1470,44 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div style="font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,#818cf8,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Touch? Plus</div>
       <div style="font-size:1.6rem;font-weight:800;color:var(--t1);margin:.5rem 0">R$9,90<span style="font-size:.7rem;font-weight:400;color:var(--t3)">/mês</span></div>
       <div id="subBenefitsList" style="text-align:left;margin:.8rem auto;max-width:260px"></div>
-      <button id="subActionBtn" onclick="startSubscription()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;margin-top:.6rem;transition:all .2s">Assinar agora</button>
-      <div style="font-size:.55rem;color:var(--t3);margin-top:.5rem">Cancele quando quiser. Renovação automática mensal via Mercado Pago.</div>
+      <!-- Subscription payment methods -->
+      <div id="subPayMethods" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.4rem;text-align:left">
+        <!-- Saved card + CVV -->
+        <div id="subSavedCard" style="display:none">
+          <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:14px;padding:.7rem">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+              <div style="width:36px;height:24px;border-radius:4px;background:linear-gradient(135deg,#1a1a2e,#2d2d44);display:flex;align-items:center;justify-content:center;font-size:.5rem;color:rgba(255,255,255,.5);flex-shrink:0" id="subSavedBrandIcon">CARD</div>
+              <div style="flex:1">
+                <div id="subSavedCardLabel" style="font-size:.7rem;font-weight:700;color:var(--t1)"></div>
+                <div style="font-size:.45rem;color:var(--t3)">Cartão salvo</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:.3rem;align-items:center">
+              <input type="text" id="subSavedCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" style="width:70px;text-align:center;flex-shrink:0" oninput="validateSubCVV()">
+              <button id="subCardPayBtn" onclick="subscribeWithCard()" disabled style="flex:1;background:linear-gradient(135deg,#6366f1,#8b5cf6);font-size:.75rem;padding:.6rem;border-radius:12px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Assinar</button>
+            </div>
+          </div>
+        </div>
+        <!-- Mercado Pago -->
+        <button onclick="startSubscription()" style="display:flex;align-items:center;gap:.5rem;width:100%;padding:.6rem .7rem;border-radius:14px;border:1px solid rgba(0,158,227,.2);background:rgba(0,158,227,.06);cursor:pointer;font-family:inherit">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#009ee3"/><path d="M7 17.5c0-3.5 2.5-7.5 7-7.5s7 4 7 7.5" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M9 17c0-2.5 2-5.5 5-5.5s5 3 5 5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="14" cy="17" r="1.5" fill="#fff"/></svg>
+          <div style="flex:1;text-align:left"><div style="font-size:.7rem;font-weight:700;color:#009ee3">Mercado Pago</div><div style="font-size:.45rem;color:var(--t3)">Cartão, saldo ou parcelado</div></div>
+          <span style="font-size:.55rem;color:var(--t3)">→</span>
+        </button>
+        <!-- PIX -->
+        <button onclick="subscribeWithPix()" style="display:flex;align-items:center;gap:.5rem;width:100%;padding:.6rem .7rem;border-radius:14px;border:1px solid rgba(0,220,130,.15);background:rgba(0,220,130,.04);cursor:pointer;font-family:inherit">
+          <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#00dc82,#00b36b);display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff;font-weight:800;flex-shrink:0">P</div>
+          <div style="flex:1;text-align:left"><div style="font-size:.7rem;font-weight:700;color:#00dc82">PIX</div><div style="font-size:.45rem;color:var(--t3)">Instantâneo, sem taxa</div></div>
+          <span style="font-size:.55rem;color:var(--t3)">→</span>
+        </button>
+        <!-- Add card -->
+        <button onclick="showSubNewCard()" style="display:flex;align-items:center;gap:.5rem;width:100%;padding:.5rem .7rem;border-radius:14px;border:1px dashed rgba(99,102,241,.2);background:transparent;cursor:pointer;font-family:inherit">
+          <div style="width:24px;height:24px;border-radius:50%;background:rgba(99,102,241,.1);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#6366f1;font-weight:700;flex-shrink:0">+</div>
+          <div style="font-size:.65rem;font-weight:600;color:var(--t2)">Adicionar cartão</div>
+        </button>
+      </div>
+      <div id="subActionBtn" style="display:none"></div>
+      <div style="font-size:.5rem;color:var(--t3);margin-top:.5rem;text-align:center">Cancele quando quiser. Renovação mensal R$9,90.</div>
     </div>
     <!-- FAQ -->
     <div style="font-size:.7rem;color:var(--t3);padding:.5rem 0 2rem">
@@ -4887,6 +4950,7 @@ function showMyProfileSheet(){
 // ═══ SUBSCRIPTION ═══
 async function showSubscriptionScreen() {
   showScreen('subscriptionScreen');
+  loadSubSavedCard();
   // Load plan benefits
   try {
     const plans = await (await fetch('/api/subscription/plans')).json();
@@ -5739,11 +5803,12 @@ function showTipScreen(receiverId) {
   $('tipSavedCard').style.display = 'none';
   $('tipNewCard').style.display = 'none';
   $('tipPixSection').style.display = 'none';
-  $('tipOtherMethods').style.display = '';
-  $('tipPixBtn').disabled = true;
-  $('tipPixQR').classList.add('hidden');
-  $('tipPixEmail').value = '';
-  $('tipPixCPF').value = '';
+  $('tipPayMethods').style.display = '';
+  $('tipPixBtn') && ($('tipPixBtn').disabled = true);
+  const tipPixQR = $('tipPixQR'); if (tipPixQR) tipPixQR.classList.add('hidden');
+  if ($('tipPixEmail')) $('tipPixEmail').value = '';
+  if ($('tipPixCPF')) $('tipPixCPF').value = '';
+  if ($('tipSavedCVV')) $('tipSavedCVV').value = '';
 
   // Fetch receiver info
   fetch('/api/user/' + receiverId).then(r => r.json()).then(u => {
@@ -5765,18 +5830,18 @@ function showTipScreen(receiverId) {
       tipState.savedCard = d;
       $('tipSavedCardLabel').textContent = d.brand + ' •••• ' + d.lastFour;
       $('tipSavedCard').style.display = '';
-      $('tipNewCard').style.display = 'none';
+      $('tipNewCardToggle').style.display = 'flex';
     } else {
       $('tipSavedCard').style.display = 'none';
-      $('tipNewCard').style.display = '';
+      $('tipNewCardToggle').style.display = 'flex';
     }
-  }).catch(() => { $('tipNewCard').style.display = ''; });
+  }).catch(() => {});
 
   showScreen('tipScreen');
 }
 
 function showNewCardForm() {
-  $('tipSavedCard').style.display = 'none';
+  $('tipPayMethods').style.display = 'none';
   $('tipNewCard').style.display = '';
   $('tipCardNumber').value = '';
   $('tipCardExpiry').value = '';
@@ -5784,10 +5849,67 @@ function showNewCardForm() {
   $('tipCardHolder').value = '';
   $('tipCardCPF').value = '';
 }
+function validateSavedCVV() {
+  updateTipBtns();
+}
+function payWithMercadoPago() {
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  // Create preference and redirect to MP checkout
+  const btn = $('tipMPBtn');
+  btn.style.opacity = '.5'; btn.style.pointerEvents = 'none';
+  fetch('/api/tip/mp-checkout', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount })
+  }).then(r => r.json()).then(d => {
+    if (d.initPoint) window.location.href = d.initPoint;
+    else { showToast('Erro ao abrir Mercado Pago'); btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
+  }).catch(() => { showToast('Erro de conexão'); btn.style.opacity = '1'; btn.style.pointerEvents = ''; });
+}
+// Subscription payment methods
+function validateSubCVV() {
+  const cvv = $('subSavedCVV').value.replace(/\D/g, '');
+  $('subCardPayBtn').disabled = cvv.length < 3;
+}
+async function subscribeWithCard() {
+  const cvv = $('subSavedCVV').value.replace(/\D/g, '');
+  if (cvv.length < 3) return showToast('Digite o CVV');
+  const btn = $('subCardPayBtn');
+  btn.disabled = true; btn.textContent = 'Processando...';
+  try {
+    const resp = await fetch('/api/subscription/create-card', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: state.userId, planId: 'touch_plus', cvv })
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+    showToast('Assinatura ativada!');
+    goHome(); loadSubscriptionStatus();
+  } catch (e) {
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    btn.disabled = false; btn.textContent = 'Assinar';
+  }
+}
+async function subscribeWithPix() {
+  showToast('PIX para assinatura em breve!');
+}
+function showSubNewCard() {
+  showToast('Cadastre um cartão na tela de gorjeta primeiro.');
+}
+function loadSubSavedCard() {
+  fetch('/api/tip/saved-card/' + state.userId).then(r => r.json()).then(d => {
+    if (d.hasSaved) {
+      $('subSavedCardLabel').textContent = d.brand + ' •••• ' + d.lastFour;
+      $('subSavedCard').style.display = '';
+    }
+  }).catch(() => {});
+}
 
 function togglePixSection() {
   const sec = $('tipPixSection');
-  sec.style.display = sec.style.display === 'none' ? '' : 'none';
+  const show = sec.style.display === 'none';
+  sec.style.display = show ? '' : 'none';
+  if (show) { $('tipPayMethods').style.display = 'none'; $('tipNewCard').style.display = 'none'; }
+  else { $('tipPayMethods').style.display = ''; }
 }
 
 
@@ -5810,15 +5932,16 @@ function selectTipCustom() {
 function updateTipBtns() {
   const has = tipState.amount > 0;
   const label = has ? ' R$' + tipState.amount.toFixed(2).replace('.', ',') : '';
-  // One-tap button (saved card)
+  // Saved card + CVV button
   const qpBtn = $('tipQuickPayBtn');
-  if (qpBtn) { qpBtn.disabled = !has; qpBtn.textContent = has ? 'Pagar' + label : 'Pagar'; }
+  const cvvVal = $('tipSavedCVV') ? $('tipSavedCVV').value.replace(/\D/g, '') : '';
+  if (qpBtn) { qpBtn.disabled = !(has && cvvVal.length >= 3); qpBtn.textContent = has ? 'Pagar' + label : 'Pagar'; }
   // New card button
   const cpBtn = $('tipCardPayBtn');
-  if (cpBtn) { cpBtn.disabled = !has; cpBtn.textContent = has ? '💳 Pagar' + label : '💳 Pagar'; }
+  if (cpBtn) { cpBtn.disabled = !has; cpBtn.textContent = has ? 'Pagar' + label : 'Pagar'; }
   // PIX button
   const pxBtn = $('tipPixBtn');
-  if (pxBtn) { pxBtn.disabled = !has; pxBtn.textContent = has ? '⚡ PIX' + label : '⚡ Gerar PIX'; }
+  if (pxBtn) { pxBtn.disabled = !has; pxBtn.textContent = has ? 'PIX' + label : 'Gerar PIX'; }
 }
 
 function formatCardNumber(el) {
@@ -5923,13 +6046,15 @@ async function getMpSdk() {
 // ── One-Tap Pay — server-side saved card charge, zero friction ──
 async function quickPay() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  const cvv = $('tipSavedCVV') ? $('tipSavedCVV').value.replace(/\D/g, '') : '';
+  if (cvv.length < 3) return showToast('Digite o CVV do cartão.');
   const btn = $('tipQuickPayBtn');
   btn.disabled = true; btn.textContent = 'Processando...';
   haptic([30]);
   try {
     const resp = await fetch('/api/tip/quick-pay', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount })
+      body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount, cvv })
     });
     const result = await resp.json();
     if (result.error) {

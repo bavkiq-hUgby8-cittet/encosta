@@ -2902,7 +2902,7 @@ app.post('/api/tip/save-card', async (req, res) => {
 
 // ═══ ONE-TAP PAYMENT — Server-side saved card charge (no CVV needed) ═══
 app.post('/api/tip/quick-pay', async (req, res) => {
-  const { payerId, receiverId, amount } = req.body;
+  const { payerId, receiverId, amount, cvv } = req.body;
   if (!payerId || !receiverId || !amount) return res.status(400).json({ error: 'Dados incompletos.' });
   const payer = db.users[payerId];
   const receiver = db.users[receiverId];
@@ -2944,7 +2944,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
     const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ card_id: card.id, customer_id: payer.savedCard.customerId })
+      body: JSON.stringify({ card_id: card.id, customer_id: payer.savedCard.customerId, ...(cvv ? { security_code: cvv } : {}) })
     });
     const tokenData = await tokenResp.json();
     if (!tokenData.id) {
@@ -2983,6 +2983,84 @@ app.post('/api/tip/quick-pay', async (req, res) => {
   } catch (e) {
     console.error('One-tap error:', e.message, e.cause || '');
     res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// ── MP Checkout — create preference for tip payment via Mercado Pago ──
+app.post('/api/tip/mp-checkout', async (req, res) => {
+  const { payerId, receiverId, amount } = req.body;
+  if (!payerId || !receiverId || !amount) return res.status(400).json({ error: 'Dados incompletos.' });
+  const receiver = db.users[receiverId];
+  const tipAmount = parseFloat(amount);
+  if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
+  try {
+    const { Preference } = require('mercadopago');
+    const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100;
+    const prefBody = {
+      items: [{ title: 'Gorjeta Touch? — ' + (receiver?.serviceLabel || receiver?.nickname || 'Touch'), quantity: 1, unit_price: tipAmount, currency_id: 'BRL' }],
+      back_urls: { success: RENDER_URL + '/?tip_ok=1', failure: RENDER_URL + '/?tip_fail=1' },
+      auto_return: 'approved',
+      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip', method: 'mp_checkout' }
+    };
+    let initPoint;
+    if (receiver?.mpConnected && receiver?.mpAccessToken) {
+      prefBody.marketplace_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      const pref = new Preference(receiverClient);
+      const result = await pref.create({ body: prefBody });
+      initPoint = result.init_point || result.sandbox_init_point;
+    } else {
+      const pref = new Preference(new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN }));
+      const result = await pref.create({ body: prefBody });
+      initPoint = result.init_point || result.sandbox_init_point;
+    }
+    res.json({ initPoint });
+  } catch (e) {
+    console.error('MP checkout error:', e);
+    res.status(500).json({ error: 'Erro ao criar checkout.' });
+  }
+});
+
+// ── Subscribe with saved card (needs CVV) ──
+app.post('/api/subscription/create-card', async (req, res) => {
+  const { userId, planId, cvv } = req.body;
+  if (!userId || !cvv) return res.status(400).json({ error: 'Dados incompletos.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  if (!user.savedCard?.customerId || !user.savedCard?.cardId) return res.status(400).json({ error: 'Nenhum cartão salvo.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
+  try {
+    // Create token with CVV
+    const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_id: user.savedCard.cardId, customer_id: user.savedCard.customerId, security_code: cvv })
+    });
+    const tokenData = await tokenResp.json();
+    if (!tokenData.id) return res.status(400).json({ error: 'CVV inválido ou cartão expirado.' });
+    // Create recurring payment
+    const paymentData = {
+      transaction_amount: 9.90,
+      token: tokenData.id,
+      payment_method_id: user.savedCard.paymentMethodId || 'visa',
+      installments: 1,
+      payer: { email: user.email || userId + '@touch.app', identification: { type: 'CPF', number: user.cpf || '00000000000' } },
+      description: 'Touch? Plus — Assinatura mensal',
+      statement_descriptor: 'TOUCH PLUS',
+      metadata: { user_id: userId, type: 'subscription', plan: planId }
+    };
+    const result = await mpPayment.create({ body: paymentData });
+    if (result.status === 'approved') {
+      user.subscription = { active: true, planId, method: 'card', startDate: new Date().toISOString(), mpPaymentId: result.id };
+      saveDB();
+      res.json({ ok: true, status: result.status });
+    } else {
+      res.status(400).json({ error: 'Pagamento ' + (result.status_detail || result.status || 'recusado') });
+    }
+  } catch (e) {
+    console.error('Sub card error:', e);
+    res.status(500).json({ error: 'Erro no pagamento.' });
   }
 });
 
