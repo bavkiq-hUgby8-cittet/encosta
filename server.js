@@ -4814,9 +4814,17 @@ app.post('/api/operator/event/:eventId/end', (req, res) => {
   ev.endedAt = Date.now();
   // Remove from sonicQueue
   delete sonicQueue['evt:' + ev.id];
+  // Expire all event checkin relations (removes from chat list)
+  const now = Date.now();
+  for (const rId in db.relations) {
+    const r = db.relations[rId];
+    if (r.eventId === ev.id && r.isEventCheckin && r.expiresAt > now) {
+      r.expiresAt = now; // expire immediately
+    }
+  }
   // Notify all participants
   io.to('event:' + ev.id).emit('event-ended', { eventId: ev.id, name: ev.name });
-  saveDB('operatorEvents');
+  saveDB('operatorEvents', 'relations');
   res.json({ ok: true });
 });
 
@@ -4827,6 +4835,14 @@ app.post('/api/operator/event/:eventId/leave', (req, res) => {
   if (!userId) return res.status(400).json({ error: 'userId obrigatório.' });
   ev.participants = (ev.participants || []).filter(uid => uid !== userId);
   ev.checkinCount = ev.participants.length;
+  // Expire this user's event checkin relation (removes from chat list)
+  const now = Date.now();
+  for (const rId in db.relations) {
+    const r = db.relations[rId];
+    if (r.eventId === ev.id && r.isEventCheckin && (r.userA === userId || r.userB === userId) && r.expiresAt > now) {
+      r.expiresAt = now;
+    }
+  }
   // Leave socket room
   const userSockets = io.sockets.adapter.rooms.get(`user:${userId}`);
   if (userSockets) {
@@ -4839,7 +4855,7 @@ app.post('/api/operator/event/:eventId/leave', (req, res) => {
   io.to(`user:${ev.creatorId}`).emit('event-attendee-left', { userId, eventId: ev.id });
   // Notify the removed user directly so their phone closes the event
   io.to(`user:${userId}`).emit('event-kicked', { userId, eventId: ev.id });
-  saveDB('operatorEvents');
+  saveDB('operatorEvents', 'relations');
   res.json({ ok: true });
 });
 
