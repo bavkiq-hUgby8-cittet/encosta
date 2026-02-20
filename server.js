@@ -229,6 +229,11 @@ const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
 const mpPayment = new Payment(mpClient);
 
+// Expose public key for frontend SDK
+app.get('/api/mp-public-key', (req, res) => {
+  res.json({ publicKey: MP_PUBLIC_KEY });
+});
+
 const SERVICE_TYPES = [
   { id: 'flanelinha', label: 'Flanelinha / Guardador' },
   { id: 'garcom', label: 'Garçom / Garçonete' },
@@ -2736,27 +2741,142 @@ app.post('/mp/webhook', (req, res) => {
 });
 
 // ═══ SAVED CARD ═══
+// ── Saved Card with MP Customer API ──
 app.get('/api/tip/saved-card/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (user.savedCard && user.savedCard.lastFour) {
-    res.json({ hasSaved: true, lastFour: user.savedCard.lastFour, brand: user.savedCard.brand || 'Cartão' });
+  if (user.savedCard && user.savedCard.lastFour && user.savedCard.customerId) {
+    res.json({ hasSaved: true, lastFour: user.savedCard.lastFour, brand: user.savedCard.brand || 'Cartão', cardId: user.savedCard.cardId || null });
   } else {
     res.json({ hasSaved: false });
   }
 });
 
-app.post('/api/tip/save-card', (req, res) => {
-  const { userId, lastFour, brand, customerId } = req.body;
+// Save card: tokenize → create MP customer → save card to customer
+app.post('/api/tip/save-card', async (req, res) => {
+  const { userId, token } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'User not found' });
-  db.users[userId].savedCard = { lastFour, brand: brand || 'Cartão', customerId: customerId || null, savedAt: Date.now() };
-  saveDB();
-  res.json({ ok: true });
+  if (!token) return res.status(400).json({ error: 'Token do cartão é obrigatório.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
+  const user = db.users[userId];
+  try {
+    let customerId = user.savedCard?.customerId;
+    // Create customer if needed
+    if (!customerId) {
+      const custResp = await fetch('https://api.mercadopago.com/v1/customers', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email || userId + '@touch.app', first_name: user.name || user.nickname || 'Touch User' })
+      });
+      // If email already exists, search for existing customer
+      if (custResp.status === 400) {
+        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(user.email || userId + '@touch.app'), {
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+        });
+        const searchData = await searchResp.json();
+        if (searchData.results && searchData.results.length > 0) {
+          customerId = searchData.results[0].id;
+        } else {
+          return res.status(500).json({ error: 'Não foi possível criar cliente no MP.' });
+        }
+      } else {
+        const custData = await custResp.json();
+        customerId = custData.id;
+      }
+    }
+    // Save card to customer using token
+    const cardResp = await fetch('https://api.mercadopago.com/v1/customers/' + customerId + '/cards', {
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const cardData = await cardResp.json();
+    if (cardData.error || !cardData.id) {
+      console.error('Save card error:', cardData);
+      return res.status(400).json({ error: cardData.message || 'Erro ao salvar cartão.' });
+    }
+    // Store in DB
+    user.savedCard = {
+      customerId,
+      cardId: cardData.id,
+      lastFour: cardData.last_four_digits,
+      brand: cardData.payment_method?.name || cardData.issuer?.name || 'Cartão',
+      firstSix: cardData.first_six_digits,
+      savedAt: Date.now()
+    };
+    saveDB();
+    console.log('💳 Card saved for user', userId, '- customer:', customerId, 'card:', cardData.id, 'last4:', cardData.last_four_digits);
+    res.json({ ok: true, lastFour: cardData.last_four_digits, brand: user.savedCard.brand });
+  } catch (e) {
+    console.error('Save card error:', e);
+    res.status(500).json({ error: 'Erro ao salvar cartão: ' + (e.message || 'tente novamente') });
+  }
 });
 
-app.delete('/api/tip/saved-card/:userId', (req, res) => {
+// Quick pay with saved card — ONE-TAP payment!
+app.post('/api/tip/quick-pay', async (req, res) => {
+  const { payerId, receiverId, amount } = req.body;
+  if (!payerId || !receiverId || !amount) return res.status(400).json({ error: 'Dados incompletos.' });
+  const payer = db.users[payerId];
+  const receiver = db.users[receiverId];
+  if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
+  if (!payer.savedCard?.customerId || !payer.savedCard?.cardId) return res.status(400).json({ error: 'Nenhum cartão salvo. Cadastre um cartão primeiro.' });
+  const isOperatorWithTips = Object.values(db.operatorEvents).some(ev => ev.creatorId === receiverId && ev.acceptsTips);
+  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  const tipAmount = parseFloat(amount);
+  if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
+  const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100;
+  try {
+    // Get customer's cards to get current token
+    const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + payer.savedCard.customerId + '/cards', {
+      headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+    });
+    const cards = await cardsResp.json();
+    const card = cards.find(c => c.id === payer.savedCard.cardId) || cards[0];
+    if (!card) return res.status(400).json({ error: 'Cartão não encontrado. Cadastre novamente.' });
+
+    const paymentData = {
+      transaction_amount: tipAmount,
+      payment_method_id: card.payment_method.id,
+      payer: {
+        id: payer.savedCard.customerId,
+        type: 'customer'
+      },
+      token: card.id, // card ID as token for saved cards
+      description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
+      installments: 1,
+      statement_descriptor: 'TOUCH GORJETA',
+      metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
+    };
+    console.log('⚡ Quick-pay with saved card:', { amount: tipAmount, customer: payer.savedCard.customerId, card: card.id, last4: card.last_four_digits });
+
+    let result;
+    if (receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      const receiverPayment = new Payment(receiverClient);
+      result = await receiverPayment.create({ body: paymentData });
+    } else {
+      result = await mpPayment.create({ body: paymentData });
+    }
+    console.log('⚡ Quick-pay result:', { id: result.id, status: result.status, detail: result.status_detail });
+    return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
+  } catch (e) {
+    console.error('Quick-pay error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+  }
+});
+
+app.delete('/api/tip/saved-card/:userId', async (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'User not found' });
+  // Remove card from MP customer if possible
+  if (user.savedCard?.customerId && user.savedCard?.cardId && MP_ACCESS_TOKEN) {
+    try {
+      await fetch('https://api.mercadopago.com/v1/customers/' + user.savedCard.customerId + '/cards/' + user.savedCard.cardId, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+      });
+    } catch (e) { console.error('Delete card from MP error:', e); }
+  }
   delete user.savedCard;
   saveDB();
   res.json({ ok: true });

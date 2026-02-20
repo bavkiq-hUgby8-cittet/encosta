@@ -1269,18 +1269,40 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <label>Outro valor:</label>
     <input type="number" id="tipCustomAmount" placeholder="R$" min="1" max="500" oninput="selectTipCustom()">
   </div>
-  <!-- PAYMENT METHOD TABS -->
-  <div id="tipMethodTabs" style="display:flex;gap:.4rem;margin:.8rem 0 .6rem">
-    <button class="tip-tab active" id="tipTabPix" onclick="selectPayMethod('pix')" style="flex:1;padding:.5rem;border-radius:12px;border:1px solid rgba(0,220,130,.3);background:rgba(0,220,130,.1);color:#00dc82;font-size:.7rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s">
-      <div style="font-size:1.2rem;margin-bottom:.15rem">⚡</div>PIX · Instantâneo
-    </button>
-    <button class="tip-tab" id="tipTabCheckout" onclick="selectPayMethod('checkout')" style="flex:1;padding:.5rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">
-      <div style="font-size:1.2rem;margin-bottom:.15rem">🛒</div>Cartão · Apple Pay
-    </button>
+
+  <!-- SAVED CARD — quick pay (3 clicks!) -->
+  <div id="tipSavedCard" style="display:none;margin-top:.8rem">
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:16px;padding:.8rem;text-align:center">
+      <div style="font-size:1.5rem;margin-bottom:.3rem">💳</div>
+      <div id="tipSavedCardLabel" style="font-size:.8rem;font-weight:600;color:var(--t1)"></div>
+      <button class="tip-pay-btn" id="tipQuickPayBtn" onclick="quickPay()" disabled style="margin-top:.6rem;background:linear-gradient(135deg,#6366f1,#4f46e5);width:100%;font-size:.85rem;padding:.7rem;border-radius:14px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Confirmar pagamento</button>
+    </div>
+    <button onclick="showNewCardForm()" style="margin-top:.5rem;width:100%;padding:.4rem;border:none;background:transparent;color:var(--t3);font-size:.65rem;font-family:inherit;cursor:pointer;text-decoration:underline">Usar outro cartão</button>
   </div>
-  <!-- PIX SECTION -->
-  <div id="tipPixSection">
-    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">Pague com PIX — funciona com Nubank, Inter, Itaú, Bradesco, qualquer banco. Instantâneo e sem taxa extra.</div>
+
+  <!-- NEW CARD FORM — first time or change card -->
+  <div id="tipNewCard" style="display:none;margin-top:.8rem">
+    <div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.5rem;text-align:center">Dados do cartão</div>
+    <input type="text" id="tipCardNumber" class="tip-input" placeholder="Número do cartão" inputmode="numeric" maxlength="19" autocomplete="cc-number" oninput="formatCardNumber(this)">
+    <div style="display:flex;gap:.4rem;margin-top:.4rem">
+      <input type="text" id="tipCardExpiry" class="tip-input" placeholder="MM/AA" inputmode="numeric" maxlength="5" autocomplete="cc-exp" oninput="formatExpiry(this)" style="flex:1">
+      <input type="text" id="tipCardCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" autocomplete="cc-csc" style="flex:1">
+    </div>
+    <input type="text" id="tipCardHolder" class="tip-input" placeholder="Nome no cartão" autocomplete="cc-name" style="margin-top:.4rem">
+    <input type="text" id="tipCardCPF" class="tip-input" placeholder="CPF do titular" inputmode="numeric" maxlength="14" oninput="formatCPF(this)" style="margin-top:.4rem">
+    <div style="display:flex;align-items:center;gap:.4rem;margin-top:.5rem">
+      <input type="checkbox" id="tipSaveCardCheck" checked style="accent-color:#6366f1">
+      <label for="tipSaveCardCheck" style="font-size:.6rem;color:var(--t3)">Salvar cartão para próximas gorjetas</label>
+    </div>
+    <button class="tip-pay-btn" id="tipCardPayBtn" onclick="payWithNewCard()" disabled style="margin-top:.6rem;background:linear-gradient(135deg,#6366f1,#4f46e5)">💳 Pagar</button>
+  </div>
+
+  <!-- PIX OPTION -->
+  <div id="tipPixToggle" style="margin-top:.6rem;text-align:center">
+    <button onclick="togglePixSection()" style="padding:.3rem .8rem;border:1px solid rgba(0,220,130,.2);background:rgba(0,220,130,.05);border-radius:10px;color:#00dc82;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer">⚡ Prefiro pagar com PIX</button>
+  </div>
+  <div id="tipPixSection" style="display:none;margin-top:.6rem">
+    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">PIX — funciona com qualquer banco. Instantâneo e sem taxa.</div>
     <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem">
     <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)">
     <button class="tip-pay-btn" id="tipPixBtn" onclick="processPixTip()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#00dc82,#00b36b)">⚡ Gerar PIX</button>
@@ -1291,21 +1313,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <button onclick="copyPixCode()" style="padding:.4rem 1rem;border-radius:10px;background:rgba(0,220,130,.12);border:1px solid rgba(0,220,130,.25);color:#00dc82;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer">📋 Copiar código PIX</button>
       </div>
       <input type="hidden" id="tipPixCode">
-      <div style="font-size:.6rem;color:var(--t3);margin-top:.5rem">Expira em 30 minutos. Após pagamento, será confirmado automaticamente.</div>
+      <div style="font-size:.6rem;color:var(--t3);margin-top:.5rem">Expira em 30 minutos.</div>
     </div>
   </div>
-  <!-- CHECKOUT PRO SECTION (MP redirect — all methods) -->
-  <div id="tipCheckoutSection" style="display:none">
-    <div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:.6rem;line-height:1.5">Abre o Mercado Pago com todos os métodos: cartão de crédito/débito, PIX, Apple Pay, Google Pay, saldo MP.</div>
-    <button class="tip-pay-btn" id="tipCheckoutBtn" onclick="processCheckoutTip()" disabled style="margin-top:.3rem;background:linear-gradient(135deg,#009ee3,#0077b6)">🛒 Pagar com Mercado Pago</button>
-    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;margin-top:.6rem;opacity:.5">
-      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">💳 Crédito</span>
-      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">🏦 Débito</span>
-      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">⚡ PIX</span>
-      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px"> Apple Pay</span>
-      <span style="font-size:.55rem;padding:.2rem .5rem;background:rgba(255,255,255,.05);border-radius:6px">🔵 Google Pay</span>
-    </div>
-  </div>
+
   <div class="tip-result hidden" id="tipResult">
     <div class="tip-result-icon" id="tipResultIcon"></div>
     <div class="tip-result-text" id="tipResultText"></div>
@@ -1414,6 +1425,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="encostaReqArea"></div>
 <div id="toast" class="toast hidden"></div>
 
+<script src="https://sdk.mercadopago.com/js/v2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -5454,22 +5466,21 @@ function applyLang(){
 let tipState = { receiverId: null, amount: 0, method: 'pix' };
 
 function showTipScreen(receiverId) {
-  tipState = { receiverId, amount: 0, method: 'pix' };
+  tipState = { receiverId, amount: 0, savedCard: null };
   // Reset UI
   document.querySelectorAll('.tip-amount-btn').forEach(b => b.classList.remove('selected'));
   $('tipCustomAmount').value = '';
   $('tipResult').classList.add('hidden');
   $('tipScreen').querySelector('.tip-amounts').style.display = '';
   $('tipScreen').querySelector('.tip-custom').style.display = '';
-  $('tipMethodTabs').style.display = '';
+  $('tipSavedCard').style.display = 'none';
+  $('tipNewCard').style.display = 'none';
+  $('tipPixSection').style.display = 'none';
+  $('tipPixToggle').style.display = '';
   $('tipPixBtn').disabled = true;
-  $('tipPixBtn').textContent = '⚡ Gerar PIX';
-  $('tipCheckoutBtn').disabled = true;
-  $('tipCheckoutBtn').textContent = '🛒 Pagar com Mercado Pago';
   $('tipPixQR').classList.add('hidden');
   $('tipPixEmail').value = '';
   $('tipPixCPF').value = '';
-  selectPayMethod('pix');
 
   // Fetch receiver info
   fetch('/api/user/' + receiverId).then(r => r.json()).then(u => {
@@ -5485,23 +5496,37 @@ function showTipScreen(receiverId) {
       (serviceLabel ? '<div class="tip-receiver-service">' + esc(serviceLabel) + '</div>' : '');
   }).catch(() => {});
 
+  // Check for saved card
+  fetch('/api/tip/saved-card/' + state.userId).then(r => r.json()).then(d => {
+    if (d.hasSaved) {
+      tipState.savedCard = d;
+      $('tipSavedCardLabel').textContent = d.brand + ' •••• ' + d.lastFour;
+      $('tipSavedCard').style.display = '';
+      $('tipNewCard').style.display = 'none';
+    } else {
+      $('tipSavedCard').style.display = 'none';
+      $('tipNewCard').style.display = '';
+    }
+  }).catch(() => { $('tipNewCard').style.display = ''; });
+
   showScreen('tipScreen');
 }
 
-function selectPayMethod(method) {
-  tipState.method = method;
-  const tabPix = $('tipTabPix'), tabCk = $('tipTabCheckout');
-  const secPix = $('tipPixSection'), secCk = $('tipCheckoutSection');
-  if (method === 'pix') {
-    tabPix.style.borderColor = 'rgba(0,220,130,.3)'; tabPix.style.background = 'rgba(0,220,130,.1)'; tabPix.style.color = '#00dc82';
-    tabCk.style.borderColor = 'rgba(255,255,255,.08)'; tabCk.style.background = 'rgba(255,255,255,.04)'; tabCk.style.color = 'var(--t3)';
-    secPix.style.display = ''; secCk.style.display = 'none';
-  } else {
-    tabCk.style.borderColor = 'rgba(0,158,227,.3)'; tabCk.style.background = 'rgba(0,158,227,.1)'; tabCk.style.color = '#009ee3';
-    tabPix.style.borderColor = 'rgba(255,255,255,.08)'; tabPix.style.background = 'rgba(255,255,255,.04)'; tabPix.style.color = 'var(--t3)';
-    secCk.style.display = ''; secPix.style.display = 'none';
-  }
-  updateTipBtns();
+function showNewCardForm() {
+  $('tipSavedCard').style.display = 'none';
+  $('tipNewCard').style.display = '';
+  $('tipCardNumber').value = '';
+  $('tipCardExpiry').value = '';
+  $('tipCardCVV').value = '';
+  $('tipCardHolder').value = '';
+  $('tipCardCPF').value = '';
+}
+
+function togglePixSection() {
+  const sec = $('tipPixSection');
+  sec.style.display = sec.style.display === 'none' ? '' : 'none';
+  $('tipSavedCard').style.display = 'none';
+  $('tipNewCard').style.display = 'none';
 }
 
 function selectTipAmount(val) {
@@ -5522,13 +5547,27 @@ function selectTipCustom() {
 }
 function updateTipBtns() {
   const has = tipState.amount > 0;
-  const label = has ? 'R$' + tipState.amount.toFixed(2).replace('.', ',') : '';
+  const label = has ? ' R$' + tipState.amount.toFixed(2).replace('.', ',') : '';
+  // Quick pay button
+  $('tipQuickPayBtn').disabled = !has;
+  $('tipQuickPayBtn').textContent = has ? 'Confirmar' + label : 'Confirmar pagamento';
+  // New card button
+  $('tipCardPayBtn').disabled = !has;
+  $('tipCardPayBtn').textContent = has ? '💳 Pagar' + label : '💳 Pagar';
+  // PIX button
   $('tipPixBtn').disabled = !has;
-  if (has) $('tipPixBtn').textContent = '⚡ PIX ' + label;
-  else $('tipPixBtn').textContent = '⚡ Gerar PIX';
-  $('tipCheckoutBtn').disabled = !has;
-  if (has) $('tipCheckoutBtn').textContent = '🛒 Pagar ' + label;
-  else $('tipCheckoutBtn').textContent = '🛒 Pagar com Mercado Pago';
+  $('tipPixBtn').textContent = has ? '⚡ PIX' + label : '⚡ Gerar PIX';
+}
+
+function formatCardNumber(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 16);
+  v = v.replace(/(.{4})/g, '$1 ').trim();
+  el.value = v;
+}
+function formatExpiry(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 4);
+  if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+  el.value = v;
 }
 
 function formatCPF(el) {
@@ -5606,34 +5645,119 @@ function pollTipStatus(tipId) {
   }, 5000);
 }
 
-// ── Checkout Pro (redirect to MP) ──
-async function processCheckoutTip() {
-  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
-  const btn = $('tipCheckoutBtn');
-  btn.disabled = true; btn.textContent = 'Abrindo...';
+// ── MP SDK init ──
+let mpSdk = null;
+async function getMpSdk() {
+  if (mpSdk) return mpSdk;
   try {
-    const resp = await fetch('/api/tip/checkout', {
+    const resp = await fetch('/api/mp-public-key');
+    const { publicKey } = await resp.json();
+    if (!publicKey) throw new Error('No public key');
+    mpSdk = new MercadoPago(publicKey);
+    return mpSdk;
+  } catch (e) { console.error('MP SDK init error:', e); return null; }
+}
+
+// ── Quick Pay with saved card (ONE TAP!) ──
+async function quickPay() {
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  const btn = $('tipQuickPayBtn');
+  btn.disabled = true; btn.textContent = 'Processando...';
+  try {
+    const resp = await fetch('/api/tip/quick-pay', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount })
     });
     const result = await resp.json();
     if (result.error) throw new Error(result.error);
-    // Redirect to MP checkout (window.open blocked on mobile)
-    const url = result.initPoint || result.sandboxInitPoint;
-    if (url) {
-      window.location.href = url;
+    if (result.status === 'approved') {
+      showTipResult('✅', 'Gorjeta enviada!<br>R$' + tipState.amount.toFixed(2).replace('.', ','));
+      haptic([50, 30, 50, 30, 50]);
+    } else if (result.status === 'in_process' || result.status === 'pending') {
+      showTipResult('⏳', 'Processando pagamento...');
+      if (result.tipId) pollTipStatus(result.tipId);
     } else {
-      throw new Error('URL do checkout não disponível.');
+      throw new Error(result.statusDetail || 'Pagamento recusado');
     }
   } catch (e) {
-    console.error('Checkout error:', e);
+    console.error('Quick-pay error:', e);
     showToast('Erro: ' + (e.message || 'Tente novamente'));
     btn.disabled = false;
-    btn.textContent = '🛒 Pagar R$' + tipState.amount.toFixed(2).replace('.', ',');
+    btn.textContent = 'Confirmar R$' + tipState.amount.toFixed(2).replace('.', ',');
   }
 }
 
-// ── Check for tipResult URL param (return from Checkout Pro) ──
+// ── Pay with new card (tokenize → pay → save) ──
+async function payWithNewCard() {
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  const cardNum = $('tipCardNumber').value.replace(/\s/g, '');
+  const expiry = $('tipCardExpiry').value;
+  const cvv = $('tipCardCVV').value;
+  const holder = $('tipCardHolder').value.trim();
+  const cpf = $('tipCardCPF').value.replace(/\D/g, '');
+  if (!cardNum || cardNum.length < 13) return showToast('Número do cartão inválido.');
+  if (!expiry || expiry.length < 5) return showToast('Data de validade inválida.');
+  if (!cvv || cvv.length < 3) return showToast('CVV inválido.');
+  if (!holder) return showToast('Nome no cartão obrigatório.');
+  if (!cpf || cpf.length < 11) return showToast('CPF inválido.');
+
+  const btn = $('tipCardPayBtn');
+  btn.disabled = true; btn.textContent = 'Processando...';
+
+  try {
+    const mp = await getMpSdk();
+    if (!mp) throw new Error('SDK de pagamento não disponível.');
+
+    const [expMonth, expYear] = expiry.split('/');
+    const tokenResult = await mp.createCardToken({
+      cardNumber: cardNum, cardholderName: holder,
+      cardExpirationMonth: expMonth, cardExpirationYear: '20' + expYear,
+      securityCode: cvv, identificationType: 'CPF', identificationNumber: cpf
+    });
+    if (!tokenResult || !tokenResult.id) throw new Error('Erro ao tokenizar cartão.');
+
+    const resp = await fetch('/api/tip/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount,
+        token: tokenResult.id, paymentMethodId: tokenResult.payment_method?.id || 'visa',
+        payerEmail: state.email || state.userId + '@touch.app', payerCPF: cpf
+      })
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+
+    if (result.status === 'approved') {
+      if ($('tipSaveCardCheck').checked) {
+        try {
+          const saveToken = await mp.createCardToken({
+            cardNumber: cardNum, cardholderName: holder,
+            cardExpirationMonth: expMonth, cardExpirationYear: '20' + expYear,
+            securityCode: cvv, identificationType: 'CPF', identificationNumber: cpf
+          });
+          if (saveToken?.id) {
+            await fetch('/api/tip/save-card', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: state.userId, token: saveToken.id })
+            });
+          }
+        } catch (saveErr) { console.error('Save card error:', saveErr); }
+      }
+      showTipResult('✅', 'Gorjeta enviada!<br>R$' + tipState.amount.toFixed(2).replace('.', ','));
+      haptic([50, 30, 50, 30, 50]);
+    } else if (result.status === 'in_process' || result.status === 'pending') {
+      showTipResult('⏳', 'Processando...');
+    } else {
+      throw new Error(result.statusDetail || 'Pagamento recusado.');
+    }
+  } catch (e) {
+    console.error('Card payment error:', e);
+    showToast('Erro: ' + (e.message || 'Tente novamente'));
+    btn.disabled = false;
+    btn.textContent = '💳 Pagar R$' + tipState.amount.toFixed(2).replace('.', ',');
+  }
+}
+
 function checkTipResultParam() {
   const params = new URLSearchParams(window.location.search);
   const tipResult = params.get('tipResult');
@@ -5641,7 +5765,6 @@ function checkTipResultParam() {
     if (tipResult === 'approved') showToast('Gorjeta confirmada! ✅');
     else if (tipResult === 'pending') showToast('Pagamento em processamento ⏳');
     else showToast('Pagamento não aprovado ❌');
-    // Clean URL
     window.history.replaceState({}, '', window.location.pathname);
   }
 }
@@ -5650,10 +5773,10 @@ function showTipResult(icon, text) {
   $('tipResult').classList.remove('hidden');
   $('tipResultIcon').textContent = icon;
   $('tipResultText').innerHTML = text;
-  // Hide form parts
+  $('tipSavedCard').style.display = 'none';
+  $('tipNewCard').style.display = 'none';
   $('tipPixSection').style.display = 'none';
-  $('tipCheckoutSection').style.display = 'none';
-  $('tipMethodTabs').style.display = 'none';
+  $('tipPixToggle').style.display = 'none';
   $('tipScreen').querySelector('.tip-amounts').style.display = 'none';
   $('tipScreen').querySelector('.tip-custom').style.display = 'none';
 }
