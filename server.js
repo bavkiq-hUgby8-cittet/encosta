@@ -4,8 +4,11 @@ const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { MercadoPagoConfig, Payment, Preference, OAuth } = require('mercadopago');
 const admin = require('firebase-admin');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // ── Crash protection: prevent server from dying on unhandled errors ──
 process.on('uncaughtException', (err) => {
@@ -15,12 +18,126 @@ process.on('unhandledRejection', (reason) => {
   console.error('🔴 Unhandled Rejection:', reason?.message || reason);
 });
 
+// ── Security: Admin secret for protected endpoints ──
+const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+if (!ADMIN_SECRET) console.warn('⚠️ ADMIN_SECRET não configurado! Endpoints admin desprotegidos. Defina ADMIN_SECRET nas variáveis de ambiente.');
+
+// ── Security: Allowed origins for CORS ──
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+// Fallback: allow common origins in dev
+const DEFAULT_ORIGINS = ['https://encosta.onrender.com', 'http://localhost:3000', 'http://localhost:5500'];
+const CORS_ORIGINS = ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_ORIGINS;
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: {
+    origin: (origin, cb) => {
+      // Allow no-origin requests (mobile apps, curl, server-to-server)
+      if (!origin) return cb(null, true);
+      if (CORS_ORIGINS.includes(origin) || origin.endsWith('.onrender.com')) return cb(null, true);
+      cb(new Error('CORS blocked: ' + origin));
+    },
+    methods: ['GET', 'POST']
+  }
+});
 
+// ── Security headers via helmet ──
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.mercadopago.com", "https://http2.mlstatic.com", "https://www.googletagmanager.com", "https://www.google-analytics.com", "https://apis.google.com", "https://www.gstatic.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://storage.googleapis.com", "https://lh3.googleusercontent.com", "https://*.mlstatic.com"],
+      connectSrc: ["'self'", "https://api.mercadopago.com", "https://encosta-f32e7-default-rtdb.firebaseio.com", "https://*.firebaseio.com", "wss:", "ws:", "https://ip-api.com", "https://identitytoolkit.googleapis.com", "https://securetoken.googleapis.com", "https://www.googleapis.com"],
+      frameSrc: ["'self'", "https://sdk.mercadopago.com", "https://accounts.google.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false, // Required for external scripts
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// ── Rate limiting ──
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 300, // 300 requests per 15min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // 10 auth attempts per 15 min
+  message: { error: 'Muitas tentativas de autenticação. Aguarde 15 minutos.' }
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 15, // 15 payment attempts per 5 min
+  message: { error: 'Muitas tentativas de pagamento. Aguarde alguns minutos.' }
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Rate limit atingido nos endpoints admin.' }
+});
+
+app.use(generalLimiter);
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Input sanitization helpers ──
+function sanitizeStr(s, maxLen = 500) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/[<>]/g, '').trim().slice(0, maxLen);
+}
+function isValidEmail(e) {
+  return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 254;
+}
+function isValidCPF(cpf) {
+  if (typeof cpf !== 'string') return false;
+  const clean = cpf.replace(/\D/g, '');
+  return clean.length === 11;
+}
+function isValidUUID(id) {
+  return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
+}
+
+// ── Admin authentication middleware ──
+function requireAdmin(req, res, next) {
+  // Method 1: ADMIN_SECRET header
+  const secret = req.headers['x-admin-secret'];
+  if (ADMIN_SECRET && secret === ADMIN_SECRET) return next();
+
+  // Method 2: Firebase auth + isAdmin flag in DB
+  if (req.firebaseUser) {
+    const uid = req.firebaseUser.uid;
+    const userId = IDX.firebaseUid.get(uid);
+    if (userId && db.users[userId]?.isAdmin) {
+      req.adminUserId = userId;
+      return next();
+    }
+  }
+
+  // Method 3: userId in body + isAdmin flag (legacy, requires ADMIN_SECRET to be unset)
+  const { adminId, userId } = req.body || {};
+  const checkId = adminId || userId;
+  if (checkId && db.users[checkId]?.isAdmin) {
+    // Only allow this fallback if ADMIN_SECRET is not configured (dev mode)
+    if (!ADMIN_SECRET) {
+      req.adminUserId = checkId;
+      return next();
+    }
+  }
+
+  return res.status(403).json({ error: 'Acesso negado. Autenticação admin necessária.' });
+}
 
 // Clean URL routes for static pages
 app.get('/site', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
@@ -551,7 +668,7 @@ function emailTemplate(title, body, btnText, btnUrl) {
 </div></body></html>`;
 }
 
-app.post('/api/auth/send-verification', async (req, res) => {
+app.post('/api/auth/send-verification', authLimiter, async (req, res) => {
   const { uid } = req.body;
   if (!uid) return res.status(400).json({ error: 'UID obrigatório.' });
   try {
@@ -584,7 +701,7 @@ app.post('/api/auth/send-verification', async (req, res) => {
   }
 });
 
-app.post('/api/auth/send-magic-link', async (req, res) => {
+app.post('/api/auth/send-magic-link', authLimiter, async (req, res) => {
   const { email, returnUrl } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
   try {
@@ -614,7 +731,7 @@ app.post('/api/auth/send-magic-link', async (req, res) => {
   }
 });
 
-app.post('/api/auth/send-password-reset', async (req, res) => {
+app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
   try {
@@ -2699,7 +2816,7 @@ app.get('/api/admin/game-config', (req, res) => {
 });
 
 // Update config (Top 1 or admin)
-app.post('/api/admin/game-config', (req, res) => {
+app.post('/api/admin/game-config', adminLimiter, (req, res) => {
   const { userId, changes } = req.body;
   if (!userId || !changes) return res.status(400).json({ error: 'userId e changes obrigatórios.' });
   const cfg = getGameConfig();
@@ -3647,7 +3764,7 @@ setInterval(() => {
 }, 30000);
 
 // ── RESET REVEALS ONLY ──
-app.post('/api/admin/reset-reveals', (req, res) => {
+app.post('/api/admin/reset-reveals', adminLimiter, requireAdmin, (req, res) => {
   const { confirm } = req.body;
   if (confirm !== 'RESET_REVEALS') return res.status(400).json({ error: 'Send { confirm: "RESET_REVEALS" }.' });
   let count = 0;
@@ -3667,7 +3784,7 @@ app.post('/api/admin/reset-reveals', (req, res) => {
 
 // ── DATABASE RESET ──
 // ── BACKUP / ROLLBACK ENDPOINTS ──
-app.post('/api/admin/backup', async (req, res) => {
+app.post('/api/admin/backup', adminLimiter, requireAdmin, async (req, res) => {
   try {
     const reason = req.body.reason || 'manual';
     const id = await createBackup(reason);
@@ -3676,12 +3793,12 @@ app.post('/api/admin/backup', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/admin/backups', async (req, res) => {
+app.get('/api/admin/backups', adminLimiter, requireAdmin, async (req, res) => {
   const backups = await listBackups();
   res.json({ backups });
 });
 
-app.post('/api/admin/rollback', async (req, res) => {
+app.post('/api/admin/rollback', adminLimiter, requireAdmin, async (req, res) => {
   const { backupId, confirm } = req.body;
   if (confirm !== 'ROLLBACK') return res.status(400).json({ error: 'Send { backupId, confirm: "ROLLBACK" } to confirm.' });
   if (!backupId) return res.status(400).json({ error: 'backupId required. Use GET /api/admin/backups to list.' });
@@ -3692,7 +3809,7 @@ app.post('/api/admin/rollback', async (req, res) => {
 });
 
 // ── SAFE RESET: only clear events & checkins, preserve relations/encounters/messages ──
-app.post('/api/admin/reset-events', async (req, res) => {
+app.post('/api/admin/reset-events', adminLimiter, requireAdmin, async (req, res) => {
   const { confirm } = req.body;
   if (confirm !== 'RESET_EVENTS') return res.status(400).json({ error: 'Send { confirm: "RESET_EVENTS" } to confirm.' });
   // Auto-backup before any reset
@@ -3714,7 +3831,7 @@ app.post('/api/admin/reset-events', async (req, res) => {
 });
 
 // ── FULL RESET: dangerous, clears everything ──
-app.post('/api/admin/reset-db', async (req, res) => {
+app.post('/api/admin/reset-db', adminLimiter, requireAdmin, async (req, res) => {
   const { confirm, keepUsers } = req.body;
   if (confirm !== 'FULL_RESET_DANGEROUS') return res.status(400).json({ error: 'DANGEROUS: Send { confirm: "FULL_RESET_DANGEROUS" } to confirm. Use /api/admin/reset-events for safe reset.' });
   // Auto-backup before destructive operation
@@ -3980,7 +4097,7 @@ app.get('/api/prestador/:userId/status', (req, res) => {
 });
 
 // Create a tip payment
-app.post('/api/tip/create', async (req, res) => {
+app.post('/api/tip/create', paymentLimiter, async (req, res) => {
   const { payerId, receiverId, amount, token, paymentMethodId, issuer, installments, payerEmail, payerCPF } = req.body;
   if (!payerId || !receiverId || !amount || !token) return res.status(400).json({ error: 'Dados incompletos.' });
   const payer = db.users[payerId];
@@ -4400,10 +4517,33 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
   });
 });
 
+// ── MercadoPago webhook signature verification ──
+function verifyMPWebhookSignature(req) {
+  if (!MP_WEBHOOK_SECRET) return true; // Skip if not configured (dev)
+  const xSig = req.headers['x-signature'] || '';
+  const xReqId = req.headers['x-request-id'] || '';
+  if (!xSig) return false;
+  // Parse x-signature: "ts=...,v1=..."
+  const parts = {};
+  xSig.split(',').forEach(p => {
+    const [k, v] = p.split('=');
+    if (k && v) parts[k.trim()] = v.trim();
+  });
+  if (!parts.ts || !parts.v1) return false;
+  // Build manifest string: id:{data.id};request-id:{x-request-id};ts:{ts};
+  const dataId = req.query['data.id'] || (req.body.data && req.body.data.id) || '';
+  const manifest = `id:${dataId};request-id:${xReqId};ts:${parts.ts};`;
+  const hmac = crypto.createHmac('sha256', MP_WEBHOOK_SECRET).update(manifest).digest('hex');
+  return hmac === parts.v1;
+}
+
 // MercadoPago webhook
 app.post('/mp/webhook', (req, res) => {
-  // Validate signature (basic)
-  const xSig = req.headers['x-signature'] || '';
+  // Validate webhook signature
+  if (!verifyMPWebhookSignature(req)) {
+    console.warn('⚠️ MP Webhook: signature inválida', { ip: req.ip, type: req.body?.type });
+    return res.sendStatus(401);
+  }
   // Process payment notifications
   if (req.body.type === 'payment' && req.body.data && req.body.data.id) {
     const paymentId = req.body.data.id;
@@ -4442,7 +4582,7 @@ app.get('/api/tip/saved-card/:userId', (req, res) => {
 });
 
 // Save card: tokenize → create MP customer → save card to customer
-app.post('/api/tip/save-card', async (req, res) => {
+app.post('/api/tip/save-card', paymentLimiter, async (req, res) => {
   const { userId, token, email, cpf } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'User not found' });
   if (!token) return res.status(400).json({ error: 'Token do cartão é obrigatório.' });
@@ -4683,7 +4823,7 @@ app.post('/api/tip/mp-checkout', async (req, res) => {
 });
 
 // ── Subscribe with saved card (needs CVV) ──
-app.post('/api/subscription/create-card', async (req, res) => {
+app.post('/api/subscription/create-card', paymentLimiter, async (req, res) => {
   const { userId, planId, cvv } = req.body;
   if (!userId || !cvv) return res.status(400).json({ error: 'Dados incompletos.' });
   const user = db.users[userId];
@@ -4847,7 +4987,7 @@ app.get('/api/subscription/status/:userId', (req, res) => {
 });
 
 // Create subscription via MP Checkout Pro (simpler: recurring preference)
-app.post('/api/subscription/create', async (req, res) => {
+app.post('/api/subscription/create', paymentLimiter, async (req, res) => {
   const { userId, planId } = req.body;
   if (!userId || !planId) return res.status(400).json({ error: 'Dados incompletos.' });
   const user = db.users[userId];
@@ -4946,6 +5086,11 @@ app.get('/sub-result', (req, res) => {
 
 // Subscription webhook
 app.post('/mp/webhook/subscription', (req, res) => {
+  // Validate webhook signature
+  if (!verifyMPWebhookSignature(req)) {
+    console.warn('⚠️ MP Sub Webhook: signature inválida', { ip: req.ip });
+    return res.sendStatus(401);
+  }
   const { type, data } = req.body;
   if (type === 'subscription_preapproval' && data && data.id) {
     // Fetch latest status
@@ -5073,7 +5218,7 @@ app.post('/api/operator/event/create', (req, res) => {
 });
 
 // ═══ PAY EVENT ENTRY — charge entry fee on check-in ═══
-app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
+app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, res) => {
   const { userId, token, paymentMethodId, payerEmail, payerCPF, useSavedCard, deviceId, cardholderName } = req.body;
   console.log('🎫 pay-entry request:', { eventId: req.params.eventId, userId: userId?.slice(0,12), hasToken: !!token, useSavedCard, hasEmail: !!payerEmail });
   const ev = db.operatorEvents[req.params.eventId];
