@@ -1359,7 +1359,8 @@ app.get('/api/constellation/:userId', (req, res) => {
       // All selfies from encounters together
       allSelfies: (p.allSelfies || []).slice(0, 20),
       // WhatsApp (only when revealed)
-      whatsapp: iCanSeeThem ? (p.whatsapp || null) : null
+      whatsapp: iCanSeeThem ? (p.whatsapp || null) : null,
+      giftsReceived: (db.gifts[p.id] || []).length
     };
   });
   // Add event nodes — events the user participated in
@@ -2168,6 +2169,62 @@ app.post('/api/admin/game-config', (req, res) => {
   res.json({ ok: true, applied, current: getGameConfig() });
 });
 
+// ═══ DECLARATIONS — 30-day testimonials ═══
+if (!db.declarations) db.declarations = {};
+
+// Send declaration
+app.post('/api/declarations/send', (req, res) => {
+  const { fromUserId, toUserId, text } = req.body;
+  if (!fromUserId || !toUserId || !text) return res.status(400).json({ error: 'Campos obrigatórios.' });
+  if (fromUserId === toUserId) return res.status(400).json({ error: 'Não pode declarar para si mesmo.' });
+  if (!db.users[fromUserId]) return res.status(400).json({ error: 'Remetente inválido.' });
+  if (!db.users[toUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
+  const cleanText = text.trim().slice(0, 120);
+  if (cleanText.length < 3) return res.status(400).json({ error: 'Mínimo 3 caracteres.' });
+  // Max 1 declaration per person per target per 24h
+  if (!db.declarations[toUserId]) db.declarations[toUserId] = [];
+  const recent = db.declarations[toUserId].find(d => d.fromUserId === fromUserId && Date.now() - d.createdAt < 86400000);
+  if (recent) return res.status(400).json({ error: 'Você já enviou uma declaração recentemente. Aguarde 24h.' });
+  const decl = {
+    id: 'decl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    fromUserId,
+    fromNick: db.users[fromUserId].nickname || '??',
+    fromColor: db.users[fromUserId].color || '#666',
+    text: cleanText,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 30 * 86400000 // 30 days
+  };
+  db.declarations[toUserId].push(decl);
+  saveDB();
+  res.json({ ok: true, declaration: decl });
+});
+
+// Get declarations for a user (only non-expired)
+app.get('/api/declarations/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const now = Date.now();
+  let decls = (db.declarations[userId] || []).filter(d => d.expiresAt > now);
+  // Clean expired
+  if (db.declarations[userId]) {
+    const before = db.declarations[userId].length;
+    db.declarations[userId] = decls;
+    if (before !== decls.length) saveDB();
+  }
+  // Sort newest first
+  decls.sort((a, b) => b.createdAt - a.createdAt);
+  res.json({ declarations: decls, count: decls.length });
+});
+
+// ═══ GIFTS SYSTEM ═══
+if (!db.gifts) db.gifts = {};
+
+// Gift count for a user
+app.get('/api/gifts/count/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const gifts = db.gifts[userId] || [];
+  res.json({ count: gifts.length, userId });
+});
+
 // ═══ FACE ID — BIOMETRIC ENROLLMENT & VERIFICATION ═══
 // Face descriptors are 128-dimensional float arrays from face-api.js
 // We store ONLY the mathematical descriptors, never raw photos (LGPD Art.11 compliance)
@@ -2453,7 +2510,8 @@ app.get('/api/myprofile/:userId', (req, res) => {
     uniqueConnections: getUniqueConnections(req.params.userId),
     topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0,
     verified: !!user.verified, isAdmin: !!user.isAdmin,
-    faceEnrolled: !!user.faceEnrolled, faceEnrolledAt: user.faceEnrolledAt || null
+    faceEnrolled: !!user.faceEnrolled, faceEnrolledAt: user.faceEnrolledAt || null,
+    giftsReceived: (db.gifts[req.params.userId] || []).length
   });
 });
 

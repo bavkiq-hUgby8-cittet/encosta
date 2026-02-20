@@ -1239,6 +1239,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cd-section" id="cdMeta"></div>
     <div class="cd-actions" id="cdActions" onclick="event.stopPropagation()"></div>
     <div class="cd-section hidden" id="cdTipWrap"><button class="cd-tip-btn" id="cdTipBtn" onclick="event.stopPropagation();constTipAction()">Dar gorjeta</button></div>
+    <div class="cd-divider"></div>
+    <div class="cd-section" id="cdDeclarations" style="max-height:160px;overflow-y:auto"></div>
+    <div class="cd-section hidden" id="cdDeclareWrap" onclick="event.stopPropagation()">
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <input type="text" id="cdDeclareInput" placeholder="Deixe uma declaração..." maxlength="120" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.45rem .6rem;font-size:.68rem;color:var(--t1);font-family:inherit;outline:none">
+        <button onclick="sendDeclaration()" style="padding:.4rem .7rem;border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.15));border:1px solid rgba(99,102,241,.2);color:#a5b4fc;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap">Enviar</button>
+      </div>
+    </div>
   </div>
   <!-- Selfie zoom overlay -->
   <div class="cd-selfie-zoom" id="selfieZoom" onclick="closeSelfieZoom()">
@@ -2178,6 +2186,10 @@ async function refreshHome(){
       state.userIsAdmin=!!mp.isAdmin;
       state.userStarsCount=(mp.stars||[]).length;
       state.userFaceEnrolled=!!mp.faceEnrolled;
+      state.userScore=mp.score||0;
+      state.userTopTag=mp.topTag||null;
+      state.userRealName=mp.realName||'';
+      state.userUniqueConnections=mp.uniqueConnections||0;
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
     }catch(e){}
@@ -4224,12 +4236,21 @@ function handleConstTap(tx,ty,W,H){
       haptic([15]);return;
     }
   }
-  // Tap center → toggle first-person mode
+  // Tap center → show own profile card
   if(constState._mcx!==undefined){
     const dCenter=Math.hypot(tx-constState._mcx,ty-constState._mcy);
     if(dCenter<40){
-      if(constState.fpMode){exitConstFP();haptic([15])}
-      else{enterConstFP();haptic([20,40,20])}
+      showConstDetail({
+        id:state.userId,isMe:true,
+        nickname:state.userName,realName:state.userRealName||'',
+        color:state.userColor||nickColor(state.userName||'??'),
+        profilePhoto:state.userPhoto||null,
+        verified:!!state.userVerified,topTag:state.userTopTag||null,
+        starsCount:state.userStarsCount||0,score:state.userScore||0,
+        partnerRevealedToMe:true,iRevealedToPartner:true,
+        encounters:0,uniqueConnections:0
+      });
+      haptic([15]);
       return;
     }
   }
@@ -4329,7 +4350,7 @@ function showConstDetail(node){
   statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#fbbf24">'+(node.starsCount||0)+'</div><div class="cd-stat-lbl">estrelas</div></div>';
   statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#60a5fa">'+(node.score||0)+'</div><div class="cd-stat-lbl">score</div></div>';
   statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.uniqueConnections||node.touchers||0)+'</div><div class="cd-stat-lbl">conexões</div></div>';
-  if(theyRevealed)statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#f87171">'+(node.likesCount||0)+'</div><div class="cd-stat-lbl">curtidas</div></div>';
+  statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#c084fc">'+(node.giftsReceived||0)+'</div><div class="cd-stat-lbl">presentes</div></div>';
   statsEl.innerHTML=statsHtml;
   // Meta section: time, social links with logos, selfies gallery
   const metaEl=$('cdMeta');
@@ -4418,8 +4439,72 @@ function showConstDetail(node){
       actEl.parentElement.insertBefore(donateEl,actEl.nextSibling);
     }
   });
+  // Declarations section (30-day expiry)
+  const declEl=$('cdDeclarations');
+  declEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);padding:.2rem 0">Carregando declarações...</div>';
+  const declWrap=$('cdDeclareWrap');
+  if(node.isMe){
+    declWrap.classList.add('hidden'); // can't declare yourself
+    // For own profile, hide actions that don't make sense
+    actEl.innerHTML='';
+  }else{
+    declWrap.classList.remove('hidden');
+    $('cdDeclareInput').value='';
+  }
+  // Load declarations
+  loadDeclarations(node.id);
+  // Load gifts count async
+  fetch('/api/gifts/count/'+node.id).then(r=>r.json()).then(d=>{
+    const giftStat=document.querySelector('#cdStats .cd-stat:last-child .cd-stat-val');
+    if(giftStat)giftStat.textContent=d.count||0;
+  }).catch(()=>{});
   $('constDetail').classList.add('visible');
   haptic([15]);
+}
+async function loadDeclarations(targetId){
+  const declEl=$('cdDeclarations');
+  try{
+    const d=await(await fetch('/api/declarations/'+targetId)).json();
+    if(!d.declarations||!d.declarations.length){
+      declEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);text-align:center;padding:.4rem 0;opacity:.5">Nenhuma declaração ainda</div>';
+      return;
+    }
+    let html='<div style="font-size:.6rem;color:var(--t3);margin-bottom:.3rem;font-weight:600">Declarações</div>';
+    d.declarations.forEach(dc=>{
+      const ago=timeAgo(new Date(dc.createdAt));
+      const daysLeft=Math.max(0,Math.ceil((dc.expiresAt-Date.now())/86400000));
+      html+='<div style="padding:.35rem .5rem;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;margin-bottom:.3rem">'
+        +'<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.15rem">'
+        +'<span style="width:18px;height:18px;border-radius:50%;background:'+esc(dc.fromColor||'#666')+';display:inline-flex;align-items:center;justify-content:center;font-size:.45rem;font-weight:800;color:#fff;flex-shrink:0">'+esc((dc.fromNick||'??').slice(0,2).toUpperCase())+'</span>'
+        +'<span style="font-size:.6rem;font-weight:600;color:var(--t2)">'+esc(dc.fromNick||'Anônimo')+'</span>'
+        +'<span style="font-size:.5rem;color:var(--t3);margin-left:auto">'+ago+' · '+daysLeft+'d</span>'
+        +'</div>'
+        +'<div style="font-size:.65rem;color:var(--t1);line-height:1.3">'+esc(dc.text)+'</div>'
+        +'</div>';
+    });
+    declEl.innerHTML=html;
+  }catch(e){
+    declEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);opacity:.5">Erro ao carregar</div>';
+  }
+}
+async function sendDeclaration(){
+  const input=$('cdDeclareInput');
+  const text=input.value.trim();
+  if(!text)return showToast('Digite uma declaração');
+  if(text.length<3)return showToast('Mínimo 3 caracteres');
+  const targetId=window._constDetailNodeId;
+  if(!targetId||targetId===state.userId)return;
+  try{
+    const r=await fetch('/api/declarations/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      fromUserId:state.userId,toUserId:targetId,text
+    })});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    input.value='';
+    showToast('Declaração enviada!');
+    haptic([25,15,25]);
+    loadDeclarations(targetId);
+  }catch(e){showToast('Erro ao enviar')}
 }
 function timeAgo(date){
   const s=Math.floor((Date.now()-date.getTime())/1000);
