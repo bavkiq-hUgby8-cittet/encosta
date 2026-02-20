@@ -3890,7 +3890,8 @@ app.post('/api/tip/create', async (req, res) => {
         }],
         payer: {
           first_name: payerName.split(' ')[0],
-          last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]
+          last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0],
+          registration_date: payerUser?.createdAt ? new Date(payerUser.createdAt).toISOString() : undefined
         }
       },
       statement_descriptor: 'TOUCH GORJETA',
@@ -3899,16 +3900,19 @@ app.post('/api/tip/create', async (req, res) => {
 
     console.log('💳 Processing payment:', { amount: tipAmount, method: paymentMethodId, email, receiverId, hasToken: !!token });
 
+    const idempotencyKey = uuidv4();
+    const requestOptions = { idempotencyKey };
+
     // If receiver has MP OAuth, use split payment
     if (receiver.mpConnected && receiver.mpAccessToken) {
       paymentData.application_fee = touchFee;
       const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
       const receiverPayment = new Payment(receiverClient);
-      const result = await receiverPayment.create({ body: paymentData });
+      const result = await receiverPayment.create({ body: paymentData, requestOptions });
       console.log('💳 Split payment result:', { id: result.id, status: result.status, detail: result.status_detail });
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     } else {
-      const result = await mpPayment.create({ body: paymentData });
+      const result = await mpPayment.create({ body: paymentData, requestOptions });
       console.log('💳 Direct payment result:', { id: result.id, status: result.status, detail: result.status_detail });
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     }
@@ -4925,7 +4929,7 @@ app.post('/api/operator/event/create', (req, res) => {
 
 // ═══ PAY EVENT ENTRY — charge entry fee on check-in ═══
 app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
-  const { userId, token, paymentMethodId, payerEmail, payerCPF, useSavedCard } = req.body;
+  const { userId, token, paymentMethodId, payerEmail, payerCPF, useSavedCard, deviceId, cardholderName } = req.body;
   console.log('🎫 pay-entry request:', { eventId: req.params.eventId, userId: userId?.slice(0,12), hasToken: !!token, useSavedCard, hasEmail: !!payerEmail });
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -5010,8 +5014,8 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
       binary_mode: true,
       payer: {
         email: payerEmailFinal,
-        first_name: payerName.split(' ')[0],
-        last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0],
+        first_name: cardholderName ? cardholderName.split(' ')[0] : payerName.split(' ')[0],
+        last_name: cardholderName ? (cardholderName.split(' ').slice(1).join(' ') || cardholderName.split(' ')[0]) : (payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]),
         identification: payerCPFFinal ? { type: 'CPF', number: payerCPFFinal } : undefined
       },
       additional_info: {
@@ -5024,8 +5028,9 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
           unit_price: amount
         }],
         payer: {
-          first_name: payerName.split(' ')[0],
-          last_name: payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]
+          first_name: cardholderName ? cardholderName.split(' ')[0] : payerName.split(' ')[0],
+          last_name: cardholderName ? (cardholderName.split(' ').slice(1).join(' ') || cardholderName.split(' ')[0]) : (payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]),
+          registration_date: user.createdAt ? new Date(user.createdAt).toISOString() : undefined
         }
       },
       description: 'Ingresso Touch? — ' + ev.name,
@@ -5033,16 +5038,19 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
       metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry' }
     };
 
-    console.log('🎫 Entry payment:', { amount, event: ev.name, user: userId.slice(0, 8), method: paymentData.payment_method_id });
+    console.log('🎫 Entry payment:', { amount, event: ev.name, user: userId.slice(0, 8), method: paymentData.payment_method_id, hasDeviceId: !!deviceId });
+
+    const idempotencyKey = uuidv4();
+    const requestOptions = { idempotencyKey };
 
     let result;
     if (receiver && receiver.mpConnected && receiver.mpAccessToken) {
       paymentData.application_fee = touchFee;
       const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
       const receiverPayment = new Payment(receiverClient);
-      result = await receiverPayment.create({ body: paymentData });
+      result = await receiverPayment.create({ body: paymentData, requestOptions });
     } else {
-      result = await mpPayment.create({ body: paymentData });
+      result = await mpPayment.create({ body: paymentData, requestOptions });
     }
 
     console.log('🎫 Entry result:', { id: result.id, status: result.status, detail: result.status_detail });
