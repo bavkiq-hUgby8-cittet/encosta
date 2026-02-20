@@ -122,6 +122,48 @@ function initRegistrationCounter() {
     u.topTag = calculateTopTag(u.registrationOrder, total);
   });
   console.log(`📊 Registration counter: ${registrationCounter}, ${total} users migrated`);
+  // Auto-verify Top 1 + grant 50 stars
+  ensureTop1Perks();
+}
+
+function ensureTop1Perks() {
+  const users = Object.values(db.users);
+  if (!users.length) return;
+  // Find Top 1 by registration order (first user)
+  let top1 = null;
+  users.forEach(u => {
+    if (u.topTag === 'top1') top1 = u;
+  });
+  if (!top1) {
+    // Fallback: user with registration order 1
+    top1 = users.find(u => u.registrationOrder === 1);
+  }
+  if (!top1) return;
+  // Auto-verify
+  if (!top1.verified) {
+    top1.verified = true;
+    top1.verifiedAt = Date.now();
+    top1.verifiedBy = 'system';
+    top1.verificationType = 'top1';
+    if (!db.verifications) db.verifications = {};
+    db.verifications[top1.id] = { userId: top1.id, verifiedAt: Date.now(), by: 'system', type: 'top1', note: 'Auto-verified as Top 1' };
+    console.log(`⭐ Top 1 auto-verified: ${top1.nickname}`);
+  }
+  // Grant 50 stars if they don't have them yet
+  if (!top1.stars) top1.stars = [];
+  if (top1.stars.length < 50) {
+    const needed = 50 - top1.stars.length;
+    for (let i = 0; i < needed; i++) {
+      top1.stars.push({ from: 'system', reason: 'top1_perk', timestamp: Date.now() - i * 1000 });
+    }
+    console.log(`⭐ Top 1 granted ${needed} stars (total: 50): ${top1.nickname}`);
+  }
+  // Also set isAdmin for Top 1
+  if (!top1.isAdmin) {
+    top1.isAdmin = true;
+    console.log(`👑 Top 1 set as admin: ${top1.nickname}`);
+  }
+  saveDB();
 }
 
 async function saveDBToFirestore() {

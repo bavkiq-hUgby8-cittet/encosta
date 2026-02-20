@@ -247,9 +247,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd.offline{background:var(--err);box-shadow:0 0 8px rgba(248,113,113,.6)}
 .cd.reconnecting{background:var(--warn);box-shadow:0 0 8px rgba(251,191,36,.5);animation:bk 1s infinite}
 @keyframes bk{0%,100%{opacity:1}50%{opacity:.3}}
-.constellation-btn{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.25),rgba(255,107,53,.08));border:2px solid rgba(255,107,53,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.15rem;position:relative;color:#fff;box-shadow:0 0 12px rgba(255,107,53,.5),0 0 24px rgba(255,107,53,.3),0 0 48px rgba(255,107,53,.15);animation:constGlow 2s ease-in-out infinite;z-index:10}
+.constellation-btn{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;position:relative;color:#fff;box-shadow:0 0 8px rgba(255,255,255,.12),0 0 16px rgba(255,255,255,.06);animation:constGlow 3s ease-in-out infinite;z-index:10}
 .constellation-btn:active{transform:scale(.93)}
-@keyframes constGlow{0%,100%{box-shadow:0 0 12px rgba(255,107,53,.5),0 0 24px rgba(255,107,53,.3),0 0 48px rgba(255,107,53,.15);border-color:rgba(255,107,53,.6);filter:brightness(1)}50%{box-shadow:0 0 20px rgba(255,107,53,.8),0 0 40px rgba(255,107,53,.5),0 0 70px rgba(255,107,53,.25),0 0 100px rgba(255,107,53,.1);border-color:rgba(255,107,53,.9);filter:brightness(1.3)}}
+@keyframes constGlow{0%,100%{box-shadow:0 0 8px rgba(255,255,255,.12),0 0 16px rgba(255,255,255,.06);border-color:rgba(255,255,255,.25)}50%{box-shadow:0 0 12px rgba(255,255,255,.2),0 0 24px rgba(255,255,255,.1);border-color:rgba(255,255,255,.4)}}
 
 /* ENCOUNTER */
 #encounter{padding:2rem 1.5rem;justify-content:center;align-items:center;text-align:center}
@@ -1056,7 +1056,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="home-bottom">
     <div class="home-nav">
       <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico">📍</span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
-      <button class="hn-btn" onclick="showMoreMenu()"><span class="hn-ico">☰</span><span class="hn-lbl">Mais</span></button>
+      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico">❓</span><span class="hn-lbl">Tutorial</span></button>
     </div>
     <div class="home-brand-row">
       <span class="home-brand" id="homeBrand">Touch?</span>
@@ -3668,7 +3668,8 @@ async function showHistory(){
       }
     });
     constState.nodes=nodes;
-    constState.cam={x:0,y:0,zoom:1};
+    constState.cam={x:0,y:0,zoom:0.15};
+    constState._entryAnim={active:true,startTime:Date.now(),duration:900};
     constState.selectedNode=null;
     // Pre-load user's own photo for center node
     if(state.userPhoto&&!constState._myImgLoaded){
@@ -3808,6 +3809,18 @@ function initConstCanvas(){
     constState.animFrame=requestAnimationFrame(draw);
     ctx.clearRect(0,0,W,H);
     const t=Date.now()/1000;
+    // ── Entry animation — zoom from far to normal ──
+    if(constState._entryAnim&&constState._entryAnim.active){
+      const ea=constState._entryAnim;
+      const elapsed=Date.now()-ea.startTime;
+      const progress=Math.min(1,elapsed/ea.duration);
+      // Ease out cubic: quick start, smooth landing
+      const ease=1-Math.pow(1-progress,3);
+      // Zoom: 0.15 → 1.12 → 1.0 (slight overshoot)
+      const overshoot=progress<0.7?0:Math.sin((progress-0.7)/0.3*Math.PI)*0.12;
+      constState.cam.zoom=0.15+(1-0.15)*ease+overshoot*(1-Math.pow(Math.max(0,(progress-0.85)/0.15),2));
+      if(progress>=1){constState._entryAnim.active=false;constState.cam.zoom=1}
+    }
     // Lerp tilt
     tiltX+=(rawTX-tiltX)*0.08;tiltY+=(rawTY-tiltY)*0.08;
 
@@ -5171,7 +5184,10 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico">+</span>Touch? Plus</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico">srv</span>Serviços</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showManual()"><span class="my-pf-ico">?</span>Tutorial</button>'
+    +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="color:#3b82f6">✓</span>Verificações</button>':'')
     +'<div class="my-pf-divider"></div>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico">☷</span>Sobre o Touch</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/termos\',\'_blank\')"><span class="my-pf-ico">§</span>Termos de Uso</button>'
     +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">x</span>Sair</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
