@@ -2711,6 +2711,74 @@ app.get('/api/tips/:userId', (req, res) => {
   res.json(enriched);
 });
 
+// ── Prestador Dashboard API ──
+app.get('/api/prestador/:userId/dashboard', (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+
+  // Tips received
+  const tipsReceived = Object.values(db.tips)
+    .filter(t => t.receiverId === userId)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  const tipsApproved = tipsReceived.filter(t => t.status === 'approved');
+  const totalReceived = tipsApproved.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalFees = tipsApproved.reduce((s, t) => s + (t.fee || 0), 0);
+  const totalNet = totalReceived - totalFees;
+
+  // Today
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const tipsToday = tipsApproved.filter(t => t.createdAt >= todayStart.getTime());
+  const todayTotal = tipsToday.reduce((s, t) => s + (t.amount || 0), 0);
+
+  // This week
+  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay()); weekStart.setHours(0,0,0,0);
+  const tipsWeek = tipsApproved.filter(t => t.createdAt >= weekStart.getTime());
+  const weekTotal = tipsWeek.reduce((s, t) => s + (t.amount || 0), 0);
+
+  // This month
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+  const tipsMonth = tipsApproved.filter(t => t.createdAt >= monthStart.getTime());
+  const monthTotal = tipsMonth.reduce((s, t) => s + (t.amount || 0), 0);
+
+  // Encounters (encostadas) received
+  const allEncounters = [];
+  for (const [uid, encs] of Object.entries(db.encounters)) {
+    for (const e of encs) {
+      if (e.with === userId) {
+        allEncounters.push({ userId: uid, nickname: db.users[uid]?.nickname || '?', timestamp: e.timestamp, tipAmount: e.tipAmount || 0, tipStatus: e.tipStatus || null });
+      }
+    }
+  }
+  allEncounters.sort((a, b) => b.timestamp - a.timestamp);
+
+  // Enriched tips
+  const tipsEnriched = tipsReceived.slice(0, 30).map(t => ({
+    id: t.id, amount: t.amount, fee: t.fee || 0, net: (t.amount || 0) - (t.fee || 0),
+    status: t.status, statusDetail: t.statusDetail,
+    payerName: db.users[t.payerId]?.nickname || 'Anônimo',
+    createdAt: t.createdAt
+  }));
+
+  res.json({
+    name: user.nickname || user.name,
+    serviceLabel: user.serviceLabel || '',
+    isPrestador: !!user.isPrestador,
+    mpConnected: !!user.mpConnected,
+    stats: {
+      totalReceived, totalFees, totalNet,
+      totalCount: tipsApproved.length,
+      todayTotal, todayCount: tipsToday.length,
+      weekTotal, weekCount: tipsWeek.length,
+      monthTotal, monthCount: tipsMonth.length
+    },
+    tips: tipsEnriched,
+    encounters: allEncounters.slice(0, 50),
+    encounterCount: allEncounters.length
+  });
+});
+
 // MercadoPago webhook
 app.post('/mp/webhook', (req, res) => {
   // Validate signature (basic)
