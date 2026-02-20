@@ -2549,7 +2549,7 @@ app.post('/api/doc/submit', async (req, res) => {
   db.users[userId].docSubmitted = true;
   db.users[userId].docSubmittedAt = Date.now();
   db.users[userId].docStatus = 'pending';
-  saveDB('users');
+  saveDB('users', 'docVerifications');
   res.json({ ok: true, status: 'pending' });
 });
 
@@ -2571,7 +2571,7 @@ app.post('/api/doc/review', (req, res) => {
   doc.reviewedBy = adminId;
   db.users[userId].docStatus = doc.status;
   if (doc.status === 'approved') db.users[userId].docVerified = true;
-  saveDB('users');
+  saveDB('users', 'docVerifications');
   res.json({ ok: true, status: doc.status });
 });
 
@@ -2645,7 +2645,7 @@ app.post('/api/face/enroll', (req, res) => {
   };
   db.users[userId].faceEnrolled = true;
   db.users[userId].faceEnrolledAt = Date.now();
-  saveDB('users');
+  saveDB('users', 'faceData');
   res.json({ ok: true, enrolled: true });
 });
 
@@ -2656,7 +2656,7 @@ app.post('/api/face/remove', (req, res) => {
   delete db.faceData[userId];
   db.users[userId].faceEnrolled = false;
   delete db.users[userId].faceEnrolledAt;
-  saveDB('users');
+  saveDB('users', 'faceData');
   res.json({ ok: true });
 });
 
