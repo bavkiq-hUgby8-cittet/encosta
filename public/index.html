@@ -4673,29 +4673,15 @@ async function startSubscription() {
     if (result.error) throw new Error(result.error);
     const url = result.initPoint || result.sandboxInitPoint;
     if (url) {
-      window.open(url, '_blank');
-      btn.textContent = '✅ Checkout aberto';
-      showToast('Complete a assinatura na janela do Mercado Pago.');
-      // Poll for confirmation
-      let polls = 0;
-      const iv = setInterval(async () => {
-        polls++;
-        if (polls > 60) { clearInterval(iv); return; }
-        try {
-          const sub = await (await fetch('/api/subscription/status/' + state.userId)).json();
-          if (sub.active) {
-            clearInterval(iv);
-            showToast('Assinatura ativada! ✦');
-            haptic([50, 30, 50]);
-            await loadSubStatus();
-          }
-        } catch (e) {}
-      }, 5000);
-    } else throw new Error('URL do checkout não disponível.');
+      window.location.href = url;
+    } else {
+      throw new Error('URL de assinatura não disponível.');
+    }
   } catch (e) {
+    console.error('Subscription error:', e);
     showToast('Erro: ' + (e.message || 'Tente novamente'));
     btn.disabled = false;
-    btn.textContent = 'Assinar agora';
+    btn.textContent = '✦ Assinar Touch? Plus';
   }
 }
 
@@ -5632,14 +5618,10 @@ async function processCheckoutTip() {
     });
     const result = await resp.json();
     if (result.error) throw new Error(result.error);
-    // Open MP checkout in new window/tab
+    // Redirect to MP checkout (window.open blocked on mobile)
     const url = result.initPoint || result.sandboxInitPoint;
     if (url) {
-      window.open(url, '_blank');
-      btn.textContent = '✅ Checkout aberto';
-      showToast('Complete o pagamento na janela do Mercado Pago.');
-      // Poll for result
-      if (result.tipId) pollTipStatus(result.tipId);
+      window.location.href = url;
     } else {
       throw new Error('URL do checkout não disponível.');
     }
