@@ -4179,12 +4179,13 @@ function showConstDetail(node){
   if(node.isPrestador&&node.serviceLabel)aliasParts.push('💼 '+node.serviceLabel);
   aliasEl.textContent=aliasParts.join(' · ');
   aliasEl.style.display=aliasParts.length?'':'none';
-  // Stats row — clean: stars, people, likes (no encontros)
+  // Stats row — Stars (primary), Score, Unique Connections, Likes
   const statsEl=$('cdStats');
   let statsHtml='';
-  if(node.starsCount)statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+node.starsCount+'</div><div class="cd-stat-lbl">estrelas</div></div>';
-  statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.touchers||0)+'</div><div class="cd-stat-lbl">pessoas</div></div>';
-  if(theyRevealed)statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.likesCount||0)+'</div><div class="cd-stat-lbl">curtidas</div></div>';
+  statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#fbbf24">'+(node.starsCount||0)+'</div><div class="cd-stat-lbl">estrelas</div></div>';
+  statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#60a5fa">'+(node.score||0)+'</div><div class="cd-stat-lbl">score</div></div>';
+  statsHtml+='<div class="cd-stat"><div class="cd-stat-val">'+(node.uniqueConnections||node.touchers||0)+'</div><div class="cd-stat-lbl">conexões</div></div>';
+  if(theyRevealed)statsHtml+='<div class="cd-stat"><div class="cd-stat-val" style="color:#f87171">'+(node.likesCount||0)+'</div><div class="cd-stat-lbl">curtidas</div></div>';
   statsEl.innerHTML=statsHtml;
   // Meta section: time, social links with logos, selfies gallery
   const metaEl=$('cdMeta');
@@ -4234,6 +4235,7 @@ function showConstDetail(node){
   aHtml+='<button class="cd-action" id="constLikeBtn" onclick="toggleLike(\''+node.id+'\')">'+(isLiked?'❤️ Curtido':'🤍 Curtir')+'</button>';
   // Star
   aHtml+='<button class="cd-action" id="constStarBtn" onclick="donateStar(\''+node.id+'\')" style="display:none">★ Doar estrela</button>';
+  aHtml+='<button class="cd-action" id="constBuyStarBtn" onclick="buyStarForPerson(\''+node.id+'\')" style="display:none;color:#fbbf24;border-color:rgba(251,191,36,.2)">★ Comprar estrela</button>';
   // Reveal me — TOGGLE (on/off)
   if(iRevealed){
     aHtml+='<button class="cd-action primary" onclick="toggleMyReveal(\''+node.id+'\',false)" style="background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.2);color:#86efac">Visível ●</button>';
@@ -4260,9 +4262,13 @@ function showConstDetail(node){
   const tipWrap=$('cdTipWrap');
   if(node.isPrestador){tipWrap.classList.remove('hidden');$('cdTipBtn').dataset.receiverId=node.id}
   else tipWrap.classList.add('hidden');
-  // Async: check stars
+  // Async: check stars available + star shop
   fetch('/api/stars/available/'+state.userId).then(r=>r.json()).then(d=>{
     const sb=$('constStarBtn');if(sb&&d.available>0)sb.style.display='';
+  }).catch(()=>{});
+  fetch('/api/star/shop/'+state.userId).then(r=>r.json()).then(d=>{
+    const bb=$('constBuyStarBtn');
+    if(bb&&d.spendablePoints>=d.giftCost)bb.style.display='';
   }).catch(()=>{});
   $('constDetail').classList.add('visible');
   haptic([15]);
@@ -4709,6 +4715,38 @@ async function donateStar(targetUserId){
   }catch(e){showToast('Erro ao doar.')}
 }
 
+// Buy star with score points
+async function buyStarForPerson(targetUserId){
+  if(!state.userId||!targetUserId)return;
+  try{
+    const shop=await(await fetch('/api/star/shop/'+state.userId)).json();
+    const cost=shop.giftCost;
+    if(shop.spendablePoints<cost)return showToast('Pontos insuficientes. Custo: '+cost+', Disponível: '+shop.spendablePoints);
+    if(!confirm('Comprar ★ estrela para essa pessoa?\nCusto: '+cost+' pontos (Disponível: '+shop.spendablePoints+')'))return;
+    const r=await fetch('/api/star/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,target:targetUserId})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    haptic([60,30,60,30,100]);
+    showToast('★ Estrela comprada! (-'+d.cost+' pts)');
+  }catch(e){showToast('Erro ao comprar.')}
+}
+
+// Buy star for yourself
+async function buyStarSelf(){
+  if(!state.userId)return;
+  try{
+    const shop=await(await fetch('/api/star/shop/'+state.userId)).json();
+    const cost=shop.selfCost;
+    if(shop.spendablePoints<cost)return showToast('Pontos insuficientes. Custo: '+cost+', Disponível: '+shop.spendablePoints);
+    if(!confirm('Comprar ★ estrela para você?\nCusto: '+cost+' pontos (Disponível: '+shop.spendablePoints+')'))return;
+    const r=await fetch('/api/star/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,target:'self'})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    haptic([60,30,60,30,100]);
+    showToast('★ Estrela adquirida! (-'+d.cost+' pts)');
+  }catch(e){showToast('Erro ao comprar.')}
+}
+
 // Render reveal messages in chat
 function appendRevealChatCard(msg){
   const mc=$('chatMessages'),ti=$('typingIndicator'),near=nearBot();
@@ -4955,11 +4993,14 @@ function renderProfile(d,userId){
   if(d.instagram)html+='<div style="font-size:.7rem;color:var(--ac);margin-top:.2rem">'+esc(d.instagram)+'</div>';
   html+='<div class="pf-stats">';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#fbbf24">'+(d.stars||0)+'</div><div class="pf-stat-lbl">estrelas</div></div>';
-  html+='<div class="pf-stat"><div class="pf-stat-num">'+d.uniquePeople+'</div><div class="pf-stat-lbl">pessoas</div></div>';
+  html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#60a5fa">'+(d.score||0)+'</div><div class="pf-stat-lbl">score</div></div>';
+  html+='<div class="pf-stat"><div class="pf-stat-num">'+d.uniquePeople+'</div><div class="pf-stat-lbl">conexões</div></div>';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#ff6b8a">'+(d.likesCount||0)+'</div><div class="pf-stat-lbl">curtidas</div></div>';
-  // Score only visible when viewing from chat (partner viewing)
-  if(profileReturnTo==='chat')html+='<div class="pf-stat"><div class="pf-stat-num">'+(d.score||0)+'</div><div class="pf-stat-lbl">pontos</div></div>';
   html+='</div>';
+  // Buy star for self button (on own profile)
+  if(userId===state.userId){
+    html+='<button onclick="buyStarSelf()" style="margin:.4rem auto 0;display:block;padding:.35rem .8rem;font-size:.65rem;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:16px;color:#fbbf24;cursor:pointer">★ Comprar estrela</button>';
+  }
   // Star details
   if(d.starDetails&&d.starDetails.length>0){
     html+='<div style="display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center;margin:.5rem 0">';

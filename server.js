@@ -467,69 +467,163 @@ function getZodiacPhrase(signA, signB) {
   return phrases[Math.floor(Math.random() * phrases.length)];
 }
 
-// Helper: record encounter trace
+// Helper: record encounter trace (v2 — uses classifyEncounter for smart points)
 function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId = null) {
   const uA = db.users[userAId], uB = db.users[userBId];
   const now = Date.now();
   const today = new Date(now).toISOString().slice(0, 10);
-  const encA = (db.encounters[userAId] || []).filter(e => e.with === userBId);
-  const isRePre = encA.length > 0;
-  const pointTypePre = isRePre ? 're_' + type : type;
-  const pts = POINT_VALUES[pointTypePre] || POINT_VALUES[type] || 1;
-  const trace = { with: userBId, withName: uB?.nickname || uB?.name || '?', withColor: uB?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24, relationId };
-  const traceB = { with: userAId, withName: uA?.nickname || uA?.name || '?', withColor: uA?.color, phrase, timestamp: now, date: today, type, points: pts, chatDurationH: 24, relationId };
+  // Classify BEFORE recording (so encounter count is accurate)
+  const classA = classifyEncounter(userAId, userBId);
+  const classB = classifyEncounter(userBId, userAId);
+  const trace = { with: userBId, withName: uB?.nickname || uB?.name || '?', withColor: uB?.color, phrase, timestamp: now, date: today, type, points: classA.points, scoreType: classA.type, chatDurationH: 24, relationId };
+  const traceB = { with: userAId, withName: uA?.nickname || uA?.name || '?', withColor: uA?.color, phrase, timestamp: now, date: today, type, points: classB.points, scoreType: classB.type, chatDurationH: 24, relationId };
   if (!db.encounters[userAId]) db.encounters[userAId] = [];
   if (!db.encounters[userBId]) db.encounters[userBId] = [];
   db.encounters[userAId].push(trace);
   db.encounters[userBId].push(traceB);
-  // Award score points
-  awardPoints(userAId, userBId, type);
+  // Award score points (uses classification)
+  if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
+  if (!db.users[userBId].pointLog) db.users[userBId].pointLog = [];
+  if (classA.points > 0) db.users[userAId].pointLog.push({ value: classA.points, type: classA.type, with: userBId, timestamp: now });
+  if (classB.points > 0) db.users[userBId].pointLog.push({ value: classB.points, type: classB.type, with: userAId, timestamp: now });
   // Update streaks
   updateStreak(userAId, userBId, today);
   // Check star eligibility (streak + milestone)
   checkStarEligibility(userAId, userBId);
 }
 
-// ── SCORING SYSTEM ──
-// Points decay over 30 days. Each point has a timestamp.
-// Score = sum of all points weighted by freshness.
-const POINT_DECAY_DAYS = 30;
-const POINT_VALUES = { physical: 3, digital: 1, re_physical: 5, re_digital: 2, gift: 1, declaration: 2 };
+// ══════════════════════════════════════════════════════════
+// ══ GAME CONFIG — All tunable parameters in one place ══
+// ══════════════════════════════════════════════════════════
+if (!db.gameConfig) db.gameConfig = {};
+const DEFAULT_GAME_CONFIG = {
+  // Points per connection type
+  pointsFirstEncounter: 10,       // First time meeting someone
+  pointsReEncounterDiffDay: 8,    // Re-encounter on a different day
+  pointsReEncounterSameDay: 4,    // Re-encounter within 24h (2nd time)
+  pointsReEncounterSpam: 0,       // 3rd+ encounter within 24h
+  pointsCheckin: 2,               // Event check-in
+  pointsGift: 1,                  // Gift/declaration
+  pointsDeclaration: 2,           // Declaration
 
-function awardPoints(userAId, userBId, type) {
+  // Anti-farm
+  maxScoringPerPair24h: 2,        // Max scoring events per pair within 24h
+
+  // Point decay
+  pointDecayDays: 30,             // Points decay to 0 over N days
+
+  // Star earning — milestone
+  uniqueConnectionsPerStar: 100,  // Every N unique connections = 1 star earned
+
+  // Star earning — streak (different days with same person)
+  daysTogetherPerStar: 5,         // Every N different days with same person = 1 star earned
+
+  // Star earning — score conversion (star shop)
+  pointsPerStarSelf: 120,         // Buy a star for yourself costs N points
+  pointsPerStarGift: 100,         // Buy a star to gift costs N points
+
+  // Star rarity escalation — each successive star costs more
+  starRarityMultiplier: 1.15,     // Each star costs 15% more points than the last
+
+  // Max stars one person can give to another
+  maxStarsPerPersonToPerson: 1,   // A can give max N stars to B
+
+  // Top 1 creator privileges
+  top1CanSetConfig: true,         // Top 1 user can adjust these parameters
+};
+
+function getGameConfig() {
+  return { ...DEFAULT_GAME_CONFIG, ...(db.gameConfig || {}) };
+}
+
+// ══ SCORING SYSTEM v2 ══
+// Points decay over N days. Anti-farm: max 2 scoring events per pair in 24h.
+// Score types: first_encounter, re_encounter_diff_day, re_encounter_same_day, spam
+
+function classifyEncounter(userAId, userBId) {
+  const cfg = getGameConfig();
+  const now = Date.now();
+  const DAY_MS = 86400000;
+  const encounters = (db.encounters[userAId] || []).filter(e => e.with === userBId);
+
+  // No previous encounters → first encounter
+  if (encounters.length === 0) return { type: 'first_encounter', points: cfg.pointsFirstEncounter };
+
+  // Count encounters in last 24h (excluding current one being processed)
+  const last24h = encounters.filter(e => (now - e.timestamp) < DAY_MS);
+  if (last24h.length >= cfg.maxScoringPerPair24h) {
+    return { type: 'spam', points: cfg.pointsReEncounterSpam };
+  }
+
+  // Check if we had encounters today already
+  const today = new Date(now).toISOString().slice(0, 10);
+  const todayEncounters = encounters.filter(e => e.date === today);
+
+  if (todayEncounters.length === 0) {
+    // Different day re-encounter
+    return { type: 're_encounter_diff_day', points: cfg.pointsReEncounterDiffDay };
+  } else if (todayEncounters.length === 1) {
+    // 2nd encounter same day
+    return { type: 're_encounter_same_day', points: cfg.pointsReEncounterSameDay };
+  } else {
+    // 3rd+ same day
+    return { type: 'spam', points: cfg.pointsReEncounterSpam };
+  }
+}
+
+function awardPoints(userAId, userBId, type, overridePoints = null) {
   const now = Date.now();
   if (!db.users[userAId]) return;
+  if (type === 'checkin') {
+    const cfg = getGameConfig();
+    const val = overridePoints != null ? overridePoints : cfg.pointsCheckin;
+    if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
+    db.users[userAId].pointLog.push({ value: val, type: 'checkin', timestamp: now });
+    return;
+  }
   if (!db.users[userBId]) return;
-  // Check if re-encounter (met this person before)
-  const encA = (db.encounters[userAId] || []).filter(e => e.with === userBId);
-  const isRe = encA.length > 1; // >1 because current encounter already recorded
-  const pointType = isRe ? 're_' + type : type;
-  const value = POINT_VALUES[pointType] || POINT_VALUES[type] || 1;
-  // Store individual point entries with timestamps
+
+  // Classify and award
+  const classA = classifyEncounter(userAId, userBId);
+  const classB = classifyEncounter(userBId, userAId);
   if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
   if (!db.users[userBId].pointLog) db.users[userBId].pointLog = [];
-  db.users[userAId].pointLog.push({ value, type: pointType, timestamp: now });
-  db.users[userBId].pointLog.push({ value, type: pointType, timestamp: now });
+  db.users[userAId].pointLog.push({ value: classA.points, type: classA.type, with: userBId, timestamp: now });
+  db.users[userBId].pointLog.push({ value: classB.points, type: classB.type, with: userAId, timestamp: now });
 }
 
 function calcScore(userId) {
   const user = db.users[userId];
   if (!user || !user.pointLog) return 0;
+  const cfg = getGameConfig();
   const now = Date.now();
-  const decayMs = POINT_DECAY_DAYS * 86400000;
+  const decayMs = cfg.pointDecayDays * 86400000;
   let total = 0;
   for (const p of user.pointLog) {
     const age = now - p.timestamp;
-    if (age >= decayMs) continue; // expired
-    const weight = 1 - (age / decayMs); // 1.0 → 0.0 linear decay
+    if (age >= decayMs) continue;
+    const weight = 1 - (age / decayMs);
     total += p.value * weight;
   }
   return Math.round(total * 10) / 10;
 }
 
-// Clean expired point entries periodically (within the existing cleanup interval)
+function calcRawScore(userId) {
+  // Raw score without decay — used for star shop purchases
+  const user = db.users[userId];
+  if (!user || !user.pointLog) return 0;
+  let total = 0;
+  for (const p of user.pointLog) total += p.value;
+  return total;
+}
+
+function getUniqueConnections(userId) {
+  return new Set((db.encounters[userId] || []).filter(e => !e.isEvent && !(e.with || '').startsWith('evt:')).map(e => e.with)).size;
+}
+
 function cleanExpiredPoints() {
-  const cutoff = Date.now() - (POINT_DECAY_DAYS * 86400000);
+  const cfg = getGameConfig();
+  const cutoff = Date.now() - (cfg.pointDecayDays * 86400000);
   for (const user of Object.values(db.users)) {
     if (user.pointLog) {
       user.pointLog = user.pointLog.filter(p => p.timestamp > cutoff);
@@ -537,18 +631,15 @@ function cleanExpiredPoints() {
   }
 }
 
-// ── STARS SYSTEM ──
-// Stars are permanent. Earned organically or gifted.
+// ══ STARS SYSTEM v2 ══
+// Stars are permanent reputation. Earned via milestones, streaks, or purchased with score.
+// Stars get RARER over time: each successive star costs more.
+
 function getStars(userId) {
   const user = db.users[userId];
   if (!user) return [];
   return user.stars || [];
 }
-
-// ══ STAR SYSTEM — Stars are EARNED then DONATED ══
-// Earn conditions: (1) 5 encounters with same person in 5 consecutive days
-//                  (2) every 100 unique new connections
-// Stars must be donated to someone in the network to honor them.
 
 function earnStarForUser(userId, reason, context = '') {
   const user = db.users[userId];
@@ -558,93 +649,75 @@ function earnStarForUser(userId, reason, context = '') {
   saveDB();
 }
 
+// Calculate how many points the Nth star costs (rarity escalation)
+function starCost(starNumber, basePrice) {
+  const cfg = getGameConfig();
+  // Star 1 = basePrice, Star 2 = basePrice * 1.15, Star 3 = basePrice * 1.15^2, etc.
+  return Math.round(basePrice * Math.pow(cfg.starRarityMultiplier, Math.max(0, starNumber - 1)));
+}
+
 function checkStarEligibility(userAId, userBId) {
+  const cfg = getGameConfig();
   const userA = db.users[userAId];
   const userB = db.users[userBId];
   if (!userA || !userB) return;
-  // Check streak-based star: 5 encounters with same person in 5 consecutive days
+
+  // 1. Streak-based: every N different days with same person
   const key = [userAId, userBId].sort().join('_');
   const streak = db.streaks[key];
-  if (streak && streak.currentStreak >= 5 && streak.currentStreak % 5 === 0) {
-    const tag = `streak5_${key}_${streak.currentStreak}`;
-    if (!userA._starTags) userA._starTags = [];
-    if (!userB._starTags) userB._starTags = [];
-    if (!userA._starTags.includes(tag)) { userA._starTags.push(tag); earnStarForUser(userAId, 'streak', `${streak.currentStreak} dias com ${userB.nickname}`); }
-    if (!userB._starTags.includes(tag)) { userB._starTags.push(tag); earnStarForUser(userBId, 'streak', `${streak.currentStreak} dias com ${userA.nickname}`); }
+  if (streak) {
+    // Count different days they met (from streak history)
+    const uniqueDays = new Set((streak.history || []).map(h => h.date)).size;
+    const starsFromDays = Math.floor(uniqueDays / cfg.daysTogetherPerStar);
+    const prevStars = streak._starsAwarded || 0;
+    if (starsFromDays > prevStars) {
+      for (let i = prevStars; i < starsFromDays; i++) {
+        earnStarForUser(userAId, 'streak', `${uniqueDays} dias com ${userB.nickname}`);
+        earnStarForUser(userBId, 'streak', `${uniqueDays} dias com ${userA.nickname}`);
+      }
+      streak._starsAwarded = starsFromDays;
+      const payload = {
+        streakDays: uniqueDays, starsTotal: starsFromDays, newStar: true,
+        unlock: { label: 'Nova estrela!', description: uniqueDays + ' dias juntos = ' + starsFromDays + ' estrela' + (starsFromDays > 1 ? 's' : '') }
+      };
+      io.to(`user:${userAId}`).emit('streak-unlock', payload);
+      io.to(`user:${userBId}`).emit('streak-unlock', payload);
+    }
   }
-  // Check milestone-based star: every 100 unique connections
+
+  // 2. Milestone: every N unique connections
   [userAId, userBId].forEach(uid => {
     const u = db.users[uid];
-    const uniqueConnections = new Set((db.encounters[uid] || []).map(e => e.with)).size;
-    u.touchers = uniqueConnections;
-    const milestonesHit = Math.floor(uniqueConnections / 100);
+    const uniqueConns = getUniqueConnections(uid);
+    u.touchers = uniqueConns;
+    const milestonesHit = Math.floor(uniqueConns / cfg.uniqueConnectionsPerStar);
     const currentMilestoneStars = (u._milestone100Stars || 0);
     if (milestonesHit > currentMilestoneStars) {
       u._milestone100Stars = milestonesHit;
-      earnStarForUser(uid, 'milestone', `${uniqueConnections} conexões únicas`);
+      earnStarForUser(uid, 'milestone', `${uniqueConns} conexões únicas`);
     }
   });
 }
 
-// Backward compat wrapper (old code calls this)
 function awardStar(userId, reason, fromUserId = null) {
   earnStarForUser(userId, reason, fromUserId ? `de ${db.users[fromUserId]?.nickname}` : '');
 }
 
 // ── STREAK SYSTEM ──
-// Tracks consecutive days two people encosta together
 function updateStreak(userAId, userBId, today) {
   if (!db.streaks) db.streaks = {};
   const key = [userAId, userBId].sort().join('_');
   if (!db.streaks[key]) db.streaks[key] = { users: [userAId, userBId], currentStreak: 0, bestStreak: 0, lastDate: null, history: [], unlocks: [] };
   const s = db.streaks[key];
-  if (s.lastDate === today) return; // already counted today
-  // Check if consecutive
+  if (s.lastDate === today) return;
   if (s.lastDate) {
-    const last = new Date(s.lastDate);
-    const now = new Date(today);
-    const diff = Math.round((now - last) / 86400000);
-    if (diff === 1) {
-      s.currentStreak += 1;
-    } else {
-      s.currentStreak = 1; // reset
-    }
-  } else {
-    s.currentStreak = 1;
-  }
+    const diff = Math.round((new Date(today) - new Date(s.lastDate)) / 86400000);
+    if (diff === 1) { s.currentStreak += 1; } else { s.currentStreak = 1; }
+  } else { s.currentStreak = 1; }
   s.lastDate = today;
   if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
   s.history.push({ date: today, streak: s.currentStreak });
-  // Check for star awards (every 5 days = 1 star)
-  checkStreakStars(key, userAId, userBId);
   saveDB();
-}
-
-// ── STAR SYSTEM: every 5 encounters on different days = 1 star ──
-function checkStreakStars(key, userAId, userBId) {
-  const s = db.streaks[key];
-  if (!s) return;
-  // Count how many stars they should have earned from days together
-  const totalDays = s.currentStreak; // consecutive days
-  const starsEarned = Math.floor(totalDays / 5);
-  const prevStars = s._starsAwarded || 0;
-  if (starsEarned > prevStars) {
-    // Award new stars
-    for (let i = prevStars; i < starsEarned; i++) {
-      awardStar(userAId, 'streak', userBId);
-      awardStar(userBId, 'streak', userAId);
-    }
-    s._starsAwarded = starsEarned;
-    // Notify both users
-    const payload = {
-      streakDays: totalDays,
-      starsTotal: starsEarned,
-      newStar: true,
-      unlock: { label: '⭐ Nova estrela!', description: totalDays + ' dias juntos = ' + starsEarned + ' estrela' + (starsEarned > 1 ? 's' : '') }
-    };
-    io.to(`user:${userAId}`).emit('streak-unlock', payload);
-    io.to(`user:${userBId}`).emit('streak-unlock', payload);
-  }
 }
 
 // ── NFC / QR WEB LINK ──
@@ -1138,6 +1211,8 @@ app.get('/api/constellation/:userId', (req, res) => {
       touchers: toucherCount,
       likesCount: iCanSeeThem ? (other.likesCount || 0) : 0,
       starsCount: (other && other.stars) ? other.stars.length : 0,
+      score: other ? calcScore(p.id) : 0,
+      uniqueConnections: other ? getUniqueConnections(p.id) : 0,
       likedByMe: !!(other && other.likedBy && other.likedBy.includes(req.params.userId)),
       isPrestador: !!(other && other.isPrestador),
       serviceLabel: (other && other.serviceLabel) || null,
@@ -1422,7 +1497,7 @@ app.post('/api/gift/send', (req, res) => {
     awardStar(toUserId, 'gift', fromUserId);
     // Also award score points for gifting
     if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
-    db.users[fromUserId].pointLog.push({ value: POINT_VALUES.gift, type: 'gift', timestamp: Date.now() });
+    db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift, type: 'gift', timestamp: Date.now() });
     saveDB();
   }
   // Notify recipient via socket
@@ -1483,7 +1558,7 @@ app.post('/api/declaration/send', (req, res) => {
   db.declarations[fromUserId].push({ ...decl, _role: 'author' });
   // Award score points for declaration
   if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
-  db.users[fromUserId].pointLog.push({ value: POINT_VALUES.declaration, type: 'declaration', timestamp: Date.now() });
+  db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsDeclaration, type: 'declaration', timestamp: Date.now() });
   saveDB();
   io.to(`user:${toUserId}`).emit('declaration-received', { relationId, declaration: decl });
   res.json({ ok: true, declaration: decl });
@@ -1816,28 +1891,99 @@ app.post('/api/like/toggle', (req, res) => {
   res.json({ ok: true, liked, count: target.likesCount || 0 });
 });
 
-// ══ STAR DONATION SYSTEM ══
+// ══ STAR DONATION SYSTEM v2 ══
+// Stars can be: (1) earned via milestones/streaks, (2) bought with score points
+// Earned stars must be donated. Bought stars go directly to self or recipient.
+
 app.post('/api/star/donate', (req, res) => {
   const { fromUserId, toUserId } = req.body;
+  const cfg = getGameConfig();
   if (!fromUserId || !db.users[fromUserId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!toUserId || !db.users[toUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   if (fromUserId === toUserId) return res.status(400).json({ error: 'Não pode doar estrela pra si mesmo.' });
   const fromUser = db.users[fromUserId];
   const toUser = db.users[toUserId];
+  // Check max stars per person-to-person
+  const existingDonations = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId && d.toUserId === toUserId);
+  if (existingDonations.length >= cfg.maxStarsPerPersonToPerson) {
+    return res.status(400).json({ error: `Você já deu o máximo de ${cfg.maxStarsPerPersonToPerson} estrela(s) para essa pessoa.` });
+  }
   // Check available stars
   const totalEarned = (fromUser.starsEarned || 0);
   const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === fromUserId).length;
   const available = totalEarned - totalDonated;
   if (available <= 0) return res.status(400).json({ error: 'Sem estrelas disponíveis para doar. Continue conectando para ganhar!' });
-  // Create donation
   const donationId = uuidv4();
-  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now() };
-  // Add star to recipient
+  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: 'earned' };
   if (!toUser.stars) toUser.stars = [];
-  toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now() });
+  toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: 'earned' });
   saveDB();
   io.to(`user:${toUserId}`).emit('star-received', { fromUserId, fromName: fromUser.nickname, total: toUser.stars.length });
   res.json({ ok: true, donationId, recipientStars: toUser.stars.length });
+});
+
+// ══ STAR SHOP — Buy stars with score points ══
+app.post('/api/star/buy', (req, res) => {
+  const { userId, target } = req.body; // target: 'self' or a userId to gift
+  const cfg = getGameConfig();
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  const user = db.users[userId];
+  const isSelf = !target || target === 'self' || target === userId;
+  const recipientId = isSelf ? userId : target;
+  if (!db.users[recipientId]) return res.status(400).json({ error: 'Destinatário inválido.' });
+
+  // Calculate cost with rarity escalation
+  const recipientUser = db.users[recipientId];
+  const currentStars = (recipientUser.stars || []).length;
+  const basePrice = isSelf ? cfg.pointsPerStarSelf : cfg.pointsPerStarGift;
+  const cost = starCost(currentStars + 1, basePrice);
+
+  // Check if user has enough raw score
+  const rawScore = calcRawScore(userId);
+  const alreadySpent = user.pointsSpent || 0;
+  const spendable = rawScore - alreadySpent;
+
+  if (spendable < cost) {
+    return res.status(400).json({ error: `Pontos insuficientes. Custo: ${cost}, Disponível: ${Math.round(spendable)}` });
+  }
+
+  // Check max per person if gifting
+  if (!isSelf) {
+    const existing = Object.values(db.starDonations).filter(d => d.fromUserId === userId && d.toUserId === recipientId);
+    if (existing.length >= cfg.maxStarsPerPersonToPerson) {
+      return res.status(400).json({ error: `Máximo de ${cfg.maxStarsPerPersonToPerson} estrela(s) por pessoa.` });
+    }
+  }
+
+  // Deduct points
+  user.pointsSpent = (user.pointsSpent || 0) + cost;
+
+  // Award star
+  const starId = uuidv4();
+  if (!recipientUser.stars) recipientUser.stars = [];
+  recipientUser.stars.push({ id: starId, from: isSelf ? 'shop_self' : userId, fromName: isSelf ? 'Loja' : user.nickname, donatedAt: Date.now(), type: 'purchased', cost });
+
+  if (!isSelf) {
+    db.starDonations[starId] = { id: starId, fromUserId: userId, toUserId: recipientId, timestamp: Date.now(), type: 'purchased', cost };
+    io.to(`user:${recipientId}`).emit('star-received', { fromUserId: userId, fromName: user.nickname, total: recipientUser.stars.length });
+  }
+
+  saveDB();
+  io.to(`user:${recipientId}`).emit('star-earned', { reason: 'purchased', context: isSelf ? 'Comprou na loja' : `Presente de ${user.nickname}`, totalEarned: recipientUser.stars.length });
+  res.json({ ok: true, starId, cost, recipientStars: recipientUser.stars.length, pointsRemaining: Math.round(rawScore - (user.pointsSpent || 0)) });
+});
+
+// Star shop info — prices, available points
+app.get('/api/star/shop/:userId', (req, res) => {
+  const cfg = getGameConfig();
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  const rawScore = calcRawScore(req.params.userId);
+  const spendable = rawScore - (user.pointsSpent || 0);
+  const currentStars = (user.stars || []).length;
+  const selfCost = starCost(currentStars + 1, cfg.pointsPerStarSelf);
+  const giftCost = starCost(1, cfg.pointsPerStarGift); // base for gifting
+  res.json({ spendablePoints: Math.round(spendable), selfCost, giftCost, currentStars, config: { pointsPerStarSelf: cfg.pointsPerStarSelf, pointsPerStarGift: cfg.pointsPerStarGift, starRarityMultiplier: cfg.starRarityMultiplier } });
 });
 
 app.get('/api/stars/available/:userId', (req, res) => {
@@ -1846,6 +1992,73 @@ app.get('/api/stars/available/:userId', (req, res) => {
   const totalEarned = user.starsEarned || 0;
   const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === req.params.userId).length;
   res.json({ total: totalEarned, donated: totalDonated, available: totalEarned - totalDonated });
+});
+
+// ══ GAME CONFIG — Admin endpoints ══
+// Get current config
+app.get('/api/admin/game-config', (req, res) => {
+  res.json(getGameConfig());
+});
+
+// Update config (Top 1 or admin)
+app.post('/api/admin/game-config', (req, res) => {
+  const { userId, changes } = req.body;
+  if (!userId || !changes) return res.status(400).json({ error: 'userId e changes obrigatórios.' });
+  const cfg = getGameConfig();
+  // Check if user is Top 1 (most stars) or has admin flag
+  const user = db.users[userId];
+  if (!user) return res.status(403).json({ error: 'Usuário não encontrado.' });
+  const isAdmin = user.isAdmin === true;
+  let isTop1 = false;
+  if (cfg.top1CanSetConfig) {
+    // Find user with most stars
+    let maxStars = 0, top1Id = null;
+    for (const [uid, u] of Object.entries(db.users)) {
+      const s = (u.stars || []).length;
+      if (s > maxStars) { maxStars = s; top1Id = uid; }
+    }
+    isTop1 = (userId === top1Id && maxStars > 0);
+  }
+  if (!isAdmin && !isTop1) return res.status(403).json({ error: 'Apenas o Top 1 ou admin pode alterar configurações.' });
+  // Only allow known config keys
+  const allowed = Object.keys(DEFAULT_GAME_CONFIG);
+  const applied = {};
+  for (const [key, val] of Object.entries(changes)) {
+    if (allowed.includes(key) && typeof val === typeof DEFAULT_GAME_CONFIG[key]) {
+      db.gameConfig[key] = val;
+      applied[key] = val;
+    }
+  }
+  saveDB();
+  res.json({ ok: true, applied, current: getGameConfig() });
+});
+
+// Full score breakdown for a user
+app.get('/api/score/breakdown/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  const cfg = getGameConfig();
+  const encounters = db.encounters[req.params.userId] || [];
+  const uniqueConns = getUniqueConnections(req.params.userId);
+  const rawScore = calcRawScore(req.params.userId);
+  const decayedScore = calcScore(req.params.userId);
+  const spendable = rawScore - (user.pointsSpent || 0);
+  const starsReceived = (user.stars || []).length;
+  const starsEarned = user.starsEarned || 0;
+  const totalDonated = Object.values(db.starDonations).filter(d => d.fromUserId === req.params.userId).length;
+  // Count by type
+  const typeCounts = {};
+  for (const p of (user.pointLog || [])) {
+    typeCounts[p.type] = (typeCounts[p.type] || 0) + 1;
+  }
+  res.json({
+    score: decayedScore, rawScore, spendablePoints: Math.round(spendable),
+    stars: starsReceived, starsEarned, starsDonated: totalDonated, starsAvailable: starsEarned - totalDonated,
+    uniqueConnections: uniqueConns, totalEncounters: encounters.length,
+    likes: user.likesCount || 0,
+    pointBreakdown: typeCounts,
+    config: cfg
+  });
 });
 
 // ── Get own full profile data ──
@@ -1860,6 +2073,8 @@ app.get('/api/myprofile/:userId', (req, res) => {
     email: user.email || '',
     canSee: user.canSee || {}, isPrestador: !!user.isPrestador,
     starsEarned: user.starsEarned || 0, likesCount: user.likesCount || 0,
+    starsReceived: (user.stars || []).length, score: calcScore(req.params.userId),
+    uniqueConnections: getUniqueConnections(req.params.userId),
     topTag: user.topTag || null, registrationOrder: user.registrationOrder || 0
   });
 });
