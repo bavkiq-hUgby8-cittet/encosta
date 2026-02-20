@@ -3355,7 +3355,7 @@ async function payEntry(eventId,eventName,price){
 
     const resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,token:tokenResult.id,paymentMethodId:pmId,payerEmail:state.email||state.userId+'@touch.app',payerCPF:cpf})
+      body:JSON.stringify({userId:state.userId,token:tokenResult.id,paymentMethodId:pmId,payerEmail:state.email,payerCPF:cpf})
     });
     const result=await resp.json();
     if(result.error)throw new Error(result.error);
@@ -6799,6 +6799,7 @@ async function payWithNewCard() {
   if (!cvv || cvv.length < 3) return showToast('CVV inválido.');
   if (!holder) return showToast('Nome no cartão obrigatório.');
   if (!cpf || cpf.length < 11) return showToast('CPF inválido.');
+  if (!state.email || state.email.includes('@touch.app')) return showPayError('Cadastre seu email no perfil antes de pagar.');
 
   const btn = $('tipCardPayBtn');
   btn.disabled = true; btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:.3rem"><span class="pay-spinner"></span>Processando...</span>';
@@ -6837,7 +6838,7 @@ async function payWithNewCard() {
       body: JSON.stringify({
         payerId: state.userId, receiverId: tipState.receiverId, amount: tipState.amount,
         token: tokenResult.id, paymentMethodId: payMethodId,
-        payerEmail: state.email || state.userId + '@touch.app', payerCPF: cpf
+        payerEmail: state.email, payerCPF: cpf
       })
     });
     const result = await resp.json();
@@ -6909,7 +6910,13 @@ function translatePayError(msg,detail){
     'cc_rejected_other_reason':'Cartão recusado pelo banco. Tente outro cartão ou PIX.',
     'rejected':'Pagamento recusado pelo banco. Tente outro método.',
     'Cartão expirado ou cartão inválido':'Cartão expirado. Cadastre um novo cartão.',
-    'CVV inválido ou cartão expirado':'CVV incorreto ou cartão expirado.'
+    'CVV inválido ou cartão expirado':'CVV incorreto ou cartão expirado.',
+    'customer_not_found':'Erro de cadastro no pagamento. Tente novamente ou cadastre outro cartão.',
+    'Customer not found':'Erro de cadastro no pagamento. Tente novamente ou cadastre outro cartão.',
+    'customer not found':'Erro de cadastro no pagamento. Tente novamente ou cadastre outro cartão.',
+    'Informe seu email para continuar':'Informe seu email no perfil antes de pagar.',
+    'Informe seu CPF para continuar':'Informe seu CPF no perfil antes de pagar.',
+    'Cadastre seu email no perfil antes de assinar':'Cadastre seu email no perfil antes de assinar.'
   };
   // Check detail first, then msg
   if(detail&&map[detail])return map[detail];

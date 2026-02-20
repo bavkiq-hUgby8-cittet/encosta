@@ -3640,8 +3640,14 @@ app.post('/api/tip/create', async (req, res) => {
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100; // 10%
 
-  const email = payerEmail || payer.email || 'test@testuser.com';
-  const cpf = payerCPF || payer.cpf || '12345678909';
+  const email = payerEmail || payer.email;
+  const cpf = (payerCPF || payer.cpf || '').replace(/\D/g, '');
+  if (!email || email.includes('@touch.app')) {
+    return res.status(400).json({ error: 'Informe seu email para continuar.' });
+  }
+  if (!cpf || cpf.length < 11) {
+    return res.status(400).json({ error: 'Informe seu CPF para continuar.' });
+  }
 
   // Validate MP credentials
   if (!MP_ACCESS_TOKEN) {
@@ -3680,12 +3686,20 @@ app.post('/api/tip/create', async (req, res) => {
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     }
   } catch (e) {
-    console.error('Payment error:', e.message, e.cause || '');
-    const errMsg = e.message || 'tente novamente';
+    console.error('Payment error:', e.message, e.cause ? JSON.stringify(e.cause) : '');
+    const errMsg = (e.message || 'tente novamente').toLowerCase();
     // Provide more useful error messages
-    if (errMsg.includes('token')) res.status(400).json({ error: 'Token do cartão inválido ou expirado. Tente novamente.' });
-    else if (errMsg.includes('access_token') || errMsg.includes('401')) res.status(500).json({ error: 'Credenciais do Mercado Pago inválidas. Contate o suporte.' });
-    else res.status(500).json({ error: 'Erro no pagamento: ' + errMsg });
+    if (errMsg.includes('customer') && errMsg.includes('not found')) {
+      res.status(400).json({ error: 'Erro de cadastro no MercadoPago. Tente com outro email ou entre em contato.', detail: 'customer_not_found' });
+    } else if (errMsg.includes('token')) {
+      res.status(400).json({ error: 'Token do cartão inválido ou expirado. Tente novamente.' });
+    } else if (errMsg.includes('access_token') || errMsg.includes('401')) {
+      res.status(500).json({ error: 'Credenciais do Mercado Pago inválidas. Contate o suporte.' });
+    } else if (errMsg.includes('email')) {
+      res.status(400).json({ error: 'Email inválido. Atualize seu email no perfil.' });
+    } else {
+      res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+    }
   }
 });
 
@@ -3740,8 +3754,9 @@ app.post('/api/tip/pix', async (req, res) => {
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
 
-  const email = payerEmail || payer.email || 'payer@touch.app';
+  const email = payerEmail || payer.email;
   const cpf = (payerCPF || payer.cpf || '').replace(/\D/g, '');
+  if (!email || email.includes('@touch.app')) return res.status(400).json({ error: 'Informe seu email para pagar com PIX.' });
   if (!cpf || cpf.length < 11) return res.status(400).json({ error: 'CPF é obrigatório para PIX.' });
   const touchFee = Math.round(tipAmount * TOUCH_FEE_PERCENT) / 100;
 
@@ -3820,7 +3835,7 @@ app.post('/api/tip/checkout', async (req, res) => {
         unit_price: tipAmount,
         currency_id: 'BRL'
       }],
-      payer: { email: payer.email || 'payer@touch.app' },
+      payer: { email: payer.email || 'pagamento@encosta.app' },
       back_urls: {
         success: baseUrl + '/tip-result?status=approved&tipId=' + tipId,
         failure: baseUrl + '/tip-result?status=rejected&tipId=' + tipId,
@@ -4422,6 +4437,11 @@ app.post('/api/subscription/create', async (req, res) => {
   if (!plan) return res.status(400).json({ error: 'Plano não encontrado.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
 
+  const payerEmail = user.email || user.savedCard?.email || '';
+  if (!payerEmail || payerEmail.includes('@touch.app')) {
+    return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
+  }
+
   const baseUrl = MP_REDIRECT_URI.replace('/mp/callback', '');
   const subId = uuidv4();
 
@@ -4436,7 +4456,7 @@ app.post('/api/subscription/create', async (req, res) => {
         currency_id: plan.currency
       },
       back_url: baseUrl + '/sub-result?subId=' + subId + '&userId=' + userId,
-      payer_email: user.email || user.savedCard?.email || '',
+      payer_email: payerEmail,
       external_reference: subId,
       notification_url: baseUrl + '/mp/webhook/subscription'
     };
@@ -4707,8 +4727,8 @@ app.post('/api/operator/event/:eventId/pay-entry', async (req, res) => {
       payment_method_id: pmId || paymentMethodId || 'visa',
       installments: 1,
       payer: {
-        email: payerEmail || user.email || userId + '@touch.app',
-        identification: { type: 'CPF', number: (payerCPF || user.cpf || user.savedCard?.cpf || '00000000000').replace(/\D/g, '') }
+        email: payerEmail || user.email || 'pagamento@encosta.app',
+        identification: { type: 'CPF', number: (payerCPF || user.cpf || user.savedCard?.cpf || '').replace(/\D/g, '') }
       },
       description: 'Ingresso Touch? — ' + ev.name,
       statement_descriptor: 'TOUCH INGRESSO',
