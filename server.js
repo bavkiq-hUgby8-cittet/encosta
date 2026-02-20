@@ -2012,17 +2012,20 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     canInteract: true,
     isSubscriber: !!user.isSubscriber,
     isPrestador: !!user.isPrestador,
-    // Real identity if revealed
+    // Real identity if revealed (respecting privacy flags)
     realName: isRevealed ? (user.realName || null) : null,
     profilePhoto: isRevealed ? (user.profilePhoto || user.photoURL || null) : null,
-    instagram: isRevealed ? (user.instagram || null) : null,
-    bio: isRevealed ? (user.bio || null) : null
+    bio: isRevealed ? (user.bio || null) : null,
+    instagram: isRevealed && (user.privacy?.instagram !== false) ? (user.instagram || null) : null,
+    tiktok: isRevealed && (user.privacy?.tiktok !== false) ? (user.tiktok || null) : null,
+    twitter: isRevealed && (user.privacy?.twitter !== false) ? (user.twitter || null) : null,
+    phone: isRevealed && (user.privacy?.phone === true) ? (user.phone || null) : null
   });
 });
 
 // ── Update full profile ──
 app.post('/api/profile/update', async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, twitter, bio, profilePhoto, email, cpf } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -2047,7 +2050,9 @@ app.post('/api/profile/update', async (req, res) => {
   } else if (realName !== undefined) { user.realName = realName; }
   if (phone !== undefined) user.phone = phone;
   if (instagram !== undefined) user.instagram = instagram;
+  if (tiktok !== undefined) user.tiktok = tiktok;
   if (twitter !== undefined) user.twitter = twitter;
+  if (privacy !== undefined) user.privacy = privacy;
   if (bio !== undefined) user.bio = bio;
   if (profilePhoto !== undefined) {
     if (profilePhoto && profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });
@@ -2895,7 +2900,8 @@ app.get('/api/myprofile/:userId', (req, res) => {
   res.json({
     nickname: user.nickname, realName: user.realName || '',
     phone: user.phone || '', instagram: user.instagram || '',
-    twitter: user.twitter || '', bio: user.bio || '',
+    tiktok: user.tiktok || '', twitter: user.twitter || '', bio: user.bio || '',
+    privacy: user.privacy || {},
     profilePhoto: user.profilePhoto || user.photoURL || '', photoURL: user.photoURL || '', profileComplete: !!user.profileComplete,
     email: user.email || '', cpf: user.cpf || '',
     canSee: user.canSee || {}, isPrestador: !!user.isPrestador,

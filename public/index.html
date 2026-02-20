@@ -565,23 +565,35 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .my-pf-divider{height:1px;background:rgba(255,255,255,.04);margin:.25rem 0}
 
 /* COMPLETE PROFILE */
-#completeProfile{padding:1.5rem;overflow-y:auto}
-.cp-header{text-align:center;margin-bottom:1.5rem;padding-top:env(safe-area-inset-top,1rem)}
-.cp-header h2{font-size:1.2rem;font-weight:700;color:var(--t1)}
-.cp-header p{font-size:.75rem;color:var(--t2);margin-top:.3rem}
-.cp-photo-wrap{display:flex;flex-direction:column;align-items:center;gap:.6rem;margin-bottom:1.5rem}
-.cp-photo{width:100px;height:100px;border-radius:50%;background:var(--s2);border:2px solid var(--b1);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+#completeProfile{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.cp-top-bar{display:flex;align-items:center;justify-content:space-between;padding:max(env(safe-area-inset-top),.6rem) 1rem .5rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.cp-top-bar span{font-size:.82rem;font-weight:600;color:var(--t1)}
+.cp-top-bar .chb:last-child{font-size:.7rem;color:var(--ac);font-weight:600;border:none;background:none}
+.cp-scroll{flex:1;overflow-y:auto;padding:1rem 1.2rem;-webkit-overflow-scrolling:touch}
+.cp-section-title{font-size:.58rem;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;font-weight:700;margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.cp-photo-wrap{display:flex;flex-direction:column;align-items:center;gap:.4rem;margin-bottom:.5rem}
+.cp-photo{width:80px;height:80px;border-radius:50%;background:var(--s2);border:1.5px solid var(--b1);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
 .cp-photo img{width:100%;height:100%;object-fit:cover}
-.cp-photo-label{font-size:.7rem;color:var(--ac);cursor:pointer}
-.cp-field{margin-bottom:1.2rem}
-.cp-field label{display:block;font-size:.68rem;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem;font-weight:600}
-.cp-field input,.cp-field textarea{width:100%;padding:.75rem .9rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s}
-.cp-field input:focus,.cp-field textarea:focus{border-color:var(--ac)}
-.cp-field textarea{resize:none;height:70px}
-.cp-note{font-size:.65rem;color:var(--t3);margin-top:.3rem}
-.cp-actions{display:flex;gap:.8rem;margin-top:1.5rem;padding-bottom:2rem}
-.cp-actions .bp{flex:1}
-.cp-actions .bs{flex:0}
+.cp-photo-label{font-size:.62rem;color:var(--ac);cursor:pointer;font-weight:500}
+.cp-field{margin-bottom:.9rem}
+.cp-field label{display:block;font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem;font-weight:600}
+.cp-field input,.cp-field textarea{width:100%;padding:.6rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:var(--t1);font-size:.82rem;font-family:inherit;outline:none;transition:border-color .2s}
+.cp-field input:focus,.cp-field textarea:focus{border-color:rgba(255,107,53,.4)}
+.cp-field textarea{resize:none;height:60px}
+.cp-note{font-size:.55rem;color:var(--t3);margin-top:.2rem;opacity:.7}
+.cp-field-privacy .cp-input-row{display:flex;gap:.4rem;align-items:center}
+.cp-field-privacy .cp-input-row input{flex:1}
+.cp-priv-toggle{width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;transition:all .2s}
+.cp-priv-toggle.priv-on{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.08)}
+.cp-priv-toggle.priv-off{border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.06)}
+.cp-verif-row{display:flex;gap:.5rem;margin-bottom:.3rem}
+.cp-verif-card{flex:1;padding:.6rem .5rem;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);cursor:pointer;text-align:center;font-family:inherit;transition:all .15s}
+.cp-verif-card:active{transform:scale(.97)}
+.cp-verif-card.active{border-color:rgba(6,182,212,.3);background:rgba(6,182,212,.05)}
+.cp-verif-card.active-doc{border-color:rgba(168,85,247,.3);background:rgba(168,85,247,.05)}
+.cp-verif-ico{font-size:.8rem;margin-bottom:.15rem;opacity:.6}
+.cp-verif-label{font-size:.62rem;font-weight:700;color:var(--t1)}
+.cp-verif-status{font-size:.48rem;color:var(--t3);margin-top:.1rem}
 
 /* REVEAL IDENTITY */
 /* ID Request/Reveal buttons — eye-catching in chat actions */
@@ -1479,29 +1491,46 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="completeProfile" class="screen">
-  <div class="cp-header">
-    <button class="chb" onclick="goHome()" style="position:absolute;left:1rem;top:1.2rem">&#x2190;</button>
-    <h2>Perfil completo</h2>
-    <p>Opcional — preencha para poder revelar sua identidade</p>
-  </div>
-  <div class="cp-photo-wrap">
-    <div class="cp-photo" id="cpPhotoPreview" onclick="$('cpPhotoInput').click()">
-      <span id="cpPhotoPlaceholder" style="font-size:2rem;color:var(--t3)">📷</span>
+  <div class="cp-top-bar"><button class="chb" onclick="goHome()">&#x2190;</button><span>Cadastro</span><button class="chb" onclick="saveCompleteProfile()">Salvar</button></div>
+  <div class="cp-scroll">
+    <!-- Photo -->
+    <div class="cp-photo-wrap">
+      <div class="cp-photo" id="cpPhotoPreview" onclick="$('cpPhotoInput').click()">
+        <span id="cpPhotoPlaceholder" style="font-size:1.6rem;color:var(--t3)">📷</span>
+      </div>
+      <div class="cp-photo-label" onclick="$('cpPhotoInput').click()">Alterar foto</div>
+      <input type="file" id="cpPhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
     </div>
-    <div class="cp-photo-label" onclick="$('cpPhotoInput').click()">Adicionar foto real</div>
-    <input type="file" id="cpPhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
-  </div>
-  <div class="cp-field"><label>Apelido (máscara)</label><input type="text" id="cpNickname" placeholder="seu_apelido" maxlength="20" autocomplete="off"><div class="cp-note">Sua identidade secreta — como todos te veem</div></div>
-  <div class="cp-field"><label>Nome real</label><input type="text" id="cpRealName" placeholder="Seu nome completo" maxlength="60"></div>
-  <div class="cp-field"><label>Bio</label><textarea id="cpBio" placeholder="Conte algo sobre você..." maxlength="200"></textarea></div>
-  <div class="cp-field"><label>Telefone</label><input type="tel" id="cpPhone" placeholder="+55 11 99999-9999" maxlength="20"><div class="cp-note">Opcional — não será mostrado publicamente</div></div>
-  <div class="cp-field"><label>Email</label><input type="email" id="cpEmail" placeholder="seu@email.com" maxlength="60"><div class="cp-note">Necessário para pagamentos e assinatura</div></div>
-  <div class="cp-field"><label>CPF</label><input type="text" id="cpCpf" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" oninput="formatCPF(this)"><div class="cp-note">Necessário para pagamentos — não será exibido</div></div>
-  <div class="cp-field"><label>Instagram</label><input type="text" id="cpInstagram" placeholder="@seuuser" maxlength="30"></div>
-  <div class="cp-field"><label>X (Twitter)</label><input type="text" id="cpTwitter" placeholder="@seuuser" maxlength="30"></div>
-  <div class="cp-actions">
-    <button class="bs" onclick="goHome()">Voltar</button>
-    <button class="bp" onclick="saveCompleteProfile()">Salvar</button>
+    <!-- Identity -->
+    <div class="cp-section-title">Identidade</div>
+    <div class="cp-field"><label>Apelido</label><input type="text" id="cpNickname" placeholder="seu_apelido" maxlength="20" autocomplete="off"><div class="cp-note">Como todos te veem antes de revelar</div></div>
+    <div class="cp-field"><label>Nome real</label><input type="text" id="cpRealName" placeholder="Seu nome completo" maxlength="60"></div>
+    <div class="cp-field"><label>Bio</label><textarea id="cpBio" placeholder="Conte algo sobre você..." maxlength="200"></textarea></div>
+    <!-- Verification -->
+    <div class="cp-section-title">Verificação</div>
+    <div class="cp-verif-row">
+      <button class="cp-verif-card" id="cpFaceCard" onclick="goHome();setTimeout(()=>showFaceEnrollment(),100)">
+        <div class="cp-verif-ico">⎔</div>
+        <div class="cp-verif-label">Face ID</div>
+        <div class="cp-verif-status" id="cpFaceStatus">configurar</div>
+      </button>
+      <button class="cp-verif-card" id="cpDocCard" onclick="goHome();setTimeout(()=>showDocIdScreen(),100)">
+        <div class="cp-verif-ico">⊡</div>
+        <div class="cp-verif-label">Doc ID</div>
+        <div class="cp-verif-status" id="cpDocStatus">verificar</div>
+      </button>
+    </div>
+    <!-- Social -->
+    <div class="cp-section-title">Social</div>
+    <div class="cp-field cp-field-privacy"><label>Instagram</label><div class="cp-input-row"><input type="text" id="cpInstagram" placeholder="@seuuser" maxlength="30"><button class="cp-priv-toggle" id="cpPrivInstagram" onclick="toggleCpPriv('Instagram')" title="Visível ao revelar ID"></button></div></div>
+    <div class="cp-field cp-field-privacy"><label>TikTok</label><div class="cp-input-row"><input type="text" id="cpTiktok" placeholder="@seuuser" maxlength="30"><button class="cp-priv-toggle" id="cpPrivTiktok" onclick="toggleCpPriv('Tiktok')" title="Visível ao revelar ID"></button></div></div>
+    <div class="cp-field cp-field-privacy"><label>X (Twitter)</label><div class="cp-input-row"><input type="text" id="cpTwitter" placeholder="@seuuser" maxlength="30"><button class="cp-priv-toggle" id="cpPrivTwitter" onclick="toggleCpPriv('Twitter')" title="Visível ao revelar ID"></button></div></div>
+    <!-- Contact -->
+    <div class="cp-section-title">Contato</div>
+    <div class="cp-field cp-field-privacy"><label>Telefone</label><div class="cp-input-row"><input type="tel" id="cpPhone" placeholder="+55 11 99999-9999" maxlength="20"><button class="cp-priv-toggle" id="cpPrivPhone" onclick="toggleCpPriv('Phone')" title="Visível ao revelar ID"></button></div></div>
+    <div class="cp-field"><label>Email</label><input type="email" id="cpEmail" placeholder="seu@email.com" maxlength="60"><div class="cp-note">Apenas para pagamentos — nunca exibido</div></div>
+    <div class="cp-field"><label>CPF</label><input type="text" id="cpCpf" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" oninput="formatCPF(this)"><div class="cp-note">Apenas para pagamentos — nunca exibido</div></div>
+    <div style="height:2rem"></div>
   </div>
 </div>
 
@@ -4914,6 +4943,12 @@ let cpPhotoData=null;
 async function openCompleteProfile(){
   haptic([30]);
   showScreen('completeProfile');
+  // Update face/doc cards
+  const hasFace=!!state.userFaceEnrolled;
+  const hasDoc=!!state.userDocVerified;
+  const faceCard=$('cpFaceCard'),docCard=$('cpDocCard');
+  if(faceCard){faceCard.classList.toggle('active',hasFace);$('cpFaceStatus').textContent=hasFace?'✓ ativo':'configurar';$('cpFaceStatus').style.color=hasFace?'#06b6d4':''}
+  if(docCard){docCard.classList.toggle('active-doc',hasDoc);$('cpDocStatus').textContent=hasDoc?'✓ enviado':'verificar';$('cpDocStatus').style.color=hasDoc?'#a855f7':''}
   // Load existing data
   try{
     const d=await(await fetch('/api/myprofile/'+state.userId)).json();
@@ -4924,13 +4959,31 @@ async function openCompleteProfile(){
     if(d.email)$('cpEmail').value=d.email;
     if(d.cpf)$('cpCpf').value=d.cpf;
     if(d.instagram)$('cpInstagram').value=d.instagram;
+    if(d.tiktok)$('cpTiktok').value=d.tiktok;
     if(d.twitter)$('cpTwitter').value=d.twitter;
+    // Privacy toggles
+    const priv=d.privacy||{};
+    setCpPriv('Instagram',priv.instagram!==false);
+    setCpPriv('Tiktok',priv.tiktok!==false);
+    setCpPriv('Twitter',priv.twitter!==false);
+    setCpPriv('Phone',priv.phone!==false);
     const _cpPhoto=d.profilePhoto||d.photoURL||null;
     if(_cpPhoto){
       cpPhotoData=_cpPhoto;
       $('cpPhotoPreview').innerHTML='<img src="'+_cpPhoto+'" alt="">';
     }
   }catch(e){}
+}
+function setCpPriv(field,isOn){
+  const btn=$('cpPriv'+field);if(!btn)return;
+  btn.classList.toggle('priv-on',isOn);btn.classList.toggle('priv-off',!isOn);
+  btn.innerHTML=isOn?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+    :'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+}
+function toggleCpPriv(field){
+  const btn=$('cpPriv'+field);if(!btn)return;
+  const isOn=btn.classList.contains('priv-on');
+  setCpPriv(field,!isOn);haptic([15]);
 }
 function handleProfilePhoto(input){
   if(!input.files||!input.files[0])return;
@@ -4961,6 +5014,7 @@ async function saveCompleteProfile(){
     return showToast('Seu nome real precisa ser diferente do nickname!');
   }
   if(nicknameVal&&nicknameVal.length<2)return showToast('Apelido precisa ter pelo menos 2 caracteres.');
+  const privBtn=f=>$('cpPriv'+f);
   const data={
     userId:state.userId,
     nickname:nicknameVal||undefined,
@@ -4970,17 +5024,23 @@ async function saveCompleteProfile(){
     email:$('cpEmail').value.trim(),
     cpf:$('cpCpf').value.trim(),
     instagram:$('cpInstagram').value.trim(),
+    tiktok:$('cpTiktok').value.trim(),
     twitter:$('cpTwitter').value.trim(),
-    profilePhoto:cpPhotoData||''
+    profilePhoto:cpPhotoData||'',
+    privacy:{
+      instagram:privBtn('Instagram')?privBtn('Instagram').classList.contains('priv-on'):true,
+      tiktok:privBtn('Tiktok')?privBtn('Tiktok').classList.contains('priv-on'):true,
+      twitter:privBtn('Twitter')?privBtn('Twitter').classList.contains('priv-on'):true,
+      phone:privBtn('Phone')?privBtn('Phone').classList.contains('priv-on'):false
+    }
   };
   try{
     const r=await fetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    // Update local state
     if(data.profilePhoto){state.userPhoto=data.profilePhoto;localStorage.setItem('touch_userPhoto',data.profilePhoto);constState._myImgLoaded=false}
     if(nicknameVal){state.userNickname=nicknameVal;state.userName=nicknameVal;localStorage.setItem('touch_userName',nicknameVal)}
-    showToast('Perfil salvo!');haptic([40,20,40]);
+    showToast('Salvo!');haptic([40,20,40]);
     goHome();
   }catch(e){showToast('Erro ao salvar.')}
 }
@@ -5459,7 +5519,13 @@ function renderProfile(d,userId){
     html+='<div style="font-size:.7rem;color:var(--t2);margin-top:.1rem">@'+esc(d.nickname)+'</div>';
   }
   if(d.bio)html+='<div style="font-size:.75rem;color:var(--t2);margin-top:.4rem;font-style:italic">'+esc(d.bio)+'</div>';
-  if(d.instagram)html+='<div style="font-size:.7rem;color:var(--ac);margin-top:.2rem">'+esc(d.instagram)+'</div>';
+  // Social links (privacy-filtered by server)
+  let socials=[];
+  if(d.instagram)socials.push('<span style="color:#e1306c">'+esc(d.instagram)+'</span>');
+  if(d.tiktok)socials.push('<span style="color:#69c9d0">'+esc(d.tiktok)+'</span>');
+  if(d.twitter)socials.push('<span style="color:#1da1f2">'+esc(d.twitter)+'</span>');
+  if(d.phone)socials.push('<span style="color:var(--t2)">'+esc(d.phone)+'</span>');
+  if(socials.length)html+='<div style="font-size:.68rem;margin-top:.3rem;display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center">'+socials.join('')+'</div>';
   html+='<div class="pf-stats">';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#fbbf24">'+(d.stars||0)+'</div><div class="pf-stat-lbl">estrelas</div></div>';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#60a5fa">'+(d.score||0)+'</div><div class="pf-stat-lbl">score</div></div>';
@@ -5553,8 +5619,8 @@ function showMyProfileSheet(){
   const hasDoc=!!state.userDocVerified;
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem" id="profileSheet">'
     +'<div class="more-menu-handle"></div>'
-    +'<button onclick="this.closest(\'.my-profile-overlay\').remove()" style="position:absolute;top:.8rem;right:.8rem;width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.06);color:var(--t3);font-size:.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1">&times;</button>'
-    // Header: avatar + name block redesigned — nick is HERO
+    +'<button onclick="this.closest(\'.my-profile-overlay\').remove()" style="position:absolute;top:.8rem;right:.8rem;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:var(--t2);font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;z-index:2">&times;</button>'
+    // Header: avatar + name block
     +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">'
     +avatarHtml
     +'<div style="flex:1;min-width:0">'
@@ -5575,23 +5641,10 @@ function showMyProfileSheet(){
     +(state.userGiftsReceived>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#f472b6">'+state.userGiftsReceived+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">presentes</div></div>':'')
     +'</div>'
     +'</div></div>'
-    // Menu buttons — clean, no emojis
+    // Menu buttons — clean
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>Meu Cartão</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>Cadastro'+cadastroTag+'</button>'
-    // Verification cards row
-    +'<div style="display:flex;gap:.4rem;margin:.15rem 0">'
-    +'<button onclick="this.closest(\'.my-profile-overlay\').remove();showFaceEnrollment()" style="flex:1;padding:.55rem .4rem;border-radius:14px;border:1px solid '+(hasFace?'rgba(6,182,212,.3)':'rgba(255,255,255,.06)')+';background:'+(hasFace?'rgba(6,182,212,.06)':'rgba(255,255,255,.02)')+';cursor:pointer;text-align:center;font-family:inherit;transition:all .15s">'
-    +'<div style="font-size:.85rem;margin-bottom:.2rem;opacity:.7">⎔</div>'
-    +'<div style="font-size:.62rem;font-weight:700;color:'+(hasFace?'#06b6d4':'var(--t1)')+'">Face ID</div>'
-    +'<div style="font-size:.48rem;color:'+(hasFace?'#06b6d4':'var(--t3)')+';margin-top:.1rem">'+(hasFace?'✓ ativo':'configurar')+'</div>'
-    +'</button>'
-    +'<button onclick="this.closest(\'.my-profile-overlay\').remove();showDocIdScreen()" style="flex:1;padding:.55rem .4rem;border-radius:14px;border:1px solid '+(hasDoc?'rgba(168,85,247,.3)':'rgba(255,255,255,.06)')+';background:'+(hasDoc?'rgba(168,85,247,.06)':'rgba(255,255,255,.02)')+';cursor:pointer;text-align:center;font-family:inherit;transition:all .15s">'
-    +'<div style="font-size:.85rem;margin-bottom:.2rem;opacity:.7">⊡</div>'
-    +'<div style="font-size:.62rem;font-weight:700;color:'+(hasDoc?'#a855f7':'var(--t1)')+'">Doc ID</div>'
-    +'<div style="font-size:.48rem;color:'+(hasDoc?'#a855f7':'var(--t3)')+';margin-top:.1rem">'+(hasDoc?'✓ enviado':'verificar')+'</div>'
-    +'</button>'
-    +'</div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>Touch? Plus'+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">ativo</span>':'')+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>Serviços</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
