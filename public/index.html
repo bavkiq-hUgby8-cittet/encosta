@@ -4958,7 +4958,8 @@ function handleConstTap(tx,ty,W,H){
         verified:!!state.userVerified,topTag:state.userTopTag||null,
         starsCount:state.userStarsCount||0,score:state.userScore||0,
         partnerRevealedToMe:true,iRevealedToPartner:true,
-        encounters:0,uniqueConnections:0
+        encounters:0,uniqueConnections:0,
+        avatarAccessory:state.userAccessory||null
       });
       haptic([15]);
       // Enter FP when clicking self too
@@ -5047,10 +5048,13 @@ function showConstDetail(node){
   // Avatar
   const av=$('cdAvatar');
   av.style.fontSize='';av.style.display='';av.style.alignItems='';av.style.justifyContent='';
+  av.innerHTML='';av.style.overflow='hidden';av.style.background='none';
   if(theyRevealed&&node.profilePhoto){
-    av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';av.style.background=node.color;av.style.overflow='hidden';
+    // Real photo — NO accessory
+    av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';av.style.background=node.color;
   }else{
-    av.innerHTML=ANON_AVATAR_SVG;av.style.background='none';av.style.overflow='hidden';
+    // Anonymous silhouette — accessory only here
+    av.innerHTML=ANON_AVATAR_SVG;
     if(node.avatarAccessory&&AVATAR_ACCESSORIES[node.avatarAccessory]){av.innerHTML+='<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[node.avatarAccessory].svg+'</div>';av.style.overflow='visible'}
   }
   // Star orbit rendering
