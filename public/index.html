@@ -2230,8 +2230,24 @@ function showManual(){
 function initSocket(){
   if(socket)return;
   socket=io({reconnection:true,reconnectionDelay:1000,reconnectionAttempts:Infinity});
-  socket.on('connect',()=>{if(state.userId)socket.emit('identify',state.userId);updateConn('online')});
-  socket.on('disconnect',()=>updateConn('offline'));
+  socket.on('connect',()=>{
+    if(state.userId)socket.emit('identify',state.userId);
+    updateConn('online');
+    // If sonic was running but got killed by disconnect, auto-restart
+    if(_sonicWasActive&&!homeSonicActive){
+      console.log('[socket reconnect] Sonic was active, auto-restarting...');
+      _sonicWasActive=false;
+      setTimeout(()=>{if(!homeSonicActive)handleMainButton()},500);
+    }
+  });
+  socket.on('disconnect',()=>{
+    updateConn('offline');
+    // If sonic is active during disconnect, mark for restart
+    if(homeSonicActive){
+      _sonicWasActive=true;
+      stopHomeSonic();
+    }
+  });
   socket.io.on('reconnect_attempt',()=>updateConn('reconnecting'));
 
   // Server says: you matched another visitor, not the operator — keep listening
@@ -3005,10 +3021,21 @@ function startEncounter(){haptic([40]);showScreen('encounter');showPhase('phaseC
 
 // ═══ MAIN BUTTON — sonic first, code fallback ═══
 let homeSonicActive=false;
+let _sonicWasActive=false; // track if sonic was running before background/disconnect
 async function handleMainButton(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   if(homeSonicActive){stopHomeSonic();return}
-  if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
+  if(!socket){showToast('Sem conexão. Aguarde...');return}
+  // If socket is reconnecting, wait up to 3s for it
+  if(!socket.connected){
+    showToast('Reconectando...');
+    const waited=await new Promise(r=>{
+      if(socket.connected)return r(true);
+      const t=setTimeout(()=>r(false),3000);
+      socket.once('connect',()=>{clearTimeout(t);r(true)});
+    });
+    if(!waited){showToast('Sem conexão. Tente novamente.');return}
+  }
   haptic([40]);
 
   // RESET: kill any leftover audio/mic state from previous attempt
@@ -8512,17 +8539,69 @@ if(window.visualViewport){let ph=window.visualViewport.height;window.visualViewp
 // ═══ RESOURCE CLEANUP + SCREENSHOT PROTECTION ═══
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
+    // Save sonic state BEFORE releasing
+    _sonicWasActive=homeSonicActive;
     // Release mic, speaker, camera when app goes to background
     releaseAllMedia();
     // Blur chat for screenshot protection
     if($('chat').classList.contains('active'))$('chatMessages').style.filter='blur(20px)';
   }else{
+    // ── RETURNED TO FOREGROUND ──
     $('chatMessages').style.filter='';
+    // Re-identify on socket in case connection was lost/stale
+    if(socket&&state.userId){
+      if(!socket.connected){
+        // Force reconnect
+        socket.connect();
+      }else{
+        socket.emit('identify',state.userId);
+      }
+    }
+    // Auto-restart sonic if it was active before going to background
+    if(_sonicWasActive&&state.userId){
+      _sonicWasActive=false;
+      console.log('[visibility] Sonic was active, auto-restarting...');
+      // Small delay to let socket reconnect and audio subsystem wake up
+      setTimeout(()=>{
+        if(!homeSonicActive&&!sonicActive){
+          handleMainButton();
+        }
+      },600);
+    }
   }
 });
 // Also cleanup on page close/navigate away
 window.addEventListener('beforeunload',()=>releaseAllMedia());
 window.addEventListener('pagehide',()=>releaseAllMedia());
+// iOS Safari: pageshow event fires when returning from app switcher
+window.addEventListener('pageshow',(e)=>{
+  if(e.persisted&&state.userId&&socket){
+    // Page was restored from bfcache — socket is likely dead
+    console.log('[pageshow] bfcache restore, reconnecting...');
+    if(!socket.connected)socket.connect();
+    else socket.emit('identify',state.userId);
+    // If sonic was active, restart
+    if(_sonicWasActive){
+      _sonicWasActive=false;
+      setTimeout(()=>{if(!homeSonicActive)handleMainButton()},800);
+    }
+  }
+});
+// Android fallback: some browsers fire 'focus' but not 'visibilitychange'
+window.addEventListener('focus',()=>{
+  if(document.hidden)return; // let visibilitychange handle it
+  if(socket&&state.userId){
+    if(!socket.connected)socket.connect();
+    // Resume any suspended AudioContexts inline (iOS requires user gesture but focus is close)
+    if(sonicEmitCtx&&sonicEmitCtx.state==='suspended')sonicEmitCtx.resume().catch(()=>{});
+    if(sonicMicCtx&&sonicMicCtx.state==='suspended')sonicMicCtx.resume().catch(()=>{});
+  }
+  // If sonic died (contexts closed/interrupted) but flag says it should be on, restart
+  if(_sonicWasActive&&!homeSonicActive){
+    _sonicWasActive=false;
+    setTimeout(()=>{if(!homeSonicActive)handleMainButton()},500);
+  }
+});
 // Block keyboard screenshot shortcuts (partial - won't work on all platforms)
 document.addEventListener('keyup',e=>{
   if(e.key==='PrintScreen'&&$('chat').classList.contains('active')){
