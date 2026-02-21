@@ -4517,6 +4517,17 @@ function initConstCanvas(){
       const r=Math.min(rawR,MAX_NODE_R);
       if(r<0.5)return; // too small to see
       const theyRevealedToMe=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+      // Dynamic photo loading — check on every frame if reveal status changed
+      if(theyRevealedToMe&&!n._revealed){
+        const photo=n.profilePhoto||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id].profilePhoto);
+        if(photo&&!n._imgLoading){
+          n._imgLoading=true;n._revealed=true;
+          const img=new Image();img.crossOrigin='anonymous';img.src=photo;
+          n._img=img;n._imgLoaded=false;
+          img.onload=()=>{n._imgLoaded=true;n._imgLoading=false};
+          img.onerror=()=>{n._imgLoading=false};
+        }
+      }
       const ringColor=n.isEvent?'#60a5fa':(theyRevealedToMe?'#00dc82':'#ff4466');
       const glowRGB=n.isEvent?'96,165,250':(theyRevealedToMe?'0,220,130':'255,68,102');
       // Depth-based opacity: close nodes=bright, far nodes=dim
@@ -4738,10 +4749,14 @@ function handleConstTap(tx,ty,W,H){
         encounters:0,uniqueConnections:0
       });
       haptic([15]);
+      // Enter FP when clicking self too
+      if(!constState.fpMode){
+        constState.fpMode=true;constState.fpTransition=0;constState.fpYaw=0;constState.fpPitch=0;
+      }
       return;
     }
   }
-  // In FP mode, tap on a node → show detail
+  // In FP mode, tap on a node → show detail (stay in FP)
   if(constState.fpMode){
     let hit=null,minD=Infinity;
     constState.nodes.forEach(n=>{
@@ -4749,7 +4764,11 @@ function handleConstTap(tx,ty,W,H){
       const d=Math.hypot(tx-n._px,ty-n._py);
       if(d<(n.baseRadius*(n._pscale||1)*1.8+16)&&d<minD){minD=d;hit=n}
     });
-    if(hit){showConstDetail(hit)}else{hideConstDetail()}
+    if(hit){showConstDetail(hit)}else{
+      $('constDetail').classList.remove('visible');
+      constState.selectedNode=null;
+      exitConstFP();
+    }
     return;
   }
   // Normal mode tap
@@ -4760,7 +4779,13 @@ function handleConstTap(tx,ty,W,H){
     const hitR=n.baseRadius*(n._pscale||1)*1.8+12;
     if(d<hitR&&d<minD){minD=d;hit=n}
   });
-  if(hit){showConstDetail(hit)}else{hideConstDetail()}
+  if(hit){
+    showConstDetail(hit);
+    // Enter FP mode to arrange nodes with accelerometer
+    if(!constState.fpMode){
+      constState.fpMode=true;constState.fpTransition=0;constState.fpYaw=0;constState.fpPitch=0;
+    }
+  }else{hideConstDetail();if(constState.fpMode)exitConstFP()}
 }
 function enterConstFP(){
   constState.fpMode=true;constState.fpTransition=0;constState.fpYaw=0;constState.fpPitch=0;
@@ -5104,6 +5129,7 @@ function hideConstDetail(){
   d.classList.remove('visible');
   $('cdHistoryPanel').classList.remove('visible');
   constState.selectedNode=null;
+  if(constState.fpMode)exitConstFP();
 }
 // ── Collapsible sections toggle ──
 function toggleCdSection(bodyId,btn){
