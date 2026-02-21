@@ -3928,18 +3928,15 @@ function doReveal(data){
   }else{
     // ── NORMAL REVEAL ──
     const isEventMatch=!!data.isEventMatch;
+    moment.textContent=isDigital?'uma conexão nasceu':'algo nasceu entre vocês';
+    moment.style.color='';
     if(isEventMatch){
-      moment.textContent='encontro no evento';
-      moment.style.color='#60a5fa';
-      // Event match badge
+      // Small event badge under moment
       const emBadge=document.createElement('div');
       emBadge.className='rv-service-badge';
       emBadge.style.borderColor='rgba(96,165,250,.3)';emBadge.style.background='rgba(96,165,250,.08)';emBadge.style.color='#60a5fa';
       emBadge.innerHTML='⚡ '+(data.sharedEventName||'Evento');
       moment.after(emBadge);
-    }else{
-      moment.textContent=isDigital?'uma conexão nasceu':'algo nasceu entre vocês';
-      moment.style.color='';
     }
     phraseEl.style.display='';
     if(subEl)subEl.style.display='';
@@ -4188,9 +4185,12 @@ async function payEntry(eventId,eventName,price){
 
 // ═══ SHARE CONNECTION — 9:16 story image ═══
 async function shareConnection(){
+  try{
   const d=state.currentRelation;if(!d)return showToast('Nada para compartilhar');
+  showToast('Gerando imagem…');
   const meIsA=d.userA&&d.userA.id===state.userId;
   const me=meIsA?d.userA:d.userB,them=meIsA?d.userB:d.userA;
+  if(!me||!them)return showToast('Dados incompletos');
   const W=1080,H=1920;
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const c=cv.getContext('2d');
@@ -4363,23 +4363,22 @@ async function shareConnection(){
   c.fillText('tudo nasce no gesto',W/2,H-115);
 
   // Convert to blob and share
-  cv.toBlob(async blob=>{
-    if(!blob)return showToast('Erro ao gerar imagem');
-    const file=new File([blob],'touch-conexao.png',{type:'image/png'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      try{
-        await navigator.share({files:[file],title:'Touch? — conexão',text:phrase||'Uma conexão nasceu'});
-      }catch(e){
-        if(e.name!=='AbortError')showToast('Compartilhamento cancelado');
-      }
-    }else{
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');a.href=url;a.download='touch-conexao.png';
-      document.body.appendChild(a);a.click();document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url),5000);
-      showToast('Imagem salva!');
-    }
-  },'image/png',1.0);
+  const blob=await new Promise(ok=>cv.toBlob(ok,'image/png',1.0));
+  if(!blob)return showToast('Erro ao gerar imagem');
+  const file=new File([blob],'touch-conexao.png',{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    await navigator.share({files:[file],title:'Touch? — conexão',text:phrase||'Uma conexão nasceu'});
+  }else{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='touch-conexao.png';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    showToast('Imagem salva!');
+  }
+  }catch(e){
+    if(e.name!=='AbortError')showToast('Erro: '+(e.message||'falha ao compartilhar'));
+    console.error('shareConnection error:',e);
+  }
 }
 
 // ═══ CHAT ═══

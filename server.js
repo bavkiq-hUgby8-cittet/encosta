@@ -3978,7 +3978,7 @@ function createSonicConnection(userIdA, userIdB) {
     };
   } else {
     responseData = {
-      relationId, phrase: sharedEventId ? ('Encontro no evento: ' + sharedEventName) : phrase, expiresAt, renewed: !!existing,
+      relationId, phrase: phrase, expiresAt, renewed: !!existing,
       sonicMatch: true, isCheckin, isServiceTouch,
       isEventMatch: !!sharedEventId, sharedEventId: sharedEventId || null, sharedEventName: sharedEventName || null,
       eventId: eventId || sharedEventId || null, eventName: eventObj ? eventObj.name : (sharedEventName || null),
