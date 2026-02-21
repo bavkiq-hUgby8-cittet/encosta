@@ -313,11 +313,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-avatar-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:.35rem}
 .rv-avatar-img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.1);box-shadow:0 0 20px rgba(255,107,53,.15)}
 .rv-avatar-name{font-size:.65rem;color:rgba(255,255,255,.45);font-weight:400;letter-spacing:.04em;opacity:0;animation:rv-fi .6s ease 4.4s forwards}
-.rv-avatar-stars{position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;opacity:0;animation:rv-fi .6s ease 4.6s forwards}
-.rv-star-dot{position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(255,215,0,.7);box-shadow:0 0 6px rgba(255,215,0,.5);animation:rv-star-twinkle 2s ease-in-out infinite alternate}
-@keyframes rv-star-twinkle{0%{opacity:.4;transform:translate(-50%,-50%) scale(.8)}100%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}}
-.rv-star-count{position:absolute;top:-38px;left:50%;transform:translateX(-50%);font-size:.5rem;color:rgba(255,215,0,.7);white-space:nowrap;opacity:0;animation:rv-fi .6s ease 4.8s forwards;font-weight:600}
-.rv-plus-badge{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;z-index:4;box-shadow:0 0 8px rgba(59,130,246,.5);font-size:.5rem;color:#fff;font-weight:800;letter-spacing:-.02em;opacity:0;animation:rv-fi .6s ease 4s forwards}
+.rv-avatar-inner{position:relative;width:56px;height:56px}
+.rv-avatar-stars{position:absolute;inset:0;pointer-events:none;opacity:0;animation:rv-fi .6s ease 4.6s forwards}
+.rv-star-dot{position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(255,215,0,.8);box-shadow:0 0 6px rgba(255,215,0,.5);animation:rv-star-twinkle 2s ease-in-out infinite alternate}
+@keyframes rv-star-twinkle{0%{opacity:.5;transform:translate(-50%,-50%) scale(.8)}100%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}}
+.rv-star-count{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:.5rem;color:rgba(255,215,0,.8);white-space:nowrap;opacity:0;animation:rv-fi .6s ease 4.8s forwards;font-weight:700}
+.rv-plus-badge{position:absolute;bottom:-1px;right:-1px;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;z-index:4;box-shadow:0 0 8px rgba(59,130,246,.6);font-size:.55rem;color:#fff;font-weight:800;opacity:0;animation:rv-fi .6s ease 4s forwards}
 .rv-connection-symbol{display:flex;align-items:center;padding:0 .2rem}
 .rv-connection-dot{width:4px;height:4px;border-radius:50%;background:rgba(255,107,53,.5);box-shadow:0 0 8px rgba(255,107,53,.3)}
 /* Moment label */
@@ -1247,14 +1248,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="rv-sub">essa é a marca desse encontro</div>
       <div class="rv-avatars" id="revealAvatars">
         <div class="rv-avatar-wrap" id="rvAvatarMe">
-          <div id="rvAvatarMeInner"></div>
+          <div class="rv-avatar-inner" id="rvAvatarMeInner"></div>
           <div class="rv-avatar-name" id="rvNameMe"></div>
         </div>
         <div class="rv-connection-symbol">
           <div class="rv-connection-dot"></div>
         </div>
         <div class="rv-avatar-wrap" id="rvAvatarThem">
-          <div id="rvAvatarThemInner"></div>
+          <div class="rv-avatar-inner" id="rvAvatarThemInner"></div>
           <div class="rv-avatar-name" id="rvNameThem"></div>
         </div>
       </div>
@@ -3831,37 +3832,37 @@ function doReveal(data){
   $('rvNameThem').textContent=them.realName||them.name||'?';
   // Stars orbiting around nodes + plus badge
   const myStars=me.stars||0;const theirStars=them.stars||0;
-  const meWrap=$('rvAvatarMe');const themWrap=$('rvAvatarThem');
+  const meInner=$('rvAvatarMeInner');const themInner=$('rvAvatarThemInner');
   // Remove old stars/badges if any
-  meWrap.querySelectorAll('.rv-avatar-stars,.rv-star-count,.rv-plus-badge').forEach(e=>e.remove());
-  themWrap.querySelectorAll('.rv-avatar-stars,.rv-star-count,.rv-plus-badge').forEach(e=>e.remove());
-  function addOrbitStars(wrap,count){
+  meInner.querySelectorAll('.rv-avatar-stars,.rv-star-count,.rv-plus-badge').forEach(e=>e.remove());
+  themInner.querySelectorAll('.rv-avatar-stars,.rv-star-count,.rv-plus-badge').forEach(e=>e.remove());
+  function addOrbitStars(inner,count){
     if(count<=0)return;
-    const orbitR=32;// radius around 56px avatar (28px radius + 4px gap)
-    const maxDots=Math.min(count,16);
+    const cx=28,cy=28;// center of 56x56 avatar
+    const orbitR=33;// orbit radius (28 + 5 gap)
+    const maxDots=Math.min(count,14);
     const container=document.createElement('div');container.className='rv-avatar-stars';
     for(let i=0;i<maxDots;i++){
       const angle=(i/Math.max(maxDots,10))*Math.PI*2-Math.PI/2;
-      const dx=Math.cos(angle)*orbitR;
-      const dy=Math.sin(angle)*orbitR;
+      const dx=cx+Math.cos(angle)*orbitR;
+      const dy=cy+Math.sin(angle)*orbitR;
       const dot=document.createElement('div');dot.className='rv-star-dot';
       dot.style.left=dx+'px';dot.style.top=dy+'px';
       dot.style.transform='translate(-50%,-50%)';
-      dot.style.animationDelay=(i*0.15)+'s';
+      dot.style.animationDelay=(i*0.12)+'s';
       container.appendChild(dot);
     }
-    wrap.style.position='relative';
-    wrap.appendChild(container);
+    inner.appendChild(container);
     if(count>3){
       const lbl=document.createElement('div');lbl.className='rv-star-count';
-      lbl.textContent='★ '+count;wrap.appendChild(lbl);
+      lbl.textContent='★ '+count;inner.appendChild(lbl);
     }
   }
-  addOrbitStars(meWrap,myStars);
-  addOrbitStars(themWrap,theirStars);
+  addOrbitStars(meInner,myStars);
+  addOrbitStars(themInner,theirStars);
   // Plus badge (verified)
-  if(myVerified){const b=document.createElement('div');b.className='rv-plus-badge';b.textContent='+';meWrap.querySelector('#rvAvatarMeInner').style.position='relative';meWrap.querySelector('#rvAvatarMeInner').appendChild(b)}
-  if(theirVerified){const b=document.createElement('div');b.className='rv-plus-badge';b.textContent='+';themWrap.querySelector('#rvAvatarThemInner').style.position='relative';themWrap.querySelector('#rvAvatarThemInner').appendChild(b)}
+  if(myVerified){const b=document.createElement('div');b.className='rv-plus-badge';b.textContent='+';meInner.appendChild(b)}
+  if(theirVerified){const b=document.createElement('div');b.className='rv-plus-badge';b.textContent='+';themInner.appendChild(b)}
 
   // Detect special modes
   const isService=!!data.isServiceTouch;
@@ -4184,168 +4185,171 @@ async function shareConnection(){
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const c=cv.getContext('2d');
 
-  // Background — deep dark with subtle gradient
-  const bg=c.createRadialGradient(W/2,H*0.38,0,W/2,H*0.38,H*0.7);
-  bg.addColorStop(0,'#0a0a14');bg.addColorStop(0.5,'#060610');bg.addColorStop(1,'#020206');
+  // Background — deep dark with gradient
+  const bg=c.createRadialGradient(W/2,H*0.35,0,W/2,H*0.35,H*0.7);
+  bg.addColorStop(0,'#0c0c1a');bg.addColorStop(0.5,'#060610');bg.addColorStop(1,'#020206');
   c.fillStyle=bg;c.fillRect(0,0,W,H);
-
-  // Subtle stars
-  for(let i=0;i<80;i++){
-    const sx=Math.random()*W,sy=Math.random()*H;
-    const sr=0.5+Math.random()*1.5;
+  // Stars
+  for(let i=0;i<100;i++){
+    const sx=Math.random()*W,sy=Math.random()*H,sr=0.5+Math.random()*1.5;
     c.beginPath();c.arc(sx,sy,sr,0,Math.PI*2);
-    c.fillStyle='rgba(255,255,255,'+(0.1+Math.random()*0.25)+')';c.fill();
+    c.fillStyle='rgba(255,255,255,'+(0.08+Math.random()*0.2)+')';c.fill();
   }
-
-  // Glow behind avatars area
-  const glow=c.createRadialGradient(W/2,H*0.38,0,W/2,H*0.38,300);
-  glow.addColorStop(0,'rgba(255,107,53,.08)');glow.addColorStop(0.5,'rgba(255,60,110,.04)');glow.addColorStop(1,'transparent');
+  // Warm glow behind avatars
+  const glow=c.createRadialGradient(W/2,H*0.35,0,W/2,H*0.35,350);
+  glow.addColorStop(0,'rgba(255,107,53,.1)');glow.addColorStop(0.5,'rgba(255,60,110,.05)');glow.addColorStop(1,'transparent');
   c.fillStyle=glow;c.fillRect(0,0,W,H);
 
-  // Helper: draw circle avatar
-  function drawAvatar(img,cx,cy,r){
+  // Helper: draw avatar with color fallback
+  function drawAvatar(img,cx,cy,r,name,color){
     if(img&&img.naturalWidth){
       const iw=img.naturalWidth,ih=img.naturalHeight;
       const side=Math.min(iw,ih);
-      const sx=(iw-side)/2,sy2=(ih-side)/2;
+      const sxx=(iw-side)/2,syy=(ih-side)/2;
       c.save();c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.clip();
-      c.drawImage(img,sx,sy2,side,side,cx-r,cy-r,r*2,r*2);c.restore();
+      c.drawImage(img,sxx,syy,side,side,cx-r,cy-r,r*2,r*2);c.restore();
     }else{
-      // Gradient circle with initial
-      const g=c.createRadialGradient(cx-r*0.3,cy-r*0.3,0,cx,cy,r);
-      g.addColorStop(0,'rgba(255,255,255,.15)');g.addColorStop(1,'rgba(255,255,255,.04)');
+      // Color gradient circle with initials
+      const col=color||'hsl(220,65%,45%)';
+      const g=c.createRadialGradient(cx-r*0.25,cy-r*0.25,0,cx,cy,r);
+      g.addColorStop(0,'rgba(120,140,180,.4)');g.addColorStop(1,'rgba(40,50,80,.6)');
       c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=g;c.fill();
+      // Initial
+      const init=name?(name.trim().split(/\s+/).length>1?(name.trim()[0]+name.trim().split(/\s+/)[1][0]):name.slice(0,2)).toUpperCase():'?';
+      c.font='bold 48px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.6)';
+      c.textAlign='center';c.textBaseline='middle';c.fillText(init,cx,cy+2);
     }
     // Ring
     c.beginPath();c.arc(cx,cy,r+3,0,Math.PI*2);
-    c.strokeStyle='rgba(255,107,53,.5)';c.lineWidth=2;c.stroke();
-    // Outer glow
-    c.beginPath();c.arc(cx,cy,r+6,0,Math.PI*2);
-    c.strokeStyle='rgba(255,107,53,.15)';c.lineWidth=4;c.stroke();
+    c.strokeStyle='rgba(255,107,53,.5)';c.lineWidth=2.5;c.stroke();
+    c.beginPath();c.arc(cx,cy,r+7,0,Math.PI*2);
+    c.strokeStyle='rgba(255,107,53,.12)';c.lineWidth=5;c.stroke();
   }
-
-  // Helper: draw orbiting star dots
+  // Helper: orbiting stars
   function drawStars(cx,cy,r,count){
     if(!count||count<=0)return;
-    const orbitR=r+10;const maxDots=Math.min(count,16);
+    const orbitR=r+12;const maxDots=Math.min(count,14);
     for(let i=0;i<maxDots;i++){
       const a=(i/Math.max(maxDots,10))*Math.PI*2-Math.PI/2;
       const dx=cx+Math.cos(a)*orbitR,dy=cy+Math.sin(a)*orbitR;
-      c.beginPath();c.arc(dx,dy,3,0,Math.PI*2);
-      c.fillStyle='rgba(255,215,0,.7)';c.fill();
-      c.beginPath();c.arc(dx,dy,5,0,Math.PI*2);
-      c.fillStyle='rgba(255,215,0,.15)';c.fill();
+      c.beginPath();c.arc(dx,dy,3.5,0,Math.PI*2);c.fillStyle='rgba(255,215,0,.75)';c.fill();
+      c.beginPath();c.arc(dx,dy,6,0,Math.PI*2);c.fillStyle='rgba(255,215,0,.12)';c.fill();
     }
     if(count>3){
-      c.font='bold 24px Inter,sans-serif';c.fillStyle='rgba(255,215,0,.7)';
-      c.textAlign='center';c.textBaseline='middle';
-      c.fillText('★ '+count,cx,cy-r-28);
+      c.font='bold 26px Inter,sans-serif';c.fillStyle='rgba(255,215,0,.8)';
+      c.textAlign='center';c.textBaseline='middle';c.fillText('★ '+count,cx,cy-r-30);
     }
   }
-
-  // Helper: draw plus badge
+  // Helper: plus badge
   function drawPlus(cx,cy,r){
-    const bx=cx+r*0.65,by=cy+r*0.65,br=16;
+    const bx=cx+r*0.62,by=cy+r*0.62,br=18;
     const pg=c.createLinearGradient(bx-br,by-br,bx+br,by+br);
     pg.addColorStop(0,'#06b6d4');pg.addColorStop(0.5,'#3b82f6');pg.addColorStop(1,'#8b5cf6');
     c.beginPath();c.arc(bx,by,br,0,Math.PI*2);c.fillStyle=pg;c.fill();
-    c.font='bold 18px Inter,sans-serif';c.fillStyle='#fff';
+    c.font='bold 20px Inter,sans-serif';c.fillStyle='#fff';
     c.textAlign='center';c.textBaseline='middle';c.fillText('+',bx,by);
   }
 
-  // Load avatar images
+  // Load images — try DOM first (already loaded), then fetch
+  function grabDomImg(sel){
+    const el=document.querySelector(sel+' img.rv-avatar-img');
+    if(el&&el.naturalWidth&&el.complete)return el;
+    return null;
+  }
   function loadImg(src){
     return new Promise(ok=>{
       if(!src){ok(null);return}
       const im=new Image();im.crossOrigin='anonymous';
-      im.onload=()=>ok(im);im.onerror=()=>ok(null);im.src=src;
+      im.onload=()=>ok(im);
+      im.onerror=()=>{
+        // Retry without crossOrigin (won't taint canvas but at least renders)
+        const im2=new Image();im2.onload=()=>ok(im2);im2.onerror=()=>ok(null);im2.src=src;
+      };
+      im.src=src;
     });
   }
   const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;
   const theirPhoto=them.profilePhoto||them.photoURL;
-  const [myImg,theirImg]=await Promise.all([loadImg(myPhoto),loadImg(theirPhoto)]);
+  // Try DOM images first (these are already loaded and rendered)
+  let myImg=grabDomImg('#rvAvatarMeInner');
+  let theirImg=grabDomImg('#rvAvatarThemInner');
+  // If not in DOM, load fresh
+  if(!myImg)myImg=await loadImg(myPhoto);
+  if(!theirImg)theirImg=await loadImg(theirPhoto);
+
+  // Layout
+  const avR=90;
+  const avY=H*0.33;
+  const avSpacing=155;
+
+  // Moment text (above avatars)
+  const momentText=$('revealMoment')?.textContent||'algo nasceu entre vocês';
+  c.font='500 28px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.35)';
+  c.textAlign='center';c.textBaseline='middle';c.letterSpacing='0.2em';
+  c.fillText(momentText.toUpperCase(),W/2,avY-avR-70);
 
   // Draw avatars
-  const avR=80;
-  const avY=H*0.36;
-  const avSpacing=140;
-  drawAvatar(myImg,W/2-avSpacing,avY,avR);
-  drawAvatar(theirImg,W/2+avSpacing,avY,avR);
-
+  drawAvatar(myImg,W/2-avSpacing,avY,avR,me.name||'?',me.color);
+  drawAvatar(theirImg,W/2+avSpacing,avY,avR,them.name||'?',them.color);
   // Stars
   drawStars(W/2-avSpacing,avY,avR,me.stars||0);
   drawStars(W/2+avSpacing,avY,avR,them.stars||0);
-
   // Plus badges
   if(me.verified)drawPlus(W/2-avSpacing,avY,avR);
   if(them.verified)drawPlus(W/2+avSpacing,avY,avR);
 
-  // Connection line between avatars
-  const lineY=avY;
-  const x1=W/2-avSpacing+avR+12,x2=W/2+avSpacing-avR-12;
-  // Glow
-  c.beginPath();c.moveTo(x1,lineY);c.lineTo(x2,lineY);
-  c.strokeStyle='rgba(255,107,53,.3)';c.lineWidth=6;c.lineCap='round';c.stroke();
-  // Core
-  c.beginPath();c.moveTo(x1,lineY);c.lineTo(x2,lineY);
-  c.strokeStyle='rgba(255,107,53,.7)';c.lineWidth=1.5;c.stroke();
-  // Center dot
-  c.beginPath();c.arc(W/2,lineY,5,0,Math.PI*2);
-  c.fillStyle='rgba(255,107,53,.8)';c.fill();
-  c.beginPath();c.arc(W/2,lineY,10,0,Math.PI*2);
-  c.fillStyle='rgba(255,107,53,.15)';c.fill();
+  // Connection line
+  const x1=W/2-avSpacing+avR+14,x2=W/2+avSpacing-avR-14;
+  c.beginPath();c.moveTo(x1,avY);c.lineTo(x2,avY);
+  c.strokeStyle='rgba(255,107,53,.25)';c.lineWidth=6;c.lineCap='round';c.stroke();
+  c.beginPath();c.moveTo(x1,avY);c.lineTo(x2,avY);
+  c.strokeStyle='rgba(255,107,53,.6)';c.lineWidth=1.5;c.stroke();
+  c.beginPath();c.arc(W/2,avY,6,0,Math.PI*2);c.fillStyle='rgba(255,107,53,.7)';c.fill();
 
-  // Names below avatars
-  c.font='500 28px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
-  c.fillStyle='rgba(255,255,255,.5)';
-  c.fillText(me.name||me.realName||'?',W/2-avSpacing,avY+avR+24);
-  c.fillText(them.name||them.realName||'?',W/2+avSpacing,avY+avR+24);
+  // Names
+  c.font='500 32px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
+  c.fillStyle='rgba(255,255,255,.6)';
+  c.fillText(me.name||me.realName||'?',W/2-avSpacing,avY+avR+28);
+  c.fillText(them.name||them.realName||'?',W/2+avSpacing,avY+avR+28);
 
-  // Moment text
-  const momentText=$('revealMoment')?.textContent||'algo nasceu entre vocês';
-  c.font='400 26px "Orbitron",Inter,sans-serif';c.fillStyle='rgba(255,255,255,.3)';
-  c.letterSpacing='0.25em';c.textAlign='center';c.textBaseline='middle';
-  c.fillText(momentText.toUpperCase(),W/2,avY-avR-80);
-
-  // Phrase
+  // Phrase (center of card)
   const phrase=d.phrase||'';
   if(phrase){
-    c.font='italic 300 42px Inter,Georgia,serif';c.fillStyle='rgba(255,255,255,.75)';
+    c.font='italic 300 46px Georgia,Inter,serif';c.fillStyle='rgba(255,255,255,.8)';
     c.textAlign='center';c.textBaseline='top';
-    // Word wrap
     const words=phrase.split(' ');let lines=[];let line='';
     for(const w of words){
       const test=line?line+' '+w:w;
-      if(c.measureText(test).width>W-160){lines.push(line);line=w}
+      if(c.measureText(test).width>W-180){lines.push(line);line=w}
       else line=test;
     }
     if(line)lines.push(line);
-    const lineH=56;const startY=avY+avR+100;
+    const lineH=62;const startY=avY+avR+110;
     lines.forEach((l,i)=>{c.fillText(l,W/2,startY+i*lineH)});
   }
 
-  // Zodiac phrase if present
+  // Zodiac
   const zPhrase=d.zodiacPhrase||'';
   if(zPhrase){
-    c.font='300 28px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.25)';
-    c.textAlign='center';c.fillText(zPhrase,W/2,H*0.62);
+    c.font='italic 300 28px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.3)';
+    c.textAlign='center';c.fillText(zPhrase,W/2,H*0.60);
   }
 
-  // Brand watermark
-  c.font='900 64px "Orbitron",Inter,sans-serif';c.fillStyle='rgba(255,255,255,.04)';
-  c.textAlign='center';c.textBaseline='middle';c.fillText('Touch?',W/2,H*0.78);
-
-  // Small brand + tagline at bottom
-  c.font='700 30px "Orbitron",Inter,sans-serif';c.fillStyle='rgba(255,255,255,.2)';
-  c.fillText('Touch?',W/2,H-160);
-  c.font='300 20px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.12)';
-  c.fillText('tudo nasce no gesto',W/2,H-120);
+  // ── Bottom brand area (readable) ──
+  // Subtle line separator
+  c.beginPath();c.moveTo(W*0.3,H-220);c.lineTo(W*0.7,H-220);
+  c.strokeStyle='rgba(255,255,255,.06)';c.lineWidth=1;c.stroke();
+  // Brand
+  c.font='800 42px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.5)';
+  c.textAlign='center';c.textBaseline='middle';c.fillText('Touch?',W/2,H-160);
+  // Tagline
+  c.font='300 24px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.3)';
+  c.fillText('tudo nasce no gesto',W/2,H-115);
 
   // Convert to blob and share
   cv.toBlob(async blob=>{
     if(!blob)return showToast('Erro ao gerar imagem');
     const file=new File([blob],'touch-conexao.png',{type:'image/png'});
-    // Try Web Share API (works on iOS Safari, Android Chrome)
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       try{
         await navigator.share({files:[file],title:'Touch? — conexão',text:phrase||'Uma conexão nasceu'});
@@ -4353,7 +4357,6 @@ async function shareConnection(){
         if(e.name!=='AbortError')showToast('Compartilhamento cancelado');
       }
     }else{
-      // Fallback: download
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');a.href=url;a.download='touch-conexao.png';
       document.body.appendChild(a);a.click();document.body.removeChild(a);
