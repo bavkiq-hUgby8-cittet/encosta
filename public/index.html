@@ -1372,6 +1372,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <div class="cd-name" id="cdName"></div>
         <div class="cd-alias" id="cdAlias"></div>
         <div class="cd-stats" id="cdStats"></div>
+        <div class="cd-profile-tags" id="cdProfileTags" style="display:none;flex-wrap:wrap;gap:.3rem;margin-top:.3rem"></div>
         <div class="cd-anon-preview hidden" id="cdAnonPreview">
           <div class="cd-anon-ball" id="cdAnonBall"></div>
           <span class="cd-anon-nick" id="cdAnonNick"></span>
@@ -1963,6 +1964,9 @@ async function linkFirebaseToEncosta(user){
       showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
       state.userAccessory=d.user.avatarAccessory||null;
+      state.userProfession=d.user.profession||null;
+      state.userSports=d.user.sports||[];
+      state.userHobbies=d.user.hobbies||[];
       const _ha=$('homeAvatar');
       if(_ha&&state.userName){
         _ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory);
@@ -2940,6 +2944,9 @@ async function doRegister(){
       initSocket();requestAccelPermission();showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
       state.userAccessory=d.user.avatarAccessory||null;
+      state.userProfession=d.user.profession||null;
+      state.userSports=d.user.sports||[];
+      state.userHobbies=d.user.hobbies||[];
       const _ha=$('homeAvatar');if(_ha){
         _ha.innerHTML=makeAvatar(nick,d.user.color||nickColor(nick),40,state.userPhoto||null,false,state.userAccessory);
         _ha.style.background='none';_ha.style.overflow='visible';
@@ -4988,7 +4995,10 @@ function handleConstTap(tx,ty,W,H){
         starsCount:state.userStarsCount||0,score:state.userScore||0,
         partnerRevealedToMe:true,iRevealedToPartner:true,
         encounters:0,uniqueConnections:0,
-        avatarAccessory:state.userAccessory||null
+        avatarAccessory:state.userAccessory||null,
+        profession:state.userProfession||null,
+        sports:state.userSports||[],
+        hobbies:state.userHobbies||[]
       });
       haptic([15]);
       // Enter FP when clicking self too
@@ -5067,6 +5077,7 @@ function showConstDetail(node){
     metaEl.innerHTML=lastD?'<div class="cd-time"><span>'+timeAgo(lastD)+'</span></div>':'';
     $('cdActions').innerHTML='';
     $('cdAnonPreview').classList.add('hidden');
+    const _evTags=$('cdProfileTags');if(_evTags){_evTags.style.display='none';_evTags.innerHTML=''}
     $('cdDeclSection').classList.add('hidden');
     $('constDetail').classList.add('visible');
     return;
@@ -5156,6 +5167,18 @@ function showConstDetail(node){
   statParts.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexões</span>');
   if(likes>0)statParts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+likes+'</b> curtidas</span>');
   statsEl.innerHTML=statParts.join('<span class="cd-stat-sep">·</span>');
+  // Profile tags: profession, sports, hobbies
+  const tagsEl=$('cdProfileTags');
+  if(tagsEl){
+    const allTags=[];
+    if(node.profession)allTags.push({text:node.profession,icon:'💼',color:'rgba(99,102,241,.15)',border:'rgba(99,102,241,.3)',textColor:'#818cf8'});
+    (node.sports||[]).forEach(s=>allTags.push({text:s,icon:'⚡',color:'rgba(34,197,94,.1)',border:'rgba(34,197,94,.25)',textColor:'#4ade80'}));
+    (node.hobbies||[]).forEach(h=>allTags.push({text:h,icon:'✦',color:'rgba(251,146,60,.1)',border:'rgba(251,146,60,.25)',textColor:'#fb923c'}));
+    if(allTags.length>0){
+      tagsEl.innerHTML=allTags.map(t=>'<span style="display:inline-flex;align-items:center;gap:.2rem;padding:.2rem .5rem;border-radius:20px;font-size:.55rem;font-weight:600;background:'+t.color+';border:1px solid '+t.border+';color:'+t.textColor+'"><span style="font-size:.5rem">'+t.icon+'</span>'+esc(t.text)+'</span>').join('');
+      tagsEl.style.display='flex';
+    }else{tagsEl.style.display='none';tagsEl.innerHTML=''}
+  }
   // Meta section: time, social links, selfies
   const metaEl=$('cdMeta');
   let metaHtml='';

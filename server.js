@@ -1977,6 +1977,11 @@ app.get('/api/constellation/:userId', (req, res) => {
       whatsapp: iCanSeeThem ? (p.whatsapp || null) : null,
       giftsReceived: (db.gifts[p.id] || []).length,
       avatarAccessory: (other && other.avatarAccessory) || null,
+      // About me — public profile tags
+      profession: (other && other.profession) || null,
+      sports: (other && other.sports) || [],
+      hobbies: (other && other.hobbies) || [],
+      bio: iCanSeeThem ? ((other && other.bio) || null) : null,
       // Connection type flags based on actual encounter types (not user profile)
       isServiceConnection: p.serviceEncounters > 0 && p.personalEncounters === 0, // ONLY service encounters
       hasServiceEncounters: p.serviceEncounters > 0,
