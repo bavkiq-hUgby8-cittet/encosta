@@ -1371,7 +1371,7 @@ function addNodeToCanvas(d,instant){
   const x=cx+Math.cos(angle)*dist;
   const y=cy+Math.sin(angle)*dist;
   const baseR=16+Math.min(stars*.5,10);
-  const n={x,y,vx:0,vy:0,r:instant?baseR:0,targetR:baseR,color:d.color||nickColor(d.nickname||'?'),name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,entryAnim:instant?0:1,entryStartX:cvW/2,entryStartY:cvH/2,userId:d.userId||null,relationId:d.relationId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,score:d.score||0,timestamp:d.timestamp||Date.now(),orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,photoImg:null,photoLoaded:false};
+  const n={x:cvW/2,y:cvH/2-20,vx:0,vy:0,r:instant?baseR:0,targetR:baseR,color:d.color||nickColor(d.nickname||'?'),name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1.5,entryAnim:instant?0:1,entryT:0,entryDuration:2.2,entryStartAngle:angle-Math.PI*3,entryTargetAngle:angle,entryStartDist:0,entryTargetDist:dist,userId:d.userId||null,relationId:d.relationId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,score:d.score||0,timestamp:d.timestamp||Date.now(),orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0003+stars*0.00005,photoImg:null,photoLoaded:false};
   // Pre-load profile photo if revealed
   if(n.revealed&&n.profilePhoto){
     const img=new Image();img.crossOrigin='anonymous';
@@ -1435,10 +1435,12 @@ function renderCanvas(){
   [.12,.28,.52,.72].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.setLineDash([3,6]);c.stroke();c.setLineDash([])});
   // Orbital node movement + connection lines
   nodes.forEach(n=>{if(n.r<1)return;
-    if(n._tierDist!==undefined)n.orbitDist=n._tierDist;
-    n.orbitAngle+=n.orbitSpeed;
-    n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
-    n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
+    if(n._tierDist!==undefined){n.orbitDist=n._tierDist;n.entryTargetDist=n._tierDist}
+    if(n.entryAnim<=0){
+      n.orbitAngle+=n.orbitSpeed;
+      n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
+      n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
+    }
     // Connection line to center
     const la=.05+Math.sin(t*.8+n.phase)*.025;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.6;c.stroke();
     // Traveling dot
@@ -1467,20 +1469,54 @@ function renderCanvas(){
   // Pulse ring when active
   if(homeSonicActive){const pa=.15+Math.sin(t*3)*.1;c.beginPath();c.arc(cx,cy,cs+6+Math.sin(t*2)*3,0,Math.PI*2);c.strokeStyle='rgba(96,165,250,'+pa+')';c.lineWidth=1;c.stroke()}
   // ── PERSON NODES ──
-  nodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.4);const pulse=1+Math.sin(t*1.2+n.phase)*.03;const r=n.r*pulse;
-    // Entry animation
+  nodes.forEach(n=>{
+    const pulse=1+Math.sin(t*1.2+n.phase)*.03;
+    // ── ENTRY ANIMATION: spiral from center to orbit ──
     if(n.entryAnim>0){
-      n.entryAnim=Math.max(0,n.entryAnim-.008);
-      const ea=n.entryAnim;
-      const tx=n.entryStartX+(n.x-n.entryStartX)*(1-ea);
-      const ty=n.entryStartY+(n.y-n.entryStartY)*(1-ea);
-      const fontSize=10+ea*18;
-      c.save();c.globalAlpha=Math.min(1,ea*2);
-      c.font='700 '+fontSize+'px Inter';c.textAlign='center';c.textBaseline='middle';
-      c.shadowColor=n.color;c.shadowBlur=25*ea;
-      c.fillStyle='#fff';c.fillText(n.name,tx,ty);
-      c.restore();
+      n.entryT=Math.min(1,n.entryT+0.016/n.entryDuration);
+      // Ease-out cubic for smooth deceleration
+      const ease=1-Math.pow(1-n.entryT,3);
+      // Spiral: angle sweeps fast at start, slows to final position
+      const angleSweep=n.entryStartAngle+(n.entryTargetAngle-n.entryStartAngle)*ease;
+      // Distance: starts at 0 (center), expands to orbit
+      const distSweep=n.entryStartDist+(n.entryTargetDist-n.entryStartDist)*ease;
+      // Position on spiral
+      n.x=cx+Math.cos(angleSweep)*distSweep;
+      n.y=cy+Math.sin(angleSweep)*distSweep;
+      // Radius grows from 0 to full
+      n.r=n.targetR*Math.min(1,ease*1.3);
+      // Glow decays
+      n.glow=1.5*(1-ease);
+      if(n.entryT>=1){n.entryAnim=0;n.r=n.targetR;n.orbitAngle=n.entryTargetAngle;n.glow=0}
+      // Trail particles behind the spiraling node
+      if(ease<0.9&&Math.random()>.4){
+        const trailA=0.3*(1-ease);
+        c.beginPath();c.arc(n.x+(Math.random()-0.5)*6,n.y+(Math.random()-0.5)*6,1+Math.random()*2,0,Math.PI*2);
+        c.fillStyle=hexA(n.color,trailA);c.fill();
+      }
+      // Spiral trail line
+      if(ease>0.05&&ease<0.95){
+        c.save();c.globalAlpha=0.15*(1-ease);c.strokeStyle=n.color;c.lineWidth=1;c.beginPath();
+        const steps=20;for(let i=0;i<=steps;i++){
+          const iE=ease*(i/steps);const iEase=1-Math.pow(1-iE,3);
+          const ia=n.entryStartAngle+(n.entryTargetAngle-n.entryStartAngle)*iEase;
+          const id=n.entryStartDist+(n.entryTargetDist-n.entryStartDist)*iEase;
+          const ix=cx+Math.cos(ia)*id;const iy=cy+Math.sin(ia)*id;
+          if(i===0)c.moveTo(ix,iy);else c.lineTo(ix,iy);
+        }c.stroke();c.restore();
+      }
+      // Name label during entry
+      if(ease>0.3){
+        c.save();c.globalAlpha=Math.min(1,(ease-0.3)*2);
+        c.font='700 9px Inter';c.textAlign='center';c.textBaseline='middle';
+        c.shadowColor=n.color;c.shadowBlur=12*(1-ease);
+        c.fillStyle='#fff';c.fillText(n.name,n.x,n.y-n.r-10);
+        c.restore();
+      }
+    }else{
+      if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.4);
     }
+    const r=n.r*pulse;
     // Glow effect
     if(n.glow>0){const gr=r*4*n.glow;const g=c.createRadialGradient(n.x,n.y,0,n.x,n.y,gr);g.addColorStop(0,hexA(n.color,.3*n.glow));g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(n.x,n.y,gr,0,Math.PI*2);c.fill();n.glow=Math.max(0,n.glow-.005)}
     // Top tag badge ABOVE node
