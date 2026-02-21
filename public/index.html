@@ -946,10 +946,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .co-canvas-el{position:absolute;inset:0;z-index:0}
 /* Text */
 .co-text{position:absolute;top:60%;left:50%;transform:translateX(-50%);z-index:6;font-family:'Orbitron',sans-serif;font-size:.58rem;font-weight:500;letter-spacing:.4em;text-transform:uppercase;opacity:0;color:rgba(160,210,255,.5);animation:co-text-in 1.5s ease 1.2s forwards;white-space:nowrap}
-.co-nick{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);z-index:4;font-family:'Orbitron',sans-serif;font-size:clamp(2.8rem,14vw,5.5rem);font-weight:900;letter-spacing:.1em;text-transform:uppercase;opacity:0;color:rgba(255,255,255,.035);animation:co-nick-in 3.5s ease 0.4s forwards;white-space:nowrap;pointer-events:none;text-shadow:0 0 80px rgba(150,200,255,.08)}
-.connecting-overlay.first .co-nick{color:rgba(255,140,60,.06);text-shadow:0 0 80px rgba(255,140,60,.1)}
-.connecting-overlay.renewed .co-nick{color:rgba(180,210,240,.05);text-shadow:0 0 80px rgba(150,200,255,.08)}
-@keyframes co-nick-in{0%{opacity:0;letter-spacing:.5em;filter:blur(24px)}15%{opacity:1;filter:blur(6px)}50%{letter-spacing:.15em;filter:blur(0)}85%{opacity:1}100%{opacity:.7;letter-spacing:.1em;filter:blur(0)}}
+.co-nick{position:absolute;bottom:18%;left:50%;transform:translateX(-50%);z-index:7;font-family:'Orbitron',sans-serif;font-size:clamp(1.4rem,7vw,2.8rem);font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:0;white-space:nowrap;pointer-events:none;padding:.45em 1.2em;border-radius:2em;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.06);box-shadow:0 0 30px rgba(100,180,255,.08),inset 0 0 20px rgba(100,180,255,.03);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:co-nick-in 2.5s ease 0.6s forwards}
+.connecting-overlay.first .co-nick{color:rgba(255,160,80,.85);border-color:rgba(255,130,50,.12);box-shadow:0 0 30px rgba(255,130,50,.1),inset 0 0 20px rgba(255,130,50,.04);text-shadow:0 0 20px rgba(255,130,50,.4)}
+.connecting-overlay.renewed .co-nick{color:rgba(180,210,240,.8);border-color:rgba(150,200,255,.1);box-shadow:0 0 30px rgba(150,200,255,.08),inset 0 0 20px rgba(150,200,255,.03);text-shadow:0 0 20px rgba(150,200,255,.3)}
+@keyframes co-nick-in{0%{opacity:0;letter-spacing:.4em;filter:blur(12px)}30%{opacity:1;filter:blur(2px)}60%{letter-spacing:.15em;filter:blur(0)}100%{opacity:1;letter-spacing:.12em;filter:blur(0)}}
 .co-brand{position:absolute;top:52%;left:50%;transform:translateX(-50%);z-index:5;font-family:'Orbitron',sans-serif;font-size:1.8rem;font-weight:900;letter-spacing:.15em;text-transform:uppercase;opacity:0;color:rgba(255,255,255,.04);animation:co-brand-in 2s ease 0.8s forwards;white-space:nowrap;pointer-events:none}
 @keyframes co-brand-in{0%{opacity:0;letter-spacing:.6em;filter:blur(12px)}60%{opacity:1;filter:blur(0)}100%{opacity:1;letter-spacing:.15em;filter:blur(0)}}
 .connecting-overlay.first .co-brand{color:rgba(255,140,60,.06)}
@@ -3532,63 +3532,22 @@ function startElectricTouch(isRenewed,partnerName){
     });
   }
 
-  // Nick protection zone: vertical strip in center where beams split
-  // The nick is rotated -90deg, so it's a tall narrow vertical column
-  const hasNick=!!(partnerName&&partnerName.length>0);
-  const nickZoneW=hasNick?W*0.18:0; // width of the gap
-  const nickZoneL=W/2-nickZoneW/2;  // left edge of gap
-  const nickZoneR=W/2+nickZoneW/2;  // right edge of gap
-  const nickFade=hasNick?W*0.06:0;  // fade/glow width at edges
-
-  function drawBeamStrip(x0,x1,y,th,colorRGB,alpha){
-    if(x1<=x0)return;
-    const g=ctx.createLinearGradient(0,y-th,0,y+th);
-    g.addColorStop(0,'transparent');
-    g.addColorStop(0.3,'rgba('+colorRGB+','+alpha+')');
-    g.addColorStop(0.5,'rgba('+colorRGB+','+(alpha*1.8)+')');
-    g.addColorStop(0.7,'rgba('+colorRGB+','+alpha+')');
-    g.addColorStop(1,'transparent');
-    ctx.fillStyle=g;ctx.fillRect(x0,y-th,x1-x0,th*2);
-  }
-
   function drawBeam(y,tubeH,breathe,intensity){
     const th=tubeH*breathe;
-    if(!hasNick){
-      // No nick — full width beams (original)
-      drawBeamStrip(0,W,y,th*2.5,C.a,0.05*intensity);
-      drawBeamStrip(0,W,y,th,C.m,0.08*intensity);
-      drawBeamStrip(0,W,y,th*0.3,C.c,0.15*intensity);
-      // Hot wire
-      const g4=ctx.createLinearGradient(0,y-1.5,0,y+1.5);
-      g4.addColorStop(0,'transparent');g4.addColorStop(0.5,'rgba('+C.h+','+(0.25*intensity)+')');g4.addColorStop(1,'transparent');
-      ctx.fillStyle=g4;ctx.fillRect(0,y-1.5,W,3);
-    }else{
-      // Split beams: left side + right side with gap around nick
-      // LEFT HALF
-      drawBeamStrip(0,nickZoneL+nickFade,y,th*2.5,C.a,0.05*intensity);
-      drawBeamStrip(0,nickZoneL+nickFade*0.5,y,th,C.m,0.08*intensity);
-      drawBeamStrip(0,nickZoneL,y,th*0.3,C.c,0.15*intensity);
-      // LEFT hot wire
-      ctx.fillStyle='rgba('+C.h+','+(0.25*intensity)+')';
-      ctx.fillRect(0,y-0.8,nickZoneL,1.6);
-      // RIGHT HALF
-      drawBeamStrip(nickZoneR-nickFade,W,y,th*2.5,C.a,0.05*intensity);
-      drawBeamStrip(nickZoneR-nickFade*0.5,W,y,th,C.m,0.08*intensity);
-      drawBeamStrip(nickZoneR,W,y,th*0.3,C.c,0.15*intensity);
-      // RIGHT hot wire
-      ctx.fillStyle='rgba('+C.h+','+(0.25*intensity)+')';
-      ctx.fillRect(nickZoneR,y-0.8,W-nickZoneR,1.6);
-      // Edge glow where beams meet the nick zone — energy pooling effect
-      const edgeGlow=intensity*0.15;
-      // Left edge glow
-      const gL=ctx.createRadialGradient(nickZoneL,y,0,nickZoneL,y,th*1.5);
-      gL.addColorStop(0,'rgba('+C.c+','+edgeGlow+')');gL.addColorStop(1,'transparent');
-      ctx.fillStyle=gL;ctx.fillRect(nickZoneL-th*1.5,y-th*1.5,th*3,th*3);
-      // Right edge glow
-      const gR=ctx.createRadialGradient(nickZoneR,y,0,nickZoneR,y,th*1.5);
-      gR.addColorStop(0,'rgba('+C.c+','+edgeGlow+')');gR.addColorStop(1,'transparent');
-      ctx.fillStyle=gR;ctx.fillRect(nickZoneR-th*1.5,y-th*1.5,th*3,th*3);
-    }
+    // Full width beam layers
+    const g1=ctx.createLinearGradient(0,y-th*2.5,0,y+th*2.5);
+    g1.addColorStop(0,'transparent');g1.addColorStop(0.3,'rgba('+C.a+','+(0.05*intensity)+')');g1.addColorStop(0.5,'rgba('+C.a+','+(0.09*intensity)+')');g1.addColorStop(0.7,'rgba('+C.a+','+(0.05*intensity)+')');g1.addColorStop(1,'transparent');
+    ctx.fillStyle=g1;ctx.fillRect(0,y-th*2.5,W,th*5);
+    const g2=ctx.createLinearGradient(0,y-th,0,y+th);
+    g2.addColorStop(0,'transparent');g2.addColorStop(0.3,'rgba('+C.m+','+(0.08*intensity)+')');g2.addColorStop(0.5,'rgba('+C.m+','+(0.144*intensity)+')');g2.addColorStop(0.7,'rgba('+C.m+','+(0.08*intensity)+')');g2.addColorStop(1,'transparent');
+    ctx.fillStyle=g2;ctx.fillRect(0,y-th,W,th*2);
+    const g3=ctx.createLinearGradient(0,y-th*0.3,0,y+th*0.3);
+    g3.addColorStop(0,'transparent');g3.addColorStop(0.3,'rgba('+C.c+','+(0.15*intensity)+')');g3.addColorStop(0.5,'rgba('+C.c+','+(0.27*intensity)+')');g3.addColorStop(0.7,'rgba('+C.c+','+(0.15*intensity)+')');g3.addColorStop(1,'transparent');
+    ctx.fillStyle=g3;ctx.fillRect(0,y-th*0.3,W,th*0.6);
+    // Hot wire
+    const g4=ctx.createLinearGradient(0,y-1.5,0,y+1.5);
+    g4.addColorStop(0,'transparent');g4.addColorStop(0.5,'rgba('+C.h+','+(0.25*intensity)+')');g4.addColorStop(1,'transparent');
+    ctx.fillStyle=g4;ctx.fillRect(0,y-1.5,W,3);
   }
 
   function animate(){
@@ -3617,13 +3576,11 @@ function startElectricTouch(isRenewed,partnerName){
       if(b.y>H+b.tubeH*3) b.y=-b.tubeH*3-Math.random()*40;
       const breathe=1+Math.sin(t*b.breatheFreq+b.phase)*0.06;
       drawBeam(b.y,b.tubeH,breathe,globalIntensity);
-      // Flowing streaks on each beam (clipped around nick zone)
+      // Flowing streaks on each beam
       for(let i=0;i<2;i++){
         const sx=((t*90*(1+burstIntensity*4)+i*W/2)%(W+120))-60;
         const sLen=50+Math.sin(t*0.8+i)*20;
         const sy=b.y+Math.sin(t*1.2+i*1.3)*b.tubeH*breathe*0.2;
-        // Skip if streak overlaps nick zone
-        if(hasNick&&sx>nickZoneL-sLen&&sx<nickZoneR+sLen)continue;
         const sg=ctx.createLinearGradient(sx,sy,sx-sLen,sy);
         sg.addColorStop(0,'rgba('+C.p+','+(0.20*globalIntensity)+')');
         sg.addColorStop(0.5,'rgba('+C.p+','+(0.06*globalIntensity)+')');
@@ -3633,12 +3590,10 @@ function startElectricTouch(isRenewed,partnerName){
       }
     });
 
-    // ── Particles riding beams (skip nick zone) ──
+    // ── Particles riding beams ──
     particles.forEach(p=>{
       p.x+=p.vx*(1+burstIntensity*4);
       if(p.x>W+10)p.x=-10;
-      // Skip particles inside nick zone
-      if(hasNick&&p.x>nickZoneL-5&&p.x<nickZoneR+5)return;
       const b=beams[p.beamIdx%beamCount];
       const py=b.y+p.yOff*b.tubeH+Math.sin(t*0.6+p.phase)*b.tubeH*0.08;
       const fl=(p.a+Math.sin(t*2.5+p.phase)*0.1)*globalIntensity;
