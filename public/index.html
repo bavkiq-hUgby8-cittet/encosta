@@ -947,13 +947,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Text */
 .co-text{position:absolute;top:60%;left:50%;transform:translateX(-50%);z-index:6;font-family:'Orbitron',sans-serif;font-size:.58rem;font-weight:500;letter-spacing:.4em;text-transform:uppercase;opacity:0;color:rgba(160,210,255,.5);animation:co-text-in 1.5s ease 1.2s forwards;white-space:nowrap}
 .co-nick{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);z-index:4;font-family:'Orbitron',sans-serif;font-size:clamp(2.5rem,12vw,5rem);font-weight:900;letter-spacing:.08em;text-transform:uppercase;opacity:0;color:rgba(255,255,255,.035);animation:co-nick-in 3.5s ease 0.4s forwards;white-space:nowrap;pointer-events:none;text-shadow:0 0 60px rgba(150,200,255,.06)}
-.connecting-overlay.first .co-nick{color:rgba(180,210,240,.04);text-shadow:0 0 60px rgba(150,200,255,.06)}
-.connecting-overlay.renewed .co-nick{color:rgba(255,140,60,.04);text-shadow:0 0 60px rgba(255,140,60,.06)}
+.connecting-overlay.first .co-nick{color:rgba(255,140,60,.05);text-shadow:0 0 60px rgba(255,140,60,.08)}
+.connecting-overlay.renewed .co-nick{color:rgba(180,210,240,.04);text-shadow:0 0 60px rgba(150,200,255,.06)}
 @keyframes co-nick-in{0%{opacity:0;letter-spacing:.4em;filter:blur(20px)}15%{opacity:1;filter:blur(4px)}50%{letter-spacing:.12em;filter:blur(0)}85%{opacity:1}100%{opacity:.6;letter-spacing:.08em;filter:blur(0)}}
 .co-brand{position:absolute;top:52%;left:50%;transform:translateX(-50%);z-index:5;font-family:'Orbitron',sans-serif;font-size:1.8rem;font-weight:900;letter-spacing:.15em;text-transform:uppercase;opacity:0;color:rgba(255,255,255,.04);animation:co-brand-in 2s ease 0.8s forwards;white-space:nowrap;pointer-events:none}
 @keyframes co-brand-in{0%{opacity:0;letter-spacing:.6em;filter:blur(12px)}60%{opacity:1;filter:blur(0)}100%{opacity:1;letter-spacing:.15em;filter:blur(0)}}
-.connecting-overlay.first .co-brand{color:rgba(180,210,240,.06)}
-.connecting-overlay.renewed .co-brand{color:rgba(255,140,60,.06)}
+.connecting-overlay.first .co-brand{color:rgba(255,140,60,.06)}
+.connecting-overlay.renewed .co-brand{color:rgba(180,210,240,.06)}
 @keyframes co-text-in{0%{opacity:0;letter-spacing:.8em;filter:blur(8px)}100%{opacity:1;letter-spacing:.35em;filter:blur(0)}}
 /* Progress bar */
 .co-progress{position:absolute;top:calc(60% + 20px);left:50%;transform:translateX(-50%);width:100px;height:1px;background:rgba(100,180,255,.08);border-radius:1px;z-index:6;opacity:0;animation:co-prog-in .4s ease 1.5s forwards;overflow:hidden}
@@ -965,11 +965,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .connecting-overlay.active .co-flash{animation:co-fullflash 5.5s ease forwards}
 @keyframes co-fullflash{0%{opacity:0}4%{opacity:.6}7%{opacity:0}50%{opacity:.1}53%{opacity:0}100%{opacity:0}}
 /* Color themes */
-.connecting-overlay.first .co-flash{background:radial-gradient(circle at 50% 50%,rgba(100,200,255,.5),rgba(40,100,255,.2),transparent 60%)}
-.connecting-overlay.first .co-text{color:rgba(160,210,255,.6)}
-.connecting-overlay.renewed .co-flash{background:radial-gradient(circle at 50% 50%,rgba(255,130,50,.5),rgba(255,90,20,.2),transparent 60%)}
-.connecting-overlay.renewed .co-text{color:rgba(255,160,80,.6)}
-.connecting-overlay.renewed .co-progress-bar{background:linear-gradient(90deg,transparent,rgba(255,130,50,.8),transparent)}
+.connecting-overlay.first .co-flash{background:radial-gradient(circle at 50% 50%,rgba(255,130,50,.5),rgba(255,90,20,.2),transparent 60%)}
+.connecting-overlay.first .co-text{color:rgba(255,160,80,.6)}
+.connecting-overlay.first .co-progress-bar{background:linear-gradient(90deg,transparent,rgba(255,130,50,.8),transparent)}
+.connecting-overlay.renewed .co-flash{background:radial-gradient(circle at 50% 50%,rgba(100,200,255,.5),rgba(40,100,255,.2),transparent 60%)}
+.connecting-overlay.renewed .co-text{color:rgba(160,210,255,.6)}
 
 /* UTILS */
 .hidden{display:none!important}
@@ -987,7 +987,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="co-flash" id="coFlash"></div>
   <div class="co-nick" id="coNick"></div>
   <div class="co-brand">Touch?</div>
-  <div class="co-text" id="coText">algo está acontecendo</div>
+  <div class="co-text" id="coText">estabelecendo conexões...</div>
   <div class="co-progress"><div class="co-progress-bar"></div></div>
 </div>
 
@@ -3181,13 +3181,63 @@ async function handleMainButton(){
     const sampleRate=sonicMicCtx.sampleRate;
     const freqPerBin=sampleRate/SONIC_FFT_SIZE;
 
+    // 5. HEALTH CHECK — verify audio is actually working
+    // On mobile, mic stream can be "alive" but producing silence (dead tracks)
+    const _micTrack=sonicStream.getAudioTracks()[0];
+    if(!_micTrack||_micTrack.readyState==='ended'||!_micTrack.enabled){
+      console.warn('[sonic] Mic track dead on start, forcing reload');
+      stopHomeSonic();
+      showToast('Reiniciando microfone...');
+      setTimeout(()=>location.reload(),800);
+      return;
+    }
+    // Verify AudioContexts are running
+    if(sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running'){
+      console.warn('[sonic] AudioContext not running:',sonicEmitCtx.state,sonicMicCtx.state);
+      try{await sonicEmitCtx.resume();await sonicMicCtx.resume()}catch(e){}
+      // If still not running after resume, reload
+      if(sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running'){
+        stopHomeSonic();
+        showToast('Áudio travado, reiniciando...');
+        setTimeout(()=>location.reload(),800);
+        return;
+      }
+    }
+
     txt.textContent='TOUCHING...';
     sts.textContent='Encoste os alto-falantes 🔊';
     setTimeout(()=>{if(homeSonicActive){fb.classList.add('active');sts.textContent='Encoste os alto-falantes ou use código'}},10000);
 
+    // Delayed deep health check: after 3s verify mic is actually producing data
+    setTimeout(()=>{
+      if(!homeSonicActive||!sonicAnalyser)return;
+      const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
+      sonicAnalyser.getByteFrequencyData(testBuf);
+      // Check if we get ANY signal at all (sum > 0 means audio pipeline works)
+      let totalEnergy=0;
+      for(let i=0;i<testBuf.length;i++)totalEnergy+=testBuf[i];
+      // Also check mic track is still alive
+      const track=sonicStream&&sonicStream.getAudioTracks()[0];
+      const trackDead=!track||track.readyState==='ended'||!track.enabled;
+      const ctxBroken=sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running';
+      if(trackDead||ctxBroken){
+        console.warn('[sonic health] Audio broken after 3s. Track:',track?.readyState,'EmitCtx:',sonicEmitCtx.state,'MicCtx:',sonicMicCtx.state,'Energy:',totalEnergy);
+        stopHomeSonic();
+        showToast('Microfone travou, reiniciando...');
+        setTimeout(()=>location.reload(),800);
+      }
+    },3000);
+
     let confirmHits=0,lastSnapped=0,_dbgFrames=0,_sonicCooldown=0;
     function detect(){
       if(!sonicActive)return;
+      // Runtime health: if mic track died or AudioContext suspended mid-run → reload
+      const _rt=sonicStream&&sonicStream.getAudioTracks()[0];
+      if(!_rt||_rt.readyState==='ended'||sonicMicCtx.state!=='running'){
+        console.warn('[sonic detect] Audio died mid-run, reloading');
+        stopHomeSonic();showToast('Reconectando microfone...');
+        setTimeout(()=>location.reload(),600);return;
+      }
       // Cooldown after detection — wait for server response
       if(_sonicCooldown>0){_sonicCooldown--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
@@ -3228,8 +3278,16 @@ async function handleMainButton(){
     detect();
   }catch(e){
     console.error('Sonic error:',e);
-    sts.textContent=e.name==='NotAllowedError'?'Microfone negado.':'Erro: '+e.message;
-    fb.classList.add('active');
+    if(e.name==='NotAllowedError'){
+      sts.textContent='Microfone negado.';
+      fb.classList.add('active');
+    }else{
+      // Any other audio error (AbortError, InvalidStateError, etc.) → auto-reload
+      sts.textContent='Erro de áudio, reiniciando...';
+      stopHomeSonic();
+      setTimeout(()=>location.reload(),1200);
+      return;
+    }
   }
 }
 
@@ -3354,6 +3412,12 @@ async function initSonic(label,status,circle){
 
     function detect(){
       if(!sonicActive)return;
+      // Runtime health check
+      const _rt2=sonicStream&&sonicStream.getAudioTracks()[0];
+      if(!_rt2||_rt2.readyState==='ended'||sonicMicCtx.state!=='running'){
+        stopSonicMode();showToast('Microfone perdeu conexão, recarregando...');
+        setTimeout(()=>location.reload(),600);return;
+      }
       if(_sonicCooldown2>0){_sonicCooldown2--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
       const minBin=Math.floor(18000/freqPerBin);
@@ -3433,10 +3497,10 @@ function startElectricTouch(isRenewed,partnerName){
   cv.style.width=W+'px';cv.style.height=H+'px';
   const ctx=cv.getContext('2d');
   ctx.scale(dpr,dpr);
-  // Color palette — WHITE for new connection, ORANGE (Touch) for renewed
+  // Color palette — ORANGE (Touch) for first connection, WHITE for renewed
   const C=isRenewed
-    ?{a:'255,130,50',m:'255,110,30',c:'255,155,80',h:'255,200,160',p:'255,140,60'}
-    :{a:'210,220,240',m:'200,210,235',c:'230,238,250',h:'250,252,255',p:'220,230,245'};
+    ?{a:'210,220,240',m:'200,210,235',c:'230,238,250',h:'250,252,255',p:'220,230,245'}
+    :{a:'255,130,50',m:'255,110,30',c:'255,155,80',h:'255,200,160',p:'255,140,60'};
   const t0=performance.now();
 
   // ── ZEBRA BEAMS: fewer, taller, more spaced ──
