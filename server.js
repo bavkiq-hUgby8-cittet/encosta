@@ -5519,6 +5519,9 @@ app.post('/api/subscription/cancel', async (req, res) => {
 app.get('/operator', (req, res) => {
   res.sendFile(require('path').join(__dirname, 'public', 'operator.html'));
 });
+app.get('/restaurante', (req, res) => {
+  res.sendFile(require('path').join(__dirname, 'public', 'operator-restaurant.html'));
+});
 
 app.get('/api/operator/checkins/:userId', (req, res) => {
   const userId = req.params.userId;
