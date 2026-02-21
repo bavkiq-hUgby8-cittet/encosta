@@ -477,16 +477,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,rgba(12,12,18,.55) 0%,rgba(8,8,12,.75) 100%);backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);border-top:1px solid rgba(255,255,255,.12);border-left:1px solid rgba(255,255,255,.06);border-right:1px solid rgba(255,255,255,.06);border-radius:20px 20px 0 0;padding:0;padding-bottom:max(env(safe-area-inset-bottom),.6rem);opacity:0;transform:translateY(100%);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;max-height:60vh;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -4px 30px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08)}
 .const-detail.visible{opacity:1;transform:translateY(0);pointer-events:auto}
 .cd-handle{width:36px;height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin:8px auto 4px;cursor:grab;touch-action:none}
-/* Hero: centered avatar with orbiting stars */
-.cd-hero{display:flex;flex-direction:column;align-items:center;padding:.5rem .8rem .2rem;position:relative}
-.cd-avatar-wrap{position:relative;width:76px;height:76px;margin-bottom:.3rem}
+/* Hero: horizontal — avatar left, info right */
+.cd-hero{display:flex;flex-direction:row;align-items:center;padding:.6rem 1rem .3rem;gap:.8rem;position:relative}
+.cd-hero-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cd-avatar-wrap{position:relative;width:76px;height:76px;flex-shrink:0}
 .cd-avatar{width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;border:2.5px solid rgba(255,255,255,.1);overflow:hidden;position:relative;flex-shrink:0;box-shadow:0 0 20px rgba(99,102,241,.15),0 0 40px rgba(139,92,246,.08)}
 .cd-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
 .cd-stars-orbit{position:absolute;inset:-10px;pointer-events:none}
 .cd-orbit-star{position:absolute;font-size:.7rem;color:#fbbf24;filter:drop-shadow(0 0 6px rgba(251,191,36,.7)) drop-shadow(0 0 12px rgba(251,191,36,.3));animation:cdStarTwinkle 2s ease-in-out infinite alternate}
 @keyframes cdStarTwinkle{0%{opacity:.5;transform:scale(.85)}100%{opacity:1;transform:scale(1.15)}}
-.cd-name{font-size:1.05rem;font-weight:700;color:var(--t1);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:85%}
-.cd-alias{font-size:.72rem;color:var(--t3);margin-top:2px;text-align:center}
+.cd-name{font-size:1.05rem;font-weight:700;color:var(--t1);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cd-alias{font-size:.72rem;color:var(--t3);margin-top:1px;text-align:left}
 .cd-tag{display:inline-block;font-size:.55rem;font-weight:800;padding:2px 6px;border-radius:5px;color:#111;vertical-align:middle;margin-left:.3rem;text-transform:uppercase}
 .cd-close{position:absolute;top:.5rem;right:.6rem;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.06);border:none;color:var(--t3);font-size:.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:5}
 .cd-close:active{background:rgba(255,255,255,.12)}
@@ -494,8 +495,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-anon-ball{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:800;color:#fff;border:1.5px solid rgba(255,255,255,.1);opacity:.6;flex-shrink:0}
 .cd-anon-nick{font-size:.62rem;color:var(--t3);max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cd-anon-label{font-size:.5rem;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:.04em;margin-left:.1rem}
-/* Inline stats — single line */
-.cd-stats{display:flex;justify-content:center;gap:.15rem;padding:.15rem .8rem .1rem;flex-wrap:wrap}
+/* Inline stats — flows next to name */
+.cd-stats{display:flex;justify-content:flex-start;gap:.15rem;padding:.15rem 0 .05rem;flex-wrap:wrap}
 .cd-stat-inline{font-size:.72rem;color:var(--t3);display:inline-flex;align-items:center;gap:.15rem}
 .cd-stat-inline b{font-weight:700;color:var(--t1)}
 .cd-stat-sep{color:rgba(255,255,255,.12);font-size:.6rem}
@@ -1320,23 +1321,24 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-detail" id="constDetail">
     <div class="cd-handle" id="cdHandle"></div>
     <button class="cd-close" onclick="hideConstDetail()">✕</button>
-    <!-- Hero: compact avatar -->
+    <!-- Hero: horizontal — avatar left, info right -->
     <div class="cd-hero">
       <div class="cd-avatar-wrap">
         <div class="cd-avatar" id="cdAvatar"></div>
         <div class="cd-stars-orbit" id="cdStarsOrbit"></div>
         <div class="verified-badge hidden" id="cdVerifiedBadge" style="position:absolute;bottom:0;right:-2px;width:18px;height:18px"><svg viewBox="0 0 24 24"><path fill="url(#verifiedGrad)" d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg></div>
       </div>
-      <div class="cd-name" id="cdName"></div>
-      <div class="cd-alias" id="cdAlias"></div>
-      <div class="cd-anon-preview hidden" id="cdAnonPreview">
-        <div class="cd-anon-ball" id="cdAnonBall"></div>
-        <span class="cd-anon-nick" id="cdAnonNick"></span>
-        <span class="cd-anon-label">anônimo</span>
+      <div class="cd-hero-info">
+        <div class="cd-name" id="cdName"></div>
+        <div class="cd-alias" id="cdAlias"></div>
+        <div class="cd-stats" id="cdStats"></div>
+        <div class="cd-anon-preview hidden" id="cdAnonPreview">
+          <div class="cd-anon-ball" id="cdAnonBall"></div>
+          <span class="cd-anon-nick" id="cdAnonNick"></span>
+          <span class="cd-anon-label">anônimo</span>
+        </div>
       </div>
     </div>
-    <!-- Inline stats -->
-    <div class="cd-stats" id="cdStats"></div>
     <div class="cd-divider"></div>
     <!-- Meta: time, social, selfies -->
     <div class="cd-section" id="cdMeta"></div>
