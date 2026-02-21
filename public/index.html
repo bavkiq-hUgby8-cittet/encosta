@@ -2137,23 +2137,39 @@ async function loginWithGoogle(){
 
 // ═══ APPLE LOGIN ═══
 async function loginWithApple(){
+  const btn=document.querySelector('.login-apple');
+  const origText=btn?btn.innerHTML:'';
   try{
     $('loginErr').textContent='';
+    if(btn){btn.textContent='Conectando...';btn.disabled=true;}
+    if(!firebaseAuthInstance){
+      $('loginErr').textContent='Firebase não carregou. Recarregue a página.';
+      return;
+    }
     const provider=new firebase.auth.OAuthProvider('apple.com');
     provider.addScope('email');
     provider.addScope('name');
     provider.setCustomParameters({locale:'pt_BR'});
-    await firebaseAuthInstance.signInWithPopup(provider);
+    console.log('[apple] Calling signInWithPopup...');
+    const result=await firebaseAuthInstance.signInWithPopup(provider);
+    console.log('[apple] Login success:',result.user?.uid);
   }catch(e){
+    console.error('[apple] Login error:',e.code,e.message);
     if(e.code==='auth/popup-blocked'){
       try{
         const provider=new firebase.auth.OAuthProvider('apple.com');
         provider.addScope('email');provider.addScope('name');
         await firebaseAuthInstance.signInWithRedirect(provider);
-      }catch(e2){$('loginErr').textContent='Erro ao abrir Apple. Tente novamente.'}
+      }catch(e2){$('loginErr').textContent='Erro ao abrir Apple. Tente novamente.';}
+    }else if(e.code==='auth/operation-not-allowed'){
+      $('loginErr').textContent='Login com Apple não está ativado. Ative no Firebase Console > Authentication > Sign-in method > Apple.';
+    }else if(e.code==='auth/internal-error'){
+      $('loginErr').textContent='Apple Sign-In não configurado. Configure no Firebase Console.';
     }else if(e.code!=='auth/popup-closed-by-user'){
       $('loginErr').textContent='Erro Apple: '+(e.message||'tente novamente');
     }
+  }finally{
+    if(btn){btn.innerHTML=origText;btn.disabled=false;}
   }
 }
 
