@@ -3457,6 +3457,47 @@ app.get('/api/debug/photos/:userId', (req, res) => {
   res.json({ userId: req.params.userId, myNickname: me.nickname, totalPeople: people.length, report });
 });
 
+// Debug: show encounters + relations for a user
+app.get('/api/debug/constellation/:userId', (req, res) => {
+  const uid = req.params.userId;
+  const user = db.users[uid];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const encounters = db.encounters[uid] || [];
+  const relations = Object.values(db.relations).filter(r => r.userA === uid || r.userB === uid);
+  // Group encounters by partner
+  const byPartner = {};
+  encounters.forEach(e => {
+    if (!byPartner[e.with]) byPartner[e.with] = [];
+    byPartner[e.with].push({ type: e.type, date: e.date, isEvent: e.isEvent || false, timestamp: e.timestamp });
+  });
+  // Check which would be filtered as service-only
+  const serviceOnly = Object.entries(byPartner).filter(([pid, encs]) => {
+    const svc = encs.filter(e => e.type === 'service').length;
+    const pers = encs.filter(e => e.type !== 'service').length;
+    return svc > 0 && pers === 0;
+  }).map(([pid]) => pid);
+  res.json({
+    userId: uid,
+    nickname: user.nickname,
+    totalEncounters: encounters.length,
+    totalRelations: relations.length,
+    encountersByPartner: Object.entries(byPartner).map(([pid, encs]) => ({
+      partnerId: pid,
+      partnerName: (db.users[pid] || {}).nickname || '?',
+      encounters: encs.length,
+      types: encs.map(e => e.type),
+      isServiceOnly: serviceOnly.includes(pid)
+    })),
+    activeRelations: relations.filter(r => r.expiresAt > Date.now()).map(r => ({
+      id: r.id,
+      partner: r.userA === uid ? r.userB : r.userA,
+      partnerName: (db.users[r.userA === uid ? r.userB : r.userA] || {}).nickname || '?',
+      expiresAt: new Date(r.expiresAt).toISOString()
+    })),
+    serviceOnlyPartners: serviceOnly.map(pid => ({ id: pid, name: (db.users[pid] || {}).nickname || '?' }))
+  });
+});
+
 // ── LOCATION & EVENTS ──
 
 // Haversine distance in meters
