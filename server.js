@@ -2506,6 +2506,18 @@ app.post('/api/profile/update', async (req, res) => {
   if (email !== undefined && email.trim()) user.email = email.trim();
   if (cpf !== undefined && cpf.trim()) user.cpf = cpf.trim();
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
+
+  // Propagate photo update to all canSee entries (so revealed photos stay fresh)
+  if (profilePhoto !== undefined && user.revealedTo && user.revealedTo.length > 0) {
+    const freshPhoto = user.profilePhoto || user.photoURL || null;
+    user.revealedTo.forEach(targetId => {
+      const target = db.users[targetId];
+      if (target && target.canSee && target.canSee[userId]) {
+        target.canSee[userId].profilePhoto = freshPhoto;
+      }
+    });
+  }
+
   saveDB('users');
   res.json({ ok: true, user });
 });
