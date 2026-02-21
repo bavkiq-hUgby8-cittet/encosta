@@ -82,10 +82,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
   .op-sidebar.collapsed{width:100%;height:42px}
 }
 
-/* ═══ TOUCH BUTTON — positioned at bottom ═══ */
-.op-btn-area{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.6rem;z-index:3}
-@media(max-width:768px){.op-btn-area{bottom:calc(36vh + 30px)}}
-.be{width:clamp(130px,36vw,170px);height:clamp(130px,36vw,170px);border-radius:50%;background:rgba(255,107,53,.18);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:2px solid rgba(255,107,53,.35);color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 50px rgba(255,107,53,.12),0 0 100px rgba(255,107,53,.04),inset 0 0 30px rgba(255,107,53,.08),inset 0 1px 0 rgba(255,255,255,.12);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem}
+/* ═══ TOUCH BUTTON — positioned lower ═══ */
+.op-btn-area{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.6rem;z-index:3}
+@media(max-width:768px){.op-btn-area{bottom:calc(36vh + 14px)}}
+.be{width:clamp(100px,28vw,130px);height:clamp(100px,28vw,130px);border-radius:50%;background:rgba(255,107,53,.15);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1.5px solid rgba(255,107,53,.3);color:#fff;font-size:.85rem;font-weight:800;font-family:inherit;letter-spacing:.25em;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 40px rgba(255,107,53,.1),0 0 80px rgba(255,107,53,.03),inset 0 0 20px rgba(255,107,53,.06),inset 0 1px 0 rgba(255,255,255,.1);transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem}
 .be:active{transform:scale(.92)}
 .be .be-text{font-size:.75rem;font-weight:800;letter-spacing:.25em}
 .be::before{content:'';position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,var(--ac),var(--pk),#9333ea,var(--ac));z-index:-1;animation:rs 4s linear infinite;opacity:.3;filter:blur(4px)}
@@ -293,6 +293,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       </div>
       <div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">Deixe em branco ou 0 para entrada gratuita. 10% de taxa Touch?.</div>
     </div>
+    <div class="op-login-field">
+      <label class="op-login-label">Modo de revelação de identidade</label>
+      <select class="op-login-input" id="opRevealMode" style="cursor:pointer">
+        <option value="optional">🔒 Opcional — cada pessoa escolhe se revela</option>
+        <option value="all_revealed">👁️ Todos revelados — identidade visível ao entrar</option>
+      </select>
+      <div style="font-size:.55rem;color:var(--t3);margin-top:.2rem" id="opRevealModeHint">Os participantes serão avisados antes de entrar.</div>
+    </div>
     <div style="display:flex;align-items:center;gap:.6rem;padding:.3rem 0">
       <input type="checkbox" id="opAcceptsTips" style="accent-color:var(--ok);width:16px;height:16px;cursor:pointer">
       <label for="opAcceptsTips" style="font-size:.72rem;color:var(--t2);cursor:pointer">Aceitar gorjetas neste evento 💰</label>
@@ -322,9 +330,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 
 <div style="display:none" id="opApp">
   <div class="op-header">
-    <div class="op-logo" style="display:flex;flex-direction:column;line-height:1.2">
-      <span>Touch<span style="color:var(--ac)">?</span></span>
-      <span id="opEventTitle" style="color:#60a5fa;font-size:.7rem;font-weight:600;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px"></span>
+    <div class="op-logo" style="display:flex;align-items:center;gap:.6rem;line-height:1.2">
+      <span style="font-size:.7rem;opacity:.5">Touch<span style="color:var(--ac)">?</span></span>
+      <span id="opEventTitle" style="color:#60a5fa;font-size:1.1rem;font-weight:800;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;text-shadow:0 0 20px rgba(96,165,250,.3)"></span>
     </div>
     <div class="op-stats">
       <div><span class="op-stat-num" id="opCount">0</span> check-ins</div>
@@ -547,12 +555,13 @@ async function opCreateEvent(){
   const serviceLabel=serviceType==='custom'?($('opServiceCustom').value.trim()||''):serviceType;
   const acceptsTips=$('opAcceptsTips').checked;
   const entryPrice=parseFloat($('opEntryPrice').value)||0;
+  const revealMode=$('opRevealMode').value||'optional';
   err.textContent='Criando...';
   try{
-    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice})});
+    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice,revealMode})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error||'Erro ao criar.';return}
-    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';
+    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';$('opRevealMode').value='optional';
     opSelectEvent(d.event.id,d.event.name);
   }catch(e){err.textContent='Erro: '+e.message}
 }
@@ -1224,10 +1233,10 @@ function initCanvas(){
 
 function addNodeToCanvas(d,instant){
   const stars=d.stars||0;
-  const maxStars=Math.max(1,...nodes.map(n=>n.stars||0),stars);
   const maxDist=Math.min(cvW,cvH)*0.38;
   const minDist=40;
-  const dist=maxDist-(stars/Math.max(1,maxStars))*(maxDist-minDist);
+  // Initial orbit dist (will be refined by tier grouping in render)
+  const dist=maxDist*.5;
   const angle=Math.random()*Math.PI*2;
   const cx=cvW/2,cy=cvH/2-20;
   const x=cx+Math.cos(angle)*dist;
@@ -1267,21 +1276,37 @@ function renderCanvas(){
   // Floating dust particles
   ambientP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=cvW;if(p.x>cvW)p.x=0;if(p.y<0)p.y=cvH;if(p.y>cvH)p.y=0;
     c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
-  // ── Calculate center size first to set orbit clearance ──
-  const _evNamePre=S.currentEventName||'Touch?';
-  const _cfs=Math.min(14,Math.max(9,180/(_evNamePre.length+2)));
-  c.font='700 '+_cfs+'px Inter';
-  const _tw=c.measureText(_evNamePre).width;
-  const _centerR=Math.max(30,_tw/2+18)+4; // center radius + small margin
-  // ── ORBITS ──
-  const maxStars=Math.max(1,...nodes.map(n=>n.stars||0));
+  // ── Calculate center size — fixed, no name inside ──
+  const _centerR=36; // fixed clean radius
+  // ── ORBITS — stars-based with tier grouping ──
+  // Sort nodes by stars to assign tier-based orbit bands
+  const sortedByStars=[...nodes].sort((a,b)=>(b.stars||0)-(a.stars||0));
+  const totalNodes=sortedByStars.length;
   const maxDist=Math.min(cvW,cvH)*0.38;
-  const minDist=Math.max(50,_centerR+20); // orbit never overlaps center
-  // Orbit rings (subtle dashed)
-  [.2,.4,.6,.8].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.05)';c.lineWidth=.5;c.setLineDash([3,6]);c.stroke();c.setLineDash([])});
+  const minDist=Math.max(50,_centerR+20);
+  // Assign tier orbit bands: top1 closest, then top5, top50, top100, rest
+  function getTierBand(rank,total){
+    if(rank<=1) return {min:0,max:.12}; // top1: very close
+    if(rank<=5) return {min:.12,max:.28}; // top5
+    if(rank<=50) return {min:.28,max:.52}; // top50
+    if(rank<=100) return {min:.52,max:.72}; // top100
+    return {min:.72,max:1}; // rest
+  }
+  sortedByStars.forEach((sn,idx)=>{
+    const rank=idx+1;
+    const band=getTierBand(rank,totalNodes);
+    const bandDist=minDist+(maxDist-minDist)*band.min;
+    const bandEnd=minDist+(maxDist-minDist)*band.max;
+    // Within band, spread by stars ratio
+    const bandSize=bandEnd-bandDist;
+    const maxInBand=(band.max-band.min);
+    sn._tierDist=bandDist+bandSize*(rank<=1?0:Math.random()*.6+.2);
+  });
+  // Orbit rings at tier boundaries
+  [.12,.28,.52,.72].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.setLineDash([3,6]);c.stroke();c.setLineDash([])});
   // Orbital node movement + connection lines
   nodes.forEach(n=>{if(n.r<1)return;
-    n.orbitDist=maxDist-((n.stars||0)/maxStars)*(maxDist-minDist);
+    if(n._tierDist!==undefined)n.orbitDist=n._tierDist;
     n.orbitAngle+=n.orbitSpeed;
     n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
     n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
@@ -1289,15 +1314,8 @@ function renderCanvas(){
     const la=.05+Math.sin(t*.8+n.phase)*.025;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.6;c.stroke();
     // Traveling dot
     const pt=(t*.4+n.phase)%1;c.beginPath();c.arc(cx+(n.x-cx)*pt,cy+(n.y-cy)*pt,1.2,0,Math.PI*2);c.fillStyle='rgba(99,102,241,.2)';c.fill()});
-  // ── CENTER: Event name — adaptive size ──
-  const evName=S.currentEventName||'Touch?';
-  // Measure text to adapt center radius
-  const centerFontSize=Math.min(14,Math.max(9,180/(evName.length+2)));
-  c.font='700 '+centerFontSize+'px Inter';
-  const textW=c.measureText(evName).width;
-  const baseCS=Math.max(30,textW/2+18);
-  const cs=baseCS+Math.sin(t*1.5)*2;
-  // Center glow — blue for events
+  // ── CENTER: clean orb — no name, just glow + count ──
+  const cs=_centerR+Math.sin(t*1.5)*2;
   const evColor=S.currentEventId?'rgba(96,165,250,':'rgba(99,102,241,';
   const activeColor=homeSonicActive?'rgba(255,107,53,':'rgba(99,102,241,';
   const glowColor=S.currentEventId?(homeSonicActive?activeColor:evColor):activeColor;
@@ -1306,22 +1324,19 @@ function renderCanvas(){
   c.fillStyle=cg;c.beginPath();c.arc(cx,cy,cs*2.5,0,Math.PI*2);c.fill();
   // Center circle
   c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);
-  c.fillStyle=S.currentEventId?(homeSonicActive?'rgba(255,107,53,.85)':'rgba(96,165,250,.7)'):(homeSonicActive?'rgba(255,107,53,.9)':'rgba(99,102,241,.8)');
+  c.fillStyle=S.currentEventId?(homeSonicActive?'rgba(255,107,53,.75)':'rgba(96,165,250,.5)'):(homeSonicActive?'rgba(255,107,53,.8)':'rgba(99,102,241,.6)');
   c.fill();
-  c.strokeStyle='rgba(255,255,255,.2)';c.lineWidth=1.5;c.stroke();
+  c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=1.5;c.stroke();
   // Subtle inner glow
   const ig=c.createRadialGradient(cx,cy-cs*.3,0,cx,cy,cs);
-  ig.addColorStop(0,'rgba(255,255,255,.08)');ig.addColorStop(1,'transparent');
+  ig.addColorStop(0,'rgba(255,255,255,.1)');ig.addColorStop(1,'transparent');
   c.fillStyle=ig;c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fill();
-  // Event name inside center — prominent
-  c.fillStyle='#fff';c.font='700 '+centerFontSize+'px Inter';c.textAlign='center';c.textBaseline='middle';
-  c.shadowColor=S.currentEventId?'rgba(96,165,250,.6)':'rgba(99,102,241,.5)';c.shadowBlur=8;
-  c.fillText(evName,cx,cy-4);
-  c.shadowBlur=0;
-  // Attendee count below name
-  c.font='400 8px Inter';c.fillStyle='rgba(255,255,255,.45)';c.fillText(nodes.length+' pessoa'+(nodes.length!==1?'s':''),cx,cy+centerFontSize*.6+4);
-  // Small dot separator + pulse effect
-  if(homeSonicActive){const pa=.3+Math.sin(t*3)*.2;c.beginPath();c.arc(cx,cy+cs+8,2,0,Math.PI*2);c.fillStyle='rgba(96,165,250,'+pa+')';c.fill()}
+  // Attendee count inside center
+  c.fillStyle='rgba(255,255,255,.7)';c.font='700 14px Inter';c.textAlign='center';c.textBaseline='middle';
+  c.fillText(nodes.length,cx,cy-2);
+  c.font='400 7px Inter';c.fillStyle='rgba(255,255,255,.35)';c.fillText('pessoa'+(nodes.length!==1?'s':''),cx,cy+12);
+  // Pulse ring when active
+  if(homeSonicActive){const pa=.15+Math.sin(t*3)*.1;c.beginPath();c.arc(cx,cy,cs+6+Math.sin(t*2)*3,0,Math.PI*2);c.strokeStyle='rgba(96,165,250,'+pa+')';c.lineWidth=1;c.stroke()}
   // ── PERSON NODES ──
   nodes.forEach(n=>{if(n.r<n.targetR)n.r=Math.min(n.targetR,n.r+.4);const pulse=1+Math.sin(t*1.2+n.phase)*.03;const r=n.r*pulse;
     // Entry animation

@@ -216,7 +216,9 @@ let saveTimer = null;
 let registrationCounter = 0; // global signup order
 
 // ── Top Tag Calculation ──
-function calculateTopTag(order, totalUsers) {
+// calculateTopTag — now based on stars ranking, not registration order
+// 'rank' = position in stars-sorted list (1 = most stars)
+function calculateTopTag(rank, totalUsers) {
   const tiers = [
     { max: 1, tag: 'top1', needTotal: 5 },
     { max: 5, tag: 'top5', needTotal: 50 },
@@ -228,11 +230,26 @@ function calculateTopTag(order, totalUsers) {
     { max: 100000, tag: 'top100000', needTotal: 200000 }
   ];
   for (const t of tiers) {
-    if (order <= t.max && totalUsers >= t.needTotal) return t.tag;
+    if (rank <= t.max && totalUsers >= t.needTotal) return t.tag;
   }
-  // Always show top1 even with few users
-  if (order === 1) return 'top1';
+  // Always show top1 for rank 1 even with few users
+  if (rank === 1) return 'top1';
   return null;
+}
+
+// Recalculate all topTags based on stars ranking
+function recalcAllTopTags() {
+  const users = Object.values(db.users);
+  const totalUsers = users.length;
+  // Sort by stars count descending, then by registration order as tiebreaker
+  const sorted = users
+    .map(u => ({ id: u.id, stars: (u.stars || []).length, regOrder: u.registrationOrder || 9999 }))
+    .sort((a, b) => b.stars - a.stars || a.regOrder - b.regOrder);
+  sorted.forEach((s, idx) => {
+    const rank = idx + 1;
+    const user = db.users[s.id];
+    if (user) user.topTag = calculateTopTag(rank, totalUsers);
+  });
 }
 
 // Helper: promise with timeout
@@ -328,11 +345,9 @@ function initRegistrationCounter() {
     if (u.touchers === undefined) u.touchers = 0;
     if (!u.revealedTo) u.revealedTo = [];
   });
-  const total = users.length;
-  sorted.forEach(u => {
-    u.topTag = calculateTopTag(u.registrationOrder, total);
-  });
-  console.log(`📊 Registration counter: ${registrationCounter}, ${total} users migrated`);
+  // Recalculate topTags based on stars ranking (not registration order)
+  recalcAllTopTags();
+  console.log(`📊 Registration counter: ${registrationCounter}, ${users.length} users migrated`);
   // Build performance indexes
   rebuildIndexes();
   // Auto-verify Top 1 + grant 50 stars
@@ -849,9 +864,10 @@ app.post('/api/auth/link', async (req, res) => {
     firebaseUid, photoURL: photoURL || null,
     birthdate: null, avatar: null, color, createdAt: Date.now(),
     points: 0, pointLog: [], stars: [],
-    registrationOrder: registrationCounter, topTag: calculateTopTag(registrationCounter, totalUsers),
+    registrationOrder: registrationCounter, topTag: null,
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
+  recalcAllTopTags();
   idxAddUser(db.users[id]);
   saveDB('users');
   res.json({ userId: id, user: db.users[id], linked: false });
@@ -1656,9 +1672,10 @@ app.post('/api/register', (req, res) => {
   db.users[id] = {
     id, nickname: nick, name: nick, birthdate, avatar: null, color, createdAt: Date.now(),
     points: 0, pointLog: [], stars: [],
-    registrationOrder: registrationCounter, topTag: calculateTopTag(registrationCounter, totalUsers),
+    registrationOrder: registrationCounter, topTag: null,
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
   };
+  recalcAllTopTags();
   idxAddUser(db.users[id]);
   saveDB('users');
   res.json({ userId: id, user: db.users[id] });
@@ -2860,6 +2877,7 @@ app.post('/api/star/donate', (req, res) => {
   IDX.donationsByPair.set(fromUserId + '_' + toUserId, (IDX.donationsByPair.get(fromUserId + '_' + toUserId) || 0) + 1);
   if (!toUser.stars) toUser.stars = [];
   toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: pendingStarId ? 'earned' : 'transfer' });
+  recalcAllTopTags(); // re-rank after star change
   saveDB('users', 'starDonations');
 
   // Notify recipient
@@ -2929,6 +2947,7 @@ app.post('/api/star/buy', (req, res) => {
   const starId = uuidv4();
   if (!recipientUser.stars) recipientUser.stars = [];
   recipientUser.stars.push({ id: starId, from: isSelf ? 'shop_self' : userId, fromName: isSelf ? 'Loja' : user.nickname, donatedAt: Date.now(), type: 'purchased', cost });
+  recalcAllTopTags(); // re-rank after star purchase
 
   if (!isSelf) {
     db.starDonations[starId] = { id: starId, fromUserId: userId, toUserId: recipientId, timestamp: Date.now(), type: 'purchased', cost };
@@ -3959,8 +3978,7 @@ function createSonicConnection(userIdA, userIdB) {
     const visitorRevealed = !!(db.users[operatorId] && db.users[operatorId].canSee && db.users[operatorId].canSee[visitorId]);
     const totalUsers = Object.keys(db.users).length;
     const visitorStars = visitorUser ? (visitorUser.stars || []).length : 0;
-    const visitorOrder = visitorUser ? (visitorUser.registrationOrder || 9999) : 9999;
-    const visitorTopTag = calculateTopTag(visitorOrder, totalUsers);
+    const visitorTopTag = visitorUser ? (visitorUser.topTag || null) : null;
     const checkinData = {
       userId: visitorId, nickname: visitor.nickname || visitor.name, color: visitor.color,
       profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now,
@@ -5480,7 +5498,7 @@ app.post('/api/operator/settings', (req, res) => {
 
 // ═══ OPERATOR EVENTS ═══
 app.post('/api/operator/event/create', (req, res) => {
-  const { userId, name, description, acceptsTips, serviceLabel, entryPrice } = req.body;
+  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
@@ -5491,6 +5509,7 @@ app.post('/api/operator/event/create', (req, res) => {
     active: true, participants: [], checkinCount: 0,
     acceptsTips: !!acceptsTips, serviceLabel: (serviceLabel || '').trim(),
     entryPrice: price > 0 ? price : 0,
+    revealMode: revealMode === 'all_revealed' ? 'all_revealed' : 'optional',
     revenue: 0, paidCheckins: 0,
     createdAt: Date.now()
   };
@@ -5721,8 +5740,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
         const u = db.users[uid];
         if (!u) return null;
         const stars = (u.stars || []).length;
-        const order = u.registrationOrder || 9999;
-        const topTag = calculateTopTag(order, totalUsers);
+        const topTag = u.topTag || null;
         const creatorUser = db.users[ev.creatorId];
         const revealed = !!(creatorUser && creatorUser.canSee && creatorUser.canSee[uid]);
         const revealData = revealed ? creatorUser.canSee[uid] : null;
