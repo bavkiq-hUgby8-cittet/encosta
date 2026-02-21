@@ -301,8 +301,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-light-beam{position:absolute;inset:0;z-index:0;pointer-events:none}
 .rv-wrap{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;width:100%;height:100%;justify-content:center}
 .rv-center{display:flex;flex-direction:column;align-items:center;gap:1.2rem;flex:1;justify-content:center;padding:0 1.5rem}
+/* Birth star — bright white star that births the two avatars */
+.rv-birth-star{position:absolute;top:18%;left:50%;transform:translate(-50%,-50%) scale(0);width:6px;height:6px;border-radius:50%;background:#fff;z-index:10;pointer-events:none;opacity:0;animation:rv-star-birth 3.6s cubic-bezier(.22,1,.36,1) 2.4s forwards;box-shadow:0 0 20px #fff,0 0 60px rgba(255,255,255,.6),0 0 120px rgba(200,220,255,.3)}
+@keyframes rv-star-birth{0%{opacity:0;transform:translate(-50%,-50%) scale(0)}8%{opacity:1;transform:translate(-50%,-50%) scale(3);box-shadow:0 0 30px #fff,0 0 80px rgba(255,255,255,.8),0 0 160px rgba(200,220,255,.4)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.5);box-shadow:0 0 20px #fff,0 0 50px rgba(255,255,255,.5)}50%{opacity:.6;transform:translate(-50%,-50%) scale(.8)}100%{opacity:0;transform:translate(-50%,-50%) scale(0)}}
+/* Orb that splits from star — animated via JS */
+.rv-birth-orb{position:absolute;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle,#fff 30%,rgba(200,220,255,.6) 70%,transparent);z-index:9;pointer-events:none;opacity:0;box-shadow:0 0 12px rgba(255,255,255,.5),0 0 30px rgba(200,220,255,.3)}
 /* Avatars row */
-.rv-avatars{display:flex;align-items:center;justify-content:center;gap:1.2rem;position:relative;opacity:0;animation:rv-up .8s ease 3.8s forwards}
+.rv-avatars{display:flex;align-items:center;justify-content:center;gap:1.2rem;position:relative;opacity:0;animation:rv-avatars-in .8s ease 3.8s forwards}
+@keyframes rv-avatars-in{from{opacity:0;transform:translateY(0)}to{opacity:1;transform:none}}
 .rv-avatar-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:.35rem}
 .rv-avatar-img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.1);box-shadow:0 0 20px rgba(255,107,53,.15)}
 .rv-avatar-name{font-size:.65rem;color:rgba(255,255,255,.45);font-weight:400;letter-spacing:.04em;opacity:0;animation:rv-fi .6s ease 4.4s forwards}
@@ -1225,6 +1231,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="reveal" class="screen">
   <canvas id="rvLightBeam" class="rv-light-beam"></canvas>
+  <div class="rv-birth-star" id="rvBirthStar"></div>
+  <div class="rv-birth-orb" id="rvOrbL"></div>
+  <div class="rv-birth-orb" id="rvOrbR"></div>
   <div class="rv-wrap">
     <div class="rv-center">
       <div class="rv-moment" id="revealMoment">algo nasceu entre vocês</div>
@@ -3753,6 +3762,57 @@ function startRevealLight(beamColor){
   _rvLightAnim=requestAnimationFrame(animate);
 }
 
+// ═══ BIRTH ORBS ANIMATION — star births two orbs that become avatars ═══
+function animateBirthOrbs(){
+  const star=$('rvBirthStar');
+  const orbL=$('rvOrbL');
+  const orbR=$('rvOrbR');
+  if(!star||!orbL||!orbR)return;
+  // Reset
+  star.style.animation='none';star.offsetHeight;star.style.animation='';
+  orbL.style.opacity='0';orbR.style.opacity='0';
+  orbL.style.transition='none';orbR.style.transition='none';
+  // Star position (top center of the reveal screen)
+  const starTop=18; // % from top
+  const starLeft=50; // % from left
+  orbL.style.top=starTop+'%';orbL.style.left=starLeft+'%';
+  orbL.style.transform='translate(-50%,-50%) scale(0)';
+  orbR.style.top=starTop+'%';orbR.style.left=starLeft+'%';
+  orbR.style.transform='translate(-50%,-50%) scale(0)';
+  // After star appears (2.4s delay + 0.3s to brighten)
+  setTimeout(()=>{
+    orbL.style.opacity='1';orbR.style.opacity='1';
+    orbL.style.transform='translate(-50%,-50%) scale(1)';
+    orbR.style.transform='translate(-50%,-50%) scale(1)';
+    // Start separating animation
+    setTimeout(()=>{
+      orbL.style.transition='all 1.4s cubic-bezier(.22,1,.36,1)';
+      orbR.style.transition='all 1.4s cubic-bezier(.22,1,.36,1)';
+      // Get the avatar positions
+      const avMe=$('rvAvatarMe');
+      const avThem=$('rvAvatarThem');
+      const reveal=document.getElementById('reveal');
+      if(avMe&&avThem&&reveal){
+        const rr=reveal.getBoundingClientRect();
+        // Target: avatar positions relative to reveal container
+        // Since avatars are in flex center, estimate ~42% and ~58% horizontal, ~48% vertical
+        orbL.style.top='46%';orbL.style.left='35%';
+        orbL.style.transform='translate(-50%,-50%) scale(2.5)';
+        orbL.style.boxShadow='0 0 25px rgba(255,255,255,.4),0 0 60px rgba(200,220,255,.2)';
+        orbR.style.top='46%';orbR.style.left='65%';
+        orbR.style.transform='translate(-50%,-50%) scale(2.5)';
+        orbR.style.boxShadow='0 0 25px rgba(255,255,255,.4),0 0 60px rgba(200,220,255,.2)';
+      }
+      // Fade out orbs as avatars fade in
+      setTimeout(()=>{
+        orbL.style.transition='opacity .6s ease';
+        orbR.style.transition='opacity .6s ease';
+        orbL.style.opacity='0';orbR.style.opacity='0';
+      },1200);
+    },200);
+  },2700); // star delay 2.4s + 0.3s brighten
+}
+
 function doReveal(data){
   const a=data.userA,b=data.userB;
   const meIsA=a.id===state.userId;
@@ -3771,6 +3831,7 @@ function doReveal(data){
     else beamColor='gold';
   }
   startRevealLight(beamColor);
+  animateBirthOrbs();
 
   // 1. Avatars — always try photo first (profilePhoto, photoURL, state)
   const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;

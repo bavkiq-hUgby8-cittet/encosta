@@ -94,6 +94,34 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
   .op-sidebar.collapsed{width:100%;height:42px}
 }
 
+/* ═══ FLOATING ACTION CASCADE ═══ */
+.op-fab-cascade{position:absolute;top:50px;right:12px;z-index:8;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.op-fab{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.08);background:rgba(15,15,22,.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.op-fab:active{transform:scale(.9)}
+.op-fab:hover{background:rgba(25,25,40,.85);color:#fff;border-color:rgba(255,255,255,.15)}
+.op-fab svg{width:18px;height:18px}
+.op-fab-label{position:absolute;right:48px;top:50%;transform:translateY(-50%);font-size:.55rem;color:rgba(255,255,255,.4);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s}
+.op-fab:hover .op-fab-label{opacity:1}
+.op-fab.active{background:rgba(99,102,241,.2);border-color:rgba(99,102,241,.4);color:#a5b4fc}
+.op-fab.danger{color:rgba(255,80,80,.6)}
+.op-fab.danger:hover{color:#ff6b6b;border-color:rgba(255,80,80,.2);background:rgba(255,80,80,.08)}
+@media(max-width:768px){.op-fab-cascade{top:auto;bottom:calc(36vh + 80px);right:8px}.op-fab{width:36px;height:36px}.op-fab svg{width:16px;height:16px}}
+/* ═══ RAFFLE / SORTEIO MODAL ═══ */
+.op-raffle-modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(8px)}
+.op-raffle-modal.open{display:flex}
+.op-raffle-card{background:rgba(12,12,18,.95);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:1.5rem;width:90%;max-width:360px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.op-raffle-title{font-size:.9rem;font-weight:700;color:var(--t1);margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem}
+.op-raffle-winner{text-align:center;padding:1.5rem 0}
+.op-raffle-winner-name{font-size:1.8rem;font-weight:800;color:#fbbf24;animation:op-raffle-pop .6s cubic-bezier(.22,1,.36,1)}
+.op-raffle-winner-sub{font-size:.65rem;color:var(--t3);margin-top:.3rem}
+@keyframes op-raffle-pop{0%{opacity:0;transform:scale(.3)}50%{transform:scale(1.1)}100%{opacity:1;transform:scale(1)}}
+.op-raffle-list{display:flex;flex-direction:column;gap:.3rem;margin:.6rem 0}
+.op-raffle-item{display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:8px;background:rgba(255,255,255,.03);font-size:.65rem;color:var(--t2)}
+.op-raffle-item.winner{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);color:#fbbf24}
+.op-raffle-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.5rem;font-weight:700;color:#fff;flex-shrink:0}
+.op-raffle-btn{width:100%;padding:.6rem;border:none;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;margin-top:.5rem}
+.op-raffle-btn:active{transform:scale(.97)}
+.op-raffle-btn:disabled{opacity:.4;cursor:not-allowed}
 /* ═══ TOUCH BUTTON — positioned lower ═══ */
 .op-btn-area{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.6rem;z-index:3}
 @media(max-width:768px){.op-btn-area{bottom:calc(36vh + 14px)}}
@@ -414,6 +442,28 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
         </div>
         <div class="si-label">🔊 alto-falante ↔ alto-falante 🔊</div>
         <div class="si-text">Encoste o <em>celular</em> no<br><em>alto-falante</em> do computador</div>
+      </div>
+      <!-- FLOATING ACTION CASCADE -->
+      <div class="op-fab-cascade" id="opFabCascade">
+        <button class="op-fab" onclick="toggleSidebar()" title="Participantes"><span class="op-fab-label">Participantes</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></button>
+        <button class="op-fab" onclick="showFinancialPanel()" title="Financeiro"><span class="op-fab-label">Financeiro</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></button>
+        <button class="op-fab" onclick="openRaffleModal()" title="Sorteio"><span class="op-fab-label">Sorteio</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></button>
+        <button class="op-fab" onclick="toggleFullView()" title="Tela cheia"><span class="op-fab-label">Tela cheia</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
+        <button class="op-fab danger" onclick="opEndEvent()" title="Encerrar"><span class="op-fab-label">Encerrar</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <!-- RAFFLE MODAL -->
+      <div class="op-raffle-modal" id="opRaffleModal">
+        <div class="op-raffle-card">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="op-raffle-title">🎲 Sorteio</div>
+            <button onclick="$('opRaffleModal').classList.remove('open')" style="background:none;border:none;color:var(--t3);font-size:1.1rem;cursor:pointer">✕</button>
+          </div>
+          <div style="font-size:.6rem;color:var(--t3);margin-bottom:.8rem">Sorteia aleatoriamente entre os participantes do evento.</div>
+          <div id="opRaffleResult"></div>
+          <div id="opRaffleList" class="op-raffle-list"></div>
+          <button class="op-raffle-btn" id="opRaffleBtn" onclick="doRaffle()">🎲 Sortear</button>
+          <button class="op-raffle-btn" onclick="doRaffle()" style="background:rgba(255,255,255,.06);color:var(--t2);margin-top:.3rem">🔄 Sortear novamente</button>
+        </div>
       </div>
       <!-- TOUCH BUTTON — exact copy from main app -->
       <div class="op-btn-area">
@@ -1135,6 +1185,53 @@ async function removeAttendee(userId){
   }catch(e){alert('Erro ao remover.')}
 }
 
+// ═══ RAFFLE / SORTEIO ═══
+function openRaffleModal(){
+  const modal=$('opRaffleModal');
+  modal.classList.add('open');
+  const list=$('opRaffleList');
+  $('opRaffleResult').innerHTML='';
+  if(S.checkins.length===0){
+    list.innerHTML='<div style="color:var(--t3);font-size:.65rem;text-align:center;padding:1rem">Nenhum participante ainda. Faça check-ins para sortear.</div>';
+    $('opRaffleBtn').disabled=true;
+    return;
+  }
+  $('opRaffleBtn').disabled=false;
+  list.innerHTML='';
+  S.checkins.forEach(d=>{
+    const col=d.color||nickColor(d.nickname||'?');
+    const name=d.revealed&&d.revealData&&d.revealData.realName?d.revealData.realName:d.nickname||'Visitante';
+    list.innerHTML+='<div class="op-raffle-item" data-uid="'+(d.userId||'')+'"><div class="op-raffle-avatar" style="background:'+col+'">'+ini(d.nickname||'?')+'</div><span>'+esc(name)+'</span></div>';
+  });
+}
+function doRaffle(){
+  if(S.checkins.length===0)return;
+  const items=document.querySelectorAll('#opRaffleList .op-raffle-item');
+  // Reset all
+  items.forEach(el=>el.classList.remove('winner'));
+  // Animate: rapid highlight cycle
+  let cycles=0;const total=15+Math.floor(Math.random()*10);
+  let idx=0;
+  const iv=setInterval(()=>{
+    items.forEach(el=>el.style.background='');
+    idx=Math.floor(Math.random()*items.length);
+    items[idx].style.background='rgba(99,102,241,.15)';
+    cycles++;
+    if(cycles>=total){
+      clearInterval(iv);
+      items.forEach(el=>el.style.background='');
+      // Pick winner
+      const winner=S.checkins[Math.floor(Math.random()*S.checkins.length)];
+      const name=winner.revealed&&winner.revealData&&winner.revealData.realName?winner.revealData.realName:winner.nickname||'Visitante';
+      const col=winner.color||nickColor(winner.nickname||'?');
+      // Highlight winner in list
+      items.forEach(el=>{if(el.dataset.uid===(winner.userId||''))el.classList.add('winner')});
+      // Show big winner
+      $('opRaffleResult').innerHTML='<div class="op-raffle-winner"><div style="width:48px;height:48px;border-radius:50%;margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;background:'+col+';box-shadow:0 0 20px rgba(251,191,36,.3)">'+ini(winner.nickname||'?')+'</div><div class="op-raffle-winner-name">'+esc(name)+'</div><div class="op-raffle-winner-sub">🎉 Sorteado!</div></div>';
+    }
+  },80+cycles*8); // slows down towards the end
+}
+
 // ═══ FINANCIAL PANEL ═══
 async function showFinancialPanel(){
   $('opFinPanel').style.display='';
@@ -1419,70 +1516,93 @@ function renderCanvas(){
   // Floating dust particles
   ambientP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=cvW;if(p.x>cvW)p.x=0;if(p.y<0)p.y=cvH;if(p.y>cvH)p.y=0;
     c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
-  // ── Calculate center size — fixed, no name inside ──
-  const _centerR=36; // fixed clean radius
-  // ── ORBITS — evenly spread, stable positions ──
-  const sortedByStars=[...nodes].sort((a,b)=>(b.stars||0)-(a.stars||0));
-  const totalNodes=sortedByStars.length;
+  // ── CONSTELLATION NETWORK — neural web with slow global rotation ──
+  const _centerR=32;
+  const globalRot=t*0.04; // slow rotation of entire network
+  const totalNodes=nodes.length;
   const maxDist=Math.min(cvW,cvH)*0.40;
-  const minDist=Math.max(70,_centerR+30);
-  // Simple even distribution: spread all nodes evenly across the orbit range
-  // Stable — no random per frame, uses node index for consistent placement
-  sortedByStars.forEach((sn,idx)=>{
-    if(totalNodes<=1){
-      sn._tierDist=minDist+(maxDist-minDist)*0.4;
-    }else{
-      // Evenly spread from minDist to maxDist based on rank
-      const frac=idx/(totalNodes-1);
-      sn._tierDist=minDist+(maxDist-minDist)*(0.15+frac*0.85);
-    }
-    // Also spread angles evenly if not yet assigned a stable angle
+  const minDist=Math.max(70,_centerR+35);
+  // Assign stable positions in concentric rings (like constellation)
+  const sorted=[...nodes].sort((a,b)=>(b.stars||0)-(a.stars||0));
+  sorted.forEach((sn,idx)=>{
     if(!sn._stableAngleSet){
-      sn.orbitAngle=((idx/Math.max(1,totalNodes))*Math.PI*2)+sn.phase*0.3;
+      const golden=2.399963; // golden angle
+      sn._baseAngle=idx*golden;
       sn._stableAngleSet=true;
     }
+    if(totalNodes<=1)sn._tierDist=minDist+(maxDist-minDist)*0.4;
+    else{const frac=idx/(totalNodes-1);sn._tierDist=minDist+(maxDist-minDist)*(0.1+frac*0.9)}
   });
-  // Subtle orbit ring guides
-  const ringCount=Math.min(4,totalNodes);
-  for(let i=0;i<ringCount;i++){
-    const rf=minDist+(maxDist-minDist)*((i+1)/(ringCount+1));
-    c.beginPath();c.arc(cx,cy,rf,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.03)';c.lineWidth=.5;c.setLineDash([3,8]);c.stroke();c.setLineDash([]);
-  }
-  // Orbital node movement + connection lines
+  // Position nodes with global rotation
   nodes.forEach(n=>{if(n.r<1)return;
     if(n._tierDist!==undefined){n.orbitDist=n._tierDist;n.entryTargetDist=n._tierDist}
     if(n.entryAnim<=0){
-      n.orbitAngle+=n.orbitSpeed;
-      n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
-      n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
+      const angle=(n._baseAngle||n.orbitAngle)+globalRot;
+      n.x=cx+Math.cos(angle)*n.orbitDist;
+      n.y=cy+Math.sin(angle)*n.orbitDist;
+      n.orbitAngle=angle;
     }
-    // Connection line to center
-    const la=.05+Math.sin(t*.8+n.phase)*.025;c.beginPath();c.moveTo(cx,cy);c.lineTo(n.x,n.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.6;c.stroke();
-    // Traveling dot
-    const pt=(t*.4+n.phase)%1;c.beginPath();c.arc(cx+(n.x-cx)*pt,cy+(n.y-cy)*pt,1.2,0,Math.PI*2);c.fillStyle='rgba(99,102,241,.2)';c.fill()});
-  // ── CENTER: clean orb — no name, just glow + count ──
-  const cs=_centerR+Math.sin(t*1.5)*2;
-  const evColor=S.currentEventId?'rgba(96,165,250,':'rgba(99,102,241,';
-  const activeColor=homeSonicActive?'rgba(255,107,53,':'rgba(99,102,241,';
-  const glowColor=S.currentEventId?(homeSonicActive?activeColor:evColor):activeColor;
-  const cg=c.createRadialGradient(cx,cy,0,cx,cy,cs*2.5);
-  cg.addColorStop(0,glowColor+'.15)');cg.addColorStop(1,'transparent');
-  c.fillStyle=cg;c.beginPath();c.arc(cx,cy,cs*2.5,0,Math.PI*2);c.fill();
-  // Center circle
+  });
+  // ── NEURAL CONNECTIONS: lines between nearby nodes (cerebro Xavier) ──
+  const connThresh=maxDist*0.65;
+  for(let i=0;i<nodes.length;i++){
+    const a=nodes[i];if(a.r<1)continue;
+    // Line to center
+    const la=.04+Math.sin(t*.6+a.phase)*.02;
+    c.beginPath();c.moveTo(cx,cy);c.lineTo(a.x,a.y);c.strokeStyle='rgba(99,102,241,'+la+')';c.lineWidth=.5;c.stroke();
+    // Traveling pulse to center
+    const pt=(t*.3+a.phase)%1;const px=cx+(a.x-cx)*pt,py=cy+(a.y-cy)*pt;
+    c.beginPath();c.arc(px,py,1,0,Math.PI*2);c.fillStyle='rgba(130,140,255,.15)';c.fill();
+    // Lines to nearby nodes (neural web)
+    for(let j=i+1;j<nodes.length;j++){
+      const b=nodes[j];if(b.r<1)continue;
+      const dx=a.x-b.x,dy=a.y-b.y,dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<connThresh){
+        const strength=1-dist/connThresh;
+        const pulse=.5+.5*Math.sin(t*1.2+a.phase+b.phase);
+        const alpha=strength*0.06*pulse;
+        c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);
+        c.strokeStyle='rgba(130,160,255,'+alpha+')';c.lineWidth=.4+strength*.6;c.stroke();
+        // Neural pulse traveling between connected nodes
+        if(strength>0.4&&Math.sin(t*0.5+a.phase*3)>0.6){
+          const st=(t*0.8+a.phase+b.phase*2)%1;
+          const sx=a.x+(b.x-a.x)*st,sy=a.y+(b.y-a.y)*st;
+          c.beginPath();c.arc(sx,sy,1.2,0,Math.PI*2);c.fillStyle='rgba(160,180,255,'+(strength*0.25)+')';c.fill();
+        }
+      }
+    }
+  }
+  // ── CENTER: location pin icon with glow + count ──
+  const cs=_centerR+Math.sin(t*1.5)*1.5;
+  const isEvent=!!S.currentEventId;const isActive=!!homeSonicActive;
+  const baseC=isEvent?(isActive?[255,107,53]:[96,165,250]):(isActive?[255,107,53]:[99,102,241]);
+  // Outer brain glow
+  const brainR=cs*3;
+  const bg=c.createRadialGradient(cx,cy,cs*.5,cx,cy,brainR);
+  bg.addColorStop(0,'rgba('+baseC.join(',')+',0.08)');bg.addColorStop(.5,'rgba('+baseC.join(',')+',0.03)');bg.addColorStop(1,'transparent');
+  c.fillStyle=bg;c.beginPath();c.arc(cx,cy,brainR,0,Math.PI*2);c.fill();
+  // Synaptic ring
+  c.beginPath();c.arc(cx,cy,cs*1.5,0,Math.PI*2);c.strokeStyle='rgba('+baseC.join(',')+',0.06)';c.lineWidth=.5;c.setLineDash([2,6]);c.stroke();c.setLineDash([]);
+  // Center filled circle
   c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);
-  c.fillStyle=S.currentEventId?(homeSonicActive?'rgba(255,107,53,.75)':'rgba(96,165,250,.5)'):(homeSonicActive?'rgba(255,107,53,.8)':'rgba(99,102,241,.6)');
-  c.fill();
-  c.strokeStyle='rgba(255,255,255,.15)';c.lineWidth=1.5;c.stroke();
-  // Subtle inner glow
+  c.fillStyle='rgba('+baseC.join(',')+','+(isActive?0.8:0.5)+')';c.fill();
+  c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1.5;c.stroke();
+  // Inner highlight
   const ig=c.createRadialGradient(cx,cy-cs*.3,0,cx,cy,cs);
-  ig.addColorStop(0,'rgba(255,255,255,.1)');ig.addColorStop(1,'transparent');
+  ig.addColorStop(0,'rgba(255,255,255,.12)');ig.addColorStop(1,'transparent');
   c.fillStyle=ig;c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fill();
-  // Attendee count inside center
-  c.fillStyle='rgba(255,255,255,.7)';c.font='700 14px Inter';c.textAlign='center';c.textBaseline='middle';
-  c.fillText(nodes.length,cx,cy-2);
-  c.font='400 7px Inter';c.fillStyle='rgba(255,255,255,.35)';c.fillText('pessoa'+(nodes.length!==1?'s':''),cx,cy+12);
-  // Pulse ring when active
-  if(homeSonicActive){const pa=.15+Math.sin(t*3)*.1;c.beginPath();c.arc(cx,cy,cs+6+Math.sin(t*2)*3,0,Math.PI*2);c.strokeStyle='rgba(96,165,250,'+pa+')';c.lineWidth=1;c.stroke()}
+  // Location pin icon inside center
+  c.save();c.translate(cx,cy-3);
+  c.beginPath();c.arc(0,-4,8,Math.PI,0);c.quadraticCurveTo(8,2,0,14);c.quadraticCurveTo(-8,2,-8,-4);c.closePath();
+  c.fillStyle='rgba(255,255,255,.6)';c.fill();
+  c.beginPath();c.arc(0,-4,3.5,0,Math.PI*2);c.fillStyle='rgba('+baseC.join(',')+',0.9)';c.fill();
+  c.restore();
+  // Count below pin
+  c.fillStyle='rgba(255,255,255,.65)';c.font='700 10px Inter';c.textAlign='center';c.textBaseline='middle';
+  c.fillText(nodes.length,cx,cy+18);
+  c.font='400 6px Inter';c.fillStyle='rgba(255,255,255,.3)';c.fillText('pessoa'+(nodes.length!==1?'s':''),cx,cy+26);
+  // Active pulse ring
+  if(isActive){const pa=.12+Math.sin(t*3)*.08;c.beginPath();c.arc(cx,cy,cs+5+Math.sin(t*2)*3,0,Math.PI*2);c.strokeStyle='rgba('+baseC.join(',')+','+pa+')';c.lineWidth=1;c.stroke()}
   // ── PERSON NODES ──
   nodes.forEach(n=>{
     const pulse=1+Math.sin(t*1.2+n.phase)*.03;
@@ -1547,15 +1667,39 @@ function renderCanvas(){
         c.globalAlpha=1;c.fillStyle='#000';c.fillText(tagLbl,tx,ty+.5);c.restore();
       }
     }
-    // Node circle — photo or color
+    // Node circle — photo, revealed color, or anonymous silhouette
     if(!S.hidePhotos&&n.revealed&&n.photoLoaded&&n.photoImg){
       c.save();c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.clip();
       c.drawImage(n.photoImg,n.x-r,n.y-r,r*2,r*2);c.restore();
       c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.7)';c.lineWidth=2;c.stroke();
+    }else if(!n.revealed&&r>6){
+      // Anonymous silhouette — dark gradient bg + head+shoulders shape
+      const ag=c.createRadialGradient(n.x,n.y-r*.15,0,n.x,n.y,r);
+      ag.addColorStop(0,'rgba(40,40,55,.95)');ag.addColorStop(1,'rgba(25,25,35,.95)');
+      c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=ag;c.fill();
+      c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;c.stroke();
+      // Head
+      const hr=r*.3;
+      c.beginPath();c.arc(n.x,n.y-r*.15,hr,0,Math.PI*2);c.fillStyle='rgba(120,120,140,.35)';c.fill();
+      // Shoulders
+      c.beginPath();c.ellipse(n.x,n.y+r*.35,r*.55,r*.3,0,Math.PI,0,true);c.fillStyle='rgba(120,120,140,.25)';c.fill();
+      // Accessory indicator (hat-like accent on top)
+      const accHash=n.name?n.name.charCodeAt(0)%5:0;
+      if(accHash===0){// tiny crown
+        c.fillStyle='rgba(251,191,36,.35)';c.beginPath();
+        const cy2=n.y-r*.15-hr-1;c.moveTo(n.x-hr*.6,cy2+2);c.lineTo(n.x-hr*.4,cy2-2);c.lineTo(n.x,cy2+1);c.lineTo(n.x+hr*.4,cy2-2);c.lineTo(n.x+hr*.6,cy2+2);c.fill();
+      }else if(accHash===1){// sunglasses line
+        c.strokeStyle='rgba(200,200,220,.3)';c.lineWidth=1.5;c.beginPath();c.moveTo(n.x-hr*.7,n.y-r*.15);c.lineTo(n.x+hr*.7,n.y-r*.15);c.stroke();
+      }else if(accHash===2){// tiny hat
+        c.fillStyle='rgba(99,102,241,.3)';c.beginPath();c.ellipse(n.x,n.y-r*.15-hr+1,hr*.8,2,0,0,Math.PI*2);c.fill();
+        c.fillRect(n.x-hr*.4,n.y-r*.15-hr-3,hr*.8,4);
+      }else if(accHash===3){// headphones arc
+        c.strokeStyle='rgba(220,220,240,.25)';c.lineWidth=1.5;c.beginPath();c.arc(n.x,n.y-r*.15,hr+2,Math.PI*1.15,Math.PI*1.85);c.stroke();
+      }
+      // No initials for anon
     }else{
       c.beginPath();c.arc(n.x,n.y,r,0,Math.PI*2);c.fillStyle=n.color;c.fill();c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1;c.stroke();
       if(n.revealed){c.beginPath();c.arc(n.x,n.y,r+2.5,0,Math.PI*2);c.strokeStyle='rgba(52,211,153,.5)';c.lineWidth=1.5;c.stroke()}
-      // Initials inside node (bigger now)
       if(r>8){c.fillStyle='#fff';c.font='600 '+(r*.5)+'px Inter';c.textAlign='center';c.textBaseline='middle';c.fillText(ini(n.name),n.x,n.y+.5)}
     }
     // Name + stars below node
