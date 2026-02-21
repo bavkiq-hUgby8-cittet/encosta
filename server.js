@@ -1971,7 +1971,8 @@ app.get('/api/constellation/:userId', (req, res) => {
       allSelfies: (p.allSelfies || []).slice(0, 20),
       // WhatsApp (only when revealed)
       whatsapp: iCanSeeThem ? (p.whatsapp || null) : null,
-      giftsReceived: (db.gifts[p.id] || []).length
+      giftsReceived: (db.gifts[p.id] || []).length,
+      avatarAccessory: (other && other.avatarAccessory) || null
     };
   });
   // Add event nodes — events the user participated in
@@ -2458,13 +2459,15 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     instagram: isRevealed && (user.privacy?.instagram !== false) ? (user.instagram || null) : null,
     tiktok: isRevealed && (user.privacy?.tiktok !== false) ? (user.tiktok || null) : null,
     twitter: isRevealed && (user.privacy?.twitter !== false) ? (user.twitter || null) : null,
-    phone: isRevealed && (user.privacy?.phone === true) ? (user.phone || null) : null
+    phone: isRevealed && (user.privacy?.phone === true) ? (user.phone || null) : null,
+    avatarAccessory: user.avatarAccessory || null,
+    likesCount: user.likesCount || 0
   });
 });
 
 // ── Update full profile ──
 app.post('/api/profile/update', async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -2505,6 +2508,13 @@ app.post('/api/profile/update', async (req, res) => {
   }
   if (email !== undefined && email.trim()) user.email = email.trim();
   if (cpf !== undefined && cpf.trim()) user.cpf = cpf.trim();
+  if (avatarAccessory !== undefined) {
+    // Validate: must be null/empty (remove) or a valid accessory key
+    if (avatarAccessory && !['crown','cat_ears','halo','glasses','flame_aura','diamond_crown','lightning','mask','galaxy_ring','wings'].includes(avatarAccessory)) {
+      return res.status(400).json({ error: 'Acessório inválido.' });
+    }
+    user.avatarAccessory = avatarAccessory || null;
+  }
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
 
   // Propagate photo update to all canSee entries (so revealed photos stay fresh)
@@ -3377,7 +3387,9 @@ app.get('/api/myprofile/:userId', (req, res) => {
     docSubmitted: !!user.docSubmitted, docStatus: user.docStatus || null, docVerified: !!user.docVerified,
     isSubscriber: !!user.isSubscriber, verificationType: user.verificationType || null,
     giftsReceived: (db.gifts[req.params.userId] || []).length,
-    likesGiven: user.likesGiven || 0, declarationsReceived: (db.declarations ? Object.values(db.declarations).filter(d => d.toUserId === req.params.userId).length : 0)
+    likesGiven: user.likesGiven || 0, declarationsReceived: (db.declarations ? Object.values(db.declarations).filter(d => d.toUserId === req.params.userId).length : 0),
+    avatarAccessory: user.avatarAccessory || null,
+    isTop1: (() => { const scores = Object.keys(db.users).map(uid => ({ uid, score: calcScore(uid) })).sort((a, b) => b.score - a.score); return scores.length > 0 && scores[0].uid === req.params.userId; })()
   });
 });
 

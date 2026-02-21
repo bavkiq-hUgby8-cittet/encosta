@@ -1628,6 +1628,16 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="cp-photo-label" onclick="$('cpPhotoInput').click()">Alterar foto</div>
       <input type="file" id="cpPhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
     </div>
+    <!-- Avatar Accessory Selector -->
+    <div class="cp-section-title">Avatar Anônimo</div>
+    <div class="cp-note" style="text-align:center;margin:-.2rem 0 .5rem;font-size:.6rem;color:var(--t3)">Escolha um acessório para sua silhueta</div>
+    <div id="cpAccessoryGrid" style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-bottom:1rem;padding:0 .5rem">
+      <!-- Filled by JS -->
+    </div>
+    <div id="cpAccessoryLock" style="display:none;text-align:center;font-size:.6rem;color:var(--t3);margin:-.4rem 0 .8rem">
+      <span style="color:#8b5cf6">Touch Plus</span> ou <span style="color:#fbbf24">Top 1</span> desbloqueiam acessórios
+    </div>
+
     <!-- Identity -->
     <div class="cp-section-title">Identidade</div>
     <div class="cp-field"><label>Apelido</label><input type="text" id="cpNickname" placeholder="seu_apelido" maxlength="20" autocomplete="off"><div class="cp-note">Como todos te veem antes de revelar</div></div>
@@ -1915,10 +1925,11 @@ async function linkFirebaseToEncosta(user){
       initSocket();requestAccelPermission();
       showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
+      state.userAccessory=d.user.avatarAccessory||null;
       const _ha=$('homeAvatar');
       if(_ha&&state.userName){
-        if(state.userPhoto){_ha.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.remove();this.parentElement.textContent=\''+esc((state.userName||'??').slice(0,2).toUpperCase())+'\'">';_ha.style.background=state.userColor||nickColor(state.userName);_ha.style.overflow='hidden'}
-        else{_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
+        _ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory);
+        _ha.style.background='none';_ha.style.overflow='visible';
       }
       refreshHome();
     }
@@ -2664,12 +2675,8 @@ async function refreshHome(){
   if(state.userName){
     const av=$('homeAvatar');
     if(av){
-      if(state.userPhoto){
-        av.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.remove();this.parentElement.textContent=\''+esc((state.userName||'??').slice(0,2).toUpperCase())+'\'">';
-        av.style.background=state.userColor||nickColor(state.userName);av.style.overflow='hidden';
-      }else{
-        av.textContent=(state.userName||'??').slice(0,2).toUpperCase();av.style.background=state.userColor||nickColor(state.userName);
-      }
+      av.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);
+      av.style.background='none';av.style.overflow='visible';
     }
     // Show verified badge on home avatar
     const hvb=$('homeVerifiedBadge');
@@ -2786,10 +2793,8 @@ function checkNick(val){
   const nick=val.trim(),hint=$('nickHint'),preview=$('avatarPreview');
   if(!nick||nick.length<2){hint.textContent='mínimo 2 caracteres';hint.className='nick-hint';preview.textContent='?';preview.style.background='var(--s2)';return}
   if(!/^[a-zA-Z0-9_.-]+$/.test(nick)){hint.textContent='só letras, números, _ . -';hint.className='nick-hint taken';return}
-  // Update preview avatar
-  const initials=nick.slice(0,2).toUpperCase();
-  const color=nickColor(nick);
-  preview.textContent=initials;preview.style.background=color;
+  // Update preview avatar — show anonymous silhouette
+  preview.innerHTML=ANON_AVATAR_SVG;preview.style.background='none';preview.style.overflow='hidden';
   // Debounced availability check
   clearTimeout(nickCheckTimer);
   hint.textContent='verificando...';hint.className='nick-hint';
@@ -2804,15 +2809,76 @@ function checkNick(val){
 function nickColor(nick){let h=0;for(let i=0;i<nick.length;i++)h=nick.charCodeAt(i)+((h<<5)-h);return'hsl('+Math.abs(h)%360+',65%,55%)'}
 const VERIFIED_SVG='<svg viewBox="0 0 24 24"><path fill="url(#verifiedGrad)" d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg>';
 function verifiedBadge(sizeClass){return '<div class="verified-badge '+(sizeClass||'')+'">'+VERIFIED_SVG+'</div>'}
-function makeAvatar(nick,color,size,photo,verified){
+
+// ══ ANONYMOUS AVATAR SYSTEM ══
+// Base silhouette SVG (modern anonymous shadow)
+const ANON_AVATAR_SVG='<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="anonBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2a2a3e"/><stop offset="100%" stop-color="#1a1a2e"/></linearGradient><linearGradient id="anonBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4a4a6a"/><stop offset="100%" stop-color="#3a3a5a"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(#anonBg)"/><circle cx="50" cy="38" r="16" fill="url(#anonBody)"/><ellipse cx="50" cy="78" rx="26" ry="18" fill="url(#anonBody)"/></svg>';
+
+// Accessories: 5 for Touch Plus, 5 exclusive for Top1
+const AVATAR_ACCESSORIES={
+  // ── TOUCH PLUS (5) ──
+  crown:{name:'Coroa',tier:'plus',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="26,28 34,14 42,24 50,8 58,24 66,14 74,28 72,32 28,32" fill="#FFD700" stroke="#DAA520" stroke-width="1"/><rect x="28" y="30" width="44" height="5" rx="1" fill="#FFD700" stroke="#DAA520" stroke-width="0.5"/><circle cx="34" cy="16" r="2" fill="#FF4444"/><circle cx="50" cy="10" r="2.5" fill="#4488FF"/><circle cx="66" cy="16" r="2" fill="#44DD44"/></svg>'},
+  cat_ears:{name:'Orelhas de Gato',tier:'plus',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M24,38 L20,12 L38,28 Z" fill="#ff69b4" stroke="#ff1493" stroke-width="1"/><path d="M26,34 L23,17 L36,29 Z" fill="#ffb6c1"/><path d="M76,38 L80,12 L62,28 Z" fill="#ff69b4" stroke="#ff1493" stroke-width="1"/><path d="M74,34 L77,17 L64,29 Z" fill="#ffb6c1"/></svg>'},
+  halo:{name:'Auréola',tier:'plus',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="18" rx="22" ry="6" fill="none" stroke="#FFD700" stroke-width="2.5" opacity="0.9"/><ellipse cx="50" cy="18" rx="22" ry="6" fill="none" stroke="#FFF8DC" stroke-width="1" opacity="0.5"/></svg>'},
+  glasses:{name:'Óculos Estilosos',tier:'plus',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="38" cy="38" r="9" fill="none" stroke="#00e5ff" stroke-width="2"/><circle cx="62" cy="38" r="9" fill="none" stroke="#00e5ff" stroke-width="2"/><line x1="47" y1="38" x2="53" y2="38" stroke="#00e5ff" stroke-width="2"/><line x1="29" y1="36" x2="24" y2="34" stroke="#00e5ff" stroke-width="1.5"/><line x1="71" y1="36" x2="76" y2="34" stroke="#00e5ff" stroke-width="1.5"/><circle cx="38" cy="38" r="9" fill="rgba(0,229,255,0.08)"/><circle cx="62" cy="38" r="9" fill="rgba(0,229,255,0.08)"/></svg>'},
+  flame_aura:{name:'Aura de Fogo',tier:'plus',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="flameG" x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stop-color="#ff4500" stop-opacity="0.7"/><stop offset="100%" stop-color="#ffd700" stop-opacity="0"/></linearGradient></defs><ellipse cx="50" cy="50" rx="44" ry="46" fill="none" stroke="url(#flameG)" stroke-width="4" opacity="0.6"/><path d="M30,70 Q28,55 34,45 Q30,55 36,60 Z" fill="#ff6347" opacity="0.5"/><path d="M70,70 Q72,55 66,45 Q70,55 64,60 Z" fill="#ff6347" opacity="0.5"/><path d="M44,15 Q46,6 50,2 Q54,6 56,15 Q52,10 50,12 Q48,10 44,15 Z" fill="#ff8c00" opacity="0.6"/></svg>'},
+  // ── TOP 1 EXCLUSIVE (5 more) ──
+  diamond_crown:{name:'Coroa de Diamante',tier:'top1',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="26,30 34,16 42,26 50,6 58,26 66,16 74,30 72,34 28,34" fill="#b9f2ff" stroke="#00bcd4" stroke-width="1"/><rect x="28" y="32" width="44" height="5" rx="1" fill="#e0f7fa" stroke="#00bcd4" stroke-width="0.5"/><polygon points="50,8 46,16 54,16" fill="#fff" opacity="0.8"/><circle cx="34" cy="18" r="2" fill="#e0f7fa" stroke="#00bcd4" stroke-width="0.5"/><circle cx="66" cy="18" r="2" fill="#e0f7fa" stroke="#00bcd4" stroke-width="0.5"/></svg>'},
+  lightning:{name:'Raio',tier:'top1',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M55,2 L42,38 L52,38 L40,62 L68,28 L56,28 L66,2 Z" fill="#FFD700" stroke="#FFA500" stroke-width="0.8" opacity="0.85"/><path d="M57,4 L46,34 L54,34 L44,56 L65,30 L56,30 L64,4 Z" fill="#FFF8DC" opacity="0.4"/></svg>'},
+  mask:{name:'Máscara Phantom',tier:'top1',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M24,34 Q24,26 36,24 Q44,22 50,24 Q56,22 64,24 Q76,26 76,34 Q76,42 66,44 Q60,44 56,40 Q54,38 50,38 Q46,38 44,40 Q40,44 34,44 Q24,42 24,34 Z" fill="#1a1a2e" stroke="#8b5cf6" stroke-width="1.5"/><ellipse cx="38" cy="34" rx="7" ry="5" fill="none" stroke="#8b5cf6" stroke-width="1"/><ellipse cx="62" cy="34" rx="7" ry="5" fill="none" stroke="#8b5cf6" stroke-width="1"/><ellipse cx="38" cy="34" rx="7" ry="5" fill="rgba(139,92,246,0.1)"/><ellipse cx="62" cy="34" rx="7" ry="5" fill="rgba(139,92,246,0.1)"/></svg>'},
+  galaxy_ring:{name:'Anel Galáxia',tier:'top1',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="galG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="50%" stop-color="#ec4899"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="none" stroke="url(#galG)" stroke-width="2.5" opacity="0.7"/><circle cx="50" cy="50" r="43" fill="none" stroke="url(#galG)" stroke-width="0.5" opacity="0.4"/><circle cx="20" cy="30" r="1.2" fill="#fff" opacity="0.7"/><circle cx="78" cy="25" r="1" fill="#fff" opacity="0.6"/><circle cx="15" cy="55" r="0.8" fill="#fff" opacity="0.5"/><circle cx="85" cy="60" r="1.1" fill="#fff" opacity="0.6"/><circle cx="30" cy="12" r="0.9" fill="#fff" opacity="0.5"/><circle cx="72" cy="85" r="1" fill="#fff" opacity="0.5"/></svg>'},
+  wings:{name:'Asas de Anjo',tier:'top1',svg:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M22,50 Q8,40 6,28 Q8,20 16,22 Q12,30 18,36 Q14,26 20,20 Q26,24 24,34 Q22,26 28,22 Q32,28 28,40 Z" fill="#e8e8f0" stroke="#c0c0d0" stroke-width="0.5" opacity="0.75"/><path d="M78,50 Q92,40 94,28 Q92,20 84,22 Q88,30 82,36 Q86,26 80,20 Q74,24 76,34 Q78,26 72,22 Q68,28 72,40 Z" fill="#e8e8f0" stroke="#c0c0d0" stroke-width="0.5" opacity="0.75"/></svg>'}
+};
+const ACCESSORY_LIST=Object.keys(AVATAR_ACCESSORIES);
+const PLUS_ACCESSORIES=ACCESSORY_LIST.filter(k=>AVATAR_ACCESSORIES[k].tier==='plus');
+const TOP1_ACCESSORIES=ACCESSORY_LIST.filter(k=>AVATAR_ACCESSORIES[k].tier==='top1');
+
+// Pre-render SVG to Image for canvas use
+const _anonImg=new Image();
+_anonImg.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(ANON_AVATAR_SVG);
+let _anonImgReady=false;
+_anonImg.onload=()=>{_anonImgReady=true};
+
+const _accImgCache={};
+function getAccessoryImg(accKey){
+  if(_accImgCache[accKey])return _accImgCache[accKey];
+  const acc=AVATAR_ACCESSORIES[accKey];
+  if(!acc)return null;
+  const img=new Image();
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(acc.svg);
+  _accImgCache[accKey]={img,ready:false};
+  img.onload=()=>{_accImgCache[accKey].ready=true};
+  return _accImgCache[accKey];
+}
+// Pre-load all accessories
+ACCESSORY_LIST.forEach(k=>getAccessoryImg(k));
+
+// Get user's allowed accessories based on subscription tier
+function getAllowedAccessories(userTier){
+  if(userTier==='top1')return ACCESSORY_LIST; // all 10
+  if(userTier==='plus')return PLUS_ACCESSORIES; // 5
+  return[]; // free users: no accessories
+}
+
+function makeAvatar(nick,color,size,photo,verified,accessoryKey){
   size=size||44;
   const sizeClass=size<=30?'verified-badge-sm':size>=60?'verified-badge-lg':'';
   let inner;
   if(photo&&photo.length>10){
-    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+    inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:visible;flex-shrink:0">'
+      +'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+    if(accessoryKey&&AVATAR_ACCESSORIES[accessoryKey]){
+      inner+='<div style="position:absolute;top:0;left:0;width:'+size+'px;height:'+size+'px;pointer-events:none">'+AVATAR_ACCESSORIES[accessoryKey].svg+'</div>';
+    }
+    inner+='</div>';
   } else {
-    const initials=(nick||'??').slice(0,2).toUpperCase();
-    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:'+(size*.36)+'px;font-weight:800;color:#fff;letter-spacing:.03em;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+esc(initials)+'</div>';
+    // Anonymous silhouette avatar
+    inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:visible;flex-shrink:0">'
+      +'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+ANON_AVATAR_SVG+'</div>';
+    if(accessoryKey&&AVATAR_ACCESSORIES[accessoryKey]){
+      inner+='<div style="position:absolute;top:0;left:0;width:'+size+'px;height:'+size+'px;pointer-events:none">'+AVATAR_ACCESSORIES[accessoryKey].svg+'</div>';
+    }
+    inner+='</div>';
   }
   if(verified) return '<div class="verified-wrap">'+inner+verifiedBadge(sizeClass)+'</div>';
   return inner;
@@ -2840,9 +2906,10 @@ async function doRegister(){
       }
       initSocket();requestAccelPermission();showScreen('home');
       $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
+      state.userAccessory=d.user.avatarAccessory||null;
       const _ha=$('homeAvatar');if(_ha){
-        if(state.userPhoto){_ha.innerHTML='<img src="'+esc(state.userPhoto)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';_ha.style.background=d.user.color||nickColor(nick);_ha.style.overflow='hidden'}
-        else{_ha.textContent=nick.slice(0,2).toUpperCase();_ha.style.background=d.user.color||nickColor(nick)}
+        _ha.innerHTML=makeAvatar(nick,d.user.color||nickColor(nick),40,state.userPhoto||null,false,state.userAccessory);
+        _ha.style.background='none';_ha.style.overflow='visible';
       }
       haptic([80]);
     }
@@ -4638,18 +4705,24 @@ function initConstCanvas(){
       }else if(n._revealed&&n._imgLoaded&&n._img&&r>4){
         drawCroppedImage(n._img,sx,sy,r);
       }else{
-        ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
-        const nGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
-        nGrad.addColorStop(0,'rgba('+glowRGB+',0.6)');nGrad.addColorStop(1,'rgba('+glowRGB+',0.2)');
-        ctx.fillStyle=nGrad;ctx.fill();
-        // Draw initials (realName if revealed, otherwise nickname)
-        if(r>5){
-          const iniSrc=(theyRevealedToMe&&n.realName)?n.realName:(n.nickname||'??');
-          const ini=iniSrc.slice(0,2).toUpperCase();
-          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.8).toFixed(2)+')';
-          ctx.font='bold '+Math.max(5,Math.min(10,r*0.7))+'px Inter,sans-serif';
-          ctx.textAlign='center';ctx.textBaseline='middle';
-          ctx.fillText(ini,sx,sy);
+        // Anonymous silhouette avatar
+        if(_anonImgReady&&r>4){
+          ctx.save();
+          ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.clip();
+          ctx.drawImage(_anonImg,sx-r,sy-r,r*2,r*2);
+          ctx.restore();
+        }else{
+          ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
+          const nGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
+          nGrad.addColorStop(0,'rgba('+glowRGB+',0.6)');nGrad.addColorStop(1,'rgba('+glowRGB+',0.2)');
+          ctx.fillStyle=nGrad;ctx.fill();
+        }
+        // Draw accessory overlay if user has one
+        if(n.avatarAccessory&&r>6){
+          const accC=getAccessoryImg(n.avatarAccessory);
+          if(accC&&accC.ready){
+            ctx.drawImage(accC.img,sx-r,sy-r,r*2,r*2);
+          }
         }
       }
 
@@ -4747,10 +4820,16 @@ function initConstCanvas(){
       // Photo or initials
       if(constState._myImg&&constState._myImgLoaded){
         drawCroppedImage(constState._myImg,mcx,mcy,myR);
+      }else if(_anonImgReady){
+        ctx.save();ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.clip();
+        ctx.drawImage(_anonImg,mcx-myR,mcy-myR,myR*2,myR*2);ctx.restore();
       }else{
         ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
-        ctx.fillStyle='#fff';ctx.font='bold '+Math.min(9*z,14)+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-        ctx.fillText((state.userName||'EU').slice(0,2).toUpperCase(),mcx,mcy);
+      }
+      // Draw my accessory on center node
+      if(state.userAccessory&&myR>6){
+        const myAccC=getAccessoryImg(state.userAccessory);
+        if(myAccC&&myAccC.ready){ctx.drawImage(myAccC.img,mcx-myR,mcy-myR,myR*2,myR*2)}
       }
       // Orange ring
       ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.strokeStyle='rgba(255,107,53,.6)';ctx.lineWidth=Math.min(2*z,3);ctx.stroke();
@@ -4928,9 +5007,11 @@ function showConstDetail(node){
   const av=$('cdAvatar');
   av.style.fontSize='';av.style.display='';av.style.alignItems='';av.style.justifyContent='';
   if(theyRevealed&&node.profilePhoto){
-    av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="">';av.style.background=node.color;
+    av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';av.style.background=node.color;
+    if(node.avatarAccessory&&AVATAR_ACCESSORIES[node.avatarAccessory]){av.innerHTML+='<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[node.avatarAccessory].svg+'</div>';av.style.overflow='visible'}
   }else{
-    av.innerHTML='';av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();av.style.background=node.color;
+    av.innerHTML=ANON_AVATAR_SVG;av.style.background='none';
+    if(node.avatarAccessory&&AVATAR_ACCESSORIES[node.avatarAccessory]){av.innerHTML+='<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[node.avatarAccessory].svg+'</div>';av.style.overflow='visible'}
   }
   // Star orbit rendering
   const orbEl=$('cdStarsOrbit');
@@ -4965,8 +5046,8 @@ function showConstDetail(node){
   const anonBall=$('cdAnonBall');
   const anonNick=$('cdAnonNick');
   if(theyRevealed&&node.realName&&node.realName!==node.nickname){
-    anonBall.textContent=(node.nickname||'??').slice(0,2).toUpperCase();
-    anonBall.style.background=node.color;
+    anonBall.innerHTML=ANON_AVATAR_SVG;
+    anonBall.style.background='none';anonBall.style.overflow='hidden';
     anonNick.textContent=node.nickname;
     anonPreview.classList.remove('hidden');
   }else{
@@ -5565,7 +5646,7 @@ async function showEncounterLog(){
         let avHtml='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+';overflow:hidden"><img src="'+esc(photo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
         html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
       }else{
-        let avHtml='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+'">'+(enc.withName||'??').slice(0,2).toUpperCase()+'</div>';
+        let avHtml='<div class="elog-avatar" style="background:none;overflow:visible">'+ANON_AVATAR_SVG+'</div>';
         html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
       }
       html+='<div style="flex:1;min-width:0">';
@@ -5679,7 +5760,55 @@ async function openCompleteProfile(){
       cpPhotoData=_cpPhoto;
       $('cpPhotoPreview').innerHTML='<img src="'+_cpPhoto+'" alt="">';
     }
+    // Load accessory selector
+    state._selectedAccessory=d.avatarAccessory||null;
+    renderAccessoryGrid(d.isSubscriber?'plus':d.isTop1?'top1':'free');
   }catch(e){}
+}
+// ═══ ACCESSORY SELECTOR ═══
+function renderAccessoryGrid(userTier){
+  const grid=$('cpAccessoryGrid');
+  const lock=$('cpAccessoryLock');
+  if(!grid)return;
+  const allowed=getAllowedAccessories(userTier);
+  const hasAccess=allowed.length>0;
+  if(lock)lock.style.display=hasAccess?'none':'block';
+  let html='';
+  // "None" option
+  html+='<div class="acc-option'+((!state._selectedAccessory)?' acc-selected':'')+'" data-acc="" onclick="selectAccessory(null,this)" style="width:52px;height:52px;border-radius:50%;border:2px solid '+((!state._selectedAccessory)?'#8b5cf6':'rgba(255,255,255,.1)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;background:rgba(26,26,46,.8);transition:all .2s">'
+    +ANON_AVATAR_SVG+'</div>';
+  // All accessories
+  ACCESSORY_LIST.forEach(key=>{
+    const acc=AVATAR_ACCESSORIES[key];
+    const isSelected=state._selectedAccessory===key;
+    const isLocked=!allowed.includes(key);
+    const tierColor=acc.tier==='top1'?'#fbbf24':'#8b5cf6';
+    const borderColor=isSelected?tierColor:'rgba(255,255,255,.1)';
+    html+='<div class="acc-option'+(isSelected?' acc-selected':'')+(isLocked?' acc-locked':'')+'" data-acc="'+key+'" onclick="'+(isLocked?'showToast(\'Desbloqueie com '+(acc.tier==='top1'?'Top 1':'Touch Plus')+'!\')':'selectAccessory(\''+key+'\',this)')+'" style="width:52px;height:52px;border-radius:50%;border:2px solid '+borderColor+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:visible;background:rgba(26,26,46,.8);transition:all .2s;'+(isLocked?'opacity:.35;filter:grayscale(1)':'')+'" title="'+esc(acc.name)+'">'
+      +'<div style="width:100%;height:100%;position:relative;overflow:visible">'+ANON_AVATAR_SVG
+      +'<div style="position:absolute;top:0;left:0;width:100%;height:100%">'+acc.svg+'</div></div>';
+    if(isLocked){
+      html+='<div style="position:absolute;bottom:-2px;right:-2px;width:16px;height:16px;background:'+tierColor+';border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;border:1.5px solid rgba(0,0,0,.5)">🔒</div>';
+    }
+    html+='</div>';
+  });
+  grid.innerHTML=html;
+}
+function selectAccessory(key,el){
+  state._selectedAccessory=key;
+  // Update selection visual
+  const grid=$('cpAccessoryGrid');
+  if(!grid)return;
+  grid.querySelectorAll('.acc-option').forEach(o=>{
+    o.classList.remove('acc-selected');
+    o.style.borderColor='rgba(255,255,255,.1)';
+  });
+  if(el){
+    el.classList.add('acc-selected');
+    const acc=AVATAR_ACCESSORIES[key];
+    el.style.borderColor=acc?(acc.tier==='top1'?'#fbbf24':'#8b5cf6'):'#8b5cf6';
+  }
+  haptic([15]);
 }
 function setCpPriv(field,isOn){
   const btn=$('cpPriv'+field);if(!btn)return;
@@ -5734,6 +5863,7 @@ async function saveCompleteProfile(){
     tiktok:$('cpTiktok').value.trim(),
     twitter:$('cpTwitter').value.trim(),
     profilePhoto:cpPhotoData||'',
+    avatarAccessory:state._selectedAccessory||null,
     privacy:{
       instagram:privBtn('Instagram')?privBtn('Instagram').classList.contains('priv-on'):true,
       tiktok:privBtn('Tiktok')?privBtn('Tiktok').classList.contains('priv-on'):true,
@@ -6177,9 +6307,8 @@ async function showBoardingPass(){
     $('bpName').textContent=d.name;
     const bpColor=d.color||nickColor(d.name||'??');
     const bpInitials=(d.name||'??').slice(0,2).toUpperCase();
-    $('bpAvatar').innerHTML='';
-    if(state.userPhoto&&state.userPhoto.length>10){$('bpAvatar').style.background='none';$('bpAvatar').innerHTML='<img src="'+state.userPhoto+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">'}
-    else{$('bpAvatar').textContent=bpInitials;$('bpAvatar').style.background=bpColor;$('bpAvatar').style.fontSize='1.4rem';$('bpAvatar').style.fontWeight='800';$('bpAvatar').style.color='#fff'}
+    $('bpAvatar').innerHTML=makeAvatar(d.name||'??',bpColor,44,state.userPhoto||null,false,state.userAccessory||null);
+    $('bpAvatar').style.background='none';$('bpAvatar').style.overflow='visible';
     const since=new Date(d.memberSince);
     const months=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     $('bpSince').textContent='membro desde '+months[since.getMonth()]+' '+since.getFullYear();
@@ -6278,11 +6407,7 @@ function renderProfile(d,userId){
   $('pfTitle').textContent=displayName;
   const s=$('pfScroll');
   let html='<div class="pf-card">';
-  if(d.profilePhoto){
-    html+='<div style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.1)"><img src="'+d.profilePhoto+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
-  }else{
-    html+=makeAvatar(d.nickname,d.color,64);
-  }
+  html+=makeAvatar(d.nickname,d.color||'hsl(200,65%,55%)',64,d.profilePhoto||null,false,d.avatarAccessory||null);
   html+='<div style="margin-top:.8rem;font-size:1.1rem;font-weight:700">'+esc(displayName)+(d.isSubscriber?' <span style="font-size:.55rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:.1rem .35rem;border-radius:8px;font-weight:600;vertical-align:middle">Plus</span>':'')+'</div>';
   if(d.realName&&d.realName!==d.nickname){
     html+='<div style="font-size:.7rem;color:var(--t2);margin-top:.1rem">@'+esc(d.nickname)+'</div>';
@@ -8268,7 +8393,7 @@ window.addEventListener('load',()=>{
     if(state.userId&&await validateUser()){
       initSocket();requestAccelPermission();
       // Set home avatar
-      const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.textContent=(state.userName||'??').slice(0,2).toUpperCase();_ha.style.background=state.userColor||nickColor(state.userName)}
+      const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
       if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
       else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
       refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
