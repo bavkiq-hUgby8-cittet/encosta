@@ -940,11 +940,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Progress bar */
 .co-progress{position:absolute;bottom:calc(18% - 18px);left:50%;transform:translateX(-50%);width:100px;height:1px;background:rgba(100,180,255,.08);border-radius:1px;z-index:6;opacity:0;animation:co-prog-in .4s ease 1s forwards;overflow:hidden}
 @keyframes co-prog-in{to{opacity:1}}
-.co-progress-bar{width:0;height:100%;background:linear-gradient(90deg,transparent,rgba(120,200,255,.8),transparent);border-radius:1px;animation:co-prog-fill 3.8s cubic-bezier(.4,.0,.2,1) 1.2s forwards}
+.co-progress-bar{width:0;height:100%;background:linear-gradient(90deg,transparent,rgba(120,200,255,.8),transparent);border-radius:1px;animation:co-prog-fill 5s cubic-bezier(.4,.0,.2,1) 1.2s forwards}
 @keyframes co-prog-fill{0%{width:0}20%{width:15%}50%{width:40%}75%{width:65%}90%{width:85%}100%{width:100%}}
 /* Flash */
 .co-flash{position:absolute;inset:0;z-index:7;pointer-events:none;opacity:0}
-.connecting-overlay.active .co-flash{animation:co-fullflash 4.5s ease forwards}
+.connecting-overlay.active .co-flash{animation:co-fullflash 5.5s ease forwards}
 @keyframes co-fullflash{0%{opacity:0}4%{opacity:.6}7%{opacity:0}50%{opacity:.1}53%{opacity:0}100%{opacity:0}}
 /* Color themes */
 .connecting-overlay.first .co-flash{background:radial-gradient(circle at 50% 50%,rgba(100,200,255,.5),rgba(40,100,255,.2),transparent 60%)}
@@ -2282,7 +2282,7 @@ function initSocket(){
         if(navigator.vibrate)navigator.vibrate(0);
         co.classList.remove('active','first','renewed');
         showScreen('reveal');doReveal(d);
-      },isQuick?1800:4200);
+      },isQuick?2500:5800);
     }else{
       showScreen('reveal');doReveal(d);
     }
@@ -3310,124 +3310,122 @@ function startElectricTouch(isRenewed){
   cv.style.width=W+'px';cv.style.height=H+'px';
   const ctx=cv.getContext('2d');
   ctx.scale(dpr,dpr);
-  // Color palette — same layered approach as reveal beam
+  // Color palette — WHITE for new connection, GOLD for renewed
   const C=isRenewed
-    ?{a:'255,190,80',m:'255,170,60',c:'255,210,120',h:'255,240,190',p:'255,200,110',e:'255,180,60'}
-    :{a:'80,160,255',m:'60,140,255',c:'100,180,255',h:'200,225,255',p:'120,190,255',e:'50,130,255'};
+    ?{a:'255,200,80',m:'255,180,50',c:'255,220,120',h:'255,245,200',p:'255,210,100'}
+    :{a:'210,220,240',m:'200,210,235',c:'230,238,250',h:'250,252,255',p:'220,230,245'};
   const t0=performance.now();
 
-  // ── ZEBRA BEAMS: multiple horizontal light bands moving top→bottom ──
-  const beamCount=8;
-  const beamSpacing=H/(beamCount-1)*0.7; // close spacing
+  // ── ZEBRA BEAMS: many horizontal light bands moving top→bottom ──
+  const beamCount=22;
+  const beamSpacing=H/beamCount*0.85;
   const beams=[];
   for(let i=0;i<beamCount;i++){
     beams.push({
-      y:-H*0.3+i*beamSpacing+Math.random()*30, // start staggered above screen
-      baseSpeed:180+Math.random()*80,            // px/sec base speed
-      tubeH:35+Math.random()*15,                 // beam thickness
+      y:-H*0.6+i*beamSpacing+Math.random()*20,
+      baseSpeed:280+Math.random()*120,
+      tubeH:22+Math.random()*18,
       phase:Math.random()*Math.PI*2,
-      breatheFreq:.6+Math.random()*.5
+      breatheFreq:.5+Math.random()*.6
     });
   }
   // Burst state
-  let nextBurst=1.2+Math.random()*1.5;
+  let nextBurst=0.8+Math.random()*1;
   let burstIntensity=0;
-  let burstSpeed=0; // extra speed during burst
+  let burstSpeed=0;
 
   // Particles riding along beams
   const particles=[];
-  for(let i=0;i<50;i++){
+  for(let i=0;i<70;i++){
     particles.push({
-      x:Math.random()*W, beamIdx:Math.floor(Math.random()*beamCount),
-      vx:1+Math.random()*2.5, yOff:(Math.random()-0.5)*0.4,
-      r:0.5+Math.random()*1.2, a:0.1+Math.random()*0.25,
+      x:Math.random()*W,beamIdx:Math.floor(Math.random()*beamCount),
+      vx:1.5+Math.random()*3,yOff:(Math.random()-0.5)*0.35,
+      r:0.4+Math.random()*1.4,a:0.15+Math.random()*0.35,
       phase:Math.random()*Math.PI*2
     });
   }
 
   function drawBeam(y,tubeH,breathe,intensity){
     const th=tubeH*breathe;
-    // Layer 1: Wide ambient glow
-    const g1=ctx.createLinearGradient(0,y-th*3,0,y+th*3);
+    // Layer 1: Wide ambient glow — STRONG
+    const g1=ctx.createLinearGradient(0,y-th*2.5,0,y+th*2.5);
     g1.addColorStop(0,'transparent');
-    g1.addColorStop(0.3,'rgba('+C.a+','+(0.018*intensity)+')');
-    g1.addColorStop(0.5,'rgba('+C.a+','+(0.04*intensity)+')');
-    g1.addColorStop(0.7,'rgba('+C.a+','+(0.018*intensity)+')');
+    g1.addColorStop(0.3,'rgba('+C.a+','+(0.05*intensity)+')');
+    g1.addColorStop(0.5,'rgba('+C.a+','+(0.12*intensity)+')');
+    g1.addColorStop(0.7,'rgba('+C.a+','+(0.05*intensity)+')');
     g1.addColorStop(1,'transparent');
-    ctx.fillStyle=g1;ctx.fillRect(0,y-th*3,W,th*6);
-    // Layer 2: Medium band
-    const g2=ctx.createLinearGradient(0,y-th*1.2,0,y+th*1.2);
+    ctx.fillStyle=g1;ctx.fillRect(0,y-th*2.5,W,th*5);
+    // Layer 2: Medium band — BRIGHT
+    const g2=ctx.createLinearGradient(0,y-th*1,0,y+th*1);
     g2.addColorStop(0,'transparent');
-    g2.addColorStop(0.25,'rgba('+C.m+','+(0.03*intensity)+')');
-    g2.addColorStop(0.5,'rgba('+C.m+','+(0.07*intensity)+')');
-    g2.addColorStop(0.75,'rgba('+C.m+','+(0.03*intensity)+')');
+    g2.addColorStop(0.2,'rgba('+C.m+','+(0.08*intensity)+')');
+    g2.addColorStop(0.5,'rgba('+C.m+','+(0.20*intensity)+')');
+    g2.addColorStop(0.8,'rgba('+C.m+','+(0.08*intensity)+')');
     g2.addColorStop(1,'transparent');
-    ctx.fillStyle=g2;ctx.fillRect(0,y-th*1.2,W,th*2.4);
-    // Layer 3: Narrow core
-    const g3=ctx.createLinearGradient(0,y-th*0.35,0,y+th*0.35);
+    ctx.fillStyle=g2;ctx.fillRect(0,y-th,W,th*2);
+    // Layer 3: Narrow core — INTENSE
+    const g3=ctx.createLinearGradient(0,y-th*0.3,0,y+th*0.3);
     g3.addColorStop(0,'transparent');
-    g3.addColorStop(0.3,'rgba('+C.c+','+(0.05*intensity)+')');
-    g3.addColorStop(0.5,'rgba('+C.c+','+(0.10*intensity)+')');
-    g3.addColorStop(0.7,'rgba('+C.c+','+(0.05*intensity)+')');
+    g3.addColorStop(0.25,'rgba('+C.c+','+(0.15*intensity)+')');
+    g3.addColorStop(0.5,'rgba('+C.c+','+(0.35*intensity)+')');
+    g3.addColorStop(0.75,'rgba('+C.c+','+(0.15*intensity)+')');
     g3.addColorStop(1,'transparent');
-    ctx.fillStyle=g3;ctx.fillRect(0,y-th*0.35,W,th*0.7);
-    // Layer 4: Hot wire center line
-    const g4=ctx.createLinearGradient(0,y-2,0,y+2);
+    ctx.fillStyle=g3;ctx.fillRect(0,y-th*0.3,W,th*0.6);
+    // Layer 4: Hot wire — BLAZING white center
+    const g4=ctx.createLinearGradient(0,y-1.5,0,y+1.5);
     g4.addColorStop(0,'transparent');
-    g4.addColorStop(0.5,'rgba('+C.h+','+(0.06*intensity)+')');
+    g4.addColorStop(0.5,'rgba('+C.h+','+(0.25*intensity)+')');
     g4.addColorStop(1,'transparent');
-    ctx.fillStyle=g4;ctx.fillRect(0,y-2,W,4);
+    ctx.fillStyle=g4;ctx.fillRect(0,y-1.5,W,3);
   }
 
   function animate(){
     const now=performance.now();
     const t=(now-t0)/1000;
-    const progress=Math.min(1,t/4.5);
-    // Burst logic: random sudden acceleration surges
+    const progress=Math.min(1,t/5.8);
+    // Burst logic: frequent sudden acceleration surges
     nextBurst-=0.016;
     if(nextBurst<=0){
       burstIntensity=1;
-      burstSpeed=600+Math.random()*400; // massive speed boost
-      nextBurst=1.5+Math.random()*2.5;
+      burstSpeed=900+Math.random()*600;
+      nextBurst=1+Math.random()*1.8;
     }
-    if(burstIntensity>0)burstIntensity=Math.max(0,burstIntensity-0.02);
-    if(burstSpeed>0)burstSpeed=Math.max(0,burstSpeed-8);
+    if(burstIntensity>0)burstIntensity=Math.max(0,burstIntensity-0.018);
+    if(burstSpeed>0)burstSpeed=Math.max(0,burstSpeed-12);
 
     ctx.clearRect(0,0,W,H);
-    // ── Dark background ──
-    ctx.fillStyle='rgba(0,0,0,0.94)';
+    ctx.fillStyle='rgba(0,0,0,0.96)';
     ctx.fillRect(0,0,W,H);
 
     // ── Move & draw each beam ──
-    const globalIntensity=0.5+progress*0.5+burstIntensity*0.8;
+    const globalIntensity=0.6+progress*0.4+burstIntensity*1.2;
     beams.forEach(b=>{
       const speed=b.baseSpeed+burstSpeed;
       b.y+=speed*0.016;
-      // Wrap around: when beam goes past bottom, restart above top
-      if(b.y>H+b.tubeH*4) b.y=-b.tubeH*4-Math.random()*60;
-      const breathe=1+Math.sin(t*b.breatheFreq+b.phase)*0.08;
+      if(b.y>H+b.tubeH*3) b.y=-b.tubeH*3-Math.random()*40;
+      const breathe=1+Math.sin(t*b.breatheFreq+b.phase)*0.06;
       drawBeam(b.y,b.tubeH,breathe,globalIntensity);
-      // Flowing streaks left→right on each beam (like reveal)
-      for(let i=0;i<3;i++){
-        const sx=((t*70*(1+burstIntensity*3)+i*W/3)%(W+140))-70;
-        const sLen=60+Math.sin(t*0.8+i)*25;
-        const sy=b.y+Math.sin(t*1.2+i*1.3)*b.tubeH*breathe*0.25;
+      // Flowing streaks on each beam
+      for(let i=0;i<2;i++){
+        const sx=((t*90*(1+burstIntensity*4)+i*W/2)%(W+120))-60;
+        const sLen=50+Math.sin(t*0.8+i)*20;
+        const sy=b.y+Math.sin(t*1.2+i*1.3)*b.tubeH*breathe*0.2;
         const sg=ctx.createLinearGradient(sx,sy,sx-sLen,sy);
-        sg.addColorStop(0,'rgba('+C.p+','+(0.12*globalIntensity)+')');
-        sg.addColorStop(0.6,'rgba('+C.p+','+(0.04*globalIntensity)+')');
+        sg.addColorStop(0,'rgba('+C.p+','+(0.20*globalIntensity)+')');
+        sg.addColorStop(0.5,'rgba('+C.p+','+(0.06*globalIntensity)+')');
         sg.addColorStop(1,'transparent');
-        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-sLen,sy+Math.sin(t+i)*1.5);
-        ctx.strokeStyle=sg;ctx.lineWidth=1+Math.sin(t*2+i)*0.5;ctx.lineCap='round';ctx.stroke();
+        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-sLen,sy);
+        ctx.strokeStyle=sg;ctx.lineWidth=1.2;ctx.lineCap='round';ctx.stroke();
       }
     });
 
     // ── Particles riding beams ──
     particles.forEach(p=>{
-      p.x+=p.vx*(1+burstIntensity*3);
+      p.x+=p.vx*(1+burstIntensity*4);
       if(p.x>W+10)p.x=-10;
-      const b=beams[p.beamIdx];
-      const py=b.y+p.yOff*b.tubeH+Math.sin(t*0.6+p.phase)*b.tubeH*0.1;
-      const fl=(p.a+Math.sin(t*2.5+p.phase)*0.08)*globalIntensity;
+      const b=beams[p.beamIdx%beamCount];
+      const py=b.y+p.yOff*b.tubeH+Math.sin(t*0.6+p.phase)*b.tubeH*0.08;
+      const fl=(p.a+Math.sin(t*2.5+p.phase)*0.1)*globalIntensity;
       if(fl>0){
         ctx.beginPath();ctx.arc(p.x,py,p.r,0,Math.PI*2);
         ctx.fillStyle='rgba('+C.p+','+Math.min(1,fl).toFixed(3)+')';ctx.fill();
@@ -3435,13 +3433,13 @@ function startElectricTouch(isRenewed){
     });
 
     // ── Flash overlay on burst ──
-    if(burstIntensity>0.2){
+    if(burstIntensity>0.15){
       const fl=$('coFlash');
       if(fl){
-        fl.style.opacity=(burstIntensity*0.15).toFixed(3);
-        fl.style.background='linear-gradient(180deg,rgba('+C.c+','+(burstIntensity*0.2)+'),transparent 40%,transparent 60%,rgba('+C.c+','+(burstIntensity*0.2)+'))';
+        fl.style.opacity=(burstIntensity*0.25).toFixed(3);
+        fl.style.background='linear-gradient(180deg,rgba('+C.c+','+(burstIntensity*0.3)+'),transparent 35%,transparent 65%,rgba('+C.c+','+(burstIntensity*0.3)+'))';
       }
-    } else {
+    }else{
       const fl=$('coFlash');if(fl)fl.style.opacity='0';
     }
 
