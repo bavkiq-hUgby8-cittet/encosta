@@ -1317,14 +1317,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
   </div>
   <div id="constSearchCount" style="position:absolute;top:calc(max(env(safe-area-inset-top),.8rem) + 2.8rem);left:0;right:0;font-size:.55rem;color:var(--t3);text-align:center;z-index:11;pointer-events:none;min-height:.8rem"></div>
-  <div style="display:flex;gap:.3rem;padding:0 .6rem .3rem;justify-content:center;flex-wrap:wrap">
-    <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
-    <button class="const-filter-btn" id="constFilterRevealed" onclick="setConstFilter('revealed')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🟢 Revelados</button>
-    <button class="const-filter-btn" id="constFilterAnon" onclick="setConstFilter('anon')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🔴 Anônimos</button>
-    <button class="const-filter-btn" id="constFilterEncounters" onclick="setConstFilter('encounters')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🤝 Encontros</button>
-    <button class="const-filter-btn" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">👤 Pessoas</button>
-    <button class="const-filter-btn" id="constFilterServices" onclick="setConstFilter('services')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">💼 Serviços</button>
-    <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">📍 Eventos</button>
+  <div style="display:flex;gap:.35rem;padding:0 .6rem .3rem;justify-content:center">
+    <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
+    <button class="const-filter-btn" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Pessoas</button>
+    <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Eventos</button>
   </div>
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
@@ -4221,11 +4217,11 @@ async function showRelations(){
 }
 
 // ═══ CONSTELLATION ═══
-let constFilter='all'; // 'all','revealed','anon','events'
+let constFilter='all'; // 'all','people','events'
 function setConstFilter(f){
   constFilter=f;
-  const btns=['constFilterAll','constFilterRevealed','constFilterAnon','constFilterEncounters','constFilterPeople','constFilterServices','constFilterEvents'];
-  const activeColors={all:['rgba(99,102,241,.15)','rgba(99,102,241,.3)','#a78bfa'],revealed:['rgba(0,220,130,.12)','rgba(0,220,130,.3)','#00dc82'],anon:['rgba(255,68,102,.12)','rgba(255,68,102,.3)','#ff4466'],encounters:['rgba(251,191,36,.12)','rgba(251,191,36,.3)','#fbbf24'],people:['rgba(168,85,247,.12)','rgba(168,85,247,.3)','#a855f7'],services:['rgba(59,130,246,.12)','rgba(59,130,246,.3)','#3b82f6'],events:['rgba(96,165,250,.12)','rgba(96,165,250,.3)','#60a5fa']};
+  const btns=['constFilterAll','constFilterPeople','constFilterEvents'];
+  const activeColors={all:['rgba(99,102,241,.15)','rgba(99,102,241,.3)','#a78bfa'],people:['rgba(168,85,247,.12)','rgba(168,85,247,.3)','#a855f7'],events:['rgba(96,165,250,.12)','rgba(96,165,250,.3)','#60a5fa']};
   btns.forEach(id=>{
     const el=$(id);if(!el)return;
     const key=id.replace('constFilter','').toLowerCase();
@@ -4577,21 +4573,11 @@ function initConstCanvas(){
     constState._mcx=mcx;constState._mcy=mcy;
 
     const FP_FOV=180; // wider FOV for immersive fan-out
-    // Filter nodes by constellation filter
+    // Filter nodes by constellation filter (Todos = people+events, Pessoas = only people, Eventos = only events)
     const filteredNodes=constState.nodes.filter(n=>{
       if(constFilter==='events')return !!n.isEvent;
-      if(constFilter==='revealed'){
-        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
-        return !n.isEvent&&isRevealed;
-      }
-      if(constFilter==='anon'){
-        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
-        return !n.isEvent&&!isRevealed;
-      }
-      if(constFilter==='encounters')return !n.isEvent&&(n.encounters||0)>0;
-      if(constFilter==='people')return !n.isEvent&&!n.isPrestador;
-      if(constFilter==='services')return !n.isEvent&&!!n.isPrestador;
-      return !n.isEvent; // 'all' = all people (no events)
+      if(constFilter==='people')return !n.isEvent;
+      return true; // 'all' = everything (people + events)
     });
     const projected=filteredNodes.map(n=>{
       if(fpBlend<0.01){
@@ -4890,12 +4876,11 @@ function initConstCanvas(){
 
     // ── Floating legend pill (hidden in FP mode) ──
     if(fpBlend>0.7)return; // skip pill in full FP
-    const verified=constState.nodes.filter(n=>!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]))).length;
-    const anon=constState.nodes.filter(n=>!n.isEvent).length-verified;
-    const pillW=Math.min(W-24,260),pillH=32,pillX=(W-pillW)/2,pillY=H-48;
+    const peopleCount=constState.nodes.filter(n=>!n.isEvent).length;
+    const eventsCount=constState.nodes.filter(n=>!!n.isEvent).length;
+    const pillW=Math.min(W-24,240),pillH=30,pillX=(W-pillW)/2,pillY=H-46;
     ctx.save();ctx.globalAlpha=1-fpBlend;
-    // Store pill bounds for click detection
-    constState._pillBounds={x:pillX,y:pillY,w:pillW,h:pillH,revX:pillX,revW:pillW/2,anonX:pillX+pillW/2,anonW:pillW/2};
+    constState._pillBounds={x:pillX,y:pillY,w:pillW,h:pillH};
     ctx.beginPath();
     const pillR=pillH/2;
     ctx.moveTo(pillX+pillR,pillY);ctx.lineTo(pillX+pillW-pillR,pillY);
@@ -4906,22 +4891,22 @@ function initConstCanvas(){
     ctx.strokeStyle='rgba(100,160,255,.12)';ctx.lineWidth=0.5;ctx.stroke();
     const midY=pillY+pillH/2;
     let tx=pillX+14;
-    // Revealed section (clickable)
-    const revHighlight=constFilter==='revealed'?.9:.55;
-    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#00dc82';ctx.fill();
+    // People section
+    const pHL=constFilter==='people'?.9:.55;
+    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#a855f7';ctx.fill();
     tx+=10;
-    ctx.fillStyle='rgba(255,255,255,'+revHighlight+')';ctx.font=(constFilter==='revealed'?'700':'500')+' 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillText('Revelados: '+verified,tx,midY);
-    const revEndX=tx+ctx.measureText('Revelados: '+verified).width;
-    constState._pillBounds.revEndX=revEndX+8;
-    tx=revEndX+16;
-    // Anon section (clickable)
-    const anonHighlight=constFilter==='anon'?.9:.55;
-    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#ff4466';ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,'+pHL+')';ctx.font=(constFilter==='people'?'700':'500')+' 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText('Pessoas: '+peopleCount,tx,midY);
+    const pEndX=tx+ctx.measureText('Pessoas: '+peopleCount).width;
+    constState._pillBounds.pEndX=pEndX+8;
+    tx=pEndX+16;
+    // Events section
+    const eHL=constFilter==='events'?.9:.55;
+    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#60a5fa';ctx.fill();
     tx+=10;
-    constState._pillBounds.anonStartX=tx-14;
-    ctx.fillStyle='rgba(255,255,255,'+anonHighlight+')';ctx.font=(constFilter==='anon'?'700':'500')+' 10px Inter,sans-serif';
-    ctx.fillText('Anônimos: '+anon,tx,midY);
+    constState._pillBounds.eStartX=tx-14;
+    ctx.fillStyle='rgba(255,255,255,'+eHL+')';ctx.font=(constFilter==='events'?'700':'500')+' 10px Inter,sans-serif';
+    ctx.fillText('Eventos: '+eventsCount,tx,midY);
     ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='400 9px Inter,sans-serif';
     ctx.fillText(filteredNodes.length+' nós',pillX+pillW-14,midY);
     ctx.restore();
@@ -4931,14 +4916,14 @@ function initConstCanvas(){
 }
 
 function handleConstTap(tx,ty,W,H){
-  // Tap on legend pill → toggle filter
+  // Tap on legend pill → toggle filter (people / events)
   if(constState._pillBounds){
     const pb=constState._pillBounds;
     if(ty>=pb.y&&ty<=pb.y+pb.h&&tx>=pb.x&&tx<=pb.x+pb.w){
-      if(tx<(pb.revEndX||pb.x+pb.w/2)){
-        setConstFilter(constFilter==='revealed'?'all':'revealed');
-      }else if(tx>=(pb.anonStartX||pb.x+pb.w/2)){
-        setConstFilter(constFilter==='anon'?'all':'anon');
+      if(tx<(pb.pEndX||pb.x+pb.w/2)){
+        setConstFilter(constFilter==='people'?'all':'people');
+      }else if(tx>=(pb.eStartX||pb.x+pb.w/2)){
+        setConstFilter(constFilter==='events'?'all':'events');
       }
       haptic([15]);return;
     }
