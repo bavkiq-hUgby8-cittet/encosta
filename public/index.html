@@ -3304,173 +3304,145 @@ function stopSonicMode(){
 let _etAnim=null;
 function startElectricTouch(isRenewed){
   const cv=$('coCanvas');if(!cv)return;
+  const dpr=window.devicePixelRatio||1;
   const W=window.innerWidth,H=window.innerHeight;
-  cv.width=W;cv.height=H;
+  cv.width=W*dpr;cv.height=H*dpr;
+  cv.style.width=W+'px';cv.style.height=H+'px';
   const ctx=cv.getContext('2d');
-  // Color palette
-  const cR1=isRenewed?255:80,cG1=isRenewed?200:180,cB1=isRenewed?60:255;
-  const cR2=isRenewed?255:40,cG2=isRenewed?170:140,cB2=isRenewed?0:255;
+  ctx.scale(dpr,dpr);
+  // Color palette — same layered approach as reveal beam
+  const C=isRenewed
+    ?{a:'255,190,80',m:'255,170,60',c:'255,210,120',h:'255,240,190',p:'255,200,110',e:'255,180,60'}
+    :{a:'80,160,255',m:'60,140,255',c:'100,180,255',h:'200,225,255',p:'120,190,255',e:'50,130,255'};
   const t0=performance.now();
-  const cx=W/2,cy=H/2;
-  const diag=Math.sqrt(W*W+H*H);
 
-  // ── RAIL BEAMS: converge from edges to center like roller-coaster rails ──
-  const rails=[];
-  const railCount=14;
-  for(let i=0;i<railCount;i++){
-    const angle=(i/railCount)*Math.PI*2+Math.random()*.3;
-    rails.push({
-      angle:angle,
-      width:1.5+Math.random()*3,
-      baseAlpha:.06+Math.random()*.15,
-      speed:.6+Math.random()*.8,
+  // ── ZEBRA BEAMS: multiple horizontal light bands moving top→bottom ──
+  const beamCount=8;
+  const beamSpacing=H/(beamCount-1)*0.7; // close spacing
+  const beams=[];
+  for(let i=0;i<beamCount;i++){
+    beams.push({
+      y:-H*0.3+i*beamSpacing+Math.random()*30, // start staggered above screen
+      baseSpeed:180+Math.random()*80,            // px/sec base speed
+      tubeH:35+Math.random()*15,                 // beam thickness
       phase:Math.random()*Math.PI*2,
-      pulseFreq:2+Math.random()*3,
-      dotOffset:Math.random(),
-      dotSpeed:.3+Math.random()*.6
+      breatheFreq:.6+Math.random()*.5
     });
   }
-  // ── SPARK PARTICLES — fly inward along rails ──
-  const sparks=[];
-  for(let i=0;i<60;i++){
-    const angle=Math.random()*Math.PI*2;
-    sparks.push({
-      angle:angle,dist:diag*.5+Math.random()*diag*.3,
-      speed:2+Math.random()*5,alpha:.15+Math.random()*.5,
-      size:.8+Math.random()*2,phase:Math.random()*Math.PI*2,
-      trail:[]
-    });
-  }
-  // ── RING PULSES — expanding from center on connection ──
-  const rings=[];
-  // ── FLASH BURSTS — random sudden accelerations ──
-  let nextBurst=1.5+Math.random()*2;
+  // Burst state
+  let nextBurst=1.2+Math.random()*1.5;
   let burstIntensity=0;
+  let burstSpeed=0; // extra speed during burst
+
+  // Particles riding along beams
+  const particles=[];
+  for(let i=0;i<50;i++){
+    particles.push({
+      x:Math.random()*W, beamIdx:Math.floor(Math.random()*beamCount),
+      vx:1+Math.random()*2.5, yOff:(Math.random()-0.5)*0.4,
+      r:0.5+Math.random()*1.2, a:0.1+Math.random()*0.25,
+      phase:Math.random()*Math.PI*2
+    });
+  }
+
+  function drawBeam(y,tubeH,breathe,intensity){
+    const th=tubeH*breathe;
+    // Layer 1: Wide ambient glow
+    const g1=ctx.createLinearGradient(0,y-th*3,0,y+th*3);
+    g1.addColorStop(0,'transparent');
+    g1.addColorStop(0.3,'rgba('+C.a+','+(0.018*intensity)+')');
+    g1.addColorStop(0.5,'rgba('+C.a+','+(0.04*intensity)+')');
+    g1.addColorStop(0.7,'rgba('+C.a+','+(0.018*intensity)+')');
+    g1.addColorStop(1,'transparent');
+    ctx.fillStyle=g1;ctx.fillRect(0,y-th*3,W,th*6);
+    // Layer 2: Medium band
+    const g2=ctx.createLinearGradient(0,y-th*1.2,0,y+th*1.2);
+    g2.addColorStop(0,'transparent');
+    g2.addColorStop(0.25,'rgba('+C.m+','+(0.03*intensity)+')');
+    g2.addColorStop(0.5,'rgba('+C.m+','+(0.07*intensity)+')');
+    g2.addColorStop(0.75,'rgba('+C.m+','+(0.03*intensity)+')');
+    g2.addColorStop(1,'transparent');
+    ctx.fillStyle=g2;ctx.fillRect(0,y-th*1.2,W,th*2.4);
+    // Layer 3: Narrow core
+    const g3=ctx.createLinearGradient(0,y-th*0.35,0,y+th*0.35);
+    g3.addColorStop(0,'transparent');
+    g3.addColorStop(0.3,'rgba('+C.c+','+(0.05*intensity)+')');
+    g3.addColorStop(0.5,'rgba('+C.c+','+(0.10*intensity)+')');
+    g3.addColorStop(0.7,'rgba('+C.c+','+(0.05*intensity)+')');
+    g3.addColorStop(1,'transparent');
+    ctx.fillStyle=g3;ctx.fillRect(0,y-th*0.35,W,th*0.7);
+    // Layer 4: Hot wire center line
+    const g4=ctx.createLinearGradient(0,y-2,0,y+2);
+    g4.addColorStop(0,'transparent');
+    g4.addColorStop(0.5,'rgba('+C.h+','+(0.06*intensity)+')');
+    g4.addColorStop(1,'transparent');
+    ctx.fillStyle=g4;ctx.fillRect(0,y-2,W,4);
+  }
 
   function animate(){
     const now=performance.now();
     const t=(now-t0)/1000;
     const progress=Math.min(1,t/4.5);
-    // Ease-in curve: slow start, explosive acceleration
-    const ease=progress<.6?progress*progress*.5:(.18+Math.pow((progress-.6)/.4,2)*.82);
-    // Burst logic: random sudden surges
-    nextBurst-=.016;
-    if(nextBurst<=0){burstIntensity=1;nextBurst=1.5+Math.random()*3;
-      rings.push({r:0,maxR:diag*.4,speed:200+Math.random()*300,alpha:.6,born:t});
+    // Burst logic: random sudden acceleration surges
+    nextBurst-=0.016;
+    if(nextBurst<=0){
+      burstIntensity=1;
+      burstSpeed=600+Math.random()*400; // massive speed boost
+      nextBurst=1.5+Math.random()*2.5;
     }
-    if(burstIntensity>0)burstIntensity=Math.max(0,burstIntensity-.015);
+    if(burstIntensity>0)burstIntensity=Math.max(0,burstIntensity-0.02);
+    if(burstSpeed>0)burstSpeed=Math.max(0,burstSpeed-8);
 
     ctx.clearRect(0,0,W,H);
-    // ── Background: dark void ──
-    ctx.fillStyle='rgba(0,0,0,.92)';
+    // ── Dark background ──
+    ctx.fillStyle='rgba(0,0,0,0.94)';
     ctx.fillRect(0,0,W,H);
 
-    // ── Subtle radial ambient from center ──
-    const ambR=diag*(.15+ease*.25+burstIntensity*.15);
-    const amb=ctx.createRadialGradient(cx,cy,0,cx,cy,ambR);
-    amb.addColorStop(0,'rgba('+cR1+','+cG1+','+cB1+','+(0.06+ease*.08+burstIntensity*.12)+')');
-    amb.addColorStop(.5,'rgba('+cR2+','+cG2+','+cB2+','+(0.02+ease*.03)+')');
-    amb.addColorStop(1,'transparent');
-    ctx.fillStyle=amb;ctx.fillRect(0,0,W,H);
-
-    // ── RAIL BEAMS: converging lines from edge to center ──
-    rails.forEach(r=>{
-      const pulse=Math.sin(t*r.pulseFreq+r.phase);
-      const intensity=(.3+ease*.7)*(1+burstIntensity*2);
-      const a=r.baseAlpha*intensity*(1+pulse*.3);
-      // Rail line from edge to near-center
-      const edgeDist=diag*.55;
-      const innerDist=diag*(.02+(.08-ease*.06));
-      const ex=cx+Math.cos(r.angle)*edgeDist;
-      const ey=cy+Math.sin(r.angle)*edgeDist;
-      const ix=cx+Math.cos(r.angle)*innerDist;
-      const iy=cy+Math.sin(r.angle)*innerDist;
-      // Main rail beam
-      const grad=ctx.createLinearGradient(ex,ey,ix,iy);
-      grad.addColorStop(0,'transparent');
-      grad.addColorStop(.15,'rgba('+cR1+','+cG1+','+cB1+','+(a*.2)+')');
-      grad.addColorStop(.6,'rgba('+cR1+','+cG1+','+cB1+','+a+')');
-      grad.addColorStop(.85,'rgba(255,255,255,'+(a*1.5)+')');
-      grad.addColorStop(1,'rgba(255,255,255,'+(a*2+burstIntensity*.5)+')');
-      ctx.strokeStyle=grad;
-      ctx.lineWidth=r.width*(1+burstIntensity*2);
-      ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ix,iy);ctx.stroke();
-      // Outer glow on rail
-      ctx.strokeStyle='rgba('+cR1+','+cG1+','+cB1+','+(a*.15)+')';
-      ctx.lineWidth=r.width*4+burstIntensity*8;
-      ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ix,iy);ctx.stroke();
-      // Moving energy dots along rail
-      r.dotOffset+=r.dotSpeed*.016*(1+burstIntensity*6+ease*2);
-      if(r.dotOffset>1)r.dotOffset-=1;
-      const dotDist=edgeDist-(edgeDist-innerDist)*r.dotOffset;
-      const dx=cx+Math.cos(r.angle)*dotDist;
-      const dy=cy+Math.sin(r.angle)*dotDist;
-      const dotA=a*2*(1+burstIntensity*3);
-      ctx.beginPath();ctx.arc(dx,dy,2+burstIntensity*4,0,Math.PI*2);
-      ctx.fillStyle='rgba(255,255,255,'+Math.min(1,dotA)+')';ctx.fill();
-      // Dot glow
-      const dg=ctx.createRadialGradient(dx,dy,0,dx,dy,8+burstIntensity*15);
-      dg.addColorStop(0,'rgba('+cR1+','+cG1+','+cB1+','+(dotA*.5)+')');
-      dg.addColorStop(1,'transparent');
-      ctx.fillStyle=dg;ctx.fillRect(dx-20,dy-20,40,40);
+    // ── Move & draw each beam ──
+    const globalIntensity=0.5+progress*0.5+burstIntensity*0.8;
+    beams.forEach(b=>{
+      const speed=b.baseSpeed+burstSpeed;
+      b.y+=speed*0.016;
+      // Wrap around: when beam goes past bottom, restart above top
+      if(b.y>H+b.tubeH*4) b.y=-b.tubeH*4-Math.random()*60;
+      const breathe=1+Math.sin(t*b.breatheFreq+b.phase)*0.08;
+      drawBeam(b.y,b.tubeH,breathe,globalIntensity);
+      // Flowing streaks left→right on each beam (like reveal)
+      for(let i=0;i<3;i++){
+        const sx=((t*70*(1+burstIntensity*3)+i*W/3)%(W+140))-70;
+        const sLen=60+Math.sin(t*0.8+i)*25;
+        const sy=b.y+Math.sin(t*1.2+i*1.3)*b.tubeH*breathe*0.25;
+        const sg=ctx.createLinearGradient(sx,sy,sx-sLen,sy);
+        sg.addColorStop(0,'rgba('+C.p+','+(0.12*globalIntensity)+')');
+        sg.addColorStop(0.6,'rgba('+C.p+','+(0.04*globalIntensity)+')');
+        sg.addColorStop(1,'transparent');
+        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-sLen,sy+Math.sin(t+i)*1.5);
+        ctx.strokeStyle=sg;ctx.lineWidth=1+Math.sin(t*2+i)*0.5;ctx.lineCap='round';ctx.stroke();
+      }
     });
 
-    // ── SPARK PARTICLES: flying inward ──
-    sparks.forEach(s=>{
-      s.dist-=s.speed*(1+ease*3+burstIntensity*12);
-      if(s.dist<5){s.dist=diag*(.4+Math.random()*.3);s.angle=Math.random()*Math.PI*2;s.speed=2+Math.random()*5}
-      const sx=cx+Math.cos(s.angle)*s.dist;
-      const sy=cy+Math.sin(s.angle)*s.dist;
-      // Trail
-      s.trail.push({x:sx,y:sy,a:s.alpha});
-      if(s.trail.length>6)s.trail.shift();
-      s.trail.forEach((tp,ti)=>{
-        const ta=tp.a*((ti+1)/s.trail.length)*.3*ease;
-        ctx.beginPath();ctx.arc(tp.x,tp.y,s.size*.5,0,Math.PI*2);
-        ctx.fillStyle='rgba('+cR1+','+cG1+','+cB1+','+ta+')';ctx.fill();
-      });
-      // Main spark
-      const sa=s.alpha*(.3+ease*.7)*(1+burstIntensity*2);
-      ctx.beginPath();ctx.arc(sx,sy,s.size,0,Math.PI*2);
-      ctx.fillStyle='rgba(255,255,255,'+Math.min(1,sa)+')';ctx.fill();
+    // ── Particles riding beams ──
+    particles.forEach(p=>{
+      p.x+=p.vx*(1+burstIntensity*3);
+      if(p.x>W+10)p.x=-10;
+      const b=beams[p.beamIdx];
+      const py=b.y+p.yOff*b.tubeH+Math.sin(t*0.6+p.phase)*b.tubeH*0.1;
+      const fl=(p.a+Math.sin(t*2.5+p.phase)*0.08)*globalIntensity;
+      if(fl>0){
+        ctx.beginPath();ctx.arc(p.x,py,p.r,0,Math.PI*2);
+        ctx.fillStyle='rgba('+C.p+','+Math.min(1,fl).toFixed(3)+')';ctx.fill();
+      }
     });
 
-    // ── RING PULSES: expanding shockwaves from center ──
-    for(let i=rings.length-1;i>=0;i--){
-      const rn=rings[i];
-      rn.r+=rn.speed*.016;
-      rn.alpha*=.97;
-      if(rn.alpha<.01||rn.r>rn.maxR){rings.splice(i,1);continue}
-      ctx.beginPath();ctx.arc(cx,cy,rn.r,0,Math.PI*2);
-      ctx.strokeStyle='rgba('+cR1+','+cG1+','+cB1+','+rn.alpha+')';
-      ctx.lineWidth=2+rn.alpha*4;ctx.stroke();
-    }
-
-    // ── INTENSE CENTER SPOTLIGHT ──
-    const spotR=30+ease*50+burstIntensity*40+Math.sin(t*3)*8;
-    const spot=ctx.createRadialGradient(cx,cy,0,cx,cy,spotR);
-    spot.addColorStop(0,'rgba(255,255,255,'+(0.4+ease*.5+burstIntensity*.3)+')');
-    spot.addColorStop(.2,'rgba('+cR1+','+cG1+','+cB1+','+(0.3+ease*.4+burstIntensity*.2)+')');
-    spot.addColorStop(.6,'rgba('+cR1+','+cG1+','+cB1+','+(0.05+ease*.1)+')');
-    spot.addColorStop(1,'transparent');
-    ctx.fillStyle=spot;ctx.beginPath();ctx.arc(cx,cy,spotR,0,Math.PI*2);ctx.fill();
-    // Hot white core
-    const coreR=4+ease*8+burstIntensity*12;
-    const core=ctx.createRadialGradient(cx,cy,0,cx,cy,coreR);
-    core.addColorStop(0,'rgba(255,255,255,'+(0.8+burstIntensity*.2)+')');
-    core.addColorStop(.5,'rgba(255,255,255,'+(0.3+ease*.3)+')');
-    core.addColorStop(1,'transparent');
-    ctx.fillStyle=core;ctx.beginPath();ctx.arc(cx,cy,coreR,0,Math.PI*2);ctx.fill();
-
-    // ── FLASH OVERLAY on burst ──
-    if(burstIntensity>.3){
+    // ── Flash overlay on burst ──
+    if(burstIntensity>0.2){
       const fl=$('coFlash');
-      if(fl){fl.style.opacity=burstIntensity*.3;fl.style.background='radial-gradient(circle at center,rgba('+cR1+','+cG1+','+cB1+','+(burstIntensity*.4)+'),transparent 70%)'}
-    }
-
-    // ── Final connection explosion at ~90% ──
-    if(progress>.88&&rings.length<3){
-      rings.push({r:0,maxR:diag*.6,speed:400+Math.random()*200,alpha:.8,born:t});
+      if(fl){
+        fl.style.opacity=(burstIntensity*0.15).toFixed(3);
+        fl.style.background='linear-gradient(180deg,rgba('+C.c+','+(burstIntensity*0.2)+'),transparent 40%,transparent 60%,rgba('+C.c+','+(burstIntensity*0.2)+'))';
+      }
+    } else {
+      const fl=$('coFlash');if(fl)fl.style.opacity='0';
     }
 
     _etAnim=requestAnimationFrame(animate);
