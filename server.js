@@ -1943,7 +1943,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       firstDate: p.firstDate,
       // Only show real data if I can see them (they revealed to me)
       realName: iCanSeeThem ? (other.realName || null) : null,
-      profilePhoto: iCanSeeThem ? (other.profilePhoto || other.photoURL || null) : null,
+      profilePhoto: iCanSeeThem ? (other.profilePhoto || other.photoURL || (me.canSee[p.id] && me.canSee[p.id].profilePhoto) || p.lastSelfie || null) : null,
       instagram: iCanSeeThem ? (other.instagram || null) : null,
       tipsGiven: p.tipsGiven,
       tipsTotal: p.tipsTotal,

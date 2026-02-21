@@ -4314,16 +4314,25 @@ async function showHistory(){
         z3d:zDepth,
         color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByAge,pulsePhase:Math.random()*Math.PI*2};
     });
-    // Pre-load images ONLY for revealed users (canSee)
+    // Pre-load images for revealed users — full cascade
     const myCanSee=state.revealedIds||{};
     nodes.forEach(n=>{
       const revealed=!!(n.partnerRevealedToMe||myCanSee[n.id]);
-      if(revealed&&n.profilePhoto){
+      // Full photo cascade: profilePhoto > canSee snapshot > lastSelfie
+      const photo=n.profilePhoto
+        ||(myCanSee[n.id]&&myCanSee[n.id].profilePhoto)
+        ||n.lastSelfie||null;
+      if(revealed&&photo){
         const img=new Image();
-        img.crossOrigin='anonymous';
-        img.src=n.profilePhoto;
+        // Only set crossOrigin for http URLs, not data URIs
+        if(!photo.startsWith('data:'))img.crossOrigin='anonymous';
+        img.src=photo;
         n._img=img;n._imgLoaded=false;n._revealed=true;
         img.onload=()=>{n._imgLoaded=true};
+        img.onerror=()=>{n._imgLoaded=false;n._revealed=true}; // show silhouette on error
+      }else if(revealed){
+        // Revealed but no photo at all — mark revealed for silhouette + real name
+        n._img=null;n._imgLoaded=false;n._revealed=true;
       }else{
         n._img=null;n._imgLoaded=false;n._revealed=false;
       }
@@ -4334,7 +4343,7 @@ async function showHistory(){
     constState.selectedNode=null;
     // Pre-load user's own photo for center node
     if(state.userPhoto&&!constState._myImgLoaded){
-      const mi=new Image();mi.crossOrigin='anonymous';mi.src=state.userPhoto;
+      const mi=new Image();if(!state.userPhoto.startsWith('data:'))mi.crossOrigin='anonymous';mi.src=state.userPhoto;
       constState._myImg=mi;constState._myImgLoaded=false;
       mi.onload=()=>{constState._myImgLoaded=true};
     }
@@ -4665,7 +4674,9 @@ function initConstCanvas(){
           ||n.lastSelfie||null;
         if(photo&&!n._imgLoading){
           n._imgLoading=true;n._revealed=true;
-          const img=new Image();img.crossOrigin='anonymous';img.src=photo;
+          const img=new Image();
+          if(!photo.startsWith('data:'))img.crossOrigin='anonymous';
+          img.src=photo;
           n._img=img;n._imgLoaded=false;
           img.onload=()=>{n._imgLoaded=true;n._imgLoading=false};
           img.onerror=()=>{n._imgLoading=false;n._revealed=false}; // allow retry
