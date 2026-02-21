@@ -474,17 +474,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .const-canvas-wrap canvas{width:100%;height:100%;touch-action:none}
 /* Node detail overlay */
 /* ═══ Profile modal — compact, modern, no emojis ═══ */
-.const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,rgba(12,12,18,.98) 0%,rgba(8,8,12,.99) 100%);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);padding:0;padding-bottom:max(env(safe-area-inset-bottom),.6rem);opacity:0;transform:translateY(100%);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;max-height:60vh;overflow-y:auto;overscroll-behavior:contain}
+.const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,rgba(12,12,18,.55) 0%,rgba(8,8,12,.75) 100%);backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);border-top:1px solid rgba(255,255,255,.12);border-left:1px solid rgba(255,255,255,.06);border-right:1px solid rgba(255,255,255,.06);border-radius:20px 20px 0 0;padding:0;padding-bottom:max(env(safe-area-inset-bottom),.6rem);opacity:0;transform:translateY(100%);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;max-height:60vh;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -4px 30px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08)}
 .const-detail.visible{opacity:1;transform:translateY(0);pointer-events:auto}
-.cd-handle{width:36px;height:4px;background:rgba(255,255,255,.18);border-radius:2px;margin:8px auto 4px;cursor:grab;touch-action:none}
+.cd-handle{width:36px;height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin:8px auto 4px;cursor:grab;touch-action:none}
 /* Hero: centered avatar with orbiting stars */
 .cd-hero{display:flex;flex-direction:column;align-items:center;padding:.5rem .8rem .2rem;position:relative}
 .cd-avatar-wrap{position:relative;width:76px;height:76px;margin-bottom:.3rem}
 .cd-avatar{width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;border:2.5px solid rgba(255,255,255,.1);overflow:hidden;position:relative;flex-shrink:0;box-shadow:0 0 20px rgba(99,102,241,.15),0 0 40px rgba(139,92,246,.08)}
 .cd-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
 .cd-stars-orbit{position:absolute;inset:-10px;pointer-events:none}
-.cd-orbit-star{position:absolute;font-size:.5rem;filter:drop-shadow(0 0 3px rgba(251,191,36,.5));animation:cdStarTwinkle 2s ease-in-out infinite alternate}
-@keyframes cdStarTwinkle{0%{opacity:.4;transform:scale(.8)}100%{opacity:1;transform:scale(1.1)}}
+.cd-orbit-star{position:absolute;font-size:.7rem;color:#fbbf24;filter:drop-shadow(0 0 6px rgba(251,191,36,.7)) drop-shadow(0 0 12px rgba(251,191,36,.3));animation:cdStarTwinkle 2s ease-in-out infinite alternate}
+@keyframes cdStarTwinkle{0%{opacity:.5;transform:scale(.85)}100%{opacity:1;transform:scale(1.15)}}
 .cd-name{font-size:.9rem;font-weight:700;color:var(--t1);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:85%}
 .cd-alias{font-size:.6rem;color:var(--t3);margin-top:1px;text-align:center}
 .cd-tag{display:inline-block;font-size:.45rem;font-weight:800;padding:1px 5px;border-radius:5px;color:#111;vertical-align:middle;margin-left:.3rem;text-transform:uppercase}
@@ -551,8 +551,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-selfie-zoom.hold-active .cd-zoom-delete{opacity:1}
 /* Legacy .cd-action kept for compatibility but hidden by default */
 .cd-action{display:none}
-.cd-tip-btn{width:100%;padding:.35rem;background:transparent;border:1px solid rgba(34,197,94,.25);border-radius:8px;color:rgba(34,197,94,.7);font-size:.58rem;font-weight:500;font-family:inherit;cursor:pointer;margin:.15rem 0;transition:all .2s}
-.cd-tip-btn:active{transform:scale(.97);background:rgba(34,197,94,.08)}
+.cd-action-icon.tip .cd-icon{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.2)}
+.cd-action-icon.tip{color:#4ade80}
 .cd-bio{font-size:.65rem;color:var(--t3);font-style:italic;padding:.15rem 0;line-height:1.4}
 /* Notification panel */
 .notif-btn{position:absolute;top:max(env(safe-area-inset-top),.6rem);right:.8rem;z-index:15;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.06);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;transition:all .2s}
@@ -1342,8 +1342,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cd-section" id="cdMeta"></div>
     <!-- Icon actions -->
     <div class="cd-actions" id="cdActions" onclick="event.stopPropagation()"></div>
-    <!-- Tip -->
-    <div class="cd-section hidden" id="cdTipWrap"><button class="cd-tip-btn" id="cdTipBtn" onclick="event.stopPropagation();constTipAction()">Dar gorjeta</button></div>
+    <!-- Tip is now an icon button in cdActions -->
     <!-- Declarations mural (visible directly, no collapse) -->
     <div class="cd-section" id="cdDeclSection">
       <div class="cd-decl-mural" id="cdDeclBody"></div>
@@ -4781,7 +4780,8 @@ function showConstDetail(node){
     star:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
     check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
     wait:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-    accept:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+    accept:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    tip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'
   };
   function iconBtn(icon,label,onclick,cls){
     return '<button class="cd-action-icon'+(cls?' '+cls:'')+'" onclick="'+onclick+'"><span class="cd-icon">'+icon+'</span><span>'+label+'</span></button>';
@@ -4877,7 +4877,7 @@ function showConstDetail(node){
   const metaEl=$('cdMeta');
   let metaHtml='';
   const lastD=node.lastDate?new Date(node.lastDate):null;
-  if(lastD)metaHtml+='<div class="cd-time"><span>'+timeAgo(lastD)+'</span></div>';
+  if(lastD)metaHtml+='<div class="cd-time"><span>último touch a '+timeAgo(lastD)+'</span></div>';
   // Social links (compact, only when revealed)
   if(theyRevealed){
     let socialHtml='<div style="display:flex;gap:.3rem;margin:.2rem 0;flex-wrap:wrap">';
@@ -4931,19 +4931,18 @@ function showConstDetail(node){
     }else{
       aHtml+=iconBtn(ICONS.eye,'Pedir ID',"requestRevealFromConstellation('"+node.id+"')",'');
     }
-    // Chat
-    const lastMs=node.lastDate?Date.now()-new Date(node.lastDate).getTime():999999999;
-    if(node.hasActiveRelation||lastMs<86400000){
+    // Chat — show if active relation exists
+    if(node.hasActiveRelation){
       aHtml+=iconBtn(ICONS.chat,'Chat',"openChatFromConst('"+node.id+"')",'');
     }
     // Donate star
     aHtml+=iconBtn(ICONS.star,'Estrela',"event.stopPropagation();confirmDonateStar('"+node.id+"')",'star');
+    // Gorjeta — icon button for prestadores
+    if(node.isPrestador){
+      aHtml+=iconBtn(ICONS.tip,'Gorjeta',"event.stopPropagation();constTipAction('"+node.id+"')",'tip');
+    }
   }
   actEl.innerHTML=aHtml;
-  // Tip
-  const tipWrap=$('cdTipWrap');
-  if(node.isPrestador){tipWrap.classList.remove('hidden');$('cdTipBtn').dataset.receiverId=node.id}
-  else tipWrap.classList.add('hidden');
   // Declarations section — mural visible directly
   const declBody=$('cdDeclBody');
   declBody.innerHTML='';
@@ -5013,7 +5012,7 @@ async function loadTransactions(nodeId, isMe){
         label='Check-in'+(tx.eventName?' — '+esc(tx.eventName):'');
         detail=tx.phrase?'"'+esc(tx.phrase)+'"':'';
       }else if(tx.type==='connection'){
-        icon='🤝';
+        icon='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5"><rect x="2" y="4" width="7" height="14" rx="1.5" transform="rotate(-15 5.5 11)"/><rect x="15" y="4" width="7" height="14" rx="1.5" transform="rotate(15 18.5 11)"/><circle cx="12" cy="11" r="2" fill="#60a5fa" stroke="none" opacity=".6"/><path d="M9 11h6" stroke-dasharray="1 1" opacity=".4"/></svg>';
         label='Conexão com '+esc(tx.otherName);
         detail=tx.phrase?'"'+esc(tx.phrase)+'"':'';
       }else if(tx.type==='service'){
@@ -5027,7 +5026,7 @@ async function loadTransactions(nodeId, isMe){
       else statusColor='#94a3b8';
       const statusLabel=tx.status==='approved'?'aprovado':tx.status==='rejected'?'recusado':tx.status==='pending'?'pendente':(tx.status==='ok'?'':''+tx.status);
       html+='<div style="display:flex;align-items:flex-start;gap:.5rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04)">'
-        +'<span style="font-size:.85rem;flex-shrink:0;margin-top:1px">'+icon+'</span>'
+        +'<span style="font-size:.85rem;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;width:20px;height:20px">'+icon+'</span>'
         +'<div style="flex:1;min-width:0">'
           +'<div style="font-size:.65rem;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>'
           +'<div style="display:flex;align-items:center;gap:.4rem;margin-top:2px">'
@@ -5267,9 +5266,9 @@ function reloadConstellation(){
   }).catch(()=>{});
 }
 
-function constTipAction(){
-  const btn=$('cdTipBtn');
-  if(btn&&btn.dataset.receiverId){hideConstDetail();showTipScreen(btn.dataset.receiverId)}
+function constTipAction(nodeId){
+  const rid=nodeId||window._constDetailNodeId;
+  if(rid){hideConstDetail();showTipScreen(rid)}
 }
 // ═══ NOTIFICATION PANEL ═══
 function toggleNotifPanel(){
