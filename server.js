@@ -2755,11 +2755,10 @@ app.get('/api/star/balance/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
   const pending = (user.pendingStars || []).length;
-  const earned = user.starsEarned || 0;
-  const donated = countDonationsFrom(req.params.userId);
   const received = (user.stars || []).length;
-  const available = pending + (earned - donated);
-  res.json({ available, pending, earned, donated, received, total: received });
+  // Available = stars the user physically has (received) + pending to donate
+  const available = received + pending;
+  res.json({ available, pending, received, total: received });
 });
 
 // Check pending stars
@@ -2777,28 +2776,29 @@ app.post('/api/star/donate', (req, res) => {
   const fromUser = db.users[fromUserId];
   const toUser = db.users[toUserId];
 
-  // If pendingStarId provided, remove it from pending
+  // If pendingStarId provided, remove it from pending (earned via streak)
   if (pendingStarId) {
     if (!fromUser.pendingStars) fromUser.pendingStars = [];
     const idx = fromUser.pendingStars.findIndex(p => p.id === pendingStarId);
     if (idx === -1) return res.status(400).json({ error: 'Estrela pendente não encontrada.' });
     fromUser.pendingStars.splice(idx, 1);
   } else {
-    // Legacy: check available stars (earned - donated) — O(1) via index
-    const totalEarned = (fromUser.starsEarned || 0);
-    const totalDonated = countDonationsFrom(fromUserId);
-    const available = totalEarned - totalDonated;
-    if (available <= 0) return res.status(400).json({ error: 'Sem estrelas disponíveis para doar.' });
+    // Transfer: remove one star from the donor's stars[] array
+    if (!fromUser.stars || fromUser.stars.length === 0) {
+      return res.status(400).json({ error: 'Sem estrelas disponíveis para doar.' });
+    }
+    // Remove the oldest star from donor (FIFO)
+    fromUser.stars.shift();
   }
 
   const donationId = uuidv4();
-  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: 'earned', pendingStarId };
+  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: pendingStarId ? 'earned' : 'transfer' };
   // Update indexes
   if (!IDX.donationsByFrom.has(fromUserId)) IDX.donationsByFrom.set(fromUserId, []);
   IDX.donationsByFrom.get(fromUserId).push(donationId);
   IDX.donationsByPair.set(fromUserId + '_' + toUserId, (IDX.donationsByPair.get(fromUserId + '_' + toUserId) || 0) + 1);
   if (!toUser.stars) toUser.stars = [];
-  toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: 'earned' });
+  toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: pendingStarId ? 'earned' : 'transfer' });
   saveDB('users', 'starDonations');
 
   // Notify recipient
@@ -2823,9 +2823,9 @@ app.post('/api/star/donate', (req, res) => {
     io.to(`user:${uid}`).emit('star-donated-notification', notifPayload);
   });
   // Also notify donor confirmation
-  io.to(`user:${fromUserId}`).emit('star-donation-confirmed', { toUserId, toName: toUser.nickname, recipientStars: toUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
+  io.to(`user:${fromUserId}`).emit('star-donation-confirmed', { toUserId, toName: toUser.nickname, recipientStars: toUser.stars.length, donorStars: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
 
-  res.json({ ok: true, donationId, recipientStars: toUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
+  res.json({ ok: true, donationId, recipientStars: toUser.stars.length, donorStarsRemaining: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
 });
 
 // ══ STAR SHOP — Buy stars with score points ══
@@ -2895,9 +2895,9 @@ app.get('/api/star/shop/:userId', (req, res) => {
 app.get('/api/stars/available/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
-  const totalEarned = user.starsEarned || 0;
-  const totalDonated = countDonationsFrom(req.params.userId);
-  res.json({ total: totalEarned, donated: totalDonated, available: totalEarned - totalDonated });
+  const stars = (user.stars || []).length;
+  const pending = (user.pendingStars || []).length;
+  res.json({ total: stars, pending, available: stars + pending });
 });
 
 // ══ GAME CONFIG — Admin endpoints ══
