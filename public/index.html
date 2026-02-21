@@ -2865,12 +2865,8 @@ function makeAvatar(nick,color,size,photo,verified,accessoryKey){
   const sizeClass=size<=30?'verified-badge-sm':size>=60?'verified-badge-lg':'';
   let inner;
   if(photo&&photo.length>10){
-    inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:visible;flex-shrink:0">'
-      +'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
-    if(accessoryKey&&AVATAR_ACCESSORIES[accessoryKey]){
-      inner+='<div style="position:absolute;top:0;left:0;width:'+size+'px;height:'+size+'px;pointer-events:none">'+AVATAR_ACCESSORIES[accessoryKey].svg+'</div>';
-    }
-    inner+='</div>';
+    // Real photo — NO accessory overlay (accessory is for anonymous identity only)
+    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
   } else {
     // Anonymous silhouette avatar
     inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:visible;flex-shrink:0">'
@@ -4840,8 +4836,8 @@ function initConstCanvas(){
       }else{
         ctx.beginPath();ctx.arc(mcx,mcy,myR,0,Math.PI*2);ctx.fillStyle=state.userColor||'#ff6b35';ctx.fill();
       }
-      // Draw my accessory on center node
-      if(state.userAccessory&&myR>6){
+      // Draw my accessory on center node — only when showing silhouette (no photo)
+      if(state.userAccessory&&myR>6&&!(constState._myImg&&constState._myImgLoaded)){
         const myAccC=getAccessoryImg(state.userAccessory);
         if(myAccC&&myAccC.ready){ctx.drawImage(myAccC.img,mcx-myR,mcy-myR,myR*2,myR*2)}
       }
@@ -5021,10 +5017,9 @@ function showConstDetail(node){
   const av=$('cdAvatar');
   av.style.fontSize='';av.style.display='';av.style.alignItems='';av.style.justifyContent='';
   if(theyRevealed&&node.profilePhoto){
-    av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';av.style.background=node.color;
-    if(node.avatarAccessory&&AVATAR_ACCESSORIES[node.avatarAccessory]){av.innerHTML+='<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[node.avatarAccessory].svg+'</div>';av.style.overflow='visible'}
+    av.innerHTML='<img src="'+esc(node.profilePhoto)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';av.style.background=node.color;av.style.overflow='hidden';
   }else{
-    av.innerHTML=ANON_AVATAR_SVG;av.style.background='none';
+    av.innerHTML=ANON_AVATAR_SVG;av.style.background='none';av.style.overflow='hidden';
     if(node.avatarAccessory&&AVATAR_ACCESSORIES[node.avatarAccessory]){av.innerHTML+='<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[node.avatarAccessory].svg+'</div>';av.style.overflow='visible'}
   }
   // Star orbit rendering
@@ -5061,9 +5056,19 @@ function showConstDetail(node){
   const anonNick=$('cdAnonNick');
   if(theyRevealed&&node.realName&&node.realName!==node.nickname){
     anonBall.innerHTML=ANON_AVATAR_SVG;
-    anonBall.style.background='none';anonBall.style.overflow='hidden';
+    // Accessory on the anonymous ball (not on the real photo)
+    if(node.avatarAccessory&&AVATAR_ACCESSORIES[node.avatarAccessory]){
+      anonBall.innerHTML+='<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[node.avatarAccessory].svg+'</div>';
+      anonBall.style.overflow='visible';
+    }else{
+      anonBall.style.overflow='hidden';
+    }
+    anonBall.style.background='none';
     anonNick.textContent=node.nickname;
     anonPreview.classList.remove('hidden');
+  }else if(!theyRevealed){
+    // Not revealed: show anon avatar with accessory as the main identity
+    anonPreview.classList.add('hidden');
   }else{
     anonPreview.classList.add('hidden');
   }
