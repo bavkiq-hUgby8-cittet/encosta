@@ -87,9 +87,21 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .login-form{width:100%;max-width:340px;display:flex;flex-direction:column;gap:1rem}
 .login-input{width:100%;padding:.85rem 1rem;background:var(--s1);border:1px solid var(--b1);border-radius:14px;color:var(--t1);font-size:.95rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
 .login-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--gw)}
-.login-google{width:100%;max-width:340px;padding:.9rem;background:#fff;border:none;border-radius:14px;color:#333;font-size:.9rem;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;transition:all .15s cubic-bezier(.22,1,.36,1);box-shadow:0 2px 12px rgba(0,0,0,.2)}
-.login-google:active{transform:scale(.96);box-shadow:0 1px 6px rgba(0,0,0,.15)}
-.login-google img{width:20px;height:20px}
+.login-social{width:100%;max-width:340px;padding:.85rem;border:none;border-radius:14px;font-size:.85rem;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;transition:all .15s cubic-bezier(.22,1,.36,1);box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.login-social:active{transform:scale(.96);box-shadow:0 1px 6px rgba(0,0,0,.15)}
+.login-social img,.login-social svg{width:20px;height:20px;flex-shrink:0}
+.login-google{background:#fff;color:#333}
+.login-apple{background:#000;color:#fff;border:1px solid rgba(255,255,255,.15)}
+.login-phone{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+.social-btns{display:flex;flex-direction:column;gap:.5rem;align-items:center;width:100%}
+/* Phone auth modal */
+.phone-auth-wrap{display:none;width:100%;max-width:340px;margin:0 auto}
+.phone-row{display:flex;gap:.4rem;align-items:center}
+.phone-row select{padding:.7rem .4rem;border-radius:12px;background:var(--s1);border:1px solid var(--b1);color:var(--t1);font-size:.85rem;font-family:inherit;width:80px}
+.phone-row input{flex:1}
+#recaptchaBox{margin:.5rem 0;min-height:78px}
+.sms-code-wrap{display:none;text-align:center}
+.sms-code-wrap input{width:180px;text-align:center;letter-spacing:.5em;font-size:1.3rem;font-weight:700;padding:.7rem}
 .login-divider{display:flex;align-items:center;gap:1rem;width:100%;max-width:340px;color:var(--t3);font-size:.75rem}
 .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--b1)}
 .auth-tabs{display:flex;width:100%;max-width:340px;background:rgba(255,255,255,.04);border-radius:12px;padding:3px;margin-bottom:1rem;gap:3px}
@@ -1128,10 +1140,46 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="login-divider" id="authDivider">ou</div>
 
   <!-- SOCIAL LOGINS -->
-  <button class="login-google" onclick="loginWithGoogle()">
-    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
-    Continuar com Google
-  </button>
+  <div class="social-btns" id="socialBtns">
+    <button class="login-social login-google" onclick="loginWithGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+      Continuar com Google
+    </button>
+    <button class="login-social login-apple" onclick="loginWithApple()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+      Continuar com Apple
+    </button>
+    <button class="login-social login-phone" onclick="showPhoneAuth()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      Continuar com Telefone (SMS)
+    </button>
+  </div>
+
+  <!-- PHONE AUTH FORM -->
+  <div class="phone-auth-wrap" id="phoneAuthWrap">
+    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.5rem;text-align:center">Digite seu número para receber um SMS:</div>
+    <div class="phone-row">
+      <select id="phoneCountry">
+        <option value="+55">🇧🇷 +55</option>
+        <option value="+1">🇺🇸 +1</option>
+        <option value="+351">🇵🇹 +351</option>
+        <option value="+34">🇪🇸 +34</option>
+        <option value="+44">🇬🇧 +44</option>
+      </select>
+      <input type="tel" class="login-input" id="phoneNumber" placeholder="(11) 99999-9999" autocomplete="tel" style="margin:0">
+    </div>
+    <div id="recaptchaBox"></div>
+    <button class="bp" id="phoneSendBtn" onclick="sendSmsCode()" style="margin-top:.3rem">Enviar código SMS</button>
+    <div class="login-err" id="phoneErr"></div>
+    <!-- SMS Code Input -->
+    <div class="sms-code-wrap" id="smsCodeWrap">
+      <div style="font-size:.78rem;color:var(--ok);margin-bottom:.4rem">✅ Código enviado!</div>
+      <input type="text" class="login-input" id="smsCode" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+      <button class="bp" onclick="verifySmsCode()" style="margin-top:.4rem">Verificar código</button>
+      <div onclick="sendSmsCode()" style="color:var(--t3);cursor:pointer;font-size:.68rem;margin-top:.3rem">Reenviar código</div>
+    </div>
+    <div onclick="hidePhoneAuth()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.4rem">← Voltar</div>
+  </div>
 
   <!-- MAGIC LINK SHORTCUT -->
   <div id="authMagicLink" onclick="showMagicLogin()" style="color:var(--ac);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.6rem">🔗 Entrar sem senha (link por email)</div>
@@ -2029,7 +2077,7 @@ async function linkFirebaseToEncosta(user){
     const r=await fetch('/api/auth/link',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,encUserId:state.userId||null,nickname:window._pendingNickname||null})
+      body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,phoneNumber:user.phoneNumber||null,encUserId:state.userId||null,nickname:window._pendingNickname||null})
     });
     const d=await r.json();
     if(d.userId){
@@ -2064,6 +2112,8 @@ async function linkFirebaseToEncosta(user){
         _ha.style.background='none';_ha.style.overflow='visible';
       }
       refreshHome();
+      // Start polling for email verification if not yet verified
+      if(!state.emailVerified)startEmailVerificationPoll();
     }
   }catch(e){console.error('Link Firebase erro:',e)}
 }
@@ -2085,6 +2135,127 @@ async function loginWithGoogle(){
   }
 }
 
+// ═══ APPLE LOGIN ═══
+async function loginWithApple(){
+  try{
+    $('loginErr').textContent='';
+    const provider=new firebase.auth.OAuthProvider('apple.com');
+    provider.addScope('email');
+    provider.addScope('name');
+    provider.setCustomParameters({locale:'pt_BR'});
+    await firebaseAuthInstance.signInWithPopup(provider);
+  }catch(e){
+    if(e.code==='auth/popup-blocked'){
+      try{
+        const provider=new firebase.auth.OAuthProvider('apple.com');
+        provider.addScope('email');provider.addScope('name');
+        await firebaseAuthInstance.signInWithRedirect(provider);
+      }catch(e2){$('loginErr').textContent='Erro ao abrir Apple. Tente novamente.'}
+    }else if(e.code!=='auth/popup-closed-by-user'){
+      $('loginErr').textContent='Erro Apple: '+(e.message||'tente novamente');
+    }
+  }
+}
+
+// ═══ PHONE/SMS AUTH ═══
+let _phoneConfirmation=null;
+let _recaptchaVerifier=null;
+let _recaptchaWidgetId=null;
+
+function showPhoneAuth(){
+  $('loginForm').classList.add('hidden');
+  $('registerForm').classList.add('hidden');
+  $('magicLoginWrap').classList.add('hidden');
+  $('authTabs').style.display='none';
+  $('authDivider').style.display='none';
+  $('authMagicLink').style.display='none';
+  $('socialBtns').style.display='none';
+  $('phoneAuthWrap').style.display='block';
+  $('phoneErr').textContent='';
+  $('smsCodeWrap').style.display='none';
+  $('phoneSendBtn').style.display='';
+  // Init reCAPTCHA (invisible)
+  setupRecaptcha();
+}
+
+function hidePhoneAuth(){
+  $('phoneAuthWrap').style.display='none';
+  switchAuthTab(loginIsRegister?'register':'login');
+}
+
+function setupRecaptcha(){
+  if(_recaptchaVerifier)return; // already set up
+  try{
+    _recaptchaVerifier=new firebase.auth.RecaptchaVerifier('recaptchaBox',{
+      size:'normal',
+      callback:()=>{console.log('[phone] reCAPTCHA solved')},
+      'expired-callback':()=>{
+        $('phoneErr').textContent='reCAPTCHA expirou. Recarregue.';
+        _recaptchaVerifier=null;
+      }
+    });
+    _recaptchaVerifier.render().then(widgetId=>{_recaptchaWidgetId=widgetId});
+  }catch(e){
+    console.error('reCAPTCHA setup err:',e);
+    $('phoneErr').textContent='Erro ao configurar verificação. Recarregue a página.';
+  }
+}
+
+async function sendSmsCode(){
+  const country=$('phoneCountry').value;
+  let phone=$('phoneNumber').value.replace(/\D/g,'');
+  $('phoneErr').textContent='';
+  if(!phone||phone.length<8)return $('phoneErr').textContent='Digite um número de telefone válido.';
+  const fullPhone=country+phone;
+  if(!_recaptchaVerifier){
+    setupRecaptcha();
+    return $('phoneErr').textContent='Resolva o reCAPTCHA primeiro.';
+  }
+  try{
+    $('phoneSendBtn').textContent='Enviando...';$('phoneSendBtn').disabled=true;
+    _phoneConfirmation=await firebaseAuthInstance.signInWithPhoneNumber(fullPhone,_recaptchaVerifier);
+    // Show code input
+    $('smsCodeWrap').style.display='block';
+    $('phoneSendBtn').style.display='none';
+    $('phoneErr').textContent='';
+    $('smsCode').value='';
+    $('smsCode').focus();
+  }catch(e){
+    $('phoneSendBtn').textContent='Enviar código SMS';$('phoneSendBtn').disabled=false;
+    const msgs={
+      'auth/invalid-phone-number':'Número de telefone inválido.',
+      'auth/too-many-requests':'Muitas tentativas. Aguarde antes de tentar novamente.',
+      'auth/captcha-check-failed':'Verificação reCAPTCHA falhou. Tente novamente.',
+      'auth/quota-exceeded':'Limite de SMS atingido. Tente outro método.'
+    };
+    $('phoneErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+    // Reset reCAPTCHA on error
+    if(_recaptchaVerifier){
+      try{
+        grecaptcha.reset(_recaptchaWidgetId);
+      }catch(re){}
+    }
+  }
+}
+
+async function verifySmsCode(){
+  const code=$('smsCode').value.trim();
+  $('phoneErr').textContent='';
+  if(!code||code.length<6)return $('phoneErr').textContent='Digite o código de 6 dígitos.';
+  if(!_phoneConfirmation)return $('phoneErr').textContent='Envie o SMS primeiro.';
+  try{
+    await _phoneConfirmation.confirm(code);
+    // onAuthStateChanged will handle the rest (link to ENCOSTA)
+    $('phoneAuthWrap').style.display='none';
+  }catch(e){
+    const msgs={
+      'auth/invalid-verification-code':'Código inválido. Verifique e tente novamente.',
+      'auth/code-expired':'Código expirou. Reenvie o SMS.'
+    };
+    $('phoneErr').textContent=msgs[e.code]||('Erro: '+(e.message||'código inválido'));
+  }
+}
+
 function switchAuthTab(tab){
   $('tabEntrar').classList.toggle('active',tab==='login');
   $('tabCriar').classList.toggle('active',tab==='register');
@@ -2094,7 +2265,8 @@ function switchAuthTab(tab){
   $('authTabs').style.display='';
   $('authDivider').style.display='';
   $('authMagicLink').style.display='';
-  document.querySelector('.login-google').style.display='';
+  $('socialBtns').style.display='';
+  $('phoneAuthWrap').style.display='none';
   loginIsRegister=tab==='register';
 }
 
@@ -2150,33 +2322,53 @@ async function resendEmailVerification(){
   // Reload to get fresh emailVerified status
   try{await fbUser.reload();fbUser=firebaseAuthInstance.currentUser}catch(e){}
   if(fbUser.emailVerified){
-    showToast('Email já verificado!');
+    showToast('Email já verificado! ✅');
+    state.emailVerified=true;
     const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent='✓ verificado';$('cpEmailStatus').style.color='#22c55e'}
     return;
   }
+  // Strategy: try Firebase client SDK first (most reliable — Firebase handles the sending)
+  // If that fails, try server-side (nodemailer with custom SMTP)
   try{
-    // Try server-side first
+    await fbUser.sendEmailVerification({url:window.location.origin,handleCodeInApp:false});
+    showToast('✉ Email de verificação enviado! Verifique spam.');
+    return;
+  }catch(e1){
+    console.warn('[email-verify] Client SDK failed:',e1.code,e1.message);
+    if(e1.code==='auth/too-many-requests'){return showToast('⏳ Aguarde um pouco antes de reenviar.')}
+  }
+  // Fallback: server-side
+  try{
     const resp=await fetch('/api/auth/send-verification',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({uid:fbUser.uid})
     });
     const d=await resp.json();
     if(d.error)throw new Error(d.error);
-    if(d.useClientFallback){
-      // Server has no SMTP — use client SDK
-      await fbUser.sendEmailVerification();
-    }
-    showToast('✉ Email de verificação enviado!');
-  }catch(e){
-    // Direct client-side fallback
-    try{
-      await fbUser.sendEmailVerification();
-      showToast('✉ Email de verificação enviado!');
-    }catch(e2){
-      if(e2.code==='auth/too-many-requests')showToast('Aguarde antes de reenviar.');
-      else showToast('Erro: '+(e2.message||e.message||'tente novamente'));
-    }
+    if(d.sent)showToast('✉ Email de verificação enviado!');
+    else if(d.useClientFallback)showToast('⚠️ Serviço de email indisponível. Tente novamente mais tarde.');
+    else showToast('✉ Verificação enviada!');
+  }catch(e2){
+    showToast('Erro ao enviar verificação: '+(e2.message||'tente novamente'));
   }
+}
+
+// Periodic email verification check (when user comes back after clicking link)
+function startEmailVerificationPoll(){
+  if(!fbUser||fbUser.emailVerified||state.emailVerified)return;
+  const _evPoll=setInterval(async()=>{
+    if(!fbUser||state.emailVerified){clearInterval(_evPoll);return}
+    try{
+      await fbUser.reload();
+      fbUser=firebaseAuthInstance.currentUser;
+      if(fbUser.emailVerified){
+        state.emailVerified=true;
+        clearInterval(_evPoll);
+        showToast('Email verificado com sucesso! ✅');
+        const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent='✓ verificado';$('cpEmailStatus').style.color='#22c55e'}
+      }
+    }catch(e){}
+  },10000); // check every 10s
 }
 
 // ═══ MAGIC LINK LOGIN ═══
@@ -2187,7 +2379,8 @@ function showMagicLogin(){
   $('authTabs').style.display='none';
   $('authDivider').style.display='none';
   $('authMagicLink').style.display='none';
-  document.querySelector('.login-google').style.display='none';
+  $('socialBtns').style.display='none';
+  $('phoneAuthWrap').style.display='none';
   $('magicEmail').value=$('loginEmail').value||'';
   $('magicErr').textContent='';
 }

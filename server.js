@@ -47,14 +47,14 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.mercadopago.com", "https://http2.mlstatic.com", "https://www.googletagmanager.com", "https://www.google-analytics.com", "https://apis.google.com", "https://www.gstatic.com", "https://cdn.jsdelivr.net"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.mercadopago.com", "https://http2.mlstatic.com", "https://www.googletagmanager.com", "https://www.google-analytics.com", "https://apis.google.com", "https://www.gstatic.com", "https://cdn.jsdelivr.net", "https://www.google.com", "https://appleid.cdn-apple.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
       connectSrc: ["'self'", "https:", "wss:", "ws:"],
-      frameSrc: ["'self'", "https://sdk.mercadopago.com", "https://accounts.google.com", "https://*.firebaseapp.com"],
-      childSrc: ["'self'", "blob:", "https://accounts.google.com", "https://*.firebaseapp.com"],
-      formAction: ["'self'", "https://accounts.google.com", "https://*.google.com"],
+      frameSrc: ["'self'", "https://sdk.mercadopago.com", "https://accounts.google.com", "https://*.firebaseapp.com", "https://www.google.com", "https://appleid.apple.com"],
+      childSrc: ["'self'", "blob:", "https://accounts.google.com", "https://*.firebaseapp.com", "https://www.google.com", "https://appleid.apple.com"],
+      formAction: ["'self'", "https://accounts.google.com", "https://*.google.com", "https://appleid.apple.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       workerSrc: ["'self'", "blob:"],
@@ -824,14 +824,15 @@ app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
 
 // ── Link Firebase Auth UID to ENCOSTA user ──
 app.post('/api/auth/link', async (req, res) => {
-  const { firebaseUid, email, displayName, photoURL, encUserId } = req.body;
+  const { firebaseUid, email, displayName, photoURL, phoneNumber, encUserId } = req.body;
   if (!firebaseUid) return res.status(400).json({ error: 'Firebase UID obrigatório.' });
 
   // Check if firebase user already linked to an ENCOSTA user (O(1) index)
   const existingId = IDX.firebaseUid.get(firebaseUid);
   let existingUser = existingId ? db.users[existingId] : null;
   if (existingUser) {
-    // Already linked — return existing
+    // Update phone if new
+    if (phoneNumber && !existingUser.phone) { existingUser.phone = phoneNumber; saveDB('users'); }
     return res.json({ userId: existingUser.id, user: existingUser, linked: true });
   }
 
@@ -840,6 +841,7 @@ app.post('/api/auth/link', async (req, res) => {
     const user = db.users[encUserId];
     user.firebaseUid = firebaseUid;
     user.email = email || user.email;
+    if (phoneNumber) user.phone = phoneNumber;
     if (displayName && !user.name) user.name = displayName;
     if (photoURL) user.photoURL = photoURL;
     IDX.firebaseUid.set(firebaseUid, user.id);
@@ -861,7 +863,7 @@ app.post('/api/auth/link', async (req, res) => {
   const totalUsers = Object.keys(db.users).length + 1;
   db.users[id] = {
     id, nickname: finalNick, name: displayName || finalNick, email: email || null,
-    firebaseUid, photoURL: photoURL || null,
+    phone: phoneNumber || null, firebaseUid, photoURL: photoURL || null,
     birthdate: null, avatar: null, color, createdAt: Date.now(),
     points: 0, pointLog: [], stars: [],
     registrationOrder: registrationCounter, topTag: null,
