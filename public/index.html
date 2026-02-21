@@ -2471,7 +2471,7 @@ function addEvNode(d,instant){
   const baseR=6+Math.min(stars*.2,3);
   const n={orbitAngle:angle,orbitDist:dist,orbitSpeed:0.0002+Math.min(stars*0.00003,0.0004),r:instant?baseR:0,targetR:baseR,color:d.color||'hsl('+(Math.random()*360)+',65%,45%)',name:d.nickname||'?',phase:Math.random()*Math.PI*2,glow:instant?0:1,userId:d.userId||null,revealed:d.revealed||false,revealData:d.revealData||null,profilePhoto:d.profilePhoto||null,stars:stars,topTag:d.topTag||null,photoImg:null,photoLoaded:false,x:0,y:0,verified:!!d.verified};
   if(n.revealed&&n.profilePhoto){
-    const img=new Image();img.crossOrigin='anonymous';
+    const img=new Image();
     img.onload=()=>{n.photoImg=img;n.photoLoaded=true};
     img.src=n.profilePhoto;
   }
@@ -4322,8 +4322,6 @@ async function showHistory(){
       console.log('[PHOTO DEBUG]',n.nickname,'| revealed:',revealed,'| profilePhoto:',n.profilePhoto?'YES('+n.profilePhoto.substring(0,30)+')':'NULL','| canSee:',myCanSee[n.id]?JSON.stringify({photo:!!(myCanSee[n.id].profilePhoto)}):'N/A','| lastSelfie:',n.lastSelfie?'YES':'NULL','| finalPhoto:',photo?'YES':'NULL');
       if(revealed&&photo){
         const img=new Image();
-        // Only set crossOrigin for http URLs, not data URIs
-        if(!photo.startsWith('data:'))img.crossOrigin='anonymous';
         img.src=photo;
         n._img=img;n._imgLoaded=false;n._revealed=true;
         img.onload=()=>{n._imgLoaded=true;console.log('[PHOTO LOADED]',n.nickname)};
@@ -4342,9 +4340,10 @@ async function showHistory(){
     constState.selectedNode=null;
     // Pre-load user's own photo for center node
     if(state.userPhoto&&!constState._myImgLoaded){
-      const mi=new Image();if(!state.userPhoto.startsWith('data:'))mi.crossOrigin='anonymous';mi.src=state.userPhoto;
+      const mi=new Image();mi.src=state.userPhoto;
       constState._myImg=mi;constState._myImgLoaded=false;
-      mi.onload=()=>{constState._myImgLoaded=true};
+      mi.onload=()=>{constState._myImgLoaded=true;console.log('[MY PHOTO LOADED]')};
+      mi.onerror=(e)=>{console.error('[MY PHOTO ERROR]',state.userPhoto?.substring(0,60),e);constState._myImgLoaded=false};
     }
     hideConstDetail();
     showScreen('history');
@@ -4674,7 +4673,6 @@ function initConstCanvas(){
         if(photo&&!n._imgLoading){
           n._imgLoading=true;n._revealed=true;
           const img=new Image();
-          if(!photo.startsWith('data:'))img.crossOrigin='anonymous';
           img.src=photo;
           n._img=img;n._imgLoaded=false;
           img.onload=()=>{n._imgLoaded=true;n._imgLoading=false};
@@ -6298,7 +6296,7 @@ function syncRevealUI(partnerId,realName,profilePhoto){
       if(realName)cNode.realName=realName;
       if(profilePhoto){cNode.profilePhoto=profilePhoto;cNode._revealed=true;
         // Load image for canvas
-        const img=new Image();img.crossOrigin='anonymous';img.src=profilePhoto;
+        const img=new Image();img.src=profilePhoto;
         cNode._img=img;cNode._imgLoaded=false;img.onload=()=>{cNode._imgLoaded=true};
       }
     }
