@@ -3605,7 +3605,23 @@ async function handleMainButton(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   if(homeSonicActive){stopHomeSonic();return}
   if(!socket){showToast('Sem conexão. Aguarde...');return}
-  // If socket is reconnecting, wait up to 3s for it
+
+  // ═══ STEP 0: Create AudioContexts IMMEDIATELY on click ═══
+  // MUST happen BEFORE any await — browsers kill audio permission
+  // after the first async break from the user gesture.
+  // Even waiting for socket reconnection loses the gesture!
+  stopSonicMode();
+  if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop());sonicStream=null;}
+  sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+  sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+  // Resume synchronously (no await) — just fire and forget, they resolve fast
+  sonicEmitCtx.resume();
+  sonicMicCtx.resume();
+  console.log('[sonic] AudioContexts created+resumed in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
+
+  haptic([40]);
+
+  // Now safe to do async work — AudioContexts already unlocked
   if(!socket.connected){
     showToast('Reconectando...');
     const waited=await new Promise(r=>{
@@ -3613,13 +3629,14 @@ async function handleMainButton(){
       const t=setTimeout(()=>r(false),3000);
       socket.once('connect',()=>{clearTimeout(t);r(true)});
     });
-    if(!waited){showToast('Sem conexão. Tente novamente.');return}
+    if(!waited){
+      // Cleanup the contexts we just created
+      try{sonicEmitCtx.close()}catch(e){}
+      try{sonicMicCtx.close()}catch(e){}
+      sonicEmitCtx=null;sonicMicCtx=null;
+      showToast('Sem conexão. Tente novamente.');return;
+    }
   }
-  haptic([40]);
-
-  // ═══ FULL RESET: kill everything from previous attempt ═══
-  stopSonicMode();
-  if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop());sonicStream=null;}
 
   homeSonicActive=true;
   sonicActive=true;sonicMyFreq=0;
@@ -3634,16 +3651,6 @@ async function handleMainButton(){
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
   const si=$('sonicInstruct');if(si)si.classList.add('active');
-
-  // ═══ CRITICAL: Create AudioContexts HERE, inside user gesture ═══
-  // Browsers (iOS/Android) only allow AudioContext to auto-play
-  // when created during a direct user interaction (click/tap).
-  // If we create them after await, the gesture is "lost" and audio stays muted!
-  sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
-  sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
-  // Resume immediately (still in gesture context — guaranteed to work)
-  await Promise.all([sonicEmitCtx.resume(),sonicMicCtx.resume()]);
-  console.log('[sonic] AudioContexts created in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
 
   try{
     // 1. Fresh mic permission
