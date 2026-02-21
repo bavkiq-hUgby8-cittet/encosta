@@ -1298,7 +1298,15 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="history" class="screen">
-  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Rede</h2></div>
+  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Rede</h2><button id="constSearchToggle" onclick="toggleConstSearch()" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.12);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button></div>
+  <div id="constSearchBar" style="display:none;padding:0 .6rem .4rem">
+    <div style="display:flex;align-items:center;gap:.4rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:.3rem .6rem">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="constSearchInput" type="text" placeholder="Buscar pessoa..." oninput="onConstSearch(this.value)" style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:.72rem;font-family:inherit;padding:.15rem 0">
+      <button onclick="clearConstSearch()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.85rem;cursor:pointer;padding:0 .1rem;line-height:1">x</button>
+    </div>
+    <div id="constSearchCount" style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.2rem;min-height:.8rem"></div>
+  </div>
   <div style="display:flex;gap:.3rem;padding:0 .6rem .3rem;justify-content:center;flex-wrap:wrap">
     <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
     <button class="const-filter-btn" id="constFilterRevealed" onclick="setConstFilter('revealed')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🟢 Revelados</button>
@@ -4138,8 +4146,49 @@ function setConstFilter(f){
     else{el.style.background='rgba(255,255,255,.04)';el.style.borderColor='rgba(255,255,255,.08)';el.style.color='var(--t3)'}
   });
 }
+// ── Constellation search ──
+function toggleConstSearch(){
+  const bar=$('constSearchBar');
+  const btn=$('constSearchToggle');
+  if(bar.style.display==='none'){
+    bar.style.display='';
+    btn.style.background='rgba(99,102,241,.2)';btn.style.borderColor='rgba(99,102,241,.4)';
+    $('constSearchInput').focus();
+  }else{
+    clearConstSearch();
+    bar.style.display='none';
+    btn.style.background='none';btn.style.borderColor='rgba(255,255,255,.12)';
+  }
+}
+function onConstSearch(val){
+  const q=val.toLowerCase().trim();
+  constState._searchQuery=q||'';
+  const countEl=$('constSearchCount');
+  if(!q){
+    constState.nodes.forEach(n=>{n._searchMatch=false});
+    if(countEl)countEl.textContent='';
+    return;
+  }
+  let matches=0;
+  constState.nodes.forEach(n=>{
+    const nick=(n.nickname||'').toLowerCase();
+    const real=(n.realName||'').toLowerCase();
+    n._searchMatch=nick.includes(q)||real.includes(q);
+    if(n._searchMatch)matches++;
+  });
+  if(countEl)countEl.textContent=matches>0?matches+' encontrado'+(matches>1?'s':''):'Nenhum resultado';
+}
+function clearConstSearch(){
+  const inp=$('constSearchInput');
+  if(inp)inp.value='';
+  constState._searchQuery='';
+  constState.nodes.forEach(n=>{n._searchMatch=false});
+  const countEl=$('constSearchCount');
+  if(countEl)countEl.textContent='';
+}
+
 let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,animFrame:null,selectedNode:null,
-  fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0};
+  fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0,_searchQuery:''};
 const CONST_FEEDBACK=['Um novo ponto surgiu.','Sua rede cresceu hoje.','Um encontro deixou rastro.','Um elo foi reforçado.','Algo ficou marcado.','Sua rede se expandiu.'];
 
 async function showHistory(){
@@ -4475,6 +4524,23 @@ function initConstCanvas(){
     });
     projected.sort((a,b)=>b.z3d-a.z3d);
 
+    // ── Compute selected node target (avatar on modal if visible) ──
+    const _detailEl=$('constDetail');
+    const _detailVis=_detailEl&&_detailEl.classList.contains('visible');
+    let _selTarget=null;
+    if(_detailVis&&constState.selectedNode){
+      const _avEl=$('cdAvatar');
+      if(_avEl){
+        const _avR=_avEl.getBoundingClientRect();
+        const _cnR=canvas.getBoundingClientRect();
+        const dpr=window.devicePixelRatio||1;
+        _selTarget={
+          x:(_avR.left+_avR.width/2-_cnR.left)*(canvas.width/_cnR.width),
+          y:(_avR.top+_avR.height/2-_cnR.top)*(canvas.height/_cnR.height)
+        };
+      }
+    }
+
     // ── Draw connections — solid LED-glow lines (thickness capped) ──
     const MAX_LINE=3; // max pixel thickness for LED core
     projected.forEach(({n,sx,sy,scale})=>{
@@ -4484,26 +4550,33 @@ function initConstCanvas(){
       const rawThick=(0.3+Math.log2(1+(n.encounters||1))*0.4)*scale;
       const thick=Math.min(rawThick,MAX_LINE);
       const lineAlpha=depthAlpha*(0.1+n.intensity*.2);
+      // If this node is selected and modal is open, redirect line to avatar
+      const isSel=constState.selectedNode&&constState.selectedNode.id===n.id;
+      let endX=sx,endY=sy;
+      let aMul=1; // alpha multiplier for selected line emphasis
+      if(isSel&&_selTarget){endX=_selTarget.x;endY=_selTarget.y;aMul=2.5;}
+      // Dim non-selected when searching
+      if(constState._searchQuery&&!n._searchMatch)aMul*=0.15;
       ctx.save();
       // Outer glow layer (wide, soft)
-      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
-      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.3).toFixed(3)+')';
+      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(endX,endY);
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.3*aMul).toFixed(3)+')';
       ctx.lineWidth=Math.min(thick*4,10);ctx.stroke();
       // Mid glow
-      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
-      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.6).toFixed(3)+')';
+      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(endX,endY);
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.6*aMul).toFixed(3)+')';
       ctx.lineWidth=Math.min(thick*2,6);ctx.stroke();
       // Core bright line (LED center)
-      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(sx,sy);
-      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*1.2).toFixed(3)+')';
+      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(endX,endY);
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*1.2*aMul).toFixed(3)+')';
       ctx.lineWidth=Math.min(thick*0.8,MAX_LINE);ctx.stroke();
       // Traveling energy pulse
       const pulsePos=(t*0.4+n.pulsePhase)%1;
-      const px=mcx+(sx-mcx)*pulsePos,py=mcy+(sy-mcy)*pulsePos;
+      const px=mcx+(endX-mcx)*pulsePos,py=mcy+(endY-mcy)*pulsePos;
       const pSize=Math.max(2,Math.min(8,6*scale));
       const pg=ctx.createRadialGradient(px,py,0,px,py,pSize);
-      pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.7).toFixed(3)+')');
-      pg.addColorStop(0.4,'rgba('+lineColor+','+(depthAlpha*0.3).toFixed(3)+')');
+      pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.7*aMul).toFixed(3)+')');
+      pg.addColorStop(0.4,'rgba('+lineColor+','+(depthAlpha*0.3*aMul).toFixed(3)+')');
       pg.addColorStop(1,'transparent');
       ctx.beginPath();ctx.arc(px,py,pSize,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
       ctx.restore();
@@ -4531,7 +4604,11 @@ function initConstCanvas(){
       const ringColor=n.isEvent?'#60a5fa':(theyRevealedToMe?'#00dc82':'#ff4466');
       const glowRGB=n.isEvent?'96,165,250':(theyRevealedToMe?'0,220,130':'255,68,102');
       // Depth-based opacity: close nodes=bright, far nodes=dim
-      const depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
+      let depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
+      // Search dimming: non-matching nodes fade
+      if(constState._searchQuery&&!n._searchMatch)depthAlpha*=0.12;
+      // Search highlight: matching nodes pulse brighter
+      if(constState._searchQuery&&n._searchMatch)depthAlpha=Math.min(1,depthAlpha*1.4);
 
       // Outer glow (capped)
       const glowR=Math.min(r*3,50);
@@ -4580,6 +4657,12 @@ function initConstCanvas(){
         const sa=(t*2)%(Math.PI*2);
         ctx.beginPath();ctx.arc(sx,sy,r+5,sa,sa+Math.PI*.5);
         ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
+      }
+      // Search match pulsing ring
+      if(constState._searchQuery&&n._searchMatch){
+        const sp=0.4+Math.sin(t*3)*.3;
+        ctx.beginPath();ctx.arc(sx,sy,r+4,0,Math.PI*2);
+        ctx.strokeStyle='rgba(255,255,255,'+sp.toFixed(2)+')';ctx.lineWidth=2;ctx.stroke();
       }
 
       // Stars around the ring — small dots filling the orbit
