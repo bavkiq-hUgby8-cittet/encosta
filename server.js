@@ -1797,6 +1797,7 @@ app.post('/api/session/join', (req, res) => {
       isServiceTouch: false, isCheckin: true,
       eventId: sessionEventId, eventName: sessionEventObj ? sessionEventObj.name : 'Evento',
       requireReveal: !!opRequireRevealJoin,
+      operatorId: sessionOperatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
       userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
@@ -3969,6 +3970,7 @@ function createSonicConnection(userIdA, userIdB) {
       sonicMatch: true, isCheckin: true, isServiceTouch: false,
       eventId, eventName: eventObj ? eventObj.name : null,
       requireReveal: !!opRequireReveal,
+      operatorId: operatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
       // userA = visitor, userB = event (virtual)
