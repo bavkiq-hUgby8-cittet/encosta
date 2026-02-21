@@ -3424,35 +3424,42 @@ async function handleMainButton(){
   }
   haptic([40]);
 
-  // RESET: kill any leftover audio/mic state from previous attempt
+  // ═══ FULL RESET: kill everything from previous attempt ═══
   stopSonicMode();
+  if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop());sonicStream=null;}
 
   homeSonicActive=true;
   sonicActive=true;sonicMyFreq=0;
   const btn=$('mainBtn'),txt=$('mainBtnText'),sts=$('sonicHomeStatus'),fb=$('sonicFallback');
   const barsL=$('sonicBarsL'),barsR=$('sonicBarsR'),fire=$('fireOverlay');
-  // Shake animation on activate
   btn.classList.add('shake-activate');
   setTimeout(()=>btn.classList.remove('shake-activate'),700);
   btn.classList.add('energized');
   txt.textContent='ATIVANDO...';
-  // ALWAYS request fresh mic permission to avoid stuck loops
-  if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop());sonicStream=null;}
-  if(sonicMicCtx){try{sonicMicCtx.close()}catch(e){} sonicMicCtx=null;}
-  if(sonicEmitCtx){try{sonicEmitCtx.close()}catch(e){} sonicEmitCtx=null;}
-  sts.textContent='Pedindo microfone...';sts.classList.add('active');
-  fb.classList.remove('active'); // reset fallback
+  sts.textContent='Preparando áudio...';sts.classList.add('active');
+  fb.classList.remove('active');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
   const si=$('sonicInstruct');if(si)si.classList.add('active');
 
+  // ═══ CRITICAL: Create AudioContexts HERE, inside user gesture ═══
+  // Browsers (iOS/Android) only allow AudioContext to auto-play
+  // when created during a direct user interaction (click/tap).
+  // If we create them after await, the gesture is "lost" and audio stays muted!
+  sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+  sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+  // Resume immediately (still in gesture context — guaranteed to work)
+  await Promise.all([sonicEmitCtx.resume(),sonicMicCtx.resume()]);
+  console.log('[sonic] AudioContexts created in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
+
   try{
-    // 1. Fresh mic permission — always request new stream
+    // 1. Fresh mic permission
+    sts.textContent='Pedindo microfone...';
     sonicStream=await requestMic();
     if(!homeSonicActive)return;
     sts.textContent='Conectando ao servidor...';
 
-    // 2. Get frequency from server (only operator sends isCheckin, never visitors)
+    // 2. Get frequency from server
     const _activeEvId=localStorage.getItem('activeEventId')||null;
     const _isOperator=localStorage.getItem('activeEventRole')==='operator';
     const _isCheckin=!!(_activeEvId&&_isOperator);
@@ -3464,20 +3471,20 @@ async function handleMainButton(){
     if(!homeSonicActive)return;
     sonicMyFreq=freq;
 
-    // 3. Emit ultrasonic — fresh AudioContext
-    sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
-    if(sonicEmitCtx.state==='suspended')await sonicEmitCtx.resume();
+    // 3. Emit ultrasonic — using the ALREADY RUNNING AudioContext
+    // Re-verify context is still running (paranoia check)
+    if(sonicEmitCtx.state==='suspended'){await sonicEmitCtx.resume()}
     sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.8,sonicEmitCtx.currentTime);
+    gain.gain.setValueAtTime(0.9,sonicEmitCtx.currentTime);
     sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
+    console.log('[sonic] Oscillator started at',freq,'Hz. EmitCtx:',sonicEmitCtx.state);
 
-    // 4. Start detection — fresh AudioContext for mic
-    sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
-    if(sonicMicCtx.state==='suspended')await sonicMicCtx.resume();
+    // 4. Start detection — using the ALREADY RUNNING mic AudioContext
+    if(sonicMicCtx.state==='suspended'){await sonicMicCtx.resume()}
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
     sonicAnalyser=sonicMicCtx.createAnalyser();
     sonicAnalyser.fftSize=SONIC_FFT_SIZE;
@@ -3488,21 +3495,19 @@ async function handleMainButton(){
     const sampleRate=sonicMicCtx.sampleRate;
     const freqPerBin=sampleRate/SONIC_FFT_SIZE;
 
-    // 5. HEALTH CHECK — verify audio is actually working
-    // On mobile, mic stream can be "alive" but producing silence (dead tracks)
+    // 5. HEALTH CHECK
     const _micTrack=sonicStream.getAudioTracks()[0];
     if(!_micTrack||_micTrack.readyState==='ended'||!_micTrack.enabled){
-      console.warn('[sonic] Mic track dead on start, forcing reload');
+      console.warn('[sonic] Mic track dead on start');
       stopHomeSonic();
       showToast('Reiniciando microfone...');
       setTimeout(()=>location.reload(),800);
       return;
     }
-    // Verify AudioContexts are running
+    // Final context check
     if(sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running'){
-      console.warn('[sonic] AudioContext not running:',sonicEmitCtx.state,sonicMicCtx.state);
+      console.warn('[sonic] AudioContext STILL not running after all setup:',sonicEmitCtx.state,sonicMicCtx.state);
       try{await sonicEmitCtx.resume();await sonicMicCtx.resume()}catch(e){}
-      // If still not running after resume, reload
       if(sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running'){
         stopHomeSonic();
         showToast('Áudio travado, reiniciando...');
@@ -3662,21 +3667,29 @@ async function requestMic(){
 function startSonicMode(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
   if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
+  // Full reset
+  stopSonicMode();
   showPhase('phaseBump');
   const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
   circle.className='bump-circle';label.textContent='PREPARANDO...';
-  status.textContent='Pedindo microfone...';
+  status.textContent='Preparando áudio...';
   sonicActive=true;sonicMyFreq=0;
+  // ═══ Create AudioContexts in user gesture! ═══
+  sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+  sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+  sonicEmitCtx.resume();sonicMicCtx.resume();
+  console.log('[sonic alt] Contexts created in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
   initSonic(label,status,circle);
 }
 
 async function initSonic(label,status,circle){
   try{
-    // 1. Get mic permission first
+    // 1. Get mic permission
+    if(status)status.textContent='Pedindo microfone...';
     sonicStream=await requestMic();
     if(status)status.textContent='Microfone OK. Conectando...';
 
-    // 2. Ask server for frequency (include event/service context)
+    // 2. Ask server for frequency
     const _sEvId=localStorage.getItem('activeEventId')||null;
     const _sIsOp=localStorage.getItem('activeEventRole')==='operator';
     const _sIsCheckin=!!(_sEvId&&_sIsOp);
@@ -3685,26 +3698,27 @@ async function initSonic(label,status,circle){
       const timeout=setTimeout(()=>reject(new Error('Server timeout')),5000);
       socket.once('sonic-assigned',({freq})=>{clearTimeout(timeout);resolve(freq)});
     });
-    if(!sonicActive)return; // user may have cancelled
+    if(!sonicActive)return;
     sonicMyFreq=freq;
 
-    // 3. Start emitting (louder for phone speakers)
-    sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
+    // 3. Start emitting — context already running from gesture!
+    if(sonicEmitCtx.state==='suspended')await sonicEmitCtx.resume();
     sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.8,sonicEmitCtx.currentTime); // louder! phones need it
+    gain.gain.setValueAtTime(0.9,sonicEmitCtx.currentTime);
     sonicOsc.connect(gain);
     gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
+    console.log('[sonic alt] Oscillator started at',freq,'Hz');
 
-    // 4. Start listening with confirmed detection
-    sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
+    // 4. Start listening — context already running from gesture!
+    if(sonicMicCtx.state==='suspended')await sonicMicCtx.resume();
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
     sonicAnalyser=sonicMicCtx.createAnalyser();
     sonicAnalyser.fftSize=SONIC_FFT_SIZE;
-    sonicAnalyser.smoothingTimeConstant=0.3; // less smoothing = faster response
+    sonicAnalyser.smoothingTimeConstant=0.3;
     source.connect(sonicAnalyser);
     const bufLen=sonicAnalyser.frequencyBinCount;
     const dataArr=new Uint8Array(bufLen);
@@ -3779,12 +3793,18 @@ async function initSonic(label,status,circle){
 
 function stopSonicMode(){
   sonicActive=false;
-  if(sonicOsc){try{sonicOsc.stop()}catch(e){}}
-  if(sonicEmitCtx){try{sonicEmitCtx.close()}catch(e){}}
-  if(sonicMicCtx){try{sonicMicCtx.close()}catch(e){}}
-  if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop())}
-  if(sonicAnimFrame)cancelAnimationFrame(sonicAnimFrame);
+  // Stop oscillator first (before closing context)
+  if(sonicOsc){try{sonicOsc.disconnect();sonicOsc.stop()}catch(e){}}
+  // Close AudioContexts — force close to fully release audio hardware
+  if(sonicEmitCtx){try{sonicEmitCtx.close()}catch(e){console.log('[sonic] emitCtx close err:',e)}}
+  if(sonicMicCtx){try{sonicMicCtx.close()}catch(e){console.log('[sonic] micCtx close err:',e)}}
+  // Kill mic stream tracks
+  if(sonicStream){try{sonicStream.getTracks().forEach(t=>{t.stop();t.enabled=false})}catch(e){}}
+  // Cancel animation loop
+  if(sonicAnimFrame){cancelAnimationFrame(sonicAnimFrame)}
+  // Null everything — clean slate
   sonicOsc=null;sonicEmitCtx=null;sonicMicCtx=null;sonicStream=null;sonicAnalyser=null;sonicAnimFrame=null;sonicMyFreq=0;
+  console.log('[sonic] Full cleanup done');
   if(socket&&socket.connected){
     const _evId=localStorage.getItem('activeEventRole')==='operator'?localStorage.getItem('activeEventId'):null;
     socket.emit('sonic-stop',{userId:state.userId,eventId:_evId});
