@@ -650,6 +650,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .elog-meta span{display:flex;align-items:center;gap:.15rem}
 .elog-tip{color:var(--ok);font-weight:600}
 .elog-empty{text-align:center;padding:3rem 1.5rem;color:var(--t3);font-size:.78rem;line-height:1.7;font-weight:300}
+.elog-filter{padding:.35rem .7rem;border-radius:18px;background:var(--s1);border:1px solid var(--b1);color:var(--t3);font-size:.62rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;font-family:inherit}
+.elog-filter.active{background:rgba(99,102,241,.12);border-color:rgba(99,102,241,.3);color:var(--ac2)}
 
 /* MORE MENU (overlay) */
 .more-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:8000;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .25s ease}
@@ -1661,6 +1663,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="encounterLog" class="screen">
   <div class="elog-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Histórico</h2></div>
+  <div style="display:flex;gap:.3rem;padding:.3rem .8rem;overflow-x:auto;-webkit-overflow-scrolling:touch" id="elogFilters">
+    <button class="elog-filter active" onclick="filterElog('all',this)">Todos</button>
+    <button class="elog-filter" onclick="filterElog('people',this)">👤 Pessoas</button>
+    <button class="elog-filter" onclick="filterElog('service',this)">🛎 Serviços</button>
+    <button class="elog-filter" onclick="filterElog('payments',this)">💰 Pagamentos</button>
+  </div>
   <div class="elog-list" id="elogList"></div>
 </div>
 
@@ -4264,10 +4272,10 @@ function doReveal(data){
   }else{
     // NORMAL: chat + selfie + share + conexão + pular
     let h='';
-    h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
+    h+=_rvBtn(_rvIco.chat,'Chat 24h',"enterChat()",'primary');
+    h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>','Conexão',"goToConnectionFromReveal()",'');
     h+=_rvBtn(_rvIco.cam,'Selfie',"revealCaptureSelfie()",'');
     h+=_rvBtn(_rvIco.share,'Compartilhar',"shareConnection()",'');
-    h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>','Conexão',"goToConnectionFromReveal()",'');
     h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
     iconRow.innerHTML=h;
   }
@@ -4440,8 +4448,8 @@ async function shareConnection(){
   glow.addColorStop(0,'rgba(255,107,53,.1)');glow.addColorStop(0.5,'rgba(255,60,110,.05)');glow.addColorStop(1,'transparent');
   c.fillStyle=glow;c.fillRect(0,0,W,H);
 
-  // Helper: draw avatar with color fallback
-  function drawAvatar(img,cx,cy,r,name,color){
+  // Helper: draw avatar — anonymous silhouette if no photo, with accessory overlay
+  function drawAvatar(img,cx,cy,r,name,color,isRevealed,accKey){
     if(img&&img.naturalWidth){
       const iw=img.naturalWidth,ih=img.naturalHeight;
       const side=Math.min(iw,ih);
@@ -4449,21 +4457,31 @@ async function shareConnection(){
       c.save();c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.clip();
       c.drawImage(img,sxx,syy,side,side,cx-r,cy-r,r*2,r*2);c.restore();
     }else{
-      // Color gradient circle with initials
-      const col=color||'hsl(220,65%,45%)';
-      const g=c.createRadialGradient(cx-r*0.25,cy-r*0.25,0,cx,cy,r);
-      g.addColorStop(0,'rgba(120,140,180,.4)');g.addColorStop(1,'rgba(40,50,80,.6)');
+      // Anonymous silhouette (head + body shape)
+      const g=c.createLinearGradient(cx,cy-r,cx,cy+r);
+      g.addColorStop(0,'#2a2a3e');g.addColorStop(1,'#1a1a2e');
       c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=g;c.fill();
-      // Initial
-      const init=name?(name.trim().split(/\s+/).length>1?(name.trim()[0]+name.trim().split(/\s+/)[1][0]):name.slice(0,2)).toUpperCase():'?';
-      c.font='bold 48px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.6)';
-      c.textAlign='center';c.textBaseline='middle';c.fillText(init,cx,cy+2);
+      // Head circle
+      const headR=r*0.32;const headY=cy-r*0.2;
+      const bodyG=c.createLinearGradient(cx,headY-headR,cx,cy+r*0.65);
+      bodyG.addColorStop(0,'#4a4a6a');bodyG.addColorStop(1,'#3a3a5a');
+      c.beginPath();c.arc(cx,headY,headR,0,Math.PI*2);c.fillStyle=bodyG;c.fill();
+      // Body ellipse
+      c.beginPath();c.ellipse(cx,cy+r*0.45,r*0.52,r*0.36,0,0,Math.PI*2);c.fillStyle=bodyG;c.fill();
+      // Accessory overlay on anonymous avatar
+      if(accKey){
+        const accData=getAccessoryImg(accKey);
+        if(accData&&accData.ready&&accData.img){
+          const accSize=r*2;
+          c.drawImage(accData.img,cx-r,cy-r,accSize,accSize);
+        }
+      }
     }
-    // Ring
+    // Glow ring
     c.beginPath();c.arc(cx,cy,r+3,0,Math.PI*2);
-    c.strokeStyle='rgba(255,107,53,.5)';c.lineWidth=2.5;c.stroke();
-    c.beginPath();c.arc(cx,cy,r+7,0,Math.PI*2);
-    c.strokeStyle='rgba(255,107,53,.12)';c.lineWidth=5;c.stroke();
+    c.strokeStyle='rgba(255,107,53,.45)';c.lineWidth=2;c.stroke();
+    c.beginPath();c.arc(cx,cy,r+8,0,Math.PI*2);
+    c.strokeStyle='rgba(255,107,53,.08)';c.lineWidth=6;c.stroke();
   }
   // Helper: orbiting stars
   function drawStars(cx,cy,r,count){
@@ -4532,65 +4550,93 @@ async function shareConnection(){
   c.textAlign='center';c.textBaseline='middle';c.letterSpacing='0.2em';
   c.fillText(momentText.toUpperCase(),W/2,avY-avR-70);
 
-  // Draw avatars
-  drawAvatar(myImg,W/2-avSpacing,avY,avR,me.name||'?',me.color);
-  drawAvatar(theirImg,W/2+avSpacing,avY,avR,them.name||'?',them.color);
+  // Draw avatars (pass accessory key for anonymous silhouette overlay)
+  const myAccKey=iRevealedToThem?null:(me.accessory||null);
+  const theirAccKey=theyRevealedToMe?null:(them.accessory||null);
+  drawAvatar(myImg,W/2-avSpacing,avY,avR,me.name||'?',me.color,iRevealedToThem,myAccKey);
+  drawAvatar(theirImg,W/2+avSpacing,avY,avR,them.name||'?',them.color,theyRevealedToMe,theirAccKey);
   // Stars
   drawStars(W/2-avSpacing,avY,avR,me.stars||0);
   drawStars(W/2+avSpacing,avY,avR,them.stars||0);
-  // Plus badges
+  // Verified (subscriber) badges
   if(me.verified)drawPlus(W/2-avSpacing,avY,avR);
   if(them.verified)drawPlus(W/2+avSpacing,avY,avR);
 
-  // Connection line
+  // Connection line — glowing electric
   const x1=W/2-avSpacing+avR+14,x2=W/2+avSpacing-avR-14;
+  // Outer glow
   c.beginPath();c.moveTo(x1,avY);c.lineTo(x2,avY);
-  c.strokeStyle='rgba(255,107,53,.25)';c.lineWidth=6;c.lineCap='round';c.stroke();
+  c.strokeStyle='rgba(255,107,53,.12)';c.lineWidth=12;c.lineCap='round';c.stroke();
+  // Inner glow
   c.beginPath();c.moveTo(x1,avY);c.lineTo(x2,avY);
-  c.strokeStyle='rgba(255,107,53,.6)';c.lineWidth=1.5;c.stroke();
-  c.beginPath();c.arc(W/2,avY,6,0,Math.PI*2);c.fillStyle='rgba(255,107,53,.7)';c.fill();
+  c.strokeStyle='rgba(255,107,53,.35)';c.lineWidth=4;c.stroke();
+  // Core
+  c.beginPath();c.moveTo(x1,avY);c.lineTo(x2,avY);
+  c.strokeStyle='rgba(255,180,120,.7)';c.lineWidth=1.5;c.stroke();
+  // Center spark
+  c.beginPath();c.arc(W/2,avY,8,0,Math.PI*2);
+  const sparkG=c.createRadialGradient(W/2,avY,0,W/2,avY,8);
+  sparkG.addColorStop(0,'rgba(255,200,150,.9)');sparkG.addColorStop(1,'rgba(255,107,53,.3)');
+  c.fillStyle=sparkG;c.fill();
 
-  // Names
-  c.font='500 32px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
-  c.fillStyle='rgba(255,255,255,.6)';
+  // Names — discrete, smaller, slightly transparent
   const myName=iRevealedToThem?(me.realName||me.name||'?'):(me.name||'?');
   const theirName=theyRevealedToMe?(them.realName||them.name||'?'):(them.name||'?');
-  c.fillText(myName,W/2-avSpacing,avY+avR+28);
-  c.fillText(theirName,W/2+avSpacing,avY+avR+28);
+  c.font='600 26px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
+  c.fillStyle='rgba(255,255,255,.4)';
+  c.fillText(myName,W/2-avSpacing,avY+avR+20);
+  c.fillText(theirName,W/2+avSpacing,avY+avR+20);
+  // Verified label under name
+  if(me.verified){c.font='600 18px Inter,sans-serif';c.fillStyle='rgba(6,182,212,.6)';c.fillText('✓ assinante',W/2-avSpacing,avY+avR+52)}
+  if(them.verified){c.font='600 18px Inter,sans-serif';c.fillStyle='rgba(6,182,212,.6)';c.fillText('✓ assinante',W/2+avSpacing,avY+avR+52)}
 
-  // Phrase (center of card)
+  // Phrase (center of card) — larger, more elegant
   const phrase=d.phrase||'';
   if(phrase){
-    c.font='italic 300 46px Georgia,Inter,serif';c.fillStyle='rgba(255,255,255,.8)';
+    c.font='italic 300 50px Georgia,Inter,serif';c.fillStyle='rgba(255,255,255,.85)';
     c.textAlign='center';c.textBaseline='top';
     const words=phrase.split(' ');let lines=[];let line='';
     for(const w of words){
       const test=line?line+' '+w:w;
-      if(c.measureText(test).width>W-180){lines.push(line);line=w}
+      if(c.measureText(test).width>W-160){lines.push(line);line=w}
       else line=test;
     }
     if(line)lines.push(line);
-    const lineH=62;const startY=avY+avR+110;
+    const lineH=66;const startY=avY+avR+100;
     lines.forEach((l,i)=>{c.fillText(l,W/2,startY+i*lineH)});
   }
 
-  // Zodiac
+  // Zodiac — subtle
   const zPhrase=d.zodiacPhrase||'';
   if(zPhrase){
-    c.font='italic 300 28px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.3)';
-    c.textAlign='center';c.fillText(zPhrase,W/2,H*0.60);
+    c.font='italic 300 26px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.22)';
+    c.textAlign='center';c.fillText(zPhrase,W/2,H*0.62);
   }
 
-  // ── Bottom brand area (readable) ──
-  // Subtle line separator
-  c.beginPath();c.moveTo(W*0.3,H-220);c.lineTo(W*0.7,H-220);
-  c.strokeStyle='rgba(255,255,255,.06)';c.lineWidth=1;c.stroke();
-  // Brand
-  c.font='800 42px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.5)';
-  c.textAlign='center';c.textBaseline='middle';c.fillText('Touch?',W/2,H-160);
+  // ── Decorative sparkles across card (Instagram-attractive) ──
+  for(let i=0;i<8;i++){
+    const sx=120+Math.random()*(W-240),sy=H*0.5+Math.random()*(H*0.3);
+    const sz=1+Math.random()*2;
+    c.beginPath();c.arc(sx,sy,sz,0,Math.PI*2);
+    c.fillStyle='rgba(255,107,53,'+(0.06+Math.random()*0.12)+')';c.fill();
+  }
+
+  // ── Bottom brand area — modern and clean ──
+  // Subtle horizontal line
+  const lineY=H-240;
+  const lineG=c.createLinearGradient(W*0.2,lineY,W*0.8,lineY);
+  lineG.addColorStop(0,'transparent');lineG.addColorStop(0.5,'rgba(255,107,53,.15)');lineG.addColorStop(1,'transparent');
+  c.beginPath();c.moveTo(W*0.2,lineY);c.lineTo(W*0.8,lineY);c.strokeStyle=lineG;c.lineWidth=1;c.stroke();
+  // Brand name — gradient-style
+  c.font='800 48px Inter,sans-serif';
+  c.fillStyle='rgba(255,107,53,.5)';
+  c.textAlign='center';c.textBaseline='middle';c.fillText('Touch?',W/2,H-175);
   // Tagline
-  c.font='300 24px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.3)';
-  c.fillText('tudo nasce no gesto',W/2,H-115);
+  c.font='300 22px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.25)';
+  c.fillText('tudo nasce no gesto',W/2,H-128);
+  // QR-like invite text
+  c.font='500 18px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.15)';
+  c.fillText('encosta.app',W/2,H-90);
 
   // Convert to blob and share
   const blob=await new Promise(ok=>cv.toBlob(ok,'image/png',1.0));
@@ -6402,61 +6448,73 @@ function showMoreMenu(){
 }
 
 // ═══ ENCOUNTER LOG (individual touches) ═══
+let _elogData=[];let _elogFilter='all';
+function filterElog(filter,btn){
+  _elogFilter=filter;
+  if(btn){document.querySelectorAll('.elog-filter').forEach(f=>f.classList.remove('active'));btn.classList.add('active')}
+  renderElogList(_elogData);
+}
+function renderElogList(data){
+  const list=$('elogList');
+  if(!data||!data.length){list.innerHTML='<div class="elog-empty">Nenhum encontro ainda.<br>Toque em alguém para começar!</div>';return}
+  let filtered=data;
+  if(_elogFilter==='people')filtered=data.filter(e=>e.type!=='service'&&e.type!=='checkin'&&!(e.tipAmount&&e.tipStatus==='approved'));
+  else if(_elogFilter==='service')filtered=data.filter(e=>e.type==='service'||e.type==='checkin');
+  else if(_elogFilter==='payments')filtered=data.filter(e=>e.tipAmount&&e.tipStatus==='approved');
+  if(!filtered.length){list.innerHTML='<div class="elog-empty">Nenhum item nesta categoria.</div>';return}
+  const myCanSee2=state.revealedIds||{};
+  let html='';let lastDateLabel='';
+  filtered.forEach(enc=>{
+    const dt=new Date(enc.timestamp);
+    const dateLabel=dt.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
+    if(dateLabel!==lastDateLabel){html+='<div class="elog-date-label">'+dateLabel+'</div>';lastDateLabel=dateLabel}
+    const revealed=!!(enc.profilePhoto||myCanSee2[enc.with]);
+    const revData=myCanSee2[enc.with];
+    const displayName=revealed?(enc.realName||revData?.realName||enc.withName):enc.withName;
+    const photo=revealed?(enc.profilePhoto||revData?.profilePhoto||null):null;
+    const timeStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const typeLabel=enc.type==='service'?'serviço':(enc.type==='checkin'?'checkin':(enc.type==='digital'?'digital':'touch'));
+    const hasTip=enc.tipAmount&&enc.tipStatus==='approved';
+    html+='<div class="elog-item" data-ts="'+enc.timestamp+'">';
+    html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>';
+    html+='<div class="elog-item-inner">';
+    const encVerified=!!enc.verified;
+    if(photo){
+      let avHtml='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+';overflow:hidden"><img src="'+esc(photo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
+      html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
+    }else{
+      let avHtml='<div class="elog-avatar" style="background:none;overflow:visible">'+ANON_AVATAR_SVG+'</div>';
+      html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
+    }
+    html+='<div style="flex:1;min-width:0">';
+    html+='<div class="elog-name">'+esc(displayName)+(encVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.55rem;font-weight:800">✓</span>':'')+'</div>';
+    html+='<div class="elog-meta">';
+    html+='<span style="opacity:.7">'+timeStr+'</span>';
+    html+='<span style="opacity:.5">·</span>';
+    html+='<span style="opacity:.5">'+typeLabel+'</span>';
+    if(enc.points)html+='<span style="color:var(--ac);font-weight:600">+'+enc.points+'</span>';
+    const canTip=enc.type==='service'||enc.type==='checkin';
+    if(hasTip)html+='<span class="elog-tip-tag">R$'+enc.tipAmount.toFixed(0)+'</span>';
+    else if(canTip)html+='<button class="elog-tip-btn" onclick="event.stopPropagation();showTipScreen(\''+esc(enc.with)+'\')">Gorjeta</button>';
+    html+='</div></div>';
+    html+='</div></div>';
+  });
+  list.innerHTML=html;
+  initElogSwipe();
+}
+
 async function showEncounterLog(){
   haptic([30]);
   showScreen('encounterLog');
+  _elogFilter='all';
+  document.querySelectorAll('.elog-filter').forEach(f=>f.classList.remove('active'));
+  const firstFilter=document.querySelector('.elog-filter');if(firstFilter)firstFilter.classList.add('active');
   const list=$('elogList');
   list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3)">Carregando...</div>';
   try{
     const data=await(await fetch('/api/encounters/'+state.userId)).json();
-    if(!data||!data.length){
-      list.innerHTML='<div class="elog-empty">Nenhum encontro ainda.<br>Toque em alguém para começar!</div>';
-      return;
-    }
-    const myCanSee2=state.revealedIds||{};
-    let html='';
-    let lastDateLabel='';
-    data.forEach(enc=>{
-      const dt=new Date(enc.timestamp);
-      const dateLabel=dt.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
-      if(dateLabel!==lastDateLabel){
-        html+='<div class="elog-date-label">'+dateLabel+'</div>';
-        lastDateLabel=dateLabel;
-      }
-      const revealed=!!(enc.profilePhoto||myCanSee2[enc.with]);
-      const revData=myCanSee2[enc.with];
-      const displayName=revealed?(enc.realName||revData?.realName||enc.withName):enc.withName;
-      const photo=revealed?(enc.profilePhoto||revData?.profilePhoto||null):null;
-      const timeStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      const typeLabel=enc.type==='service'?'serviço':(enc.type==='checkin'?'checkin':(enc.type==='digital'?'digital':'touch'));
-      const hasTip=enc.tipAmount&&enc.tipStatus==='approved';
-      html+='<div class="elog-item" data-ts="'+enc.timestamp+'">';
-      html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>';
-      html+='<div class="elog-item-inner">';
-      const encVerified=!!enc.verified;
-      if(photo){
-        let avHtml='<div class="elog-avatar" style="background:'+(enc.withColor||'var(--ac)')+';overflow:hidden"><img src="'+esc(photo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
-        html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
-      }else{
-        let avHtml='<div class="elog-avatar" style="background:none;overflow:visible">'+ANON_AVATAR_SVG+'</div>';
-        html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
-      }
-      html+='<div style="flex:1;min-width:0">';
-      html+='<div class="elog-name">'+esc(displayName)+(encVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.55rem;font-weight:800">✓</span>':'')+'</div>';
-      html+='<div class="elog-meta">';
-      html+='<span style="opacity:.7">'+timeStr+'</span>';
-      html+='<span style="opacity:.5">·</span>';
-      html+='<span style="opacity:.5">'+typeLabel+'</span>';
-      if(enc.points)html+='<span style="color:var(--ac);font-weight:600">+'+enc.points+'</span>';
-      const canTip=enc.type==='service'||enc.type==='checkin';
-      if(hasTip)html+='<span class="elog-tip-tag">R$'+enc.tipAmount.toFixed(0)+'</span>';
-      else if(canTip)html+='<button class="elog-tip-btn" onclick="event.stopPropagation();showTipScreen(\''+esc(enc.with)+'\')">Gorjeta</button>';
-      html+='</div></div>';
-      html+='</div></div>';
-    });
-    list.innerHTML=html;
-    // Init swipe-to-delete
-    initElogSwipe();
+    _elogData=data||[];
+    renderElogList(_elogData);
   }catch(e){list.innerHTML='<div class="elog-empty">Erro ao carregar histórico.</div>'}
 }
 function initElogSwipe(){
