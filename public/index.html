@@ -4322,16 +4322,19 @@ async function showHistory(){
       const photo=n.profilePhoto
         ||(myCanSee[n.id]&&myCanSee[n.id].profilePhoto)
         ||n.lastSelfie||null;
+      // DEBUG: log photo status for each node
+      console.log('[PHOTO DEBUG]',n.nickname,'| revealed:',revealed,'| profilePhoto:',n.profilePhoto?'YES('+n.profilePhoto.substring(0,30)+')':'NULL','| canSee:',myCanSee[n.id]?JSON.stringify({photo:!!(myCanSee[n.id].profilePhoto)}):'N/A','| lastSelfie:',n.lastSelfie?'YES':'NULL','| finalPhoto:',photo?'YES':'NULL');
       if(revealed&&photo){
         const img=new Image();
         // Only set crossOrigin for http URLs, not data URIs
         if(!photo.startsWith('data:'))img.crossOrigin='anonymous';
         img.src=photo;
         n._img=img;n._imgLoaded=false;n._revealed=true;
-        img.onload=()=>{n._imgLoaded=true};
-        img.onerror=()=>{n._imgLoaded=false;n._revealed=true}; // show silhouette on error
+        img.onload=()=>{n._imgLoaded=true;console.log('[PHOTO LOADED]',n.nickname)};
+        img.onerror=(e)=>{n._imgLoaded=false;n._revealed=true;console.error('[PHOTO ERROR]',n.nickname,photo.substring(0,60),e)}; // show silhouette on error
       }else if(revealed){
         // Revealed but no photo at all — mark revealed for silhouette + real name
+        console.log('[PHOTO NONE]',n.nickname,'revealed but no photo source at all');
         n._img=null;n._imgLoaded=false;n._revealed=true;
       }else{
         n._img=null;n._imgLoaded=false;n._revealed=false;
@@ -5773,7 +5776,7 @@ async function openCompleteProfile(){
     }
     // Load accessory selector
     state._selectedAccessory=d.avatarAccessory||null;
-    renderAccessoryGrid(d.isSubscriber?'plus':d.isTop1?'top1':'free');
+    renderAccessoryGrid(d.isTop1?'top1':d.isSubscriber?'plus':'free');
   }catch(e){}
 }
 // ═══ ACCESSORY SELECTOR ═══

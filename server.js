@@ -3389,8 +3389,41 @@ app.get('/api/myprofile/:userId', (req, res) => {
     giftsReceived: (db.gifts[req.params.userId] || []).length,
     likesGiven: user.likesGiven || 0, declarationsReceived: (db.declarations ? Object.values(db.declarations).filter(d => d.toUserId === req.params.userId).length : 0),
     avatarAccessory: user.avatarAccessory || null,
-    isTop1: (() => { const scores = Object.keys(db.users).map(uid => ({ uid, score: calcScore(uid) })).sort((a, b) => b.score - a.score); return scores.length > 0 && scores[0].uid === req.params.userId; })()
+    isTop1: (() => { if (user.topTag === 'top1') return true; if (user.registrationOrder === 1) return true; const scores = Object.keys(db.users).map(uid => ({ uid, score: calcScore(uid) })).sort((a, b) => b.score - a.score); return scores.length > 0 && scores[0].uid === req.params.userId; })()
   });
+});
+
+// ── Debug: photo diagnostic for constellation ──
+app.get('/api/debug/photos/:userId', (req, res) => {
+  const me = db.users[req.params.userId];
+  if (!me) return res.status(404).json({ error: 'User not found' });
+  const myCanSee = me.canSee || {};
+  const encounters = db.encounters[req.params.userId] || [];
+  const people = [...new Set(encounters.map(e => e.with))];
+  const report = people.map(pid => {
+    const other = db.users[pid];
+    if (!other) return { id: pid, exists: false };
+    const iCanSeeThem = !!myCanSee[pid];
+    const canSeeSnapshot = myCanSee[pid] || null;
+    const rels = Object.values(db.relations).filter(r => (r.userA === req.params.userId && r.userB === pid) || (r.userA === pid && r.userB === req.params.userId));
+    let lastSelfie = null;
+    if (rels.length > 0) {
+      const sorted = rels.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      if (sorted[0].selfie) lastSelfie = sorted[0].selfie[pid] || null;
+    }
+    return {
+      id: pid,
+      nickname: other.nickname,
+      authMethod: other.firebaseUid ? (other.photoURL ? 'google' : 'email') : 'unknown',
+      profilePhoto: other.profilePhoto ? (other.profilePhoto.substring(0, 60) + '...') : null,
+      photoURL: other.photoURL ? (other.photoURL.substring(0, 60) + '...') : null,
+      iCanSeeThem,
+      canSeePhoto: canSeeSnapshot ? (canSeeSnapshot.profilePhoto ? (canSeeSnapshot.profilePhoto.substring(0, 60) + '...') : null) : 'N/A',
+      lastSelfie: lastSelfie ? (lastSelfie.substring(0, 60) + '...') : null,
+      wouldReturn: iCanSeeThem ? (other.profilePhoto || other.photoURL || (canSeeSnapshot && canSeeSnapshot.profilePhoto) || lastSelfie || 'NULL') : 'NOT_REVEALED'
+    };
+  });
+  res.json({ userId: req.params.userId, myNickname: me.nickname, totalPeople: people.length, report });
 });
 
 // ── LOCATION & EVENTS ──
