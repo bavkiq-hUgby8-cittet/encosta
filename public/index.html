@@ -323,14 +323,27 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-last{font-size:.55rem;color:rgba(255,255,255,.2);margin-top:.1rem;padding:.2rem .6rem;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid rgba(255,255,255,.04);opacity:0;animation:rv-fi .6s ease 5s forwards}
 @keyframes rv-fi{to{opacity:1}}
 @keyframes rv-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-/* Bottom actions — two main buttons side by side */
-.rv-actions{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:.6rem;align-items:center;padding:.8rem 1.5rem calc(env(safe-area-inset-bottom,.5rem) + .8rem);opacity:0;animation:rv-fi .6s ease 6s forwards;z-index:5}
-.rv-btn-row{display:flex;gap:.5rem;width:100%;max-width:300px}
+/* Bottom actions — icon buttons like card profile */
+.rv-actions{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:.4rem;align-items:center;padding:.5rem 1rem calc(env(safe-area-inset-bottom,.5rem) + .6rem);opacity:0;animation:rv-fi .6s ease 6s forwards;z-index:5}
+.rv-btn-row{display:flex;gap:.15rem;justify-content:center}
+.rv-sec-row{display:flex;gap:.5rem;justify-content:center}
+.rv-icon-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:.3rem .5rem;border-radius:10px;border:none;background:none;color:rgba(255,255,255,.5);font-size:.52rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;min-width:52px}
+.rv-icon-btn:active{transform:scale(.93);background:rgba(255,255,255,.06)}
+.rv-icon-btn .rv-ic{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:all .15s}
+.rv-icon-btn .rv-ic svg{width:18px;height:18px}
+.rv-icon-btn.primary .rv-ic{background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.25)}
+.rv-icon-btn.primary{color:#a5b4fc}
+.rv-icon-btn.tip .rv-ic{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.2)}
+.rv-icon-btn.tip{color:#4ade80}
+.rv-icon-btn.skip{color:rgba(255,255,255,.25)}
+.rv-icon-btn.skip .rv-ic{background:none;border-color:rgba(255,255,255,.04)}
+.rv-icon-btn.success .rv-ic{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3)}
+.rv-icon-btn.success{color:#86efac}
+/* Legacy classes for service/checkin modes */
 .rv-btn-enter{flex:1;padding:.65rem 0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:28px;color:#fff;font-size:.72rem;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.06em;transition:all .15s;backdrop-filter:blur(8px)}
 .rv-btn-enter:active{transform:scale(.96);background:rgba(255,255,255,.12)}
 .rv-btn-skip{flex:1;padding:.65rem 0;background:transparent;border:1px solid rgba(255,255,255,.06);border-radius:28px;color:rgba(255,255,255,.35);font-size:.72rem;font-weight:400;font-family:inherit;cursor:pointer;letter-spacing:.06em;transition:all .15s}
 .rv-btn-skip:active{transform:scale(.96);color:rgba(255,255,255,.6)}
-.rv-sec-row{display:flex;gap:.5rem;justify-content:center}
 .rv-btn-mini{display:flex;align-items:center;gap:.3rem;padding:.3rem .7rem;background:transparent;border:1px solid rgba(255,255,255,.05);border-radius:16px;color:rgba(255,255,255,.25);font-size:.55rem;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:.02em}
 .rv-btn-mini:active{background:rgba(255,255,255,.06);color:rgba(255,255,255,.5)}
 .rv-btn-mini .rv-ico{font-size:.7rem;line-height:1;opacity:.5}
@@ -1238,14 +1251,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <canvas id="selfieCanvas" style="display:none"></canvas>
     <div id="selfiePreview" style="display:none;margin:0 auto"></div>
     <div class="rv-actions" id="revealActions">
-      <div class="rv-btn-row">
-        <button type="button" class="rv-btn-enter" id="revealEnterBtn" onclick="enterChat()">Abrir conexão</button>
-        <button type="button" class="rv-btn-skip" id="revealSkipBtn" onclick="goHome()">Pular</button>
+      <div class="rv-btn-row" id="rvIconRow">
+        <button type="button" class="rv-icon-btn primary" id="revealEnterBtn" onclick="enterChat()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span><span>Chat</span></button>
+        <button type="button" class="rv-icon-btn" id="selfieCapBtn" onclick="revealCaptureSelfie()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span>Selfie</span></button>
+        <button type="button" class="rv-icon-btn tip hidden" id="revealTipBtn" onclick="openTipFromReveal()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span><span id="revealTipLabel">Gorjeta</span></button>
+        <button type="button" class="rv-icon-btn skip" id="revealSkipBtn" onclick="goHome()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span><span>Pular</span></button>
       </div>
-      <div class="rv-sec-row">
-        <button type="button" class="rv-btn-mini" id="selfieCapBtn" onclick="revealCaptureSelfie()"><span class="rv-ico">📸</span>Selfie</button>
-        <button type="button" class="rv-btn-mini hidden" id="revealTipBtn" onclick="openTipFromReveal()"><span class="rv-ico">💲</span><span id="revealTipLabel">Gorjeta</span></button>
-      </div>
+      <div class="rv-sec-row" id="rvSecRow"></div>
     </div>
   </div>
 </div>
@@ -3879,39 +3891,40 @@ function doReveal(data){
   // 7. Reset selfie
   releaseSelfieCamera();
   $('selfiePreview').style.display='none';$('selfiePreview').innerHTML='';
-  const capBtn=$('selfieCapBtn');
-  if(capBtn){capBtn.innerHTML='<span class="rv-ico">📸</span>Selfie';capBtn.disabled=false}
   $('revealActions').style.opacity='';
 
   // 8. Configure action buttons based on mode
   const tipBtn=$('revealTipBtn');
   const enterBtn=$('revealEnterBtn');
   const skipBtn=$('revealSkipBtn');
-  const secRow=document.querySelector('#revealActions .rv-sec-row');
+  const capBtn=$('selfieCapBtn');
+  const iconRow=$('rvIconRow');
+  const secRow=$('rvSecRow');
 
-  // Reset buttons to default state first
-  if(enterBtn){enterBtn.style.display='';enterBtn.textContent='Abrir conexão';enterBtn.onclick=function(){enterChat()}}
-  if(tipBtn){tipBtn.className='rv-btn-mini hidden';tipBtn.style.cssText='';tipBtn.innerHTML='<span class="rv-ico">💲</span><span id="revealTipLabel">Gorjeta</span>'}
-  if(capBtn)capBtn.style.display='';
-  if(secRow)secRow.style.display='';
+  // SVG icons for icon buttons
+  const _rvIco={
+    chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
+    cam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    tip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+    skip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+    ticket:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>',
+    reveal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+  };
+  function _rvBtn(icon,label,onclick,cls){
+    return '<button type="button" class="rv-icon-btn'+(cls?' '+cls:'')+'" onclick="'+onclick+'"><span class="rv-ic">'+icon+'</span><span>'+label+'</span></button>';
+  }
+
+  // Reset
+  if(secRow){secRow.style.display='';secRow.innerHTML=''}
 
   if(isService){
-    // SERVICE: gorjeta principal, chat pequeno, sem selfie
-    if(enterBtn)enterBtn.style.display='none';
-    if(capBtn)capBtn.style.display='none';
-    if(tipBtn){
-      tipBtn.className='rv-btn-enter';
-      tipBtn.style.cssText='background:linear-gradient(135deg,#34d399,#059669);border-color:#34d399;color:#fff;font-size:.82rem;font-weight:600;width:100%;padding:.7rem 0;';
-      tipBtn.textContent='💲 Pagar Gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
-      tipBtn.dataset.receiverId=them.id;
-      tipBtn.classList.remove('hidden');
-      const mainRow=document.querySelector('#revealActions .rv-btn-row');
-      if(mainRow)mainRow.prepend(tipBtn);
-    }
-    // Add small chat button in sec row
-    if(secRow){
-      secRow.innerHTML='<button type="button" class="rv-btn-mini" onclick="enterChat()"><span class="rv-ico">💬</span>Abrir chat</button>';
-    }
+    // SERVICE: gorjeta principal, chat, pular
+    let h='';
+    h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
+    h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
+    h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
+    iconRow.innerHTML=h;
+    if(tipBtn){tipBtn.dataset.receiverId=them.id}
   }else if(isCheckin){
     // CHECKIN: check entry price, reveal, go to event view
     const evId=data.eventId||null;
@@ -3919,34 +3932,38 @@ function doReveal(data){
     const entryPrice=data.entryPrice||0;
 
     if(entryPrice>0){
-      // ── PAID CHECK-IN — show payment first ──
       const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
-      if(enterBtn){
-        enterBtn.textContent='🎫 Pagar ingresso '+priceLabel;
-        enterBtn.style.background='linear-gradient(135deg,#6366f1,#4f46e5)';
-        enterBtn.onclick=function(){showEntryPayment(evId,evName,entryPrice,them.id)}
-      }
-      if(skipBtn){skipBtn.textContent='Cancelar';skipBtn.onclick=function(){goHome()}}
-      if(secRow){
-        secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">🎫 Este evento cobra '+priceLabel+' de ingresso.</div>';
-      }
+      let h='';
+      h+=_rvBtn(_rvIco.ticket,'Pagar '+priceLabel,"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+them.id+"')",'primary');
+      h+=_rvBtn(_rvIco.skip,'Cancelar',"goHome()",'skip');
+      iconRow.innerHTML=h;
+      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">Este evento cobra '+priceLabel+' de ingresso.</div>';
     }else if(data.requireReveal){
-      if(enterBtn){enterBtn.textContent='Revelar e continuar';enterBtn.style.background='linear-gradient(135deg,#34d399,#10b981)';enterBtn.onclick=function(){revealToOperator(them.id,evId,evName)}}
-      if(skipBtn){skipBtn.textContent='Continuar anônimo';skipBtn.onclick=function(){if(evId)showEventView(evId,evName);else goHome()}}
-      if(secRow){secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">📋 Este estabelecimento solicita identificação.<br>Revele sua identidade para uma experiência completa.</div>'}
+      let h='';
+      h+=_rvBtn(_rvIco.reveal,'Revelar',"revealToOperator('"+them.id+"','"+evId+"','"+esc(evName)+"')",'primary');
+      h+=_rvBtn(_rvIco.skip,'Anônimo',"showEventView('"+evId+"','"+esc(evName)+"')",'skip');
+      iconRow.innerHTML=h;
+      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">Este estabelecimento solicita identificação.</div>';
     }else{
-      if(enterBtn){enterBtn.textContent='Revelar meus dados';enterBtn.onclick=function(){revealToOperator(them.id,evId,evName)}}
-      if(skipBtn){skipBtn.textContent='Só check-in';skipBtn.onclick=function(){if(evId)showEventView(evId,evName);else goHome()}}
+      let h='';
+      h+=_rvBtn(_rvIco.reveal,'Revelar',"revealToOperator('"+them.id+"','"+evId+"','"+esc(evName)+"')",'primary');
+      h+=_rvBtn(_rvIco.skip,'Só check-in',evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()",'skip');
+      iconRow.innerHTML=h;
       if(secRow)secRow.style.display='none';
     }
   }else{
-    // NORMAL: show gorjeta if them is prestador
-    if(tipBtn&&them.isPrestador){
-      tipBtn.classList.remove('hidden');
-      tipBtn.dataset.receiverId=them.id;
-      const lbl=$('revealTipLabel');
-      if(lbl)lbl.textContent='Dar gorjeta'+(them.serviceLabel?' — '+them.serviceLabel:'');
+    // NORMAL: chat + selfie + gorjeta(if prestador) + pular
+    let h='';
+    h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
+    h+=_rvBtn(_rvIco.cam,'Selfie',"revealCaptureSelfie()",'');
+    if(them.isPrestador){
+      h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
     }
+    h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
+    iconRow.innerHTML=h;
+    // Set tip receiver data
+    const tBtn=iconRow.querySelector('.rv-icon-btn.tip');
+    if(tBtn)tBtn.dataset.receiverId=them.id;
   }
 
   // Reset service mode after touch
@@ -3969,8 +3986,9 @@ function revealToOperator(operatorId,eventId,eventName){
 }
 
 function openTipFromReveal(){
-  const btn=$('revealTipBtn');
+  const btn=$('revealTipBtn')||document.querySelector('#rvIconRow .rv-icon-btn.tip');
   if(btn&&btn.dataset.receiverId) showTipScreen(btn.dataset.receiverId);
+  else if(state.currentRelation&&state.currentRelation.partnerId) showTipScreen(state.currentRelation.partnerId);
 }
 
 // ═══ ENTRY PAYMENT — pay to enter operator event ═══
@@ -3982,12 +4000,10 @@ async function showEntryPayment(eventId,eventName,price,operatorId){
 
 function showEntryCardForm(eventId,eventName,price,operatorId){
   const priceLabel='R$'+price.toFixed(2).replace('.',',');
-  const secRow=document.querySelector('#revealActions .rv-sec-row');
-  const enterBtn=$('revealEnterBtn');
-  const skipBtn=$('revealSkipBtn');
+  const secRow=$('rvSecRow');
+  const iconRow=$('rvIconRow');
 
-  if(enterBtn)enterBtn.style.display='none';
-  if(skipBtn)skipBtn.style.display='none';
+  if(iconRow)iconRow.style.display='none';
 
   if(secRow){
     secRow.style.display='';
@@ -7207,7 +7223,7 @@ function revealCaptureSelfie(){
     v.style.display='none';
     $('selfiePreview').innerHTML='<img src="'+dataUrl+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--ok)">';
     $('selfiePreview').style.display='block';
-    btn.innerHTML='<span class="rv-ico">&#x2714;</span> Salvo';btn.disabled=true;btn.style.borderColor='var(--ok)';btn.style.color='var(--ok)';
+    if(btn){btn.querySelector('span:last-child').textContent='Salvo';btn.disabled=true;btn.classList.add('success');btn.querySelector('.rv-ic').style.borderColor='var(--ok)'}
     if(state.currentRelation){
       fetch('/api/selfie/'+state.currentRelation.relationId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,selfieData:dataUrl})}).catch(()=>{});
     }
@@ -7218,7 +7234,7 @@ function revealCaptureSelfie(){
   if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
     navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false}).then(stream=>{
       selfieStream=stream;const v=$('selfieVideo');v.srcObject=stream;v.style.display='block';
-      btn.innerHTML='<span class="rv-ico">&#x1F4F8;</span> Capturar';
+      if(btn)btn.querySelector('span:last-child').textContent='Capturar';
     }).catch(()=>{
       // Fallback: file picker
       const input=document.createElement('input');input.type='file';input.accept='image/*';input.capture='user';
@@ -7232,7 +7248,7 @@ function revealCaptureSelfie(){
             const dataUrl=c.toDataURL('image/jpeg',.7);
             $('selfiePreview').innerHTML='<img src="'+dataUrl+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--ok)">';
             $('selfiePreview').style.display='block';
-            btn.innerHTML='<span class="rv-ico">&#x2714;</span> Salvo';btn.disabled=true;btn.style.borderColor='var(--ok)';btn.style.color='var(--ok)';
+            if(btn){btn.querySelector('span:last-child').textContent='Salvo';btn.disabled=true;btn.classList.add('success');btn.querySelector('.rv-ic').style.borderColor='var(--ok)'}
             if(state.currentRelation)fetch('/api/selfie/'+state.currentRelation.relationId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,selfieData:dataUrl})}).catch(()=>{});
             haptic([50,30,50]);
           };img.src=reader.result;
