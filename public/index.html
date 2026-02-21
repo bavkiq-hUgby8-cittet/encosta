@@ -472,6 +472,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .const-copy p{font-size:.65rem;color:rgba(255,255,255,.2);font-weight:300;font-style:italic;line-height:1.7;letter-spacing:.05em}
 .const-canvas-wrap{position:absolute;inset:0;z-index:1;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,1) 0%,rgba(2,2,5,1) 70%)}
 .const-canvas-wrap canvas{width:100%;height:100%;touch-action:none}
+.const-loader{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,.97) 0%,rgba(2,2,5,.98) 70%);transition:opacity .5s ease}
+.const-loader.fade-out{opacity:0;pointer-events:none}
+.const-loader-inner{display:flex;flex-direction:column;align-items:center;gap:1rem}
+.const-loader-svg{animation:constLoaderPulse 2s ease-in-out infinite}
+.const-loader-orbit1{transform-origin:40px 40px;animation:constOrbit1 1.8s linear infinite}
+.const-loader-orbit2{transform-origin:40px 40px;animation:constOrbit2 2.5s linear infinite}
+.const-loader-orbit3{transform-origin:40px 40px;animation:constOrbit3 3.2s linear infinite}
+.const-loader-text{color:rgba(255,255,255,.5);font-size:.75rem;font-weight:500;letter-spacing:.05em}
+@keyframes constLoaderPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes constOrbit1{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes constOrbit2{from{transform:rotate(120deg)}to{transform:rotate(480deg)}}
+@keyframes constOrbit3{from{transform:rotate(240deg)}to{transform:rotate(600deg)}}
 /* Node detail overlay */
 /* ═══ Profile modal — compact, modern, no emojis ═══ */
 .const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,rgba(12,12,18,.55) 0%,rgba(8,8,12,.75) 100%);backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);border-top:1px solid rgba(255,255,255,.12);border-left:1px solid rgba(255,255,255,.06);border-right:1px solid rgba(255,255,255,.06);border-radius:20px 20px 0 0;padding:0;padding-bottom:max(env(safe-area-inset-bottom),.6rem);opacity:0;transform:translateY(100%);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;max-height:60vh;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -4px 30px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08)}
@@ -1319,7 +1331,21 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge hidden" id="constNotifBadge">0</span></div>
-  <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas></div>
+  <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas>
+    <div id="constLoader" class="const-loader hidden">
+      <div class="const-loader-inner">
+        <svg class="const-loader-svg" viewBox="0 0 80 80" width="64" height="64">
+          <circle cx="40" cy="40" r="6" fill="rgba(255,255,255,.9)"/>
+          <circle cx="40" cy="40" r="20" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/>
+          <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+          <circle class="const-loader-orbit1" cx="60" cy="40" r="3" fill="#9b59b6"/>
+          <circle class="const-loader-orbit2" cx="40" cy="14" r="2.2" fill="#6c5ce7"/>
+          <circle class="const-loader-orbit3" cx="20" cy="52" r="1.8" fill="#a29bfe"/>
+        </svg>
+        <div class="const-loader-text">Carregando rede...</div>
+      </div>
+    </div>
+  </div>
   <div class="const-empty hidden" id="constEmpty">
     <div class="const-empty-icon">✦</div>
     <div class="const-empty-text">Nenhum encontro ainda.<br>Dê um touch em alguém para começar sua rede.</div>
@@ -4261,10 +4287,14 @@ async function showHistory(){
   const nbadge=$('networkBadge');
   if(nbadge){nbadge.textContent='0';nbadge.classList.add('hidden')}
   fetch('/api/network/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
+  // Show screen immediately with loading indicator
+  const loader=$('constLoader');
+  if(loader){loader.classList.remove('hidden','fade-out')}
+  showScreen('history');
   try{
     const data=await(await fetch('/api/constellation/'+state.userId)).json();
     const empty=$('constEmpty');
-    if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];showScreen('history');requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
+    if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];if(loader){loader.classList.add('fade-out');setTimeout(()=>loader.classList.add('hidden'),500)}requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
     empty.classList.add('hidden');
     // Load pending reveal requests for constellation state
     try{
@@ -4346,9 +4376,13 @@ async function showHistory(){
       mi.onerror=(e)=>{console.error('[MY PHOTO ERROR]',state.userPhoto?.substring(0,60),e);constState._myImgLoaded=false};
     }
     hideConstDetail();
-    showScreen('history');
     // Wait for screen to become visible before measuring canvas
-    requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      initConstCanvas();
+      // Hide loader after canvas is ready
+      const ld=$('constLoader');
+      if(ld){ld.classList.add('fade-out');setTimeout(()=>ld.classList.add('hidden'),500)}
+    }));
     // Show feedback if new nodes since last visit
     const prevCount=parseInt(localStorage.getItem('touch_const_count')||'0');
     if(data.total>prevCount&&prevCount>0){
@@ -4358,7 +4392,7 @@ async function showHistory(){
       setTimeout(()=>fb.classList.remove('show'),3500);
     }
     localStorage.setItem('touch_const_count',String(data.total));
-  }catch(e){showToast('Erro ao carregar.')}
+  }catch(e){const ld=$('constLoader');if(ld){ld.classList.add('fade-out');setTimeout(()=>ld.classList.add('hidden'),500)}showToast('Erro ao carregar.')}
 }
 
 function initConstCanvas(){
