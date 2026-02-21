@@ -1108,7 +1108,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
   <!-- LOGIN FORM -->
   <div class="login-form" id="loginForm">
-    <input type="email" class="login-input" id="loginEmail" placeholder="E-mail" autocomplete="email">
+    <input type="email" class="login-input" id="loginEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)">
     <input type="password" class="login-input" id="loginPass" placeholder="Senha" autocomplete="current-password">
     <button class="bp" id="loginBtn" onclick="loginWithEmail()">ENTRAR</button>
     <div class="login-err" id="loginErr"></div>
@@ -1120,7 +1120,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <input type="text" class="login-input" id="loginNick" placeholder="Nickname (seu nome anônimo)" maxlength="20" autocomplete="off" oninput="checkNickLogin(this.value)">
     <div class="nick-feedback" id="nickFeedbackLogin"></div>
     <div class="login-nick-explain" id="loginNickExplain">⚠️ Não coloque seu nome real! O nick é sua máscara — só você decide quando revelar.</div>
-    <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email">
+    <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)">
     <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password">
     <div class="tc" id="loginTermsUso" style="margin:.2rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
     <button class="bp" id="regBtn" onclick="registerWithEmail()">CRIAR CONTA</button>
@@ -1740,7 +1740,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="preg-sub">Cadastre-se como prestador de serviço para receber pagamentos de gorjeta diretamente no seu celular.</div>
   <div class="fg"><label>Nome completo</label><input type="text" id="pregName" placeholder="Seu nome"></div>
   <div class="fg"><label>Nickname</label><input type="text" id="pregNick" placeholder="Como vão te encontrar" maxlength="20" oninput="checkPregNick(this.value)"><div class="nick-hint" id="pregNickHint"></div></div>
-  <div class="fg"><label>CPF (opcional)</label><input type="text" id="pregCPF" placeholder="000.000.000-00" maxlength="14"></div>
+  <div class="fg"><label>CPF (opcional)</label><input type="text" id="pregCPF" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" oninput="formatCPF(this)"></div>
   <div class="fg"><label>Data de nascimento</label><input type="date" id="pregBirth"></div>
   <div class="fg"><label>Tipo de serviço</label></div>
   <div class="preg-services" id="pregServices"></div>
@@ -1824,7 +1824,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cp-field cp-field-privacy"><label>X (Twitter)</label><div class="cp-input-row"><input type="text" id="cpTwitter" placeholder="@seuuser" maxlength="30"><button class="cp-priv-toggle" id="cpPrivTwitter" onclick="toggleCpPriv('Twitter')" title="Visível ao revelar ID"></button></div></div>
     <!-- Contact -->
     <div class="cp-section-title">Contato</div>
-    <div class="cp-field cp-field-privacy"><label>Telefone</label><div class="cp-input-row"><input type="tel" id="cpPhone" placeholder="+55 11 99999-9999" maxlength="20"><button class="cp-priv-toggle" id="cpPrivPhone" onclick="toggleCpPriv('Phone')" title="Visível ao revelar ID"></button></div></div>
+    <div class="cp-field cp-field-privacy"><label>Telefone</label><div class="cp-input-row"><input type="tel" id="cpPhone" placeholder="(11) 99999-9999" maxlength="16" inputmode="numeric" oninput="formatPhone(this)"><button class="cp-priv-toggle" id="cpPrivPhone" onclick="toggleCpPriv('Phone')" title="Visível ao revelar ID"></button></div></div>
     <div class="cp-field"><label>Email</label><input type="email" id="cpEmail" placeholder="seu@email.com" maxlength="60"><div class="cp-note">Apenas para pagamentos — nunca exibido</div></div>
     <div class="cp-field"><label>CPF</label><input type="text" id="cpCpf" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" oninput="formatCPF(this)"><div class="cp-note">Apenas para pagamentos — nunca exibido</div></div>
     <div style="height:2rem"></div>
@@ -2081,6 +2081,10 @@ async function linkFirebaseToEncosta(user){
       body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,phoneNumber:user.phoneNumber||null,encUserId:state.userId||null,nickname:window._pendingNickname||null})
     });
     const d=await r.json();
+    if(d.matchedBy&&d.matchedBy!=='firebaseUid'&&d.linked){
+      console.log('[auth] Account unified by:',d.matchedBy);
+      showToast('Conta encontrada! Conectamos ao seu perfil existente.');
+    }
     if(d.userId){
       state.userId=d.userId;
       state.userName=d.user.nickname||d.user.name;
@@ -2288,31 +2292,49 @@ function switchAuthTab(tab){
 }
 
 async function loginWithEmail(){
-  const email=$('loginEmail').value.trim();
+  const email=$('loginEmail').value.trim().toLowerCase();
   const pass=$('loginPass').value;
   $('loginErr').textContent='';$('loginErr').style.color='var(--err)';
-  if(!email||!pass)return $('loginErr').textContent='Preencha e-mail e senha.';
+  if(!email)return $('loginErr').textContent='Preencha seu e-mail.';
+  if(!pass)return $('loginErr').textContent='Preencha sua senha.';
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('loginErr').textContent='Formato de e-mail inválido.';
+  const btn=$('loginBtn');if(btn){btn.textContent='Entrando...';btn.disabled=true;}
   try{
     await firebaseAuthInstance.signInWithEmailAndPassword(email,pass);
   }catch(e){
-    const msgs={'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/invalid-email':'E-mail inválido.','auth/user-not-found':'Usuário não encontrado.','auth/wrong-password':'Senha incorreta.','auth/invalid-credential':'E-mail ou senha incorretos.','auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).'};
+    console.log('[login] Error:',e.code,e.message);
+    const msgs={
+      'auth/email-already-in-use':'Este e-mail já está cadastrado. Tente fazer login.',
+      'auth/invalid-email':'Formato de e-mail inválido.',
+      'auth/user-not-found':'Nenhuma conta encontrada com este e-mail. Deseja criar uma?',
+      'auth/wrong-password':'Senha incorreta. Esqueceu? Use o link mágico.',
+      'auth/invalid-credential':'E-mail ou senha incorretos.',
+      'auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).',
+      'auth/too-many-requests':'Muitas tentativas. Aguarde uns minutos ou use outro método de login.',
+      'auth/user-disabled':'Esta conta foi desativada. Entre em contato com o suporte.',
+      'auth/network-request-failed':'Sem conexão. Verifique sua internet.'
+    };
     $('loginErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+  }finally{
+    if(btn){btn.textContent='ENTRAR';btn.disabled=false;}
   }
 }
 
 async function registerWithEmail(){
   const nick=$('loginNick').value.trim();
-  const email=$('regEmail').value.trim();
+  const email=$('regEmail').value.trim().toLowerCase();
   const pass=$('regPass').value;
   $('regErr').textContent='';$('regErr').style.color='var(--err)';
   if(!nick||nick.length<2)return $('regErr').textContent='Escolha um nickname (mín. 2 caracteres).';
+  if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return $('regErr').textContent='Nickname: só letras, números, _ . -';
   if(!email)return $('regErr').textContent='Preencha seu e-mail.';
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('regErr').textContent='Formato de e-mail inválido. Ex: nome@email.com';
   if(pass.length<6)return $('regErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
   if(!$('loginTermsCheck').checked)return $('regErr').textContent='Aceite os Termos de Uso para continuar.';
   window._pendingNickname=nick;
+  const btn=$('regBtn');if(btn){btn.textContent='CRIANDO CONTA...';btn.disabled=true;}
   try{
     const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
-    // Send verification email
     if(cred.user){
       try{
         const vResp=await fetch('/api/auth/send-verification',{
@@ -2328,8 +2350,18 @@ async function registerWithEmail(){
       }
     }
   }catch(e){
-    const msgs={'auth/email-already-in-use':'Este e-mail já está cadastrado.','auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha muito fraca (mínimo 6 caracteres).'};
+    console.log('[register] Error:',e.code,e.message);
+    const msgs={
+      'auth/email-already-in-use':'Este e-mail já tem uma conta. Faça login ou use outro método (Google, SMS).',
+      'auth/invalid-email':'Formato de e-mail inválido.',
+      'auth/weak-password':'Senha muito fraca. Use no mínimo 6 caracteres com letras e números.',
+      'auth/operation-not-allowed':'Cadastro por e-mail desativado. Use Google ou SMS.',
+      'auth/too-many-requests':'Muitas tentativas. Aguarde uns minutos.',
+      'auth/network-request-failed':'Sem conexão. Verifique sua internet.'
+    };
     $('regErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
+  }finally{
+    if(btn){btn.textContent='CRIAR CONTA';btn.disabled=false;}
   }
 }
 
@@ -7007,6 +7039,16 @@ async function saveCompleteProfile(){
     return showToast('Seu nome real precisa ser diferente do nickname!');
   }
   if(nicknameVal&&nicknameVal.length<2)return showToast('Apelido precisa ter pelo menos 2 caracteres.');
+  // Validate CPF if provided
+  const cpfVal=$('cpCpf').value.trim();
+  if(cpfVal){
+    const cpfDigits=cpfVal.replace(/\D/g,'');
+    if(cpfDigits.length>0&&cpfDigits.length!==11)return showToast('CPF incompleto. Deve ter 11 dígitos.');
+    if(cpfDigits.length===11&&!isValidCPF(cpfDigits))return showToast('CPF inválido. Verifique os dígitos.');
+  }
+  // Validate email format if provided
+  const emailVal=$('cpEmail').value.trim();
+  if(emailVal&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal))return showToast('Formato de e-mail inválido.');
   const privBtn=f=>$('cpPriv'+f);
   const data={
     userId:state.userId,
@@ -7017,8 +7059,8 @@ async function saveCompleteProfile(){
     sports:state._selectedSports||[],
     hobbies:state._selectedHobbies||[],
     phone:$('cpPhone').value.trim(),
-    email:$('cpEmail').value.trim(),
-    cpf:$('cpCpf').value.trim(),
+    email:emailVal,
+    cpf:cpfVal,
     instagram:$('cpInstagram').value.trim(),
     tiktok:$('cpTiktok').value.trim(),
     twitter:$('cpTwitter').value.trim(),
@@ -8874,6 +8916,29 @@ function formatCPF(el) {
   else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
   else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
   el.value = v;
+}
+function isValidCPF(cpf) {
+  const d = cpf.replace(/\D/g, '');
+  if (d.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(d)) return false;
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += parseInt(d[i]) * (10 - i);
+  let c = 11 - (s % 11); if (c >= 10) c = 0;
+  if (parseInt(d[9]) !== c) return false;
+  s = 0;
+  for (let i = 0; i < 10; i++) s += parseInt(d[i]) * (11 - i);
+  c = 11 - (s % 11); if (c >= 10) c = 0;
+  if (parseInt(d[10]) !== c) return false;
+  return true;
+}
+function formatPhone(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 6) v = v.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+  else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+  el.value = v;
+}
+function formatEmail(el) {
+  el.value = el.value.trim().toLowerCase();
 }
 
 // ── PIX Payment ──

@@ -365,6 +365,9 @@ const IDX = {
   donationsByPair: new Map(), // "from_to" → count
   uniqueConns: new Map(),   // userId → count (cache)
   operatorByCreator: new Map(), // creatorId → [eventIds]
+  email: new Map(),          // email.toLowerCase() → userId
+  phone: new Map(),          // phone (e.g. +5511999...) → userId
+  cpf: new Map(),            // cpf (digits only) → userId
 };
 
 function rebuildIndexes() {
@@ -372,10 +375,14 @@ function rebuildIndexes() {
   IDX.relationPair.clear(); IDX.relationsByUser.clear();
   IDX.donationsByFrom.clear(); IDX.donationsByPair.clear();
   IDX.operatorByCreator.clear();
+  IDX.email.clear(); IDX.phone.clear(); IDX.cpf.clear();
   for (const [uid, u] of Object.entries(db.users)) {
     if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, uid);
     if (u.touchCode) IDX.touchCode.set(u.touchCode, uid);
     if (u.nickname) IDX.nickname.set(u.nickname.toLowerCase(), uid);
+    if (u.email) IDX.email.set(u.email.toLowerCase(), uid);
+    if (u.phone) IDX.phone.set(u.phone, uid);
+    if (u.cpf) IDX.cpf.set(u.cpf.replace(/\D/g, ''), uid);
   }
   for (const [rid, r] of Object.entries(db.relations)) {
     if (r.userA && r.userB) {
@@ -434,6 +441,26 @@ function findActiveRelation(userA, userB) {
 
 // Helper: check nickname taken in O(1)
 function isNickTaken(nick) { return IDX.nickname.has(nick.toLowerCase()); }
+
+// Helper: validate CPF (Brazilian tax ID)
+function isValidCPF(cpf) {
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11) return false;
+  // Reject all-same-digit CPFs (e.g. 111.111.111-11)
+  if (/^(\d)\1{10}$/.test(digits)) return false;
+  // Validate check digits
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
+  let check = 11 - (sum % 11);
+  if (check >= 10) check = 0;
+  if (parseInt(digits[9]) !== check) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i);
+  check = 11 - (sum % 11);
+  if (check >= 10) check = 0;
+  if (parseInt(digits[10]) !== check) return false;
+  return true;
+}
 
 // Helper: register new relation in index
 function idxAddRelation(relationId, userA, userB) {
@@ -827,32 +854,89 @@ app.post('/api/auth/link', async (req, res) => {
   const { firebaseUid, email, displayName, photoURL, phoneNumber, encUserId } = req.body;
   if (!firebaseUid) return res.status(400).json({ error: 'Firebase UID obrigatório.' });
 
-  // Check if firebase user already linked to an ENCOSTA user (O(1) index)
-  const existingId = IDX.firebaseUid.get(firebaseUid);
-  let existingUser = existingId ? db.users[existingId] : null;
+  // ═══ ACCOUNT UNIFICATION: Try to find existing user by multiple identifiers ═══
+  // Priority: firebaseUid > encUserId > email > phone
+  let existingUser = null;
+  let matchedBy = null;
+
+  // 1. Check by Firebase UID (exact match — same provider login)
+  const byFbUid = IDX.firebaseUid.get(firebaseUid);
+  if (byFbUid && db.users[byFbUid]) {
+    existingUser = db.users[byFbUid];
+    matchedBy = 'firebaseUid';
+  }
+
+  // 2. Check by encUserId (if provided from client localStorage)
+  if (!existingUser && encUserId && db.users[encUserId]) {
+    existingUser = db.users[encUserId];
+    matchedBy = 'encUserId';
+  }
+
+  // 3. Check by email (e.g. user logged in with Google, now trying Email/Password with same email)
+  if (!existingUser && email) {
+    const byEmail = IDX.email.get(email.toLowerCase());
+    if (byEmail && db.users[byEmail]) {
+      existingUser = db.users[byEmail];
+      matchedBy = 'email';
+    }
+  }
+
+  // 4. Check by phone number (e.g. user registered with email, now using SMS with same phone)
+  if (!existingUser && phoneNumber) {
+    const byPhone = IDX.phone.get(phoneNumber);
+    if (byPhone && db.users[byPhone]) {
+      existingUser = db.users[byPhone];
+      matchedBy = 'phone';
+    }
+  }
+
+  // ═══ EXISTING USER FOUND: update & link ═══
   if (existingUser) {
+    let changed = false;
+    // Link this firebaseUid to the existing account
+    if (!existingUser.firebaseUid || existingUser.firebaseUid !== firebaseUid) {
+      // Store all linked Firebase UIDs for multi-provider support
+      if (!existingUser.linkedFirebaseUids) existingUser.linkedFirebaseUids = [];
+      if (existingUser.firebaseUid && !existingUser.linkedFirebaseUids.includes(existingUser.firebaseUid)) {
+        existingUser.linkedFirebaseUids.push(existingUser.firebaseUid);
+      }
+      if (!existingUser.linkedFirebaseUids.includes(firebaseUid)) {
+        existingUser.linkedFirebaseUids.push(firebaseUid);
+      }
+      existingUser.firebaseUid = firebaseUid; // Set most recent as primary
+      IDX.firebaseUid.set(firebaseUid, existingUser.id);
+      changed = true;
+    }
+    // Update email if new
+    if (email && !existingUser.email) {
+      existingUser.email = email;
+      IDX.email.set(email.toLowerCase(), existingUser.id);
+      changed = true;
+    }
     // Update phone if new
-    if (phoneNumber && !existingUser.phone) { existingUser.phone = phoneNumber; saveDB('users'); }
-    return res.json({ userId: existingUser.id, user: existingUser, linked: true });
+    if (phoneNumber && !existingUser.phone) {
+      existingUser.phone = phoneNumber;
+      IDX.phone.set(phoneNumber, existingUser.id);
+      changed = true;
+    }
+    // Update photo if new
+    if (photoURL && !existingUser.photoURL) {
+      existingUser.photoURL = photoURL;
+      changed = true;
+    }
+    // Update name if new
+    if (displayName && !existingUser.name) {
+      existingUser.name = displayName;
+      changed = true;
+    }
+    if (changed) saveDB('users');
+    console.log(`[auth/link] Unified account matched by ${matchedBy}: ${existingUser.id} (${existingUser.nickname || existingUser.email})`);
+    return res.json({ userId: existingUser.id, user: existingUser, linked: true, matchedBy });
   }
 
-  // If encUserId provided, link Firebase to existing ENCOSTA user
-  if (encUserId && db.users[encUserId]) {
-    const user = db.users[encUserId];
-    user.firebaseUid = firebaseUid;
-    user.email = email || user.email;
-    if (phoneNumber) user.phone = phoneNumber;
-    if (displayName && !user.name) user.name = displayName;
-    if (photoURL) user.photoURL = photoURL;
-    IDX.firebaseUid.set(firebaseUid, user.id);
-    saveDB('users');
-    return res.json({ userId: user.id, user, linked: true });
-  }
-
-  // Create new ENCOSTA user from Firebase auth
+  // ═══ NO MATCH: Create new ENCOSTA user from Firebase auth ═══
   const id = uuidv4();
   const nick = (displayName || email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 20) || 'user' + Math.floor(Math.random() * 9999);
-  // Ensure unique nickname
   let finalNick = nick;
   let suffix = 1;
   while (isNickTaken(finalNick)) {
@@ -860,10 +944,10 @@ app.post('/api/auth/link', async (req, res) => {
   }
   const color = '#' + ((Math.abs([...finalNick].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 0xFFFFFF)).toString(16).padStart(6, '0');
   registrationCounter = Math.max(registrationCounter, Object.keys(db.users).length) + 1;
-  const totalUsers = Object.keys(db.users).length + 1;
   db.users[id] = {
     id, nickname: finalNick, name: displayName || finalNick, email: email || null,
     phone: phoneNumber || null, firebaseUid, photoURL: photoURL || null,
+    linkedFirebaseUids: [firebaseUid],
     birthdate: null, avatar: null, color, createdAt: Date.now(),
     points: 0, pointLog: [], stars: [],
     registrationOrder: registrationCounter, topTag: null,
@@ -871,7 +955,11 @@ app.post('/api/auth/link', async (req, res) => {
   };
   recalcAllTopTags();
   idxAddUser(db.users[id]);
+  // Add to new indexes
+  if (email) IDX.email.set(email.toLowerCase(), id);
+  if (phoneNumber) IDX.phone.set(phoneNumber, id);
   saveDB('users');
+  console.log(`[auth/link] New account created: ${id} (${finalNick})`);
   res.json({ userId: id, user: db.users[id], linked: false });
 });
 
@@ -2555,7 +2643,22 @@ app.post('/api/profile/update', async (req, res) => {
     }
     user.realName = realName.trim();
   } else if (realName !== undefined) { user.realName = realName; }
-  if (phone !== undefined) user.phone = phone;
+  if (phone !== undefined) {
+    if (phone && phone.trim()) {
+      const cleanPhone = phone.trim();
+      // Check if phone already used by another user
+      const phoneOwnerId = IDX.phone.get(cleanPhone);
+      if (phoneOwnerId && phoneOwnerId !== userId) {
+        return res.status(400).json({ error: 'Este telefone já está vinculado a outra conta.' });
+      }
+      if (user.phone) IDX.phone.delete(user.phone);
+      IDX.phone.set(cleanPhone, userId);
+      user.phone = cleanPhone;
+    } else {
+      if (user.phone) IDX.phone.delete(user.phone);
+      user.phone = null;
+    }
+  }
   if (instagram !== undefined) user.instagram = instagram;
   if (tiktok !== undefined) user.tiktok = tiktok;
   if (twitter !== undefined) user.twitter = twitter;
@@ -2574,8 +2677,33 @@ app.post('/api/profile/update', async (req, res) => {
       user.profilePhoto = profilePhoto;
     }
   }
-  if (email !== undefined && email.trim()) user.email = email.trim();
-  if (cpf !== undefined && cpf.trim()) user.cpf = cpf.trim();
+  if (email !== undefined && email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    const emailOwnerId = IDX.email.get(cleanEmail);
+    if (emailOwnerId && emailOwnerId !== userId) {
+      return res.status(400).json({ error: 'Este e-mail já está vinculado a outra conta.' });
+    }
+    if (user.email) IDX.email.delete(user.email.toLowerCase());
+    IDX.email.set(cleanEmail, userId);
+    user.email = email.trim();
+  }
+  if (cpf !== undefined && cpf.trim()) {
+    const cleanCpf = cpf.trim().replace(/\D/g, '');
+    if (cleanCpf.length !== 11) {
+      return res.status(400).json({ error: 'CPF inválido. Deve ter 11 dígitos.' });
+    }
+    // Validate CPF algorithm
+    if (!isValidCPF(cleanCpf)) {
+      return res.status(400).json({ error: 'CPF inválido.' });
+    }
+    const cpfOwnerId = IDX.cpf.get(cleanCpf);
+    if (cpfOwnerId && cpfOwnerId !== userId) {
+      return res.status(400).json({ error: 'Este CPF já está vinculado a outra conta. Se é você, faça login com o método original.' });
+    }
+    if (user.cpf) IDX.cpf.delete(user.cpf.replace(/\D/g, ''));
+    IDX.cpf.set(cleanCpf, userId);
+    user.cpf = cleanCpf;
+  }
   if (avatarAccessory !== undefined) {
     // Validate: must be null/empty (remove) or a valid accessory key
     if (avatarAccessory && !['crown','cat_ears','halo','glasses','flame_aura','diamond_crown','lightning','mask','galaxy_ring','wings'].includes(avatarAccessory)) {
