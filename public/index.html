@@ -1310,15 +1310,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="history" class="screen">
-  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Rede</h2><button id="constSearchToggle" onclick="toggleConstSearch()" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.12);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button></div>
-  <div id="constSearchBar" style="display:none;padding:0 .6rem .4rem">
-    <div style="display:flex;align-items:center;gap:.4rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:.3rem .6rem">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="constSearchInput" type="text" placeholder="Buscar pessoa..." oninput="onConstSearch(this.value)" style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:.72rem;font-family:inherit;padding:.15rem 0">
-      <button onclick="clearConstSearch()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.85rem;cursor:pointer;padding:0 .1rem;line-height:1">x</button>
+  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Rede</h2>
+    <div id="constSearchBar" style="margin-left:auto;display:flex;align-items:center;gap:.3rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:.2rem .5rem;max-width:140px;transition:max-width .3s ease" onfocusin="this.style.maxWidth='200px'" onfocusout="this.style.maxWidth='140px'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2.5" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="constSearchInput" type="text" placeholder="Buscar..." oninput="onConstSearch(this.value)" style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:.65rem;font-family:inherit;padding:.1rem 0;width:100%;min-width:0">
     </div>
-    <div id="constSearchCount" style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.2rem;min-height:.8rem"></div>
   </div>
+  <div id="constSearchCount" style="position:absolute;top:calc(max(env(safe-area-inset-top),.8rem) + 2.8rem);left:0;right:0;font-size:.55rem;color:var(--t3);text-align:center;z-index:11;pointer-events:none;min-height:.8rem"></div>
   <div style="display:flex;gap:.3rem;padding:0 .6rem .3rem;justify-content:center;flex-wrap:wrap">
     <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.12);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
     <button class="const-filter-btn" id="constFilterRevealed" onclick="setConstFilter('revealed')" style="padding:.22rem .55rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">🟢 Revelados</button>
@@ -4237,17 +4235,9 @@ function setConstFilter(f){
 }
 // ── Constellation search ──
 function toggleConstSearch(){
-  const bar=$('constSearchBar');
-  const btn=$('constSearchToggle');
-  if(bar.style.display==='none'){
-    bar.style.display='';
-    btn.style.background='rgba(99,102,241,.2)';btn.style.borderColor='rgba(99,102,241,.4)';
-    $('constSearchInput').focus();
-  }else{
-    clearConstSearch();
-    bar.style.display='none';
-    btn.style.background='none';btn.style.borderColor='rgba(255,255,255,.12)';
-  }
+  // Search is now always visible in header — focus input
+  const inp=$('constSearchInput');
+  if(inp)inp.focus();
 }
 function onConstSearch(val){
   const q=val.toLowerCase().trim();
@@ -4288,6 +4278,7 @@ async function showHistory(){
   if(nbadge){nbadge.textContent='0';nbadge.classList.add('hidden')}
   fetch('/api/network/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
   // Show screen immediately with loading indicator
+  clearConstSearch();
   const loader=$('constLoader');
   if(loader){loader.classList.remove('hidden','fade-out')}
   showScreen('history');
@@ -4881,12 +4872,20 @@ function initConstCanvas(){
       ctx.restore();
     }
 
-    // ── FP mode HUD: hint at top ──
+    // ── FP mode HUD: hint centered, fades out after 4s ──
     if(fpBlend>0.6){
-      ctx.save();ctx.globalAlpha=fpBlend*0.3;
-      ctx.fillStyle='#fff';ctx.font='400 10px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-      ctx.fillText('incline o celular para explorar · toque no centro para voltar',W/2,12);
-      ctx.restore();
+      const fpStart=constState._fpHintStart||(constState._fpHintStart=Date.now());
+      const fpElapsed=(Date.now()-fpStart)/1000;
+      const hintAlpha=fpElapsed<3?fpBlend*0.45:fpElapsed<4.5?fpBlend*0.45*(1-(fpElapsed-3)/1.5):0;
+      if(hintAlpha>0.01){
+        ctx.save();ctx.globalAlpha=hintAlpha;
+        ctx.fillStyle='#fff';ctx.font='400 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('incline o celular para explorar',W/2,H/2-8);
+        ctx.fillText('toque no centro para voltar',W/2,H/2+10);
+        ctx.restore();
+      }
+    }else{
+      constState._fpHintStart=0; // reset when exiting FP so hint shows again next time
     }
 
     // ── Floating legend pill (hidden in FP mode) ──
