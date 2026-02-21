@@ -468,6 +468,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 #history{flex-direction:column;background:var(--bg);overflow:hidden}
 .const-header{display:flex;align-items:center;gap:.8rem;padding:.8rem 1.2rem;padding-top:max(env(safe-area-inset-top),.8rem);position:absolute;top:0;left:0;right:0;z-index:10;background:linear-gradient(180deg,rgba(2,2,5,.9) 0%,transparent 100%)}
 .const-header h2{font-size:.82rem;font-weight:500;color:var(--t2);letter-spacing:.08em;text-transform:uppercase}
+.const-search-overlay{position:absolute;top:calc(max(env(safe-area-inset-top),.8rem) + 2.8rem);left:0;right:0;z-index:12;display:flex;flex-direction:column;align-items:center;pointer-events:auto;animation:constSearchIn .2s ease}
+.const-search-overlay.hidden{display:none}
+@keyframes constSearchIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 .const-copy{position:absolute;top:0;left:0;right:0;text-align:center;padding-top:calc(max(env(safe-area-inset-top),.8rem) + 3rem);z-index:5;pointer-events:none}
 .const-copy p{font-size:.65rem;color:rgba(255,255,255,.2);font-weight:300;font-style:italic;line-height:1.7;letter-spacing:.05em}
 .const-canvas-wrap{position:absolute;inset:0;z-index:1;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,1) 0%,rgba(2,2,5,1) 70%)}
@@ -1310,17 +1313,23 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="history" class="screen">
-  <div class="const-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Minha Rede</h2>
-    <div id="constSearchBar" style="margin-left:auto;display:flex;align-items:center;gap:.3rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:.2rem .5rem;max-width:140px;transition:max-width .3s ease" onfocusin="this.style.maxWidth='200px'" onfocusout="this.style.maxWidth='140px'">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2.5" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="constSearchInput" type="text" placeholder="Buscar..." oninput="onConstSearch(this.value)" style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:.65rem;font-family:inherit;padding:.1rem 0;width:100%;min-width:0">
+  <div class="const-header">
+    <button class="chb" onclick="goHome()">&#x2190;</button>
+    <h2>Minha Rede</h2>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:.25rem">
+      <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.18rem .45rem;border-radius:14px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.52rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
+      <button class="const-filter-btn" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.18rem .45rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.52rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Pessoas</button>
+      <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.18rem .45rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.52rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Eventos</button>
+      <button id="constSearchToggle" onclick="toggleConstSearch()" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t3);flex-shrink:0;transition:all .2s"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     </div>
   </div>
-  <div id="constSearchCount" style="position:absolute;top:calc(max(env(safe-area-inset-top),.8rem) + 2.8rem);left:0;right:0;font-size:.55rem;color:var(--t3);text-align:center;z-index:11;pointer-events:none;min-height:.8rem"></div>
-  <div style="display:flex;gap:.35rem;padding:0 .6rem .3rem;justify-content:center">
-    <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
-    <button class="const-filter-btn" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Pessoas</button>
-    <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.6rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Eventos</button>
+  <div id="constSearchOverlay" class="const-search-overlay hidden">
+    <div style="display:flex;align-items:center;gap:.4rem;background:rgba(10,10,25,.85);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:.35rem .6rem;max-width:280px;width:90%;backdrop-filter:blur(12px)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2.5" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="constSearchInput" type="text" placeholder="Buscar pessoa..." oninput="onConstSearch(this.value)" style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:.72rem;font-family:inherit;padding:.15rem 0">
+      <button onclick="clearConstSearch();toggleConstSearch()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.9rem;cursor:pointer;padding:0 .1rem;line-height:1">✕</button>
+    </div>
+    <div id="constSearchCount" style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.3rem;min-height:.8rem"></div>
   </div>
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
@@ -4231,9 +4240,18 @@ function setConstFilter(f){
 }
 // ── Constellation search ──
 function toggleConstSearch(){
-  // Search is now always visible in header — focus input
-  const inp=$('constSearchInput');
-  if(inp)inp.focus();
+  const overlay=$('constSearchOverlay');
+  const btn=$('constSearchToggle');
+  if(!overlay)return;
+  if(overlay.classList.contains('hidden')){
+    overlay.classList.remove('hidden');
+    if(btn){btn.style.background='rgba(99,102,241,.2)';btn.style.borderColor='rgba(99,102,241,.4)'}
+    setTimeout(()=>{const inp=$('constSearchInput');if(inp)inp.focus()},50);
+  }else{
+    clearConstSearch();
+    overlay.classList.add('hidden');
+    if(btn){btn.style.background='none';btn.style.borderColor='rgba(255,255,255,.1)'}
+  }
 }
 function onConstSearch(val){
   const q=val.toLowerCase().trim();
@@ -4572,7 +4590,7 @@ function initConstCanvas(){
     const mcy=meProj.sy*(1-fpBlend)+fpCenterY*fpBlend;
     constState._mcx=mcx;constState._mcy=mcy;
 
-    const FP_FOV=180; // wider FOV for immersive fan-out
+    const FP_FOV=260; // wider FOV — keeps nodes visible and closer together
     // Filter nodes by constellation filter (Todos = people+events, Pessoas = only people, Eventos = only events)
     const filteredNodes=constState.nodes.filter(n=>{
       if(constFilter==='events')return !!n.isEvent;
@@ -4586,18 +4604,18 @@ function initConstCanvas(){
         n._px=p.sx;n._py=p.sy;n._pscale=p.scale;
         return{n,sx:p.sx,sy:p.sy,scale:p.scale,z3d:p.z3d};
       }
-      // FP: fan-out from bottom center
+      // FP: fan-out from center — all nodes start visible, spread with accel
       // Use accelerometer to rotate the 3D space around viewer
       const rx=n.x3d*cosY-n.z3d*sinY;
       const rz=n.x3d*sinY+n.z3d*cosY;
       const ry=n.y3d*cosP-rz*sinP;
       const rz2=n.y3d*sinP+rz*cosP;
-      // All nodes visible — behind wraps to far
-      const fpZ=rz2<5?300+Math.abs(rz2)*5:rz2;
+      // Compress depth so all nodes start on screen (min z keeps everything visible)
+      const fpZ=Math.max(80,rz2<5?200+Math.abs(rz2)*2:rz2*0.6+80);
       const fpScale=FP_FOV/fpZ;
-      // Fan outward: X spreads horizontally, Y goes UPWARD from bottom
-      const fpSx=fpCenterX+rx*fpScale;
-      const fpSy=fpCenterY-(Math.abs(ry)+rz2*0.4)*fpScale; // push upward
+      // Fan outward: X spreads horizontally, Y goes UPWARD from center
+      const fpSx=fpCenterX+rx*fpScale*0.8;
+      const fpSy=fpCenterY-(Math.abs(ry)*0.7+rz2*0.25)*fpScale;
       // Blend between normal and FP
       const normalP=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
       const bx=normalP.sx*(1-fpBlend)+fpSx*fpBlend;

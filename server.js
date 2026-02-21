@@ -1980,14 +1980,34 @@ app.get('/api/constellation/:userId', (req, res) => {
       avatarAccessory: (other && other.avatarAccessory) || null
     };
   });
-  // Add event nodes — events the user participated in
-  const eventNodes = Object.values(db.operatorEvents).filter(ev => ev.participants && ev.participants.includes(req.params.userId)).map(ev => {
+  // Add event nodes — from both participants array AND encounter history
+  const eventIdsSeen = new Set();
+  // 1) Events where user is in participants array
+  Object.values(db.operatorEvents).forEach(ev => {
+    if (ev.participants && ev.participants.includes(req.params.userId)) {
+      eventIdsSeen.add(ev.id);
+    }
+  });
+  // 2) Events from encounter history (isEvent encounters)
+  list.forEach(e => {
+    if (e.isEvent || (typeof e.with === 'string' && e.with.startsWith('evt:'))) {
+      const eid = typeof e.with === 'string' && e.with.startsWith('evt:') ? e.with.replace('evt:', '') : null;
+      if (eid) eventIdsSeen.add(eid);
+    }
+  });
+  const eventNodes = [];
+  eventIdsSeen.forEach(evId => {
+    const ev = db.operatorEvents[evId];
+    if (!ev) return;
     const userRids = IDX.relationsByUser.get(req.params.userId);
-    const lastRel = userRids ? [...userRids].map(rid => db.relations[rid]).find(r => r && r.eventId === ev.id) : null;
-    return {
+    const eventRels = userRids ? [...userRids].map(rid => db.relations[rid]).filter(r => r && r.eventId === evId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : [];
+    const lastRel = eventRels[0] || null;
+    // Count how many people user met at this event
+    const peopleMet = eventRels.length;
+    eventNodes.push({
       id: 'evt:' + ev.id, isEvent: true, eventId: ev.id,
       nickname: ev.name, color: '#60a5fa',
-      encounters: 1, intensity: 0.6,
+      encounters: Math.max(1, peopleMet), intensity: Math.min(1, 0.4 + peopleMet * 0.1),
       lastDate: lastRel ? lastRel.createdAt : ev.createdAt,
       firstDate: ev.createdAt,
       realName: null, profilePhoto: null, instagram: null,
@@ -1996,8 +2016,9 @@ app.get('/api/constellation/:userId', (req, res) => {
       hasActiveRelation: ev.active, topTag: null, touchers: (ev.participants || []).length,
       likesCount: 0, starsCount: 0, likedByMe: false,
       isPrestador: false, serviceLabel: null, pendingReveal: null, verified: !!ev.verified,
-      eventActive: ev.active, eventParticipants: (ev.participants || []).length
-    };
+      eventActive: ev.active, eventParticipants: (ev.participants || []).length,
+      peopleMet: peopleMet
+    });
   });
   nodes.push(...eventNodes);
   // Sort by most recent encounter
