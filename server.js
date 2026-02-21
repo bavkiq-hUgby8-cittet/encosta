@@ -2498,7 +2498,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -2527,6 +2527,9 @@ app.post('/api/profile/update', async (req, res) => {
   if (twitter !== undefined) user.twitter = twitter;
   if (privacy !== undefined) user.privacy = privacy;
   if (bio !== undefined) user.bio = bio;
+  if (profession !== undefined) user.profession = profession;
+  if (sports !== undefined) user.sports = Array.isArray(sports) ? sports.slice(0, 2) : [];
+  if (hobbies !== undefined) user.hobbies = Array.isArray(hobbies) ? hobbies.slice(0, 2) : [];
   if (profilePhoto !== undefined) {
     if (profilePhoto && profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });
     if (profilePhoto && profilePhoto.startsWith('data:image')) {
@@ -3406,6 +3409,7 @@ app.get('/api/myprofile/:userId', (req, res) => {
     phone: user.phone || '', instagram: user.instagram || '',
     tiktok: user.tiktok || '', twitter: user.twitter || '', bio: user.bio || '',
     privacy: user.privacy || {},
+    profession: user.profession || '', sports: user.sports || [], hobbies: user.hobbies || [],
     profilePhoto: user.profilePhoto || user.photoURL || '', photoURL: user.photoURL || '', profileComplete: !!user.profileComplete,
     email: user.email || '', cpf: user.cpf || '',
     canSee: user.canSee || {}, isPrestador: !!user.isPrestador,

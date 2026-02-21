@@ -649,6 +649,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cp-field input,.cp-field textarea{width:100%;padding:.6rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:var(--t1);font-size:.82rem;font-family:inherit;outline:none;transition:border-color .2s}
 .cp-field input:focus,.cp-field textarea:focus{border-color:rgba(255,107,53,.4)}
 .cp-field textarea{resize:none;height:60px}
+.cp-tag-grid{display:flex;flex-wrap:wrap;gap:.35rem}
+.cp-tag{padding:.35rem .65rem;border-radius:20px;font-size:.65rem;font-weight:600;border:1.5px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:var(--t2);cursor:pointer;transition:all .2s;user-select:none;font-family:inherit}
+.cp-tag.selected{background:rgba(255,107,53,.15);border-color:rgba(255,107,53,.5);color:#ff6b35}
+.cp-tag.disabled{opacity:.35;cursor:not-allowed}
 .cp-note{font-size:.55rem;color:var(--t3);margin-top:.2rem;opacity:.7}
 .cp-field-privacy .cp-input-row{display:flex;gap:.4rem;align-items:center}
 .cp-field-privacy .cp-input-row input{flex:1}
@@ -1173,13 +1177,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="sonic-fallback" id="sonicFallback">
       <button class="bs" onclick="startEncounter()" style="font-size:.75rem">&#x1F511; Conectar por código</button>
     </div>
-    <div class="daily-counter hidden" id="dailyCounter" onclick="showEncounterLog()"><strong id="dailyNum">0</strong> Touch em 24h <span class="dc-arrow">›</span></div>
+    <div class="daily-counter hidden" id="dailyCounter" onclick="showEncounterLog()"><strong id="dailyNum">0</strong> <span id="dailyLabel">Toques em 24h</span> <span class="dc-arrow">›</span></div>
   </div>
   <!-- BOTTOM: minimal — only location + tutorial -->
   <div class="home-bottom">
     <div class="home-nav">
-      <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico">📍</span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
-      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico">❓</span><span class="hn-lbl">Tutorial</span></button>
+      <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
+      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="hn-lbl">Tutorial</span></button>
     </div>
     <div class="home-brand-row">
       <span class="home-brand" id="homeBrand">Touch?</span>
@@ -1667,6 +1671,15 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cp-field"><label>Apelido</label><input type="text" id="cpNickname" placeholder="seu_apelido" maxlength="20" autocomplete="off"><div class="cp-note">Como todos te veem antes de revelar</div></div>
     <div class="cp-field"><label>Nome real</label><input type="text" id="cpRealName" placeholder="Seu nome completo" maxlength="60"></div>
     <div class="cp-field"><label>Bio</label><textarea id="cpBio" placeholder="Conte algo sobre você..." maxlength="200"></textarea></div>
+    <!-- Sobre Você -->
+    <div class="cp-section-title">Sobre Você</div>
+    <div class="cp-field"><label>Profissão</label><input type="text" id="cpProfession" placeholder="Ex: Designer, Engenheiro, DJ..." maxlength="40"></div>
+    <div class="cp-field"><label>Esportes <span style="font-size:.55rem;color:var(--t3);font-weight:400">(até 2)</span></label>
+      <div id="cpSportsGrid" class="cp-tag-grid"></div>
+    </div>
+    <div class="cp-field"><label>Hobbies / Música <span style="font-size:.55rem;color:var(--t3);font-weight:400">(até 2)</span></label>
+      <div id="cpHobbiesGrid" class="cp-tag-grid"></div>
+    </div>
     <!-- Verification -->
     <div class="cp-section-title">Verificação</div>
     <div class="cp-verif-row">
@@ -2715,7 +2728,7 @@ async function refreshHome(){
       fetch('/api/constellation/'+state.userId).then(r=>r.json())
     ]);
     const c=$('dailyCounter'),n=$('dailyNum');
-    if(d.count>0){c.classList.remove('hidden');n.textContent=d.count}else c.classList.add('hidden');
+    if(d.count>0){c.classList.remove('hidden');n.textContent=d.count;const lbl=$('dailyLabel');if(lbl)lbl.textContent=d.count===1?'Toque em 24h':'Toques em 24h'}else c.classList.add('hidden');
     if(cn.total>0){$('constBtn').classList.remove('hidden');updateNetworkBadge()}
     // Update home background nodes
     initHomeNodes(cn.nodes||[]);
@@ -2959,8 +2972,24 @@ function toggleServiceMode(){
 }
 function initServiceToggle(){
   const isPrest=localStorage.getItem('touch_isPrestador')==='1';
+  const svcEnabled=localStorage.getItem('touch_serviceModeEnabled')==='1';
   const toggle=$('serviceToggle');
-  if(isPrest&&toggle)toggle.classList.remove('hidden');
+  // Only show service button if user is prestador AND has enabled it in settings
+  if(isPrest&&svcEnabled&&toggle)toggle.classList.remove('hidden');
+  else if(toggle)toggle.classList.add('hidden');
+}
+function toggleServiceModeEnabled(on){
+  localStorage.setItem('touch_serviceModeEnabled',on?'1':'0');
+  initServiceToggle();
+  // Update the switch visuals
+  const sw=$('svcModeSwitch');
+  if(sw){
+    const span=sw.nextElementSibling;
+    const dot=span?span.nextElementSibling:null;
+    if(span)span.style.background=on?'#22c55e':'rgba(255,255,255,.12)';
+    if(dot)dot.style.left=on?'22px':'2px';
+  }
+  haptic([20]);
 }
 
 function startEncounter(){haptic([40]);showScreen('encounter');showPhase('phaseChoose');$('joinCodeInput').value=''}
@@ -5818,6 +5847,12 @@ async function openCompleteProfile(){
     // Load accessory selector
     state._selectedAccessory=d.avatarAccessory||null;
     renderAccessoryGrid(d.isTop1?'top1':d.isSubscriber?'plus':'free');
+    // Load profession, sports, hobbies
+    if(d.profession)$('cpProfession').value=d.profession;
+    state._selectedSports=(d.sports||[]).slice(0,2);
+    state._selectedHobbies=(d.hobbies||[]).slice(0,2);
+    renderTagGrid('cpSportsGrid',SPORTS_LIST,state._selectedSports,2,'_selectedSports');
+    renderTagGrid('cpHobbiesGrid',HOBBIES_LIST,state._selectedHobbies,2,'_selectedHobbies');
   }catch(e){}
 }
 // ═══ ACCESSORY SELECTOR ═══
@@ -5865,6 +5900,28 @@ function selectAccessory(key,el){
   }
   haptic([15]);
 }
+// ═══ PROFILE TAGS — Sports & Hobbies ═══
+const SPORTS_LIST=['Futebol','Basquete','Vôlei','Natação','Corrida','Musculação','Yoga','Surf','Skate','Tênis','Artes Marciais','Ciclismo','Dança','Crossfit','Escalada','Trilha'];
+const HOBBIES_LIST=['Música','Cinema','Fotografia','Games','Leitura','Culinária','Viagem','Arte','Podcast','Tecnologia','Moda','Natureza','Animais','Meditação','Festa','Stand-up'];
+state._selectedSports=[];
+state._selectedHobbies=[];
+function renderTagGrid(containerId,items,selected,max,stateKey){
+  const grid=$(containerId);if(!grid)return;
+  grid.innerHTML=items.map(item=>{
+    const sel=selected.includes(item);
+    const full=selected.length>=max&&!sel;
+    return '<span class="cp-tag'+(sel?' selected':'')+(full?' disabled':'')+'" onclick="toggleTag(\''+stateKey+'\',\''+item+'\','+max+',\''+containerId+'\')">'+item+'</span>';
+  }).join('');
+}
+function toggleTag(stateKey,item,max,containerId){
+  const arr=state[stateKey];
+  const idx=arr.indexOf(item);
+  if(idx>=0){arr.splice(idx,1)}
+  else{if(arr.length>=max)return showToast('Máximo '+max+' opções');arr.push(item)}
+  const items=stateKey==='_selectedSports'?SPORTS_LIST:HOBBIES_LIST;
+  renderTagGrid(containerId,items,arr,max,stateKey);
+  haptic([10]);
+}
 function setCpPriv(field,isOn){
   const btn=$('cpPriv'+field);if(!btn)return;
   btn.classList.toggle('priv-on',isOn);btn.classList.toggle('priv-off',!isOn);
@@ -5911,6 +5968,9 @@ async function saveCompleteProfile(){
     nickname:nicknameVal||undefined,
     realName:realNameVal,
     bio:$('cpBio').value.trim(),
+    profession:$('cpProfession')?$('cpProfession').value.trim():'',
+    sports:state._selectedSports||[],
+    hobbies:state._selectedHobbies||[],
     phone:$('cpPhone').value.trim(),
     email:$('cpEmail').value.trim(),
     cpf:$('cpCpf').value.trim(),
@@ -8022,8 +8082,18 @@ function showServicosScreen(){
   const overlay=document.createElement('div');
   overlay.className='more-menu-overlay';
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
+  const svcActive=localStorage.getItem('touch_serviceModeEnabled')==='1';
   let btns='<button class="my-pf-btn" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()" style="margin-bottom:.4rem"><span class="my-pf-ico">edit</span>Cadastro de prestador</button>';
   if(isPrestador){
+    // Service mode on/off toggle
+    btns+='<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);margin-bottom:.4rem">'
+      +'<div><div style="font-size:.72rem;font-weight:600;color:var(--t1)">Modo Serviço na Home</div>'
+      +'<div style="font-size:.55rem;color:var(--t3);margin-top:.1rem">Mostra botão de serviço na tela principal</div></div>'
+      +'<label style="position:relative;width:44px;height:24px;flex-shrink:0;margin-left:.8rem;cursor:pointer">'
+      +'<input type="checkbox" id="svcModeSwitch" onchange="toggleServiceModeEnabled(this.checked)" style="display:none"'+(svcActive?' checked':'')+'>'
+      +'<span style="position:absolute;inset:0;border-radius:12px;background:'+(svcActive?'#22c55e':'rgba(255,255,255,.12)')+';transition:all .3s"></span>'
+      +'<span style="position:absolute;top:2px;left:'+(svcActive?'22px':'2px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:all .3s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>'
+      +'</label></div>';
     btns+='<button class="my-pf-btn" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorDash()"><span class="my-pf-ico">$</span>Painel financeiro</button>';
   }
   // Credit card management button
