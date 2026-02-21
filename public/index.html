@@ -3811,25 +3811,35 @@ function doReveal(data){
   startRevealLight(beamColor);
   animateBirthOrbs();
 
-  // 1. Avatars — always try photo first (profilePhoto, photoURL, state)
-  const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;
-  const theirPhoto=them.profilePhoto||them.photoURL;
+  // 1. Avatars — only show real photo if already revealed
+  // New connection = both anonymous. Only show photo if identity is known.
+  const partnerId=them.id;
+  const theyRevealedToMe=!!(state.revealedIds&&state.revealedIds[partnerId]);
+  const iRevealedToThem=!!(data.renewed&&theyRevealedToMe); // if they can see me, I revealed earlier
+  const myPhoto=iRevealedToThem?(me.profilePhoto||me.photoURL||state.userPhoto):null;
+  const theirPhoto=theyRevealedToMe?(them.profilePhoto||them.photoURL):null;
   const myVerified=!!me.verified;
   const theirVerified=!!them.verified;
+  // My avatar: anonymous with accessory if not revealed
   if(myPhoto){
     let myAv='<img class="rv-avatar-img" src="'+esc(myPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(me.name||'??').replace(/'/g,"\\'")+'\',\''+esc(meColor)+'\',56)">';
     $('rvAvatarMeInner').innerHTML=myVerified?'<div class="verified-wrap">'+myAv+verifiedBadge('verified-badge-lg')+'</div>':myAv;
   }else{
-    $('rvAvatarMeInner').innerHTML=makeAvatar(me.name,meColor,56,null,myVerified);
+    // Anonymous silhouette with accessory based on nickname
+    const myAccKey=me.accessory||null;
+    $('rvAvatarMeInner').innerHTML=makeAvatar(me.name,meColor,56,null,myVerified,myAccKey);
   }
+  // Their avatar: anonymous if not revealed to me
   if(theirPhoto){
     let thAv='<img class="rv-avatar-img" src="'+esc(theirPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(them.name||'??').replace(/'/g,"\\'")+'\',\''+esc(themColor)+'\',56)">';
     $('rvAvatarThemInner').innerHTML=theirVerified?'<div class="verified-wrap">'+thAv+verifiedBadge('verified-badge-lg')+'</div>':thAv;
   }else{
-    $('rvAvatarThemInner').innerHTML=makeAvatar(them.name,themColor,56,null,theirVerified);
+    const theirAccKey=them.accessory||null;
+    $('rvAvatarThemInner').innerHTML=makeAvatar(them.name,themColor,56,null,theirVerified,theirAccKey);
   }
-  $('rvNameMe').textContent=me.realName||me.name||'?';
-  $('rvNameThem').textContent=them.realName||them.name||'?';
+  // Names: show nickname always, realName only if revealed
+  $('rvNameMe').textContent=iRevealedToThem?(me.realName||me.name||'?'):(me.name||'?');
+  $('rvNameThem').textContent=theyRevealedToMe?(them.realName||them.name||'?'):(them.name||'?');
   // Stars orbiting around nodes + plus badge
   const myStars=me.stars||0;const theirStars=them.stars||0;
   const meInner=$('rvAvatarMeInner');const themInner=$('rvAvatarThemInner');
@@ -4268,14 +4278,18 @@ async function shareConnection(){
       im.src=src;
     });
   }
-  const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;
-  const theirPhoto=them.profilePhoto||them.photoURL;
+  // Same anonymous/revealed logic as doReveal()
+  const partnerId=them.id;
+  const theyRevealedToMe=!!(state.revealedIds&&state.revealedIds[partnerId]);
+  const iRevealedToThem=!!(d.renewed&&theyRevealedToMe);
+  const myPhoto=iRevealedToThem?(me.profilePhoto||me.photoURL||state.userPhoto):null;
+  const theirPhoto=theyRevealedToMe?(them.profilePhoto||them.photoURL):null;
   // Try DOM images first (these are already loaded and rendered)
-  let myImg=grabDomImg('#rvAvatarMeInner');
-  let theirImg=grabDomImg('#rvAvatarThemInner');
+  let myImg=myPhoto?grabDomImg('#rvAvatarMeInner'):null;
+  let theirImg=theirPhoto?grabDomImg('#rvAvatarThemInner'):null;
   // If not in DOM, load fresh
-  if(!myImg)myImg=await loadImg(myPhoto);
-  if(!theirImg)theirImg=await loadImg(theirPhoto);
+  if(myPhoto&&!myImg)myImg=await loadImg(myPhoto);
+  if(theirPhoto&&!theirImg)theirImg=await loadImg(theirPhoto);
 
   // Layout
   const avR=90;
@@ -4309,8 +4323,10 @@ async function shareConnection(){
   // Names
   c.font='500 32px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
   c.fillStyle='rgba(255,255,255,.6)';
-  c.fillText(me.name||me.realName||'?',W/2-avSpacing,avY+avR+28);
-  c.fillText(them.name||them.realName||'?',W/2+avSpacing,avY+avR+28);
+  const myName=iRevealedToThem?(me.realName||me.name||'?'):(me.name||'?');
+  const theirName=theyRevealedToMe?(them.realName||them.name||'?'):(them.name||'?');
+  c.fillText(myName,W/2-avSpacing,avY+avR+28);
+  c.fillText(theirName,W/2+avSpacing,avY+avR+28);
 
   // Phrase (center of card)
   const phrase=d.phrase||'';
