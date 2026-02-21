@@ -3819,8 +3819,9 @@ function createSonicConnection(userIdA, userIdB) {
   const entryA = findSonicEntryByUserId(userIdA);
   const entryB = findSonicEntryByUserId(userIdB);
   const isCheckin = !!(entryA && entryA.isCheckin) || !!(entryB && entryB.isCheckin);
-  const isServiceTouch = !!(entryA && entryA.isServiceTouch) || !!(entryB && entryB.isServiceTouch)
-    || (userA.isPrestador && userA.serviceModeActive) || (userB.isPrestador && userB.serviceModeActive);
+  // Service touch: only when the sonic entry explicitly has isServiceTouch flag
+  // (user actively broadcasting in service mode), NOT just because profile has serviceModeActive
+  const isServiceTouch = !!(entryA && entryA.isServiceTouch) || !!(entryB && entryB.isServiceTouch);
   console.log('[createSonicConnection] entryA:', entryA ? {userId:entryA.userId?.slice(0,8),isCheckin:entryA.isCheckin,freq:entryA.freq} : 'NONE', 'entryB:', entryB ? {userId:entryB.userId?.slice(0,8),isCheckin:entryB.isCheckin,freq:entryB.freq} : 'NONE', 'isCheckin:', isCheckin, 'isServiceTouch:', isServiceTouch);
   const operatorId = isCheckin ? (entryA && entryA.isCheckin ? userIdA : userIdB) : null;
   const operatorEntry = operatorId ? (operatorId === userIdA ? entryA : entryB) : null;
@@ -3861,7 +3862,7 @@ function createSonicConnection(userIdA, userIdB) {
   } else {
     recordEncounter(userIdA, userIdB, phrase, encounterType, relationId);
   }
-  saveDB('relations', 'messages');
+  saveDB('relations', 'messages', 'encounters');
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
   const zodiacPhrase = (isCheckin || isServiceTouch) ? null : getZodiacPhrase(signA, signB);
