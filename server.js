@@ -1949,6 +1949,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       tipsTotal: p.tipsTotal,
       iRevealedToPartner: !!theyCanSeeMe, // they can see me = I revealed to them
       partnerRevealedToMe: !!iCanSeeThem, // I can see them = they revealed to me
+      revealedAt: iCanSeeThem ? ((me.canSee[p.id] && me.canSee[p.id].revealedAt) || 0) : 0,
       hasActiveRelation: !!findActiveRelation(req.params.userId, p.id),
       // New fields
       topTag: (other && other.topTag) || null,
