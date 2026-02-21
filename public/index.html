@@ -2238,6 +2238,22 @@ function initSocket(){
     if(sts)sts.textContent=reason||'Procurando operador...';
   });
 
+  socket.on('checkin-duplicate',d=>{
+    console.log('[checkin-duplicate]',d);
+    if(homeSonicActive)stopHomeSonic();
+    if(sonicActive)stopSonicMode();
+    // Show friendly toast that user is already checked in
+    const msg=d.message||'Você já fez check-in neste evento!';
+    showToast(msg,'⚡');
+    // Make sure floating event button is still visible
+    if(d.eventId){
+      localStorage.setItem('activeEventId',d.eventId);
+      localStorage.setItem('activeEventName',d.eventName||'Evento');
+      if(!localStorage.getItem('activeEventRole'))localStorage.setItem('activeEventRole','visitor');
+      showFloatingEventBtn(d.eventId,d.eventName||'Evento');
+    }
+  });
+
   socket.on('relation-created',d=>{
     if(homeSonicActive)stopHomeSonic();
     if(sonicActive)stopSonicMode();

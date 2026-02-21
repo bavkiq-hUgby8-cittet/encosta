@@ -1721,6 +1721,15 @@ app.post('/api/session/join', (req, res) => {
 
   // For check-ins: relation is between VISITOR and EVENT (not operator)
   const codeVisitorId = isSessionCheckin ? userId : null;
+
+  // Block duplicate check-in via HTTP session/join too
+  if (isSessionCheckin && sessionEventId && codeVisitorId) {
+    const ev = db.operatorEvents[sessionEventId];
+    if (ev && Array.isArray(ev.participants) && ev.participants.includes(codeVisitorId)) {
+      return res.status(409).json({ error: 'Você já fez check-in neste evento!', duplicate: true, eventId: sessionEventId });
+    }
+  }
+
   const relA = isSessionCheckin && sessionEventId ? codeVisitorId : session.userA;
   const relB = isSessionCheckin && sessionEventId ? ('evt:' + sessionEventId) : userId;
 
@@ -3861,6 +3870,26 @@ function createSonicConnection(userIdA, userIdB) {
 
   // For check-ins: relation is between VISITOR and EVENT (not operator personally)
   const visitorId = isCheckin && operatorId ? (operatorId === userIdA ? userIdB : userIdA) : null;
+
+  // ── BLOCK DUPLICATE CHECK-IN: if visitor already in event, reject ──
+  if (isCheckin && eventId && visitorId) {
+    const ev = db.operatorEvents[eventId];
+    if (ev && Array.isArray(ev.participants) && ev.participants.includes(visitorId)) {
+      console.log('[createSonicConnection] DUPLICATE CHECKIN blocked — visitor:', visitorId.slice(0,8), 'already in event:', eventId.slice(0,8));
+      // Notify visitor they're already checked in
+      io.to(`user:${visitorId}`).emit('checkin-duplicate', {
+        eventId, eventName: ev.name || 'Evento',
+        message: 'Você já fez check-in neste evento!'
+      });
+      // Remove visitor from sonic queue, operator stays
+      delete sonicQueue[visitorId];
+      // Reset operator timer so they stay active
+      const opQueueKey = operatorEntry ? operatorEntry.queueKey : operatorId;
+      if (sonicQueue[opQueueKey]) sonicQueue[opQueueKey].joinedAt = Date.now();
+      return;
+    }
+  }
+
   const relPartnerA = isCheckin && eventId ? visitorId : userIdA;
   const relPartnerB = isCheckin && eventId ? ('evt:' + eventId) : userIdB;
 
