@@ -3979,7 +3979,8 @@ function doReveal(data){
     tip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
     skip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
     ticket:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>',
-    reveal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+    reveal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>'
   };
   function _rvBtn(icon,label,onclick,cls){
     return '<button type="button" class="rv-icon-btn'+(cls?' '+cls:'')+'" onclick="'+onclick+'"><span class="rv-ic">'+icon+'</span><span>'+label+'</span></button>';
@@ -4023,10 +4024,11 @@ function doReveal(data){
       if(secRow)secRow.style.display='none';
     }
   }else{
-    // NORMAL: chat + selfie + conexão + pular (gorjeta só em service mode)
+    // NORMAL: chat + selfie + share + conexão + pular
     let h='';
     h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
     h+=_rvBtn(_rvIco.cam,'Selfie',"revealCaptureSelfie()",'');
+    h+=_rvBtn(_rvIco.share,'Compartilhar',"shareConnection()",'');
     h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>','Conexão',"goToConnectionFromReveal()",'');
     h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
     iconRow.innerHTML=h;
@@ -4171,6 +4173,194 @@ async function payEntry(eventId,eventName,price){
     showToast('Erro no pagamento: '+(e.message||'Tente novamente'));
     if(btn){btn.disabled=false;btn.textContent='🎫 Tentar novamente'}
   }
+}
+
+// ═══ SHARE CONNECTION — 9:16 story image ═══
+async function shareConnection(){
+  const d=state.currentRelation;if(!d)return showToast('Nada para compartilhar');
+  const meIsA=d.userA&&d.userA.id===state.userId;
+  const me=meIsA?d.userA:d.userB,them=meIsA?d.userB:d.userA;
+  const W=1080,H=1920;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+
+  // Background — deep dark with subtle gradient
+  const bg=c.createRadialGradient(W/2,H*0.38,0,W/2,H*0.38,H*0.7);
+  bg.addColorStop(0,'#0a0a14');bg.addColorStop(0.5,'#060610');bg.addColorStop(1,'#020206');
+  c.fillStyle=bg;c.fillRect(0,0,W,H);
+
+  // Subtle stars
+  for(let i=0;i<80;i++){
+    const sx=Math.random()*W,sy=Math.random()*H;
+    const sr=0.5+Math.random()*1.5;
+    c.beginPath();c.arc(sx,sy,sr,0,Math.PI*2);
+    c.fillStyle='rgba(255,255,255,'+(0.1+Math.random()*0.25)+')';c.fill();
+  }
+
+  // Glow behind avatars area
+  const glow=c.createRadialGradient(W/2,H*0.38,0,W/2,H*0.38,300);
+  glow.addColorStop(0,'rgba(255,107,53,.08)');glow.addColorStop(0.5,'rgba(255,60,110,.04)');glow.addColorStop(1,'transparent');
+  c.fillStyle=glow;c.fillRect(0,0,W,H);
+
+  // Helper: draw circle avatar
+  function drawAvatar(img,cx,cy,r){
+    if(img&&img.naturalWidth){
+      const iw=img.naturalWidth,ih=img.naturalHeight;
+      const side=Math.min(iw,ih);
+      const sx=(iw-side)/2,sy2=(ih-side)/2;
+      c.save();c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.clip();
+      c.drawImage(img,sx,sy2,side,side,cx-r,cy-r,r*2,r*2);c.restore();
+    }else{
+      // Gradient circle with initial
+      const g=c.createRadialGradient(cx-r*0.3,cy-r*0.3,0,cx,cy,r);
+      g.addColorStop(0,'rgba(255,255,255,.15)');g.addColorStop(1,'rgba(255,255,255,.04)');
+      c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=g;c.fill();
+    }
+    // Ring
+    c.beginPath();c.arc(cx,cy,r+3,0,Math.PI*2);
+    c.strokeStyle='rgba(255,107,53,.5)';c.lineWidth=2;c.stroke();
+    // Outer glow
+    c.beginPath();c.arc(cx,cy,r+6,0,Math.PI*2);
+    c.strokeStyle='rgba(255,107,53,.15)';c.lineWidth=4;c.stroke();
+  }
+
+  // Helper: draw orbiting star dots
+  function drawStars(cx,cy,r,count){
+    if(!count||count<=0)return;
+    const orbitR=r+10;const maxDots=Math.min(count,16);
+    for(let i=0;i<maxDots;i++){
+      const a=(i/Math.max(maxDots,10))*Math.PI*2-Math.PI/2;
+      const dx=cx+Math.cos(a)*orbitR,dy=cy+Math.sin(a)*orbitR;
+      c.beginPath();c.arc(dx,dy,3,0,Math.PI*2);
+      c.fillStyle='rgba(255,215,0,.7)';c.fill();
+      c.beginPath();c.arc(dx,dy,5,0,Math.PI*2);
+      c.fillStyle='rgba(255,215,0,.15)';c.fill();
+    }
+    if(count>3){
+      c.font='bold 24px Inter,sans-serif';c.fillStyle='rgba(255,215,0,.7)';
+      c.textAlign='center';c.textBaseline='middle';
+      c.fillText('★ '+count,cx,cy-r-28);
+    }
+  }
+
+  // Helper: draw plus badge
+  function drawPlus(cx,cy,r){
+    const bx=cx+r*0.65,by=cy+r*0.65,br=16;
+    const pg=c.createLinearGradient(bx-br,by-br,bx+br,by+br);
+    pg.addColorStop(0,'#06b6d4');pg.addColorStop(0.5,'#3b82f6');pg.addColorStop(1,'#8b5cf6');
+    c.beginPath();c.arc(bx,by,br,0,Math.PI*2);c.fillStyle=pg;c.fill();
+    c.font='bold 18px Inter,sans-serif';c.fillStyle='#fff';
+    c.textAlign='center';c.textBaseline='middle';c.fillText('+',bx,by);
+  }
+
+  // Load avatar images
+  function loadImg(src){
+    return new Promise(ok=>{
+      if(!src){ok(null);return}
+      const im=new Image();im.crossOrigin='anonymous';
+      im.onload=()=>ok(im);im.onerror=()=>ok(null);im.src=src;
+    });
+  }
+  const myPhoto=me.profilePhoto||me.photoURL||state.userPhoto;
+  const theirPhoto=them.profilePhoto||them.photoURL;
+  const [myImg,theirImg]=await Promise.all([loadImg(myPhoto),loadImg(theirPhoto)]);
+
+  // Draw avatars
+  const avR=80;
+  const avY=H*0.36;
+  const avSpacing=140;
+  drawAvatar(myImg,W/2-avSpacing,avY,avR);
+  drawAvatar(theirImg,W/2+avSpacing,avY,avR);
+
+  // Stars
+  drawStars(W/2-avSpacing,avY,avR,me.stars||0);
+  drawStars(W/2+avSpacing,avY,avR,them.stars||0);
+
+  // Plus badges
+  if(me.verified)drawPlus(W/2-avSpacing,avY,avR);
+  if(them.verified)drawPlus(W/2+avSpacing,avY,avR);
+
+  // Connection line between avatars
+  const lineY=avY;
+  const x1=W/2-avSpacing+avR+12,x2=W/2+avSpacing-avR-12;
+  // Glow
+  c.beginPath();c.moveTo(x1,lineY);c.lineTo(x2,lineY);
+  c.strokeStyle='rgba(255,107,53,.3)';c.lineWidth=6;c.lineCap='round';c.stroke();
+  // Core
+  c.beginPath();c.moveTo(x1,lineY);c.lineTo(x2,lineY);
+  c.strokeStyle='rgba(255,107,53,.7)';c.lineWidth=1.5;c.stroke();
+  // Center dot
+  c.beginPath();c.arc(W/2,lineY,5,0,Math.PI*2);
+  c.fillStyle='rgba(255,107,53,.8)';c.fill();
+  c.beginPath();c.arc(W/2,lineY,10,0,Math.PI*2);
+  c.fillStyle='rgba(255,107,53,.15)';c.fill();
+
+  // Names below avatars
+  c.font='500 28px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
+  c.fillStyle='rgba(255,255,255,.5)';
+  c.fillText(me.name||me.realName||'?',W/2-avSpacing,avY+avR+24);
+  c.fillText(them.name||them.realName||'?',W/2+avSpacing,avY+avR+24);
+
+  // Moment text
+  const momentText=$('revealMoment')?.textContent||'algo nasceu entre vocês';
+  c.font='400 26px "Orbitron",Inter,sans-serif';c.fillStyle='rgba(255,255,255,.3)';
+  c.letterSpacing='0.25em';c.textAlign='center';c.textBaseline='middle';
+  c.fillText(momentText.toUpperCase(),W/2,avY-avR-80);
+
+  // Phrase
+  const phrase=d.phrase||'';
+  if(phrase){
+    c.font='italic 300 42px Inter,Georgia,serif';c.fillStyle='rgba(255,255,255,.75)';
+    c.textAlign='center';c.textBaseline='top';
+    // Word wrap
+    const words=phrase.split(' ');let lines=[];let line='';
+    for(const w of words){
+      const test=line?line+' '+w:w;
+      if(c.measureText(test).width>W-160){lines.push(line);line=w}
+      else line=test;
+    }
+    if(line)lines.push(line);
+    const lineH=56;const startY=avY+avR+100;
+    lines.forEach((l,i)=>{c.fillText(l,W/2,startY+i*lineH)});
+  }
+
+  // Zodiac phrase if present
+  const zPhrase=d.zodiacPhrase||'';
+  if(zPhrase){
+    c.font='300 28px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.25)';
+    c.textAlign='center';c.fillText(zPhrase,W/2,H*0.62);
+  }
+
+  // Brand watermark
+  c.font='900 64px "Orbitron",Inter,sans-serif';c.fillStyle='rgba(255,255,255,.04)';
+  c.textAlign='center';c.textBaseline='middle';c.fillText('Touch?',W/2,H*0.78);
+
+  // Small brand + tagline at bottom
+  c.font='700 30px "Orbitron",Inter,sans-serif';c.fillStyle='rgba(255,255,255,.2)';
+  c.fillText('Touch?',W/2,H-160);
+  c.font='300 20px Inter,sans-serif';c.fillStyle='rgba(255,255,255,.12)';
+  c.fillText('tudo nasce no gesto',W/2,H-120);
+
+  // Convert to blob and share
+  cv.toBlob(async blob=>{
+    if(!blob)return showToast('Erro ao gerar imagem');
+    const file=new File([blob],'touch-conexao.png',{type:'image/png'});
+    // Try Web Share API (works on iOS Safari, Android Chrome)
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file],title:'Touch? — conexão',text:phrase||'Uma conexão nasceu'});
+      }catch(e){
+        if(e.name!=='AbortError')showToast('Compartilhamento cancelado');
+      }
+    }else{
+      // Fallback: download
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='touch-conexao.png';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),5000);
+      showToast('Imagem salva!');
+    }
+  },'image/png',1.0);
 }
 
 // ═══ CHAT ═══
