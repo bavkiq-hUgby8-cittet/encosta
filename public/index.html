@@ -1316,12 +1316,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-header">
     <button class="chb" onclick="goHome()">&#x2190;</button>
     <h2>Minha Rede</h2>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:.25rem">
-      <button class="const-filter-btn" id="constFilterAll" onclick="setConstFilter('all')" style="padding:.18rem .45rem;border-radius:14px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.15);color:#a78bfa;font-size:.52rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Todos</button>
-      <button class="const-filter-btn" id="constFilterPeople" onclick="setConstFilter('people')" style="padding:.18rem .45rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.52rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Pessoas</button>
-      <button class="const-filter-btn" id="constFilterEvents" onclick="setConstFilter('events')" style="padding:.18rem .45rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t3);font-size:.52rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Eventos</button>
-      <button id="constSearchToggle" onclick="toggleConstSearch()" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t3);flex-shrink:0;transition:all .2s"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-    </div>
+    <button id="constSearchToggle" onclick="toggleConstSearch()" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.1);border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t3);flex-shrink:0;transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
   </div>
   <div id="constSearchOverlay" class="const-search-overlay hidden">
     <div style="display:flex;align-items:center;gap:.4rem;background:rgba(10,10,25,.85);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:.35rem .6rem;max-width:280px;width:90%;backdrop-filter:blur(12px)">
@@ -4226,17 +4221,10 @@ async function showRelations(){
 }
 
 // ═══ CONSTELLATION ═══
-let constFilter='all'; // 'all','people','events'
+let constFilter='all'; // 'all','people','anon','events'
 function setConstFilter(f){
   constFilter=f;
-  const btns=['constFilterAll','constFilterPeople','constFilterEvents'];
-  const activeColors={all:['rgba(99,102,241,.15)','rgba(99,102,241,.3)','#a78bfa'],people:['rgba(168,85,247,.12)','rgba(168,85,247,.3)','#a855f7'],events:['rgba(96,165,250,.12)','rgba(96,165,250,.3)','#60a5fa']};
-  btns.forEach(id=>{
-    const el=$(id);if(!el)return;
-    const key=id.replace('constFilter','').toLowerCase();
-    if(key===f){const c=activeColors[f]||activeColors.all;el.style.background=c[0];el.style.borderColor=c[1];el.style.color=c[2]}
-    else{el.style.background='rgba(255,255,255,.04)';el.style.borderColor='rgba(255,255,255,.08)';el.style.color='var(--t3)'}
-  });
+  // Pill in canvas redraws automatically each frame — no DOM buttons needed
 }
 // ── Constellation search ──
 function toggleConstSearch(){
@@ -4591,11 +4579,19 @@ function initConstCanvas(){
     constState._mcx=mcx;constState._mcy=mcy;
 
     const FP_FOV=260; // wider FOV — keeps nodes visible and closer together
-    // Filter nodes by constellation filter (Todos = people+events, Pessoas = only people, Eventos = only events)
+    // Filter nodes by constellation filter
     const filteredNodes=constState.nodes.filter(n=>{
       if(constFilter==='events')return !!n.isEvent;
-      if(constFilter==='people')return !n.isEvent;
-      return true; // 'all' = everything (people + events)
+      if(constFilter==='people'){
+        // Revealed people only
+        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+        return !n.isEvent&&isRevealed;
+      }
+      if(constFilter==='anon'){
+        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+        return !n.isEvent&&!isRevealed;
+      }
+      return true; // 'all' = everything
     });
     const projected=filteredNodes.map(n=>{
       if(fpBlend<0.01){
@@ -4604,18 +4600,18 @@ function initConstCanvas(){
         n._px=p.sx;n._py=p.sy;n._pscale=p.scale;
         return{n,sx:p.sx,sy:p.sy,scale:p.scale,z3d:p.z3d};
       }
-      // FP: fan-out from center — all nodes start visible, spread with accel
-      // Use accelerometer to rotate the 3D space around viewer
+      // FP: fan ALL nodes upward from VOCÊ — like a burst
+      // Apply accelerometer rotation to shift the view
       const rx=n.x3d*cosY-n.z3d*sinY;
       const rz=n.x3d*sinY+n.z3d*cosY;
       const ry=n.y3d*cosP-rz*sinP;
       const rz2=n.y3d*sinP+rz*cosP;
-      // Compress depth so all nodes start on screen (min z keeps everything visible)
-      const fpZ=Math.max(80,rz2<5?200+Math.abs(rz2)*2:rz2*0.6+80);
+      // Flatten depth — push everything to a visible range
+      const fpZ=Math.max(60,120+rz2*0.3);
       const fpScale=FP_FOV/fpZ;
-      // Fan outward: X spreads horizontally, Y goes UPWARD from center
-      const fpSx=fpCenterX+rx*fpScale*0.8;
-      const fpSy=fpCenterY-(Math.abs(ry)*0.7+rz2*0.25)*fpScale;
+      // ALL nodes go UP: Y is always negative (above VOCÊ), spread horizontally
+      const fpSx=fpCenterX+rx*fpScale*0.7;
+      const fpSy=fpCenterY-Math.abs(fpScale)*(120+Math.abs(ry)*0.5+rz2*0.15);
       // Blend between normal and FP
       const normalP=project(n.x3d,n.y3d,n.z3d,camX,camY,z,0,0);
       const bx=normalP.sx*(1-fpBlend)+fpSx*fpBlend;
@@ -4894,39 +4890,40 @@ function initConstCanvas(){
 
     // ── Floating legend pill (hidden in FP mode) ──
     if(fpBlend>0.7)return; // skip pill in full FP
-    const peopleCount=constState.nodes.filter(n=>!n.isEvent).length;
+    const revealedNodes=constState.nodes.filter(n=>!n.isEvent&&!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id])));
+    const anonNodes=constState.nodes.filter(n=>!n.isEvent).length-revealedNodes.length;
     const eventsCount=constState.nodes.filter(n=>!!n.isEvent).length;
-    const pillW=Math.min(W-24,240),pillH=30,pillX=(W-pillW)/2,pillY=H-46;
+    const pillW=Math.min(W-16,320),pillH=28,pillX=(W-pillW)/2,pillY=H-44;
     ctx.save();ctx.globalAlpha=1-fpBlend;
-    constState._pillBounds={x:pillX,y:pillY,w:pillW,h:pillH};
+    constState._pillBounds={x:pillX,y:pillY,w:pillW,h:pillH,sections:[]};
     ctx.beginPath();
     const pillR=pillH/2;
     ctx.moveTo(pillX+pillR,pillY);ctx.lineTo(pillX+pillW-pillR,pillY);
     ctx.arc(pillX+pillW-pillR,pillY+pillR,pillR,-Math.PI/2,Math.PI/2);
     ctx.lineTo(pillX+pillR,pillY+pillH);ctx.arc(pillX+pillR,pillY+pillR,pillR,Math.PI/2,-Math.PI/2);
     ctx.closePath();
-    ctx.fillStyle='rgba(10,10,25,.65)';ctx.fill();
-    ctx.strokeStyle='rgba(100,160,255,.12)';ctx.lineWidth=0.5;ctx.stroke();
+    ctx.fillStyle='rgba(10,10,25,.7)';ctx.fill();
+    ctx.strokeStyle='rgba(100,160,255,.1)';ctx.lineWidth=0.5;ctx.stroke();
     const midY=pillY+pillH/2;
-    let tx=pillX+14;
-    // People section
-    const pHL=constFilter==='people'?.9:.55;
-    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#a855f7';ctx.fill();
-    tx+=10;
-    ctx.fillStyle='rgba(255,255,255,'+pHL+')';ctx.font=(constFilter==='people'?'700':'500')+' 10px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillText('Pessoas: '+peopleCount,tx,midY);
-    const pEndX=tx+ctx.measureText('Pessoas: '+peopleCount).width;
-    constState._pillBounds.pEndX=pEndX+8;
-    tx=pEndX+16;
-    // Events section
-    const eHL=constFilter==='events'?.9:.55;
-    ctx.beginPath();ctx.arc(tx,midY,3.5,0,Math.PI*2);ctx.fillStyle='#60a5fa';ctx.fill();
-    tx+=10;
-    constState._pillBounds.eStartX=tx-14;
-    ctx.fillStyle='rgba(255,255,255,'+eHL+')';ctx.font=(constFilter==='events'?'700':'500')+' 10px Inter,sans-serif';
-    ctx.fillText('Eventos: '+eventsCount,tx,midY);
-    ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='400 9px Inter,sans-serif';
-    ctx.fillText(filteredNodes.length+' nós',pillX+pillW-14,midY);
+    let tx=pillX+10;
+    // Section helper
+    function drawPillSection(label,count,color,filterKey){
+      const active=constFilter===filterKey;
+      const hl=active?.95:.5;
+      const sx=tx;
+      ctx.beginPath();ctx.arc(tx,midY,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+      tx+=8;
+      ctx.fillStyle='rgba(255,255,255,'+hl+')';ctx.font=(active?'700':'500')+' 9px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(label+' '+count,tx,midY);
+      tx+=ctx.measureText(label+' '+count).width+10;
+      constState._pillBounds.sections.push({x:sx-4,w:tx-sx,key:filterKey});
+    }
+    drawPillSection('Revelados',revealedNodes.length,'#00dc82','people');
+    drawPillSection('Anônimos',anonNodes,'#ff4466','anon');
+    drawPillSection('Eventos',eventsCount,'#60a5fa','events');
+    // Total on right
+    ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='400 8px Inter,sans-serif';
+    ctx.fillText(filteredNodes.length+'',pillX+pillW-10,midY);
     ctx.restore();
     ctx.textBaseline='alphabetic';
   }
@@ -4934,16 +4931,17 @@ function initConstCanvas(){
 }
 
 function handleConstTap(tx,ty,W,H){
-  // Tap on legend pill → toggle filter (people / events)
-  if(constState._pillBounds){
+  // Tap on legend pill → toggle filter
+  if(constState._pillBounds&&constState._pillBounds.sections){
     const pb=constState._pillBounds;
     if(ty>=pb.y&&ty<=pb.y+pb.h&&tx>=pb.x&&tx<=pb.x+pb.w){
-      if(tx<(pb.pEndX||pb.x+pb.w/2)){
-        setConstFilter(constFilter==='people'?'all':'people');
-      }else if(tx>=(pb.eStartX||pb.x+pb.w/2)){
-        setConstFilter(constFilter==='events'?'all':'events');
+      const relX=tx-pb.x;
+      for(const sec of pb.sections){
+        if(relX>=sec.x&&relX<sec.x+sec.w){
+          setConstFilter(constFilter===sec.key?'all':sec.key);
+          haptic([15]);return;
+        }
       }
-      haptic([15]);return;
     }
   }
   // Tap center → show own profile card

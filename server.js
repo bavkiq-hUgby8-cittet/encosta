@@ -1922,12 +1922,8 @@ app.get('/api/constellation/:userId', (req, res) => {
       p.whatsapp = other.whatsapp || other.phone || null;
     }
   });
-  // Filter out service providers — they only appear in encounter history, not constellation
-  const personEntries = Object.values(byPerson).filter(p => {
-    const other = db.users[p.id];
-    return !(other && other.isPrestador);
-  });
-  const nodes = personEntries.map(p => {
+  // All people appear in constellation (isPrestador flag sent for frontend filtering)
+  const nodes = Object.values(byPerson).map(p => {
     const other = db.users[p.id];
     const me = db.users[req.params.userId];
     // UNILATERAL: canSee means I can see their real data
