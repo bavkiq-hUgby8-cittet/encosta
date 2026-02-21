@@ -2750,6 +2750,18 @@ app.get('/api/star/search-people/:userId', (req, res) => {
   res.json({ results });
 });
 
+// Star balance — unified: pending + earned - donated
+app.get('/api/star/balance/:userId', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  const pending = (user.pendingStars || []).length;
+  const earned = user.starsEarned || 0;
+  const donated = countDonationsFrom(req.params.userId);
+  const received = (user.stars || []).length;
+  const available = pending + (earned - donated);
+  res.json({ available, pending, earned, donated, received, total: received });
+});
+
 // Check pending stars
 app.get('/api/star/pending/:userId', (req, res) => {
   const user = db.users[req.params.userId];

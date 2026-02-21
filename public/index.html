@@ -522,6 +522,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-action-icon.revealed-new .cd-icon{background:rgba(251,191,36,.2);border-color:rgba(251,191,36,.5);animation:cdRevealPulse 1.5s ease-in-out 3}
 .cd-action-icon.revealed-new{color:#fbbf24;pointer-events:none}
 @keyframes cdRevealPulse{0%{box-shadow:0 0 0 0 rgba(251,191,36,.4)}70%{box-shadow:0 0 0 8px rgba(251,191,36,0)}100%{box-shadow:0 0 0 0 rgba(251,191,36,0)}}
+@keyframes cdsStarBurst{0%{opacity:1;transform:translate(-50%,-50%) scale(.5)}60%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--cds-x)),calc(-50% + var(--cds-y))) scale(1.2)}}
 /* Declarations — mural style, always visible */
 .cd-decl-mural{padding:.25rem 0;display:flex;flex-direction:column;gap:.4rem}
 .cd-decl-card{padding:.45rem .6rem;background:rgba(255,255,255,.03);border-radius:10px;border-left:2px solid rgba(139,92,246,.25);position:relative}
@@ -5808,52 +5809,85 @@ async function confirmStarDonate(pendingStarId,targetId,targetName){
 }
 
 // Direct donate from constellation detail (uses available earned stars)
-function confirmDonateStar(targetUserId){
+async function confirmDonateStar(targetUserId){
+  const node=constState.selectedNode;
+  const targetName=node?node.nickname:'';
+  // Fetch balance
+  let bal;
+  try{bal=await(await fetch('/api/star/balance/'+state.userId)).json()}catch(e){return showToast('Erro ao verificar estrelas.')}
+  if(bal.available<=0)return showToast('Você não tem estrelas para doar. Continue conectando para ganhar!');
+  // Also get pending to use pendingStarId
+  let pendData;
+  try{pendData=await(await fetch('/api/star/pending/'+state.userId)).json()}catch(e){pendData={pending:[],count:0}}
+  const targetStars=(node?node.starsCount:0)||0;
   const overlay=document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10100;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .2s';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10100;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .2s';
   const box=document.createElement('div');
-  box.style.cssText='background:var(--c2,#1e1b4b);border-radius:16px;padding:1.2rem;max-width:300px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.5)';
-  box.innerHTML='<div style="font-size:1.8rem;margin-bottom:.5rem">★</div>'
-    +'<div style="font-size:.85rem;font-weight:700;color:var(--t1,#fff);margin-bottom:.6rem">Doar Estrela</div>'
-    +'<div style="font-size:.65rem;color:var(--t2,#ccc);line-height:1.5;margin-bottom:1rem">'
-    +'Estrelas são o <b style="color:#fbbf24">maior reconhecimento</b> da rede. '
-    +'Você está reconhecendo alguém especial.<br><br>'
-    +'<span style="color:#f87171">Depois de doar não tem mais volta.</span> '
-    +'Só se ganhar de outra pessoa ou a pessoa doar de volta.</div>'
+  box.style.cssText='background:linear-gradient(180deg,rgba(20,16,48,.97),rgba(12,10,30,.99));border:1px solid rgba(251,191,36,.15);border-radius:20px;padding:1.5rem 1.2rem;max-width:320px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 60px rgba(251,191,36,.08)';
+  box.innerHTML=''
+    // Star glow
+    +'<div style="font-size:2.5rem;margin-bottom:.3rem;filter:drop-shadow(0 0 12px rgba(251,191,36,.6))">★</div>'
+    // Title
+    +'<div style="font-size:.95rem;font-weight:700;color:#fbbf24;margin-bottom:.8rem;letter-spacing:.02em">Reconhecer com Estrela</div>'
+    // Message
+    +'<div style="font-size:.75rem;color:rgba(255,255,255,.75);line-height:1.6;margin-bottom:1rem">'
+    +'Na rede, estrelas são o reconhecimento mais valioso que existe. '
+    +'Ao doar, você está dizendo que <b style="color:#fff">'+esc(targetName)+'</b> é alguém especial pra você.</div>'
+    // Transfer preview
+    +'<div style="display:flex;align-items:center;justify-content:center;gap:.6rem;margin-bottom:.8rem;padding:.6rem;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.12);border-radius:12px">'
+      +'<div style="text-align:center">'
+        +'<div style="font-size:.6rem;color:rgba(255,255,255,.4);margin-bottom:2px">Você</div>'
+        +'<div style="font-size:1.1rem;font-weight:800;color:#fbbf24">'+bal.available+' ★</div>'
+        +'<div style="font-size:.55rem;color:rgba(255,255,255,.3);margin-top:1px">→ '+(bal.available-1)+' ★</div>'
+      +'</div>'
+      +'<div style="color:rgba(251,191,36,.4);font-size:1.2rem" id="cdsArrow">→</div>'
+      +'<div style="text-align:center">'
+        +'<div style="font-size:.6rem;color:rgba(255,255,255,.4);margin-bottom:2px">'+esc(targetName)+'</div>'
+        +'<div style="font-size:1.1rem;font-weight:800;color:#fbbf24">'+targetStars+' ★</div>'
+        +'<div style="font-size:.55rem;color:rgba(255,255,255,.3);margin-top:1px">→ '+(targetStars+1)+' ★</div>'
+      +'</div>'
+    +'</div>'
+    // Warning
+    +'<div style="font-size:.62rem;color:rgba(247,113,113,.7);margin-bottom:1rem;line-height:1.4">'
+    +'Essa ação é irreversível. Só recebe de volta se alguém doar pra você.</div>'
+    // Buttons
     +'<div style="display:flex;gap:.5rem">'
-    +'<button id="cdsCancel" style="flex:1;padding:.5rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:var(--t2,#ccc);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Cancelar</button>'
-    +'<button id="cdsConfirm" style="flex:1;padding:.5rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:10px;color:#1e1b4b;font-size:.65rem;font-weight:700;font-family:inherit;cursor:pointer">Doar ★</button>'
+    +'<button id="cdsCancel" style="flex:1;padding:.55rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:rgba(255,255,255,.5);font-size:.72rem;font-weight:600;font-family:inherit;cursor:pointer">Cancelar</button>'
+    +'<button id="cdsConfirm" style="flex:1;padding:.55rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:12px;color:#1e1b4b;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(251,191,36,.3)">Doar ★</button>'
     +'</div>';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
   overlay.querySelector('#cdsCancel').onclick=()=>{overlay.remove()};
-  overlay.querySelector('#cdsConfirm').onclick=()=>{overlay.remove();donateStar(targetUserId)};
-  overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove()};
-}
-async function donateStar(targetUserId){
-  if(!state.userId||!targetUserId)return;
-  try{
-    const pend=await(await fetch('/api/star/pending/'+state.userId)).json();
-    if(pend.count>0){
-      // Has pending — use first pending star
-      const pendingStarId=pend.pending[0].id;
-      const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:state.userId,toUserId:targetUserId,pendingStarId})});
+  overlay.querySelector('#cdsConfirm').onclick=async()=>{
+    const btn=overlay.querySelector('#cdsConfirm');
+    btn.textContent='Doando...';btn.style.opacity='.6';btn.style.pointerEvents='none';
+    try{
+      const body={fromUserId:state.userId,toUserId:targetUserId};
+      if(pendData.count>0)body.pendingStarId=pendData.pending[0].id;
+      const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const d=await r.json();
-      if(d.error)return showToast(d.error);
+      if(d.error){overlay.remove();return showToast(d.error)}
+      // Success animation
+      box.innerHTML='<div id="cdsStarAnim" style="position:relative;height:120px;overflow:hidden;margin-bottom:.5rem"></div>'
+        +'<div style="font-size:.95rem;font-weight:700;color:#fbbf24;margin-bottom:.3rem">Estrela doada!</div>'
+        +'<div style="font-size:.72rem;color:rgba(255,255,255,.6)">'+esc(targetName)+' agora tem <b style="color:#fbbf24">'+(d.recipientStars||targetStars+1)+' ★</b></div>';
+      // Animate star flying
+      const animEl=document.getElementById('cdsStarAnim');
+      if(animEl){
+        for(let i=0;i<8;i++){
+          const s=document.createElement('div');
+          s.textContent='★';
+          s.style.cssText='position:absolute;left:50%;top:50%;font-size:'+(1+Math.random())+'rem;color:#fbbf24;filter:drop-shadow(0 0 8px rgba(251,191,36,.8));opacity:0;transform:translate(-50%,-50%);animation:cdsStarBurst .8s ease-out '+(i*0.08)+'s forwards';
+          s.style.setProperty('--cds-x',(Math.random()*120-60)+'px');
+          s.style.setProperty('--cds-y',(Math.random()*-80-20)+'px');
+          animEl.appendChild(s);
+        }
+      }
       haptic([60,30,60,30,100]);
-      showToast('⭐ Estrela doada!');
-      return;
-    }
-    // No pending — check legacy available
-    const avail=await(await fetch('/api/stars/available/'+state.userId)).json();
-    if(avail.available<=0)return showToast('Sem estrelas para doar. Continue conectando!');
-    if(!confirm('Doar ⭐ estrela para essa pessoa? (Você tem '+avail.available+' disponíveis)'))return;
-    const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:state.userId,toUserId:targetUserId})});
-    const d=await r.json();
-    if(d.error)return showToast(d.error);
-    haptic([60,30,60,30,100]);
-    showToast('⭐ Estrela doada!');
-  }catch(e){showToast('Erro ao doar.')}
+      setTimeout(()=>{overlay.remove()},2200);
+    }catch(e){overlay.remove();showToast('Erro ao doar estrela.')}
+  };
+  overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove()};
 }
 
 // Buy star with score points (for yourself)
