@@ -725,6 +725,20 @@ function initSocket(){
   });
   // Use checkin-created as the primary event (avoids duplicates with relation-created)
   S.socket.on('checkin-created',d=>{handleNewCheckin(d)});
+  // Event match — two visitors connected inside the event
+  S.socket.on('event-match',d=>{
+    console.log('[event-match]',d);
+    // Add visual match link between the two nodes
+    if(!S.eventMatches)S.eventMatches=[];
+    S.eventMatches.push({userA:d.userA.id,userB:d.userB.id,timestamp:d.timestamp,fade:1});
+    // Toast
+    const toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(96,165,250,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s;white-space:nowrap';
+    toast.textContent='⚡ '+esc(d.userA.nickname)+' × '+esc(d.userB.nickname)+' — encontro no evento!';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),5000);
+    playBeep();
+  });
   // Entry fee paid notification
   S.socket.on('entry-paid',d=>{
     const toast=document.createElement('div');
@@ -1552,6 +1566,47 @@ function renderCanvas(){
       if(n.stars>0){c.fillStyle='rgba(255,215,0,.55)';c.font='400 6.5px Inter';c.fillText('⭐'+n.stars,n.x,n.y+r+20)}
       if(n.paidPresencial){c.fillStyle='rgba(16,185,129,.7)';c.font='600 5.5px Inter';c.fillText('💵 PAGO',n.x,n.y+r+(n.stars>0?28:20))}
     }});
+  // ── EVENT MATCH LINES between paired nodes ──
+  if(S.eventMatches&&S.eventMatches.length>0){
+    S.eventMatches=S.eventMatches.filter(m=>m.fade>0);
+    S.eventMatches.forEach(m=>{
+      const nA=nodes.find(n=>n.id===m.userA);
+      const nB=nodes.find(n=>n.id===m.userB);
+      if(!nA||!nB||nA.r<1||nB.r<1)return;
+      m.fade=Math.max(0,m.fade-0.0003); // very slow fade — stays visible a long time
+      const pulse=0.6+0.4*Math.sin(t*2+m.timestamp*0.001);
+      const alpha=m.fade*pulse;
+      // Glowing line between the two nodes
+      c.save();
+      // Outer glow
+      c.beginPath();c.moveTo(nA.x,nA.y);c.lineTo(nB.x,nB.y);
+      c.strokeStyle='rgba(96,165,250,'+alpha*0.15+')';c.lineWidth=8;c.stroke();
+      // Middle glow
+      c.beginPath();c.moveTo(nA.x,nA.y);c.lineTo(nB.x,nB.y);
+      c.strokeStyle='rgba(96,165,250,'+alpha*0.3+')';c.lineWidth=3;c.stroke();
+      // Core line
+      c.beginPath();c.moveTo(nA.x,nA.y);c.lineTo(nB.x,nB.y);
+      c.strokeStyle='rgba(180,210,255,'+alpha*0.6+')';c.lineWidth=1.2;c.stroke();
+      // Traveling spark along the line
+      const sparkT=(t*0.6+m.timestamp*0.001)%1;
+      const sx=nA.x+(nB.x-nA.x)*sparkT;
+      const sy=nA.y+(nB.y-nA.y)*sparkT;
+      c.beginPath();c.arc(sx,sy,2.5,0,Math.PI*2);
+      c.fillStyle='rgba(200,220,255,'+alpha*0.8+')';c.fill();
+      // Small glow around spark
+      const sg=c.createRadialGradient(sx,sy,0,sx,sy,8);
+      sg.addColorStop(0,'rgba(96,165,250,'+alpha*0.4+')');sg.addColorStop(1,'transparent');
+      c.fillStyle=sg;c.beginPath();c.arc(sx,sy,8,0,Math.PI*2);c.fill();
+      // "encontro" label at midpoint
+      if(m.fade>0.3){
+        const mx=(nA.x+nB.x)/2,my=(nA.y+nB.y)/2;
+        c.font='600 6px Inter';c.textAlign='center';c.textBaseline='middle';
+        c.fillStyle='rgba(96,165,250,'+Math.min(1,alpha*1.2)+')';
+        c.fillText('⚡ encontro',mx,my-6);
+      }
+      c.restore();
+    });
+  }
   cvAnim=requestAnimationFrame(renderCanvas);
 }
 window.addEventListener('resize',()=>{if($('opApp').style.display!=='none'){if(cvAnim)cancelAnimationFrame(cvAnim);initCanvas()}});

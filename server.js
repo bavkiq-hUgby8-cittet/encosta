@@ -3916,8 +3916,40 @@ function createSonicConnection(userIdA, userIdB) {
     db.encounters[visitorId].push({ with: 'evt:' + eventId, withName: evName, withColor: '#60a5fa', phrase, timestamp: now, date: new Date(now).toISOString().slice(0,10), type: 'checkin', points: 1, chatDurationH: 24, relationId, isEvent: true });
     // Award points to visitor only
     awardPoints(visitorId, null, 'checkin');
-  } else {
-    recordEncounter(userIdA, userIdB, phrase, encounterType, relationId);
+  }
+  // ── SAME-EVENT DETECTION: check if both users are in the same active event ──
+  let sharedEventId = null, sharedEventName = null;
+  if (!isCheckin && !isServiceTouch) {
+    for (const [evId, ev] of Object.entries(db.operatorEvents)) {
+      if (ev.active && Array.isArray(ev.participants) && ev.participants.includes(userIdA) && ev.participants.includes(userIdB)) {
+        sharedEventId = evId;
+        sharedEventName = ev.name || 'Evento';
+        break;
+      }
+    }
+    const encType = sharedEventId ? 'event_match' : encounterType;
+    recordEncounter(userIdA, userIdB, sharedEventId ? ('Encontro no evento: ' + sharedEventName) : phrase, encType, relationId);
+    // Tag the relation with the shared event
+    if (sharedEventId && db.relations[relationId]) {
+      db.relations[relationId].eventId = sharedEventId;
+      db.relations[relationId].eventName = sharedEventName;
+      db.relations[relationId].isEventMatch = true;
+    }
+    // Notify operator(s) of the event match
+    if (sharedEventId) {
+      const ev = db.operatorEvents[sharedEventId];
+      if (ev && ev.operatorId) {
+        io.to(`user:${ev.operatorId}`).emit('event-match', {
+          eventId: sharedEventId,
+          eventName: sharedEventName,
+          userA: { id: userIdA, nickname: userA.nickname || userA.name, color: userA.color, stars: (userA.stars || []).length },
+          userB: { id: userIdB, nickname: userB.nickname || userB.name, color: userB.color, stars: (userB.stars || []).length },
+          relationId,
+          timestamp: now
+        });
+      }
+      console.log('[createSonicConnection] EVENT MATCH — both in event:', sharedEventId.slice(0, 8), 'A:', userIdA.slice(0, 8), 'B:', userIdB.slice(0, 8));
+    }
   }
   saveDB('relations', 'messages', 'encounters');
   const signA = getZodiacSign(userA.birthdate);
@@ -3946,9 +3978,10 @@ function createSonicConnection(userIdA, userIdB) {
     };
   } else {
     responseData = {
-      relationId, phrase, expiresAt, renewed: !!existing,
+      relationId, phrase: sharedEventId ? ('Encontro no evento: ' + sharedEventName) : phrase, expiresAt, renewed: !!existing,
       sonicMatch: true, isCheckin, isServiceTouch,
-      eventId: eventId || null, eventName: eventObj ? eventObj.name : null,
+      isEventMatch: !!sharedEventId, sharedEventId: sharedEventId || null, sharedEventName: sharedEventName || null,
+      eventId: eventId || sharedEventId || null, eventName: eventObj ? eventObj.name : (sharedEventName || null),
       requireReveal: !!opRequireReveal,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
@@ -4288,17 +4321,7 @@ io.on('connection', (socket) => {
     const emitter = findSonicUserByFreq(detectedFreq);
     console.log('[sonic-detected] user:', userId?.slice(0,12), 'detected freq:', detectedFreq, '→ emitter:', emitter ? emitter.userId?.slice(0,12) : 'NOT FOUND', '| queue:', Object.keys(sonicQueue).map(k => k.slice(0,12)+'..freq:'+sonicQueue[k].freq).join(', '));
     if (emitter && emitter.userId !== userId) {
-      // Prevent visitor-to-visitor connections when checkin operators are in queue
-      const detectorEntry = findSonicEntryByUserId(userId);
-      const emitterIsCheckin = emitter.isCheckin;
-      const detectorIsCheckin = detectorEntry && detectorEntry.isCheckin;
-      const hasActiveCheckinOps = Object.values(sonicQueue).some(s => s.isCheckin);
-      if (!emitterIsCheckin && !detectorIsCheckin && hasActiveCheckinOps) {
-        // Both are visitors but there's an operator — don't connect them, tell detector to retry
-        console.log('[sonic-detected] SKIP visitor-to-visitor (checkin operators active) — sending sonic-retry');
-        socket.emit('sonic-retry', { reason: 'Procurando o operador do evento...' });
-        return;
-      }
+      // Allow ALL connections — visitor-to-visitor included (even with active operators)
       try {
         createSonicConnection(emitter.userId, userId);
       } catch (e) {
