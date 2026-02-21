@@ -60,6 +60,16 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .avp{width:90px;height:90px;border-radius:50%;background:var(--s2);border:2px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:800;color:#fff;overflow:hidden;letter-spacing:.05em;transition:all .3s}
 .nick-hint{font-size:.7rem;color:var(--t3);transition:.3s}
 .nick-hint.taken{color:var(--err)}.nick-hint.ok{color:var(--ok)}
+/* Nick creativity feedback box */
+.nick-feedback{margin:.4rem 0 .2rem;padding:.55rem .7rem;border-radius:10px;font-size:.72rem;line-height:1.5;transition:all .4s ease;opacity:0;max-height:0;overflow:hidden;border:1px solid transparent}
+.nick-feedback.visible{opacity:1;max-height:200px;padding:.55rem .7rem}
+.nick-feedback.boring{background:rgba(255,180,50,.06);border-color:rgba(255,180,50,.15);color:rgba(255,180,50,.85)}
+.nick-feedback.meh{background:rgba(100,180,255,.06);border-color:rgba(100,180,255,.15);color:rgba(100,180,255,.85)}
+.nick-feedback.good{background:rgba(52,211,153,.06);border-color:rgba(52,211,153,.15);color:rgba(52,211,153,.85)}
+.nick-feedback.great{background:rgba(168,85,247,.06);border-color:rgba(168,85,247,.18);color:rgba(168,85,247,.9)}
+.nick-feedback .nf-icon{font-size:.9rem;margin-right:.3rem}
+.nick-feedback .nf-suggest{display:inline;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;opacity:.7;transition:.2s}
+.nick-feedback .nf-suggest:hover{opacity:1}
 .tc{display:flex;align-items:flex-start;gap:.8rem;margin-bottom:2rem;padding:1rem;background:var(--s1);border-radius:14px;border:1px solid var(--b1)}
 .tc input[type="checkbox"]{width:20px;height:20px;margin-top:2px;accent-color:var(--ac);flex-shrink:0}
 .tc span{font-size:.82rem;color:var(--t2);line-height:1.5}
@@ -1044,8 +1054,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
   <!-- REGISTER FORM -->
   <div class="login-form hidden" id="registerForm">
-    <input type="text" class="login-input" id="loginNick" placeholder="Nickname (seu nome anônimo)" maxlength="20" autocomplete="off">
-    <div class="login-nick-explain" id="loginNickExplain">Como as pessoas te veem antes de você revelar quem é.</div>
+    <input type="text" class="login-input" id="loginNick" placeholder="Nickname (seu nome anônimo)" maxlength="20" autocomplete="off" oninput="checkNickLogin(this.value)">
+    <div class="nick-feedback" id="nickFeedbackLogin"></div>
+    <div class="login-nick-explain" id="loginNickExplain">⚠️ Não coloque seu nome real! O nick é sua máscara — só você decide quando revelar.</div>
     <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email">
     <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password">
     <div class="tc" id="loginTermsUso" style="margin:.2rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
@@ -1082,7 +1093,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="nick-hint" id="nickHint">escolha um apelido criativo</div>
   </div>
   <div class="fg"><label>Nickname</label><input type="text" id="regNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" oninput="checkNick(this.value)"></div>
-  <div class="reg-nick-info">Escolha um apelido criativo! Não use seu nome real — ele será seu segredo até você decidir revelar para alguém.</div>
+  <div class="nick-feedback" id="nickFeedback"></div>
+  <div class="reg-nick-info">⚠️ Não coloque seu nome real! O nick protege sua identidade — só você decide quando revelar quem é. Seja criativo!</div>
   <div class="fg"><label>Data de nascimento</label><input type="date" id="regBirth"></div>
   <div class="tc"><input type="checkbox" id="regTerms"><span>Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.</span></div>
   <div class="tc"><input type="checkbox" id="regTermsUso"><span>Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
@@ -2857,22 +2869,80 @@ function initHomeNodes(nodes){
 
 // ═══ REGISTER ═══
 let nickCheckTimer=null;
+// ── NICK CREATIVITY ENGINE ──
+const _commonNames=['maria','joao','pedro','ana','lucas','julia','rafael','gabriela','marcos','felipe','bruno','carlos','daniel','fernanda','gustavo','leticia','mateus','patricia','rodrigo','thiago','andre','amanda','camila','diego','eduardo','fabio','helena','igor','jessica','larissa','leonardo','mariana','natalia','paulo','renata','samuel','tatiana','vitor','william','gabriel','isabela','miguel','sophia','alice','arthur','bernardo','cecilia','davi','elena','francisco','giovanna','henrique','laura','luana','luiza','manuela','nicolas','olivia','valentina','yasmin'];
+const _tooSimple=['teste','test','nick','user','nome','name','hello','oi','hey','abc','aaa','zzz','asdf','qwerty','admin'];
+const _coolSuggestions=['phantomX','nebulosa','eclipse_total','trov4o','corvo_azul','nuvem_negra','raio_solar','vulcano','criatura','mist3rio','tempestade','sombra_lunar','faisca','cosmico','avatar_zero','noturno','alquimista','estrela_rara','cyber_soul','gravidade'];
+
+function _nickCreativity(nick){
+  const lower=nick.toLowerCase().replace(/[_.\-]/g,'');
+  // Check if it's a real name
+  const isRealName=_commonNames.some(n=>lower.includes(n))||/^[A-Z][a-z]{2,}$/.test(nick);
+  if(isRealName)return{level:'boring',icon:'🚫',msg:'Parece um nome real! Lembre-se: o nick protege sua identidade. Crie algo único que represente você!'};
+  // Check if too simple / boring
+  if(_tooSimple.includes(lower)||/^(.)\1+$/.test(lower))return{level:'boring',icon:'😴',msg:'Isso é muito simples... você tem a chance de criar algo único! Solte a criatividade.'};
+  // Check if just numbers
+  if(/^\d+$/.test(nick))return{level:'boring',icon:'🔢',msg:'Só números? Você merece mais! Misture letras, crie algo que as pessoas lembrem de você.'};
+  // Mostly numbers
+  if((nick.replace(/[^0-9]/g,'').length/nick.length)>0.6)return{level:'meh',icon:'🤔',msg:'Muitos números... tenta ser mais criativo! Um bom nick marca presença.'};
+  // Short but ok
+  if(nick.length<=3)return{level:'meh',icon:'💭',msg:'Curtinho... funciona, mas nicks mais criativos chamam mais atenção!'};
+  // Has special chars (_, .)  — creative formatting
+  const hasFormat=/[_.\-]/.test(nick);
+  const hasMixedCase=/[a-z]/.test(nick)&&/[A-Z]/.test(nick);
+  const hasL33t=/[0-9]/.test(nick)&&/[a-zA-Z]/.test(nick)&&(nick.replace(/[^0-9]/g,'').length/nick.length)<0.4;
+  const isLong=nick.length>=6;
+  let score=0;
+  if(hasFormat)score++;
+  if(hasMixedCase)score++;
+  if(hasL33t)score++;
+  if(isLong)score++;
+  if(nick.length>=10)score++;
+  if(score>=3)return{level:'great',icon:'🔥',msg:'"'+nick+'" é poderoso! Misterioso, único — as pessoas vão lembrar de você.'};
+  if(score>=2)return{level:'good',icon:'✨',msg:'"'+nick+'" tá muito bom! Criativo e marcante.'};
+  if(isLong)return{level:'good',icon:'👀',msg:'"'+nick+'" tem personalidade! Tá no caminho certo.'};
+  return{level:'meh',icon:'💡',msg:'Tá ok... mas você pode mais! Misture letras e números, use _ ou . — crie uma identidade.'};
+}
+
+function _showNickFeedback(nick,feedbackEl){
+  if(!feedbackEl)return;
+  if(!nick||nick.length<2){feedbackEl.className='nick-feedback';return}
+  const fb=_nickCreativity(nick);
+  feedbackEl.className='nick-feedback visible '+fb.level;
+  // Build message with optional suggestions
+  let html='<span class="nf-icon">'+fb.icon+'</span> '+fb.msg;
+  if(fb.level==='boring'||fb.level==='meh'){
+    // Pick 3 random suggestions
+    const shuffled=[..._coolSuggestions].sort(()=>Math.random()-.5).slice(0,3);
+    html+='<br><span style="opacity:.6;font-size:.65rem">Que tal: </span>';
+    html+=shuffled.map(s=>'<span class="nf-suggest" onclick="this.closest(\'.screen,.login-form\').querySelector(\'input[type=text]\').value=\''+s+'\';this.closest(\'.screen,.login-form\').querySelector(\'input[type=text]\').dispatchEvent(new Event(\'input\'))">'+s+'</span>').join(' · ');
+  }
+  feedbackEl.innerHTML=html;
+}
+
 function checkNick(val){
-  const nick=val.trim(),hint=$('nickHint'),preview=$('avatarPreview');
-  if(!nick||nick.length<2){hint.textContent='mínimo 2 caracteres';hint.className='nick-hint';preview.textContent='?';preview.style.background='var(--s2)';return}
-  if(!/^[a-zA-Z0-9_.-]+$/.test(nick)){hint.textContent='só letras, números, _ . -';hint.className='nick-hint taken';return}
+  const nick=val.trim(),hint=$('nickHint'),preview=$('avatarPreview'),fb=$('nickFeedback');
+  if(!nick||nick.length<2){hint.textContent='mínimo 2 caracteres';hint.className='nick-hint';preview.textContent='?';preview.style.background='var(--s2)';_showNickFeedback('',fb);return}
+  if(!/^[a-zA-Z0-9_.\-]+$/.test(nick)){hint.textContent='só letras, números, _ . -';hint.className='nick-hint taken';_showNickFeedback('',fb);return}
   // Update preview avatar — show anonymous silhouette
   preview.innerHTML=ANON_AVATAR_SVG;preview.style.background='none';preview.style.overflow='hidden';
+  // Show creativity feedback instantly
+  _showNickFeedback(nick,fb);
   // Debounced availability check
   clearTimeout(nickCheckTimer);
   hint.textContent='verificando...';hint.className='nick-hint';
   nickCheckTimer=setTimeout(async()=>{
     try{
       const r=await fetch('/api/check-nick/'+encodeURIComponent(nick));const d=await r.json();
-      if(d.available){hint.textContent='disponível!';hint.className='nick-hint ok'}
-      else{hint.textContent='já existe';hint.className='nick-hint taken'}
+      if(d.available){hint.textContent='✓ "'+nick+'" está livre e é seu!';hint.className='nick-hint ok'}
+      else{hint.textContent='já existe — tente outro';hint.className='nick-hint taken'}
     }catch(e){hint.textContent='';hint.className='nick-hint'}
   },400);
+}
+// Login form nick checker (same logic, different elements)
+function checkNickLogin(val){
+  const nick=val.trim(),fb=$('nickFeedbackLogin');
+  _showNickFeedback(nick,fb);
 }
 function nickColor(nick){let h=0;for(let i=0;i<nick.length;i++)h=nick.charCodeAt(i)+((h<<5)-h);return'hsl('+Math.abs(h)%360+',65%,55%)'}
 const VERIFIED_SVG='<svg viewBox="0 0 24 24"><path fill="url(#verifiedGrad)" d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg>';
