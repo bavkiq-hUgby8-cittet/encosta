@@ -312,6 +312,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-avatar-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:.35rem}
 .rv-avatar-img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.1);box-shadow:0 0 20px rgba(255,107,53,.15)}
 .rv-avatar-name{font-size:.65rem;color:rgba(255,255,255,.45);font-weight:400;letter-spacing:.04em;opacity:0;animation:rv-fi .6s ease 4.4s forwards}
+.rv-avatar-stars{font-size:.5rem;color:rgba(251,191,36,.7);opacity:0;animation:rv-fi .6s ease 4.6s forwards;display:flex;align-items:center;gap:2px}
+.rv-avatar-stars span{font-size:.55rem}
 .rv-connection-symbol{display:flex;align-items:center;padding:0 .2rem}
 .rv-connection-dot{width:4px;height:4px;border-radius:50%;background:rgba(255,107,53,.5);box-shadow:0 0 8px rgba(255,107,53,.3)}
 /* Moment label */
@@ -341,8 +343,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-icon-btn.primary{color:#a5b4fc}
 .rv-icon-btn.tip .rv-ic{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.2)}
 .rv-icon-btn.tip{color:#4ade80}
-.rv-icon-btn.skip{color:rgba(255,255,255,.25)}
-.rv-icon-btn.skip .rv-ic{background:none;border-color:rgba(255,255,255,.04)}
+.rv-icon-btn.skip{color:rgba(255,255,255,.45)}
+.rv-icon-btn.skip .rv-ic{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.08)}
 .rv-icon-btn.success .rv-ic{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3)}
 .rv-icon-btn.success{color:#86efac}
 /* Legacy classes for service/checkin modes */
@@ -3852,6 +3854,14 @@ function doReveal(data){
   }
   $('rvNameMe').textContent=me.realName||me.name||'?';
   $('rvNameThem').textContent=them.realName||them.name||'?';
+  // Stars below names
+  const myStars=me.stars||0;const theirStars=them.stars||0;
+  const meWrap=$('rvAvatarMe');const themWrap=$('rvAvatarThem');
+  // Remove old stars if any
+  meWrap.querySelectorAll('.rv-avatar-stars').forEach(e=>e.remove());
+  themWrap.querySelectorAll('.rv-avatar-stars').forEach(e=>e.remove());
+  if(myStars>0){const s=document.createElement('div');s.className='rv-avatar-stars';s.innerHTML='<span>★</span>'+myStars;meWrap.appendChild(s)}
+  if(theirStars>0){const s=document.createElement('div');s.className='rv-avatar-stars';s.innerHTML='<span>★</span>'+theirStars;themWrap.appendChild(s)}
 
   // Detect special modes
   const isService=!!data.isServiceTouch;
@@ -4013,18 +4023,13 @@ function doReveal(data){
       if(secRow)secRow.style.display='none';
     }
   }else{
-    // NORMAL: chat + selfie + gorjeta(if prestador) + pular
+    // NORMAL: chat + selfie + conexão + pular (gorjeta só em service mode)
     let h='';
     h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
     h+=_rvBtn(_rvIco.cam,'Selfie',"revealCaptureSelfie()",'');
-    if(them.isPrestador){
-      h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
-    }
+    h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>','Conexão',"goToConnectionFromReveal()",'');
     h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
     iconRow.innerHTML=h;
-    // Set tip receiver data
-    const tBtn=iconRow.querySelector('.rv-icon-btn.tip');
-    if(tBtn)tBtn.dataset.receiverId=them.id;
   }
 
   // Reset service mode after touch
@@ -4170,6 +4175,20 @@ async function payEntry(eventId,eventName,price){
 
 // ═══ CHAT ═══
 function enterChat(){if(state.currentRelation)openChat(state.currentRelation)}
+function goToConnectionFromReveal(){
+  // Navigate to constellation/network screen and highlight this connection
+  if(!state.currentRelation)return goHome();
+  const partnerId=state.currentRelation.partnerId||state.currentRelation.with;
+  showHistory().then(()=>{
+    // Try to find and open the partner's node detail after constellation loads
+    if(partnerId){
+      setTimeout(()=>{
+        const node=constState.nodes.find(n=>n.id===partnerId);
+        if(node)showConstDetail(node);
+      },1200);
+    }
+  }).catch(()=>{});
+}
 async function openChat(rel){
   state.currentRelation=rel;pulseSent=false;
   const pb=$('pulseBtn');if(pb)pb.style.opacity='1';
