@@ -477,13 +477,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .const-detail{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(180deg,rgba(12,12,18,.98) 0%,rgba(8,8,12,.99) 100%);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);padding:0;padding-bottom:max(env(safe-area-inset-bottom),.6rem);opacity:0;transform:translateY(100%);transition:all .35s cubic-bezier(.22,1,.36,1);pointer-events:none;max-height:60vh;overflow-y:auto;overscroll-behavior:contain}
 .const-detail.visible{opacity:1;transform:translateY(0);pointer-events:auto}
 .cd-handle{width:36px;height:4px;background:rgba(255,255,255,.18);border-radius:2px;margin:8px auto 4px;cursor:grab;touch-action:none}
-/* Hero: compact centered avatar */
-.cd-hero{display:flex;flex-direction:column;align-items:center;padding:.4rem .8rem .2rem;position:relative}
-.cd-avatar-wrap{position:relative;width:52px;height:52px;margin-bottom:.3rem}
-.cd-avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.08);overflow:hidden;position:relative;flex-shrink:0;box-shadow:0 0 16px rgba(99,102,241,.12),0 0 32px rgba(139,92,246,.06)}
+/* Hero: centered avatar with orbiting stars */
+.cd-hero{display:flex;flex-direction:column;align-items:center;padding:.5rem .8rem .2rem;position:relative}
+.cd-avatar-wrap{position:relative;width:76px;height:76px;margin-bottom:.3rem}
+.cd-avatar{width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;border:2.5px solid rgba(255,255,255,.1);overflow:hidden;position:relative;flex-shrink:0;box-shadow:0 0 20px rgba(99,102,241,.15),0 0 40px rgba(139,92,246,.08)}
 .cd-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
-/* Stars orbit removed — replaced by star count in stats */
-.cd-stars-orbit{display:none}
+.cd-stars-orbit{position:absolute;inset:-10px;pointer-events:none}
+.cd-orbit-star{position:absolute;font-size:.5rem;filter:drop-shadow(0 0 3px rgba(251,191,36,.5));animation:cdStarTwinkle 2s ease-in-out infinite alternate}
+@keyframes cdStarTwinkle{0%{opacity:.4;transform:scale(.8)}100%{opacity:1;transform:scale(1.1)}}
 .cd-name{font-size:.9rem;font-weight:700;color:var(--t1);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:85%}
 .cd-alias{font-size:.6rem;color:var(--t3);margin-top:1px;text-align:center}
 .cd-tag{display:inline-block;font-size:.45rem;font-weight:800;padding:1px 5px;border-radius:5px;color:#111;vertical-align:middle;margin-left:.3rem;text-transform:uppercase}
@@ -550,8 +551,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-selfie-zoom.hold-active .cd-zoom-delete{opacity:1}
 /* Legacy .cd-action kept for compatibility but hidden by default */
 .cd-action{display:none}
-.cd-tip-btn{width:100%;padding:.45rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:10px;color:#fff;font-size:.68rem;font-weight:600;font-family:inherit;cursor:pointer;margin:.15rem 0}
-.cd-tip-btn:active{transform:scale(.97)}
+.cd-tip-btn{width:100%;padding:.35rem;background:transparent;border:1px solid rgba(34,197,94,.25);border-radius:8px;color:rgba(34,197,94,.7);font-size:.58rem;font-weight:500;font-family:inherit;cursor:pointer;margin:.15rem 0;transition:all .2s}
+.cd-tip-btn:active{transform:scale(.97);background:rgba(34,197,94,.08)}
 .cd-bio{font-size:.65rem;color:var(--t3);font-style:italic;padding:.15rem 0;line-height:1.4}
 /* Notification panel */
 .notif-btn{position:absolute;top:max(env(safe-area-inset-top),.6rem);right:.8rem;z-index:15;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.06);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;transition:all .2s}
@@ -1355,7 +1356,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
     <!-- History (discreet link) -->
     <div class="cd-section" style="text-align:center;padding:.3rem .8rem">
-      <button onclick="openHistoryPanel()" style="background:none;border:none;color:var(--t3);font-size:.52rem;font-weight:500;font-family:inherit;cursor:pointer;opacity:.5;padding:.2rem .5rem">Ver histórico</button>
+      <button onclick="openHistoryPanel()" style="background:none;border:none;color:var(--t3);font-size:.52rem;font-weight:500;font-family:inherit;cursor:pointer;opacity:.5;padding:.2rem .5rem">Histórico de conexões</button>
     </div>
   </div>
   <!-- History floating panel -->
@@ -4813,6 +4814,23 @@ function showConstDetail(node){
   }else{
     av.innerHTML='';av.textContent=(node.nickname||'??').slice(0,2).toUpperCase();av.style.background=node.color;
   }
+  // Star orbit rendering
+  const orbEl=$('cdStarsOrbit');
+  if(orbEl){
+    const sc=node.starsCount||0;
+    if(sc>0){
+      const positions=[[50,0],[85,15],[100,50],[85,85],[50,100],[15,85],[0,50],[15,15]];
+      let orbHtml='';
+      for(let i=0;i<Math.min(sc,8);i++){
+        const p=positions[i];
+        orbHtml+='<span class="cd-orbit-star" style="left:'+p[0]+'%;top:'+p[1]+'%;animation-delay:'+(i*0.3)+'s">★</span>';
+      }
+      orbEl.innerHTML=orbHtml;
+      orbEl.style.display='';
+    }else{
+      orbEl.innerHTML='';orbEl.style.display='none';
+    }
+  }
   // Verified badge
   const cvb=$('cdVerifiedBadge');
   if(cvb){if(node.verified)cvb.classList.remove('hidden');else cvb.classList.add('hidden')}
@@ -4849,9 +4867,11 @@ function showConstDetail(node){
   const score=node.score||0;
   const conns=node.uniqueConnections||node.touchers||0;
   let statParts=[];
+  const likes=node.likesCount||0;
   if(stars>0)statParts.push('<span class="cd-stat-inline"><b style="color:#fbbf24">'+stars+'</b> estrelas</span>');
   statParts.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> pts</span>');
   statParts.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexões</span>');
+  if(likes>0)statParts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+likes+'</b> curtidas</span>');
   statsEl.innerHTML=statParts.join('<span class="cd-stat-sep">·</span>');
   // Meta section: time, social links, selfies
   const metaEl=$('cdMeta');
@@ -4917,7 +4937,7 @@ function showConstDetail(node){
       aHtml+=iconBtn(ICONS.chat,'Chat',"openChatFromConst('"+node.id+"')",'');
     }
     // Donate star
-    aHtml+=iconBtn(ICONS.star,'Estrela',"event.stopPropagation();donateStar('"+node.id+"')",'star');
+    aHtml+=iconBtn(ICONS.star,'Estrela',"event.stopPropagation();confirmDonateStar('"+node.id+"')",'star');
   }
   actEl.innerHTML=aHtml;
   // Tip
@@ -5780,6 +5800,28 @@ async function confirmStarDonate(pendingStarId,targetId,targetName){
 }
 
 // Direct donate from constellation detail (uses available earned stars)
+function confirmDonateStar(targetUserId){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10100;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .2s';
+  const box=document.createElement('div');
+  box.style.cssText='background:var(--c2,#1e1b4b);border-radius:16px;padding:1.2rem;max-width:300px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  box.innerHTML='<div style="font-size:1.8rem;margin-bottom:.5rem">★</div>'
+    +'<div style="font-size:.85rem;font-weight:700;color:var(--t1,#fff);margin-bottom:.6rem">Doar Estrela</div>'
+    +'<div style="font-size:.65rem;color:var(--t2,#ccc);line-height:1.5;margin-bottom:1rem">'
+    +'Estrelas são o <b style="color:#fbbf24">maior reconhecimento</b> da rede. '
+    +'Você está reconhecendo alguém especial.<br><br>'
+    +'<span style="color:#f87171">Depois de doar não tem mais volta.</span> '
+    +'Só se ganhar de outra pessoa ou a pessoa doar de volta.</div>'
+    +'<div style="display:flex;gap:.5rem">'
+    +'<button id="cdsCancel" style="flex:1;padding:.5rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:var(--t2,#ccc);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Cancelar</button>'
+    +'<button id="cdsConfirm" style="flex:1;padding:.5rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:10px;color:#1e1b4b;font-size:.65rem;font-weight:700;font-family:inherit;cursor:pointer">Doar ★</button>'
+    +'</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.querySelector('#cdsCancel').onclick=()=>{overlay.remove()};
+  overlay.querySelector('#cdsConfirm').onclick=()=>{overlay.remove();donateStar(targetUserId)};
+  overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove()};
+}
 async function donateStar(targetUserId){
   if(!state.userId||!targetUserId)return;
   try{
