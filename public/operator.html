@@ -781,6 +781,9 @@ function initSocket(){
     // Add visual match link between the two nodes
     if(!S.eventMatches)S.eventMatches=[];
     S.eventMatches.push({userA:d.userA.id,userB:d.userB.id,timestamp:d.timestamp,fade:1});
+    // Track connected pair for proximity lightning
+    const pairKey=[d.userA.id,d.userB.id].sort().join('_');
+    connectedPairs.add(pairKey);
     // Toast
     const toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(96,165,250,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s;white-space:nowrap';
@@ -1455,6 +1458,7 @@ let cvCtx=null,cvW=0,cvH=0,cvAnim=null;
 const nodes=[];
 const particles=[];
 const bolts=[]; // temporary lightning bolts between matched nodes
+const connectedPairs=new Set(); // pairs that connected at event 'idA_idB'
 
 // ── Center-crop image into circle ──
 function drawCroppedImg(ctx,img,cx,cy,r){
@@ -1631,25 +1635,27 @@ function renderCanvas(){
       b.segments=makeLightning(nA.x,nA.y,nB.x,nB.y,10);
       b._lastSeg=Math.floor(age/100);
     }
-    // Fade: full brightness first 2s, then fade out
+    // Fade
     const life=age/b.duration;
     const alpha=life<0.6?1:Math.max(0,1-(life-0.6)/0.4);
     const flicker=0.7+Math.random()*0.3;
+    const isProx=!!b.isProximity;
+    const intensity=isProx?0.4:1; // proximity bolts are subtler
     c.save();
     // Outer glow
     c.beginPath();c.moveTo(b.segments[0].x,b.segments[0].y);
     for(let j=1;j<b.segments.length;j++)c.lineTo(b.segments[j].x,b.segments[j].y);
-    c.strokeStyle='rgba(80,200,255,'+(alpha*flicker*0.15).toFixed(3)+')';c.lineWidth=12;c.lineCap='round';c.lineJoin='round';c.stroke();
+    c.strokeStyle='rgba(80,200,255,'+(alpha*flicker*0.15*intensity).toFixed(3)+')';c.lineWidth=isProx?6:12;c.lineCap='round';c.lineJoin='round';c.stroke();
     // Mid glow
     c.beginPath();c.moveTo(b.segments[0].x,b.segments[0].y);
     for(let j=1;j<b.segments.length;j++)c.lineTo(b.segments[j].x,b.segments[j].y);
-    c.strokeStyle='rgba(120,220,255,'+(alpha*flicker*0.4).toFixed(3)+')';c.lineWidth=4;c.stroke();
+    c.strokeStyle='rgba(120,220,255,'+(alpha*flicker*0.4*intensity).toFixed(3)+')';c.lineWidth=isProx?2:4;c.stroke();
     // Core bright
     c.beginPath();c.moveTo(b.segments[0].x,b.segments[0].y);
     for(let j=1;j<b.segments.length;j++)c.lineTo(b.segments[j].x,b.segments[j].y);
-    c.strokeStyle='rgba(220,240,255,'+(alpha*flicker*0.9).toFixed(3)+')';c.lineWidth=1.5;c.stroke();
-    // "⚡ encontro" label at midpoint
-    if(alpha>0.3){
+    c.strokeStyle='rgba(220,240,255,'+(alpha*flicker*0.9*intensity).toFixed(3)+')';c.lineWidth=isProx?0.8:1.5;c.stroke();
+    // Label — only for new connections, not proximity
+    if(!isProx&&alpha>0.3){
       const mx=(nA.x+nB.x)/2,my=(nA.y+nB.y)/2;
       c.font='bold 9px Inter,sans-serif';c.textAlign='center';c.textBaseline='middle';
       c.fillStyle='rgba(180,240,255,'+(alpha*0.9).toFixed(3)+')';
@@ -1669,6 +1675,24 @@ function renderCanvas(){
     S.eventMatches=S.eventMatches.filter(m=>{
       m.fade=Math.max(0,(m.fade||1)-0.0003);
       return m.fade>0;
+    });
+  }
+
+  // ── Proximity bolts: connected pairs get mini-lightning when near each other ──
+  if(connectedPairs.size>0){
+    const proxThreshold=120; // trigger distance
+    connectedPairs.forEach(key=>{
+      const[idA,idB]=key.split('_');
+      const nA=nodes.find(n=>n.userId===idA),nB=nodes.find(n=>n.userId===idB);
+      if(!nA||!nB)return;
+      const dx=nA.x-nB.x,dy=nA.y-nB.y,dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<proxThreshold&&dist>0){
+        // Check not already bolting
+        const existing=bolts.find(b=>(b.userA===idA&&b.userB===idB)||(b.userA===idB&&b.userB===idA));
+        if(!existing){
+          bolts.push({userA:idA,userB:idB,born:now,duration:800,segments:null,isProximity:true});
+        }
+      }
     });
   }
 

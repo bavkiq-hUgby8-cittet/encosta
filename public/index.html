@@ -1842,8 +1842,31 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
   <div style="flex:1;position:relative;overflow:hidden;background:#050508;touch-action:none">
     <canvas id="evCanvas" style="width:100%;height:100%;touch-action:none"></canvas>
+    <!-- Menu FAB (only if event has menu) -->
+    <button id="evMenuBtn" onclick="openEventMenu()" style="display:none;position:absolute;bottom:70px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#f97316,#ef4444);border:none;color:#fff;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 20px rgba(249,115,22,.4);z-index:5;transition:transform .2s" title="Cardápio">🍽</button>
+    <div id="evCartBadge" style="display:none;position:absolute;bottom:108px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:22px;height:22px;font-size:.6rem;font-weight:700;text-align:center;line-height:22px;z-index:6;pointer-events:none">0</div>
     <!-- Leave event button -->
-    <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Saí do evento</button>
+    <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Saí do evento</button>
+  </div>
+  <!-- MENU OVERLAY -->
+  <div id="evMenuOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
+      <button onclick="closeEventMenu()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">←</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">Cardápio</div>
+      <button onclick="openCart()" style="background:none;border:none;color:#f97316;font-size:.85rem;font-weight:600;cursor:pointer">🛒 <span id="menuCartCount">0</span></button>
+    </div>
+    <div id="evMenuCats" style="display:flex;gap:.4rem;padding:.5rem 1rem;overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
+    <div id="evMenuItems" style="padding:0 .8rem .8rem"></div>
+  </div>
+  <!-- CART OVERLAY -->
+  <div id="evCartOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:11;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
+      <button onclick="closeCart()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">←</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">Meu Pedido</div>
+      <button onclick="clearCart()" style="background:none;border:none;color:#ff3d71;font-size:.7rem;cursor:pointer">Limpar</button>
+    </div>
+    <div id="evCartItems" style="padding:.8rem"></div>
+    <div id="evCartFooter" style="position:sticky;bottom:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.8rem 1rem;border-top:1px solid rgba(255,255,255,.06)"></div>
   </div>
 </div>
 
@@ -2552,6 +2575,8 @@ async function showEventView(eventId,eventName){
     $('evViewCount').textContent=(d.attendees||[]).length+' pessoas';
     (d.attendees||[]).forEach(a=>addEvNode(a,true));
   }catch(e){console.error('[eventView] load error:',e)}
+  // Load restaurant menu (if any)
+  loadEventMenu(eventId);
   // Socket listeners
   if(socket){
     socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' pessoas'}});
@@ -2707,6 +2732,9 @@ function closeEventView(){
   const savedId=evViewEventId;
   const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evBolts.length=0;evViewCtx=null;
+  // Close menu/cart overlays
+  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';
+  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';
   if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended');socket.off('event-match')}
   // Persist active event in localStorage for floating button
   if(savedId){
@@ -2774,6 +2802,157 @@ function restoreFloatingEvent(){
   const eventId=localStorage.getItem('activeEventId');
   const eventName=localStorage.getItem('activeEventName');
   if(eventId&&eventName)showFloatingEventBtn(eventId,eventName);
+}
+
+// ═══ EVENT MENU & CART (RESTAURANT) ═══
+let evMenuData=[],evCart=[],evMenuEventId=null,evTables=0;
+
+async function loadEventMenu(eventId){
+  try{
+    const r=await fetch('/api/event/'+eventId+'/menu');const d=await r.json();
+    evMenuData=d.menu||[];evTables=d.tables||0;
+    if(evMenuData.length>0)$('evMenuBtn').style.display='';
+    else $('evMenuBtn').style.display='none';
+    evMenuEventId=eventId;
+  }catch(e){evMenuData=[];}
+}
+
+function openEventMenu(){
+  $('evMenuOverlay').style.display='';
+  renderMenuCats();renderMenuItems();updateCartBadge();
+}
+function closeEventMenu(){$('evMenuOverlay').style.display='none'}
+function openCart(){$('evCartOverlay').style.display='';renderCart()}
+function closeCart(){$('evCartOverlay').style.display='none'}
+function clearCart(){evCart=[];updateCartBadge();closeCart();showToast('Carrinho limpo')}
+
+function renderMenuCats(){
+  const cats=[...new Set(evMenuData.map(i=>i.category||'Geral'))];
+  const el=$('evMenuCats');
+  el.innerHTML='<button class="ev-cat-btn active" onclick="filterMenuCat(this,\'\')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.15);color:#f97316;font-size:.65rem;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit">Tudo</button>';
+  cats.forEach(cat=>{
+    el.innerHTML+='<button class="ev-cat-btn" onclick="filterMenuCat(this,\''+esc(cat)+'\')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t2);font-size:.65rem;font-weight:500;white-space:nowrap;cursor:pointer;font-family:inherit">'+esc(cat)+'</button>';
+  });
+}
+
+function filterMenuCat(btn,cat){
+  document.querySelectorAll('.ev-cat-btn').forEach(b=>{b.classList.remove('active');b.style.background='rgba(255,255,255,.05)';b.style.color='var(--t2)';b.style.borderColor='rgba(255,255,255,.1)'});
+  btn.classList.add('active');btn.style.background='rgba(249,115,22,.15)';btn.style.color='#f97316';btn.style.borderColor='rgba(249,115,22,.3)';
+  renderMenuItems(cat);
+}
+
+function renderMenuItems(cat){
+  const items=cat?evMenuData.filter(i=>(i.category||'Geral')===cat):evMenuData;
+  const el=$('evMenuItems');
+  if(!items.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Nenhum item disponível</div>';return}
+  el.innerHTML=items.filter(i=>i.available!==false).map(item=>{
+    const inCart=evCart.find(c=>c.id===item.id);
+    const qty=inCart?inCart.qty:0;
+    const price='R$'+(item.price||0).toFixed(2).replace('.',',');
+    return '<div style="display:flex;gap:.7rem;padding:.7rem 0;border-bottom:1px solid rgba(255,255,255,.04);align-items:center">'
+      +(item.photo?'<img src="'+esc(item.photo)+'" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0">':'<div style="width:60px;height:60px;border-radius:10px;background:rgba(249,115,22,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0">🍽</div>')
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-weight:600;font-size:.8rem;color:var(--t1)">'+esc(item.name)+'</div>'
+      +(item.description?'<div style="font-size:.6rem;color:var(--t3);margin-top:.15rem;line-height:1.3">'+esc(item.description)+'</div>':'')
+      +'<div style="font-weight:700;color:#f97316;font-size:.8rem;margin-top:.3rem">'+price+'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">'
+      +(qty>0?'<button onclick="addToCart(\''+item.id+'\',-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">−</button><span style="font-weight:700;font-size:.85rem;min-width:20px;text-align:center;color:var(--t1)">'+qty+'</span>':'')
+      +'<button onclick="addToCart(\''+item.id+'\',1)" style="width:32px;height:32px;border-radius:50%;border:none;background:#f97316;color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">+</button>'
+      +'</div></div>';
+  }).join('');
+}
+
+function addToCart(itemId,delta){
+  const item=evMenuData.find(i=>i.id===itemId);if(!item)return;
+  let c=evCart.find(c=>c.id===itemId);
+  if(c){c.qty=Math.max(0,c.qty+delta);if(c.qty<=0)evCart=evCart.filter(x=>x.id!==itemId)}
+  else if(delta>0)evCart.push({id:item.id,name:item.name,price:item.price||0,qty:1});
+  updateCartBadge();renderMenuItems(document.querySelector('.ev-cat-btn.active')?.textContent==='Tudo'?'':document.querySelector('.ev-cat-btn.active')?.textContent||'');
+}
+
+function updateCartBadge(){
+  const total=evCart.reduce((s,c)=>s+c.qty,0);
+  $('evCartBadge').style.display=total>0?'':'none';
+  $('evCartBadge').textContent=total;
+  const mc=$('menuCartCount');if(mc)mc.textContent=total;
+}
+
+function renderCart(){
+  const el=$('evCartItems');
+  if(!evCart.length){
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:3rem 1rem;font-size:.8rem">Carrinho vazio<br><span style="font-size:.65rem">Escolha itens do cardápio</span></div>';
+    $('evCartFooter').innerHTML='';return;
+  }
+  el.innerHTML=evCart.map(c=>{
+    const price='R$'+(c.price*c.qty).toFixed(2).replace('.',',');
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+      +'<div><div style="font-weight:600;font-size:.8rem;color:var(--t1)">'+esc(c.name)+'</div>'
+      +'<div style="font-size:.6rem;color:var(--t3)">'+c.qty+'× R$'+c.price.toFixed(2).replace('.',',')+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:.3rem">'
+      +'<span style="font-weight:700;color:#f97316;font-size:.8rem">'+price+'</span>'
+      +'<button onclick="addToCart(\''+c.id+'\',-1);renderCart()" style="width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,61,113,.3);background:none;color:#ff3d71;font-size:.8rem;cursor:pointer">−</button>'
+      +'<button onclick="addToCart(\''+c.id+'\',1);renderCart()" style="width:26px;height:26px;border-radius:50%;border:none;background:#f97316;color:#fff;font-size:.8rem;cursor:pointer;font-weight:700">+</button>'
+      +'</div></div>';
+  }).join('');
+  const total=evCart.reduce((s,c)=>s+c.price*c.qty,0);
+  const totalStr='R$'+total.toFixed(2).replace('.',',');
+  let tableOpts='<option value="">Sem mesa</option>';
+  for(let i=1;i<=Math.max(evTables,50);i++)tableOpts+='<option value="'+i+'">Mesa '+i+'</option>';
+  $('evCartFooter').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem"><span style="font-size:.8rem;color:var(--t2)">Total</span><span style="font-size:1.2rem;font-weight:800;color:#f97316">'+totalStr+'</span></div>'
+    +'<div style="margin-bottom:.6rem"><label style="font-size:.65rem;color:var(--t3);display:block;margin-bottom:.2rem">Mesa de entrega</label>'
+    +'<select id="evCartTable" style="width:100%;padding:.5rem;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t1);font-size:.8rem;font-family:inherit">'+tableOpts+'</select></div>'
+    +'<button onclick="submitOrder(\'counter\')" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:.4rem;font-family:inherit">📋 Mostrar pro garçom</button>'
+    +'<button onclick="submitOrder(\'card\')" style="width:100%;padding:.6rem;border-radius:14px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.08);color:#f97316;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">💳 Pagar agora</button>';
+}
+
+async function submitOrder(method){
+  if(!evCart.length)return showToast('Carrinho vazio');
+  const table=$('evCartTable')?.value||'';
+  const total=evCart.reduce((s,c)=>s+c.price*c.qty,0);
+  const items=evCart.map(c=>({menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}));
+  if(method==='counter'){
+    // Show big summary to waiter
+    showWaiterView(items,table,total);return;
+  }
+  // Card payment
+  try{
+    const r=await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,items,table,paymentMethod:'card',total})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    showToast('Pedido enviado!');evCart=[];updateCartBadge();closeCart();closeEventMenu();
+  }catch(e){showToast('Erro ao enviar pedido')}
+}
+
+function showWaiterView(items,table,total){
+  // Full-screen big text for waiter to see
+  const totalStr='R$'+total.toFixed(2).replace('.',',');
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:#0a0a0f;z-index:9999;display:flex;flex-direction:column;padding:1.5rem;overflow-y:auto';
+  overlay.innerHTML='<div style="text-align:center;margin-bottom:1rem"><div style="font-size:1.4rem;font-weight:800;color:#f97316">📋 Pedido</div>'
+    +(table?'<div style="font-size:1.8rem;font-weight:900;color:#fff;margin-top:.4rem">Mesa '+esc(table)+'</div>':'')
+    +'</div>'
+    +'<div style="flex:1">'+items.map(i=>'<div style="display:flex;justify-content:space-between;padding:.8rem 0;border-bottom:2px solid rgba(255,255,255,.08);align-items:center">'
+      +'<div><div style="font-size:1.3rem;font-weight:700;color:#fff">'+i.qty+'× '+esc(i.name)+'</div></div>'
+      +'<div style="font-size:1.1rem;font-weight:700;color:#f97316">R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</div></div>').join('')+'</div>'
+    +'<div style="text-align:center;padding:1rem 0;border-top:2px solid rgba(249,115,22,.3);margin-top:.5rem">'
+    +'<div style="font-size:.8rem;color:var(--t3)">Total</div>'
+    +'<div style="font-size:2.2rem;font-weight:900;color:#f97316">'+totalStr+'</div></div>'
+    +'<button onclick="this.parentElement.remove();submitOrderCounter()" style="width:100%;padding:1rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:1.1rem;cursor:pointer;margin-top:.5rem;font-family:inherit">✅ Garçom anotou</button>'
+    +'<button onclick="this.parentElement.remove()" style="width:100%;padding:.7rem;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--t2);font-size:.8rem;cursor:pointer;margin-top:.4rem;font-family:inherit">Voltar ao carrinho</button>';
+  document.body.appendChild(overlay);
+}
+
+async function submitOrderCounter(){
+  const table=$('evCartTable')?.value||'';
+  const total=evCart.reduce((s,c)=>s+c.price*c.qty,0);
+  const items=evCart.map(c=>({menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}));
+  try{
+    await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,items,table,paymentMethod:'counter',total})});
+  }catch(e){}
+  showToast('Pedido registrado!');evCart=[];updateCartBadge();closeCart();closeEventMenu();
 }
 
 // ── Request accelerometer permission (iOS requires user gesture) ──

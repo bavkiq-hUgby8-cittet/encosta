@@ -5813,6 +5813,68 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
   }
 });
 
+// ═══ RESTAURANT MENU & ORDERS ═══
+
+// Get menu for event
+app.get('/api/event/:eventId/menu', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  res.json({ menu: ev.menu || [], eventName: ev.name, tables: ev.tables || 0 });
+});
+
+// Save/update menu (operator)
+app.post('/api/operator/event/:eventId/menu', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { items, tables } = req.body;
+  if (items) ev.menu = items; // [{id,name,description,price,photo,category,available}]
+  if (tables !== undefined) ev.tables = parseInt(tables) || 0;
+  saveDB('operatorEvents');
+  res.json({ ok: true, menu: ev.menu, tables: ev.tables });
+});
+
+// Place order (client)
+app.post('/api/event/:eventId/order', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { userId, items, table, paymentMethod, total } = req.body;
+  // items: [{menuItemId, name, qty, price}]
+  if (!userId || !items || items.length === 0) return res.status(400).json({ error: 'Pedido vazio.' });
+  if (!ev.orders) ev.orders = [];
+  const order = {
+    id: uuidv4(), userId, userName: db.users[userId] ? (db.users[userId].nickname || db.users[userId].name) : '?',
+    items, table: table || null, total: parseFloat(total) || 0,
+    paymentMethod: paymentMethod || 'counter', // 'counter' = show to waiter, 'card' = paid online
+    status: paymentMethod === 'card' ? 'paid' : 'pending', // pending = waiter collects
+    createdAt: Date.now()
+  };
+  ev.orders.push(order);
+  saveDB('operatorEvents');
+  // Notify operator via socket
+  io.emit('new-order', { eventId: ev.id, order });
+  res.json({ ok: true, order });
+});
+
+// Get orders for event (operator)
+app.get('/api/operator/event/:eventId/orders', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  res.json({ orders: ev.orders || [] });
+});
+
+// Update order status (operator)
+app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const order = (ev.orders || []).find(o => o.id === req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
+  order.status = req.body.status || order.status; // 'pending','preparing','ready','delivered','cancelled'
+  saveDB('operatorEvents');
+  // Notify client
+  io.emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
+  res.json({ ok: true, order });
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Async startup: load DB then start server (always starts even if DB fails)
