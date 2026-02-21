@@ -1890,8 +1890,11 @@ app.get('/api/constellation/:userId', (req, res) => {
   list.forEach(e => {
     // Skip event encounters — handled separately as event nodes
     if (e.isEvent || (typeof e.with === 'string' && e.with.startsWith('evt:'))) return;
-    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0, lastSelfie: null };
+    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0, lastSelfie: null, serviceEncounters: 0, personalEncounters: 0 };
     byPerson[e.with].encounters++;
+    // Track encounter type: service vs personal
+    if (e.type === 'service') byPerson[e.with].serviceEncounters++;
+    else byPerson[e.with].personalEncounters++;
     if (e.tipAmount && e.tipStatus === 'approved') { byPerson[e.with].tipsGiven++; byPerson[e.with].tipsTotal += e.tipAmount; }
     if (e.timestamp < byPerson[e.with].firstDate) byPerson[e.with].firstDate = e.timestamp;
     if (e.timestamp > byPerson[e.with].lastDate) byPerson[e.with].lastDate = e.timestamp;
@@ -1973,7 +1976,13 @@ app.get('/api/constellation/:userId', (req, res) => {
       // WhatsApp (only when revealed)
       whatsapp: iCanSeeThem ? (p.whatsapp || null) : null,
       giftsReceived: (db.gifts[p.id] || []).length,
-      avatarAccessory: (other && other.avatarAccessory) || null
+      avatarAccessory: (other && other.avatarAccessory) || null,
+      // Connection type flags based on actual encounter types (not user profile)
+      isServiceConnection: p.serviceEncounters > 0 && p.personalEncounters === 0, // ONLY service encounters
+      hasServiceEncounters: p.serviceEncounters > 0,
+      hasPersonalEncounters: p.personalEncounters > 0,
+      serviceEncounters: p.serviceEncounters,
+      personalEncounters: p.personalEncounters
     };
   });
   // Add event nodes — from both participants array AND encounter history

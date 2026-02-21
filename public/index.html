@@ -4579,8 +4579,10 @@ function initConstCanvas(){
     constState._mcx=mcx;constState._mcy=mcy;
 
     const FP_FOV=260; // wider FOV — keeps nodes visible and closer together
-    // Filter nodes by constellation filter
+    // Filter nodes — service-only connections hidden from constellation (stay in history)
     const filteredNodes=constState.nodes.filter(n=>{
+      // Pure service connections (no personal encounters) → hide from constellation
+      if(!n.isEvent&&n.isServiceConnection)return false;
       if(constFilter==='events')return !!n.isEvent;
       if(constFilter==='people'){
         // Revealed people only
@@ -4591,7 +4593,7 @@ function initConstCanvas(){
         const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
         return !n.isEvent&&!isRevealed;
       }
-      return true; // 'all' = everything
+      return true; // 'all' = people + events (service-only already excluded above)
     });
     const projected=filteredNodes.map(n=>{
       if(fpBlend<0.01){
