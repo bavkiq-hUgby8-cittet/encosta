@@ -1407,32 +1407,33 @@ function renderCanvas(){
     c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
   // ── Calculate center size — fixed, no name inside ──
   const _centerR=36; // fixed clean radius
-  // ── ORBITS — stars-based with tier grouping ──
-  // Sort nodes by stars to assign tier-based orbit bands
+  // ── ORBITS — evenly spread, stable positions ──
   const sortedByStars=[...nodes].sort((a,b)=>(b.stars||0)-(a.stars||0));
   const totalNodes=sortedByStars.length;
-  const maxDist=Math.min(cvW,cvH)*0.38;
-  const minDist=Math.max(50,_centerR+20);
-  // Assign tier orbit bands: top1 closest, then top5, top50, top100, rest
-  function getTierBand(rank,total){
-    if(rank<=1) return {min:0,max:.12}; // top1: very close
-    if(rank<=5) return {min:.12,max:.28}; // top5
-    if(rank<=50) return {min:.28,max:.52}; // top50
-    if(rank<=100) return {min:.52,max:.72}; // top100
-    return {min:.72,max:1}; // rest
-  }
+  const maxDist=Math.min(cvW,cvH)*0.40;
+  const minDist=Math.max(70,_centerR+30);
+  // Simple even distribution: spread all nodes evenly across the orbit range
+  // Stable — no random per frame, uses node index for consistent placement
   sortedByStars.forEach((sn,idx)=>{
-    const rank=idx+1;
-    const band=getTierBand(rank,totalNodes);
-    const bandDist=minDist+(maxDist-minDist)*band.min;
-    const bandEnd=minDist+(maxDist-minDist)*band.max;
-    // Within band, spread by stars ratio
-    const bandSize=bandEnd-bandDist;
-    const maxInBand=(band.max-band.min);
-    sn._tierDist=bandDist+bandSize*(rank<=1?0:Math.random()*.6+.2);
+    if(totalNodes<=1){
+      sn._tierDist=minDist+(maxDist-minDist)*0.4;
+    }else{
+      // Evenly spread from minDist to maxDist based on rank
+      const frac=idx/(totalNodes-1);
+      sn._tierDist=minDist+(maxDist-minDist)*(0.15+frac*0.85);
+    }
+    // Also spread angles evenly if not yet assigned a stable angle
+    if(!sn._stableAngleSet){
+      sn.orbitAngle=((idx/Math.max(1,totalNodes))*Math.PI*2)+sn.phase*0.3;
+      sn._stableAngleSet=true;
+    }
   });
-  // Orbit rings at tier boundaries
-  [.12,.28,.52,.72].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.setLineDash([3,6]);c.stroke();c.setLineDash([])});
+  // Subtle orbit ring guides
+  const ringCount=Math.min(4,totalNodes);
+  for(let i=0;i<ringCount;i++){
+    const rf=minDist+(maxDist-minDist)*((i+1)/(ringCount+1));
+    c.beginPath();c.arc(cx,cy,rf,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.03)';c.lineWidth=.5;c.setLineDash([3,8]);c.stroke();c.setLineDash([]);
+  }
   // Orbital node movement + connection lines
   nodes.forEach(n=>{if(n.r<1)return;
     if(n._tierDist!==undefined){n.orbitDist=n._tierDist;n.entryTargetDist=n._tierDist}

@@ -2520,15 +2520,22 @@ function renderEvCanvas(){
   // Ambient
   evAmbientP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=evViewW;if(p.x>evViewW)p.x=0;if(p.y<0)p.y=evViewH;if(p.y>evViewH)p.y=0;
     c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fillStyle='rgba(255,255,255,'+Math.max(0,p.a+Math.sin(t*1.5+p.phase)*.03)+')';c.fill()});
-  // Recalc orbits
-  const maxStars=Math.max(1,...evNodes.map(n=>n.stars||0));
-  const maxDist=Math.min(evViewW,evViewH)*0.36;
-  const minDist=35;
+  // Recalc orbits — even distribution, stable (no random per frame)
+  const maxDist=Math.min(evViewW,evViewH)*0.38;
+  const minDist=Math.max(30,14+18);
+  const sortedEv=[...evNodes].sort((a,b)=>(b.stars||0)-(a.stars||0));
+  const totalEv=sortedEv.length;
+  sortedEv.forEach((sn,idx)=>{
+    if(totalEv<=1){sn._eDist=minDist+(maxDist-minDist)*0.4}
+    else{const frac=idx/(totalEv-1);sn._eDist=minDist+(maxDist-minDist)*(0.15+frac*0.85)}
+    if(!sn._stableAngleSet){sn.orbitAngle=((idx/Math.max(1,totalEv))*Math.PI*2)+sn.phase*0.3;sn._stableAngleSet=true}
+  });
   // Orbit rings
-  [.25,.5,.75].forEach(f=>{const rd=minDist+(maxDist-minDist)*f;c.beginPath();c.arc(cx,cy,rd,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.stroke()});
+  const evRingCount=Math.min(3,totalEv);
+  for(let i=0;i<evRingCount;i++){const rf=minDist+(maxDist-minDist)*((i+1)/(evRingCount+1));c.beginPath();c.arc(cx,cy,rf,0,Math.PI*2);c.strokeStyle='rgba(99,102,241,.04)';c.lineWidth=.5;c.stroke()}
   // Update positions
   evNodes.forEach(n=>{
-    n.orbitDist=maxDist-((n.stars||0)/maxStars)*(maxDist-minDist);
+    if(n._eDist!==undefined)n.orbitDist=n._eDist;
     n.orbitAngle+=n.orbitSpeed;
     n.x=cx+Math.cos(n.orbitAngle)*n.orbitDist;
     n.y=cy+Math.sin(n.orbitAngle)*n.orbitDist;
