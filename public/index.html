@@ -11774,255 +11774,167 @@ const VA = (function(){
   if(orbEl) orbObs.observe(orbEl,{attributes:true,attributeFilter:['class']});
 })();
 
-// ═══ GUIDED ONBOARDING — AI-powered first-login tour ═══
-const GuidedOnboarding = (function(){
-  let pc = null, dc = null, audioEl = null, micStream = null;
-  let active = false, busy = false;
-  let currentStep = 0; // 0=not started, 1=welcome/VA, 2=home, 3=encounter, 4=final
-  let waitingForUserAction = false;
-  const $ = id => document.getElementById(id);
+// ═══ GUIDED ONBOARDING — AI-powered first-login tour (v2) ═══
 
-  function setBubble(text, show){
-    const el = $('onbBubbleText');
-    const bubble = $('onbGuideBubble');
-    if(!el||!bubble) return;
-    if(show && text){
-      el.textContent = text;
-      bubble.classList.add('visible');
-    } else {
-      bubble.classList.remove('visible');
-    }
+function showOnbInvite(){
+  const inv=document.getElementById('onbInvite');
+  if(inv) inv.classList.add('active');
+}
+function acceptGuidedOnboarding(){
+  document.getElementById('onbInvite').classList.remove('active');
+  GuidedOnboarding.start();
+}
+function skipGuidedOnboarding(){
+  document.getElementById('onbInvite').classList.remove('active');
+  document.getElementById('onbGuideBubble').classList.remove('visible');
+  document.getElementById('onbHighlight').classList.remove('visible','pulse');
+  const v=document.getElementById('vaOverlay');
+  if(v) v.classList.remove('active','mini');
+  GuidedOnboarding.stop();
+  fetch('/api/agent/onboarding-done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
+  localStorage.setItem('touch_onboarding_done','1');
+}
+
+const GuidedOnboarding=(function(){
+  let pc=null,dc=null,audioEl=null,micStream=null;
+  let active=false,busy=false,step=0,_ft=null;
+  const $=id=>document.getElementById(id);
+
+  function bubble(t){
+    const e=$('onbBubbleText'),b=$('onbGuideBubble');
+    if(!e||!b)return;
+    if(t){e.textContent=t;b.classList.add('visible');}
+    else{b.classList.remove('visible');e.textContent='';}
+  }
+  function hl(sel,pad){
+    const h=$('onbHighlight');if(!h)return;
+    if(!sel){h.classList.remove('visible','pulse');return;}
+    const el=typeof sel==='string'?document.querySelector(sel):sel;
+    if(!el){h.classList.remove('visible','pulse');return;}
+    const r=el.getBoundingClientRect(),p=pad||8;
+    h.style.top=(r.top-p)+'px';h.style.left=(r.left-p)+'px';
+    h.style.width=(r.width+p*2)+'px';h.style.height=(r.height+p*2)+'px';
+    h.classList.add('visible','pulse');
   }
 
-  function highlightElement(selector, padding){
-    const hl = $('onbHighlight');
-    if(!hl) return;
-    if(!selector){ hl.classList.remove('visible','pulse'); return; }
-    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
-    if(!el){ hl.classList.remove('visible','pulse'); return; }
-    const rect = el.getBoundingClientRect();
-    const pad = padding || 8;
-    hl.style.top = (rect.top - pad) + 'px';
-    hl.style.left = (rect.left - pad) + 'px';
-    hl.style.width = (rect.width + pad*2) + 'px';
-    hl.style.height = (rect.height + pad*2) + 'px';
-    hl.classList.add('visible','pulse');
+  function finish(){
+    if(_ft){clearTimeout(_ft);_ft=null;}
+    cleanup();step=0;bubble(null);hl(null);
+    fetch('/api/agent/onboarding-done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
+    localStorage.setItem('touch_onboarding_done','1');
   }
 
-  // ── WebRTC Connection (same pattern as VA but for onboarding) ──
   async function connect(){
-    if(busy || active) return;
-    busy = true;
-    try {
-      const tr = await fetch('/api/agent/onboarding-session', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ userId: state.userId })
-      });
-      if(!tr.ok) throw new Error('Erro servidor');
-      const td = await tr.json();
-      if(!td.client_secret) throw new Error('Token não recebido');
+    if(busy||active)return;
+    busy=true;
+    try{
+      const tr=await fetch('/api/agent/onboarding-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+      if(!tr.ok)throw new Error('srv '+tr.status);
+      const td=await tr.json();
+      if(!td.client_secret)throw new Error('no token');
 
-      pc = new RTCPeerConnection();
-      audioEl = document.createElement('audio');
-      audioEl.autoplay = true;
-      audioEl.playsInline = true;
-      audioEl.style.display = 'none';
+      pc=new RTCPeerConnection();
+      audioEl=document.createElement('audio');
+      audioEl.autoplay=true;audioEl.playsInline=true;audioEl.style.display='none';
       document.body.appendChild(audioEl);
-      pc.ontrack = e => { audioEl.srcObject = e.streams[0]; audioEl.play().catch(()=>{}); };
+      pc.ontrack=e=>{audioEl.srcObject=e.streams[0];audioEl.play().catch(()=>{});};
 
-      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
-      micStream.getTracks().forEach(t => pc.addTrack(t, micStream));
+      // Mic muted — onboarding is one-way voice, user just clicks
+      micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+      micStream.getTracks().forEach(t=>{t.enabled=false;pc.addTrack(t,micStream);});
 
-      dc = pc.createDataChannel('oai-events');
-      dc.onopen = () => {
-        active = true; busy = false;
-        currentStep = 1;
-        // Trigger the agent's opening message (ETAPA 1)
-        dc.send(JSON.stringify({
-          type: 'response.create',
-          response: { modalities: ['audio','text'], instructions: 'Comece a ETAPA 1 — Boas-vindas. Apresente-se e peça pro usuário fechar a tela do assistente tocando no X.' }
-        }));
+      dc=pc.createDataChannel('oai-events');
+      dc.onopen=()=>{
+        active=true;busy=false;step=1;
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Comece a ETAPA 1 — Boas-vindas. Se apresente e peça pro usuário fechar essa tela tocando no X lá em cima pra ver a home.'}}));
       };
-      dc.onmessage = e => { try{ handleOnbEvent(JSON.parse(e.data)); }catch(x){} };
-      dc.onclose = () => { if(active) cleanup(); };
+      dc.onmessage=e=>{try{onEvt(JSON.parse(e.data))}catch(x){}};
+      dc.onclose=()=>{if(active)cleanup();};
 
-      const offer = await pc.createOffer();
+      const offer=await pc.createOffer();
       await pc.setLocalDescription(offer);
-      const sr = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
-        method: 'POST',
-        headers: {'Authorization':'Bearer '+td.client_secret, 'Content-Type':'application/sdp'},
-        body: offer.sdp
-      });
-      if(!sr.ok) throw new Error('SDP fail');
-      await pc.setRemoteDescription({type:'answer', sdp: await sr.text()});
-
-      pc.onconnectionstatechange = () => {
-        if(pc && (pc.connectionState==='disconnected'||pc.connectionState==='failed')) cleanup();
-      };
-    } catch(err){
-      console.error('[Onboarding] connect error:', err);
-      busy = false;
-      cleanup();
+      const sr=await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',{method:'POST',headers:{'Authorization':'Bearer '+td.client_secret,'Content-Type':'application/sdp'},body:offer.sdp});
+      if(!sr.ok)throw new Error('SDP');
+      await pc.setRemoteDescription({type:'answer',sdp:await sr.text()});
+      pc.onconnectionstatechange=()=>{if(pc&&(pc.connectionState==='disconnected'||pc.connectionState==='failed'))cleanup();};
+    }catch(err){
+      console.error('[Onb]',err);busy=false;cleanup();
     }
   }
 
   function cleanup(){
-    active = false; busy = false;
+    active=false;busy=false;
+    if(_ft){clearTimeout(_ft);_ft=null;}
     if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
     if(dc){dc.onopen=null;dc.onclose=null;dc.onmessage=null;}
-    if(dc){try{dc.close()}catch(e){}} dc=null;
-    if(pc){try{pc.close()}catch(e){}} pc=null;
-    if(micStream){try{micStream.getTracks().forEach(t=>t.stop())}catch(e){}} micStream=null;
-    if(audioEl){ audioEl.pause(); audioEl.srcObject=null; if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl); }
-    audioEl=null;
-    setBubble('', false);
-    highlightElement(null);
+    if(dc){try{dc.close()}catch(e){}}dc=null;
+    if(pc){try{pc.close()}catch(e){}}pc=null;
+    if(micStream){try{micStream.getTracks().forEach(t=>t.stop())}catch(e){}}micStream=null;
+    if(audioEl){audioEl.pause();audioEl.srcObject=null;if(audioEl.parentNode)audioEl.parentNode.removeChild(audioEl);}audioEl=null;
   }
 
-  function handleOnbEvent(evt){
+  function onEvt(evt){
     switch(evt.type){
       case 'response.audio_transcript.delta':
-        // Show live transcript in bubble
-        var cur = $('onbBubbleText')?.textContent || '';
-        if(!$('onbGuideBubble').classList.contains('visible')){
-          setBubble(evt.delta || '', true);
-        } else {
-          $('onbBubbleText').textContent = cur + (evt.delta || '');
-        }
+        // Stream transcript into bubble
+        var c=$('onbBubbleText')?.textContent||'';
+        if(!$('onbGuideBubble')?.classList.contains('visible'))bubble(evt.delta||'');
+        else $('onbBubbleText').textContent=c+(evt.delta||'');
         break;
 
       case 'response.audio_transcript.done':
-        // Agent finished talking — now wait for user action based on step
-        waitingForUserAction = true;
-        if(currentStep === 1){
-          // Highlight the VA close button
-          setTimeout(()=>{
-            const vaClose = document.querySelector('.va-close');
-            if(vaClose) highlightElement(vaClose, 12);
-          }, 500);
-        } else if(currentStep === 4){
-          // Final step — finish after agent stops talking
-          setTimeout(()=>{
-            setBubble('', false);
-            highlightElement(null);
-            finishOnboarding();
-          }, 5000);
+        // Agent done talking — highlight next action
+        if(step===1)setTimeout(()=>{const x=document.querySelector('.va-close');if(x)hl(x,12);},400);
+        else if(step===2)setTimeout(()=>hl('#mainBtn',12),400);
+        else if(step===3)setTimeout(()=>{const b=document.querySelector('#encounter .bs');if(b)hl(b,8);},2500);
+        else if(step===4){
+          setTimeout(()=>{const n=document.querySelector('.home-nav');if(n)hl(n,6);},400);
+          _ft=setTimeout(finish,7000);
         }
         break;
 
       case 'response.done':
-        // If step 4 and response fully done, wrap up
-        if(currentStep === 4){
-          setTimeout(()=>{
-            setBubble('', false);
-            highlightElement(null);
-            finishOnboarding();
-          }, 4000);
-        }
+        // Full response done — clear bubble for next step only if not final
+        if(step===4&&!_ft)_ft=setTimeout(finish,5000);
         break;
 
       case 'response.function_call_arguments.done':
-        // Agent called avancar_tour — acknowledge it
-        try {
-          const args = JSON.parse(evt.arguments || '{}');
-          if(evt.name === 'avancar_tour'){
-            if(dc && dc.readyState === 'open'){
-              dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:'OK, esperando ação do usuário.'}}));
-            }
-            // If final step, finish onboarding after a delay
-            if(args.etapa === 'final'){
-              setTimeout(()=>{
-                setBubble('', false);
-                highlightElement(null);
-                finishOnboarding();
-              }, 8000); // give agent time to finish speaking
-            }
+        try{
+          if(evt.name==='avancar_tour'&&dc&&dc.readyState==='open'){
+            dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:'OK'}}));
           }
-        } catch(e){}
+        }catch(e){}
         break;
 
       case 'error':
-        console.error('[Onboarding] error:', evt.error);
+        console.error('[Onb] evt error:',evt.error);
         break;
     }
   }
 
-  // ── Step signals: called by app navigation events ──
-  function signalStep(stepName){
-    if(!active || !dc || dc.readyState !== 'open') return;
-    setBubble('', false);
-    highlightElement(null);
-    waitingForUserAction = false;
-
-    dc.send(JSON.stringify({
-      type: 'conversation.item.create',
-      item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'STEP:' + stepName }] }
-    }));
-    dc.send(JSON.stringify({ type: 'response.create' }));
-
-    // Highlight relevant elements based on step
-    if(stepName === 'HOME_VISIBLE'){
-      currentStep = 2;
-      setTimeout(()=> highlightElement('#mainBtn', 12), 1500);
-    } else if(stepName === 'ENCOUNTER_SCREEN'){
-      currentStep = 3;
-      // Highlight the encounter options area
-      setTimeout(()=>{
-        const backBtn = document.querySelector('#encounter .bs');
-        if(backBtn) setTimeout(()=> highlightElement(backBtn, 8), 3000);
-      }, 500);
-    } else if(stepName === 'BACK_HOME'){
-      currentStep = 4;
-      setTimeout(()=>{
-        // Highlight bottom nav
-        const nav = document.querySelector('.home-nav');
-        if(nav) highlightElement(nav, 6);
-      }, 1500);
-    }
-  }
-
-  function finishOnboarding(){
-    cleanup();
-    currentStep = 0;
-    $('onbSkipBtn').style.display = 'none';
-    // Mark as done on server
-    fetch('/api/agent/onboarding-done', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ userId: state.userId })
-    }).catch(()=>{});
-    localStorage.setItem('touch_onboarding_done','1');
-  }
-
-  return {
+  return{
     start(){
-      // Open VA overlay first (agent will tell user to close it)
       $('vaOverlay').classList.add('active');
-      $('vaMainBtn').style.display = 'none';
-      $('vaStopBtn').style.display = '';
-      $('onbSkipBtn').style.display = '';
-      const orb = $('vaOrb');
-      if(orb){ orb.className = 'va-orb speaking'; }
+      $('vaMainBtn').style.display='none';
+      $('vaStopBtn').style.display='';
+      var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
       connect();
     },
-    signalStep,
-    isActive(){ return active; },
-    currentStep(){ return currentStep; },
-    finish: finishOnboarding,
-    cleanup
+    signalStep(name){
+      if(!active||!dc||dc.readyState!=='open')return;
+      bubble(null);hl(null);
+      if(name==='HOME_VISIBLE')step=2;
+      else if(name==='ENCOUNTER_SCREEN')step=3;
+      else if(name==='BACK_HOME')step=4;
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'STEP:'+name}]}}));
+      dc.send(JSON.stringify({type:'response.create'}));
+    },
+    isActive(){return active;},
+    getStep(){return step;},
+    stop(){cleanup();step=0;},
+    finish
   };
 })();
-
-function skipGuidedOnboarding(){
-  GuidedOnboarding.cleanup();
-  GuidedOnboarding.finish();
-  // Close VA overlay
-  const vaOv = document.getElementById('vaOverlay');
-  if(vaOv) vaOv.classList.remove('active','mini');
-  document.getElementById('onbGuideBubble').classList.remove('visible');
-  document.getElementById('onbHighlight').classList.remove('visible','pulse');
-}
 
 </script>
 
