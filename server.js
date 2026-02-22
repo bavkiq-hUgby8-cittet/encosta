@@ -97,6 +97,14 @@ const adminLimiter = rateLimit({
 app.use(generalLimiter);
 app.use(express.json({ limit: '5mb' }));
 
+// ── DB readiness gate: return 503 for API calls while DB is loading ──
+app.use((req, res, next) => {
+  if (!dbLoaded && req.path.startsWith('/api/')) {
+    return res.status(503).json({ error: 'Servidor iniciando, aguarde...' });
+  }
+  next();
+});
+
 // ── Cache control: no-cache for HTML, cache for assets ──
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {

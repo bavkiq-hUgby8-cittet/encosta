@@ -2248,8 +2248,9 @@ async function linkFirebaseToEncosta(user){
       localStorage.setItem('touch_userColor',state.userColor);
       if(state.email)localStorage.setItem('touch_email',state.email);
       if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
-      // If user still needs to set nickname/birthdate, show register
-      if(!d.user.birthdate){
+      // If user is BRAND NEW (just created, not linked) and needs to set nickname/birthdate, show register
+      // But if user was found/linked to existing account, skip register even if birthdate is missing
+      if(!d.user.birthdate&&!d.linked){
         $('regNick').value=state.userName||'';
         showScreen('register');
         return;
@@ -4145,7 +4146,7 @@ async function createSession(){
   try{
     const r=await fetch('/api/session/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,isServiceTouch:serviceMode})});
     const d=await r.json();
-    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada. Faça login novamente.');localStorage.clear();showScreen('login');return}return showToast(d.error)}
+    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada. Faça login novamente.');localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');localStorage.removeItem('touch_userColor');localStorage.removeItem('touch_userPhoto');localStorage.removeItem('touch_email');state.userId=null;state.userName=null;showScreen('login');return}return showToast(d.error)}
     state.currentSession=d.sessionId;$('sessionCode').textContent=d.code;showPhase('phaseCode');generateQR(d.code);socket.emit('join-session',d.sessionId);
   }catch(e){showToast('Erro ao criar sessão.')}
 }
@@ -4155,7 +4156,7 @@ async function joinSession(){
   try{
     const r=await fetch('/api/session/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,code})});
     const d=await r.json();
-    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada.');localStorage.clear();showScreen('login');return}return showToast(d.error)}
+    if(d.error){if(d.error.includes('inválido')){showToast('Sessão expirada.');localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');localStorage.removeItem('touch_userColor');localStorage.removeItem('touch_userPhoto');localStorage.removeItem('touch_email');state.userId=null;state.userName=null;showScreen('login');return}return showToast(d.error)}
     if(d.relationId){
       state.currentRelation=d;playSound('connect');
       const co=$('connectingOverlay');
@@ -10173,31 +10174,68 @@ document.addEventListener('keyup',e=>{
 // ═══ INIT ═══
 async function validateUser(){
   if(!state.userId)return false;
-  try{
-    const r=await fetch('/api/user/'+state.userId);
-    if(!r.ok){localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');state.userId=null;state.userName=null;return false}
-    return true;
-  }catch(e){return false}
+  // Retry up to 3 times with backoff — server may be restarting after deploy
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const r=await fetch('/api/user/'+state.userId);
+      if(r.ok)return true;
+      // 404 = user not found; 5xx = server error (may be loading)
+      if(r.status>=500||r.status===0){
+        console.warn('[validateUser] Server error (attempt '+(attempt+1)+'/3), retrying...');
+        await new Promise(ok=>setTimeout(ok,1500*(attempt+1)));
+        continue;
+      }
+      // 404 specifically — user genuinely not found, but try once more to be safe
+      if(r.status===404&&attempt<2){
+        console.warn('[validateUser] 404 (attempt '+(attempt+1)+'/3), retrying...');
+        await new Promise(ok=>setTimeout(ok,2000));
+        continue;
+      }
+      // After retries, truly not found
+      console.warn('[validateUser] User not found after retries');
+      localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');
+      state.userId=null;state.userName=null;return false;
+    }catch(e){
+      console.warn('[validateUser] Network error (attempt '+(attempt+1)+'/3):',e.message);
+      if(attempt<2){await new Promise(ok=>setTimeout(ok,2000*(attempt+1)));continue}
+      // Network totally down — don't clear localStorage, assume offline
+      console.warn('[validateUser] All retries failed, assuming offline');
+      return false;
+    }
+  }
+  return false;
 }
 window.addEventListener('load',()=>{
   applyLang();
   const qr=new URLSearchParams(location.search).get('code');
   setTimeout(async()=>{
-    if(state.userId&&await validateUser()){
-      initSocket();requestAccelPermission();
-      // Set home avatar
-      const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
-      if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
-      else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
-      refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
-    }else{
-      // Show onboarding for first-time users, login for returning
-      if(!localStorage.getItem('touch_onboarded')){
-        initOnboarding();
-        showScreen('onboarding');
+    if(state.userId){
+      const valid=await validateUser();
+      if(valid){
+        initSocket();requestAccelPermission();
+        // Set home avatar
+        const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
+        if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
+        else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
+        refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
+      }else if(state.userId){
+        // validateUser failed but userId still exists (network error, server restarting)
+        // Still show home with cached data — socket will reconnect when server is back
+        console.log('[load] validateUser failed but userId preserved, showing home with cached data');
+        initSocket();requestAccelPermission();
+        const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
+        showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName||'')+'</span>';
+        showToast('Reconectando ao servidor...');
+        refreshHome();restoreFloatingEvent();
       }else{
-        showScreen('login');
+        // userId was cleared = genuinely invalid user
+        if(!localStorage.getItem('touch_onboarded')){initOnboarding();showScreen('onboarding')}
+        else{showScreen('login')}
       }
+    }else{
+      // No userId at all — show onboarding or login
+      if(!localStorage.getItem('touch_onboarded')){initOnboarding();showScreen('onboarding')}
+      else{showScreen('login')}
     }
   },1800);
 });
