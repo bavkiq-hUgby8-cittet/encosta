@@ -2742,7 +2742,10 @@ app.post('/api/identity/reveal', (req, res) => {
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
-  if (!user.realName && !user.profilePhoto && !user.photoURL) return res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' });
+  // Require at least realName to reveal identity
+  if (!user.realName || !user.realName.trim()) {
+    return res.status(400).json({ error: 'Preencha seu nome real no perfil antes de se revelar. Vá em Perfil e adicione seu nome.' });
+  }
   let rel = findActiveRelation(userId, targetUserId);
   if (!rel) {
     const enc = (db.encounters[userId] || []).find(e => e.with === targetUserId);
@@ -2755,8 +2758,9 @@ app.post('/api/identity/reveal', (req, res) => {
   if (!target.canSee) target.canSee = {};
   const userPhoto = user.profilePhoto || user.photoURL || null;
   target.canSee[userId] = {
-    realName: user.realName || '', profilePhoto: userPhoto,
+    nickname: user.nickname || '', realName: user.realName || '', profilePhoto: userPhoto,
     instagram: user.instagram || '', bio: user.bio || '',
+    phone: (user.privacy && user.privacy.phone) ? (user.phone || '') : '',
     revealedAt: Date.now()
   };
   if (!user.revealedTo) user.revealedTo = [];
