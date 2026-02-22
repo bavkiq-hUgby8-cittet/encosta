@@ -433,10 +433,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Sub */
 .rv-sub{font-size:.58rem;color:rgba(255,255,255,.18);opacity:0;animation:rv-fi .8s ease 5.5s forwards;font-weight:300;letter-spacing:.06em}
 /* Encounter counter — big number below nicknames */
-.rv-encounter-count{opacity:0;animation:rv-fi .8s cubic-bezier(.22,1,.36,1) 4.2s forwards;display:flex;flex-direction:column;align-items:center;gap:.1rem;margin-top:.2rem}
-.rv-ec-num{font-size:2.2rem;font-weight:800;color:rgba(255,255,255,.9);letter-spacing:-.04em;line-height:1;text-shadow:0 0 30px rgba(255,107,53,.3)}
-.rv-ec-label{font-size:.55rem;color:rgba(255,255,255,.25);letter-spacing:.15em;text-transform:uppercase;font-weight:600}
-.rv-ec-num.first{color:var(--ac);text-shadow:0 0 30px rgba(255,107,53,.4)}
 .rv-line{display:none}
 /* Renewed + last */
 .rv-renewed{font-size:.62rem;color:rgba(255,107,53,.5);opacity:0;animation:rv-fi .6s ease 4.8s forwards;letter-spacing:.1em}
@@ -1130,6 +1126,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Text */
 .co-text{position:absolute;top:60%;left:50%;transform:translateX(-50%);z-index:6;font-family:'Orbitron',sans-serif;font-size:.58rem;font-weight:500;letter-spacing:.4em;text-transform:uppercase;opacity:0;color:rgba(160,210,255,.5);animation:co-text-in 1.5s ease 1.2s forwards;white-space:nowrap}
 .co-nick{position:absolute;bottom:12%;left:50%;transform:translateX(-50%) translateY(60px);z-index:7;font-family:'Orbitron',sans-serif;font-size:clamp(.95rem,4.5vw,1.8rem);font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:0;white-space:nowrap;pointer-events:none;padding:.4em 1em;border-radius:2em;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.06);box-shadow:0 0 30px rgba(100,180,255,.08),inset 0 0 20px rgba(100,180,255,.03);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:co-nick-in 2.5s ease 0.6s forwards}
+.co-encounter-count{position:absolute;bottom:4%;left:50%;transform:translateX(-50%);z-index:7;font-family:'Orbitron',sans-serif;font-size:clamp(1.6rem,6vw,2.8rem);font-weight:900;letter-spacing:.08em;opacity:0;white-space:nowrap;pointer-events:none;text-shadow:0 0 30px rgba(255,107,53,.3);animation:co-enc-in 1.8s ease 1.2s forwards}
+.co-encounter-count .co-ec-label{display:block;font-size:.5rem;font-weight:500;letter-spacing:.25em;text-transform:uppercase;opacity:.35;margin-top:.1rem}
+.connecting-overlay.first .co-encounter-count{color:rgba(255,160,80,.9)}
+.connecting-overlay.renewed .co-encounter-count{color:rgba(180,210,240,.8)}
+@keyframes co-enc-in{0%{opacity:0;transform:translateX(-50%) translateY(30px);filter:blur(8px)}50%{opacity:1;filter:blur(0)}100%{opacity:1;transform:translateX(-50%) translateY(0);filter:blur(0)}}
 .connecting-overlay.first .co-nick{color:rgba(255,160,80,.85);border-color:rgba(255,130,50,.12);box-shadow:0 0 30px rgba(255,130,50,.1),inset 0 0 20px rgba(255,130,50,.04);text-shadow:0 0 20px rgba(255,130,50,.4)}
 .connecting-overlay.renewed .co-nick{color:rgba(180,210,240,.8);border-color:rgba(150,200,255,.1);box-shadow:0 0 30px rgba(150,200,255,.08),inset 0 0 20px rgba(150,200,255,.03);text-shadow:0 0 20px rgba(150,200,255,.3)}
 @keyframes co-nick-in{0%{opacity:0;transform:translateX(-50%) translateY(60px);letter-spacing:.4em;filter:blur(12px)}30%{opacity:1;transform:translateX(-50%) translateY(10px);filter:blur(2px)}60%{letter-spacing:.15em;transform:translateX(-50%) translateY(-2px);filter:blur(0)}100%{opacity:1;letter-spacing:.12em;transform:translateX(-50%) translateY(0);filter:blur(0)}}
@@ -1169,6 +1170,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <canvas class="co-canvas-el" id="coCanvas"></canvas>
   <div class="co-flash" id="coFlash"></div>
   <div class="co-nick" id="coNick"></div>
+  <div class="co-encounter-count" id="coEncounterCount" style="display:none"></div>
   <div class="co-brand">Touch?</div>
   <div class="co-text" id="coText">estabelecendo conexões...</div>
   <div class="co-progress"><div class="co-progress-bar"></div></div>
@@ -1466,10 +1468,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
           <div class="rv-avatar-inner" id="rvAvatarThemInner"></div>
           <div class="rv-avatar-name" id="rvNameThem"></div>
         </div>
-      </div>
-      <div class="rv-encounter-count hidden" id="rvEncounterCount">
-        <div class="rv-ec-num" id="rvEcNum">1x</div>
-        <div class="rv-ec-label">encontro</div>
       </div>
       <div class="rv-renewed hidden" id="revealRenewed">vocês se encontraram de novo</div>
       <div class="rv-last hidden" id="revealLast"></div>
@@ -2818,11 +2816,19 @@ function initSocket(){
       const partnerData=meIsA?d.userB:d.userA;
       const partnerNick=partnerData?(partnerData.nickname||partnerData.name||''):'';
       startElectricTouch(isRenewed,isQuick?'':partnerNick);
+      // Show encounter counter on LED
+      const coEc=$('coEncounterCount');
+      if(coEc&&d.encounterCount&&!isQuick){
+        const cnt=d.encounterCount;
+        coEc.innerHTML=cnt+'x<span class="co-ec-label">'+(cnt===1?'encontro':'encontros')+'</span>';
+        coEc.style.display='';
+      }else if(coEc){coEc.style.display='none'}
       haptic(isQuick?[60,20,60,20,100]:[80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
       setTimeout(()=>{
         stopElectricTouch();
         if(navigator.vibrate)navigator.vibrate(0);
         co.classList.remove('active','first','renewed');
+        if(coEc)coEc.style.display='none';
         showScreen('reveal');doReveal(d);
       },isQuick?2500:4200);
     }else{
@@ -4145,8 +4151,10 @@ async function joinSession(){
         const _meA2=d.userA&&d.userA.id===state.userId;
         const _p2=_meA2?d.userB:d.userA;
         startElectricTouch(!!d.renewed,isQ2?'':(_p2?(_p2.nickname||_p2.name||''):''));
+        var coEc2=$('coEncounterCount');
+        if(coEc2&&d.encounterCount&&!isQ2){var cnt2=d.encounterCount;coEc2.innerHTML=cnt2+'x<span class="co-ec-label">'+(cnt2===1?'encontro':'encontros')+'</span>';coEc2.style.display=''}else if(coEc2){coEc2.style.display='none'}
         haptic(isQ2?[60,20,60,20,100]:[80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
-        setTimeout(()=>{stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);co.classList.remove('active','first','renewed');showScreen('reveal');doReveal(d)},isQ2?1800:4200);
+        setTimeout(()=>{stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);co.classList.remove('active','first','renewed');if(coEc2)coEc2.style.display='none';showScreen('reveal');doReveal(d)},isQ2?1800:4200);
       }else{showScreen('reveal');doReveal(d)}
     }
   }catch(e){showToast('Código inválido ou expirado.')}
@@ -4727,7 +4735,6 @@ function doReveal(data){
     if(subEl)subEl.style.display='none';
     zodiacArea.classList.add('hidden');zodiacArea.innerHTML='';
     $('revealRenewed').classList.add('hidden');
-    if($('rvEncounterCount'))$('rvEncounterCount').classList.add('hidden');
     lastEl.classList.add('hidden');
     startRevealLight('#34d399');
   }else if(isCheckin){
@@ -4747,7 +4754,6 @@ function doReveal(data){
     if(subEl)subEl.style.display='none';
     zodiacArea.classList.add('hidden');zodiacArea.innerHTML='';
     $('revealRenewed').classList.add('hidden');
-    if($('rvEncounterCount'))$('rvEncounterCount').classList.add('hidden');
     lastEl.classList.add('hidden');
     startRevealLight('#60a5fa');
   }else{
@@ -4767,15 +4773,7 @@ function doReveal(data){
     if(subEl)subEl.style.display='';
     // 3. Renewed
     data.renewed?$('revealRenewed').classList.remove('hidden'):$('revealRenewed').classList.add('hidden');
-    // 3b. Encounter counter — big number
-    const ecEl=$('rvEncounterCount');const ecNum=$('rvEcNum');const ecLbl=ecEl?ecEl.querySelector('.rv-ec-label'):null;
-    if(ecEl&&ecNum){
-      const cnt=data.encounterCount||1;
-      ecNum.textContent=cnt+'x';
-      if(ecLbl)ecLbl.textContent=cnt===1?'encontro':'encontros';
-      if(cnt===1)ecNum.classList.add('first');else ecNum.classList.remove('first');
-      ecEl.classList.remove('hidden');
-    }
+    // Encounter counter moved to connecting overlay (LED screen)
     // 4. Last encounter
     if(data.lastEncounter){
       const ago=Date.now()-data.lastEncounter.timestamp;
@@ -6518,7 +6516,8 @@ function showConstDetail(node){
   const aliasEl=$('cdAlias');
   let aliasParts=[];
   if(theyRevealed&&node.realName&&node.realName!==node.nickname)aliasParts.push('@'+node.nickname);
-  if(node.isPrestador&&node.serviceLabel)aliasParts.push(node.serviceLabel);
+  if(node.profession)aliasParts.push(node.profession);
+  else if(node.isPrestador&&node.serviceLabel)aliasParts.push(node.serviceLabel);
   aliasEl.textContent=aliasParts.join(' · ');
   aliasEl.style.display=aliasParts.length?'':'none';
   // Inline stats — single clean line, no emojis
