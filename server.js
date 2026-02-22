@@ -318,7 +318,14 @@ async function loadDB() {
       }
     }
     dbLoaded = true;
+    // Initialize corruption guard counts
+    DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
+    console.log('🛡️ Corruption guard initialized:', JSON.stringify(_lastKnownCounts));
     initRegistrationCounter();
+    // Auto-backup on startup (async, don't block)
+    if (Object.keys(db.users).length > 0) {
+      createBackup('auto:server-start').catch(e => console.warn('Startup backup failed:', e.message));
+    }
   } catch (e) {
     console.error('❌ Erro ao carregar DB:', e.message);
     console.log('🔄 Usando fallback local...');
@@ -335,6 +342,7 @@ async function loadDB() {
       console.error('❌ Fallback db.json também falhou:', e2.message);
     }
     dbLoaded = true;
+    DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
     initRegistrationCounter();
   }
 }
@@ -588,15 +596,42 @@ function ensureTop1Perks() {
 // ── Dirty tracking: only write changed collections to RTDB ──
 const _dirtyCollections = new Set();
 
+// Track known counts to detect corruption (empty overwrite)
+const _lastKnownCounts = {};
+
 async function flushToRTDB() {
   saveTimer = null;
   const cols = [..._dirtyCollections];
   _dirtyCollections.clear();
   if (!cols.length) return;
+  // Safety: don't flush if DB isn't loaded yet
+  if (!dbLoaded) {
+    console.warn('⚠️ flushToRTDB() called before dbLoaded — ABORTING');
+    cols.forEach(c => _dirtyCollections.add(c));
+    return;
+  }
   try {
     const updates = {};
-    cols.forEach(c => { updates[c] = db[c] || {}; });
-    await withTimeout(rtdb.ref('/').update(updates), 15000, 'RTDB flush');
+    const CRITICAL_COLLECTIONS = ['users', 'relations', 'encounters', 'messages'];
+    cols.forEach(c => {
+      const data = db[c] || {};
+      const count = Object.keys(data).length;
+      const lastCount = _lastKnownCounts[c] || 0;
+      // Safety check: if a critical collection went from many entries to zero, SKIP it
+      if (CRITICAL_COLLECTIONS.includes(c) && count === 0 && lastCount > 5) {
+        console.error('🚨 CORRUPTION GUARD: collection "' + c + '" went from ' + lastCount + ' to 0 entries — SKIPPING write to protect data');
+        return;
+      }
+      // Safety check: if critical collection lost >50% of entries in one flush, warn but still save
+      if (CRITICAL_COLLECTIONS.includes(c) && lastCount > 10 && count < lastCount * 0.5) {
+        console.warn('⚠️ WARNING: collection "' + c + '" dropped from ' + lastCount + ' to ' + count + ' entries — saving but check for issues');
+      }
+      updates[c] = data;
+      _lastKnownCounts[c] = count;
+    });
+    if (Object.keys(updates).length > 0) {
+      await withTimeout(rtdb.ref('/').update(updates), 15000, 'RTDB flush');
+    }
   } catch (e) {
     console.error('❌ RTDB save error:', e.message);
     // Re-add failed collections for retry
@@ -706,6 +741,11 @@ async function restoreBackup(backupId) {
 // Call with collection names: saveDB('users','relations')
 // Call with no args: marks ALL collections dirty (legacy fallback)
 function saveDB(...collections) {
+  // CRITICAL: Never save before DB is loaded — would overwrite real data with empty objects
+  if (!dbLoaded) {
+    console.warn('⚠️ saveDB() called before dbLoaded — IGNORING to prevent data loss. Collections:', collections.join(','));
+    return;
+  }
   if (collections.length === 0) {
     // Legacy: mark all dirty
     DB_COLLECTIONS.forEach(c => _dirtyCollections.add(c));
@@ -4519,12 +4559,14 @@ io.on('connection', (socket) => {
 
   socket.on('identify', (userId) => {
     currentUserId = userId;
+    socket.touchUserId = userId;
     socket.join(`user:${userId}`);
   });
 
   socket.on('join-session', (sessionId) => { socket.join(`session:${sessionId}`); });
 
   socket.on('send-message', ({ relationId, userId, text }) => {
+    if (!dbLoaded) return; // Guard: DB not ready
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const msg = { id: uuidv4(), userId, text, timestamp: Date.now() };
@@ -4536,6 +4578,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('typing', ({ relationId, userId }) => {
+    if (!dbLoaded) return;
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
@@ -4544,6 +4587,7 @@ io.on('connection', (socket) => {
 
   // Pulse — silent vibration to partner
   socket.on('pulse', ({ relationId, userId }) => {
+    if (!dbLoaded) return;
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
@@ -4552,6 +4596,7 @@ io.on('connection', (socket) => {
 
   // Ephemeral message — persisted so recipient sees when opening chat
   socket.on('send-ephemeral', ({ relationId, userId, text }) => {
+    if (!dbLoaded) return;
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const msg = { id: uuidv4(), userId, text, type: 'ephemeral', timestamp: Date.now() };
@@ -4565,6 +4610,7 @@ io.on('connection', (socket) => {
 
   // Photo message
   socket.on('send-photo', ({ relationId, userId, photoData }) => {
+    if (!dbLoaded) return;
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const msg = { id: uuidv4(), userId, type: 'photo', photoData, timestamp: Date.now() };
@@ -4577,6 +4623,7 @@ io.on('connection', (socket) => {
 
   // Sonic connection — ultrasonic frequency matching
   socket.on('sonic-start', ({ userId, isCheckin, isServiceTouch, eventId }) => {
+    if (!dbLoaded) return;
     if (!userId || !db.users[userId]) return;
     const freq = assignSonicFreq();
     // For checkin operators, use eventId as sonicQueue key to avoid overwriting phone's entry
@@ -4589,6 +4636,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sonic-detected', ({ userId, detectedFreq }) => {
+    if (!dbLoaded) return;
     if (!userId || !db.users[userId]) return;
     const emitter = findSonicUserByFreq(detectedFreq);
     console.log('[sonic-detected] user:', userId?.slice(0,12), 'detected freq:', detectedFreq, '→ emitter:', emitter ? emitter.userId?.slice(0,12) : 'NOT FOUND', '| queue:', Object.keys(sonicQueue).map(k => k.slice(0,12)+'..freq:'+sonicQueue[k].freq).join(', '));
@@ -4623,7 +4671,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('game-move', ({ sessionId, userId, move }) => {
-    if (!sessionId || !userId) return;
+    if (!dbLoaded || !sessionId || !userId) return;
     const gs = db.gameSessions[sessionId];
     if (!gs) return;
     // Forward move to other player(s) in the session
@@ -4638,7 +4686,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('game-surrender', ({ sessionId, userId }) => {
-    if (!sessionId || !userId) return;
+    if (!dbLoaded || !sessionId || !userId) return;
     const gs = db.gameSessions[sessionId];
     if (!gs) return;
     gs.status = 'finished';
@@ -4654,7 +4702,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('game-accept', ({ sessionId, userId }) => {
-    if (!sessionId || !userId) return;
+    if (!dbLoaded || !sessionId || !userId) return;
     const gs = db.gameSessions[sessionId];
     if (!gs) return;
     gs.status = 'playing';
@@ -4668,7 +4716,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('game-decline', ({ sessionId, userId }) => {
-    if (!sessionId || !userId) return;
+    if (!dbLoaded || !sessionId || !userId) return;
     const gs = db.gameSessions[sessionId];
     if (!gs) return;
     gs.status = 'declined';
