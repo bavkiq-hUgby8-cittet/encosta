@@ -4098,6 +4098,13 @@ let homeSonicActive=false;
 let _sonicWasActive=false; // track if sonic was running before background/disconnect
 async function handleMainButton(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
+  // ── During guided onboarding: just show encounter screen, NO sonic/audio ──
+  if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
+    haptic([40]);
+    showScreen('encounter');
+    showPhase('phaseChoose');
+    return;
+  }
   if(homeSonicActive){stopHomeSonic();return}
   if(!socket){showToast('Sem conexão. Aguarde...');return}
 
