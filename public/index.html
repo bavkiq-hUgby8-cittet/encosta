@@ -1416,6 +1416,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="home-bottom">
     <div class="home-nav">
       <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
+      <button class="hn-btn" onclick="VA.open()" style="color:#a78bfa"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span><span class="hn-lbl" style="color:#a78bfa">AI</span></button>
       <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="hn-lbl">Tutorial</span></button>
     </div>
     <div class="home-brand-row">
@@ -10964,7 +10965,9 @@ const VA = (function(){
         throw new Error(err.error || 'Servidor não disponível');
       }
 
-      const { client_secret } = await tokenResp.json();
+      const tokenData = await tokenResp.json();
+      const client_secret = tokenData.client_secret;
+      const serverGreeting = tokenData.greeting;
       if (!client_secret) throw new Error('Token não recebido');
 
       // 2. Create RTCPeerConnection
@@ -10984,10 +10987,12 @@ const VA = (function(){
       dc.onopen = () => {
         isConnected = true;
         isActive = true;
-        setStatus('Fale agora — estou ouvindo');
-        setOrb('listening');
+        setOrb('speaking');
+        setStatus('');
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
+        // Auto-greet: make the agent speak the personalized greeting
+        dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'], instructions: 'Fale a saudação inicial que está nas suas instruções. Seja natural e animado. Use as informações reais das conexões do usuário.' } }));
       };
 
       dc.onmessage = e => {
@@ -11149,6 +11154,8 @@ const VA = (function(){
   return {
     open(){
       $('vaOverlay').classList.add('active');
+      // Auto-connect voice when opening
+      if(!isActive) connectWebRTC();
     },
     close(){
       $('vaOverlay').classList.remove('active');

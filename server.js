@@ -5969,16 +5969,114 @@ app.post('/api/subscription/cancel', async (req, res) => {
   }
 });
 
-// ═══ VOICE AGENT — OpenAI Realtime (WebRTC) + Groq/OpenAI text fallback ═══
+// ═══ VOICE AGENT — OpenAI Realtime (WebRTC) + text fallback ═══
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-if (!OPENAI_API_KEY && !GROQ_API_KEY) console.warn('⚠️ Nenhuma API key de agente configurada! Configure OPENAI_API_KEY (voz tempo real) ou GROQ_API_KEY (texto) nas variáveis de ambiente.');
+if (!OPENAI_API_KEY && !GROQ_API_KEY) console.warn('⚠️ Nenhuma API key de agente configurada! Configure OPENAI_API_KEY (voz tempo real) ou GROQ_API_KEY (texto).');
 
-// Ephemeral token — browser connects to OpenAI via WebRTC
+// Build user context for the agent (connections, stars, events, etc.)
+function buildUserContext(userId) {
+  const user = db.users[userId];
+  if (!user) return { userName: 'amigo', context: 'Usuário não encontrado.' };
+
+  const userName = user.name || user.nickname || 'amigo';
+  const encounters = db.encounters[userId] || [];
+  const now = Date.now();
+  const h24 = 24 * 60 * 60 * 1000;
+
+  // Unique connections (people, not events)
+  const connectionMap = {};
+  encounters.filter(e => !e.isEvent && !(e.with||'').startsWith('evt:')).forEach(e => {
+    if (!connectionMap[e.with]) connectionMap[e.with] = { name: e.withName, count: 0, lastDate: '', lastPhrase: '' };
+    connectionMap[e.with].count++;
+    if (e.timestamp > (connectionMap[e.with].ts || 0)) {
+      connectionMap[e.with].lastDate = e.date;
+      connectionMap[e.with].lastPhrase = e.phrase;
+      connectionMap[e.with].ts = e.timestamp;
+    }
+  });
+
+  const connections = Object.entries(connectionMap)
+    .sort((a,b) => b[1].count - a[1].count)
+    .slice(0, 15)
+    .map(([id, c]) => {
+      const u2 = db.users[id];
+      const stars = (u2?.stars || []).length;
+      const isRevealed = user.canSee?.[id]?.name ? true : false;
+      const realName = isRevealed ? (u2?.name || c.name) : null;
+      return `- ${c.name}${realName && realName !== c.name ? ' ('+realName+')' : ''}: ${c.count} encontro(s), último ${c.lastDate}${stars ? ', '+stars+' estrela(s)' : ''}${isRevealed ? ' [revelado]' : ' [anônimo]'}`;
+    });
+
+  // Stars
+  const userStars = (user.stars || []).length;
+  const recentStars = (user.stars || []).filter(s => now - s.timestamp < 7 * 24 * h24);
+  const starsFromWho = recentStars.map(s => {
+    const from = db.users[s.from];
+    return from?.nickname || from?.name || 'alguém';
+  });
+
+  // Likes
+  const likesCount = user.likesCount || 0;
+  const recentLikers = (user.likedBy || []).slice(-5).map(id => {
+    const u2 = db.users[id];
+    return u2?.nickname || u2?.name || 'alguém';
+  });
+
+  // Active events
+  const activeEvents = Object.values(db.operatorEvents || {}).filter(e => e.active);
+  const userEvents = encounters.filter(e => e.isEvent).map(e => e.withName).filter((v,i,a) => a.indexOf(v) === i).slice(0, 5);
+
+  // Points & rank
+  const topTag = user.topTag;
+  const points = user.points || 0;
+
+  // Recent encounters (last 48h)
+  const recent48h = encounters.filter(e => now - e.timestamp < 2 * h24 && !e.isEvent)
+    .sort((a,b) => b.timestamp - a.timestamp)
+    .slice(0, 5)
+    .map(e => `${e.withName} (${new Date(e.timestamp).toLocaleString('pt-BR', {hour:'2-digit',minute:'2-digit'})})`);
+
+  // Build greeting
+  let greeting = `E aí, ${userName}! Eu sou o Touch, seu assistente pessoal.`;
+  if (recent48h.length > 0) {
+    greeting += ` Vi que você encontrou ${recent48h[0]} recentemente!`;
+  }
+  if (recentStars.length > 0) {
+    greeting += ` ${starsFromWho[0]} te deu uma estrela essa semana!`;
+  } else if (userStars > 0) {
+    greeting += ` Você tem ${userStars} estrela${userStars > 1 ? 's' : ''} no total.`;
+  }
+  if (connections.length > 0) {
+    greeting += ` Tô por dentro de tudo que rola na sua rede. Me conta, o que você quer saber?`;
+  } else {
+    greeting += ` Sua rede tá começando — encontre pessoas pra eu te contar as novidades!`;
+  }
+
+  const context = `
+DADOS DO USUÁRIO ${userName}:
+- Nome: ${userName}, Apelido: ${user.nickname}
+- Pontos: ${points}, Estrelas: ${userStars}, Tag: ${topTag || 'nenhuma'}
+- Curtidas recebidas: ${likesCount}${recentLikers.length ? ' (recentes: ' + recentLikers.join(', ') + ')' : ''}
+- Total de conexões únicas: ${Object.keys(connectionMap).length}
+${recent48h.length ? '- Encontros recentes (48h): ' + recent48h.join(', ') : '- Sem encontros nas últimas 48h'}
+${userEvents.length ? '- Eventos participados: ' + userEvents.join(', ') : ''}
+
+CONEXÕES (top 15):
+${connections.length ? connections.join('\n') : '- Nenhuma conexão ainda'}
+
+${recentStars.length ? 'ESTRELAS RECENTES (7 dias): ' + starsFromWho.join(', ') + ' deram estrela' : ''}
+${activeEvents.length ? 'EVENTOS ATIVOS AGORA: ' + activeEvents.map(e => e.name).join(', ') : ''}
+`.trim();
+
+  return { userName, context, greeting };
+}
+
+// Ephemeral token — browser connects to OpenAI Realtime via WebRTC
 app.post('/api/agent/session', async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
   const { userId } = req.body;
-  const userName = db.users[userId]?.name || 'amigo';
+  const { userName, context, greeting } = buildUserContext(userId);
+
   try {
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
@@ -5987,25 +6085,54 @@ app.post('/api/agent/session', async (req, res) => {
         model: 'gpt-4o-realtime-preview',
         voice: 'shimmer',
         modalities: ['audio', 'text'],
-        instructions: `Você é o assistente de voz do Touch?, um app social de encontros presenciais. Seu nome é "Touch". Amigável, inteligente, fala português brasileiro natural e rápido. Ajuda com TUDO: saúde, trabalho, amigos, família, relacionamentos, curiosidades, cultura, tecnologia. O usuário se chama ${userName}. Respostas curtas e diretas, tom descontraído. NUNCA invente info médica/jurídica. Humor leve quando apropriado.`,
+        instructions: `Você é "Touch", o assistente de voz pessoal do app Touch? — uma rede social onde conexões só acontecem presencialmente. Você é o melhor amigo inteligente do usuário dentro do app.
+
+PERSONALIDADE:
+- Fala português brasileiro, natural, rápido e descontraído
+- Tom de amigo próximo que sabe tudo da vida social da pessoa
+- Pode fofocar sobre quem tá curtindo quem, quem ganhou estrela, quem encontrou quem
+- Respostas CURTAS (1-3 frases) — é uma conversa, não um monólogo
+- Humor leve, faz piadas sobre as conexões quando cabe
+- Usa gírias e expressões naturais do pt-BR
+
+O QUE VOCÊ SABE E PODE FALAR:
+- Tudo sobre as conexões do usuário (quem conheceu, quantas vezes, quando)
+- Estrelas (quem deu, quem recebeu, ranking)
+- Curtidas e quem tá interessado
+- Eventos e o que rolou neles
+- Dicas de quem tá perto, quem o usuário deveria reencontrar
+- Fofocas leves sobre a rede (ex: "fulano tá com bastante estrela hein")
+- Conselhos sobre relacionamentos, amizades, vida social
+- Como usar o app (funcionalidades, dicas)
+
+O QUE VOCÊ NÃO DEVE FAZER:
+- Inventar informações que não estão nos dados
+- Dar diagnósticos médicos ou conselhos jurídicos (sugira profissional)
+- Revelar dados sensíveis (telefone, email) de outros usuários
+- Falar de pessoas que não estão nas conexões do usuário
+
+${context}
+
+SAUDAÇÃO INICIAL (fale isso quando a conversa começar):
+"${greeting}"`,
         turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 500 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
-    if (!r.ok) { const e = await r.text(); console.error('OpenAI session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão OpenAI' }); }
+    if (!r.ok) { const e = await r.text(); console.error('OpenAI session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at });
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
-// Text fallback (Groq or OpenAI chat completions)
+// Text fallback (Groq or OpenAI chat)
 app.post('/api/agent/chat', async (req, res) => {
   const apiKey = GROQ_API_KEY || OPENAI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'Nenhuma API key configurada.' });
   const { messages, userId } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages é obrigatório' });
-  const userName = db.users[userId]?.name || 'amigo';
-  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch?. Amigável, pt-BR, respostas curtas (1-3 frases). Usuário: ${userName}.` };
+  const { userName, context } = buildUserContext(userId);
+  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch?. Amigo próximo, pt-BR, respostas curtas. Sabe tudo da rede social do usuário.\n\n${context}` };
   const isGroq = !!GROQ_API_KEY;
   const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
   const model = isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
