@@ -302,7 +302,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 #chat .cms{-webkit-user-select:none;user-select:none}
 /* ═══ TOUCHGAMES — Microservice (UI at /games/index.html) ═══ */
 /* Chat Game Invite Message — stays in main app for chat rendering */
-.chat-game-invite{padding:.6rem;background:rgba(255,107,53,.04);border:1px solid rgba(255,107,53,.12);border-radius:14px;margin:.3rem 0}
+.chat-game-invite{padding:.6rem;background:rgba(255,107,53,.04);border:1px solid rgba(255,107,53,.12);border-radius:14px;margin:.3rem 0;position:relative;overflow:hidden}
 .chat-game-invite .cgi-row{display:flex;align-items:center;gap:.6rem}
 .chat-game-invite .cgi-icon{width:36px;height:36px;background:rgba(255,107,53,.08);border-radius:10px;padding:6px;color:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .chat-game-invite .cgi-icon svg{width:100%;height:100%}
@@ -313,6 +313,23 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .chat-game-invite .cgi-btn{padding:.4rem .8rem;border-radius:10px;border:none;font-family:inherit;font-size:.65rem;font-weight:700;cursor:pointer}
 .chat-game-invite .cgi-btn.accept{background:var(--ac);color:#fff}
 .chat-game-invite .cgi-btn.decline{background:rgba(255,255,255,.06);color:var(--t2)}
+.chat-game-invite .cgi-timer{position:absolute;bottom:0;left:0;height:3px;background:var(--ac);border-radius:0 2px 0 0;transition:width 1s linear}
+.chat-game-invite .cgi-expired{text-align:center;padding:.4rem;font-size:.6rem;color:var(--t3)}
+/* Game Ready Check Modal */
+.game-ready-overlay{position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+.game-ready-box{background:var(--c2);border-radius:20px;padding:1.5rem;width:85%;max-width:320px;text-align:center}
+.game-ready-box .grb-title{font-size:1rem;font-weight:800;color:var(--t1);margin-bottom:.3rem}
+.game-ready-box .grb-game{font-size:.75rem;color:var(--ac);margin-bottom:1rem}
+.game-ready-box .grb-players{display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:1rem}
+.game-ready-box .grb-player{text-align:center}
+.game-ready-box .grb-avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:1rem;margin:0 auto .3rem}
+.game-ready-box .grb-nick{font-size:.65rem;color:var(--t2)}
+.game-ready-box .grb-status{font-size:.55rem;margin-top:.15rem}
+.game-ready-box .grb-vs{font-size:1.2rem;font-weight:900;color:var(--ac)}
+.game-ready-box .grb-actions{display:flex;gap:.5rem;justify-content:center}
+.game-ready-box .grb-btn{padding:.5rem 1.2rem;border-radius:12px;border:none;font-family:inherit;font-size:.7rem;font-weight:700;cursor:pointer}
+.game-ready-box .grb-btn.go{background:var(--ac);color:#fff}
+.game-ready-box .grb-btn.nope{background:rgba(255,255,255,.06);color:var(--t2)}
 /* TouchGames fullscreen iframe */
 .tg-frame{position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column}
 .tg-frame.visible{display:flex}
@@ -5505,18 +5522,31 @@ function appendMessage(msg){
   if(giMatch){
     const gId=giMatch[1],sessId=giMatch[2],gName=giMatch[3],gIcon=giMatch[4]||'';
     div.className='msg '+(msg.userId===state.userId?'mine':'theirs');
+    div.setAttribute('data-invite-session',sessId);
     const isMine=msg.userId===state.userId;
-    let html='<div class="chat-game-invite"><div class="cgi-row">';
-    if(gIcon)html+='<div class="cgi-icon">'+gIcon+'</div>';
-    else html+='<div class="cgi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h4m-2-2v4M14.5 10.5h.01M18.5 10.5h.01"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg></div>';
-    html+='<div class="cgi-info"><div class="cgi-name">'+esc(gName)+'</div>';
-    html+='<div class="cgi-desc">'+(isMine?'Convite enviado':'Convite para jogar!')+'</div></div></div>';
-    if(!isMine){
-      html+='<div class="cgi-actions"><button class="cgi-btn decline" onclick="this.closest(\'.chat-game-invite\').innerHTML=\'<div style=padding:.4rem;font-size:.6rem;color:var(--t3)>Recusado</div>\'">Recusar</button>';
-      html+='<button class="cgi-btn accept" onclick="acceptGameFromChat(\''+sessId+'\',\''+gId+'\')">Jogar</button></div>';
+    // Check if invite expired (60s from message time)
+    const ageMs=Date.now()-msg.timestamp;
+    const expired=ageMs>60000;
+    let html='<div class="chat-game-invite" data-session="'+sessId+'">';
+    if(expired){
+      html+='<div class="cgi-expired">Convite expirado</div>';
+    }else{
+      html+='<div class="cgi-row">';
+      html+='<div class="cgi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h4m-2-2v4M14.5 10.5h.01M18.5 10.5h.01"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg></div>';
+      html+='<div class="cgi-info"><div class="cgi-name">'+esc(gName)+'</div>';
+      html+='<div class="cgi-desc">'+(isMine?'Convite enviado':'Convite para jogar!')+'</div></div></div>';
+      if(!isMine){
+        html+='<div class="cgi-actions"><button class="cgi-btn decline" onclick="declineGameInvite(this,\''+sessId+'\',\''+gId+'\')">Recusar</button>';
+        html+='<button class="cgi-btn accept" onclick="acceptGameFromChat(\''+sessId+'\',\''+gId+'\')">Jogar</button></div>';
+      }
+      // Timer bar (remaining time out of 60s)
+      var remainPct=Math.max(0,Math.round((1-ageMs/60000)*100));
+      html+='<div class="cgi-timer" style="width:'+remainPct+'%" data-expire="'+(msg.timestamp+60000)+'"></div>';
     }
     html+='</div><div class="mt">'+timeStr+'</div>';
     div.innerHTML=html;
+    // Start timer countdown for non-expired invites
+    if(!expired&&!isMine){_startInviteTimer(div,sessId,msg.timestamp+60000)}
   }else{
     div.className='msg '+(msg.userId===state.userId?'mine':'theirs');
     div.innerHTML=esc(msg.text)+'<div class="mt">'+timeStr+'</div>';
@@ -10832,7 +10862,6 @@ function _tgBuildUrl(partnerId){
 }
 function openGameLobby(targetUserId){
   var url=_tgBuildUrl(targetUserId||null);
-  // Open in fullscreen iframe
   var frame=$('tgFrame');
   if(frame){
     frame.querySelector('iframe').src=url;
@@ -10845,46 +10874,158 @@ function closeGameLobby(){
   var frame=$('tgFrame');
   if(frame){frame.classList.remove('visible');frame.querySelector('iframe').src='about:blank'}
 }
+// Open lobby for solo play or browsing
 function inviteToGameFromChat(partnerId){openGameLobby(partnerId)}
 function inviteToGameFromProfile(userId){openGameLobby(userId)}
-function acceptGameFromChat(sessionId,gameId){
-  var url=_tgBuildUrl(state.currentPartnerId);
-  url+='&acceptSession='+encodeURIComponent(sessionId)+'&acceptGame='+encodeURIComponent(gameId);
-  var frame=$('tgFrame');
-  if(frame){
-    frame.querySelector('iframe').src=url;
-    frame.classList.add('visible');
-  }else{
-    window.location.href=url;
-  }
+
+// ── Invite timer: auto-expire invite cards in chat after 60s ──
+var _inviteTimers={};
+function _startInviteTimer(div,sessId,expireAt){
+  if(_inviteTimers[sessId])return;
+  var bar=div.querySelector('.cgi-timer');
+  var inv=div.querySelector('.chat-game-invite');
+  _inviteTimers[sessId]=setInterval(function(){
+    var rem=expireAt-Date.now();
+    if(rem<=0){
+      clearInterval(_inviteTimers[sessId]);delete _inviteTimers[sessId];
+      if(inv)inv.innerHTML='<div class="cgi-expired">Convite expirado</div>';
+      return;
+    }
+    if(bar)bar.style.width=Math.round((rem/60000)*100)+'%';
+  },1000);
 }
+
+// ── Decline game invite in chat ──
+function declineGameInvite(btn,sessId,gameId){
+  var card=btn.closest('.chat-game-invite');
+  if(card)card.innerHTML='<div class="cgi-expired">Recusado</div>';
+  if(_inviteTimers[sessId]){clearInterval(_inviteTimers[sessId]);delete _inviteTimers[sessId]}
+  if(socket)socket.emit('game-decline',{sessionId:sessId,userId:state.userId});
+}
+
+// ── Accept game invite from chat — emits accept, shows ready modal ──
+function acceptGameFromChat(sessionId,gameId){
+  // Mark invite card as accepted
+  var cards=document.querySelectorAll('[data-invite-session="'+sessionId+'"]');
+  cards.forEach(function(c){
+    var inv=c.querySelector('.chat-game-invite');
+    if(inv)inv.innerHTML='<div class="cgi-expired" style="color:var(--ac)">Aceito! Preparando...</div>';
+  });
+  if(_inviteTimers[sessionId]){clearInterval(_inviteTimers[sessionId]);delete _inviteTimers[sessionId]}
+  // Emit accept to server (triggers ready-check for both)
+  if(socket)socket.emit('game-accept',{sessionId:sessionId,userId:state.userId});
+}
+
+// ── Ready Check Modal — shown to BOTH players when invite is accepted ──
+var _readyCheckSession=null;
+function showGameReadyCheck(data){
+  _readyCheckSession=data.sessionId;
+  // Remove any existing modal
+  var old=document.querySelector('.game-ready-overlay');
+  if(old)old.remove();
+  // Build modal
+  var ov=document.createElement('div');
+  ov.className='game-ready-overlay';
+  ov.id='gameReadyOverlay';
+  var myName=state.userName||'Eu';
+  var myColor=state.userColor||'#ff6b35';
+  var oppId=data.players?data.players.find(function(p){return p!==state.userId}):null;
+  var oppNode=oppId?(constState.nodes||[]).find(function(n){return n.id===oppId}):null;
+  var oppName=oppNode?oppNode.nickname:'Jogador';
+  var oppColor=oppNode?oppNode.color:'#58a6ff';
+  var gameName=data.gameName||'Jogo';
+  ov.innerHTML='<div class="game-ready-box">'+
+    '<div class="grb-title">Prontos?</div>'+
+    '<div class="grb-game">'+esc(gameName)+'</div>'+
+    '<div class="grb-players">'+
+      '<div class="grb-player"><div class="grb-avatar" style="background:'+myColor+'">'+myName.charAt(0).toUpperCase()+'</div><div class="grb-nick">'+esc(myName)+'</div><div class="grb-status" id="grReadyMe" style="color:var(--t3)">...</div></div>'+
+      '<div class="grb-vs">VS</div>'+
+      '<div class="grb-player"><div class="grb-avatar" style="background:'+oppColor+'">'+oppName.charAt(0).toUpperCase()+'</div><div class="grb-nick">'+esc(oppName)+'</div><div class="grb-status" id="grReadyOpp" style="color:var(--t3)">...</div></div>'+
+    '</div>'+
+    '<div class="grb-actions">'+
+      '<button class="grb-btn nope" onclick="cancelGameReady()">Desistir</button>'+
+      '<button class="grb-btn go" id="grGoBtn" onclick="confirmGameReady()">Entrar!</button>'+
+    '</div></div>';
+  document.body.appendChild(ov);
+  haptic([40,30,40]);
+}
+function confirmGameReady(){
+  if(!_readyCheckSession)return;
+  var btn=$('grGoBtn');
+  if(btn){btn.textContent='Aguardando...';btn.disabled=true}
+  var me=$('grReadyMe');if(me){me.textContent='Pronto!';me.style.color='var(--ac)'}
+  if(socket)socket.emit('game-ready',{sessionId:_readyCheckSession,userId:state.userId});
+}
+function cancelGameReady(){
+  if(_readyCheckSession&&socket)socket.emit('game-cancel-ready',{sessionId:_readyCheckSession,userId:state.userId});
+  _readyCheckSession=null;
+  var ov=document.querySelector('.game-ready-overlay');
+  if(ov)ov.remove();
+}
+
 // Listen for messages from TouchGames iframe
 window.addEventListener('message',function(e){
   if(!e.data)return;
   if(e.data.type==='tg-close'){closeGameLobby();return}
   if(e.data.type==='tg-toast'&&e.data.msg){showToast(e.data.msg);return}
-  // Forward game results to parent context if needed
   if(e.data.source==='touchgame'){
     var type=e.data.type,data=e.data.data||{};
     if(type==='award-stars'&&data.amount>0){showToast('+'+data.amount+' estrelas!')}
   }
 });
-// Socket: handle game invites even when lobby not open
+// ── Socket: game events ──
 if(typeof socket!=='undefined'&&socket){
-  socket.on('game-invite',function(data){
-    // Show invite notification — redirect to TouchGames to handle
+  // Notification toast when invite arrives (even outside chat)
+  socket.on('game-invite-notify',function(data){
     var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
     var name=node?node.nickname:'Jogador';
     showToast(name+' quer jogar '+data.gameName+'!');
-    // Auto-open lobby to show invite
-    var url=_tgBuildUrl(null);
-    url+='&incomingInvite='+encodeURIComponent(JSON.stringify(data));
+    haptic([50,30,50]);
+  });
+  // Legacy game-invite (from games/index.html direct socket)
+  socket.on('game-invite',function(data){
+    var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
+    var name=node?node.nickname:'Jogador';
+    showToast(name+' quer jogar '+(data.gameName||'')+'!');
+    haptic([50,30,50]);
+  });
+  // Ready check — shown to BOTH players when invite accepted
+  socket.on('game-ready-check',function(data){
+    showGameReadyCheck(data);
+  });
+  // Other player is ready
+  socket.on('game-player-ready',function(data){
+    var el=$('grReadyOpp');
+    if(el){el.textContent='Pronto!';el.style.color='var(--ac)'}
+  });
+  // Other player cancelled ready
+  socket.on('game-player-unready',function(data){
+    var el=$('grReadyOpp');
+    if(el){el.textContent='Saiu';el.style.color='var(--pk)'}
+    setTimeout(function(){cancelGameReady()},1500);
+  });
+  // Game starts! Both confirmed ready
+  socket.on('game-start',function(data){
+    _readyCheckSession=null;
+    var ov=document.querySelector('.game-ready-overlay');
+    if(ov)ov.remove();
+    // Open the game in the TouchGames iframe
+    var oppId=data.players?data.players.find(function(p){return p!==state.userId}):null;
+    var url=_tgBuildUrl(oppId);
+    url+='&acceptSession='+encodeURIComponent(data.sessionId)+'&acceptGame='+encodeURIComponent(data.gameId);
+    if(data.gameFile)url+='&gameFile='+encodeURIComponent(data.gameFile);
     var frame=$('tgFrame');
     if(frame){
       frame.querySelector('iframe').src=url;
       frame.classList.add('visible');
     }
+    haptic([30,20,30,20,60]);
   });
+  // Error events
+  socket.on('game-target-busy',function(){showToast('Jogador esta ocupado')});
+  socket.on('game-target-offline',function(){showToast('Jogador esta offline')});
+  socket.on('game-no-relation',function(){showToast('Sem chat ativo com esse jogador')});
+  socket.on('game-declined',function(){showToast('Convite recusado')});
 }
 </script>
 
@@ -10930,10 +11071,11 @@ const VA = (function(){
   let audioEl = null;
   let isConnected = false;
   let isActive = false;
-  let isConnecting = false; // guard against double connect
-  let micStream = null; // save mic stream to stop later
-  let textMessages = []; // fallback text history
-  const VA_LAST_KEY = 'va_last_interaction'; // localStorage key for cooldown
+  let isConnecting = false;
+  let micStream = null;
+  let connId = 0; // session id — prevents stale callbacks from killing new connections
+  let textMessages = [];
+  const VA_LAST_KEY = 'va_last_interaction';
 
   const $ = id => document.getElementById(id);
 
@@ -10946,15 +11088,14 @@ const VA = (function(){
 
   // ── WebRTC: Connect to OpenAI Realtime ──
   async function connectWebRTC(){
-    // Guard: prevent double connections
     if(isConnecting || isActive) return;
     isConnecting = true;
+    const myId = ++connId; // unique id for THIS connection attempt
 
     setStatus('Conectando...');
     setOrb('connecting');
 
     try {
-      // 1. Get ephemeral token from our server
       const tokenResp = await fetch('/api/agent/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -10963,6 +11104,8 @@ const VA = (function(){
           lastInteraction: parseInt(localStorage.getItem(VA_LAST_KEY) || '0')
         })
       });
+      // If this connection was superseded by stop(), bail out
+      if(myId !== connId){ return; }
 
       if (!tokenResp.ok) {
         const err = await tokenResp.json().catch(()=>({}));
@@ -10971,24 +11114,22 @@ const VA = (function(){
 
       const tokenData = await tokenResp.json();
       const client_secret = tokenData.client_secret;
-      const serverGreeting = tokenData.greeting;
       if (!client_secret) throw new Error('Token não recebido');
+      if(myId !== connId){ return; }
 
-      // 2. Create RTCPeerConnection
       pc = new RTCPeerConnection();
 
-      // 3. Audio playback — receive model's voice
       audioEl = document.createElement('audio');
       audioEl.autoplay = true;
       pc.ontrack = e => { audioEl.srcObject = e.streams[0]; };
 
-      // 4. Capture microphone
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if(myId !== connId){ micStream.getTracks().forEach(t=>t.stop()); return; }
       micStream.getTracks().forEach(t => pc.addTrack(t, micStream));
 
-      // 5. Data channel for events
       dc = pc.createDataChannel('oai-events');
       dc.onopen = () => {
+        if(myId !== connId){ return; }
         isConnected = true;
         isActive = true;
         isConnecting = false;
@@ -10996,54 +11137,49 @@ const VA = (function(){
         setStatus('');
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
-        // Auto-greet: make the agent speak the personalized greeting
         dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'], instructions: 'Fale a saudação que está nas suas instruções. Seja natural, rápida e animada. Use nomes reais. MÁXIMO 2 frases.' } }));
       };
 
       dc.onmessage = e => {
-        try {
-          const evt = JSON.parse(e.data);
-          handleRealtimeEvent(evt);
-        } catch(err){}
+        try { handleRealtimeEvent(JSON.parse(e.data)); } catch(err){}
       };
 
       dc.onclose = () => {
+        if(myId !== connId) return;
         isConnected = false;
         setStatus('Desconectado');
         setOrb('');
       };
 
-      // 6. SDP offer/answer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      if(myId !== connId){ return; }
 
       const sdpResp = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${client_secret}`,
-          'Content-Type': 'application/sdp'
-        },
+        headers: { 'Authorization': `Bearer ${client_secret}`, 'Content-Type': 'application/sdp' },
         body: offer.sdp
       });
-
+      if(myId !== connId){ return; }
       if (!sdpResp.ok) throw new Error('SDP exchange falhou: ' + sdpResp.status);
 
       const answerSdp = await sdpResp.text();
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        if(myId !== connId) return; // stale — ignore
+        if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) {
           stop();
         }
       };
 
     } catch(err) {
+      if(myId !== connId) return; // stale
       console.error('WebRTC connect error:', err);
       isConnecting = false;
       isActive = false;
       setStatus('Erro: ' + err.message);
       setOrb('');
-      // Fall back to text mode
       setTimeout(() => setStatus('Use o campo de texto abaixo'), 2000);
     }
   }
@@ -11143,21 +11279,27 @@ const VA = (function(){
     }
   }
 
-  // ── Stop/disconnect — NUCLEAR cleanup ──
+  // ── Stop/disconnect ──
   function stop(){
+    // Increment connId so any in-flight async callbacks become stale and bail out
+    connId++;
     isActive = false;
     isConnected = false;
     isConnecting = false;
 
-    // 1. Close data channel FIRST (stop sending/receiving events)
+    // Remove callbacks BEFORE closing (prevents stale events firing)
+    if(pc){ pc.onconnectionstatechange = null; pc.ontrack = null; }
+    if(dc){ dc.onopen = null; dc.onclose = null; dc.onmessage = null; }
+
+    // Close data channel
     if(dc){ try{dc.close()}catch(e){} }
     dc = null;
 
-    // 2. Close PeerConnection (releases internal refs to mic tracks)
+    // Close PeerConnection
     if(pc){ try{pc.close()}catch(e){} }
     pc = null;
 
-    // 3. NOW kill mic tracks — pc is gone, so browser can release hardware
+    // Kill mic tracks
     if(micStream){
       micStream.getTracks().forEach(t => {
         try{ t.enabled = false; } catch(e){}
@@ -11166,7 +11308,7 @@ const VA = (function(){
     }
     micStream = null;
 
-    // 4. Kill audio playback
+    // Kill audio playback
     if(audioEl){
       try{ audioEl.pause(); }catch(e){}
       if(audioEl.srcObject){
@@ -11176,16 +11318,15 @@ const VA = (function(){
     }
     audioEl = null;
 
-    // 5. Reset UI
+    // Reset UI
     setOrb('');
-    setStatus('Toque para conversar');
+    setStatus('');
     setTranscript('');
     $('vaMainBtn').style.display = '';
     $('vaMainBtn').textContent = 'Iniciar conversa';
     $('vaStopBtn').style.display = 'none';
-    // Save last interaction time for gossip logic
+    // Save last interaction time
     try{ localStorage.setItem(VA_LAST_KEY, String(Date.now())); }catch(e){}
-    console.log('[VA] STOP — everything killed, mic released');
   }
 
   return {

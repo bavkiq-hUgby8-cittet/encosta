@@ -1134,7 +1134,7 @@
             STATE.socket = io({ query: { userId: params.userId } });
 
             STATE.socket.on('game-lobby-update', (data) => {
-                STATE.onlineCount = data.onlineCount || 0;
+                STATE.onlineCount = data.count || 0;
                 updateOnlineBadge();
             });
 
@@ -1146,18 +1146,28 @@
                 startGameWithOpponent(data);
             });
 
+            STATE.socket.on('game-ready-check', (data) => {
+                // If we're in the lobby iframe and get ready-check, notify parent
+                window.parent.postMessage({ type: 'tg-ready-check', data: data }, '*');
+            });
+
             STATE.socket.on('game-declined', () => {
                 showToast('Convite rejeitado');
                 closeWaitingOverlay();
             });
 
             STATE.socket.on('game-target-busy', () => {
-                showToast('Oponente está ocupado');
+                showToast('Oponente esta ocupado');
                 closeWaitingOverlay();
             });
 
             STATE.socket.on('game-target-offline', () => {
-                showToast('Oponente está offline');
+                showToast('Oponente esta offline');
+                closeWaitingOverlay();
+            });
+
+            STATE.socket.on('game-no-relation', () => {
+                showToast('Sem chat ativo com esse jogador');
                 closeWaitingOverlay();
             });
 
@@ -1353,23 +1363,26 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             gameId,
+                            gameFile: file,
+                            gameName: gameName,
                             userId: params.userId,
                             opponentId: STATE.partnerId,
                             isMultiplayer: true
                         })
                     });
-                    const session = await sessionResponse.json();
+                    const data = await sessionResponse.json();
+                    const session = data.session || data;
                     STATE.currentSession = session;
 
                     showWaitingOverlay(gameName);
 
-                    STATE.socket.emit('game-invite', {
-                        from: params.userId,
-                        fromName: params.userName,
-                        fromColor: params.userColor,
-                        to: STATE.partnerId,
+                    // Send invite via chat message (preferred flow)
+                    STATE.socket.emit('game-invite-chat', {
+                        fromUserId: params.userId,
+                        toUserId: STATE.partnerId,
                         gameId,
                         gameName,
+                        gameFile: file,
                         sessionId: session.id
                     });
                 } catch (e) {
@@ -1382,12 +1395,15 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             gameId,
+                            gameFile: file,
+                            gameName: gameName,
                             userId: params.userId,
                             opponentId: null,
                             isMultiplayer: false
                         })
                     });
-                    const session = await sessionResponse.json();
+                    const data = await sessionResponse.json();
+                    const session = data.session || data;
                     STATE.currentSession = session;
 
                     openGameFrame(file, session.id, gameId, gameName);
@@ -1517,7 +1533,12 @@
 
         function startGameWithOpponent(data) {
             closeWaitingOverlay();
-            showVSScreen(data.opponentName, data.opponentColor, data.gameName, data.gameId, data.file, data.sessionId);
+            // data from server: { sessionId, gameId, gameFile, players }
+            const params = getUrlParams();
+            const oppId = (data.players || []).find(p => p !== params.userId) || '';
+            const gameFile = data.gameFile || data.file || (data.gameId + '.html');
+            const gameName = data.gameName || data.gameId || 'Jogo';
+            showVSScreen(oppId, '#58a6ff', gameName, data.gameId, gameFile, data.sessionId);
         }
 
         function showVSScreen(opponentName, opponentColor, gameName, gameId, file, sessionId) {
@@ -1673,17 +1694,14 @@
             const urlFull = new URLSearchParams(window.location.search);
             const acceptSession = urlFull.get('acceptSession');
             const acceptGame = urlFull.get('acceptGame');
+            const gameFileParam = urlFull.get('gameFile');
             if (acceptSession && acceptGame) {
-                // Auto-accept a game invite passed from main app
+                // Coming from parent app after game-start: open game directly
                 setTimeout(() => {
-                    if (STATE.socket) {
-                        STATE.socket.emit('game-accept', { sessionId: acceptSession, userId: params.userId });
-                        const gInfo = (STATE.manifest || []).find(g => g.id === acceptGame) || { name: acceptGame };
-                        const file = gInfo.file || acceptGame + '.html';
-                        showVsScreen(null, gInfo, () => {
-                            openGame(acceptSession, acceptGame, file, params.partnerId);
-                        });
-                    }
+                    const gInfo = (STATE.manifest || []).find(g => g.id === acceptGame) || { name: acceptGame };
+                    const file = gameFileParam || gInfo.file || acceptGame + '.html';
+                    STATE.currentSession = { id: acceptSession, gameId: acceptGame, opponentId: params.partnerId };
+                    openGameFrame(file, acceptSession, acceptGame, gInfo.name || acceptGame);
                 }, 500);
             }
             const incomingInviteRaw = urlFull.get('incomingInvite');

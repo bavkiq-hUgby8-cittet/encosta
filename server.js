@@ -4710,27 +4710,112 @@ io.on('connection', (socket) => {
   });
 
   // ═══ TOUCHGAMES — Real-time game events ═══
-  socket.on('game-invite', ({ fromUserId, toUserId, gameId, sessionId, gameName, gameIcon, gameDesc, gameFile }) => {
-    if (!fromUserId || !toUserId || !gameId) return;
-    // Check if target is already playing
+  // Send game invite as a chat message (main flow from index.html)
+  socket.on('game-invite-chat', ({ fromUserId, toUserId, gameId, sessionId, gameName, gameIcon, gameFile, relationId }) => {
+    if (!fromUserId || !toUserId || !gameId || !sessionId) return;
     const now = Date.now();
+    // Check if target is busy
     const targetBusy = Object.values(db.gameSessions).find(gs =>
       gs.players.includes(toUserId) && gs.status === 'playing' && (!gs.createdAt || now - gs.createdAt < 3600000)
     );
     if (targetBusy) {
-      // Notify sender that target is busy
       const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === fromUserId);
       senderSockets.forEach(s => s.emit('game-target-busy', { toUserId, sessionId }));
       return;
     }
+    // Check if target is online
     const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === toUserId);
     if (targetSockets.length === 0) {
-      // Target offline — notify sender
       const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === fromUserId);
       senderSockets.forEach(s => s.emit('game-target-offline', { toUserId, sessionId }));
       return;
     }
-    targetSockets.forEach(s => s.emit('game-invite', { fromUserId, gameId, sessionId, gameName: gameName || '', gameIcon: gameIcon || '', gameDesc: gameDesc || '', gameFile: gameFile || '' }));
+    // Find relation between players (use provided or lookup)
+    let relId = relationId;
+    if (!relId) {
+      const pairKey = [fromUserId, toUserId].sort().join('_');
+      relId = IDX.relationPair.get(pairKey);
+    }
+    if (!relId || !db.relations[relId] || db.relations[relId].expiresAt <= now) {
+      const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === fromUserId);
+      senderSockets.forEach(s => s.emit('game-no-relation', { toUserId, sessionId }));
+      return;
+    }
+    // Save invite as special chat message
+    const inviteText = '[game-invite:' + gameId + ':' + sessionId + ':' + (gameName || 'Jogo') + ':' + (gameIcon || '') + ']';
+    const msg = { id: uuidv4(), userId: fromUserId, text: inviteText, timestamp: now };
+    if (!db.messages[relId]) db.messages[relId] = [];
+    db.messages[relId].push(msg);
+    saveDB('messages');
+    // Notify both users
+    io.to(`user:${fromUserId}`).emit('new-message', { relationId: relId, message: msg });
+    io.to(`user:${toUserId}`).emit('new-message', { relationId: relId, message: msg });
+    // Also send direct notification for toast/badge
+    targetSockets.forEach(s => s.emit('game-invite-notify', { fromUserId, gameId, sessionId, gameName: gameName || '', relationId: relId }));
+  });
+
+  // Legacy game-invite (direct socket from games/index.html — accepts both param styles)
+  socket.on('game-invite', ({ fromUserId, from, toUserId, to, gameId, sessionId, gameName, gameIcon, gameDesc, gameFile, fromName, fromColor }) => {
+    const sender = fromUserId || from;
+    const target = toUserId || to;
+    if (!sender || !target || !gameId) return;
+    const now = Date.now();
+    const targetBusy = Object.values(db.gameSessions).find(gs =>
+      gs.players.includes(target) && gs.status === 'playing' && (!gs.createdAt || now - gs.createdAt < 3600000)
+    );
+    if (targetBusy) {
+      const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === sender);
+      senderSockets.forEach(s => s.emit('game-target-busy', { toUserId: target, sessionId }));
+      return;
+    }
+    const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === target);
+    if (targetSockets.length === 0) {
+      const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === sender);
+      senderSockets.forEach(s => s.emit('game-target-offline', { toUserId: target, sessionId }));
+      return;
+    }
+    targetSockets.forEach(s => s.emit('game-invite', { fromUserId: sender, gameId, sessionId, gameName: gameName || '', gameIcon: gameIcon || '', gameDesc: gameDesc || '', gameFile: gameFile || '' }));
+  });
+
+  // game-ready: both players confirm they want to enter the game NOW
+  socket.on('game-ready', ({ sessionId, userId }) => {
+    if (!dbLoaded || !sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs || gs.status !== 'waiting') return;
+    if (!gs._readyPlayers) gs._readyPlayers = [];
+    if (!gs._readyPlayers.includes(userId)) gs._readyPlayers.push(userId);
+    // Both players ready? Start the game
+    if (gs._readyPlayers.length >= 2) {
+      gs.status = 'playing';
+      gs.startedAt = Date.now();
+      delete gs._readyPlayers;
+      saveDB('gameSessions');
+      gs.players.forEach(pId => {
+        const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === pId);
+        targetSockets.forEach(s => s.emit('game-start', { sessionId, gameId: gs.gameId, gameFile: gs.gameFile || '', players: gs.players }));
+      });
+    } else {
+      // Notify the other player that this player is ready
+      const otherPlayers = gs.players.filter(p => p !== userId);
+      otherPlayers.forEach(pId => {
+        const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === pId);
+        targetSockets.forEach(s => s.emit('game-player-ready', { sessionId, userId }));
+      });
+    }
+  });
+
+  // game-cancel-ready: player backs out of ready confirmation
+  socket.on('game-cancel-ready', ({ sessionId, userId }) => {
+    if (!dbLoaded || !sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs) return;
+    if (gs._readyPlayers) gs._readyPlayers = gs._readyPlayers.filter(p => p !== userId);
+    // Notify other players
+    const otherPlayers = gs.players.filter(p => p !== userId);
+    otherPlayers.forEach(pId => {
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === pId);
+      targetSockets.forEach(s => s.emit('game-player-unready', { sessionId, userId }));
+    });
   });
 
   socket.on('game-move', ({ sessionId, userId, move }) => {
@@ -4767,14 +4852,14 @@ io.on('connection', (socket) => {
   socket.on('game-accept', ({ sessionId, userId }) => {
     if (!dbLoaded || !sessionId || !userId) return;
     const gs = db.gameSessions[sessionId];
-    if (!gs) return;
-    gs.status = 'playing';
-    gs.startedAt = Date.now();
+    if (!gs || gs.status !== 'waiting') return;
+    // Instead of starting immediately, show "ready?" confirmation to BOTH players
+    gs._readyPlayers = [];
     saveDB('gameSessions');
-    // Notify all players game is starting
+    // Notify all players to show ready confirmation window
     gs.players.forEach(pId => {
       const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === pId);
-      targetSockets.forEach(s => s.emit('game-start', { sessionId, gameId: gs.gameId, gameFile: gs.gameFile || '', players: gs.players }));
+      targetSockets.forEach(s => s.emit('game-ready-check', { sessionId, gameId: gs.gameId, gameName: gs.gameName || '', gameFile: gs.gameFile || '', players: gs.players, acceptedBy: userId }));
     });
   });
 
@@ -6574,7 +6659,10 @@ app.get('/api/games/player-status/:userId', (req, res) => {
 
 // POST create game session
 app.post('/api/games/sessions', (req, res) => {
-  const { gameId, hostUserId, opponentUserId, gameFile } = req.body;
+  const { gameId, gameFile, gameName } = req.body;
+  // Accept both param styles: hostUserId/opponentUserId OR userId/opponentId
+  const hostUserId = req.body.hostUserId || req.body.userId;
+  const opponentUserId = req.body.opponentUserId || req.body.opponentId || null;
   if (!gameId || !hostUserId) return res.status(400).json({ error: 'gameId e hostUserId obrigatorios' });
   const now = Date.now();
   // Enforce one game at a time: cancel any previous waiting/playing sessions for host
@@ -6590,10 +6678,11 @@ app.post('/api/games/sessions', (req, res) => {
   const gs = {
     id: sessionId,
     gameId,
+    gameName: gameName || '',
     gameFile: gameFile || gameId + '.html',
     players,
     hostUserId,
-    status: opponentUserId ? 'waiting' : 'playing', // solo starts immediately
+    status: opponentUserId ? 'waiting' : 'playing',
     moves: [],
     createdAt: now,
     startedAt: opponentUserId ? null : now,
@@ -6603,7 +6692,7 @@ app.post('/api/games/sessions', (req, res) => {
   };
   db.gameSessions[sessionId] = gs;
   saveDB('gameSessions');
-  res.json({ ok: true, session: gs });
+  res.json({ ok: true, session: gs, id: sessionId });
 });
 
 // POST create temporary game chat between two players without a relation
