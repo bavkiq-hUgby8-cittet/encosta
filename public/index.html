@@ -11159,13 +11159,14 @@ const VA = (function(){
 
   return {
     open(){
+      // Kill any leftover mic/connection before opening fresh
+      stop();
       $('vaOverlay').classList.add('active');
-      // Auto-connect voice when opening
-      if(!isActive) connectWebRTC();
+      connectWebRTC();
     },
     close(){
       $('vaOverlay').classList.remove('active');
-      if(isActive) stop();
+      stop(); // always kill everything — mic, WebRTC, audio
     },
     async toggleVoice(){
       if(isActive){ stop(); return; }
