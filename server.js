@@ -1012,7 +1012,7 @@ app.post('/api/auth/link', async (req, res) => {
     }
     if (changed) saveDB('users');
     console.log(`[auth/link] Unified account matched by ${matchedBy}: ${existingUser.id} (${existingUser.nickname || existingUser.email})`);
-    return res.json({ userId: existingUser.id, user: existingUser, linked: true, matchedBy });
+    return res.json({ userId: existingUser.id, user: existingUser, linked: true, matchedBy, onboardingDone: !!existingUser.onboardingDone });
   }
 
   // ═══ NO MATCH: Create new ENCOSTA user from Firebase auth ═══
@@ -1041,7 +1041,7 @@ app.post('/api/auth/link', async (req, res) => {
   if (phoneNumber) IDX.phone.set(phoneNumber, id);
   saveDB('users');
   console.log(`[auth/link] New account created: ${id} (${finalNick})`);
-  res.json({ userId: id, user: db.users[id], linked: false });
+  res.json({ userId: id, user: db.users[id], linked: false, onboardingDone: false });
 });
 
 // ── MercadoPago Config ──
@@ -6410,6 +6410,86 @@ ${openingInstruction}`,
     const d = await r.json();
     res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession, openingText });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ── Onboarding guided session — FREE for first login, no subscription check ──
+app.post('/api/agent/onboarding-session', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
+  const { userId } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+  const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || 'amigo';
+
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-realtime-preview',
+        voice: 'coral',
+        modalities: ['audio', 'text'],
+        instructions: `Você é "Touch", a assistente de voz do app Touch? — rede social presencial.
+
+CONTEXTO: Este é o PRIMEIRO LOGIN do usuário ${firstName}. Você vai guiar um TOUR INTERATIVO pelo app.
+O usuário está vendo a tela do assistente e vai seguir suas instruções passo a passo.
+Você controla o ritmo — fala uma instrução por vez e ESPERA o usuário agir antes de continuar.
+
+IDIOMA: Português brasileiro por padrão. Se o usuário falar outro idioma, mude para esse idioma.
+
+TOM: Animada mas não exagerada. Amigável, como um amigo mostrando algo legal. Breve.
+
+FLUXO DO TOUR (siga esta ordem EXATAMENTE, uma etapa por vez):
+
+ETAPA 1 — BOAS-VINDAS (fale quando começar):
+"Oi ${firstName}! Eu sou a Touch, sua assistente aqui no app. Vou te mostrar como tudo funciona em menos de um minuto! Primeiro, fecha essa telinha — toca no X lá em cima."
+
+ETAPA 2 — Quando o usuário voltar (você receberá um sinal "STEP:HOME_VISIBLE"):
+"Essa é sua home! Vê esse botão grande TOUCH no meio? É assim que você conecta com alguém. Aperta ele pra gente testar!"
+
+ETAPA 3 — Quando receber "STEP:ENCOUNTER_SCREEN":
+"Aqui tem três formas de conectar: código, QR, ou o melhor — encostar os alto-falantes dos celulares! Quando dois phones se tocam, a mágica acontece. Volta pra home no botão voltar."
+
+ETAPA 4 — Quando receber "STEP:BACK_HOME":
+"Agora olha lá embaixo — tem o botão Local pra ver quem tá por perto, e o botão de Tutorial se quiser rever. E a estrelinha lá em cima leva pra sua constelação de conexões! É isso, ${firstName} — agora é só sair e tocar! Qualquer dúvida, me chama."
+
+REGRAS:
+- Fale UMA etapa por vez, máximo 2 frases
+- ESPERE o sinal de STEP antes de avançar
+- Se o usuário perguntar algo, responda brevemente e retome o tour
+- Se o usuário disser "pular" ou "skip", diga "Beleza! Qualquer hora me chama" e encerre
+- NUNCA invente etapas extras. Quando terminar etapa 4, pare.
+- Use a função avancar_tour para sinalizar que terminou de falar uma etapa`,
+        tools: [{
+          type: 'function',
+          name: 'avancar_tour',
+          description: 'Sinaliza que o agente terminou de falar a etapa atual e está esperando a ação do usuário.',
+          parameters: {
+            type: 'object',
+            properties: {
+              etapa: { type: 'string', description: 'Nome da etapa concluída: boas_vindas, home, encounter, final' }
+            },
+            required: ['etapa']
+          }
+        }],
+        turn_detection: { type: 'server_vad', threshold: 0.7, prefix_padding_ms: 200, silence_duration_ms: 800 },
+        input_audio_transcription: { model: 'whisper-1' }
+      })
+    });
+    if (!r.ok) { const e = await r.text(); console.error('OpenAI onboarding err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
+    const d = await r.json();
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at });
+  } catch (e) { console.error('Onboarding session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// Mark onboarding as done
+app.post('/api/agent/onboarding-done', (req, res) => {
+  const { userId } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+  user.onboardingDone = true;
+  saveDB('users');
+  res.json({ ok: true });
 });
 
 // Real-time context for agent (called via tool during conversation)

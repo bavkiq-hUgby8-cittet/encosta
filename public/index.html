@@ -1148,6 +1148,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
 
+/* ═══ GUIDED ONBOARDING — VA-powered tour ═══ */
+.onb-guide-bubble{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:350;background:linear-gradient(135deg,rgba(167,139,250,.15),rgba(100,60,200,.15));backdrop-filter:blur(20px);border:1px solid rgba(167,139,250,.3);border-radius:20px;padding:16px 20px;max-width:320px;width:calc(100% - 40px);color:#f5f5f7;font-size:.85rem;line-height:1.5;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.4),0 0 60px rgba(167,139,250,.1);display:none;animation:onbBubbleIn .4s ease forwards}
+.onb-guide-bubble.visible{display:block}
+.onb-guide-bubble .onb-bubble-icon{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#7c3aed);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:.9rem;box-shadow:0 2px 12px rgba(167,139,250,.4)}
+.onb-guide-bubble .onb-bubble-text{font-weight:400;color:rgba(255,255,255,.9)}
+.onb-guide-bubble .onb-bubble-skip{margin-top:10px;background:none;border:none;color:rgba(255,255,255,.35);font-size:.7rem;cursor:pointer;font-family:inherit}
+.onb-guide-highlight{position:fixed;z-index:280;border:2px solid rgba(167,139,250,.6);border-radius:16px;box-shadow:0 0 30px rgba(167,139,250,.3),inset 0 0 20px rgba(167,139,250,.05);pointer-events:none;transition:all .5s cubic-bezier(.22,1,.36,1);opacity:0}
+.onb-guide-highlight.visible{opacity:1}
+@keyframes onbBubbleIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes onbPulseRing{0%{box-shadow:0 0 0 0 rgba(167,139,250,.4)}70%{box-shadow:0 0 0 12px rgba(167,139,250,0)}100%{box-shadow:0 0 0 0 rgba(167,139,250,0)}}
+.onb-guide-highlight.pulse{animation:onbPulseRing 1.5s infinite}
+
 /* ═══ VOICE AGENT — Modern Gemini-style ═══ */
 .va-overlay{position:fixed;inset:0;z-index:300;background:#0a0a0f;display:none;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:all .4s cubic-bezier(.22,1,.36,1);overflow:hidden}
 .va-overlay.active{display:flex;opacity:1}
@@ -2324,6 +2336,13 @@ async function linkFirebaseToEncosta(user){
       state.userProfession=d.user.profession||null;
       state.userSports=d.user.sports||[];
       state.userHobbies=d.user.hobbies||[];
+      // ── Guided onboarding on first login ──
+      const needsOnboarding = !d.onboardingDone && !localStorage.getItem('touch_onboarding_done');
+      if(needsOnboarding){
+        setTimeout(()=>{
+          try{ GuidedOnboarding.start(); }catch(e){ console.warn('[onboarding] start err:', e); }
+        }, 1200); // wait for home to render
+      }
       const _ha=$('homeAvatar');
       if(_ha&&state.userName){
         _ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory);
@@ -3060,11 +3079,17 @@ function showScreen(id){
   el.classList.add('active');
   if(id!=='reveal'&&typeof stopRevealLight==='function')stopRevealLight();
   if(state.timerInterval&&id!=='chat'){clearInterval(state.timerInterval);state.timerInterval=null}
-  // Close VA overlay when navigating away (unless mini-player mode)
-  if(typeof VA!=='undefined'){
+  // Close VA overlay when navigating away (unless mini-player mode or onboarding active)
+  if(typeof VA!=='undefined' && !(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive())){
     const vaOv=document.getElementById('vaOverlay');
     if(vaOv&&vaOv.classList.contains('active')&&!vaOv.classList.contains('mini')){
       VA.close();
+    }
+  }
+  // ── Guided onboarding step signals ──
+  if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
+    if(id==='encounter'){
+      GuidedOnboarding.signalStep('ENCOUNTER_SCREEN');
     }
   }
   // Close selfie camera when leaving reveal
@@ -3091,6 +3116,10 @@ function goHome(){
   // Reset chat viewport adjustments
   var chatEl=$('chat');if(chatEl){chatEl.style.height='';chatEl.style.transform=''}
   showScreen('home');refreshHome();
+  // ── Guided onboarding: returning from encounter ──
+  if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
+    setTimeout(()=> GuidedOnboarding.signalStep('BACK_HOME'), 600);
+  }
 }
 
 // ═══ SWIPE BACK GESTURE ═══
@@ -3940,6 +3969,12 @@ async function doRegister(){
         _ha.style.background='none';_ha.style.overflow='visible';
       }
       haptic([80]);
+      // ── Guided onboarding for brand new users after registration ──
+      if(!localStorage.getItem('touch_onboarding_done')){
+        setTimeout(()=>{
+          try{ GuidedOnboarding.start(); }catch(e){ console.warn('[onboarding] start err:', e); }
+        }, 1200);
+      }
     }
   }catch(e){showToast('Erro ao registrar.')}
 }
@@ -11122,6 +11157,14 @@ if(typeof socket!=='undefined'&&socket){
 <button style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.7rem;margin-top:.5rem;cursor:pointer" onclick="dismissSonicReconnect(false)">Cancelar</button>
 </div>
 
+<!-- ═══ GUIDED ONBOARDING BUBBLE ═══ -->
+<div class="onb-guide-bubble" id="onbGuideBubble">
+  <div class="onb-bubble-icon">✨</div>
+  <div class="onb-bubble-text" id="onbBubbleText"></div>
+  <button class="onb-bubble-skip" id="onbSkipBtn" onclick="skipGuidedOnboarding()">Pular tour</button>
+</div>
+<div class="onb-guide-highlight" id="onbHighlight"></div>
+
 <!-- ═══ VOICE AGENT — Modern UI ═══ -->
 <div class="va-overlay" id="vaOverlay">
   <canvas class="va-canvas-bg" id="vaCanvas"></canvas>
@@ -11527,6 +11570,15 @@ const VA = (function(){
       setOrb('');
     },
     close(){
+      // During guided onboarding step 1, closing VA = user followed instruction
+      if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
+        const ov=$('vaOverlay');
+        ov.classList.remove('active');
+        // Don't cleanup VA audio — onboarding agent keeps talking
+        // Signal the next step
+        setTimeout(()=> GuidedOnboarding.signalStep('HOME_VISIBLE'), 600);
+        return;
+      }
       const ov=$('vaOverlay');
       ov.classList.remove('mini','active');
       ov.onclick=null;
@@ -11682,6 +11734,256 @@ const VA = (function(){
   const orbEl = document.getElementById('vaOrb');
   if(orbEl) orbObs.observe(orbEl,{attributes:true,attributeFilter:['class']});
 })();
+
+// ═══ GUIDED ONBOARDING — AI-powered first-login tour ═══
+const GuidedOnboarding = (function(){
+  let pc = null, dc = null, audioEl = null, micStream = null;
+  let active = false, busy = false;
+  let currentStep = 0; // 0=not started, 1=welcome/VA, 2=home, 3=encounter, 4=final
+  let waitingForUserAction = false;
+  const $ = id => document.getElementById(id);
+
+  function setBubble(text, show){
+    const el = $('onbBubbleText');
+    const bubble = $('onbGuideBubble');
+    if(!el||!bubble) return;
+    if(show && text){
+      el.textContent = text;
+      bubble.classList.add('visible');
+    } else {
+      bubble.classList.remove('visible');
+    }
+  }
+
+  function highlightElement(selector, padding){
+    const hl = $('onbHighlight');
+    if(!hl) return;
+    if(!selector){ hl.classList.remove('visible','pulse'); return; }
+    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if(!el){ hl.classList.remove('visible','pulse'); return; }
+    const rect = el.getBoundingClientRect();
+    const pad = padding || 8;
+    hl.style.top = (rect.top - pad) + 'px';
+    hl.style.left = (rect.left - pad) + 'px';
+    hl.style.width = (rect.width + pad*2) + 'px';
+    hl.style.height = (rect.height + pad*2) + 'px';
+    hl.classList.add('visible','pulse');
+  }
+
+  // ── WebRTC Connection (same pattern as VA but for onboarding) ──
+  async function connect(){
+    if(busy || active) return;
+    busy = true;
+    try {
+      const tr = await fetch('/api/agent/onboarding-session', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: state.userId })
+      });
+      if(!tr.ok) throw new Error('Erro servidor');
+      const td = await tr.json();
+      if(!td.client_secret) throw new Error('Token não recebido');
+
+      pc = new RTCPeerConnection();
+      audioEl = document.createElement('audio');
+      audioEl.autoplay = true;
+      audioEl.playsInline = true;
+      audioEl.style.display = 'none';
+      document.body.appendChild(audioEl);
+      pc.ontrack = e => { audioEl.srcObject = e.streams[0]; audioEl.play().catch(()=>{}); };
+
+      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      micStream.getTracks().forEach(t => pc.addTrack(t, micStream));
+
+      dc = pc.createDataChannel('oai-events');
+      dc.onopen = () => {
+        active = true; busy = false;
+        currentStep = 1;
+        // Trigger the agent's opening message (ETAPA 1)
+        dc.send(JSON.stringify({
+          type: 'response.create',
+          response: { modalities: ['audio','text'], instructions: 'Comece a ETAPA 1 — Boas-vindas. Apresente-se e peça pro usuário fechar a tela do assistente tocando no X.' }
+        }));
+      };
+      dc.onmessage = e => { try{ handleOnbEvent(JSON.parse(e.data)); }catch(x){} };
+      dc.onclose = () => { if(active) cleanup(); };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      const sr = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+        method: 'POST',
+        headers: {'Authorization':'Bearer '+td.client_secret, 'Content-Type':'application/sdp'},
+        body: offer.sdp
+      });
+      if(!sr.ok) throw new Error('SDP fail');
+      await pc.setRemoteDescription({type:'answer', sdp: await sr.text()});
+
+      pc.onconnectionstatechange = () => {
+        if(pc && (pc.connectionState==='disconnected'||pc.connectionState==='failed')) cleanup();
+      };
+    } catch(err){
+      console.error('[Onboarding] connect error:', err);
+      busy = false;
+      cleanup();
+    }
+  }
+
+  function cleanup(){
+    active = false; busy = false;
+    if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
+    if(dc){dc.onopen=null;dc.onclose=null;dc.onmessage=null;}
+    if(dc){try{dc.close()}catch(e){}} dc=null;
+    if(pc){try{pc.close()}catch(e){}} pc=null;
+    if(micStream){try{micStream.getTracks().forEach(t=>t.stop())}catch(e){}} micStream=null;
+    if(audioEl){ audioEl.pause(); audioEl.srcObject=null; if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl); }
+    audioEl=null;
+    setBubble('', false);
+    highlightElement(null);
+  }
+
+  function handleOnbEvent(evt){
+    switch(evt.type){
+      case 'response.audio_transcript.delta':
+        // Show live transcript in bubble
+        var cur = $('onbBubbleText')?.textContent || '';
+        if(!$('onbGuideBubble').classList.contains('visible')){
+          setBubble(evt.delta || '', true);
+        } else {
+          $('onbBubbleText').textContent = cur + (evt.delta || '');
+        }
+        break;
+
+      case 'response.audio_transcript.done':
+        // Agent finished talking — now wait for user action based on step
+        waitingForUserAction = true;
+        if(currentStep === 1){
+          // Highlight the VA close button
+          setTimeout(()=>{
+            const vaClose = document.querySelector('.va-close');
+            if(vaClose) highlightElement(vaClose, 12);
+          }, 500);
+        } else if(currentStep === 4){
+          // Final step — finish after agent stops talking
+          setTimeout(()=>{
+            setBubble('', false);
+            highlightElement(null);
+            finishOnboarding();
+          }, 5000);
+        }
+        break;
+
+      case 'response.done':
+        // If step 4 and response fully done, wrap up
+        if(currentStep === 4){
+          setTimeout(()=>{
+            setBubble('', false);
+            highlightElement(null);
+            finishOnboarding();
+          }, 4000);
+        }
+        break;
+
+      case 'response.function_call_arguments.done':
+        // Agent called avancar_tour — acknowledge it
+        try {
+          const args = JSON.parse(evt.arguments || '{}');
+          if(evt.name === 'avancar_tour'){
+            if(dc && dc.readyState === 'open'){
+              dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:'OK, esperando ação do usuário.'}}));
+            }
+            // If final step, finish onboarding after a delay
+            if(args.etapa === 'final'){
+              setTimeout(()=>{
+                setBubble('', false);
+                highlightElement(null);
+                finishOnboarding();
+              }, 8000); // give agent time to finish speaking
+            }
+          }
+        } catch(e){}
+        break;
+
+      case 'error':
+        console.error('[Onboarding] error:', evt.error);
+        break;
+    }
+  }
+
+  // ── Step signals: called by app navigation events ──
+  function signalStep(stepName){
+    if(!active || !dc || dc.readyState !== 'open') return;
+    setBubble('', false);
+    highlightElement(null);
+    waitingForUserAction = false;
+
+    dc.send(JSON.stringify({
+      type: 'conversation.item.create',
+      item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'STEP:' + stepName }] }
+    }));
+    dc.send(JSON.stringify({ type: 'response.create' }));
+
+    // Highlight relevant elements based on step
+    if(stepName === 'HOME_VISIBLE'){
+      currentStep = 2;
+      setTimeout(()=> highlightElement('#mainBtn', 12), 1500);
+    } else if(stepName === 'ENCOUNTER_SCREEN'){
+      currentStep = 3;
+      // Highlight the encounter options area
+      setTimeout(()=>{
+        const backBtn = document.querySelector('#encounter .bs');
+        if(backBtn) setTimeout(()=> highlightElement(backBtn, 8), 3000);
+      }, 500);
+    } else if(stepName === 'BACK_HOME'){
+      currentStep = 4;
+      setTimeout(()=>{
+        // Highlight bottom nav
+        const nav = document.querySelector('.home-nav');
+        if(nav) highlightElement(nav, 6);
+      }, 1500);
+    }
+  }
+
+  function finishOnboarding(){
+    cleanup();
+    currentStep = 0;
+    $('onbSkipBtn').style.display = 'none';
+    // Mark as done on server
+    fetch('/api/agent/onboarding-done', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: state.userId })
+    }).catch(()=>{});
+    localStorage.setItem('touch_onboarding_done','1');
+  }
+
+  return {
+    start(){
+      // Open VA overlay first (agent will tell user to close it)
+      $('vaOverlay').classList.add('active');
+      $('vaMainBtn').style.display = 'none';
+      $('vaStopBtn').style.display = '';
+      $('onbSkipBtn').style.display = '';
+      const orb = $('vaOrb');
+      if(orb){ orb.className = 'va-orb speaking'; }
+      connect();
+    },
+    signalStep,
+    isActive(){ return active; },
+    currentStep(){ return currentStep; },
+    finish: finishOnboarding,
+    cleanup
+  };
+})();
+
+function skipGuidedOnboarding(){
+  GuidedOnboarding.cleanup();
+  GuidedOnboarding.finish();
+  // Close VA overlay
+  const vaOv = document.getElementById('vaOverlay');
+  if(vaOv) vaOv.classList.remove('active','mini');
+  document.getElementById('onbGuideBubble').classList.remove('visible');
+  document.getElementById('onbHighlight').classList.remove('visible','pulse');
+}
 
 </script>
 
