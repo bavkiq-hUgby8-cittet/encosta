@@ -1401,16 +1401,34 @@
 
                     showWaitingOverlay(gameName);
 
-                    // Send invite via chat message (preferred flow)
-                    STATE.socket.emit('game-invite-chat', {
-                        fromUserId: params.userId,
-                        toUserId: STATE.partnerId,
-                        gameId,
-                        gameName,
-                        gameFile: file,
-                        sessionId: session.id,
-                        relationId: STATE.relationId || params.relationId || ''
-                    });
+                    // Send invite via HTTP API (reliable, saves to chat)
+                    try {
+                        const inviteRes = await fetch('/api/games/invite-message', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                fromUserId: params.userId,
+                                toUserId: STATE.partnerId,
+                                gameId,
+                                gameName,
+                                sessionId: session.id,
+                                relationId: STATE.relationId || params.relationId || ''
+                            })
+                        });
+                        const inviteData = await inviteRes.json();
+                        if (inviteData.code === 'OFFLINE') {
+                            showToast('Jogador esta offline');
+                            closeWaitingOverlay();
+                            return;
+                        }
+                        if (!inviteData.ok && inviteData.code === 'NO_RELATION') {
+                            showToast('Sem chat ativo com esse jogador');
+                            closeWaitingOverlay();
+                            return;
+                        }
+                    } catch (invErr) {
+                        console.error('Invite message failed:', invErr);
+                    }
                 } catch (e) {
                     showToast('Erro ao iniciar jogo');
                 }

@@ -6759,6 +6759,42 @@ app.post('/api/games/sessions', (req, res) => {
   res.json({ ok: true, session: gs, id: sessionId });
 });
 
+// POST send game invite as chat message (reliable HTTP instead of socket)
+app.post('/api/games/invite-message', (req, res) => {
+  const { fromUserId, toUserId, gameId, sessionId, gameName, relationId } = req.body;
+  if (!fromUserId || !toUserId || !gameId || !sessionId) {
+    return res.status(400).json({ error: 'Campos obrigatorios: fromUserId, toUserId, gameId, sessionId' });
+  }
+  const now = Date.now();
+  // Find relation
+  let relId = relationId;
+  if (!relId || !db.relations[relId]) {
+    const pairKey = [fromUserId, toUserId].sort().join('_');
+    relId = IDX.relationPair.get(pairKey);
+  }
+  if (!relId || !db.relations[relId] || db.relations[relId].expiresAt <= now) {
+    return res.status(404).json({ error: 'Sem relacao ativa entre os jogadores', code: 'NO_RELATION' });
+  }
+  // Check target online
+  const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === toUserId);
+  if (targetSockets.length === 0) {
+    return res.json({ ok: false, error: 'Jogador offline', code: 'OFFLINE' });
+  }
+  // Save invite as chat message
+  const inviteText = '[game-invite:' + gameId + ':' + sessionId + ':' + (gameName || 'Jogo') + ':]';
+  const msg = { id: uuidv4(), userId: fromUserId, text: inviteText, timestamp: now };
+  if (!db.messages[relId]) db.messages[relId] = [];
+  db.messages[relId].push(msg);
+  saveDB('messages');
+  console.log('[invite-message] SAVED to relation', relId, 'msg:', msg.id, 'from:', fromUserId, 'to:', toUserId);
+  // Notify both via socket
+  io.to(`user:${fromUserId}`).emit('new-message', { relationId: relId, message: msg });
+  io.to(`user:${toUserId}`).emit('new-message', { relationId: relId, message: msg });
+  // Toast notification for target
+  targetSockets.forEach(s => s.emit('game-invite-notify', { fromUserId, gameId, sessionId, gameName: gameName || '', relationId: relId }));
+  res.json({ ok: true, messageId: msg.id, relationId: relId });
+});
+
 // POST create temporary game chat between two players without a relation
 app.post('/api/games/temp-chat', (req, res) => {
   const { hostUserId, opponentUserId, gameId, gameName } = req.body;
