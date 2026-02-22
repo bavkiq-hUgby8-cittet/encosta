@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<title>Ache o Impostor — Touch?</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0f;--s1:#12121a;--s2:#1a1a24;--b1:rgba(255,255,255,.08);
+  --t1:#f5f5f7;--t2:#8888a0;--t3:#555568;
+  --ac:#ff6b35;--ac2:#ff8f65;--ok:#34d399;--err:#f87171;
+}
+html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--t1);overflow:hidden;-webkit-user-select:none;user-select:none}
+body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+
+.g-header{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--b1);flex-shrink:0}
+.g-status{padding:.3rem .7rem;background:var(--s1);border-radius:16px;font-size:.7rem;color:var(--t2)}
+.g-score{font-size:.85rem;font-weight:700;color:var(--ac)}
+
+.g-board{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.8rem;overflow:hidden;position:relative}
+
+.g-footer{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid var(--b1);flex-shrink:0}
+.g-btn{flex:1;padding:.7rem;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:.8rem;font-family:inherit;transition:opacity .15s,transform .1s}
+.g-btn:active{opacity:.85;transform:scale(.97)}
+.g-btn.primary{background:var(--ac);color:#fff}
+.g-btn.secondary{background:var(--s1);color:var(--t2);border:1px solid var(--b1)}
+
+.g-toast{position:fixed;top:1rem;left:50%;transform:translateX(-50%);padding:.6rem 1.2rem;background:var(--s2);border:1px solid var(--b1);border-radius:12px;font-size:.75rem;color:var(--t1);z-index:100;opacity:0;transition:opacity .3s;pointer-events:none}
+.g-toast.show{opacity:1}
+
+/* === IMPOSTOR STYLES === */
+.stats-row{display:flex;gap:.5rem;margin-bottom:.6rem;width:100%;max-width:360px}
+.stat-card{flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:.4rem;text-align:center}
+.stat-label{font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-size:.9rem;font-weight:700}
+
+.timer-bar{width:100%;max-width:360px;height:4px;background:var(--s2);border-radius:2px;margin-bottom:.6rem;overflow:hidden}
+.timer-fill{height:100%;background:var(--ac);border-radius:2px;transition:width .1s linear}
+.timer-fill.warning{background:var(--err)}
+
+.level-badge{font-size:.65rem;color:var(--ac);font-weight:700;margin-bottom:.5rem}
+
+.grid-container{display:grid;gap:4px;width:100%;max-width:360px;aspect-ratio:1}
+.grid-cell{border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s,opacity .1s;background:var(--s1);border:1px solid var(--b1);min-height:44px}
+.grid-cell:active{transform:scale(.92)}
+.grid-cell svg{width:70%;height:70%}
+.grid-cell.correct{border-color:var(--ok);background:rgba(52,211,153,.15);animation:correctPop .4s ease}
+.grid-cell.wrong{border-color:var(--err);background:rgba(248,113,113,.15);animation:shake .3s ease}
+.grid-cell.reveal{border-color:var(--ac);background:rgba(255,107,53,.1)}
+
+@keyframes correctPop{0%{transform:scale(.8)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
+.start-screen{text-align:center}
+.start-icon{width:80px;height:80px;margin:0 auto 1rem}
+.start-title{font-size:1.3rem;font-weight:800;margin-bottom:.4rem}
+.start-sub{font-size:.75rem;color:var(--t2);margin-bottom:1rem;line-height:1.4}
+.start-btn{padding:.9rem 2rem;border:none;border-radius:14px;background:var(--ac);color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit}
+.start-btn:active{transform:scale(.97)}
+
+.result-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,10,15,.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .3s}
+.result-overlay.show{opacity:1;pointer-events:all}
+.result-card{background:var(--s1);border:1px solid var(--b1);border-radius:20px;padding:2rem 1.5rem;text-align:center;max-width:300px;width:90%}
+.result-title{font-size:1.4rem;font-weight:800;margin-bottom:.5rem}
+.result-stats{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1rem 0}
+.result-stat{background:var(--s2);border-radius:8px;padding:.6rem}
+.result-stat-label{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.result-stat-value{font-size:1rem;font-weight:700;color:var(--ac)}
+.result-btn{width:100%;padding:.8rem;border:none;border-radius:12px;background:var(--ac);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;margin-top:.5rem}
+.result-btn:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<div class="g-header">
+  <div class="g-status" id="gStatus">Ache o Impostor</div>
+  <div class="g-score" id="gScore">0 pts</div>
+</div>
+
+<div class="g-board" id="gBoard"></div>
+
+<div class="g-footer">
+  <button class="g-btn secondary" onclick="doSurrender()">Desistir</button>
+  <button class="g-btn primary" onclick="doNewGame()">Novo Jogo</button>
+</div>
+
+<div class="g-toast" id="gToast"></div>
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-stats" id="resultStats"></div>
+    <button class="result-btn" onclick="doNewGame()">Jogar Novamente</button>
+  </div>
+</div>
+
+<script src="/games/core/bridge.js"></script>
+<script>
+'use strict';
+
+var SHAPES=[
+  function(c){return '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="'+c+'" opacity=".85"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><rect x="7" y="7" width="26" height="26" rx="3" fill="'+c+'" opacity=".85"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><polygon points="20,4 36,36 4,36" fill="'+c+'" opacity=".85"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><polygon points="20,4 26,16 38,18 30,26 32,38 20,32 8,38 10,26 2,18 14,16" fill="'+c+'" opacity=".85"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><polygon points="20,2 38,14 32,36 8,36 2,14" fill="'+c+'" opacity=".85"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><polygon points="20,4 32,12 32,28 20,36 8,28 8,12" fill="'+c+'" opacity=".85"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><rect x="7" y="7" width="26" height="26" rx="3" fill="'+c+'" opacity=".85" transform="rotate(45 20 20)"/></svg>'},
+  function(c){return '<svg viewBox="0 0 40 40"><path d="M20 6C14 6 10 12 10 18c0 8 10 16 10 16s10-8 10-16c0-6-4-12-10-12z" fill="'+c+'" opacity=".85"/></svg>'}
+];
+
+var PALETTES=[
+  {normal:'#3b82f6',impostor:'#6366f1'},
+  {normal:'#22c55e',impostor:'#14b8a6'},
+  {normal:'#ef4444',impostor:'#f97316'},
+  {normal:'#a855f7',impostor:'#ec4899'},
+  {normal:'#eab308',impostor:'#f59e0b'},
+  {normal:'#06b6d4',impostor:'#3b82f6'},
+  {normal:'#f97316',impostor:'#ef4444'},
+  {normal:'#ec4899',impostor:'#a855f7'}
+];
+
+var G={
+  score:0,moves:[],startTime:Date.now(),phase:'start',
+  level:1,lives:3,combo:0,maxCombo:0,
+  timeLeft:0,totalTime:8,timerInterval:null,
+  gridSize:3,impostorIdx:-1,gameOver:false,
+  shapeIdx:0,paletteIdx:0,
+  diffMode:'color'
+};
+
+var board=document.getElementById('gBoard');
+
+function setStatus(t){document.getElementById('gStatus').textContent=t}
+function setScore(n){G.score=n;document.getElementById('gScore').textContent=n+' pts'}
+function toast(m){var t=document.getElementById('gToast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1800)}
+
+function initGame(){
+  G.score=0;G.level=1;G.lives=3;G.combo=0;G.maxCombo=0;
+  G.gridSize=3;G.gameOver=false;G.moves=[];G.startTime=Date.now();
+  clearInterval(G.timerInterval);
+  setScore(0);
+  document.getElementById('resultOverlay').classList.remove('show');
+
+  if(G.phase==='start') showStart();
+  else startPlaying();
+}
+
+function showStart(){
+  G.phase='start';setStatus('Ache o Impostor');
+  board.innerHTML=
+    '<div class="start-screen">'+
+      '<div class="start-icon"><svg viewBox="0 0 80 80" fill="none">'+
+        '<circle cx="20" cy="25" r="10" fill="#3b82f6" opacity=".8"/>'+
+        '<circle cx="45" cy="25" r="10" fill="#3b82f6" opacity=".8"/>'+
+        '<circle cx="65" cy="25" r="10" fill="#6366f1" opacity=".8"/>'+
+        '<circle cx="20" cy="50" r="10" fill="#3b82f6" opacity=".8"/>'+
+        '<circle cx="45" cy="50" r="10" fill="#3b82f6" opacity=".8"/>'+
+        '<circle cx="65" cy="50" r="10" fill="#3b82f6" opacity=".8"/>'+
+        '<path d="M60 20l10 10-10-3" stroke="#ff6b35" stroke-width="2" fill="none"/>'+
+      '</svg></div>'+
+      '<div class="start-title">Ache o Impostor</div>'+
+      '<div class="start-sub">Um dos simbolos e diferente dos outros.<br>Encontre o impostor antes do tempo acabar!</div>'+
+      '<button class="start-btn" onclick="startPlaying()">Jogar</button>'+
+    '</div>';
+}
+
+function startPlaying(){
+  G.phase='playing';
+  nextRound();
+}
+
+function getGridForLevel(){
+  if(G.level<=3) return 3;
+  if(G.level<=6) return 4;
+  if(G.level<=10) return 5;
+  if(G.level<=15) return 6;
+  return 7;
+}
+
+function getTimeForLevel(){
+  if(G.level<=2) return 8;
+  if(G.level<=5) return 6;
+  if(G.level<=10) return 5;
+  if(G.level<=15) return 4;
+  return 3;
+}
+
+function getDiffMode(){
+  if(G.level<=4) return 'color';
+  if(G.level<=8) return Math.random()>0.5?'color':'shape';
+  if(G.level<=12) return Math.random()>0.5?'shape':'rotation';
+  var r=Math.random();
+  if(r<0.33) return 'color';
+  if(r<0.66) return 'shape';
+  return 'rotation';
+}
+
+function nextRound(){
+  if(G.gameOver) return;
+  clearInterval(G.timerInterval);
+
+  G.gridSize=getGridForLevel();
+  G.totalTime=getTimeForLevel();
+  G.timeLeft=G.totalTime;
+  G.diffMode=getDiffMode();
+  G.shapeIdx=Math.floor(Math.random()*SHAPES.length);
+  G.paletteIdx=Math.floor(Math.random()*PALETTES.length);
+
+  var total=G.gridSize*G.gridSize;
+  G.impostorIdx=Math.floor(Math.random()*total);
+
+  setStatus('Nivel '+G.level+' — '+G.lives+' vidas');
+  renderGrid();
+
+  G.timerInterval=setInterval(function(){
+    G.timeLeft-=0.1;
+    if(G.timeLeft<=0){
+      G.timeLeft=0;clearInterval(G.timerInterval);
+      timeUp();
+    }
+    var fill=document.querySelector('.timer-fill');
+    if(fill){
+      var pct=(G.timeLeft/G.totalTime)*100;
+      fill.style.width=pct+'%';
+      if(pct<25) fill.classList.add('warning');
+      else fill.classList.remove('warning');
+    }
+  },100);
+}
+
+function renderGrid(){
+  var palette=PALETTES[G.paletteIdx];
+  var normalColor=palette.normal;
+  var impostorColor=palette.impostor;
+  var normalShape=G.shapeIdx;
+  var impostorShape=G.shapeIdx;
+  var rotation=0;
+
+  if(G.diffMode==='shape'){
+    impostorShape=(G.shapeIdx+1)%SHAPES.length;
+    impostorColor=normalColor;
+  } else if(G.diffMode==='rotation'){
+    rotation=15+Math.floor(Math.random()*30);
+    impostorColor=normalColor;
+  }
+
+  var livesHtml='';
+  for(var l=0;l<3;l++){
+    var heartColor=l<G.lives?'var(--err)':'var(--t3)';
+    livesHtml+='<svg width="14" height="14" viewBox="0 0 24 24" style="margin:0 1px"><path d="M12 21C12 21 3 13.5 3 8.5C3 5.42 5.42 3 8.5 3C10.24 3 11.91 3.81 12 5C12.09 3.81 13.76 3 15.5 3C18.58 3 21 5.42 21 8.5C21 13.5 12 21 12 21Z" fill="'+heartColor+'"/></svg>';
+  }
+
+  var total=G.gridSize*G.gridSize;
+  var html=
+    '<div class="stats-row">'+
+      '<div class="stat-card"><div class="stat-label">Nivel</div><div class="stat-value accent">'+G.level+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Combo</div><div class="stat-value" style="color:var(--ok)">'+G.combo+'x</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Vidas</div><div class="stat-value">'+livesHtml+'</div></div>'+
+    '</div>'+
+    '<div class="timer-bar"><div class="timer-fill" style="width:100%"></div></div>'+
+    '<div class="level-badge">'+G.diffMode.toUpperCase()+' — Grade '+G.gridSize+'x'+G.gridSize+'</div>'+
+    '<div class="grid-container" id="grid" style="grid-template-columns:repeat('+G.gridSize+',1fr)">';
+
+  for(var i=0;i<total;i++){
+    var isImp=i===G.impostorIdx;
+    var svg;
+    if(isImp){
+      svg=SHAPES[G.diffMode==='shape'?impostorShape:normalShape](impostorColor);
+      if(G.diffMode==='rotation') svg=svg.replace('<svg','<svg style="transform:rotate('+rotation+'deg)"');
+    } else {
+      svg=SHAPES[normalShape](normalColor);
+    }
+    html+='<div class="grid-cell" data-idx="'+i+'" onclick="pickCell('+i+')">'+svg+'</div>';
+  }
+  html+='</div>';
+  board.innerHTML=html;
+}
+
+function pickCell(idx){
+  if(G.gameOver||G.phase!=='playing') return;
+  clearInterval(G.timerInterval);
+
+  var cells=document.querySelectorAll('.grid-cell');
+  G.moves.push({level:G.level,picked:idx,correct:G.impostorIdx,hit:idx===G.impostorIdx,t:Date.now()});
+
+  if(idx===G.impostorIdx){
+    cells[idx].classList.add('correct');
+    G.combo++;
+    if(G.combo>G.maxCombo) G.maxCombo=G.combo;
+    var pts=G.level*10+G.combo*5+Math.round(G.timeLeft*3);
+    G.score+=pts;
+    setScore(G.score);
+    if(G.combo>=3) toast('Combo x'+G.combo+'! +'+pts);
+    G.level++;
+    setTimeout(nextRound,400);
+  } else {
+    cells[idx].classList.add('wrong');
+    cells[G.impostorIdx].classList.add('reveal');
+    G.combo=0;
+    G.lives--;
+    if(G.lives<=0){
+      setTimeout(endGame,600);
+    } else {
+      toast('Errou! '+G.lives+' vida'+(G.lives>1?'s':'')+' restante'+(G.lives>1?'s':''));
+      G.level++;
+      setTimeout(nextRound,800);
+    }
+  }
+}
+
+function timeUp(){
+  G.combo=0;G.lives--;
+  var cells=document.querySelectorAll('.grid-cell');
+  if(cells[G.impostorIdx]) cells[G.impostorIdx].classList.add('reveal');
+  toast('Tempo esgotado!');
+  if(G.lives<=0){
+    setTimeout(endGame,600);
+  } else {
+    G.level++;
+    setTimeout(nextRound,800);
+  }
+}
+
+function endGame(){
+  G.gameOver=true;G.phase='start';
+  clearInterval(G.timerInterval);
+
+  var titleEl=document.getElementById('resultTitle');
+  var statsEl=document.getElementById('resultStats');
+
+  titleEl.textContent=G.level>=20?'Olhos de aguia!':G.level>=10?'Boa percepcao!':'Tente novamente';
+  titleEl.style.color=G.level>=20?'var(--ok)':G.level>=10?'var(--ac)':'var(--t2)';
+
+  statsEl.innerHTML=
+    '<div class="result-stat"><div class="result-stat-label">Nivel</div><div class="result-stat-value">'+(G.level-1)+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Pontos</div><div class="result-stat-value">'+G.score+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Max Combo</div><div class="result-stat-value" style="color:var(--ok)">'+G.maxCombo+'x</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Acertos</div><div class="result-stat-value">'+G.moves.filter(function(m){return m.hit}).length+'</div></div>';
+
+  document.getElementById('resultOverlay').classList.add('show');
+  touchBridge.submitResult({winner:touchBridge.userId,score:G.score,duration:Math.floor((Date.now()-G.startTime)/1000),moves:G.moves,surrendered:false});
+}
+
+function doSurrender(){
+  if(G.gameOver||G.phase==='start') return;
+  if(!confirm('Desistir?')) return;
+  G.gameOver=true;clearInterval(G.timerInterval);
+  touchBridge.submitResult({winner:null,score:G.score,duration:Math.floor((Date.now()-G.startTime)/1000),moves:G.moves,surrendered:true});
+  G.phase='start';initGame();
+}
+
+function doNewGame(){
+  clearInterval(G.timerInterval);
+  document.getElementById('resultOverlay').classList.remove('show');
+  G.phase='start';initGame();
+}
+
+window.addEventListener('DOMContentLoaded',initGame);
+</script>
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<title>2048 — Touch?</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0f;--s1:#12121a;--s2:#1a1a24;--b1:rgba(255,255,255,.08);
+  --t1:#f5f5f7;--t2:#8888a0;--t3:#555568;
+  --ac:#ff6b35;--ac2:#ff8f65;--ok:#34d399;--err:#f87171;
+}
+html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--t1);overflow:hidden;-webkit-user-select:none;user-select:none}
+body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+
+.g-header{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--b1);flex-shrink:0}
+.g-status{padding:.3rem .7rem;background:var(--s1);border-radius:16px;font-size:.7rem;color:var(--t2)}
+.g-score{font-size:.85rem;font-weight:700;color:var(--ac)}
+
+.g-board{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem;overflow:hidden;position:relative}
+
+.g-footer{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid var(--b1);flex-shrink:0}
+.g-btn{flex:1;padding:.7rem;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:.8rem;font-family:inherit;transition:opacity .15s,transform .1s}
+.g-btn:active{opacity:.85;transform:scale(.97)}
+.g-btn.primary{background:var(--ac);color:#fff}
+.g-btn.secondary{background:var(--s1);color:var(--t2);border:1px solid var(--b1)}
+
+.g-toast{position:fixed;top:1rem;left:50%;transform:translateX(-50%);padding:.6rem 1.2rem;background:var(--s2);border:1px solid var(--b1);border-radius:12px;font-size:.75rem;color:var(--t1);z-index:100;opacity:0;transition:opacity .3s;pointer-events:none}
+.g-toast.show{opacity:1}
+
+/* === 2048 STYLES === */
+.stats-row{display:flex;gap:.5rem;margin-bottom:.8rem;width:100%;max-width:340px}
+.stat-card{flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:.5rem;text-align:center}
+.stat-label{font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-size:1rem;font-weight:700;color:var(--ac)}
+
+.board-wrap{width:100%;max-width:340px;aspect-ratio:1;background:var(--s1);border:2px solid var(--b1);border-radius:14px;padding:6px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;touch-action:none}
+
+.cell{border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;transition:none;position:relative;aspect-ratio:1}
+.cell.empty{background:var(--s2)}
+
+.cell.v2{background:#1e3a5f;color:#93c5fd;font-size:1.4rem}
+.cell.v4{background:#1e3a2f;color:#86efac;font-size:1.4rem}
+.cell.v8{background:#5c2d0e;color:#fdba74;font-size:1.4rem}
+.cell.v16{background:#5c1a0e;color:#fca5a5;font-size:1.3rem}
+.cell.v32{background:#4c1d95;color:#c4b5fd;font-size:1.3rem}
+.cell.v64{background:#701a75;color:#f0abfc;font-size:1.3rem}
+.cell.v128{background:#854d0e;color:#fde047;font-size:1.1rem}
+.cell.v256{background:#166534;color:#bbf7d0;font-size:1.1rem}
+.cell.v512{background:#1e40af;color:#bfdbfe;font-size:1.1rem}
+.cell.v1024{background:#7e22ce;color:#e9d5ff;font-size:.9rem}
+.cell.v2048{background:linear-gradient(135deg,#ff6b35,#ff8f65);color:#fff;font-size:.9rem;box-shadow:0 0 20px rgba(255,107,53,.4)}
+.cell.vbig{background:linear-gradient(135deg,#ff6b35,#ec4899);color:#fff;font-size:.8rem;box-shadow:0 0 20px rgba(255,107,53,.3)}
+
+.cell.new{animation:cellPop .2s ease-out}
+.cell.merged{animation:cellMerge .2s ease-out}
+
+@keyframes cellPop{0%{transform:scale(0)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
+@keyframes cellMerge{0%{transform:scale(.8)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+.swipe-hint{font-size:.6rem;color:var(--t3);margin-top:.6rem;display:flex;align-items:center;gap:.3rem}
+.swipe-hint svg{width:14px;height:14px;opacity:.5}
+
+.result-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,10,15,.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .3s}
+.result-overlay.show{opacity:1;pointer-events:all}
+.result-card{background:var(--s1);border:1px solid var(--b1);border-radius:20px;padding:2rem 1.5rem;text-align:center;max-width:300px;width:90%}
+.result-title{font-size:1.4rem;font-weight:800;margin-bottom:.5rem}
+.result-stats{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1rem 0}
+.result-stat{background:var(--s2);border-radius:8px;padding:.6rem}
+.result-stat-label{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.result-stat-value{font-size:1rem;font-weight:700;color:var(--ac)}
+.result-btn{width:100%;padding:.8rem;border:none;border-radius:12px;background:var(--ac);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;margin-top:.5rem}
+.result-btn:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<div class="g-header">
+  <div class="g-status" id="gStatus">2048</div>
+  <div class="g-score" id="gScore">0 pts</div>
+</div>
+
+<div class="g-board" id="gBoard"></div>
+
+<div class="g-footer">
+  <button class="g-btn secondary" onclick="doSurrender()">Desistir</button>
+  <button class="g-btn primary" onclick="doNewGame()">Novo Jogo</button>
+</div>
+
+<div class="g-toast" id="gToast"></div>
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-stats" id="resultStats"></div>
+    <button class="result-btn" onclick="doNewGame()">Jogar Novamente</button>
+  </div>
+</div>
+
+<script src="/games/core/bridge.js"></script>
+<script>
+'use strict';
+
+var G={
+  score:0,best:0,moves:[],startTime:Date.now(),
+  grid:null,gameOver:false,won:false,moveCount:0,
+  maxTile:0,phase:'playing'
+};
+
+var board=document.getElementById('gBoard');
+
+function setStatus(t){document.getElementById('gStatus').textContent=t}
+function setScore(n){G.score=n;document.getElementById('gScore').textContent=n+' pts'}
+function toast(m){var t=document.getElementById('gToast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1800)}
+
+function createGrid(){
+  var g=[];
+  for(var i=0;i<4;i++){
+    g[i]=[];
+    for(var j=0;j<4;j++) g[i][j]=0;
+  }
+  return g;
+}
+
+function addRandom(grid,count){
+  var empty=[];
+  for(var r=0;r<4;r++)for(var c=0;c<4;c++)if(grid[r][c]===0)empty.push([r,c]);
+  count=Math.min(count||1,empty.length);
+  for(var i=0;i<count;i++){
+    var idx=Math.floor(Math.random()*empty.length);
+    var pos=empty.splice(idx,1)[0];
+    grid[pos[0]][pos[1]]=Math.random()<0.9?2:4;
+  }
+}
+
+function cloneGrid(g){return g.map(function(r){return r.slice()})}
+
+function slideRow(row){
+  var filtered=row.filter(function(v){return v!==0});
+  var merged=[];
+  var pts=0;
+  for(var i=0;i<filtered.length;i++){
+    if(i<filtered.length-1&&filtered[i]===filtered[i+1]){
+      var val=filtered[i]*2;
+      merged.push(val);
+      pts+=val;
+      if(val>G.maxTile) G.maxTile=val;
+      i++;
+    } else {
+      merged.push(filtered[i]);
+    }
+  }
+  while(merged.length<4) merged.push(0);
+  return{row:merged,pts:pts};
+}
+
+function moveLeft(grid){
+  var pts=0;var moved=false;
+  var ng=[];
+  for(var r=0;r<4;r++){
+    var res=slideRow(grid[r]);
+    ng.push(res.row);pts+=res.pts;
+    for(var c=0;c<4;c++) if(grid[r][c]!==res.row[c]) moved=true;
+  }
+  return{grid:ng,pts:pts,moved:moved};
+}
+
+function moveRight(grid){
+  var pts=0;var moved=false;
+  var ng=[];
+  for(var r=0;r<4;r++){
+    var rev=grid[r].slice().reverse();
+    var res=slideRow(rev);
+    res.row.reverse();
+    ng.push(res.row);pts+=res.pts;
+    for(var c=0;c<4;c++) if(grid[r][c]!==res.row[c]) moved=true;
+  }
+  return{grid:ng,pts:pts,moved:moved};
+}
+
+function transpose(grid){
+  var t=createGrid();
+  for(var r=0;r<4;r++)for(var c=0;c<4;c++) t[c][r]=grid[r][c];
+  return t;
+}
+
+function moveUp(grid){
+  var t=transpose(grid);
+  var res=moveLeft(t);
+  return{grid:transpose(res.grid),pts:res.pts,moved:res.moved};
+}
+
+function moveDown(grid){
+  var t=transpose(grid);
+  var res=moveRight(t);
+  return{grid:transpose(res.grid),pts:res.pts,moved:res.moved};
+}
+
+function canMove(grid){
+  for(var r=0;r<4;r++)for(var c=0;c<4;c++){
+    if(grid[r][c]===0) return true;
+    if(c<3&&grid[r][c]===grid[r][c+1]) return true;
+    if(r<3&&grid[r][c]===grid[r+1][c]) return true;
+  }
+  return false;
+}
+
+function doMove(dir){
+  if(G.gameOver) return;
+  var prev=cloneGrid(G.grid);
+  var res;
+  if(dir==='left') res=moveLeft(G.grid);
+  else if(dir==='right') res=moveRight(G.grid);
+  else if(dir==='up') res=moveUp(G.grid);
+  else res=moveDown(G.grid);
+
+  if(!res.moved) return;
+
+  G.grid=res.grid;
+  G.score+=res.pts;
+  G.moveCount++;
+  setScore(G.score);
+  if(G.score>G.best) G.best=G.score;
+
+  addRandom(G.grid,1);
+  G.moves.push({dir:dir,pts:res.pts,t:Date.now()});
+
+  renderBoard(prev);
+
+  if(G.maxTile>=2048&&!G.won){
+    G.won=true;
+    toast('Voce alcancou 2048!');
+  }
+
+  if(!canMove(G.grid)){
+    G.gameOver=true;
+    setTimeout(endGame,500);
+  }
+
+  setStatus(G.moveCount+' jogadas');
+}
+
+function getCellClass(v){
+  if(v===0) return 'cell empty';
+  if(v<=2048) return 'cell v'+v;
+  return 'cell vbig';
+}
+
+function renderBoard(prev){
+  var html=
+    '<div class="stats-row">'+
+      '<div class="stat-card"><div class="stat-label">Pontos</div><div class="stat-value">'+G.score+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Melhor</div><div class="stat-value" style="color:var(--ok)">'+G.best+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Maior</div><div class="stat-value">'+G.maxTile+'</div></div>'+
+    '</div>'+
+    '<div class="board-wrap" id="boardWrap">';
+
+  for(var r=0;r<4;r++){
+    for(var c=0;c<4;c++){
+      var v=G.grid[r][c];
+      var cls=getCellClass(v);
+      if(prev&&v!==0){
+        if(prev[r][c]===0&&v!==0) cls+=' new';
+        else if(prev[r][c]!==0&&v!==prev[r][c]) cls+=' merged';
+      }
+      html+='<div class="'+cls+'">'+(v||'')+'</div>';
+    }
+  }
+
+  html+='</div>'+
+    '<div class="swipe-hint">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>'+
+      'Deslize para mover os blocos'+
+    '</div>';
+
+  board.innerHTML=html;
+  setupTouch();
+}
+
+function setupTouch(){
+  var wrap=document.getElementById('boardWrap');
+  if(!wrap) return;
+  var sx,sy;
+  wrap.addEventListener('touchstart',function(e){
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
+  },{passive:true});
+  wrap.addEventListener('touchend',function(e){
+    if(!sx) return;
+    var dx=e.changedTouches[0].clientX-sx;
+    var dy=e.changedTouches[0].clientY-sy;
+    var adx=Math.abs(dx);var ady=Math.abs(dy);
+    if(Math.max(adx,ady)<30) return;
+    if(adx>ady) doMove(dx>0?'right':'left');
+    else doMove(dy>0?'down':'up');
+    sx=null;sy=null;
+  },{passive:true});
+}
+
+function endGame(){
+  var titleEl=document.getElementById('resultTitle');
+  var statsEl=document.getElementById('resultStats');
+
+  titleEl.textContent=G.maxTile>=2048?'Voce venceu!':G.maxTile>=512?'Quase la!':'Tente novamente';
+  titleEl.style.color=G.maxTile>=2048?'var(--ok)':G.maxTile>=512?'var(--ac)':'var(--t2)';
+
+  statsEl.innerHTML=
+    '<div class="result-stat"><div class="result-stat-label">Pontos</div><div class="result-stat-value">'+G.score+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Maior Bloco</div><div class="result-stat-value" style="color:var(--ok)">'+G.maxTile+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Jogadas</div><div class="result-stat-value">'+G.moveCount+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Tempo</div><div class="result-stat-value">'+Math.floor((Date.now()-G.startTime)/1000)+'s</div></div>';
+
+  document.getElementById('resultOverlay').classList.add('show');
+  touchBridge.submitResult({winner:touchBridge.userId,score:G.score,duration:Math.floor((Date.now()-G.startTime)/1000),moves:G.moves,surrendered:false});
+}
+
+function initGame(){
+  G.score=0;G.moveCount=0;G.maxTile=0;G.gameOver=false;G.won=false;
+  G.moves=[];G.startTime=Date.now();G.grid=createGrid();
+  addRandom(G.grid,2);
+  for(var r=0;r<4;r++)for(var c=0;c<4;c++) if(G.grid[r][c]>G.maxTile) G.maxTile=G.grid[r][c];
+  setScore(0);setStatus('2048');
+  document.getElementById('resultOverlay').classList.remove('show');
+  renderBoard(null);
+}
+
+document.addEventListener('keydown',function(e){
+  if(G.gameOver) return;
+  if(e.key==='ArrowLeft') doMove('left');
+  else if(e.key==='ArrowRight') doMove('right');
+  else if(e.key==='ArrowUp'){e.preventDefault();doMove('up')}
+  else if(e.key==='ArrowDown'){e.preventDefault();doMove('down')}
+});
+
+function doSurrender(){
+  if(G.gameOver) return;
+  if(!confirm('Desistir?')) return;
+  G.gameOver=true;
+  touchBridge.submitResult({winner:null,score:G.score,duration:Math.floor((Date.now()-G.startTime)/1000),moves:G.moves,surrendered:true});
+  toast('Voce desistiu');initGame();
+}
+
+function doNewGame(){
+  document.getElementById('resultOverlay').classList.remove('show');
+  initGame();
+}
+
+window.addEventListener('DOMContentLoaded',initGame);
+</script>
+</body>
+</html>

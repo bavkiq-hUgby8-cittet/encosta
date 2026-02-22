@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<title>Reflexo — Touch?</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0f;--s1:#12121a;--s2:#1a1a24;--b1:rgba(255,255,255,.08);
+  --t1:#f5f5f7;--t2:#8888a0;--t3:#555568;
+  --ac:#ff6b35;--ac2:#ff8f65;--ok:#34d399;--err:#f87171;
+}
+html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--t1);overflow:hidden;-webkit-user-select:none;user-select:none}
+body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+
+.g-header{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--b1);flex-shrink:0}
+.g-status{padding:.3rem .7rem;background:var(--s1);border-radius:16px;font-size:.7rem;color:var(--t2)}
+.g-score{font-size:.85rem;font-weight:700;color:var(--ac)}
+
+.g-board{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem;overflow:hidden;position:relative}
+
+.g-footer{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid var(--b1);flex-shrink:0}
+.g-btn{flex:1;padding:.7rem;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:.8rem;font-family:inherit;transition:opacity .15s,transform .1s}
+.g-btn:active{opacity:.85;transform:scale(.97)}
+.g-btn.primary{background:var(--ac);color:#fff}
+.g-btn.secondary{background:var(--s1);color:var(--t2);border:1px solid var(--b1)}
+
+.g-toast{position:fixed;top:1rem;left:50%;transform:translateX(-50%);padding:.6rem 1.2rem;background:var(--s2);border:1px solid var(--b1);border-radius:12px;font-size:.75rem;color:var(--t1);z-index:100;opacity:0;transition:opacity .3s;pointer-events:none}
+.g-toast.show{opacity:1}
+
+/* === REFLEXO STYLES === */
+.round-info{display:flex;gap:1rem;margin-bottom:1.5rem}
+.round-card{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:.6rem 1rem;text-align:center;flex:1}
+.round-label{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem}
+.round-value{font-size:1.1rem;font-weight:700;color:var(--t1)}
+.round-value.accent{color:var(--ac)}
+.round-value.green{color:var(--ok)}
+.round-value.red{color:var(--err)}
+
+.tap-zone{width:100%;max-width:320px;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:transform .1s;position:relative;overflow:hidden}
+.tap-zone:active{transform:scale(.96)}
+
+.tap-zone.waiting{background:var(--s1);border:2px solid var(--b1)}
+.tap-zone.ready{background:var(--s1);border:2px solid var(--ac);animation:pulse 1.5s ease-in-out infinite}
+.tap-zone.go{background:var(--ok);border:2px solid var(--ok)}
+.tap-zone.early{background:var(--err);border:2px solid var(--err)}
+.tap-zone.result{background:var(--s1);border:2px solid var(--b1)}
+
+@keyframes pulse{0%,100%{border-color:var(--ac);box-shadow:0 0 0 0 rgba(255,107,53,.3)}50%{border-color:var(--ac2);box-shadow:0 0 20px 5px rgba(255,107,53,.15)}}
+
+.tap-icon{width:64px;height:64px;margin-bottom:.8rem;opacity:.6}
+.tap-zone.go .tap-icon{opacity:1}
+.tap-text{font-size:1rem;font-weight:600;text-align:center;line-height:1.4}
+.tap-sub{font-size:.7rem;color:var(--t3);margin-top:.3rem}
+
+.tap-time{font-size:2.5rem;font-weight:800;font-variant-numeric:tabular-nums;font-family:'Inter',monospace}
+.tap-time.fast{color:var(--ok)}
+.tap-time.medium{color:var(--ac)}
+.tap-time.slow{color:var(--err)}
+
+.history{display:flex;gap:.4rem;margin-top:1.2rem;flex-wrap:wrap;justify-content:center}
+.history-dot{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;border:1px solid var(--b1)}
+.history-dot.win{background:rgba(52,211,153,.15);color:var(--ok);border-color:var(--ok)}
+.history-dot.lose{background:rgba(248,113,113,.15);color:var(--err);border-color:var(--err)}
+.history-dot.pending{background:var(--s1);color:var(--t3)}
+
+/* Multiplayer scores */
+.vs-bar{display:flex;align-items:center;gap:.8rem;margin-top:1rem;width:100%;max-width:320px}
+.vs-player{flex:1;text-align:center;padding:.5rem;background:var(--s1);border:1px solid var(--b1);border-radius:8px}
+.vs-player.me{border-color:var(--ac)}
+.vs-name{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.vs-score{font-size:1.3rem;font-weight:800}
+.vs-divider{font-size:.8rem;color:var(--t3);font-weight:700}
+
+/* Final result overlay */
+.result-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,10,15,.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .3s}
+.result-overlay.show{opacity:1;pointer-events:all}
+.result-card{background:var(--s1);border:1px solid var(--b1);border-radius:20px;padding:2rem 1.5rem;text-align:center;max-width:300px;width:90%;animation:slideUp .4s ease-out}
+@keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.result-icon{width:80px;height:80px;margin:0 auto 1rem}
+.result-title{font-size:1.4rem;font-weight:800;margin-bottom:.3rem}
+.result-sub{font-size:.8rem;color:var(--t2);margin-bottom:1.2rem}
+.result-stats{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1.2rem}
+.result-stat{background:var(--s2);border-radius:8px;padding:.6rem}
+.result-stat-label{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.result-stat-value{font-size:1rem;font-weight:700;color:var(--ac)}
+.result-btn{width:100%;padding:.8rem;border:none;border-radius:12px;background:var(--ac);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit}
+.result-btn:active{transform:scale(.97);opacity:.9}
+</style>
+</head>
+<body>
+<div class="g-header">
+  <div class="g-status" id="gStatus">Aguardando...</div>
+  <div class="g-score" id="gScore">Rodada 1/5</div>
+</div>
+
+<div class="g-board" id="gBoard">
+  <div class="round-info" id="roundInfo">
+    <div class="round-card">
+      <div class="round-label">Melhor</div>
+      <div class="round-value green" id="bestTime">---</div>
+    </div>
+    <div class="round-card">
+      <div class="round-label">Media</div>
+      <div class="round-value accent" id="avgTime">---</div>
+    </div>
+    <div class="round-card">
+      <div class="round-label">Rodada</div>
+      <div class="round-value" id="roundNum">1/5</div>
+    </div>
+  </div>
+
+  <div class="tap-zone waiting" id="tapZone">
+    <svg class="tap-icon" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" opacity=".3"/>
+      <circle cx="32" cy="32" r="16" stroke="currentColor" stroke-width="2" opacity=".5"/>
+      <circle cx="32" cy="32" r="6" fill="currentColor" opacity=".7"/>
+    </svg>
+    <div class="tap-text" id="tapText">Toque para comecar</div>
+    <div class="tap-sub" id="tapSub">5 rodadas de reflexo puro</div>
+  </div>
+
+  <div class="history" id="history"></div>
+
+  <div class="vs-bar" id="vsBar" style="display:none">
+    <div class="vs-player me">
+      <div class="vs-name">Voce</div>
+      <div class="vs-score" id="myWins">0</div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="vs-player">
+      <div class="vs-name">Oponente</div>
+      <div class="vs-score" id="oppWins">0</div>
+    </div>
+  </div>
+</div>
+
+<div class="g-footer">
+  <button class="g-btn secondary" onclick="doSurrender()">Desistir</button>
+  <button class="g-btn primary" onclick="doNewGame()">Novo Jogo</button>
+</div>
+
+<div class="g-toast" id="gToast"></div>
+
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="result-icon" id="resultIcon"></div>
+    <div class="result-title" id="resultTitle">Resultado</div>
+    <div class="result-sub" id="resultSub"></div>
+    <div class="result-stats" id="resultStats"></div>
+    <button class="result-btn" onclick="doNewGame()">Jogar Novamente</button>
+  </div>
+</div>
+
+<script src="/games/core/bridge.js"></script>
+<script>
+'use strict';
+
+var G = {
+  score: 0,
+  moves: [],
+  startTime: Date.now(),
+  isMultiplayer: !!(typeof touchBridge !== 'undefined' && touchBridge.opponentId),
+  myTurn: true,
+  round: 0,
+  totalRounds: 5,
+  times: [],
+  phase: 'idle',
+  greenTime: 0,
+  timeout: null,
+  myWins: 0,
+  oppWins: 0,
+  oppTimes: [],
+  bestTime: Infinity,
+  gameOver: false
+};
+
+function setStatus(t){document.getElementById('gStatus').textContent=t}
+function setScore(t){document.getElementById('gScore').textContent=t}
+function toast(m){var t=document.getElementById('gToast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2000)}
+
+var tapZone=document.getElementById('tapZone');
+var tapText=document.getElementById('tapText');
+var tapSub=document.getElementById('tapSub');
+
+function initGame(){
+  G.round=0;G.times=[];G.phase='idle';G.gameOver=false;
+  G.myWins=0;G.oppWins=0;G.oppTimes=[];G.bestTime=Infinity;
+  G.moves=[];G.startTime=Date.now();G.score=0;
+  clearTimeout(G.timeout);
+  setStatus('Aguardando...');
+  setScore('Rodada 1/'+G.totalRounds);
+  document.getElementById('bestTime').textContent='---';
+  document.getElementById('avgTime').textContent='---';
+  document.getElementById('roundNum').textContent='1/'+G.totalRounds;
+  document.getElementById('resultOverlay').classList.remove('show');
+
+  if(G.isMultiplayer){
+    document.getElementById('vsBar').style.display='flex';
+    document.getElementById('myWins').textContent='0';
+    document.getElementById('oppWins').textContent='0';
+  }
+
+  setTapState('waiting');
+  tapText.textContent='Toque para comecar';
+  tapSub.textContent=G.isMultiplayer?'Duelo de reflexo — quem e mais rapido?':'5 rodadas de reflexo puro';
+  renderHistory();
+}
+
+function setTapState(state){
+  tapZone.className='tap-zone '+state;
+}
+
+function renderHistory(){
+  var h=document.getElementById('history');
+  var html='';
+  for(var i=0;i<G.totalRounds;i++){
+    if(i<G.times.length){
+      var t=G.times[i];
+      if(t===-1) html+='<div class="history-dot lose">X</div>';
+      else html+='<div class="history-dot win">'+t+'</div>';
+    } else {
+      html+='<div class="history-dot pending">'+(i+1)+'</div>';
+    }
+  }
+  h.innerHTML=html;
+}
+
+function startRound(){
+  G.round++;
+  G.phase='waiting';
+  setTapState('ready');
+  tapText.textContent='Aguarde o verde...';
+  tapSub.textContent='Nao toque antes!';
+  setScore('Rodada '+G.round+'/'+G.totalRounds);
+  document.getElementById('roundNum').textContent=G.round+'/'+G.totalRounds;
+  setStatus('Aguarde...');
+
+  var delay=1500+Math.random()*3500;
+  G.timeout=setTimeout(function(){
+    G.phase='go';
+    G.greenTime=performance.now();
+    setTapState('go');
+    tapText.textContent='TOQUE AGORA!';
+    tapSub.textContent='';
+    setStatus('AGORA!');
+  },delay);
+}
+
+function handleTap(){
+  if(G.gameOver) return;
+
+  if(G.phase==='idle'){
+    startRound();
+    return;
+  }
+
+  if(G.phase==='waiting'){
+    clearTimeout(G.timeout);
+    G.phase='early';
+    G.times.push(-1);
+    setTapState('early');
+    tapText.textContent='Cedo demais!';
+    tapSub.textContent='Toque para tentar de novo';
+    setStatus('Antecipou!');
+    toast('Voce tocou antes da hora!');
+    G.moves.push({round:G.round,result:'early',t:Date.now()});
+
+    if(G.isMultiplayer){
+      touchBridge.broadcastMove({type:'round-result',round:G.round,time:-1});
+    }
+    G.phase='result';
+    checkRoundTransition();
+    return;
+  }
+
+  if(G.phase==='go'){
+    var elapsed=Math.round(performance.now()-G.greenTime);
+    G.times.push(elapsed);
+    G.phase='result';
+
+    if(elapsed<G.bestTime) G.bestTime=elapsed;
+    document.getElementById('bestTime').textContent=G.bestTime+'ms';
+
+    var validTimes=G.times.filter(function(t){return t>0});
+    if(validTimes.length>0){
+      var avg=Math.round(validTimes.reduce(function(a,b){return a+b},0)/validTimes.length);
+      document.getElementById('avgTime').textContent=avg+'ms';
+    }
+
+    setTapState('result');
+    var cls=elapsed<200?'fast':elapsed<350?'medium':'slow';
+    tapText.innerHTML='<span class="tap-time '+cls+'">'+elapsed+'ms</span>';
+    tapSub.textContent=elapsed<150?'Incrivel!':elapsed<200?'Muito rapido!':elapsed<300?'Bom reflexo!':elapsed<400?'Nada mal':'Pode melhorar!';
+    setStatus(elapsed+'ms');
+    G.score+=Math.max(0,500-elapsed);
+    G.moves.push({round:G.round,result:elapsed,t:Date.now()});
+
+    if(G.isMultiplayer){
+      touchBridge.broadcastMove({type:'round-result',round:G.round,time:elapsed});
+    }
+
+    checkRoundTransition();
+    return;
+  }
+
+  if(G.phase==='result'){
+    if(G.round<G.totalRounds){
+      startRound();
+    }
+    return;
+  }
+}
+
+function checkRoundTransition(){
+  renderHistory();
+  if(G.round>=G.totalRounds){
+    setTimeout(showFinalResult,800);
+  } else {
+    tapSub.textContent+=' — Toque para proxima rodada';
+  }
+}
+
+function showFinalResult(){
+  G.gameOver=true;
+  var validTimes=G.times.filter(function(t){return t>0});
+  var best=validTimes.length>0?Math.min.apply(null,validTimes):0;
+  var avg=validTimes.length>0?Math.round(validTimes.reduce(function(a,b){return a+b},0)/validTimes.length):0;
+  var earlyCount=G.times.filter(function(t){return t===-1}).length;
+
+  var overlay=document.getElementById('resultOverlay');
+  var iconEl=document.getElementById('resultIcon');
+  var titleEl=document.getElementById('resultTitle');
+  var subEl=document.getElementById('resultSub');
+  var statsEl=document.getElementById('resultStats');
+
+  var iconSvg;
+  if(avg>0&&avg<200){
+    iconSvg='<svg viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="36" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--ok')+'" stroke-width="3"/><path d="M25 42l10 10 20-22" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--ok')+'" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    titleEl.textContent='Reflexo Insano!';
+    titleEl.style.color='var(--ok)';
+  } else if(avg>0&&avg<350){
+    iconSvg='<svg viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="36" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--ac')+'" stroke-width="3"/><path d="M28 50c4 6 12 10 12 10s8-4 12-10" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--ac')+'" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="30" cy="35" r="3" fill="'+getComputedStyle(document.documentElement).getPropertyValue('--ac')+'"/><circle cx="50" cy="35" r="3" fill="'+getComputedStyle(document.documentElement).getPropertyValue('--ac')+'"/></svg>';
+    titleEl.textContent='Bom Trabalho!';
+    titleEl.style.color='var(--ac)';
+  } else {
+    iconSvg='<svg viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="36" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--t2')+'" stroke-width="3"/><path d="M28 48h24" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--t2')+'" stroke-width="2.5" stroke-linecap="round"/><circle cx="30" cy="35" r="3" fill="'+getComputedStyle(document.documentElement).getPropertyValue('--t2')+'"/><circle cx="50" cy="35" r="3" fill="'+getComputedStyle(document.documentElement).getPropertyValue('--t2')+'"/></svg>';
+    titleEl.textContent='Continue Praticando';
+    titleEl.style.color='var(--t2)';
+  }
+  iconEl.innerHTML=iconSvg;
+
+  subEl.textContent=validTimes.length+' de '+G.totalRounds+' rodadas validas';
+
+  statsEl.innerHTML=
+    '<div class="result-stat"><div class="result-stat-label">Melhor</div><div class="result-stat-value">'+(best>0?best+'ms':'---')+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Media</div><div class="result-stat-value">'+(avg>0?avg+'ms':'---')+'</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Antecipou</div><div class="result-stat-value">'+earlyCount+'x</div></div>'+
+    '<div class="result-stat"><div class="result-stat-label">Pontos</div><div class="result-stat-value">'+G.score+'</div></div>';
+
+  overlay.classList.add('show');
+
+  touchBridge.submitResult({
+    winner:touchBridge.userId,
+    score:G.score,
+    duration:Math.floor((Date.now()-G.startTime)/1000),
+    moves:G.moves,
+    surrendered:false
+  });
+}
+
+tapZone.addEventListener('click',handleTap);
+tapZone.addEventListener('touchstart',function(e){e.preventDefault();handleTap()},{passive:false});
+
+function doSurrender(){
+  if(G.gameOver) return;
+  if(!confirm('Desistir do jogo?')) return;
+  G.gameOver=true;
+  clearTimeout(G.timeout);
+  touchBridge.submitResult({
+    winner:touchBridge.opponentId||null,
+    score:G.score,
+    duration:Math.floor((Date.now()-G.startTime)/1000),
+    moves:G.moves,
+    surrendered:true
+  });
+  toast('Voce desistiu');
+}
+
+function doNewGame(){
+  clearTimeout(G.timeout);
+  document.getElementById('resultOverlay').classList.remove('show');
+  initGame();
+}
+
+if(G.isMultiplayer){
+  touchBridge.onOpponentMove=function(move){
+    if(move.type==='round-result'){
+      G.oppTimes.push(move.time);
+      if(move.time===-1) G.oppWins--;
+    }
+  };
+  touchBridge.onOpponentDisconnected=function(){
+    setStatus('Oponente saiu');
+    toast('Oponente desconectou');
+  };
+}
+
+window.addEventListener('DOMContentLoaded',initGame);
+</script>
+</body>
+</html>
