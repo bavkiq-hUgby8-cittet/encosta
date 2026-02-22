@@ -285,6 +285,35 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes si-glow-pulse{0%,100%{opacity:.1;transform:translate(-50%,-50%) scale(.6)}50%{opacity:1;transform:translate(-50%,-50%) scale(2.2)}}
 /* Screenshot block in chat */
 #chat .cms{-webkit-user-select:none;user-select:none}
+/* ═══ GAME LOBBY MODAL ═══ */
+.game-lobby-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);z-index:200;display:none;flex-direction:column;opacity:0;transition:opacity .3s}
+.game-lobby-overlay.visible{display:flex;opacity:1}
+.gl-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem .6rem;flex-shrink:0}
+.gl-title{font-size:1.1rem;font-weight:700;color:var(--t1)}
+.gl-close{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2)}
+.gl-opponent{display:flex;align-items:center;gap:.6rem;padding:0 1.2rem .8rem}
+.gl-opp-avatar{width:36px;height:36px;border-radius:50%;background:var(--s2);overflow:hidden;border:2px solid var(--ac)}
+.gl-opp-avatar img{width:100%;height:100%;object-fit:cover}
+.gl-opp-info{flex:1}
+.gl-opp-name{font-size:.8rem;font-weight:600;color:var(--t1)}
+.gl-opp-sub{font-size:.6rem;color:var(--t3)}
+.gl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem;padding:.5rem 1.2rem;overflow-y:auto;flex:1}
+.gl-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:1rem .8rem;display:flex;flex-direction:column;align-items:center;gap:.5rem;cursor:pointer;transition:transform .15s,border-color .2s;position:relative;overflow:hidden}
+.gl-card:active{transform:scale(.96);border-color:var(--ac)}
+.gl-card-icon{width:40px;height:40px;color:var(--ac);display:flex;align-items:center;justify-content:center}
+.gl-card-icon svg{width:100%;height:100%}
+.gl-card-name{font-size:.78rem;font-weight:700;color:var(--t1);text-align:center}
+.gl-card-desc{font-size:.6rem;color:var(--t3);text-align:center;line-height:1.3}
+.gl-card-meta{display:flex;gap:.4rem;align-items:center;font-size:.55rem;color:var(--t3)}
+.gl-card-badge{padding:.15rem .4rem;border-radius:8px;font-size:.5rem;font-weight:600;text-transform:uppercase}
+.gl-card-badge.solo{background:rgba(52,211,153,.1);color:#34d399}
+.gl-card-badge.duo{background:rgba(99,102,241,.1);color:#818cf8}
+.gl-card-badge.multi{background:rgba(251,191,36,.1);color:#fbbf24}
+.gl-card-stars{display:flex;align-items:center;gap:.2rem;font-size:.55rem;color:#fbbf24}
+/* Game iframe fullscreen */
+.game-iframe-container{position:fixed;inset:0;z-index:250;background:var(--bg);display:none}
+.game-iframe-container.visible{display:block}
+.game-iframe-container iframe{width:100%;height:100%;border:none}
 /* Bottom section — anchored tab bar */
 .home-bottom{display:flex;flex-direction:column;align-items:center;width:100%;position:relative;z-index:5;flex-shrink:0;padding:0 1.2rem;padding-bottom:max(env(safe-area-inset-bottom),.6rem);transition:opacity .3s}
 .home-bottom.sonic-hidden{opacity:0;pointer-events:none}
@@ -644,6 +673,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-action-icon.success{color:#86efac}
 .cd-action-icon.star .cd-icon{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.15)}
 .cd-action-icon.star{color:#fbbf24}
+.cd-action-icon.game .cd-icon{background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.2)}
+.cd-action-icon.game{color:#818cf8}
 .cd-action-icon.disabled{opacity:.4;pointer-events:none}
 .cd-action-icon.revealed-new .cd-icon{background:rgba(251,191,36,.2);border-color:rgba(251,191,36,.5);animation:cdRevealPulse 1.5s ease-in-out 3}
 .cd-action-icon.revealed-new{color:#fbbf24;pointer-events:none}
@@ -6490,6 +6521,8 @@ function showConstDetail(node){
     if(node.isPrestador){
       aHtml+=iconBtn(ICONS.tip,'Gorjeta',"event.stopPropagation();constTipAction('"+node.id+"')",'tip');
     }
+    // Play game
+    aHtml+=iconBtn(ICONS.game||'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h4m-2-2v4M14.5 10.5h.01M18.5 10.5h.01"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg>','Jogar',"openGameLobby('"+node.id+"')",'game');
     // History
     aHtml+=iconBtn(ICONS.history,'Histórico',"openHistoryPanel()",'');
   }
@@ -10449,6 +10482,151 @@ async function verifyEvent(eventId,btn){
     else{btn.textContent='Erro';showToast(d.error||'Erro')}
   }catch(e){btn.textContent='Erro';btn.disabled=false}
 }
+
+// ═══ TOUCHGAMES — Lobby, Iframe, PostMessage ═══
+var _gameLobbyTarget=null,_gameManifest=null,_gameIframeSession=null;
+
+async function openGameLobby(targetUserId){
+  _gameLobbyTarget=targetUserId;
+  const overlay=$('gameLobbyOverlay');
+  if(!overlay)return;
+  // Load manifest
+  if(!_gameManifest){
+    try{
+      const r=await fetch('/api/games/manifest');
+      _gameManifest=await r.json();
+    }catch(e){_gameManifest={games:[]};}
+  }
+  // Opponent info
+  const oppEl=$('glOpponent');
+  const node=constState.selectedNode;
+  if(node&&oppEl){
+    const av=node.profilePhoto?'<img src="'+esc(node.profilePhoto)+'" alt="">':'<div style="width:100%;height:100%;background:'+esc(node.color||'#333')+';display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#fff">?</div>';
+    oppEl.innerHTML='<div class="gl-opp-avatar">'+av+'</div><div class="gl-opp-info"><div class="gl-opp-name">'+esc(node.nickname||'???')+'</div><div class="gl-opp-sub">Escolha um jogo para jogar</div></div>';
+    oppEl.style.display='flex';
+  }
+  // Render game cards
+  const grid=$('glGrid');
+  let html='';
+  (_gameManifest.games||[]).forEach(g=>{
+    const badgeCls=g.players==='solo'?'solo':g.maxPlayers>2?'multi':'duo';
+    const badgeTxt=g.players==='solo'?'Solo':g.maxPlayers>2?g.maxPlayers+'P':'Duo';
+    html+='<div class="gl-card" onclick="launchGame(\''+g.id+'\',\''+g.file+'\')">';
+    html+='<div class="gl-card-icon">'+g.icon+'</div>';
+    html+='<div class="gl-card-name">'+esc(g.name)+'</div>';
+    html+='<div class="gl-card-desc">'+esc(g.description)+'</div>';
+    html+='<div class="gl-card-meta"><span class="gl-card-badge '+badgeCls+'">'+badgeTxt+'</span>';
+    if(g.awardStars)html+='<span class="gl-card-stars"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> +'+g.awardStars+'</span>';
+    html+='</div></div>';
+  });
+  grid.innerHTML=html;
+  overlay.classList.add('visible');
+}
+
+function closeGameLobby(){
+  const overlay=$('gameLobbyOverlay');
+  if(overlay)overlay.classList.remove('visible');
+  _gameLobbyTarget=null;
+}
+
+async function launchGame(gameId,file){
+  closeGameLobby();
+  hideConstDetail();
+  // Create session on server
+  try{
+    const r=await fetch('/api/games/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gameId,hostUserId:state.userId,opponentUserId:_gameLobbyTarget||null})});
+    const d=await r.json();
+    if(!d.ok){showToast('Erro ao criar jogo');return}
+    _gameIframeSession=d.session;
+    // If multiplayer, send invite via socket
+    if(_gameLobbyTarget&&socket){
+      socket.emit('game-invite',{fromUserId:state.userId,toUserId:_gameLobbyTarget,gameId,sessionId:d.session.id});
+    }
+    // Open iframe
+    const container=$('gameIframeContainer');
+    const params='?sessionId='+d.session.id+'&userId='+state.userId+(_gameLobbyTarget?'&opponentId='+_gameLobbyTarget:'')+'&gameId='+gameId;
+    container.innerHTML='<iframe src="/games/'+file+params+'" allow="autoplay"></iframe>';
+    container.classList.add('visible');
+  }catch(e){
+    console.error('Game launch error:',e);
+    showToast('Erro ao iniciar jogo');
+  }
+}
+
+function closeGameIframe(){
+  const container=$('gameIframeContainer');
+  if(container){container.classList.remove('visible');container.innerHTML=''}
+  _gameIframeSession=null;
+}
+
+// PostMessage handler for game iframes
+window.addEventListener('message',function(e){
+  if(!e.data||e.data.source!=='touchgame')return;
+  const {type,data}=e.data;
+  switch(type){
+    case 'game-ready':
+      console.log('[touchgames] Game ready:',data.gameId);
+      break;
+    case 'game-move':
+      if(socket)socket.emit('game-move',{sessionId:data.sessionId,userId:state.userId,move:data.move});
+      break;
+    case 'game-result':
+      console.log('[touchgames] Result:',data);
+      // Submit to server
+      fetch('/api/games/results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:data.sessionId,winner:data.winner||null,scores:{[state.userId]:data.score||0},duration:data.duration||0,surrendered:data.surrendered||false,gameId:data.gameId})}).catch(e=>console.error(e));
+      if(data.surrendered){closeGameIframe()}
+      break;
+    case 'game-state-update':
+      console.log('[touchgames] State saved');
+      break;
+    case 'award-stars':
+      if(data.amount>0){
+        fetch('/api/games/results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:data.sessionId||'bonus',winner:state.userId,scores:{[state.userId]:0},duration:0,gameId:'bonus'})}).catch(e=>console.error(e));
+        showToast('+'+(data.amount)+' estrelas!');
+      }
+      break;
+    case 'game-request-close':
+      closeGameIframe();
+      break;
+  }
+});
+
+// Forward opponent moves from socket to iframe
+if(typeof socket!=='undefined'&&socket){
+  socket.on('game-opponent-move',function(data){
+    const iframe=document.querySelector('#gameIframeContainer iframe');
+    if(iframe&&iframe.contentWindow)iframe.contentWindow.postMessage({type:'opponent-move',data:{move:data.move}},'*');
+  });
+  socket.on('game-opponent-surrendered',function(data){
+    const iframe=document.querySelector('#gameIframeContainer iframe');
+    if(iframe&&iframe.contentWindow)iframe.contentWindow.postMessage({type:'opponent-disconnected',data:{}},'*');
+    showToast('Oponente desistiu!');
+    setTimeout(closeGameIframe,2000);
+  });
+  socket.on('game-invite',function(data){
+    showToast('Convite de jogo recebido!');
+    // Auto-accept for now (can add UI later)
+    if(socket)socket.emit('game-accept',{sessionId:data.sessionId,userId:state.userId});
+  });
+  socket.on('game-start',function(data){
+    const iframe=document.querySelector('#gameIframeContainer iframe');
+    if(iframe&&iframe.contentWindow)iframe.contentWindow.postMessage({type:'game-start',data:data},'*');
+  });
+  socket.on('game-declined',function(){showToast('Convite recusado')});
+}
 </script>
+
+<!-- Game Lobby Modal -->
+<div class="game-lobby-overlay" id="gameLobbyOverlay">
+  <div class="gl-header">
+    <div class="gl-title">TouchGames</div>
+    <div class="gl-close" onclick="closeGameLobby()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+  </div>
+  <div class="gl-opponent" id="glOpponent" style="display:none"></div>
+  <div class="gl-grid" id="glGrid"></div>
+</div>
+
+<!-- Game Iframe Container -->
+<div class="game-iframe-container" id="gameIframeContainer"></div>
 </body>
 </html>

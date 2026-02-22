@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Rali - Corrida de Velocidade</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --s1: #12121a;
+      --s2: #1a1a24;
+      --b1: rgba(255, 255, 255, 0.08);
+      --t1: #f5f5f7;
+      --t2: #8888a0;
+      --t3: #555568;
+      --ac: #ff6b35;
+      --ac2: #ff8f65;
+      --ok: #34d399;
+      --err: #f87171;
+
+      --safe-top: env(safe-area-inset-top, 0);
+      --safe-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--t1);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      touch-action: none;
+    }
+
+    /* Header */
+    .header {
+      padding: max(12px, var(--safe-top)) 16px 12px;
+      background: var(--s1);
+      border-bottom: 1px solid var(--b1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .g-status {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--t2);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .g-score {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ac);
+    }
+
+    /* Main Game Board */
+    .game-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 12px;
+      background: var(--bg);
+      position: relative;
+      touch-action: none;
+      overflow: hidden;
+    }
+
+    /* Countdown Overlay */
+    .countdown-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    .countdown-overlay.hidden {
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .countdown-text {
+      font-size: 120px;
+      font-weight: 700;
+      color: var(--ac);
+      text-shadow: 0 0 30px rgba(255, 107, 53, 0.5);
+      animation: countdownPulse 0.8s ease-out;
+    }
+
+    .countdown-text.go {
+      font-size: 80px;
+      color: var(--ok);
+      animation: countdownPulseGo 0.8s ease-out;
+    }
+
+    @keyframes countdownPulse {
+      0% {
+        transform: scale(0.3);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+
+    @keyframes countdownPulseGo {
+      0% {
+        transform: scale(0.5);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.2);
+        opacity: 0;
+      }
+    }
+
+    /* Tracks Container */
+    .tracks-container {
+      display: flex;
+      gap: 24px;
+      flex: 1;
+      position: relative;
+    }
+
+    /* Individual Track */
+    .track-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .track-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--t2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+    }
+
+    .track-label.you {
+      color: var(--ac);
+    }
+
+    .track-label.opponent {
+      color: #7c5cdb;
+    }
+
+    /* Track Container */
+    .track {
+      flex: 1;
+      background: var(--s2);
+      border: 1px solid var(--b1);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column-reverse;
+      min-height: 0;
+    }
+
+    /* Finish Line */
+    .finish-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 8px;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--ac),
+        var(--ac) 8px,
+        var(--ok) 8px,
+        var(--ok) 16px
+      );
+      z-index: 5;
+      box-shadow: 0 0 12px rgba(255, 107, 53, 0.3);
+    }
+
+    /* Progress Fill */
+    .progress-fill {
+      width: 100%;
+      background: linear-gradient(to top, var(--ac), var(--ac2));
+      position: relative;
+      transition: height 0.06s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: inset 0 0 16px rgba(255, 107, 53, 0.2);
+    }
+
+    .track.opponent .progress-fill {
+      background: linear-gradient(to top, #7c5cdb, #9b8ddb);
+      box-shadow: inset 0 0 16px rgba(124, 92, 219, 0.2);
+    }
+
+    /* Pulse on tap */
+    .progress-fill.pulse {
+      animation: progressPulse 0.4s ease-out;
+    }
+
+    @keyframes progressPulse {
+      0% {
+        box-shadow: inset 0 0 16px rgba(255, 107, 53, 0.2), 0 0 20px rgba(255, 107, 53, 0.4);
+      }
+      100% {
+        box-shadow: inset 0 0 16px rgba(255, 107, 53, 0.2);
+      }
+    }
+
+    .track.opponent .progress-fill.pulse {
+      animation: progressPulseOpponent 0.4s ease-out;
+    }
+
+    @keyframes progressPulseOpponent {
+      0% {
+        box-shadow: inset 0 0 16px rgba(124, 92, 219, 0.2), 0 0 20px rgba(124, 92, 219, 0.4);
+      }
+      100% {
+        box-shadow: inset 0 0 16px rgba(124, 92, 219, 0.2);
+      }
+    }
+
+    /* Stats */
+    .stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .stat-label {
+      color: var(--t3);
+    }
+
+    .stat-value {
+      color: var(--t1);
+      font-weight: 600;
+    }
+
+    .track.opponent .stat-value {
+      color: #9b8ddb;
+    }
+
+    /* Particles */
+    .particle {
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .particle svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Tap Zone */
+    .tap-zone {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 10;
+      cursor: pointer;
+    }
+
+    .track.you .tap-zone {
+      touch-action: none;
+    }
+
+    /* Finish Animation Overlay */
+    .finish-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      gap: 20px;
+    }
+
+    .finish-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .finish-text {
+      font-size: 64px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .finish-text.victory {
+      color: var(--ok);
+      text-shadow: 0 0 20px rgba(52, 211, 153, 0.4);
+      animation: victoryBounce 0.6s ease-out;
+    }
+
+    .finish-text.defeat {
+      color: var(--err);
+      text-shadow: 0 0 20px rgba(248, 113, 113, 0.4);
+      animation: defeatShake 0.6s ease-out;
+    }
+
+    @keyframes victoryBounce {
+      0% {
+        transform: scale(0.5) translateY(20px);
+        opacity: 0;
+      }
+      100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes defeatShake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+
+    .finish-stats {
+      font-size: 16px;
+      color: var(--t2);
+      text-align: center;
+    }
+
+    .finish-stat-row {
+      margin: 8px 0;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 12px 16px max(12px, var(--safe-bottom));
+      background: var(--s1);
+      border-top: 1px solid var(--b1);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-secondary {
+      background: var(--s2);
+      color: var(--t1);
+      border: 1px solid var(--b1);
+    }
+
+    .btn-secondary:active {
+      background: var(--b1);
+      transform: scale(0.95);
+    }
+
+    .btn-primary {
+      background: var(--ac);
+      color: white;
+    }
+
+    .btn-primary:active {
+      background: #ff5722;
+      transform: scale(0.95);
+    }
+
+    /* Responsive */
+    @media (max-height: 600px) {
+      .header {
+        padding: 8px 12px;
+      }
+      .game-container {
+        padding: 12px;
+        gap: 8px;
+      }
+      .tracks-container {
+        gap: 16px;
+      }
+      .countdown-text {
+        font-size: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="g-status">Corrida!</div>
+    <div class="g-score" id="scoreDisplay">0</div>
+  </div>
+
+  <div class="game-container">
+    <div class="countdown-overlay" id="countdownOverlay">
+      <div class="countdown-text" id="countdownText">3</div>
+    </div>
+
+    <div class="tracks-container">
+      <!-- Your Track -->
+      <div class="track-wrapper">
+        <div class="track-label you">Você</div>
+        <div class="track you" id="yourTrack">
+          <div class="finish-line"></div>
+          <div class="progress-fill" id="yourProgress"></div>
+          <div class="stats">
+            <div class="stat-row">
+              <span class="stat-label">Progresso</span>
+              <span class="stat-value" id="yourPercent">0%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Toques</span>
+              <span class="stat-value" id="yourTaps">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Velocidade</span>
+              <span class="stat-value" id="yourSpeed">0.0/s</span>
+            </div>
+          </div>
+          <div class="tap-zone" id="yourTapZone"></div>
+        </div>
+      </div>
+
+      <!-- Opponent Track -->
+      <div class="track-wrapper">
+        <div class="track-label opponent">Oponente</div>
+        <div class="track opponent" id="opponentTrack">
+          <div class="finish-line"></div>
+          <div class="progress-fill" id="opponentProgress"></div>
+          <div class="stats">
+            <div class="stat-row">
+              <span class="stat-label">Progresso</span>
+              <span class="stat-value" id="opponentPercent">0%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Toques</span>
+              <span class="stat-value" id="opponentTaps">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Velocidade</span>
+              <span class="stat-value" id="opponentSpeed">0.0/s</span>
+            </div>
+          </div>
+          <div class="tap-zone" id="opponentTapZone"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="finish-overlay" id="finishOverlay">
+      <div class="finish-text" id="finishText">VITÓRIA!</div>
+      <div class="finish-stats" id="finishStats"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn btn-secondary" id="quitBtn">Desistir</button>
+    <button class="btn btn-primary" id="newGameBtn">Novo Jogo</button>
+  </div>
+
+  <script src="/games/core/bridge.js"></script>
+  <script>
+    const TARGET_TAPS = 50;
+    const COUNTDOWN_DURATION = 4;
+
+    let gameState = {
+      myTaps: 0,
+      opponentTaps: 0,
+      startTime: 0,
+      gameStarted: false,
+      gameFinished: false,
+      tapTimes: [],
+      isMultiplayer: false,
+      soloStartTime: 0
+    };
+
+    // DOM Elements
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const countdownOverlay = document.getElementById('countdownOverlay');
+    const countdownText = document.getElementById('countdownText');
+    const yourProgress = document.getElementById('yourProgress');
+    const opponentProgress = document.getElementById('opponentProgress');
+    const yourPercent = document.getElementById('yourPercent');
+    const opponentPercent = document.getElementById('opponentPercent');
+    const yourTaps = document.getElementById('yourTaps');
+    const opponentTaps = document.getElementById('opponentTaps');
+    const yourSpeed = document.getElementById('yourSpeed');
+    const opponentSpeed = document.getElementById('opponentSpeed');
+    const yourTrack = document.getElementById('yourTrack');
+    const opponentTrack = document.getElementById('opponentTrack');
+    const finishOverlay = document.getElementById('finishOverlay');
+    const finishText = document.getElementById('finishText');
+    const finishStats = document.getElementById('finishStats');
+    const quitBtn = document.getElementById('quitBtn');
+    const newGameBtn = document.getElementById('newGameBtn');
+
+    // Initialize game
+    function initGame() {
+      gameState = {
+        myTaps: 0,
+        opponentTaps: 0,
+        startTime: Date.now(),
+        gameStarted: false,
+        gameFinished: false,
+        tapTimes: [],
+        isMultiplayer: typeof window.touchBridge !== 'undefined' && window.touchBridge.gameMode === 'multiplayer',
+        soloStartTime: null
+      };
+
+      scoreDisplay.textContent = '0';
+      yourProgress.style.height = '0%';
+      opponentProgress.style.height = '0%';
+      updateStats();
+      countdownOverlay.classList.remove('hidden');
+      finishOverlay.classList.remove('show');
+
+      startCountdown();
+    }
+
+    function startCountdown() {
+      let count = 3;
+      countdownText.textContent = count;
+      countdownText.classList.remove('go');
+
+      const countdownInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownText.textContent = count;
+          countdownText.classList.remove('go');
+          // Haptic
+          if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(50);
+          }
+        } else if (count === 0) {
+          countdownText.textContent = 'PRONTO!';
+          countdownText.classList.add('go');
+          if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate([50, 30, 50]);
+          }
+        } else {
+          clearInterval(countdownInterval);
+          countdownOverlay.classList.add('hidden');
+          gameState.gameStarted = true;
+          gameState.soloStartTime = Date.now();
+        }
+      }, 1000);
+    }
+
+    function handleTap() {
+      if (!gameState.gameStarted || gameState.gameFinished) return;
+
+      gameState.myTaps++;
+      const now = Date.now();
+      gameState.tapTimes.push(now);
+
+      // Haptic
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(30);
+      }
+
+      // Pulse animation
+      yourProgress.classList.remove('pulse');
+      void yourProgress.offsetWidth; // Trigger reflow
+      yourProgress.classList.add('pulse');
+
+      // Particle burst
+      createParticle(yourTrack);
+
+      updateProgress();
+      updateStats();
+      scoreDisplay.textContent = gameState.myTaps;
+
+      // Broadcast to opponent
+      if (gameState.isMultiplayer && window.touchBridge) {
+        window.touchBridge.broadcastMove({
+          tap: true,
+          count: gameState.myTaps
+        });
+      }
+
+      // Check win condition
+      if (gameState.myTaps >= TARGET_TAPS) {
+        finishGame(true);
+      }
+    }
+
+    function handleOpponentTap(data) {
+      if (!gameState.gameStarted || gameState.gameFinished) return;
+
+      gameState.opponentTaps = data.count || gameState.opponentTaps + 1;
+
+      opponentProgress.classList.remove('pulse');
+      void opponentProgress.offsetWidth;
+      opponentProgress.classList.add('pulse');
+
+      createParticle(opponentTrack, true);
+
+      updateProgress();
+      updateStats();
+
+      if (gameState.opponentTaps >= TARGET_TAPS) {
+        finishGame(false);
+      }
+    }
+
+    function updateProgress() {
+      const yourPercent = Math.min(100, (gameState.myTaps / TARGET_TAPS) * 100);
+      const opponentPercent = Math.min(100, (gameState.opponentTaps / TARGET_TAPS) * 100);
+
+      yourProgress.style.height = yourPercent + '%';
+      opponentProgress.style.height = opponentPercent + '%';
+    }
+
+    function updateStats() {
+      // Your stats
+      const yourPercentValue = Math.min(100, Math.round((gameState.myTaps / TARGET_TAPS) * 100));
+      yourPercent.textContent = yourPercentValue + '%';
+      yourTaps.textContent = gameState.myTaps;
+
+      // Calculate speed (taps per second)
+      if (gameState.tapTimes.length > 1) {
+        const timeDiff = (gameState.tapTimes[gameState.tapTimes.length - 1] - gameState.tapTimes[0]) / 1000;
+        const speed = timeDiff > 0 ? gameState.myTaps / timeDiff : 0;
+        yourSpeed.textContent = speed.toFixed(1) + '/s';
+      } else {
+        yourSpeed.textContent = '0.0/s';
+      }
+
+      // Opponent stats
+      const opponentPercentValue = Math.min(100, Math.round((gameState.opponentTaps / TARGET_TAPS) * 100));
+      opponentPercent.textContent = opponentPercentValue + '%';
+      opponentTaps.textContent = gameState.opponentTaps;
+      opponentSpeed.textContent = '0.0/s';
+    }
+
+    function createParticle(track, isOpponent = false) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+
+      const colors = isOpponent ? ['#7c5cdb', '#9b8ddb'] : ['#ff6b35', '#ff8f65'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+
+      // Simple circle SVG particle
+      particle.innerHTML = `
+        <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="10" cy="10" r="8" fill="${color}" opacity="0.7"/>
+        </svg>
+      `;
+
+      particle.style.width = '20px';
+      particle.style.height = '20px';
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.top = (isOpponent ? 0 : 100) + '%';
+      particle.style.animation = `particleFloat 0.6s ease-out forwards`;
+
+      track.appendChild(particle);
+
+      setTimeout(() => particle.remove(), 600);
+    }
+
+    function finishGame(won) {
+      gameState.gameFinished = true;
+
+      const elapsed = (Date.now() - gameState.soloStartTime) / 1000;
+      let score = 0;
+
+      if (gameState.isMultiplayer) {
+        finishText.textContent = won ? 'VITÓRIA!' : 'DERROTA!';
+        finishText.className = 'finish-text ' + (won ? 'victory' : 'defeat');
+      } else {
+        // Solo mode: score = 50 / seconds * 100
+        score = Math.round((TARGET_TAPS / elapsed) * 100);
+        finishText.textContent = won ? 'VITÓRIA!' : 'FIM DO JOGO';
+        finishText.className = 'finish-text ' + (won ? 'victory' : 'defeat');
+      }
+
+      let statsHtml = '';
+      if (gameState.isMultiplayer) {
+        statsHtml = `
+          <div class="finish-stat-row">Seus toques: <strong>${gameState.myTaps}</strong></div>
+          <div class="finish-stat-row">Toques do oponente: <strong>${gameState.opponentTaps}</strong></div>
+          <div class="finish-stat-row">Tempo: <strong>${elapsed.toFixed(1)}s</strong></div>
+        `;
+      } else {
+        statsHtml = `
+          <div class="finish-stat-row">Toques: <strong>${gameState.myTaps}</strong></div>
+          <div class="finish-stat-row">Tempo: <strong>${elapsed.toFixed(1)}s</strong></div>
+          <div class="finish-stat-row">Pontuação: <strong>${score}</strong></div>
+        `;
+      }
+
+      finishStats.innerHTML = statsHtml;
+      finishOverlay.classList.add('show');
+
+      // Submit result
+      if (window.touchBridge && window.touchBridge.submitResult) {
+        window.touchBridge.submitResult({
+          game: 'rali',
+          won: won,
+          score: score || gameState.myTaps,
+          taps: gameState.myTaps,
+          opponentTaps: gameState.opponentTaps,
+          time: elapsed
+        });
+      }
+
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(won ? [100, 50, 100] : [150]);
+      }
+    }
+
+    // Event listeners
+    document.getElementById('yourTapZone').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      handleTap();
+    });
+
+    document.getElementById('yourTapZone').addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      handleTap();
+    });
+
+    quitBtn.addEventListener('click', () => {
+      if (window.touchBridge && window.touchBridge.quit) {
+        window.touchBridge.quit();
+      } else {
+        initGame();
+      }
+    });
+
+    newGameBtn.addEventListener('click', initGame);
+
+    // Listen for opponent moves
+    if (window.touchBridge && window.touchBridge.onOpponentMove) {
+      window.touchBridge.onOpponentMove(handleOpponentTap);
+    }
+
+    // Prevent double-tap zoom
+    document.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        // Single tap detected
+      }
+    });
+
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300 && e.changedTouches.length === 1) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+
+    // CSS animation for particles
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes particleFloat {
+        0% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(${-50}px) scale(0.5);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Start game on load
+    initGame();
+  </script>
+</body>
+</html>

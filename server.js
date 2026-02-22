@@ -208,7 +208,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -4580,6 +4580,72 @@ io.on('connection', (socket) => {
     else if (userId) delete sonicQueue[userId];
   });
 
+  // ═══ TOUCHGAMES — Real-time game events ═══
+  socket.on('game-invite', ({ fromUserId, toUserId, gameId, sessionId }) => {
+    if (!fromUserId || !toUserId || !gameId) return;
+    // Find target socket and send invite
+    const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === toUserId);
+    targetSockets.forEach(s => s.emit('game-invite', { fromUserId, gameId, sessionId }));
+  });
+
+  socket.on('game-move', ({ sessionId, userId, move }) => {
+    if (!sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs) return;
+    // Forward move to other player(s) in the session
+    const opponents = gs.players.filter(p => p !== userId);
+    opponents.forEach(opId => {
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === opId);
+      targetSockets.forEach(s => s.emit('game-opponent-move', { sessionId, move }));
+    });
+    // Store move
+    if (!gs.moves) gs.moves = [];
+    gs.moves.push({ userId, move, t: Date.now() });
+  });
+
+  socket.on('game-surrender', ({ sessionId, userId }) => {
+    if (!sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs) return;
+    gs.status = 'finished';
+    gs.winner = gs.players.find(p => p !== userId) || null;
+    gs.endedAt = Date.now();
+    saveDB('gameSessions');
+    // Notify opponents
+    const opponents = gs.players.filter(p => p !== userId);
+    opponents.forEach(opId => {
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === opId);
+      targetSockets.forEach(s => s.emit('game-opponent-surrendered', { sessionId }));
+    });
+  });
+
+  socket.on('game-accept', ({ sessionId, userId }) => {
+    if (!sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs) return;
+    gs.status = 'playing';
+    gs.startedAt = Date.now();
+    saveDB('gameSessions');
+    // Notify all players game is starting
+    gs.players.forEach(pId => {
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === pId);
+      targetSockets.forEach(s => s.emit('game-start', { sessionId, gameId: gs.gameId, players: gs.players }));
+    });
+  });
+
+  socket.on('game-decline', ({ sessionId, userId }) => {
+    if (!sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs) return;
+    gs.status = 'declined';
+    saveDB('gameSessions');
+    const host = gs.players.find(p => p !== userId);
+    if (host) {
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === host);
+      targetSockets.forEach(s => s.emit('game-declined', { sessionId }));
+    }
+  });
+
   socket.on('disconnect', () => {});
 });
 
@@ -6123,6 +6189,115 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   // Notify client
   io.emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
   res.json({ ok: true, order });
+});
+
+// ═══ TOUCHGAMES — REST API ═══
+
+// GET manifest
+app.get('/api/games/manifest', (req, res) => {
+  try {
+    const manifest = require('./public/games/manifest.json');
+    res.json(manifest);
+  } catch (e) {
+    res.json({ version: '1.0.0', games: [] });
+  }
+});
+
+// POST create game session
+app.post('/api/games/sessions', (req, res) => {
+  const { gameId, hostUserId, opponentUserId } = req.body;
+  if (!gameId || !hostUserId) return res.status(400).json({ error: 'gameId e hostUserId obrigatorios' });
+  const sessionId = 'gs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const players = [hostUserId];
+  if (opponentUserId) players.push(opponentUserId);
+  const gs = {
+    id: sessionId,
+    gameId,
+    players,
+    hostUserId,
+    status: opponentUserId ? 'waiting' : 'playing', // solo starts immediately
+    moves: [],
+    createdAt: Date.now(),
+    startedAt: opponentUserId ? null : Date.now(),
+    endedAt: null,
+    winner: null,
+    scores: {}
+  };
+  db.gameSessions[sessionId] = gs;
+  saveDB('gameSessions');
+  res.json({ ok: true, session: gs });
+});
+
+// GET game session
+app.get('/api/games/sessions/:id', (req, res) => {
+  const gs = db.gameSessions[req.params.id];
+  if (!gs) return res.status(404).json({ error: 'Sessao nao encontrada' });
+  res.json(gs);
+});
+
+// POST submit result
+app.post('/api/games/results', (req, res) => {
+  const { sessionId, winner, scores, duration, surrendered } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'sessionId obrigatorio' });
+  const gs = db.gameSessions[sessionId];
+  if (gs) {
+    gs.status = 'finished';
+    gs.winner = winner || null;
+    gs.endedAt = Date.now();
+    gs.scores = scores || gs.scores;
+    gs.duration = duration || 0;
+    gs.surrendered = !!surrendered;
+    saveDB('gameSessions');
+  }
+  // Save individual scores
+  if (scores && typeof scores === 'object') {
+    Object.entries(scores).forEach(([userId, score]) => {
+      if (!db.gameScores[userId]) db.gameScores[userId] = [];
+      db.gameScores[userId].push({
+        gameId: gs ? gs.gameId : req.body.gameId,
+        sessionId,
+        score,
+        won: winner === userId,
+        duration: duration || 0,
+        playedAt: Date.now()
+      });
+    });
+    saveDB('gameScores');
+  }
+  // Award stars to winner
+  if (winner && db.users[winner]) {
+    const manifest = require('./public/games/manifest.json');
+    const gameDef = manifest.games.find(g => g.id === (gs ? gs.gameId : req.body.gameId));
+    const award = gameDef ? gameDef.awardStars : 5;
+    db.users[winner].stars = (db.users[winner].stars || 0) + award;
+    saveDB('users');
+    // Notify winner
+    const winSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === winner);
+    winSockets.forEach(s => s.emit('stars-awarded', { amount: award, reason: 'game-win', gameId: gs ? gs.gameId : null }));
+  }
+  res.json({ ok: true });
+});
+
+// GET leaderboard for a game
+app.get('/api/games/leaderboard/:gameId', (req, res) => {
+  const gameId = req.params.gameId;
+  const allScores = {};
+  Object.entries(db.gameScores).forEach(([userId, scores]) => {
+    const gameScores = scores.filter(s => s.gameId === gameId);
+    if (gameScores.length > 0) {
+      const wins = gameScores.filter(s => s.won).length;
+      const bestScore = Math.max(...gameScores.map(s => s.score || 0));
+      const totalGames = gameScores.length;
+      allScores[userId] = { userId, wins, bestScore, totalGames, winRate: totalGames > 0 ? Math.round(wins / totalGames * 100) : 0 };
+    }
+  });
+  const sorted = Object.values(allScores).sort((a, b) => b.wins - a.wins || b.bestScore - a.bestScore);
+  // Enrich with user info
+  const enriched = sorted.slice(0, 20).map(s => {
+    const u = db.users[s.userId];
+    return { ...s, nick: u ? u.nick : '???', avatar: u ? u.avatar : null };
+  });
+  res.json({ gameId, leaderboard: enriched });
 });
 
 const PORT = process.env.PORT || 3000;
