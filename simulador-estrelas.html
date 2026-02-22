@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch? — Simulador de Economia de Estrelas ⭐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a19;color:#fff;font-family:'Inter','Segoe UI',system-ui,sans-serif;overflow:hidden;height:100vh;display:flex}
+
+/* ═══ LEFT: AQUARIUM ═══ */
+.aquarium-panel{flex:1;position:relative;overflow:hidden;border-right:1px solid rgba(255,255,255,.06)}
+.aquarium-panel canvas{width:100%;height:100%}
+.aquarium-label{position:absolute;top:16px;left:20px;font-size:11px;color:rgba(255,255,255,.3);letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.aquarium-stats{position:absolute;bottom:16px;left:20px;right:20px;display:flex;gap:12px;flex-wrap:wrap}
+.aq-stat{background:rgba(10,10,25,.7);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px 14px;font-size:11px;color:rgba(255,255,255,.5)}
+.aq-stat b{color:#fff;font-size:14px;display:block;margin-top:2px}
+.aq-stat.gold b{color:#ffd700}
+.aq-stat.green b{color:#00dc82}
+.aq-stat.blue b{color:#60a5fa}
+.aq-stat.red b{color:#ff4466}
+
+/* ═══ RIGHT: CONTROL PANEL ═══ */
+.control-panel{width:420px;height:100vh;overflow-y:auto;background:rgba(10,10,25,.95);border-left:1px solid rgba(255,255,255,.06);padding:20px;display:flex;flex-direction:column;gap:16px}
+.cp-title{font-size:18px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
+.cp-title span{font-size:22px}
+.cp-section{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px}
+.cp-section h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.35);margin-bottom:12px;font-weight:600}
+
+/* Sliders */
+.slider-row{margin-bottom:14px}
+.slider-row:last-child{margin-bottom:0}
+.slider-label{display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.6);margin-bottom:6px}
+.slider-label .val{color:#fff;font-weight:700;font-size:13px}
+input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:rgba(255,255,255,.08);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#6c5ce7;cursor:pointer;border:2px solid rgba(255,255,255,.2)}
+input[type=range]::-webkit-slider-thumb:hover{background:#7c6cf7;transform:scale(1.1)}
+
+/* Metrics cards */
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metric-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;text-align:center}
+.metric-card .mc-val{font-size:20px;font-weight:800;color:#fff;margin-bottom:2px}
+.metric-card .mc-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.3)}
+.metric-card.gold .mc-val{color:#ffd700}
+.metric-card.purple .mc-val{color:#a29bfe}
+.metric-card.green .mc-val{color:#00dc82}
+.metric-card.red .mc-val{color:#ff4466}
+.metric-card.blue .mc-val{color:#60a5fa}
+.metric-card.orange .mc-val{color:#ff9f43}
+
+/* Difficulty scale bar */
+.diff-bar{height:8px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:6px;position:relative}
+.diff-fill{height:100%;border-radius:4px;transition:width .5s ease,background .5s ease}
+.diff-label{font-size:11px;color:rgba(255,255,255,.5);margin-top:6px;text-align:center}
+
+/* Distribution table */
+.dist-table{width:100%;border-collapse:collapse;font-size:11px}
+.dist-table th{text-align:left;color:rgba(255,255,255,.35);font-weight:600;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.dist-table td{padding:6px 8px;color:rgba(255,255,255,.7);border-bottom:1px solid rgba(255,255,255,.03)}
+.dist-table tr:last-child td{border-bottom:none}
+.dist-table .tier-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* Scenario buttons */
+.scenario-btns{display:flex;gap:6px;flex-wrap:wrap}
+.scenario-btn{padding:6px 14px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.scenario-btn:hover{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.2)}
+.scenario-btn.active{background:rgba(108,92,231,.2);border-color:rgba(108,92,231,.4);color:#a29bfe}
+
+/* Scrollbar */
+.control-panel::-webkit-scrollbar{width:4px}
+.control-panel::-webkit-scrollbar-track{background:transparent}
+.control-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+
+/* Mobile */
+@media(max-width:900px){
+  body{flex-direction:column}
+  .aquarium-panel{height:45vh;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
+  .control-panel{width:100%;height:55vh}
+}
+</style>
+</head>
+<body>
+
+<!-- AQUARIUM -->
+<div class="aquarium-panel">
+  <canvas id="aquarium"></canvas>
+  <div class="aquarium-label">Aquário de Estrelas — Simulação ao vivo</div>
+  <div class="aquarium-stats">
+    <div class="aq-stat gold">Estrelas no sistema<b id="aqStarsTotal">0</b></div>
+    <div class="aq-stat green">Pessoas ativas<b id="aqPeople">0</b></div>
+    <div class="aq-stat blue">No Top 1000<b id="aqTop">1,000</b></div>
+    <div class="aq-stat red">Dificuldade<b id="aqDiff">1.0x</b></div>
+  </div>
+</div>
+
+<!-- CONTROL PANEL -->
+<div class="control-panel">
+  <div class="cp-title"><span>⭐</span> Economia de Estrelas — Touch?</div>
+
+  <!-- SCENARIOS -->
+  <div class="cp-section">
+    <h3>Cenários rápidos</h3>
+    <div class="scenario-btns">
+      <button class="scenario-btn active" onclick="loadScenario('launch')">Lançamento (1K)</button>
+      <button class="scenario-btn" onclick="loadScenario('growing')">Crescendo (10K)</button>
+      <button class="scenario-btn" onclick="loadScenario('viral')">Viral (100K)</button>
+      <button class="scenario-btn" onclick="loadScenario('massive')">Massivo (1M)</button>
+    </div>
+  </div>
+
+  <!-- SLIDERS -->
+  <div class="cp-section">
+    <h3>Variáveis de controle</h3>
+    <div class="slider-row">
+      <div class="slider-label"><span>Pessoas na rede</span><span class="val" id="valPeople">1,000</span></div>
+      <input type="range" id="slPeople" min="100" max="2000000" value="1000" step="100" oninput="onSliderChange()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Dias de streak pra estrela</span><span class="val" id="valStreak">5</span></div>
+      <input type="range" id="slStreak" min="1" max="60" value="5" step="1" oninput="onSliderChange()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Estrelas por streak</span><span class="val" id="valStarsPerStreak">3</span></div>
+      <input type="range" id="slStarsPerStreak" min="1" max="20" value="3" step="1" oninput="onSliderChange()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Eventos por mês</span><span class="val" id="valEvents">4</span></div>
+      <input type="range" id="slEvents" min="0" max="100" value="4" step="1" oninput="onSliderChange()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Estrelas por evento</span><span class="val" id="valStarsPerEvent">10</span></div>
+      <input type="range" id="slStarsPerEvent" min="1" max="100" value="10" step="1" oninput="onSliderChange()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Taxa de revelação (%)</span><span class="val" id="valReveal">20</span></div>
+      <input type="range" id="slReveal" min="1" max="100" value="20" step="1" oninput="onSliderChange()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Estrelas ao revelar</span><span class="val" id="valStarsReveal">5</span></div>
+      <input type="range" id="slStarsReveal" min="0" max="30" value="5" step="1" oninput="onSliderChange()">
+    </div>
+  </div>
+
+  <!-- DIFFICULTY -->
+  <div class="cp-section">
+    <h3>Escala de Dificuldade Progressiva</h3>
+    <div class="diff-bar"><div class="diff-fill" id="diffFill" style="width:10%;background:linear-gradient(90deg,#00dc82,#ffd700,#ff4466)"></div></div>
+    <div class="diff-label" id="diffLabel">Fase 1 — Fácil (1.0x)</div>
+    <div style="margin-top:12px;font-size:11px;color:rgba(255,255,255,.4);line-height:1.6" id="diffRules"></div>
+  </div>
+
+  <!-- METRICS -->
+  <div class="cp-section">
+    <h3>Métricas do Ecossistema</h3>
+    <div class="metrics-grid">
+      <div class="metric-card gold"><div class="mc-val" id="mcTotalStars">0</div><div class="mc-label">Estrelas totais</div></div>
+      <div class="metric-card purple"><div class="mc-val" id="mcPerCapita">0</div><div class="mc-label">Média por pessoa</div></div>
+      <div class="metric-card green"><div class="mc-val" id="mcMonthlyGen">0</div><div class="mc-label">Geradas / mês</div></div>
+      <div class="metric-card blue"><div class="mc-val" id="mcTop1000Min">0</div><div class="mc-label">Mínimo Top 1000</div></div>
+      <div class="metric-card orange"><div class="mc-val" id="mcTop100Min">0</div><div class="mc-label">Mínimo Top 100</div></div>
+      <div class="metric-card red"><div class="mc-val" id="mcTop10Min">0</div><div class="mc-label">Mínimo Top 10</div></div>
+    </div>
+  </div>
+
+  <!-- DISTRIBUTION TABLE -->
+  <div class="cp-section">
+    <h3>Distribuição de Estrelas (Simulada)</h3>
+    <table class="dist-table">
+      <thead><tr><th>Tier</th><th>Pessoas</th><th>Estrelas/pessoa</th><th>% do total</th></tr></thead>
+      <tbody id="distBody"></tbody>
+    </table>
+  </div>
+
+  <!-- ECONOMY RULES -->
+  <div class="cp-section">
+    <h3>Regras da Economia</h3>
+    <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.7" id="rulesText"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// STAR ECONOMY ALGORITHM
+// ═══════════════════════════════════════════
+
+function calcEconomy(){
+  const people = +document.getElementById('slPeople').value;
+  const streakDays = +document.getElementById('slStreak').value;
+  const starsPerStreak = +document.getElementById('slStarsPerStreak').value;
+  const eventsPerMonth = +document.getElementById('slEvents').value;
+  const starsPerEvent = +document.getElementById('slStarsPerEvent').value;
+  const revealPct = +document.getElementById('slReveal').value / 100;
+  const starsReveal = +document.getElementById('slStarsReveal').value;
+
+  // ── Difficulty multiplier (progressive) ──
+  // More people → harder to earn stars → system stays scarce
+  let diffMult, diffPhase, diffLabel, diffPct;
+  if(people <= 1000){
+    diffMult = 1.0; diffPhase = 1; diffLabel = 'Fase 1 — Fácil'; diffPct = 10;
+  } else if(people <= 5000){
+    diffMult = 1.5; diffPhase = 2; diffLabel = 'Fase 2 — Normal'; diffPct = 25;
+  } else if(people <= 20000){
+    diffMult = 2.5; diffPhase = 3; diffLabel = 'Fase 3 — Difícil'; diffPct = 45;
+  } else if(people <= 100000){
+    diffMult = 4.0; diffPhase = 4; diffLabel = 'Fase 4 — Hardcore'; diffPct = 70;
+  } else if(people <= 500000){
+    diffMult = 6.0; diffPhase = 5; diffLabel = 'Fase 5 — Elite'; diffPct = 88;
+  } else {
+    diffMult = 10.0; diffPhase = 6; diffLabel = 'Fase 6 — Lendário'; diffPct = 100;
+  }
+
+  // Effective streak days (multiplied by difficulty)
+  const effectiveStreakDays = Math.round(streakDays * diffMult);
+
+  // ── Monthly star generation ──
+  // 1) Streaks: assume ~30% of active pairs complete a streak per month
+  const avgConnections = Math.min(people * 0.1, 50); // each person has ~10% connections, max 50
+  const activePairs = (people * avgConnections) / 2;
+  const streakCompletionRate = Math.max(0.3 / diffMult, 0.02); // harder = fewer completions
+  const monthlyStreakStars = activePairs * streakCompletionRate * starsPerStreak * 2; // both get stars
+
+  // 2) Events: each event distributes stars to participants
+  const avgEventSize = Math.min(Math.max(people * 0.05, 20), 500);
+  const monthlyEventStars = eventsPerMonth * avgEventSize * starsPerEvent;
+
+  // 3) Reveals: people who reveal get bonus stars
+  const monthlyReveals = people * revealPct * 0.1; // ~10% of revealable do it per month
+  const monthlyRevealStars = monthlyReveals * starsReveal;
+
+  // 4) Conquistas (achievements): small bonus
+  const monthlyAchievementStars = people * 0.05 * 2; // 5% earn achievement, 2 stars each
+
+  const totalMonthlyGen = Math.round(monthlyStreakStars + monthlyEventStars + monthlyRevealStars + monthlyAchievementStars);
+
+  // ── Cumulative stars (assume 6 months of operation) ──
+  const months = 6;
+  const totalStars = totalMonthlyGen * months;
+
+  // ── Per capita ──
+  const perCapita = totalStars / people;
+
+  // ── Distribution (Pareto-like: top players have way more) ──
+  // 80/20 rule: top 20% hold 80% of stars
+  const tiers = [
+    { name: 'Top 10', pct: 0.001, sharePct: 0.15, color: '#ffd700' },
+    { name: 'Top 100', pct: 0.01, sharePct: 0.25, color: '#ff9f43' },
+    { name: 'Top 1000', pct: Math.min(1000/people, 0.1), sharePct: 0.20, color: '#a29bfe' },
+    { name: 'Top 10%', pct: 0.10, sharePct: 0.20, color: '#60a5fa' },
+    { name: 'Médio (30%)', pct: 0.30, sharePct: 0.12, color: '#00dc82' },
+    { name: 'Casual (59%)', pct: 0.59, sharePct: 0.08, color: 'rgba(255,255,255,.3)' },
+  ];
+
+  // Adjust shares to equal 100%
+  let tierData = [];
+  let cumPeople = 0;
+  for(const t of tiers){
+    const tierPeople = Math.max(1, Math.round(people * t.pct - cumPeople));
+    const tierStars = Math.round(totalStars * t.sharePct);
+    const avg = tierPeople > 0 ? Math.round(tierStars / tierPeople) : 0;
+    tierData.push({ ...t, people: tierPeople, totalStars: tierStars, avg });
+    cumPeople += tierPeople;
+  }
+
+  // Top thresholds
+  const top1000Min = tierData.find(t=>t.name.includes('1000'))?.avg || 0;
+  const top100Min = tierData.find(t=>t.name.includes('100') && !t.name.includes('1000'))?.avg || 0;
+  const top10Min = tierData.find(t=>t.name==='Top 10')?.avg || 0;
+
+  return {
+    people, diffMult, diffPhase, diffLabel, diffPct, effectiveStreakDays,
+    totalMonthlyGen, totalStars, perCapita,
+    tierData, top1000Min, top100Min, top10Min,
+    streakDays, starsPerStreak, eventsPerMonth, starsPerEvent, revealPct, starsReveal,
+    monthlyStreakStars: Math.round(monthlyStreakStars),
+    monthlyEventStars: Math.round(monthlyEventStars),
+    monthlyRevealStars: Math.round(monthlyRevealStars),
+    monthlyAchievementStars: Math.round(monthlyAchievementStars)
+  };
+}
+
+function fmt(n){
+  if(n>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(n>=1000) return (n/1000).toFixed(n>=10000?0:1)+'K';
+  return n.toLocaleString('pt-BR');
+}
+
+function onSliderChange(){
+  // Update value labels
+  const ids = ['People','Streak','StarsPerStreak','Events','StarsPerEvent','Reveal','StarsReveal'];
+  ids.forEach(id=>{
+    const sl = document.getElementById('sl'+id);
+    const vl = document.getElementById('val'+id);
+    if(sl&&vl) vl.textContent = (+sl.value).toLocaleString('pt-BR');
+  });
+
+  const eco = calcEconomy();
+  updateUI(eco);
+  updateAquariumParticles(eco);
+
+  // Deactivate scenario buttons
+  document.querySelectorAll('.scenario-btn').forEach(b=>b.classList.remove('active'));
+}
+
+function updateUI(eco){
+  // Aquarium stats
+  document.getElementById('aqStarsTotal').textContent = fmt(eco.totalStars);
+  document.getElementById('aqPeople').textContent = fmt(eco.people);
+  document.getElementById('aqTop').textContent = Math.min(1000, eco.people).toLocaleString('pt-BR');
+  document.getElementById('aqDiff').textContent = eco.diffMult.toFixed(1)+'x';
+
+  // Difficulty bar
+  document.getElementById('diffFill').style.width = eco.diffPct+'%';
+  document.getElementById('diffLabel').textContent = eco.diffLabel+' ('+eco.diffMult.toFixed(1)+'x)';
+
+  // Difficulty rules
+  const rules = document.getElementById('diffRules');
+  rules.innerHTML = `
+    <b style="color:rgba(255,255,255,.6)">Com ${fmt(eco.people)} pessoas:</b><br>
+    • Streak necessário: <b style="color:#ffd700">${eco.effectiveStreakDays} dias</b> (base ${eco.streakDays} × ${eco.diffMult}x)<br>
+    • Estrelas geradas por streak: ${eco.starsPerStreak} ⭐ para cada lado<br>
+    • Participantes médios por evento: ~${fmt(Math.min(Math.max(eco.people*0.05,20),500))}<br>
+    • Taxa de conclusão de streaks: ${Math.max(30/eco.diffMult, 2).toFixed(0)}%
+  `;
+
+  // Metrics
+  document.getElementById('mcTotalStars').textContent = fmt(eco.totalStars);
+  document.getElementById('mcPerCapita').textContent = eco.perCapita.toFixed(1);
+  document.getElementById('mcMonthlyGen').textContent = fmt(eco.totalMonthlyGen);
+  document.getElementById('mcTop1000Min').textContent = fmt(eco.top1000Min);
+  document.getElementById('mcTop100Min').textContent = fmt(eco.top100Min);
+  document.getElementById('mcTop10Min').textContent = fmt(eco.top10Min);
+
+  // Distribution table
+  const tbody = document.getElementById('distBody');
+  tbody.innerHTML = eco.tierData.map(t=>`
+    <tr>
+      <td><span class="tier-dot" style="background:${t.color}"></span>${t.name}</td>
+      <td>${fmt(t.people)}</td>
+      <td>~${fmt(t.avg)} ⭐</td>
+      <td>${(t.sharePct*100).toFixed(0)}%</td>
+    </tr>
+  `).join('');
+
+  // Rules text
+  document.getElementById('rulesText').innerHTML = `
+    <b style="color:#ffd700">Fontes de estrelas (geração mensal):</b><br>
+    ⭐ Streaks: ~${fmt(eco.monthlyStreakStars)}/mês<br>
+    ⭐ Eventos: ~${fmt(eco.monthlyEventStars)}/mês<br>
+    ⭐ Revelações: ~${fmt(eco.monthlyRevealStars)}/mês<br>
+    ⭐ Conquistas: ~${fmt(eco.monthlyAchievementStars)}/mês<br>
+    <br>
+    <b style="color:#a29bfe">Doação entre usuários:</b><br>
+    Transferência (soma zero) — sai de quem doa, vai pra quem recebe.<br>
+    O total de estrelas no sistema só cresce pelas fontes acima.<br>
+    <br>
+    <b style="color:#ff4466">Escassez por design:</b><br>
+    Quanto mais gente, mais difícil ganhar. A dificuldade ${eco.diffMult.toFixed(1)}x
+    significa que precisa de ${eco.effectiveStreakDays} dias de streak (em vez de ${eco.streakDays}).
+  `;
+}
+
+// ═══════════════════════════════════════════
+// SCENARIOS
+// ═══════════════════════════════════════════
+const scenarios = {
+  launch:  { people:1000, streak:5, sps:3, events:4, spe:10, reveal:20, sr:5 },
+  growing: { people:10000, streak:5, sps:3, events:12, spe:10, reveal:20, sr:5 },
+  viral:   { people:100000, streak:5, sps:3, events:30, spe:15, reveal:15, sr:5 },
+  massive: { people:1000000, streak:5, sps:3, events:60, spe:20, reveal:10, sr:5 },
+};
+
+function loadScenario(key){
+  const s = scenarios[key];
+  document.getElementById('slPeople').value = s.people;
+  document.getElementById('slStreak').value = s.streak;
+  document.getElementById('slStarsPerStreak').value = s.sps;
+  document.getElementById('slEvents').value = s.events;
+  document.getElementById('slStarsPerEvent').value = s.spe;
+  document.getElementById('slReveal').value = s.reveal;
+  document.getElementById('slStarsReveal').value = s.sr;
+  document.querySelectorAll('.scenario-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`[onclick="loadScenario('${key}')"]`)?.classList.add('active');
+  onSliderChange();
+}
+
+// ═══════════════════════════════════════════
+// AQUARIUM ANIMATION (Particles)
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('aquarium');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let targetParticleCount = 100;
+let W, H;
+
+function resizeCanvas(){
+  const rect = canvas.parentElement.getBoundingClientRect();
+  W = canvas.width = rect.width * devicePixelRatio;
+  H = canvas.height = rect.height * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  canvas.style.width = rect.width+'px';
+  canvas.style.height = rect.height+'px';
+}
+
+class Particle {
+  constructor(type){
+    this.type = type; // 'anon','revealed','star','event'
+    this.x = Math.random() * (W/devicePixelRatio);
+    this.y = Math.random() * (H/devicePixelRatio);
+    this.vx = (Math.random()-0.5) * 0.6;
+    this.vy = (Math.random()-0.5) * 0.6;
+    this.r = type==='star' ? 2+Math.random()*2 : 3+Math.random()*4;
+    this.alpha = 0;
+    this.targetAlpha = 0.3 + Math.random()*0.5;
+    this.pulse = Math.random() * Math.PI * 2;
+    this.dying = false;
+  }
+  update(w,h){
+    this.pulse += 0.02;
+    if(this.dying){
+      this.alpha -= 0.02;
+      if(this.alpha <= 0) return false;
+    } else {
+      this.alpha += (this.targetAlpha - this.alpha) * 0.05;
+    }
+    this.x += this.vx;
+    this.y += this.vy;
+    // Soft bounce
+    if(this.x < this.r){ this.x = this.r; this.vx *= -0.8; }
+    if(this.x > w-this.r){ this.x = w-this.r; this.vx *= -0.8; }
+    if(this.y < this.r){ this.y = this.r; this.vy *= -0.8; }
+    if(this.y > h-this.r){ this.y = h-this.r; this.vy *= -0.8; }
+    // Slight drift
+    this.vx += (Math.random()-0.5)*0.02;
+    this.vy += (Math.random()-0.5)*0.02;
+    // Speed limit
+    const speed = Math.sqrt(this.vx*this.vx+this.vy*this.vy);
+    if(speed > 1.2){ this.vx *= 0.98; this.vy *= 0.98; }
+    return true;
+  }
+  draw(ctx){
+    const glow = 0.8 + 0.2*Math.sin(this.pulse);
+    ctx.globalAlpha = this.alpha * glow;
+    if(this.type==='star'){
+      // Gold star sparkle
+      ctx.fillStyle = '#ffd700';
+      this.drawStar(ctx, this.x, this.y, this.r);
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffd700';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      const colors = { anon:'#ff4466', revealed:'#00dc82', event:'#60a5fa' };
+      ctx.fillStyle = colors[this.type] || '#fff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+      ctx.fill();
+      // Glow
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = colors[this.type] || '#fff';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+  }
+  drawStar(ctx, cx, cy, r){
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const angle = -Math.PI/2 + (i*2*Math.PI/5);
+      const ox = cx + r*Math.cos(angle);
+      const oy = cy + r*Math.sin(angle);
+      if(i===0) ctx.moveTo(ox,oy);
+      else ctx.lineTo(ox,oy);
+      const innerAngle = angle + Math.PI/5;
+      const ix = cx + r*0.4*Math.cos(innerAngle);
+      const iy = cy + r*0.4*Math.sin(innerAngle);
+      ctx.lineTo(ix,iy);
+    }
+    ctx.closePath();
+  }
+}
+
+function updateAquariumParticles(eco){
+  // Map economy to particle counts (capped for performance)
+  const maxP = 600;
+  const scale = Math.min(eco.people / 1000, maxP/10);
+  const revealedPct = eco.revealPct;
+  const eventPct = eco.eventsPerMonth > 0 ? 0.1 : 0;
+
+  const totalBubbles = Math.min(Math.max(Math.round(scale * 10), 20), maxP);
+  const starCount = Math.min(Math.round(totalBubbles * 0.15), 80);
+  const eventCount = Math.round(totalBubbles * eventPct);
+  const revealedCount = Math.round((totalBubbles - eventCount) * revealedPct);
+  const anonCount = totalBubbles - revealedCount - eventCount;
+
+  targetParticleCount = totalBubbles + starCount;
+
+  // Build target distribution
+  const targetDist = [];
+  for(let i=0;i<anonCount;i++) targetDist.push('anon');
+  for(let i=0;i<revealedCount;i++) targetDist.push('revealed');
+  for(let i=0;i<eventCount;i++) targetDist.push('event');
+  for(let i=0;i<starCount;i++) targetDist.push('star');
+
+  // Add or remove particles gradually
+  const diff = targetDist.length - particles.length;
+  if(diff > 0){
+    for(let i=0; i<Math.min(diff,10); i++){
+      particles.push(new Particle(targetDist[particles.length+i] || 'anon'));
+    }
+  } else if(diff < 0){
+    // Mark excess for removal
+    let toRemove = Math.min(-diff, 10);
+    for(let i=particles.length-1; i>=0 && toRemove>0; i--){
+      if(!particles[i].dying){ particles[i].dying = true; toRemove--; }
+    }
+  }
+}
+
+function drawConnections(ctx, w, h){
+  const threshold = 80;
+  ctx.strokeStyle = 'rgba(255,255,255,.03)';
+  ctx.lineWidth = 0.5;
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const d = Math.sqrt(dx*dx+dy*dy);
+      if(d < threshold && particles[i].type!=='star' && particles[j].type!=='star'){
+        ctx.globalAlpha = (1 - d/threshold) * 0.15 * Math.min(particles[i].alpha, particles[j].alpha);
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[j].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function animate(){
+  const w = W/devicePixelRatio;
+  const h = H/devicePixelRatio;
+  ctx.clearRect(0,0,w,h);
+
+  // Background gradient
+  const grad = ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.7);
+  grad.addColorStop(0,'rgba(20,15,40,.3)');
+  grad.addColorStop(1,'rgba(5,5,15,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,w,h);
+
+  // Draw connections between nearby particles
+  drawConnections(ctx, w, h);
+
+  // Update & draw particles
+  particles = particles.filter(p => p.update(w,h));
+  particles.forEach(p => p.draw(ctx));
+
+  // Gradually add particles if needed
+  if(particles.length < targetParticleCount){
+    const types = ['anon','revealed','star','event'];
+    particles.push(new Particle(types[Math.floor(Math.random()*types.length)]));
+  }
+
+  requestAnimationFrame(animate);
+}
+
+// ═══ INIT ═══
+window.addEventListener('resize', ()=>{ resizeCanvas(); });
+resizeCanvas();
+onSliderChange();
+animate();
+</script>
+</body>
+</html>
