@@ -2762,7 +2762,8 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     twitter: isRevealed && (user.privacy?.twitter !== false) ? (user.twitter || null) : null,
     phone: isRevealed && (user.privacy?.phone === true) ? (user.phone || null) : null,
     avatarAccessory: user.avatarAccessory || null,
-    likesCount: user.likesCount || 0
+    likesCount: user.likesCount || 0,
+    vaAccessGrantedBy: user.vaAccessGrantedBy || null
   });
 });
 
@@ -5849,11 +5850,20 @@ const SUBSCRIPTION_PLANS = {
   touch_plus: {
     id: 'touch_plus',
     name: 'Touch? Plus',
-    amount: 9.90,
+    amount: 50.00,
     currency: 'BRL',
     frequency: 1, // months
     description: 'Assinatura mensal Touch? Plus',
-    benefits: ['Perfil verificado', 'Prioridade na constelação', 'Badge exclusivo', 'Sem limites de conexões', 'Acesso antecipado a novidades']
+    benefits: ['Assistente de voz AI ilimitado', 'Selo de verificação incluso', 'Prioridade na constelação', 'Badge exclusivo Plus', 'Sem limites de conexões', 'Acesso antecipado a novidades', 'Liberar AI para amigos']
+  },
+  touch_selo: {
+    id: 'touch_selo',
+    name: 'Selo de Verificação',
+    amount: 10.00,
+    currency: 'BRL',
+    frequency: 1, // months
+    description: 'Selo de verificação Touch?',
+    benefits: ['Selo de verificação ✓', 'Perfil destacado', 'Credibilidade nas conexões']
   }
 };
 
@@ -6187,9 +6197,77 @@ ${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (informações
 }
 
 // Ephemeral token — browser connects to OpenAI Realtime via WebRTC
+// Daily VA usage tracking (50 cents USD per user per day)
+const VA_DAILY_LIMIT_CENTS = 50; // $0.50 per day
+const VA_SESSION_COST_CENTS = 8; // estimated ~$0.08 per session (Realtime API)
+
+function getVaUsageToday(userId) {
+  const user = db.users[userId];
+  if (!user) return { count: 0, cost: 0 };
+  const today = new Date().toISOString().slice(0, 10);
+  if (!user.vaUsage || user.vaUsage.date !== today) {
+    user.vaUsage = { date: today, sessions: 0, costCents: 0 };
+  }
+  return { count: user.vaUsage.sessions, cost: user.vaUsage.costCents };
+}
+
+function trackVaSession(userId) {
+  const user = db.users[userId];
+  if (!user) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (!user.vaUsage || user.vaUsage.date !== today) {
+    user.vaUsage = { date: today, sessions: 0, costCents: 0 };
+  }
+  user.vaUsage.sessions++;
+  user.vaUsage.costCents += VA_SESSION_COST_CENTS;
+  saveDB('users');
+}
+
+// Check if user can use VA (Plus subscriber OR granted by a Top)
+function canUseVA(userId) {
+  const user = db.users[userId];
+  if (!user) return { allowed: false, reason: 'not_found' };
+  // Plus subscriber can always use
+  if (user.isSubscriber) {
+    const usage = getVaUsageToday(userId);
+    if (usage.cost >= VA_DAILY_LIMIT_CENTS) {
+      return { allowed: false, reason: 'daily_limit', usage };
+    }
+    return { allowed: true, reason: 'plus' };
+  }
+  // Granted access by a Top user
+  if (user.vaAccessGrantedBy) {
+    const grantor = db.users[user.vaAccessGrantedBy];
+    if (grantor && grantor.isSubscriber) {
+      const usage = getVaUsageToday(userId);
+      if (usage.cost >= VA_DAILY_LIMIT_CENTS) {
+        return { allowed: false, reason: 'daily_limit', usage };
+      }
+      return { allowed: true, reason: 'granted', grantedBy: grantor.nickname || grantor.name };
+    }
+  }
+  // Admin always has access
+  if (user.isAdmin) return { allowed: true, reason: 'admin' };
+  return { allowed: false, reason: 'not_plus' };
+}
+
 app.post('/api/agent/session', async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
   const { userId, lastInteraction } = req.body;
+
+  // Check VA access
+  const access = canUseVA(userId);
+  if (!access.allowed) {
+    return res.status(403).json({
+      error: access.reason === 'daily_limit' ? 'Limite diário atingido. Volte amanhã!' : 'Assine o Touch? Plus para usar o assistente AI.',
+      reason: access.reason,
+      needsPlus: access.reason === 'not_plus'
+    });
+  }
+
+  // Track usage
+  trackVaSession(userId);
+
   const { userName, context, greeting, gossip } = buildUserContext(userId);
 
   // Decide greeting mode: >1h = gossip opener, <1h = quick continue
@@ -6310,11 +6388,36 @@ app.post('/api/agent/note', (req, res) => {
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
   if (!user.agentNotes) user.agentNotes = [];
-  // Max 50 notes per user
   if (user.agentNotes.length >= 50) user.agentNotes.shift();
   user.agentNotes.push({ about: aboutName || '', note, ts: Date.now() });
   saveDB('users');
   res.json({ ok: true, total: user.agentNotes.length });
+});
+
+// Grant/revoke VA access to another user (Plus subscribers can share access)
+app.post('/api/agent/grant-access', (req, res) => {
+  const { grantorId, targetId, grant } = req.body;
+  if (!grantorId || !targetId) return res.status(400).json({ error: 'grantorId e targetId obrigatórios' });
+  const grantor = db.users[grantorId];
+  if (!grantor) return res.status(404).json({ error: 'Usuário não encontrado' });
+  if (!grantor.isSubscriber && !grantor.isAdmin) return res.status(403).json({ error: 'Apenas assinantes Plus podem liberar acesso.' });
+  const target = db.users[targetId];
+  if (!target) return res.status(404).json({ error: 'Usuário alvo não encontrado' });
+  if (grant === false) {
+    delete target.vaAccessGrantedBy;
+  } else {
+    target.vaAccessGrantedBy = grantorId;
+  }
+  saveDB('users');
+  res.json({ ok: true, granted: grant !== false, targetNickname: target.nickname || target.name });
+});
+
+// Get VA access status for a user
+app.get('/api/agent/access/:userId', (req, res) => {
+  const access = canUseVA(req.params.userId);
+  const user = db.users[req.params.userId];
+  const usage = user ? getVaUsageToday(req.params.userId) : { count: 0, cost: 0 };
+  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS });
 });
 
 // Text fallback (Groq or OpenAI chat)
