@@ -2611,6 +2611,21 @@ function initSocket(){
   socket.io.on('reconnect_attempt',()=>updateConn('reconnecting'));
 
   // Server says: you matched another visitor, not the operator — keep listening
+  socket.on('sonic-no-match',({reason,detectedFreq})=>{
+    console.log('[sonic-no-match] reason:',reason,'freq:',detectedFreq);
+    // Server didn't find a match — resume listening
+    if(!sonicActive)return;
+    const sts=$('sonicHomeStatus');
+    const txt=$('mainBtnText');
+    if(reason==='self'){
+      // Own frequency leaked through — show brief message then resume
+      if(sts)sts.textContent='Sinal próprio detectado. Continue encostando...';
+    }else{
+      if(sts)sts.textContent='Ninguém encontrado ainda. Continue encostando...';
+    }
+    if(txt)txt.textContent='TOUCHING...';
+  });
+
   socket.on('sonic-retry',({reason})=>{
     console.log('[sonic-retry]',reason);
     // Re-enable detection so the phone keeps looking for the operator
@@ -3835,24 +3850,28 @@ async function handleMainButton(){
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
-        if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
+        // ═══ SELF-DETECTION FILTER: ignore own frequency ±200Hz ═══
+        // The mic picks up the phone's own speaker output with slight drift,
+        // which can round to a neighboring frequency slot. Exclude a ±200Hz
+        // band around our own frequency to prevent false self-matches.
+        const distFromOwn=Math.abs(snapped-sonicMyFreq);
+        if(distFromOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
-          if(sts)sts.textContent='Detectando! '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
+          if(sts)sts.textContent='Detectando sinal... '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
-            haptic([100,30,100]);
-            txt.textContent='CONECTOU!';sts.textContent='Encontramos alguém!';
+            haptic([60]);
+            // DON'T say "Encontramos alguém" yet — wait for server to confirm
+            txt.textContent='VERIFICANDO...';sts.textContent='Verificando conexão...';
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-            // Don't stop immediately — wait for server confirmation
-            // Enter cooldown: skip detection for ~3 seconds (180 frames)
             _sonicCooldown=180;confirmHits=0;lastSnapped=0;
-            // Timeout: if relation-created doesn't arrive in 12s, show retry
+            // Timeout: if server doesn't confirm in 8s, resume detection
             setTimeout(()=>{
               if(sonicActive&&!state.currentRelation){
-                sts.textContent='Conexão não completou. Tentando novamente...';
-                txt.textContent='OUVINDO';
-                _sonicCooldown=0; // re-enable detection
+                sts.textContent='Nenhuma conexão. Continue encostando...';
+                txt.textContent='TOUCHING...';
+                _sonicCooldown=0;
               }
-            },12000);
+            },8000);
           }
         }
       }else if(confirmHits>0)confirmHits=Math.max(0,confirmHits-1);
@@ -4036,15 +4055,15 @@ async function initSonic(label,status,circle){
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const detectedFreq=Math.round(peakBin*freqPerBin);
         const snapped=Math.round(detectedFreq/100)*100;
-        // Ignore own frequency and out-of-range
-        if(snapped!==sonicMyFreq&&snapped>=18000&&snapped<=19900){
+        // Ignore own frequency ±200Hz and out-of-range
+        const distOwn=Math.abs(snapped-sonicMyFreq);
+        if(distOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped){confirmHits++}else{confirmHits=1;lastSnapped=snapped}
-          if(status)status.textContent='Detectando! '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
+          if(status)status.textContent='Detectando sinal... '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
-            haptic([100,30,100]);
-            if(circle){circle.classList.remove('listening');circle.classList.add('bumped')}
-            if(label)label.textContent='CONECTOU!';
-            if(status)status.textContent='Conectando...';
+            haptic([60]);
+            if(label)label.textContent='VERIFICANDO...';
+            if(status)status.textContent='Verificando conexão...';
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
             _sonicCooldown2=180;confirmHits=0;lastSnapped=0;
             setTimeout(()=>{

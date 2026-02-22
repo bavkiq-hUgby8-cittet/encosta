@@ -3966,7 +3966,11 @@ function assignSonicFreq() {
 }
 
 function findSonicUserByFreq(freq) {
-  return Object.values(sonicQueue).find(s => s.freq === freq);
+  // Exact match first
+  const exact = Object.values(sonicQueue).find(s => s.freq === freq);
+  if (exact) return exact;
+  // Fuzzy match: ±100Hz tolerance (hardware imprecision in speaker/mic)
+  return Object.values(sonicQueue).find(s => Math.abs(s.freq - freq) <= 100) || null;
 }
 
 // Find sonicQueue entry by userId (searches all entries since operators use 'evt:' keys)
@@ -4457,12 +4461,20 @@ io.on('connection', (socket) => {
     const emitter = findSonicUserByFreq(detectedFreq);
     console.log('[sonic-detected] user:', userId?.slice(0,12), 'detected freq:', detectedFreq, '→ emitter:', emitter ? emitter.userId?.slice(0,12) : 'NOT FOUND', '| queue:', Object.keys(sonicQueue).map(k => k.slice(0,12)+'..freq:'+sonicQueue[k].freq).join(', '));
     if (emitter && emitter.userId !== userId) {
-      // Allow ALL connections — visitor-to-visitor included (even with active operators)
       try {
         createSonicConnection(emitter.userId, userId);
       } catch (e) {
         console.error('[sonic-detected] createSonicConnection ERROR:', e.message, e.stack);
+        socket.emit('sonic-no-match', { reason: 'error' });
       }
+    } else if (!emitter) {
+      // No one found at that frequency — likely self-detection or stale
+      console.log('[sonic-detected] No match for freq', detectedFreq, '(self-detection or no one active)');
+      socket.emit('sonic-no-match', { reason: 'no-emitter', detectedFreq });
+    } else {
+      // emitter.userId === userId — detected own frequency
+      console.log('[sonic-detected] Self-detection ignored for user', userId?.slice(0,12));
+      socket.emit('sonic-no-match', { reason: 'self', detectedFreq });
     }
   });
 
