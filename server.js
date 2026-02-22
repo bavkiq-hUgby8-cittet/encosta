@@ -6226,30 +6226,46 @@ ${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (informações
 }
 
 // Ephemeral token — browser connects to OpenAI Realtime via WebRTC
-// Daily VA usage tracking (50 cents USD per user per day)
+// ── VA Cost Tracking Per User ──
 const VA_DAILY_LIMIT_CENTS = 50; // $0.50 per day
-const VA_SESSION_COST_CENTS = 8; // estimated ~$0.08 per session (Realtime API)
+const VA_SESSION_COST_CENTS = 8; // ~$0.08 per regular session
+const VA_PREMIUM_SESSION_COST_CENTS = 15; // ~$0.15 per premium session (more tools)
 
 function getVaUsageToday(userId) {
   const user = db.users[userId];
   if (!user) return { count: 0, cost: 0 };
   const today = new Date().toISOString().slice(0, 10);
   if (!user.vaUsage || user.vaUsage.date !== today) {
-    user.vaUsage = { date: today, sessions: 0, costCents: 0 };
+    user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0 };
   }
-  return { count: user.vaUsage.sessions, cost: user.vaUsage.costCents };
+  return { count: user.vaUsage.sessions, cost: user.vaUsage.costCents, premium: user.vaUsage.premiumSessions || 0 };
 }
 
-function trackVaSession(userId) {
+function trackVaSession(userId, isPremium) {
   const user = db.users[userId];
   if (!user) return;
   const today = new Date().toISOString().slice(0, 10);
   if (!user.vaUsage || user.vaUsage.date !== today) {
-    user.vaUsage = { date: today, sessions: 0, costCents: 0 };
+    user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0 };
   }
+  const cost = isPremium ? VA_PREMIUM_SESSION_COST_CENTS : VA_SESSION_COST_CENTS;
   user.vaUsage.sessions++;
-  user.vaUsage.costCents += VA_SESSION_COST_CENTS;
+  user.vaUsage.costCents += cost;
+  if (isPremium) user.vaUsage.premiumSessions = (user.vaUsage.premiumSessions || 0) + 1;
+  // ── Detailed cost log per user (keeps last 100 entries) ──
+  if (!user.vaCostLog) user.vaCostLog = [];
+  user.vaCostLog.push({ ts: Date.now(), type: isPremium ? 'premium' : 'standard', costCents: cost });
+  if (user.vaCostLog.length > 100) user.vaCostLog = user.vaCostLog.slice(-100);
   saveDB('users');
+}
+
+// Check if user can use Premium VA (top 01 only for now)
+function canUsePremiumVA(userId) {
+  const user = db.users[userId];
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  if (user.registrationOrder === 1) return true; // top 01
+  return false;
 }
 
 // Check if user can use VA (Plus subscriber OR granted by a Top)
@@ -6555,7 +6571,126 @@ app.get('/api/agent/access/:userId', (req, res) => {
   const access = canUseVA(req.params.userId);
   const user = db.users[req.params.userId];
   const usage = user ? getVaUsageToday(req.params.userId) : { count: 0, cost: 0 };
-  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS });
+  const premium = canUsePremiumVA(req.params.userId);
+  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS, premium });
+});
+
+// ── Cost dashboard — see all users' VA costs ──
+app.get('/api/agent/costs', (req, res) => {
+  const costs = [];
+  Object.values(db.users).forEach(u => {
+    if (u.vaUsage || u.vaCostLog) {
+      const today = getVaUsageToday(u.id);
+      const totalCents = (u.vaCostLog || []).reduce((s, e) => s + (e.costCents || 0), 0);
+      costs.push({
+        userId: u.id,
+        nickname: u.nickname || u.name,
+        today: today,
+        totalCents,
+        totalUSD: (totalCents / 100).toFixed(2),
+        sessions: (u.vaCostLog || []).length,
+        lastSession: u.vaCostLog?.length ? u.vaCostLog[u.vaCostLog.length - 1].ts : null
+      });
+    }
+  });
+  costs.sort((a, b) => b.totalCents - a.totalCents);
+  const grandTotal = costs.reduce((s, c) => s + c.totalCents, 0);
+  res.json({ costs, grandTotalCents: grandTotal, grandTotalUSD: (grandTotal / 100).toFixed(2) });
+});
+
+// ══ PREMIUM VA SESSION — full navigation agent (top 01 only) ══
+app.post('/api/agent/premium-session', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
+  const { userId, lastInteraction } = req.body;
+
+  if (!canUsePremiumVA(userId)) {
+    return res.status(403).json({ error: 'Premium VA apenas para testers autorizados.', reason: 'not_premium' });
+  }
+
+  const access = canUseVA(userId);
+  if (!access.allowed) {
+    return res.status(403).json({ error: 'Limite atingido.', reason: access.reason });
+  }
+
+  trackVaSession(userId, true); // premium cost
+
+  const { userName, context, greeting, gossip } = buildUserContext(userId);
+  const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
+  const isNewSession = msSinceLast > 60 * 60 * 1000;
+  const user = db.users[userId] || {};
+  const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || '';
+
+  let openingText;
+  if (isNewSession && gossip) openingText = gossip;
+  else if (isNewSession) openingText = greeting;
+  else openingText = `E aí ${firstName}, voltou! Manda o que precisa.`;
+
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-realtime-preview',
+        voice: 'coral',
+        modalities: ['audio', 'text'],
+        instructions: `Você é "Touch", assistente PREMIUM do app Touch? — rede social presencial.
+
+CONTEXTO: Modo premium ativado para ${firstName}. Você tem controle TOTAL do app.
+
+IDIOMA: Português brasileiro por padrão, responda no idioma do usuário.
+
+PERSONALIDADE: Assistente pessoal eficiente, amigável, direto. Tom calmo e confiante.
+
+ECONOMIA: Respostas curtas, máximo 2 frases. Sem enrolação.
+
+DADOS: SEMPRE chame consultar_rede ANTES de responder sobre conexões/estrelas/curtidas.
+
+PODERES — VOCÊ PODE FAZER TUDO:
+Você tem ferramentas para navegar o app pelo usuário. Use-as!
+- navegar_tela: vai pra qualquer tela do app
+- abrir_perfil: abre o perfil de uma conexão
+- abrir_chat: abre o chat com uma conexão
+- iniciar_conexao: inicia o processo de conexão (botão TOUCH)
+- dar_estrela: dá uma estrela pra alguém
+- enviar_pulse: envia um pulse (cutucada) no chat
+- consultar_rede: busca dados em tempo real
+- mostrar_pessoa: mostra perfil na constelação
+- salvar_nota: salva informação pessoal
+
+QUANDO O USUÁRIO PEDIR:
+- "vai pra constelação" → navegar_tela("history")
+- "abre o chat com [nome]" → abrir_chat(nome)
+- "dá uma estrela pro [nome]" → dar_estrela(nome)
+- "conecta com alguém" → iniciar_conexao()
+- "mostra meu perfil" → navegar_tela("myProfile")
+- "quem me curtiu?" → consultar_rede + responde
+
+NOMES: Só primeiro nome, NUNCA sobrenome.
+
+${context}
+
+NOME DO USUÁRIO: ${firstName}
+
+${isNewSession ? (gossip ? `SAUDAÇÃO COM FOFOCA:\n"${gossip}"` : `SAUDAÇÃO:\n"${greeting}"`) : `CONTINUAÇÃO: "${openingText}"`}`,
+        tools: [
+          { type:'function', name:'navegar_tela', description:'Navega para uma tela do app. Telas: home, history (constelação), encounter (conectar), locationScreen (mapa), myProfile (meu perfil), subscription (assinatura).', parameters:{type:'object',properties:{tela:{type:'string',description:'ID da tela: home, history, encounter, locationScreen, myProfile, subscription'}},required:['tela']} },
+          { type:'function', name:'abrir_perfil', description:'Abre o perfil detalhado de uma conexão pelo nome.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome ou apelido da pessoa'}},required:['nome']} },
+          { type:'function', name:'abrir_chat', description:'Abre o chat com uma conexão ativa pelo nome.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome ou apelido da pessoa'}},required:['nome']} },
+          { type:'function', name:'iniciar_conexao', description:'Inicia o processo de conexão — vai pra tela encounter.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'dar_estrela', description:'Dá uma estrela para uma conexão.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa que vai receber a estrela'}},required:['nome']} },
+          { type:'function', name:'enviar_pulse', description:'Envia um pulse (cutucada) no chat ativo.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'consultar_rede', description:'Busca dados atualizados em tempo real da rede do usuário.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'mostrar_pessoa', description:'Mostra o perfil de uma conexão na constelação.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa'}},required:['nome']} },
+          { type:'function', name:'salvar_nota', description:'Salva informação pessoal sobre conexão.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} }
+        ],
+        turn_detection: { type: 'server_vad', threshold: 0.7, prefix_padding_ms: 200, silence_duration_ms: 800 },
+        input_audio_transcription: { model: 'whisper-1' }
+      })
+    });
+    if (!r.ok) { const e = await r.text(); console.error('Premium session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão premium' }); }
+    const d = await r.json();
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isPremium: true });
+  } catch (e) { console.error('Premium session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
 // Text fallback (Groq or OpenAI chat)

@@ -1172,6 +1172,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-overlay.mini{inset:auto 12px 80px auto;width:64px;height:64px;border-radius:50%;background:rgba(100,60,200,.9);backdrop-filter:blur(10px);justify-content:center;align-items:center;box-shadow:0 4px 20px rgba(100,60,200,.4),0 0 40px rgba(167,139,250,.2);border:2px solid rgba(167,139,250,.5);cursor:pointer;overflow:visible}
 .va-overlay.mini .va-header,.va-overlay.mini .va-transcript,.va-overlay.mini #vaMainBtn,.va-overlay.mini #vaStopBtn,.va-overlay.mini .va-text-input,.va-overlay.mini #vaStatus,.va-overlay.mini .va-text-row,.va-overlay.mini .va-center,.va-overlay.mini .va-canvas-bg{display:none!important}
 .va-overlay.mini .va-orb-container{transform:scale(.45)}
+.va-overlay.premium::before{content:'✦ PREMIUM';position:absolute;top:12px;right:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-size:.6rem;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.06em;z-index:10}
+.va-overlay.premium .va-orb{box-shadow:0 0 40px rgba(245,158,11,.3),0 0 80px rgba(245,158,11,.15)}
+.va-overlay.mini.premium{border-color:rgba(245,158,11,.6);box-shadow:0 4px 20px rgba(245,158,11,.4)}
+.va-overlay.mini.premium::before{display:none}
 /* Canvas background for animated rays */
 .va-canvas-bg{position:absolute;inset:0;z-index:0}
 .va-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;z-index:2}
@@ -11247,15 +11251,14 @@ async function openVA() {
     const resp = await fetch('/api/agent/access/' + state.userId);
     const data = await resp.json();
     if (data.allowed) {
-      VA.open();
+      VA.open(data.premium); // pass premium flag
     } else if (data.reason === 'daily_limit') {
       showVAUpgradeModal('limit');
     } else {
       showVAUpgradeModal('plus');
     }
   } catch(e) {
-    // Offline or error — try opening anyway
-    VA.open();
+    VA.open(false);
   }
 }
 
@@ -11297,7 +11300,7 @@ function showVAUpgradeModal(mode) {
 // ═══ VOICE AGENT — OpenAI Realtime WebRTC ═══
 const VA = (function(){
   let pc = null, dc = null, audioEl = null, micStream = null;
-  let active = false, busy = false;
+  let active = false, busy = false, premiumMode = false;
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
 
@@ -11311,8 +11314,9 @@ const VA = (function(){
     busy = true;
     setStatus('Conectando...'); setOrb('connecting');
     try {
-      // 1. Token
-      const tr = await fetch('/api/agent/session',{
+      // 1. Token — premium or standard endpoint
+      const sessionUrl = premiumMode ? '/api/agent/premium-session' : '/api/agent/session';
+      const tr = await fetch(sessionUrl,{
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           userId: typeof state!=='undefined'?state.userId:null,
@@ -11409,9 +11413,10 @@ const VA = (function(){
       if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
     }
     audioEl=null;
-    // UI — restore from mini mode if needed
+    // UI — restore from mini/premium mode if needed
+    premiumMode = false;
     const overlay=$('vaOverlay');
-    if(overlay){overlay.classList.remove('mini');overlay.onclick=null;}
+    if(overlay){overlay.classList.remove('mini','premium');overlay.onclick=null;}
     setOrb(''); setStatus(''); setTranscript('');
     $('vaMainBtn').style.display='';
     $('vaMainBtn').textContent='Iniciar conversa';
@@ -11446,6 +11451,24 @@ const VA = (function(){
           }else if(evt.name==='salvar_nota'){
             console.log('[VA] salvar_nota:',args.sobre,args.nota);
             handleSalvarNota(args.sobre||'',args.nota||'',evt.call_id);
+          }else if(evt.name==='navegar_tela'){
+            console.log('[VA] navegar_tela:',args.tela);
+            handleNavegarTela(args.tela||'home',evt.call_id);
+          }else if(evt.name==='abrir_perfil'){
+            console.log('[VA] abrir_perfil:',args.nome);
+            handleAbrirPerfil((args.nome||'').toLowerCase().trim(),evt.call_id);
+          }else if(evt.name==='abrir_chat'){
+            console.log('[VA] abrir_chat:',args.nome);
+            handleAbrirChat((args.nome||'').toLowerCase().trim(),evt.call_id);
+          }else if(evt.name==='iniciar_conexao'){
+            console.log('[VA] iniciar_conexao');
+            handleIniciarConexao(evt.call_id);
+          }else if(evt.name==='dar_estrela'){
+            console.log('[VA] dar_estrela:',args.nome);
+            handleDarEstrela((args.nome||'').toLowerCase().trim(),evt.call_id);
+          }else if(evt.name==='enviar_pulse'){
+            console.log('[VA] enviar_pulse');
+            handleEnviarPulse(evt.call_id);
           }
         }catch(e){console.error('[VA] fn parse err:',e)}
         break;
@@ -11583,6 +11606,140 @@ const VA = (function(){
     }
   }
 
+  // ── PREMIUM TOOL HANDLERS ──
+  function _sendToolResult(callId,text){
+    if(dc&&dc.readyState==='open'){
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:text}}));
+      dc.send(JSON.stringify({type:'response.create'}));
+    }
+  }
+  function _minimizeVA(){
+    const overlay=$('vaOverlay');
+    if(overlay){overlay.classList.add('mini');overlay.onclick=function(){if(overlay.classList.contains('mini')){overlay.classList.remove('mini');overlay.onclick=null;}};}
+  }
+
+  // navegar_tela — navigate to any screen
+  function handleNavegarTela(tela,callId){
+    const screenMap={home:'home',history:'history',encounter:'encounter',locationScreen:'locationScreen',myProfile:'myProfile',subscription:'subscription'};
+    _minimizeVA();
+    if(tela==='history'&&typeof showHistory==='function'){
+      showHistory();
+      _sendToolResult(callId,'Navegou para a constelação.');
+    }else if(tela==='myProfile'&&typeof showMyProfileSheet==='function'){
+      showMyProfileSheet();
+      _sendToolResult(callId,'Abriu o perfil do usuário.');
+    }else if(tela==='encounter'){
+      if(typeof showScreen==='function') showScreen('encounter');
+      if(typeof showPhase==='function') showPhase('phaseChoose');
+      _sendToolResult(callId,'Navegou para tela de conexão.');
+    }else if(screenMap[tela]){
+      if(typeof showScreen==='function') showScreen(screenMap[tela]);
+      _sendToolResult(callId,'Navegou para '+tela+'.');
+    }else{
+      _sendToolResult(callId,'Tela "'+tela+'" não encontrada. Telas disponíveis: home, history, encounter, locationScreen, myProfile, subscription.');
+    }
+  }
+
+  // abrir_perfil — open a connection's profile by name
+  async function handleAbrirPerfil(nome,callId){
+    try{
+      const node=_findNode(nome);
+      if(!node){
+        // Try fetching fresh constellation data
+        const uid=typeof state!=='undefined'?state.userId:'';
+        const data=await(await fetch('/api/constellation/'+uid)).json();
+        if(data.nodes){
+          const found=data.nodes.find(n=>{
+            const nick=(n.nickname||'').toLowerCase(),real=(n.realName||'').toLowerCase();
+            return nick===nome||real===nome||nick.includes(nome)||real.includes(nome);
+          });
+          if(!found){_sendToolResult(callId,'Pessoa "'+nome+'" não encontrada na constelação.');return;}
+          _minimizeVA();
+          if(typeof showHistory==='function') showHistory();
+          setTimeout(()=>{
+            const n2=_findNode(nome);
+            if(n2){_animateToNode(n2);if(typeof showConstDetail==='function') showConstDetail(n2);}
+          },900);
+          _sendToolResult(callId,'Abrindo perfil de '+(found.realName||found.nickname)+'.');
+        }else{_sendToolResult(callId,'Erro ao buscar constelação.');}
+      }else{
+        _minimizeVA();
+        if(typeof showHistory==='function') showHistory();
+        setTimeout(()=>{_animateToNode(node);if(typeof showConstDetail==='function') showConstDetail(node);},500);
+        _sendToolResult(callId,'Abrindo perfil de '+(node.realName||node.nickname)+'.');
+      }
+    }catch(e){_sendToolResult(callId,'Erro ao abrir perfil: '+e.message);}
+  }
+
+  // abrir_chat — open chat with a connection by name
+  async function handleAbrirChat(nome,callId){
+    try{
+      const uid=typeof state!=='undefined'?state.userId:'';
+      const rels=await(await fetch('/api/relations/'+uid)).json();
+      // Find active relation matching name
+      const now=Date.now();
+      const rel=rels.find(r=>{
+        if(r.expiresAt<=now) return false;
+        const pName=(r.partnerName||'').toLowerCase();
+        const pReal=(r.partnerRealName||'').toLowerCase();
+        return pName===nome||pReal===nome||pName.includes(nome)||pReal.includes(nome);
+      });
+      if(!rel){_sendToolResult(callId,'Nenhuma conexão ativa encontrada com "'+nome+'". A pessoa pode não ter uma conexão ativa ou o nome está diferente.');return;}
+      _minimizeVA();
+      const pid=rel.userA===uid?rel.userB:rel.userA;
+      const isEvt=!!(rel.isEvent||(typeof pid==='string'&&pid.startsWith('evt:')));
+      if(typeof openChat==='function'){
+        openChat({relationId:rel.id,phrase:rel.phrase,expiresAt:rel.expiresAt,partnerName:isEvt?(rel.eventName||rel.partnerName):rel.partnerName,partnerId:pid,isEvent:isEvt,eventId:rel.eventId,eventName:rel.eventName,partnerPhoto:rel.partnerPhoto||null,partnerRevealedToMe:rel.partnerRevealedToMe||false,iRevealedToPartner:rel.iRevealedToPartner||false,userA:{id:rel.userA,nickname:rel.userA===uid?state.userName:(rel.partnerName||'?'),realName:rel.userA===uid?null:rel.partnerRealName},userB:{id:rel.userB,nickname:rel.userB===uid?state.userName:(rel.partnerName||'?'),realName:rel.userB===uid?null:rel.partnerRealName}});
+      }
+      _sendToolResult(callId,'Chat aberto com '+(rel.partnerRealName||rel.partnerName||nome)+'.');
+    }catch(e){_sendToolResult(callId,'Erro ao abrir chat: '+e.message);}
+  }
+
+  // iniciar_conexao — navigate to encounter screen
+  function handleIniciarConexao(callId){
+    _minimizeVA();
+    if(typeof showScreen==='function') showScreen('encounter');
+    if(typeof showPhase==='function') showPhase('phaseChoose');
+    _sendToolResult(callId,'Tela de conexão aberta. O usuário pode agora aproximar os celulares para conectar.');
+  }
+
+  // dar_estrela — give a star to someone
+  async function handleDarEstrela(nome,callId){
+    try{
+      const uid=typeof state!=='undefined'?state.userId:'';
+      // Search for the person
+      const r=await fetch('/api/star/search-people/'+uid+'?q='+encodeURIComponent(nome));
+      const people=await r.json();
+      if(!people||!people.length){_sendToolResult(callId,'Pessoa "'+nome+'" não encontrada para dar estrela.');return;}
+      const target=people[0];
+      // Check balance
+      const balR=await fetch('/api/star/balance/'+uid);
+      const bal=await balR.json();
+      if(!bal.balance||bal.balance<=0){_sendToolResult(callId,'O usuário não tem estrelas disponíveis para dar. Saldo: 0.');return;}
+      // Check pending stars
+      const pendR=await fetch('/api/star/pending/'+uid);
+      const pend=await pendR.json();
+      const pendingStar=pend.find(p=>!p.used);
+      if(!pendingStar){_sendToolResult(callId,'Nenhuma estrela pendente disponível. O usuário precisa receber estrelas primeiro ou comprar.');return;}
+      // Donate
+      const dR=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:uid,toUserId:target.id,pendingStarId:pendingStar.id})});
+      const dD=await dR.json();
+      if(dD.ok){
+        _sendToolResult(callId,'Estrela dada com sucesso para '+(target.realName||target.nickname||nome)+'! Saldo restante: '+(dD.newBalance||'?'));
+        haptic([40,20,40]);
+      }else{
+        _sendToolResult(callId,'Erro ao dar estrela: '+(dD.error||'desconhecido'));
+      }
+    }catch(e){_sendToolResult(callId,'Erro ao dar estrela: '+e.message);}
+  }
+
+  // enviar_pulse — send pulse in active chat
+  function handleEnviarPulse(callId){
+    if(!state.currentRelation){_sendToolResult(callId,'Nenhum chat ativo. O usuário precisa abrir um chat primeiro.');return;}
+    if(typeof sendPulse==='function') sendPulse();
+    _sendToolResult(callId,'Pulse enviado no chat ativo! A outra pessoa vai sentir a vibração.');
+  }
+
   // ── TEXT FALLBACK ──
   let textMsgs=[];
   async function sendText(text){
@@ -11606,13 +11763,16 @@ const VA = (function(){
 
   // ── PUBLIC API ──
   return {
-    open(){
+    open(isPremium){
       cleanup();
+      premiumMode = !!isPremium;
       $('vaOverlay').classList.add('active');
+      if(premiumMode) $('vaOverlay').classList.add('premium');
+      else $('vaOverlay').classList.remove('premium');
       $('vaMainBtn').style.display='';
-      $('vaMainBtn').textContent='🎙️ Iniciar conversa';
+      $('vaMainBtn').textContent= premiumMode ? '✦ Iniciar assistente premium' : '🎙️ Iniciar conversa';
       $('vaStopBtn').style.display='none';
-      setStatus('Toque para começar');
+      setStatus(premiumMode ? 'Modo Premium — fale qualquer comando' : 'Toque para começar');
       setOrb('');
     },
     close(){
@@ -11626,7 +11786,7 @@ const VA = (function(){
         return;
       }
       const ov=$('vaOverlay');
-      ov.classList.remove('mini','active');
+      ov.classList.remove('mini','active','premium');
       ov.onclick=null;
       cleanup();
     },
