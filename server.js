@@ -4502,10 +4502,19 @@ app.post('/api/admin/reset-db', adminLimiter, requireAdmin, async (req, res) => 
   if (keepUsers) {
     // Reset everything except users
     DB_COLLECTIONS.forEach(c => { if (c !== 'users') db[c] = {}; });
-    // Clear user transient data but keep profiles (name, nickname, email, color, etc)
+    // Clear user transient/connection data but keep profile info
     Object.values(db.users).forEach(u => {
+      // Clear connection data
       u.stars = []; u.points = 0; u.pointLog = [];
       u.canSee = {}; u.revealedTo = [];
+      u.likesCount = 0; u.likedBy = [];
+      u.agentNotes = []; u.vaUsage = null;
+      u.topTag = null;
+      // Keep: id, nickname, name, realName, email, color, phone, bio,
+      // profilePhoto, photoURL, instagram, tiktok, twitter, firebaseUid,
+      // createdAt, isAdmin, isSubscriber, verified, verifiedAt, verificationType,
+      // savedCard, profession, sports, hobbies, privacy, avatarAccessory,
+      // isPrestador, serviceLabel, subscription, cpf, emailVerified
     });
     // Rebuild user index
     IDX.nickname.clear(); IDX.firebaseUid.clear();
