@@ -5969,6 +5969,54 @@ app.post('/api/subscription/cancel', async (req, res) => {
   }
 });
 
+// ═══ VOICE AGENT — OpenAI Realtime (WebRTC) + Groq/OpenAI text fallback ═══
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+if (!OPENAI_API_KEY && !GROQ_API_KEY) console.warn('⚠️ Nenhuma API key de agente configurada! Configure OPENAI_API_KEY (voz tempo real) ou GROQ_API_KEY (texto) nas variáveis de ambiente.');
+
+// Ephemeral token — browser connects to OpenAI via WebRTC
+app.post('/api/agent/session', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
+  const { userId } = req.body;
+  const userName = db.users[userId]?.name || 'amigo';
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-realtime-preview',
+        voice: 'shimmer',
+        modalities: ['audio', 'text'],
+        instructions: `Você é o assistente de voz do Touch?, um app social de encontros presenciais. Seu nome é "Touch". Amigável, inteligente, fala português brasileiro natural e rápido. Ajuda com TUDO: saúde, trabalho, amigos, família, relacionamentos, curiosidades, cultura, tecnologia. O usuário se chama ${userName}. Respostas curtas e diretas, tom descontraído. NUNCA invente info médica/jurídica. Humor leve quando apropriado.`,
+        turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 500 },
+        input_audio_transcription: { model: 'whisper-1' }
+      })
+    });
+    if (!r.ok) { const e = await r.text(); console.error('OpenAI session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão OpenAI' }); }
+    const d = await r.json();
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at });
+  } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// Text fallback (Groq or OpenAI chat completions)
+app.post('/api/agent/chat', async (req, res) => {
+  const apiKey = GROQ_API_KEY || OPENAI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'Nenhuma API key configurada.' });
+  const { messages, userId } = req.body;
+  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages é obrigatório' });
+  const userName = db.users[userId]?.name || 'amigo';
+  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch?. Amigável, pt-BR, respostas curtas (1-3 frases). Usuário: ${userName}.` };
+  const isGroq = !!GROQ_API_KEY;
+  const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+  const model = isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
+  try {
+    const r = await fetch(endpoint, { method: 'POST', headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages: [sys, ...messages.slice(-20)], temperature: 0.7, max_tokens: 500 }) });
+    if (!r.ok) return res.status(502).json({ error: 'Erro na API' });
+    const d = await r.json();
+    res.json({ reply: d.choices?.[0]?.message?.content || 'Erro.', model: d.model });
+  } catch (e) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
 // ═══ OPERATOR / CHECK-IN ═══
 app.get('/operator', (req, res) => {
   res.sendFile(require('path').join(__dirname, 'public', 'operator.html'));
