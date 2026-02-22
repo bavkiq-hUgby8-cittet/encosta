@@ -6183,13 +6183,16 @@ app.post('/api/agent/session', async (req, res) => {
   const isNewSession = msSinceLast > 60 * 60 * 1000; // 1 hour
   const user = db.users[userId] || {};
 
-  let openingInstruction;
+  let openingInstruction, openingText;
   if (isNewSession && gossip) {
+    openingText = gossip;
     openingInstruction = `SAUDAÇÃO DE FOFOCA (faz mais de 1h que não fala com o usuário — comece com uma fofoca quente!):\n"${gossip}"`;
   } else if (isNewSession) {
+    openingText = greeting;
     openingInstruction = `SAUDAÇÃO INICIAL (fale quando a conversa começar):\n"${greeting}"`;
   } else {
-    openingInstruction = `CONTINUAÇÃO (menos de 1h desde a última conversa — seja breve):\n"E aí ${userName}, voltou! No que posso te ajudar?"`;
+    openingText = `E aí ${userName}, voltou! No que posso te ajudar?`;
+    openingInstruction = `CONTINUAÇÃO (menos de 1h desde a última conversa — seja breve):\n"${openingText}"`;
   }
 
   try {
@@ -6243,7 +6246,7 @@ ${openingInstruction}`,
     });
     if (!r.ok) { const e = await r.text(); console.error('OpenAI session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession });
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession, openingText });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 

@@ -11120,8 +11120,9 @@ const VA = (function(){
         setOrb('speaking'); setStatus('');
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
-        // Agent speaks first
-        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale a saudação das suas instruções. Natural, rápida, animada. Nomes reais. MÁXIMO 2 frases.'}}));
+        // Agent speaks first — use exact opening text from server
+        const openingText = td.openingText || 'E aí! Sou o Touch, seu assistente.';
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale EXATAMENTE isso (pode adaptar levemente o tom, mas mantenha os nomes e dados): "'+openingText.replace(/"/g,'\\"')+'" — MÁXIMO 2 frases, natural e animada.'}}));
       };
       dc.onmessage = e => { try{handleEvent(JSON.parse(e.data))}catch(x){} };
       dc.onclose = () => { if(active) cleanup(); };
