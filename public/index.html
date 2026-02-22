@@ -38,6 +38,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .screen{position:absolute;inset:0;display:flex;flex-direction:column;visibility:hidden;opacity:0;transform:translateY(6px);transition:opacity .35s cubic-bezier(.22,1,.36,1),transform .35s cubic-bezier(.22,1,.36,1),visibility 0s .35s;pointer-events:none}
 .screen.active{visibility:visible;opacity:1;transform:translateY(0);transition:opacity .35s cubic-bezier(.22,1,.36,1),transform .35s cubic-bezier(.22,1,.36,1),visibility 0s;pointer-events:auto}
 
+/* SWIPE BACK */
+.swipe-back-indicator{position:fixed;top:0;left:0;width:28px;height:100%;z-index:9999;pointer-events:none;display:flex;align-items:center;justify-content:flex-start}
+.swipe-back-indicator .sbi-arrow{width:36px;height:36px;border-radius:50%;background:rgba(255,107,53,.85);display:flex;align-items:center;justify-content:center;opacity:0;transform:translateX(-40px) scale(.7);transition:none;box-shadow:0 2px 12px rgba(255,107,53,.4)}
+.swipe-back-indicator .sbi-arrow svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.swipe-back-indicator.sbi-active .sbi-arrow{pointer-events:auto}
+.swipe-back-indicator.sbi-ready .sbi-arrow{background:var(--ac);transform:translateX(8px) scale(1);box-shadow:0 4px 20px rgba(255,107,53,.6)}
+.swipe-back-edge{position:fixed;top:0;left:0;width:18px;height:100%;z-index:9998;touch-action:pan-y}
+
 /* SPLASH */
 #splash{justify-content:center;align-items:center;background:radial-gradient(circle at 50% 50%,rgba(255,107,53,.03),transparent 60%)}
 #splash .logo{font-size:2.8rem;font-weight:800;letter-spacing:.35em;color:var(--ac);animation:gp 2s ease-in-out infinite;opacity:0;animation:gp 2s ease-in-out infinite,splash-in .8s ease forwards}
@@ -3013,6 +3021,92 @@ function goHome(){
   var chatEl=$('chat');if(chatEl){chatEl.style.height='';chatEl.style.transform=''}
   showScreen('home');refreshHome();
 }
+
+// ═══ SWIPE BACK GESTURE ═══
+(function(){
+  var EDGE=22,THRESHOLD=90,swiping=false,startX=0,startY=0,dx=0,locked=false;
+  var indicator=document.createElement('div');
+  indicator.className='swipe-back-indicator';
+  indicator.innerHTML='<div class="sbi-arrow"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>';
+  document.body.appendChild(indicator);
+  var edge=document.createElement('div');
+  edge.className='swipe-back-edge';
+  document.body.appendChild(edge);
+  var arrow=indicator.querySelector('.sbi-arrow');
+
+  function getActiveScreen(){
+    var s=document.querySelector('.screen.active');
+    return s?s.id:null;
+  }
+  function canSwipeBack(){
+    var sid=getActiveScreen();
+    if(!sid||sid==='home'||sid==='splash'||sid==='onboarding'||sid==='login'||sid==='register')return false;
+    return true;
+  }
+  function hasOverlay(){
+    var mm=document.querySelector('.more-menu-overlay');if(mm)return mm;
+    var mo=document.querySelector('.modal-overlay');if(mo)return mo;
+    var np=$('notifPanel');if(np&&np.classList.contains('visible'))return np;
+    var tg=$('tgFrame');if(tg&&tg.classList.contains('visible'))return tg;
+    return null;
+  }
+  function doSwipeBack(){
+    var ov=hasOverlay();
+    if(ov){
+      if(ov.id==='tgFrame'){closeGameLobby();return}
+      if(ov.id==='notifPanel'){ov.classList.remove('visible');return}
+      ov.remove();return;
+    }
+    var sid=getActiveScreen();
+    if(sid==='profile'){closeProfile();return}
+    if(sid==='eventDetail'){showScreen('locationScreen');return}
+    goHome();
+  }
+
+  edge.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1)return;
+    var t=e.touches[0];
+    if(t.clientX>EDGE)return;
+    if(!canSwipeBack()&&!hasOverlay())return;
+    swiping=true;locked=false;startX=t.clientX;startY=t.clientY;dx=0;
+    indicator.classList.add('sbi-active');
+    indicator.classList.remove('sbi-ready');
+    arrow.style.transition='none';
+    arrow.style.opacity='0';
+    arrow.style.transform='translateX(-40px) scale(.7)';
+  },{passive:true});
+
+  document.addEventListener('touchmove',function(e){
+    if(!swiping)return;
+    var t=e.touches[0];
+    if(!locked){
+      var diffX=Math.abs(t.clientX-startX),diffY=Math.abs(t.clientY-startY);
+      if(diffY>diffX){swiping=false;indicator.classList.remove('sbi-active');return}
+      if(diffX>8)locked=true;
+    }
+    dx=Math.max(0,t.clientX-startX);
+    var progress=Math.min(dx/THRESHOLD,1);
+    var tx=-40+48*progress;
+    var sc=.7+.3*progress;
+    arrow.style.opacity=String(Math.min(progress*1.5,1));
+    arrow.style.transform='translateX('+tx+'px) scale('+sc+')';
+    if(progress>=1)indicator.classList.add('sbi-ready');
+    else indicator.classList.remove('sbi-ready');
+  },{passive:true});
+
+  function endSwipe(){
+    if(!swiping)return;
+    swiping=false;locked=false;
+    var triggered=dx>=THRESHOLD;
+    arrow.style.transition='all .25s ease';
+    arrow.style.opacity='0';
+    arrow.style.transform='translateX(-40px) scale(.7)';
+    indicator.classList.remove('sbi-active','sbi-ready');
+    if(triggered)doSwipeBack();
+  }
+  document.addEventListener('touchend',endSwipe,{passive:true});
+  document.addEventListener('touchcancel',endSwipe,{passive:true});
+})();
 
 // ═══ EVENT VIEW — Constelação do evento no celular ═══
 let evViewEventId=null,evViewCtx=null,evViewW=0,evViewH=0,evViewAnim=null;
