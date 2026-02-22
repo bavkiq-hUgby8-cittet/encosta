@@ -11144,25 +11144,54 @@ const VA = (function(){
     isActive = false;
     isConnected = false;
     isConnecting = false;
-    // Kill microphone
-    if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+
+    // 1. Remove all senders from PeerConnection (releases mic from WebRTC)
+    if(pc){
+      try{ pc.getSenders().forEach(s => { try{pc.removeTrack(s)}catch(e){} }); }catch(e){}
+    }
+
+    // 2. Kill EVERY track on the mic stream
+    if(micStream){
+      micStream.getTracks().forEach(t => {
+        t.enabled = false;
+        t.stop();
+      });
+      micStream = null;
+    }
+
+    // 3. Close data channel
     if(dc){ try{dc.close()}catch(e){} dc=null; }
+
+    // 4. Close peer connection
     if(pc){ try{pc.close()}catch(e){} pc=null; }
-    if(audioEl){ audioEl.pause(); audioEl.srcObject=null; audioEl=null; }
+
+    // 5. Kill audio playback
+    if(audioEl){
+      audioEl.pause();
+      if(audioEl.srcObject){
+        audioEl.srcObject.getTracks().forEach(t=>t.stop());
+      }
+      audioEl.srcObject = null;
+      audioEl = null;
+    }
+
+    // 6. Reset UI
     setOrb('');
     setStatus('Toque para conversar');
     setTranscript('');
     $('vaMainBtn').style.display = '';
     $('vaMainBtn').textContent = 'Iniciar conversa';
     $('vaStopBtn').style.display = 'none';
+    console.log('[VA] Stop complete — mic released');
   }
 
   return {
     open(){
       // Kill any leftover mic/connection before opening fresh
       stop();
+      // Small delay to ensure browser releases mic indicator
       $('vaOverlay').classList.add('active');
-      connectWebRTC();
+      setTimeout(() => connectWebRTC(), 300);
     },
     close(){
       $('vaOverlay').classList.remove('active');
