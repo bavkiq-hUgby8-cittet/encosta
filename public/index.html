@@ -10919,8 +10919,8 @@ if(typeof socket!=='undefined'&&socket){
     <div class="va-transcript" id="vaTranscript"></div>
     <div class="va-actions">
       <button class="va-btn primary" id="vaMainBtn" onclick="VA.toggleVoice()">Iniciar conversa</button>
-      <button class="va-btn danger" id="vaStopBtn" onclick="VA.stop()" style="display:none">Encerrar</button>
     </div>
+    <button id="vaStopBtn" onclick="VA.close()" style="display:none;margin-top:24px;width:80%;max-width:280px;padding:18px 32px;border-radius:28px;border:2px solid rgba(248,113,113,.3);background:rgba(248,113,113,.12);color:#f87171;font-size:1.05rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.03em;transition:all .2s;min-height:56px">Encerrar conversa</button>
   </div>
   <div class="va-text-row">
     <input type="text" class="va-text-input" id="vaTextInput" placeholder="Ou digite aqui..." autocomplete="off" onkeydown="if(event.key==='Enter')VA.sendText()">
@@ -10936,6 +10936,8 @@ const VA = (function(){
   let audioEl = null;
   let isConnected = false;
   let isActive = false;
+  let isConnecting = false; // guard against double connect
+  let micStream = null; // save mic stream to stop later
   let textMessages = []; // fallback text history
 
   const $ = id => document.getElementById(id);
@@ -10949,6 +10951,10 @@ const VA = (function(){
 
   // ── WebRTC: Connect to OpenAI Realtime ──
   async function connectWebRTC(){
+    // Guard: prevent double connections
+    if(isConnecting || isActive) return;
+    isConnecting = true;
+
     setStatus('Conectando...');
     setOrb('connecting');
 
@@ -10979,14 +10985,15 @@ const VA = (function(){
       pc.ontrack = e => { audioEl.srcObject = e.streams[0]; };
 
       // 4. Capture microphone
-      const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
-      ms.getTracks().forEach(t => pc.addTrack(t, ms));
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStream.getTracks().forEach(t => pc.addTrack(t, micStream));
 
       // 5. Data channel for events
       dc = pc.createDataChannel('oai-events');
       dc.onopen = () => {
         isConnected = true;
         isActive = true;
+        isConnecting = false;
         setOrb('speaking');
         setStatus('');
         $('vaMainBtn').style.display = 'none';
@@ -11034,6 +11041,8 @@ const VA = (function(){
 
     } catch(err) {
       console.error('WebRTC connect error:', err);
+      isConnecting = false;
+      isActive = false;
       setStatus('Erro: ' + err.message);
       setOrb('');
       // Fall back to text mode
@@ -11140,9 +11149,12 @@ const VA = (function(){
   function stop(){
     isActive = false;
     isConnected = false;
+    isConnecting = false;
+    // Kill microphone
+    if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
     if(dc){ try{dc.close()}catch(e){} dc=null; }
     if(pc){ try{pc.close()}catch(e){} pc=null; }
-    if(audioEl){ audioEl.srcObject=null; audioEl=null; }
+    if(audioEl){ audioEl.pause(); audioEl.srcObject=null; audioEl=null; }
     setOrb('');
     setStatus('Toque para conversar');
     setTranscript('');

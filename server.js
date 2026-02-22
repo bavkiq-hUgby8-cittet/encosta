@@ -6083,7 +6083,7 @@ app.post('/api/agent/session', async (req, res) => {
       headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-realtime-preview',
-        voice: 'shimmer',
+        voice: 'coral',
         modalities: ['audio', 'text'],
         instructions: `Você é "Touch", o assistente de voz pessoal do app Touch? — uma rede social onde conexões só acontecem presencialmente. Você é o melhor amigo inteligente do usuário dentro do app.
 
