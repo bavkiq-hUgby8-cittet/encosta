@@ -10933,6 +10933,7 @@ const VA = (function(){
   let isConnecting = false; // guard against double connect
   let micStream = null; // save mic stream to stop later
   let textMessages = []; // fallback text history
+  const VA_LAST_KEY = 'va_last_interaction'; // localStorage key for cooldown
 
   const $ = id => document.getElementById(id);
 
@@ -10957,7 +10958,10 @@ const VA = (function(){
       const tokenResp = await fetch('/api/agent/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: typeof state!=='undefined' ? state.userId : null })
+        body: JSON.stringify({
+          userId: typeof state!=='undefined' ? state.userId : null,
+          lastInteraction: parseInt(localStorage.getItem(VA_LAST_KEY) || '0')
+        })
       });
 
       if (!tokenResp.ok) {
@@ -10993,7 +10997,7 @@ const VA = (function(){
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
         // Auto-greet: make the agent speak the personalized greeting
-        dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'], instructions: 'Fale a saudação inicial que está nas suas instruções. Seja natural e animado. Use as informações reais das conexões do usuário.' } }));
+        dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'], instructions: 'Fale a saudação que está nas suas instruções. Seja natural, rápida e animada. Use nomes reais. MÁXIMO 2 frases.' } }));
       };
 
       dc.onmessage = e => {
@@ -11139,59 +11143,62 @@ const VA = (function(){
     }
   }
 
-  // ── Stop/disconnect ──
+  // ── Stop/disconnect — NUCLEAR cleanup ──
   function stop(){
     isActive = false;
     isConnected = false;
     isConnecting = false;
 
-    // 1. Remove all senders from PeerConnection (releases mic from WebRTC)
-    if(pc){
-      try{ pc.getSenders().forEach(s => { try{pc.removeTrack(s)}catch(e){} }); }catch(e){}
-    }
+    // 1. Close data channel FIRST (stop sending/receiving events)
+    if(dc){ try{dc.close()}catch(e){} }
+    dc = null;
 
-    // 2. Kill EVERY track on the mic stream
+    // 2. Close PeerConnection (releases internal refs to mic tracks)
+    if(pc){ try{pc.close()}catch(e){} }
+    pc = null;
+
+    // 3. NOW kill mic tracks — pc is gone, so browser can release hardware
     if(micStream){
       micStream.getTracks().forEach(t => {
-        t.enabled = false;
-        t.stop();
+        try{ t.enabled = false; } catch(e){}
+        try{ t.stop(); } catch(e){}
       });
-      micStream = null;
     }
+    micStream = null;
 
-    // 3. Close data channel
-    if(dc){ try{dc.close()}catch(e){} dc=null; }
-
-    // 4. Close peer connection
-    if(pc){ try{pc.close()}catch(e){} pc=null; }
-
-    // 5. Kill audio playback
+    // 4. Kill audio playback
     if(audioEl){
-      audioEl.pause();
+      try{ audioEl.pause(); }catch(e){}
       if(audioEl.srcObject){
-        audioEl.srcObject.getTracks().forEach(t=>t.stop());
+        audioEl.srcObject.getTracks().forEach(t => { try{t.stop()}catch(e){} });
       }
       audioEl.srcObject = null;
-      audioEl = null;
     }
+    audioEl = null;
 
-    // 6. Reset UI
+    // 5. Reset UI
     setOrb('');
     setStatus('Toque para conversar');
     setTranscript('');
     $('vaMainBtn').style.display = '';
     $('vaMainBtn').textContent = 'Iniciar conversa';
     $('vaStopBtn').style.display = 'none';
-    console.log('[VA] Stop complete — mic released');
+    // Save last interaction time for gossip logic
+    try{ localStorage.setItem(VA_LAST_KEY, String(Date.now())); }catch(e){}
+    console.log('[VA] STOP — everything killed, mic released');
   }
 
   return {
     open(){
-      // Kill any leftover mic/connection before opening fresh
+      // Kill any leftover mic/connection
       stop();
-      // Small delay to ensure browser releases mic indicator
       $('vaOverlay').classList.add('active');
-      setTimeout(() => connectWebRTC(), 300);
+      // Show "start" button — user taps to activate mic (gives explicit control)
+      $('vaMainBtn').style.display = '';
+      $('vaMainBtn').textContent = '🎙️ Ativar microfone e conversar';
+      $('vaStopBtn').style.display = 'none';
+      setStatus('Toque no botão para começar');
+      setOrb('');
     },
     close(){
       $('vaOverlay').classList.remove('active');

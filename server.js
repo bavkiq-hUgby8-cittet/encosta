@@ -6068,14 +6068,44 @@ ${recentStars.length ? 'ESTRELAS RECENTES (7 dias): ' + starsFromWho.join(', ') 
 ${activeEvents.length ? 'EVENTOS ATIVOS AGORA: ' + activeEvents.map(e => e.name).join(', ') : ''}
 `.trim();
 
-  return { userName, context, greeting };
+  // Build gossip — pick the most interesting piece of news
+  let gossip = '';
+  if (recentStars.length > 0) {
+    gossip = `E aí ${userName}! Cê viu que ${starsFromWho[0]} te deu uma estrela? Eita, estrela é tão difícil de ganhar hein! Quem será que tá de olho em você...`;
+  } else if (recent48h.length > 0) {
+    const lastPerson = recent48h[0];
+    gossip = `E aí ${userName}! Tu viu que encontrou ${lastPerson} faz pouco tempo? Conta aí, rolou alguma coisa boa?`;
+  } else if (recentLikers.length > 0) {
+    gossip = `E aí ${userName}! Sabia que ${recentLikers[0]} te curtiu? Hmmm interessante hein... tá popular!`;
+  } else if (connections.length > 0) {
+    // Pick a random connection for gossip
+    const randomConn = connections[Math.floor(Math.random() * Math.min(connections.length, 5))];
+    const connName = randomConn.split(':')[0].replace('- ', '').trim();
+    gossip = `E aí ${userName}! Faz tempo que a gente não conversa! Tava aqui pensando... você viu algo novo sobre ${connName}?`;
+  }
+
+  return { userName, context, greeting, gossip };
 }
 
 // Ephemeral token — browser connects to OpenAI Realtime via WebRTC
 app.post('/api/agent/session', async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
-  const { userId } = req.body;
-  const { userName, context, greeting } = buildUserContext(userId);
+  const { userId, lastInteraction } = req.body;
+  const { userName, context, greeting, gossip } = buildUserContext(userId);
+
+  // Decide greeting mode: >1h = gossip opener, <1h = quick continue
+  const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
+  const isNewSession = msSinceLast > 60 * 60 * 1000; // 1 hour
+  const user = db.users[userId] || {};
+
+  let openingInstruction;
+  if (isNewSession && gossip) {
+    openingInstruction = `SAUDAÇÃO DE FOFOCA (faz mais de 1h que não fala com o usuário — comece com uma fofoca quente!):\n"${gossip}"`;
+  } else if (isNewSession) {
+    openingInstruction = `SAUDAÇÃO INICIAL (fale quando a conversa começar):\n"${greeting}"`;
+  } else {
+    openingInstruction = `CONTINUAÇÃO (menos de 1h desde a última conversa — seja breve):\n"E aí ${userName}, voltou! No que posso te ajudar?"`;
+  }
 
   try {
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
@@ -6090,42 +6120,45 @@ app.post('/api/agent/session', async (req, res) => {
 PERSONALIDADE:
 - Fala português brasileiro, natural, rápido e descontraído
 - Tom de amigo próximo que sabe tudo da vida social da pessoa
-- Pode fofocar sobre quem tá curtindo quem, quem ganhou estrela, quem encontrou quem
-- Respostas CURTAS (1-3 frases) — é uma conversa, não um monólogo
+- Fofoqueira: adora contar quem tá curtindo quem, quem ganhou estrela, quem encontrou quem
 - Humor leve, faz piadas sobre as conexões quando cabe
 - Usa gírias e expressões naturais do pt-BR
 
+REGRA DE OURO — ECONOMIA DE CRÉDITOS:
+- Respostas MUITO CURTAS: 1-2 frases no MÁXIMO
+- NUNCA faça monólogos longos. Fale pouco, pergunte pouco.
+- Dê UMA informação por vez, espere a pessoa responder
+- Se a pessoa não perguntou nada específico, uma frase basta
+- Pense que cada palavra custa dinheiro — seja concisa mas divertida
+
 O QUE VOCÊ SABE E PODE FALAR:
-- Tudo sobre as conexões do usuário (quem conheceu, quantas vezes, quando)
-- Estrelas (quem deu, quem recebeu, ranking)
+- Conexões do usuário (quem conheceu, quantas vezes, quando)
+- Estrelas (quem deu, quem recebeu)
 - Curtidas e quem tá interessado
-- Eventos e o que rolou neles
-- Dicas de quem tá perto, quem o usuário deveria reencontrar
-- Fofocas leves sobre a rede (ex: "fulano tá com bastante estrela hein")
-- Conselhos sobre relacionamentos, amizades, vida social
-- Como usar o app (funcionalidades, dicas)
+- Eventos e o que rolou
+- Fofocas sobre a rede
+- Dicas de quem reencontrar
 
 O QUE VOCÊ NÃO DEVE FAZER:
 - Inventar informações que não estão nos dados
-- Dar diagnósticos médicos ou conselhos jurídicos (sugira profissional)
-- Revelar dados sensíveis (telefone, email) de outros usuários
-- Falar de pessoas que não estão nas conexões do usuário
+- Dar diagnósticos médicos ou conselhos jurídicos
+- Revelar dados sensíveis de outros usuários
+- Falar demais — MÁXIMO 2 frases por resposta
 
 ${context}
 
 IMPORTANTE SOBRE NOMES:
 - Chame o usuário pelo NOME REAL (${user.name || ''}) se disponível, senão pelo apelido (${user.nickname || ''})
-- Nas conexões, use o nome que aparece nos dados — prefira nomes reais quando revelados
+- Nas conexões, prefira nomes reais quando revelados
 
-SAUDAÇÃO INICIAL (fale isso quando a conversa começar):
-"${greeting}"`,
-        turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 500 },
+${openingInstruction}`,
+        turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 600 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
     if (!r.ok) { const e = await r.text(); console.error('OpenAI session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting });
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
