@@ -231,6 +231,27 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .fire-edge.left{left:0;right:50%;border-radius:0 2px 0 0}
 .fire-edge.right{left:50%;right:0;border-radius:2px 0 0 0}
 @keyframes fire-edge-pulse{0%{opacity:.3;height:2px}100%{opacity:.9;height:5px}}
+/* ═══ FULL-SCREEN LIGHTNING — white short-circuit effect ═══ */
+.lightning-layer{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:0;transition:opacity .4s}
+.lightning-layer.active{opacity:1}
+/* Screen flash — brief white pulse across entire screen */
+.lt-screenflash{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.18) 0%,rgba(200,220,255,.06) 40%,transparent 70%);opacity:0;animation:lt-screenflash 2.8s ease infinite}
+@keyframes lt-screenflash{0%{opacity:0}4%{opacity:1}7%{opacity:0}9%{opacity:.6}11%{opacity:0}50%{opacity:0}100%{opacity:0}}
+/* Individual lightning bolts — white, bright, full height */
+.lt-bolt{position:absolute;bottom:0;opacity:0;filter:drop-shadow(0 0 6px rgba(255,255,255,.9)) drop-shadow(0 0 20px rgba(180,200,255,.5)) drop-shadow(0 0 40px rgba(140,160,255,.2))}
+.lt-bolt svg{width:100%;height:100%}
+.lt-bolt.b1{left:15%;width:28px;height:55vh;animation:lt-flash1 3.2s ease infinite}
+.lt-bolt.b2{left:42%;width:35px;height:65vh;animation:lt-flash2 2.6s ease infinite .4s}
+.lt-bolt.b3{right:18%;width:24px;height:50vh;animation:lt-flash1 3.8s ease infinite .9s}
+.lt-bolt.b4{left:55%;width:20px;height:40vh;animation:lt-flash2 4.1s ease infinite 1.5s}
+.lt-bolt.b5{left:28%;width:30px;height:58vh;animation:lt-flash1 3.5s ease infinite 2.0s}
+.lt-bolt.b6{right:30%;width:22px;height:45vh;animation:lt-flash2 2.9s ease infinite 1.2s}
+/* Flash keyframes — irregular, like real lightning */
+@keyframes lt-flash1{0%{opacity:0;transform:scaleY(.8) scaleX(1)}2%{opacity:1;transform:scaleY(1) scaleX(1.1)}4%{opacity:.1;transform:scaleY(1) scaleX(.9)}5.5%{opacity:.95;transform:scaleY(1.02) scaleX(1.05)}7%{opacity:.15}8.5%{opacity:.8;transform:scaleY(.98) scaleX(1)}10%{opacity:0;transform:scaleY(.9) scaleX(1)}100%{opacity:0}}
+@keyframes lt-flash2{0%{opacity:0}3%{opacity:.9;transform:scaleY(1.05) scaleX(1.1)}5%{opacity:0}6%{opacity:.7;transform:scaleY(1) scaleX(.95)}8%{opacity:.1}9%{opacity:.85}11%{opacity:0}100%{opacity:0}}
+/* Bottom glow — white electrical glow at speaker zone */
+.lt-base-glow{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);width:80%;height:30px;background:radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.4) 0%,rgba(180,200,255,.15) 40%,transparent 70%);opacity:0;animation:lt-base-pulse 1.2s ease infinite;filter:blur(4px)}
+@keyframes lt-base-pulse{0%{opacity:.1}15%{opacity:.8}30%{opacity:.15}45%{opacity:.6}60%{opacity:.1}100%{opacity:.1}}
 /* Sonic instruction — speakers touching animation */
 /* ═══ SONIC INSTRUCT — phones + lightning at bottom ═══ */
 .sonic-instruct{position:absolute;bottom:3%;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.4rem;opacity:0;transition:opacity .5s;z-index:3;width:90%;max-width:280px}
@@ -246,20 +267,22 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .si-phone.left .si-speaker{right:2px}
 .si-phone.right .si-speaker{left:2px}
 .si-spk-dot{width:2px;height:2px;border-radius:50%;background:var(--ac);opacity:.5}
-/* Lightning bolts between phones */
-.si-energy{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.si-bolt{position:absolute;opacity:0;animation:si-bolt-flash .7s ease infinite;filter:drop-shadow(0 0 4px rgba(255,107,53,.7)) drop-shadow(0 0 8px rgba(255,200,100,.3))}
-.si-bolt:nth-child(1){top:10%;left:30%;animation-delay:0s}
-.si-bolt:nth-child(2){top:40%;left:45%;animation-delay:.25s}
-.si-bolt:nth-child(3){top:15%;left:55%;animation-delay:.5s}
-@keyframes si-bolt-flash{0%{opacity:0;transform:scale(.6)}10%{opacity:1;transform:scale(1.1)}20%{opacity:.15;transform:scale(1)}30%{opacity:.9;transform:scale(1.05)}50%{opacity:.3;transform:scale(.95)}100%{opacity:0;transform:scale(.7)}}
+/* Lightning bolts between phones — WHITE, bright */
+.si-energy{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:50px;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.si-bolt{position:absolute;opacity:0;animation:si-bolt-flash .5s ease infinite;filter:drop-shadow(0 0 6px rgba(255,255,255,.9)) drop-shadow(0 0 12px rgba(180,200,255,.5))}
+.si-bolt:nth-child(1){top:5%;left:20%;animation-delay:0s}
+.si-bolt:nth-child(2){top:35%;left:40%;animation-delay:.2s}
+.si-bolt:nth-child(3){top:10%;left:55%;animation-delay:.4s}
+.si-bolt:nth-child(4){top:45%;left:25%;animation-delay:.6s}
+@keyframes si-bolt-flash{0%{opacity:0;transform:scale(.5) rotate(-5deg)}8%{opacity:1;transform:scale(1.15) rotate(2deg)}15%{opacity:.05;transform:scale(1) rotate(0)}22%{opacity:.9;transform:scale(1.08) rotate(-2deg)}35%{opacity:.1}45%{opacity:.7;transform:scale(.95)}55%{opacity:0}100%{opacity:0}}
 @keyframes si-slide-l{0%,100%{transform:translateX(0)}50%{transform:translateX(14px)}}
 @keyframes si-slide-r{0%,100%{transform:translateX(0)}50%{transform:translateX(-14px)}}
 .si-label{font-size:.48rem;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;opacity:.5;display:flex;align-items:center;gap:.25rem}
 .si-text{font-size:.68rem;color:var(--ac2);text-align:center;max-width:220px;line-height:1.4;font-weight:600;letter-spacing:.02em}
 .si-text em{color:#fff;font-style:normal;font-weight:700}
-.si-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.5),rgba(255,200,100,.15) 50%,transparent 70%);animation:si-glow-pulse .8s ease-in-out infinite;filter:blur(5px)}
-@keyframes si-glow-pulse{0%,100%{opacity:.2;transform:translate(-50%,-50%) scale(.7)}50%{opacity:1;transform:translate(-50%,-50%) scale(2)}}
+/* Center glow between phones — white electric */
+.si-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.6),rgba(200,220,255,.2) 50%,transparent 70%);animation:si-glow-pulse .6s ease-in-out infinite;filter:blur(6px)}
+@keyframes si-glow-pulse{0%,100%{opacity:.1;transform:translate(-50%,-50%) scale(.6)}50%{opacity:1;transform:translate(-50%,-50%) scale(2.2)}}
 /* Screenshot block in chat */
 #chat .cms{-webkit-user-select:none;user-select:none}
 /* Bottom section — anchored tab bar */
@@ -1235,15 +1258,27 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="fire-particles"><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div></div>
     <div class="fire-edge left"></div><div class="fire-edge right"></div>
     <div class="fire-speaker"><div class="fire-spk-wave"></div><div class="fire-spk-wave"></div><div class="fire-spk-wave"></div></div>
+    <!-- LIGHTNING LAYER — full-screen white electric bolts -->
+    <div class="lightning-layer" id="lightningLayer">
+      <div class="lt-screenflash"></div>
+      <div class="lt-base-glow"></div>
+      <div class="lt-bolt b1"><svg viewBox="0 0 30 300" fill="none" preserveAspectRatio="none"><path d="M15 0L8 45h7L5 120h9L2 200h10L0 300h4l12-105h-8l10-80h-7l8-70h-6z" fill="rgba(255,255,255,.9)" stroke="rgba(200,220,255,.6)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b2"><svg viewBox="0 0 35 300" fill="none" preserveAspectRatio="none"><path d="M18 0l-5 60h6L8 150h8l-6 80h7L10 300h3l8-95h-6l7-75h-7l6-70h-5z" fill="rgba(255,255,255,.85)" stroke="rgba(220,230,255,.5)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b3"><svg viewBox="0 0 26 300" fill="none" preserveAspectRatio="none"><path d="M13 0L7 55h6L3 140h8L1 220h6l-2 80h3l6-85h-5l8-80h-6l6-65h-5z" fill="rgba(255,255,255,.8)" stroke="rgba(180,200,255,.5)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b4"><svg viewBox="0 0 22 300" fill="none" preserveAspectRatio="none"><path d="M11 0L6 70h5L2 170h7L0 300h3l7-135h-5l7-95h-5z" fill="rgba(255,255,255,.75)" stroke="rgba(200,215,255,.4)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b5"><svg viewBox="0 0 32 300" fill="none" preserveAspectRatio="none"><path d="M16 0l-6 50h7L6 130h9l-8 90h8L8 300h3l9-85h-7l9-90h-7l7-75h-6z" fill="rgba(255,255,255,.88)" stroke="rgba(210,225,255,.5)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b6"><svg viewBox="0 0 24 300" fill="none" preserveAspectRatio="none"><path d="M12 0L7 65h5L3 160h7L1 250h5l-1 50h3l5-55h-4l7-90h-6l6-95h-5z" fill="rgba(255,255,255,.78)" stroke="rgba(190,210,255,.4)" stroke-width=".3"/></svg></div>
+    </div>
     <div class="sonic-instruct" id="sonicInstruct">
       <div class="si-scene">
         <div class="si-phone left">
           <div class="si-speaker"><div class="si-spk-dot"></div><div class="si-spk-dot"></div><div class="si-spk-dot"></div></div>
         </div>
         <div class="si-energy">
-          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,180,80,.9)" stroke="rgba(255,107,53,1)" stroke-width=".5"/></svg></div>
-          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,200,100,.8)" stroke="rgba(255,140,60,1)" stroke-width=".5"/></svg></div>
-          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,160,60,.85)" stroke="rgba(255,107,53,1)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,255,255,.95)" stroke="rgba(200,220,255,.8)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(240,245,255,.9)" stroke="rgba(180,200,255,.7)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,255,255,.85)" stroke="rgba(200,220,255,.6)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(230,240,255,.9)" stroke="rgba(190,210,255,.7)" stroke-width=".5"/></svg></div>
         </div>
         <div class="si-glow"></div>
         <div class="si-phone right">
@@ -3766,6 +3801,7 @@ async function handleMainButton(){
   fb.classList.remove('active');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
+  const ltLayer=$('lightningLayer');if(ltLayer)ltLayer.classList.add('active');
   const si=$('sonicInstruct');if(si)si.classList.add('active');
   // Hide bottom nav + motivation during sonic to give space for animation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.add('sonic-hidden');
@@ -3840,38 +3876,89 @@ async function handleMainButton(){
     }
 
     txt.textContent='TOUCHING...';
-    sts.textContent='Encoste os alto-falantes';
-    setTimeout(()=>{if(homeSonicActive){fb.classList.add('active');sts.textContent='Encoste os alto-falantes ou use codigo'}},10000);
+    sts.textContent='Emitindo som...';
+    // Show fallback code option after 8s
+    setTimeout(()=>{if(homeSonicActive){fb.classList.add('active')}},8000);
 
-    // Delayed deep health check: after 3s verify mic is actually producing data
+    // ═══ SMART HEALTH MONITORING ═══
+    // Phase 1 (3s): Check if audio pipeline is alive
+    // Phase 2 (8s): If no signal at all, warn user about volume
+    // Phase 3 (20s): If still nothing, auto-retry once then offer code
+    var _sonicRetried=false;
     setTimeout(()=>{
       if(!homeSonicActive||!sonicAnalyser)return;
       const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
       sonicAnalyser.getByteFrequencyData(testBuf);
-      // Check if we get ANY signal at all (sum > 0 means audio pipeline works)
       let totalEnergy=0;
       for(let i=0;i<testBuf.length;i++)totalEnergy+=testBuf[i];
-      // Also check mic track is still alive
       const track=sonicStream&&sonicStream.getAudioTracks()[0];
       const trackDead=!track||track.readyState==='ended'||!track.enabled;
       const ctxBroken=sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running';
       if(trackDead||ctxBroken){
-        console.warn('[sonic health] Audio broken after 3s. Track:',track?.readyState,'EmitCtx:',sonicEmitCtx.state,'MicCtx:',sonicMicCtx.state,'Energy:',totalEnergy);
+        console.warn('[sonic health] Audio broken after 3s. Track:',track?.readyState,'EmitCtx:',sonicEmitCtx.state,'MicCtx:',sonicMicCtx.state);
         stopHomeSonic();
-        showToast('Microfone travou, reiniciando...');
-        setTimeout(()=>location.reload(),800);
+        showToast('Problema no audio. Tente novamente.');
+        return;
+      }
+      // If emit context is running, show friendly message
+      if(sonicEmitCtx.state==='running'){
+        sts.textContent='Encoste os alto-falantes';
       }
     },3000);
+    // Phase 2: volume check
+    setTimeout(()=>{
+      if(!homeSonicActive||!sonicAnalyser)return;
+      const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
+      sonicAnalyser.getByteFrequencyData(testBuf);
+      const _minB=Math.floor(18000/freqPerBin),_maxB=Math.ceil(20000/freqPerBin);
+      let _anySignal=false;
+      for(let i=_minB;i<=_maxB&&i<testBuf.length;i++){if(testBuf[i]>10){_anySignal=true;break}}
+      if(!_anySignal){
+        sts.textContent='Volume no maximo? Encoste os celulares';
+        // Try resuming contexts one more time
+        try{sonicEmitCtx.resume();sonicMicCtx.resume()}catch(e){}
+      }
+    },8000);
+    // Phase 3: auto-retry
+    setTimeout(()=>{
+      if(!homeSonicActive||!sonicAnalyser||_sonicRetried)return;
+      const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
+      sonicAnalyser.getByteFrequencyData(testBuf);
+      const _minB=Math.floor(18000/freqPerBin),_maxB=Math.ceil(20000/freqPerBin);
+      let _anySignal=false;
+      for(let i=_minB;i<=_maxB&&i<testBuf.length;i++){if(testBuf[i]>10){_anySignal=true;break}}
+      if(!_anySignal){
+        _sonicRetried=true;
+        console.warn('[sonic] No signal after 20s, auto-retrying oscillator');
+        // Restart oscillator
+        try{sonicOsc.stop()}catch(e){}
+        try{
+          sonicOsc=sonicEmitCtx.createOscillator();
+          sonicOsc.type='sine';
+          sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
+          const g2=sonicEmitCtx.createGain();
+          g2.gain.setValueAtTime(0.7,sonicEmitCtx.currentTime);
+          sonicOsc.connect(g2);g2.connect(sonicEmitCtx.destination);
+          sonicOsc.start();
+          sts.textContent='Tentando novamente... encoste os celulares';
+          showToast('Reconectando audio...');
+        }catch(e){
+          console.error('[sonic] Retry failed:',e);
+          sts.textContent='Use o codigo para conectar';
+          fb.classList.add('active');
+        }
+      }
+    },20000);
 
     let confirmHits=0,lastSnapped=0,_dbgFrames=0,_sonicCooldown=0;
     function detect(){
       if(!sonicActive)return;
-      // Runtime health: if mic track died or AudioContext suspended mid-run → reload
+      // Runtime health: if mic track died or AudioContext suspended mid-run
       const _rt=sonicStream&&sonicStream.getAudioTracks()[0];
       if(!_rt||_rt.readyState==='ended'||sonicMicCtx.state!=='running'){
-        console.warn('[sonic detect] Audio died mid-run, reloading');
-        stopHomeSonic();showToast('Reconectando microfone...');
-        setTimeout(()=>location.reload(),600);return;
+        console.warn('[sonic detect] Audio died mid-run');
+        stopHomeSonic();showToast('Problema no microfone. Tente novamente.');
+        return;
       }
       // Cooldown after detection — wait for server response
       if(_sonicCooldown>0){_sonicCooldown--;sonicAnimFrame=requestAnimationFrame(detect);return}
@@ -3879,11 +3966,17 @@ async function handleMainButton(){
       const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
       let peakVal=0,peakBin=0;
       for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}}
-      // Show debug info every ~30 frames (~0.5s)
+      // Show user-friendly status every ~30 frames (~0.5s)
       _dbgFrames++;
       if(_dbgFrames%30===0&&sts){
-        const peakHz=Math.round(peakBin*freqPerBin);
-        sts.textContent='Ouvindo... sinal: '+peakVal+' freq: '+peakHz+'Hz'+(confirmHits>0?' ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')':'');
+        if(peakVal>=SONIC_DETECT_THRESHOLD){
+          sts.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
+        }else if(peakVal>10){
+          sts.textContent='Sinal fraco... aproxime mais';
+        }else if(_dbgFrames>180){
+          // After ~3s of nothing, show helpful hints instead of raw data
+          sts.textContent='Encoste os alto-falantes um no outro';
+        }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
@@ -3894,7 +3987,7 @@ async function handleMainButton(){
         const distFromOwn=Math.abs(snapped-sonicMyFreq);
         if(distFromOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
-          if(sts)sts.textContent='Detectando sinal... '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
+          if(sts)sts.textContent='Detectando... quase la!';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             haptic([60]);
             // DON'T say "Encontramos alguém" yet — wait for server to confirm
@@ -3917,15 +4010,13 @@ async function handleMainButton(){
     detect();
   }catch(e){
     console.error('Sonic error:',e);
+    stopHomeSonic();
     if(e.name==='NotAllowedError'){
-      sts.textContent='Microfone negado.';
-      fb.classList.add('active');
+      showToast('Permita o microfone para conectar');
+    }else if(e.message==='Timeout'){
+      showToast('Servidor nao respondeu. Tente novamente.');
     }else{
-      // Any other audio error (AbortError, InvalidStateError, etc.) → auto-reload
-      sts.textContent='Erro de áudio, reiniciando...';
-      stopHomeSonic();
-      setTimeout(()=>location.reload(),1200);
-      return;
+      showToast('Erro no audio. Toque em TOUCH para tentar de novo.');
     }
   }
 }
@@ -3941,6 +4032,7 @@ function stopHomeSonic(){
   fb.classList.remove('active');
   barsL.classList.remove('active');barsR.classList.remove('active');
   if(fire)fire.classList.remove('active');
+  const ltLayer=$('lightningLayer');if(ltLayer)ltLayer.classList.remove('active');
   const si=$('sonicInstruct');if(si)si.classList.remove('active');
   // Restore bottom nav + motivation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.remove('sonic-hidden');
@@ -4076,8 +4168,8 @@ async function initSonic(label,status,circle){
       // Runtime health check
       const _rt2=sonicStream&&sonicStream.getAudioTracks()[0];
       if(!_rt2||_rt2.readyState==='ended'||sonicMicCtx.state!=='running'){
-        stopSonicMode();showToast('Microfone perdeu conexão, recarregando...');
-        setTimeout(()=>location.reload(),600);return;
+        stopSonicMode();showToast('Problema no microfone. Tente novamente.');
+        return;
       }
       if(_sonicCooldown2>0){_sonicCooldown2--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
@@ -4089,8 +4181,13 @@ async function initSonic(label,status,circle){
       }
       _dbgF2++;
       if(_dbgF2%30===0&&status){
-        const peakHz=Math.round(peakBin*freqPerBin);
-        status.textContent='Ouvindo... sinal: '+peakVal+' freq: '+peakHz+'Hz'+(confirmHits>0?' ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')':'');
+        if(peakVal>=SONIC_DETECT_THRESHOLD){
+          status.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
+        }else if(peakVal>10){
+          status.textContent='Sinal fraco... aproxime mais';
+        }else{
+          status.textContent='Aproxime os alto-falantes';
+        }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const detectedFreq=Math.round(peakBin*freqPerBin);
@@ -4099,7 +4196,7 @@ async function initSonic(label,status,circle){
         const distOwn=Math.abs(snapped-sonicMyFreq);
         if(distOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped){confirmHits++}else{confirmHits=1;lastSnapped=snapped}
-          if(status)status.textContent='Detectando sinal... '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
+          if(status)status.textContent='Detectando... quase la!';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             haptic([60]);
             if(label)label.textContent='VERIFICANDO...';
@@ -4125,8 +4222,14 @@ async function initSonic(label,status,circle){
 
   }catch(e){
     console.error('Sonic init error:',e);
-    if(status)status.textContent=e.name==='NotAllowedError'?'Microfone negado. Use código.':'Erro: '+e.message;
     sonicActive=false;
+    if(e.name==='NotAllowedError'){
+      showToast('Permita o microfone para conectar');
+    }else if(e.message==='Server timeout'){
+      showToast('Servidor nao respondeu. Tente novamente.');
+    }else{
+      showToast('Erro no audio. Tente de novo.');
+    }
     const fb=$('sonicFallback');if(fb)fb.classList.add('active');
   }
 }
