@@ -3655,18 +3655,36 @@ async function handleMainButton(){
   if(homeSonicActive){stopHomeSonic();return}
   if(!socket){showToast('Sem conexão. Aguarde...');return}
 
-  // ═══ STEP 0: Create AudioContexts IMMEDIATELY on click ═══
-  // MUST happen BEFORE any await — browsers kill audio permission
-  // after the first async break from the user gesture.
-  // Even waiting for socket reconnection loses the gesture!
+  // ═══ STEP 0: Create AudioContexts + UNLOCK audio IMMEDIATELY on click ═══
+  // Mobile browsers (iOS/Android) require AudioContext to be created AND
+  // produce actual audio output during a user gesture. Just creating the
+  // context isn't enough — we must play a short silent buffer to truly
+  // "unlock" the audio pipeline. After that, any future oscillator.start()
+  // will work even if called after async operations.
   stopSonicMode();
   if(sonicStream){sonicStream.getTracks().forEach(t=>t.stop());sonicStream=null;}
   sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
   sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
-  // Resume synchronously (no await) — just fire and forget, they resolve fast
   sonicEmitCtx.resume();
   sonicMicCtx.resume();
-  console.log('[sonic] AudioContexts created+resumed in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
+  // ─── FORCE UNLOCK: play a tiny silent buffer to truly unlock audio output ───
+  try{
+    const unlockBuf=sonicEmitCtx.createBuffer(1,1,sonicEmitCtx.sampleRate);
+    const unlockSrc=sonicEmitCtx.createBufferSource();
+    unlockSrc.buffer=unlockBuf;
+    unlockSrc.connect(sonicEmitCtx.destination);
+    unlockSrc.start(0);
+    // Also play a very short inaudible tone (1ms at 0 volume) to warm up oscillator path
+    const unlockOsc=sonicEmitCtx.createOscillator();
+    const unlockGain=sonicEmitCtx.createGain();
+    unlockGain.gain.setValueAtTime(0.001,sonicEmitCtx.currentTime);
+    unlockGain.gain.exponentialRampToValueAtTime(0.001,sonicEmitCtx.currentTime+0.001);
+    unlockOsc.connect(unlockGain);
+    unlockGain.connect(sonicEmitCtx.destination);
+    unlockOsc.start(0);
+    unlockOsc.stop(sonicEmitCtx.currentTime+0.001);
+  }catch(ue){console.log('[sonic] unlock warm-up err (non-fatal):',ue)}
+  console.log('[sonic] AudioContexts created+unlocked in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
 
   haptic([40]);
 
@@ -3720,17 +3738,21 @@ async function handleMainButton(){
     if(!homeSonicActive)return;
     sonicMyFreq=freq;
 
-    // 3. Emit ultrasonic — using the ALREADY RUNNING AudioContext
-    // Re-verify context is still running (paranoia check)
-    if(sonicEmitCtx.state==='suspended'){await sonicEmitCtx.resume()}
+    // 3. Emit ultrasonic — using the ALREADY UNLOCKED AudioContext
+    console.log('[sonic] Pre-oscillator check. EmitCtx:',sonicEmitCtx.state,'baseLatency:',sonicEmitCtx.baseLatency||'n/a');
+    if(sonicEmitCtx.state==='suspended'){
+      console.warn('[sonic] EmitCtx was suspended! Resuming...');
+      await sonicEmitCtx.resume();
+      console.log('[sonic] EmitCtx after resume:',sonicEmitCtx.state);
+    }
     sonicOsc=sonicEmitCtx.createOscillator();
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.9,sonicEmitCtx.currentTime);
+    gain.gain.setValueAtTime(1.0,sonicEmitCtx.currentTime); // Max volume
     sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
-    console.log('[sonic] Oscillator started at',freq,'Hz. EmitCtx:',sonicEmitCtx.state);
+    console.log('[sonic] Oscillator STARTED at',freq,'Hz. EmitCtx:',sonicEmitCtx.state,'currentTime:',sonicEmitCtx.currentTime);
 
     // 4. Start detection — using the ALREADY RUNNING mic AudioContext
     if(sonicMicCtx.state==='suspended'){await sonicMicCtx.resume()}
@@ -3923,11 +3945,21 @@ function startSonicMode(){
   circle.className='bump-circle';label.textContent='PREPARANDO...';
   status.textContent='Preparando áudio...';
   sonicActive=true;sonicMyFreq=0;
-  // ═══ Create AudioContexts in user gesture! ═══
+  // ═══ Create AudioContexts + UNLOCK in user gesture! ═══
   sonicEmitCtx=new(window.AudioContext||window.webkitAudioContext)();
   sonicMicCtx=new(window.AudioContext||window.webkitAudioContext)();
   sonicEmitCtx.resume();sonicMicCtx.resume();
-  console.log('[sonic alt] Contexts created in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
+  try{
+    const ub=sonicEmitCtx.createBuffer(1,1,sonicEmitCtx.sampleRate);
+    const us=sonicEmitCtx.createBufferSource();us.buffer=ub;
+    us.connect(sonicEmitCtx.destination);us.start(0);
+    const uo=sonicEmitCtx.createOscillator();
+    const ug=sonicEmitCtx.createGain();
+    ug.gain.setValueAtTime(0.001,sonicEmitCtx.currentTime);
+    uo.connect(ug);ug.connect(sonicEmitCtx.destination);
+    uo.start(0);uo.stop(sonicEmitCtx.currentTime+0.001);
+  }catch(e){}
+  console.log('[sonic alt] Contexts created+unlocked in gesture. Emit:',sonicEmitCtx.state,'Mic:',sonicMicCtx.state);
   initSonic(label,status,circle);
 }
 
@@ -3956,7 +3988,7 @@ async function initSonic(label,status,circle){
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.9,sonicEmitCtx.currentTime);
+    gain.gain.setValueAtTime(1.0,sonicEmitCtx.currentTime);
     sonicOsc.connect(gain);
     gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
