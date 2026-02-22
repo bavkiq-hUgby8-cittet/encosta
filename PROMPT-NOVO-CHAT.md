@@ -46,7 +46,8 @@ EU NÃO SEI PROGRAMAR. Você faz TUDO: código, commits, push no GitHub, backup,
 
 - Sempre faça commit com mensagem descritiva em português
 - Sempre faça push para o GitHub após cada commit
-- Sempre sincronize: o git da máquina deve estar no mesmo commit do GitHub
+- SEMPRE salve nos DOIS: máquina E GitHub (nunca um sem o outro)
+- Sincronize: o git da máquina deve estar no mesmo commit do GitHub
 - Se eu pedir backup, verifique que git status está clean e push foi feito
 - Use Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com> nos commits
 - ZERO emojis no código — usamos SVGs vetoriais para ícones
