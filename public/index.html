@@ -11064,296 +11064,179 @@ if(typeof socket!=='undefined'&&socket){
 </div>
 
 <script>
-// ═══ VOICE AGENT — OpenAI Realtime WebRTC + text fallback ═══
+// ═══ VOICE AGENT — OpenAI Realtime WebRTC ═══
 const VA = (function(){
-  let pc = null; // RTCPeerConnection
-  let dc = null; // DataChannel
-  let audioEl = null;
-  let isConnected = false;
-  let isActive = false;
-  let isConnecting = false;
-  let micStream = null;
-  let connId = 0; // session id — prevents stale callbacks from killing new connections
-  let textMessages = [];
-  const VA_LAST_KEY = 'va_last_interaction';
-
+  let pc = null, dc = null, audioEl = null, micStream = null;
+  let active = false, busy = false;
   const $ = id => document.getElementById(id);
+  const VA_LAST_KEY = 'va_last_interaction';
 
   function setStatus(t){ const e=$('vaStatus'); if(e) e.textContent=t; }
   function setTranscript(t){ const e=$('vaTranscript'); if(e) e.textContent=t; }
-  function setOrb(cls){
-    const o=$('vaOrb');
-    if(o) { o.className='va-orb'; if(cls) o.classList.add(cls); }
-  }
+  function setOrb(c){ const o=$('vaOrb'); if(o){o.className='va-orb';if(c)o.classList.add(c);} }
 
-  // ── WebRTC: Connect to OpenAI Realtime ──
-  async function connectWebRTC(){
-    if(isConnecting || isActive) return;
-    isConnecting = true;
-    const myId = ++connId; // unique id for THIS connection attempt
-
-    setStatus('Conectando...');
-    setOrb('connecting');
-
+  // ── CONNECT ──
+  async function connect(){
+    if(busy||active) return;
+    busy = true;
+    setStatus('Conectando...'); setOrb('connecting');
     try {
-      const tokenResp = await fetch('/api/agent/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // 1. Token
+      const tr = await fetch('/api/agent/session',{
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          userId: typeof state!=='undefined' ? state.userId : null,
-          lastInteraction: parseInt(localStorage.getItem(VA_LAST_KEY) || '0')
+          userId: typeof state!=='undefined'?state.userId:null,
+          lastInteraction: parseInt(localStorage.getItem(VA_LAST_KEY)||'0')
         })
       });
-      // If this connection was superseded by stop(), bail out
-      if(myId !== connId){ return; }
+      if(!tr.ok) throw new Error((await tr.json().catch(()=>({}))).error||'Servidor indisponível');
+      const td = await tr.json();
+      if(!td.client_secret) throw new Error('Token não recebido');
 
-      if (!tokenResp.ok) {
-        const err = await tokenResp.json().catch(()=>({}));
-        throw new Error(err.error || 'Servidor não disponível');
-      }
-
-      const tokenData = await tokenResp.json();
-      const client_secret = tokenData.client_secret;
-      if (!client_secret) throw new Error('Token não recebido');
-      if(myId !== connId){ return; }
-
+      // 2. PeerConnection
       pc = new RTCPeerConnection();
 
+      // 3. Audio output — MUST be in DOM for mobile
       audioEl = document.createElement('audio');
       audioEl.autoplay = true;
-      pc.ontrack = e => { audioEl.srcObject = e.streams[0]; };
+      audioEl.playsInline = true;
+      audioEl.style.display = 'none';
+      document.body.appendChild(audioEl);
+      pc.ontrack = e => {
+        audioEl.srcObject = e.streams[0];
+        audioEl.play().catch(()=>{});
+      };
 
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if(myId !== connId){ micStream.getTracks().forEach(t=>t.stop()); return; }
+      // 4. Mic
+      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
       micStream.getTracks().forEach(t => pc.addTrack(t, micStream));
 
+      // 5. Data channel
       dc = pc.createDataChannel('oai-events');
       dc.onopen = () => {
-        if(myId !== connId){ return; }
-        isConnected = true;
-        isActive = true;
-        isConnecting = false;
-        setOrb('speaking');
-        setStatus('');
+        active = true; busy = false;
+        setOrb('speaking'); setStatus('');
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
-        dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'], instructions: 'Fale a saudação que está nas suas instruções. Seja natural, rápida e animada. Use nomes reais. MÁXIMO 2 frases.' } }));
+        // Agent speaks first
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale a saudação das suas instruções. Natural, rápida, animada. Nomes reais. MÁXIMO 2 frases.'}}));
       };
+      dc.onmessage = e => { try{handleEvent(JSON.parse(e.data))}catch(x){} };
+      dc.onclose = () => { if(active) cleanup(); };
 
-      dc.onmessage = e => {
-        try { handleRealtimeEvent(JSON.parse(e.data)); } catch(err){}
-      };
-
-      dc.onclose = () => {
-        if(myId !== connId) return;
-        isConnected = false;
-        setStatus('Desconectado');
-        setOrb('');
-      };
-
+      // 6. SDP
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      if(myId !== connId){ return; }
-
-      const sdpResp = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${client_secret}`, 'Content-Type': 'application/sdp' },
+      const sr = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+td.client_secret,'Content-Type':'application/sdp'},
         body: offer.sdp
       });
-      if(myId !== connId){ return; }
-      if (!sdpResp.ok) throw new Error('SDP exchange falhou: ' + sdpResp.status);
-
-      const answerSdp = await sdpResp.text();
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      if(!sr.ok) throw new Error('SDP falhou: '+sr.status);
+      await pc.setRemoteDescription({type:'answer', sdp: await sr.text()});
 
       pc.onconnectionstatechange = () => {
-        if(myId !== connId) return; // stale — ignore
-        if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) {
-          stop();
-        }
+        if(pc&&(pc.connectionState==='disconnected'||pc.connectionState==='failed')) cleanup();
       };
 
-    } catch(err) {
-      if(myId !== connId) return; // stale
-      console.error('WebRTC connect error:', err);
-      isConnecting = false;
-      isActive = false;
-      setStatus('Erro: ' + err.message);
-      setOrb('');
-      setTimeout(() => setStatus('Use o campo de texto abaixo'), 2000);
+    } catch(err){
+      console.error('[VA] connect error:', err);
+      busy = false;
+      cleanup();
+      setStatus('Erro: '+err.message);
+      setTimeout(()=>setStatus('Tente novamente'),2000);
     }
   }
 
-  // ── Handle Realtime events from OpenAI ──
-  function handleRealtimeEvent(evt){
+  // ── CLEANUP — kills everything ──
+  function cleanup(){
+    active = false; busy = false;
+    // Nullify callbacks
+    if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
+    if(dc){dc.onopen=null;dc.onclose=null;dc.onmessage=null;}
+    // Close
+    if(dc){try{dc.close()}catch(e){}} dc=null;
+    if(pc){try{pc.close()}catch(e){}} pc=null;
+    // Kill mic
+    if(micStream){micStream.getTracks().forEach(t=>{t.enabled=false;t.stop();});} micStream=null;
+    // Kill audio
+    if(audioEl){
+      audioEl.pause();
+      if(audioEl.srcObject) audioEl.srcObject.getTracks().forEach(t=>t.stop());
+      audioEl.srcObject=null;
+      if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
+    }
+    audioEl=null;
+    // UI
+    setOrb(''); setStatus(''); setTranscript('');
+    $('vaMainBtn').style.display='';
+    $('vaMainBtn').textContent='Iniciar conversa';
+    $('vaStopBtn').style.display='none';
+    try{localStorage.setItem(VA_LAST_KEY,String(Date.now()))}catch(e){}
+  }
+
+  // ── EVENTS ──
+  function handleEvent(evt){
     switch(evt.type){
-      case 'session.created':
-        console.log('Realtime session created');
-        break;
-
-      case 'input_audio_buffer.speech_started':
-        setOrb('listening');
-        setStatus('Ouvindo...');
-        break;
-
-      case 'input_audio_buffer.speech_stopped':
-        setOrb('connecting');
-        setStatus('Processando...');
-        break;
-
-      case 'conversation.item.input_audio_transcription.completed':
-        if(evt.transcript) setTranscript('Você: ' + evt.transcript);
-        break;
-
-      case 'response.audio.delta':
-        setOrb('speaking');
-        setStatus('');
-        break;
-
+      case 'input_audio_buffer.speech_started': setOrb('listening');setStatus('Ouvindo...');break;
+      case 'input_audio_buffer.speech_stopped': setOrb('connecting');setStatus('Processando...');break;
+      case 'conversation.item.input_audio_transcription.completed': if(evt.transcript)setTranscript('Você: '+evt.transcript);break;
+      case 'response.audio.delta': setOrb('speaking');setStatus('');break;
       case 'response.audio_transcript.delta':
-        // Accumulate agent's response text
-        const curr = $('vaTranscript')?.textContent || '';
-        if (!curr.startsWith('Touch: ')) setTranscript('Touch: ' + (evt.delta||''));
-        else setTranscript(curr + (evt.delta||''));
+        var c=$('vaTranscript')?.textContent||'';
+        setTranscript(c.startsWith('Touch: ')?c+(evt.delta||''):'Touch: '+(evt.delta||''));
         break;
-
       case 'response.audio_transcript.done':
-        setOrb('listening');
-        setStatus('Fale agora — estou ouvindo');
-        break;
-
-      case 'response.done':
-        setOrb('listening');
-        setStatus('Fale agora — estou ouvindo');
-        break;
-
-      case 'error':
-        console.error('Realtime error:', evt.error);
-        setStatus('Erro: ' + (evt.error?.message || 'desconhecido'));
-        break;
+      case 'response.done': setOrb('listening');setStatus('Fale agora');break;
+      case 'error': console.error('[VA] error:',evt.error);setStatus('Erro: '+(evt.error?.message||''));break;
     }
   }
 
-  // ── Text fallback (when WebRTC not available) ──
-  async function sendTextMessage(text){
-    if(!text.trim()) return;
-    $('vaTextInput').value = '';
-    setTranscript('Você: ' + text);
-    setStatus('Pensando...');
-    setOrb('connecting');
-
-    // If WebRTC is active, send via data channel
-    if(isConnected && dc && dc.readyState === 'open'){
-      dc.send(JSON.stringify({
-        type: 'conversation.item.create',
-        item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] }
-      }));
-      dc.send(JSON.stringify({ type: 'response.create' }));
+  // ── TEXT FALLBACK ──
+  let textMsgs=[];
+  async function sendText(text){
+    if(!text.trim())return;
+    $('vaTextInput').value='';
+    setTranscript('Você: '+text); setStatus('Pensando...'); setOrb('connecting');
+    if(active&&dc&&dc.readyState==='open'){
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text}]}}));
+      dc.send(JSON.stringify({type:'response.create'}));
       return;
     }
-
-    // Otherwise use text API fallback
-    textMessages.push({ role: 'user', content: text });
-    try {
-      const r = await fetch('/api/agent/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: textMessages, userId: typeof state!=='undefined'? state.userId : null })
-      });
-      const d = await r.json();
-      const reply = d.reply || d.error || 'Erro';
-      textMessages.push({ role: 'assistant', content: reply });
-      setTranscript('Touch: ' + reply);
-      setStatus('');
-      setOrb('');
-      // Speak with browser TTS
-      if(window.speechSynthesis){
-        const u = new SpeechSynthesisUtterance(reply);
-        u.lang='pt-BR'; u.rate=1.1;
-        speechSynthesis.speak(u);
-      }
-    } catch(e){
-      setTranscript('Erro de conexão');
-      setStatus('');
-      setOrb('');
-    }
+    textMsgs.push({role:'user',content:text});
+    try{
+      const r=await fetch('/api/agent/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:textMsgs,userId:typeof state!=='undefined'?state.userId:null})});
+      const d=await r.json(); const reply=d.reply||d.error||'Erro';
+      textMsgs.push({role:'assistant',content:reply});
+      setTranscript('Touch: '+reply);setStatus('');setOrb('');
+      if(window.speechSynthesis){const u=new SpeechSynthesisUtterance(reply);u.lang='pt-BR';u.rate=1.1;speechSynthesis.speak(u);}
+    }catch(e){setTranscript('Erro de conexão');setStatus('');setOrb('');}
   }
 
-  // ── Stop/disconnect ──
-  function stop(){
-    // Increment connId so any in-flight async callbacks become stale and bail out
-    connId++;
-    isActive = false;
-    isConnected = false;
-    isConnecting = false;
-
-    // Remove callbacks BEFORE closing (prevents stale events firing)
-    if(pc){ pc.onconnectionstatechange = null; pc.ontrack = null; }
-    if(dc){ dc.onopen = null; dc.onclose = null; dc.onmessage = null; }
-
-    // Close data channel
-    if(dc){ try{dc.close()}catch(e){} }
-    dc = null;
-
-    // Close PeerConnection
-    if(pc){ try{pc.close()}catch(e){} }
-    pc = null;
-
-    // Kill mic tracks
-    if(micStream){
-      micStream.getTracks().forEach(t => {
-        try{ t.enabled = false; } catch(e){}
-        try{ t.stop(); } catch(e){}
-      });
-    }
-    micStream = null;
-
-    // Kill audio playback
-    if(audioEl){
-      try{ audioEl.pause(); }catch(e){}
-      if(audioEl.srcObject){
-        audioEl.srcObject.getTracks().forEach(t => { try{t.stop()}catch(e){} });
-      }
-      audioEl.srcObject = null;
-    }
-    audioEl = null;
-
-    // Reset UI
-    setOrb('');
-    setStatus('');
-    setTranscript('');
-    $('vaMainBtn').style.display = '';
-    $('vaMainBtn').textContent = 'Iniciar conversa';
-    $('vaStopBtn').style.display = 'none';
-    // Save last interaction time
-    try{ localStorage.setItem(VA_LAST_KEY, String(Date.now())); }catch(e){}
-  }
-
+  // ── PUBLIC API ──
   return {
     open(){
-      // Kill any leftover mic/connection
-      stop();
+      cleanup();
       $('vaOverlay').classList.add('active');
-      // Show "start" button — user taps to activate mic (gives explicit control)
-      $('vaMainBtn').style.display = '';
-      $('vaMainBtn').textContent = '🎙️ Ativar microfone e conversar';
-      $('vaStopBtn').style.display = 'none';
-      setStatus('Toque no botão para começar');
+      $('vaMainBtn').style.display='';
+      $('vaMainBtn').textContent='🎙️ Iniciar conversa';
+      $('vaStopBtn').style.display='none';
+      setStatus('Toque para começar');
       setOrb('');
     },
     close(){
       $('vaOverlay').classList.remove('active');
-      stop(); // always kill everything — mic, WebRTC, audio
+      cleanup();
     },
-    async toggleVoice(){
-      if(isActive){ stop(); return; }
-      await connectWebRTC();
+    toggleVoice(){
+      if(active){cleanup();return;}
+      connect();
     },
     sendText(){
-      const inp = $('vaTextInput');
-      if(inp && inp.value.trim()) sendTextMessage(inp.value.trim());
+      const inp=$('vaTextInput');
+      if(inp&&inp.value.trim()) sendText(inp.value.trim());
     },
-    stop
+    stop: cleanup
   };
 })();
 
