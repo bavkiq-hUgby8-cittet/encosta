@@ -3658,6 +3658,35 @@ app.post('/api/admin/unverify', (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin: grant/revoke Touch? Plus (subscriber status)
+app.post('/api/admin/grant-plus', (req, res) => {
+  const { adminId, targetId, grant } = req.body;
+  if (!adminId || !targetId) return res.status(400).json({ error: 'adminId e targetId obrigatorios.' });
+  const admin = db.users[adminId];
+  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
+  const target = db.users[targetId];
+  if (!target) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const shouldGrant = grant !== false; // default true
+  target.isSubscriber = shouldGrant;
+  if (shouldGrant) {
+    // Create/update subscription record so status endpoint also reflects it
+    if (!db.subscriptions[targetId]) db.subscriptions[targetId] = {};
+    db.subscriptions[targetId].status = 'active';
+    db.subscriptions[targetId].planId = 'touch_plus';
+    db.subscriptions[targetId].startedAt = db.subscriptions[targetId].startedAt || Date.now();
+    db.subscriptions[targetId].expiresAt = null; // manual grant = no expiry
+    db.subscriptions[targetId].grantedBy = adminId;
+    db.subscriptions[targetId].isManualGrant = true;
+  } else {
+    target.isSubscriber = false;
+    if (db.subscriptions[targetId]) {
+      db.subscriptions[targetId].status = 'cancelled';
+    }
+  }
+  saveDB('users', 'subscriptions');
+  res.json({ ok: true, isSubscriber: target.isSubscriber });
+});
+
 // Admin: verify an event
 app.post('/api/admin/verify-event', (req, res) => {
   const { adminId, eventId, note } = req.body;
@@ -3681,7 +3710,8 @@ app.get('/api/admin/verifications/:adminId', (req, res) => {
     id: u.id, nickname: u.nickname, name: u.name || u.nickname, verified: true,
     verifiedAt: u.verifiedAt, verificationType: u.verificationType || 'standard',
     stars: (u.stars || []).length, score: calcScore(u.id),
-    profilePhoto: u.profilePhoto || u.photoURL || null
+    profilePhoto: u.profilePhoto || u.photoURL || null,
+    isSubscriber: !!u.isSubscriber
   }));
   const events = Object.values(db.operatorEvents).filter(e => e.verified).map(e => ({
     id: e.id, name: e.name, verified: true, verifiedAt: e.verifiedAt,
@@ -3690,7 +3720,8 @@ app.get('/api/admin/verifications/:adminId', (req, res) => {
   const allUsers = Object.values(db.users).map(u => ({
     id: u.id, nickname: u.nickname, name: u.name || u.nickname,
     verified: !!u.verified, stars: (u.stars || []).length,
-    profilePhoto: u.profilePhoto || u.photoURL || null
+    profilePhoto: u.profilePhoto || u.photoURL || null,
+    isSubscriber: !!u.isSubscriber
   }));
   const allEvents = Object.values(db.operatorEvents).map(e => ({
     id: e.id, name: e.name, verified: !!e.verified,
