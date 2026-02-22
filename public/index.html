@@ -1150,8 +1150,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 /* ═══ VOICE AGENT ═══ */
 @keyframes va-glow{0%,100%{box-shadow:0 4px 24px rgba(139,92,246,.45)}50%{box-shadow:0 4px 36px rgba(139,92,246,.7),0 0 60px rgba(139,92,246,.15)}}
-.va-overlay{position:fixed;inset:0;z-index:300;background:radial-gradient(ellipse at 50% 30%,rgba(30,15,60,.98),rgba(4,4,10,.99));backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity .4s ease}
+.va-overlay{position:fixed;inset:0;z-index:300;background:radial-gradient(ellipse at 50% 30%,rgba(30,15,60,.98),rgba(4,4,10,.99));backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:all .4s cubic-bezier(.22,1,.36,1)}
 .va-overlay.active{display:flex;opacity:1}
+.va-overlay.mini{inset:auto 12px 80px auto;width:64px;height:64px;border-radius:50%;background:rgba(100,60,200,.9);backdrop-filter:blur(10px);justify-content:center;align-items:center;box-shadow:0 4px 20px rgba(100,60,200,.4),0 0 40px rgba(167,139,250,.2);border:2px solid rgba(167,139,250,.5);cursor:pointer}
+.va-overlay.mini .va-header,.va-overlay.mini .va-transcript,.va-overlay.mini #vaMainBtn,.va-overlay.mini #vaStopBtn,.va-overlay.mini .va-text-input,.va-overlay.mini #vaStatus{display:none!important}
+.va-overlay.mini .va-orb-container{transform:scale(.45)}
 .va-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;z-index:2}
 .va-title{font-size:.85rem;font-weight:600;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;letter-spacing:.04em}
 .va-title span{color:#a78bfa}
@@ -11192,6 +11195,109 @@ const VA = (function(){
       case 'response.audio_transcript.done':
       case 'response.done': setOrb('listening');setStatus('Fale agora');break;
       case 'error': console.error('[VA] error:',evt.error);setStatus('Erro: '+(evt.error?.message||''));break;
+      // ── FUNCTION CALLING — visual actions ──
+      case 'response.function_call_arguments.done':
+        if(evt.name==='mostrar_pessoa'){
+          try{
+            const args=JSON.parse(evt.arguments||'{}');
+            const nome=(args.nome||'').toLowerCase().trim();
+            console.log('[VA] mostrar_pessoa:',nome);
+            handleMostrarPessoa(nome,evt.call_id);
+          }catch(e){console.error('[VA] fn parse err:',e)}
+        }
+        break;
+    }
+  }
+
+  // ── MOSTRAR PESSOA — minimize VA, animate constellation + open profile ──
+  async function handleMostrarPessoa(nome,callId){
+    // 1. Load constellation data if not loaded
+    if(!constState.nodes||!constState.nodes.length){
+      try{
+        const data=await(await fetch('/api/constellation/'+(typeof state!=='undefined'?state.userId:''))).json();
+        if(data.nodes&&data.nodes.length){
+          const now=Date.now();
+          constState.nodes=data.nodes.map((n,i)=>{
+            const angle=(i/data.nodes.length)*Math.PI*2;
+            return{...n,x3d:Math.cos(angle)*200,y3d:Math.sin(angle)*200,z3d:100,
+              color:n.color||(typeof nickColor==='function'?nickColor(n.nickname||'?'):'#ff6b35'),baseRadius:10};
+          });
+        }
+      }catch(e){console.log('[VA] constellation load err:',e)}
+    }
+    // 2. Search for person by name (fuzzy)
+    let found=null;
+    if(constState.nodes&&constState.nodes.length){
+      // Exact match first
+      found=constState.nodes.find(n=>{
+        const nick=(n.nickname||'').toLowerCase();
+        const real=(n.realName||'').toLowerCase();
+        return nick===nome||real===nome;
+      });
+      // Partial match fallback
+      if(!found) found=constState.nodes.find(n=>{
+        const nick=(n.nickname||'').toLowerCase();
+        const real=(n.realName||'').toLowerCase();
+        return nick.includes(nome)||real.includes(nome)||nome.includes(nick)||(real&&nome.includes(real));
+      });
+    }
+    // 3. If found, minimize VA overlay → show constellation → open profile
+    let resultText='';
+    if(found){
+      resultText='Mostrando perfil de '+(found.realName||found.nickname)+'. Encontros: '+(found.encounters||0)+', último: '+(found.lastDate||'desconhecido');
+      // Minimize VA overlay to floating mini-player
+      const overlay=$('vaOverlay');
+      if(overlay){
+        overlay.classList.add('mini');
+        // Click mini-player to restore full overlay
+        overlay.onclick=function _restore(e){
+          if(overlay.classList.contains('mini')){
+            overlay.classList.remove('mini');
+            overlay.onclick=null;
+          }
+        };
+      }
+      // Navigate to constellation screen
+      if(typeof showScreen==='function')showScreen('history');
+      // Small delay for screen transition, then animate
+      setTimeout(()=>{
+        // Animate camera smoothly to node
+        if(found.x3d!==undefined){
+          const targetX=-found.x3d;
+          const targetY=-found.y3d;
+          const targetZ=1.8;
+          const startX=constState.cam.x,startY=constState.cam.y,startZ=constState.cam.zoom;
+          const duration=600;
+          const start=performance.now();
+          function animCam(now){
+            const p=Math.min(1,(now-start)/duration);
+            const ease=1-Math.pow(1-p,3); // ease-out cubic
+            constState.cam.x=startX+(targetX-startX)*ease;
+            constState.cam.y=startY+(targetY-startY)*ease;
+            constState.cam.zoom=startZ+(targetZ-startZ)*ease;
+            if(p<1) requestAnimationFrame(animCam);
+            else{
+              // Open profile detail
+              if(typeof showConstDetail==='function')showConstDetail(found);
+              haptic([40,20,40]);
+            }
+          }
+          requestAnimationFrame(animCam);
+        }else{
+          if(typeof showConstDetail==='function')showConstDetail(found);
+          haptic([40,20,40]);
+        }
+      },300);
+    }else{
+      resultText='Pessoa "'+nome+'" não encontrada na constelação do usuário.';
+    }
+    // 4. Send function output back to agent so it can continue speaking
+    if(dc&&dc.readyState==='open'){
+      dc.send(JSON.stringify({
+        type:'conversation.item.create',
+        item:{type:'function_call_output',call_id:callId,output:resultText}
+      }));
+      dc.send(JSON.stringify({type:'response.create'}));
     }
   }
 

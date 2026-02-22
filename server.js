@@ -6239,7 +6239,24 @@ IMPORTANTE SOBRE NOMES:
 - Chame o usuário pelo NOME REAL (${user.name || ''}) se disponível, senão pelo apelido (${user.nickname || ''})
 - Nas conexões, prefira nomes reais quando revelados
 
+AÇÕES VISUAIS:
+- Quando o usuário mencionar uma pessoa OU quando você estiver falando sobre alguém específico da rede, use a função mostrar_pessoa para mostrar o perfil dela na tela
+- Use SEMPRE que citar alguém pelo nome (ex: "a Lala te curtiu" → chamar mostrar_pessoa com "Lala")
+- Pode usar durante a saudação de fofoca também (se mencionar alguém, mostre!)
+
 ${openingInstruction}`,
+        tools: [{
+          type: 'function',
+          name: 'mostrar_pessoa',
+          description: 'Mostra o perfil de uma conexão na constelação do usuário. Use sempre que mencionar alguém específico da rede.',
+          parameters: {
+            type: 'object',
+            properties: {
+              nome: { type: 'string', description: 'Nome ou apelido da pessoa a ser mostrada' }
+            },
+            required: ['nome']
+          }
+        }],
         turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 600 },
         input_audio_transcription: { model: 'whisper-1' }
       })
