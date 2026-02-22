@@ -4703,18 +4703,22 @@ io.on('connection', (socket) => {
   });
 
   // ═══ TOUCHGAMES — Lobby presence ═══
+  function broadcastLobbyUpdate() {
+    const seen = new Set();
+    const lobbyUsers = [...io.sockets.sockets.values()].filter(s => s._inGameLobby && s.touchUserId && !seen.has(s.touchUserId) && seen.add(s.touchUserId));
+    const lobbyInfo = lobbyUsers.map(s => {
+      const u = db.users[s.touchUserId];
+      return { userId: s.touchUserId, nickname: u ? (u.nickname || u.name || '?') : '?', color: u ? (u.color || '#ff6b35') : '#ff6b35', photo: u ? (u.profilePhoto || u.photoURL || '') : '' };
+    });
+    io.emit('game-lobby-update', { count: lobbyInfo.length, users: lobbyInfo });
+  }
   socket.on('game-lobby-join', () => {
     socket._inGameLobby = true;
-    // Broadcast lobby count to all connected users
-    const lobbyUsers = [...io.sockets.sockets.values()].filter(s => s._inGameLobby && s.touchUserId);
-    const lobbyInfo = lobbyUsers.map(s => ({ userId: s.touchUserId }));
-    io.emit('game-lobby-update', { count: lobbyInfo.length, users: lobbyInfo });
+    broadcastLobbyUpdate();
   });
   socket.on('game-lobby-leave', () => {
     socket._inGameLobby = false;
-    const lobbyUsers = [...io.sockets.sockets.values()].filter(s => s._inGameLobby && s.touchUserId);
-    const lobbyInfo = lobbyUsers.map(s => ({ userId: s.touchUserId }));
-    io.emit('game-lobby-update', { count: lobbyInfo.length, users: lobbyInfo });
+    broadcastLobbyUpdate();
   });
 
   // ═══ TOUCHGAMES — Real-time game events ═══
@@ -6222,12 +6226,14 @@ PERSONALIDADE:
 - Humor leve, faz piadas sobre as conexões quando cabe
 - Usa gírias e expressões naturais do pt-BR
 
-REGRA DE OURO — ECONOMIA DE CRÉDITOS:
-- Respostas MUITO CURTAS: 1-2 frases no MÁXIMO
-- NUNCA faça monólogos longos. Fale pouco, pergunte pouco.
-- Dê UMA informação por vez, espere a pessoa responder
-- Se a pessoa não perguntou nada específico, uma frase basta
-- Pense que cada palavra custa dinheiro — seja concisa mas divertida
+REGRA DE OURO — ECONOMIA EXTREMA (cada palavra custa dinheiro!):
+- MÁXIMO 1 frase por resposta. Sério, UMA frase só.
+- Só use 2 frases se for REALMENTE necessário (tipo fofoca muito boa)
+- ZERO perguntas de volta — só responda se o usuário perguntar algo
+- Não repita informação, não enrole, não explique demais
+- Saudação? UMA frase empolgada e pronto. Não fique falando e falando.
+- Se não tem nada relevante pra dizer, uma reação curta basta ("haha", "boa!", "entendi!")
+- PROIBIDO: "quer saber mais?", "posso te ajudar com algo?", "o que acha?"
 
 O QUE VOCÊ SABE E PODE FALAR:
 - Conexões do usuário (quem conheceu, quantas vezes, quando)
@@ -6241,7 +6247,7 @@ O QUE VOCÊ NÃO DEVE FAZER:
 - Inventar informações que não estão nos dados
 - Dar diagnósticos médicos ou conselhos jurídicos
 - Revelar dados sensíveis de outros usuários
-- Falar demais — MÁXIMO 2 frases por resposta
+- Falar demais — MÁXIMO 1 frase por resposta, corta seco
 
 ${context}
 
