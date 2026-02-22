@@ -1441,6 +1441,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
     <div id="constSearchCount" style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.3rem;min-height:.8rem"></div>
   </div>
+  <div id="constFilters" style="display:flex;gap:.35rem;padding:.5rem .8rem .3rem;overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:2;background:var(--bg)">
+    <button class="elog-filter active" onclick="filterConst('all',this)">Todos</button>
+    <button class="elog-filter" onclick="filterConst('people',this)">Revelados</button>
+    <button class="elog-filter" onclick="filterConst('anon',this)">Anônimos</button>
+    <button class="elog-filter" onclick="filterConst('events',this)">Eventos</button>
+  </div>
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge hidden" id="constNotifBadge">0</span></div>
@@ -5367,9 +5373,23 @@ async function showRelations(){
 
 // ═══ CONSTELLATION ═══
 let constFilter='all'; // 'all','people','anon','events'
-function setConstFilter(f){
-  constFilter=f;
-  // Pill in canvas redraws automatically each frame — no DOM buttons needed
+function setConstFilter(f){ constFilter=f; updateConstFilterBadges(); }
+function filterConst(f,btn){
+  setConstFilter(f);
+  if(btn){document.querySelectorAll('#constFilters .elog-filter').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
+  haptic([15]);
+}
+function updateConstFilterBadges(){
+  if(!constState.nodes)return;
+  const nodes=constState.nodes.filter(n=>!n.isServiceConnection);
+  const revealed=nodes.filter(n=>!n.isEvent&&!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id])));
+  const anon=nodes.filter(n=>!n.isEvent).length-revealed.length;
+  const events=nodes.filter(n=>!!n.isEvent).length;
+  const btns=document.querySelectorAll('#constFilters .elog-filter');
+  if(btns[0])btns[0].textContent='Todos '+nodes.length;
+  if(btns[1])btns[1].textContent='Revelados '+revealed.length;
+  if(btns[2])btns[2].textContent='Anônimos '+anon;
+  if(btns[3])btns[3].textContent='Eventos '+events;
 }
 // ── Constellation search ──
 function toggleConstSearch(){
@@ -5426,6 +5446,8 @@ async function showHistory(){
   fetch('/api/network/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
   // Show screen immediately with loading indicator
   clearConstSearch();
+  constFilter='all';
+  document.querySelectorAll('#constFilters .elog-filter').forEach((b,i)=>{b.classList.toggle('active',i===0)});
   const loader=$('constLoader');
   if(loader){loader.classList.remove('hidden','fade-out')}
   showScreen('history');
@@ -5503,6 +5525,7 @@ async function showHistory(){
       }
     });
     constState.nodes=nodes;
+    updateConstFilterBadges();
     constState.cam={x:0,y:0,zoom:0.15};
     constState._entryAnim={active:true,startTime:Date.now(),duration:900};
     constState.selectedNode=null;
@@ -6019,62 +6042,12 @@ function initConstCanvas(){
       constState._fpHintStart=0; // reset when exiting FP so hint shows again next time
     }
 
-    // ── Floating legend pill (hidden in FP mode) ──
-    if(fpBlend>0.7)return; // skip pill in full FP
-    const revealedNodes=constState.nodes.filter(n=>!n.isEvent&&!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id])));
-    const anonNodes=constState.nodes.filter(n=>!n.isEvent).length-revealedNodes.length;
-    const eventsCount=constState.nodes.filter(n=>!!n.isEvent).length;
-    const pillW=Math.min(W-16,320),pillH=28,pillX=(W-pillW)/2,pillY=H-44;
-    ctx.save();ctx.globalAlpha=1-fpBlend;
-    constState._pillBounds={x:pillX,y:pillY,w:pillW,h:pillH,sections:[]};
-    ctx.beginPath();
-    const pillR=pillH/2;
-    ctx.moveTo(pillX+pillR,pillY);ctx.lineTo(pillX+pillW-pillR,pillY);
-    ctx.arc(pillX+pillW-pillR,pillY+pillR,pillR,-Math.PI/2,Math.PI/2);
-    ctx.lineTo(pillX+pillR,pillY+pillH);ctx.arc(pillX+pillR,pillY+pillR,pillR,Math.PI/2,-Math.PI/2);
-    ctx.closePath();
-    ctx.fillStyle='rgba(10,10,25,.7)';ctx.fill();
-    ctx.strokeStyle='rgba(100,160,255,.1)';ctx.lineWidth=0.5;ctx.stroke();
-    const midY=pillY+pillH/2;
-    let tx=pillX+10;
-    // Section helper
-    function drawPillSection(label,count,color,filterKey){
-      const active=constFilter===filterKey;
-      const hl=active?.95:.5;
-      const sx=tx;
-      ctx.beginPath();ctx.arc(tx,midY,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
-      tx+=8;
-      ctx.fillStyle='rgba(255,255,255,'+hl+')';ctx.font=(active?'700':'500')+' 9px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
-      ctx.fillText(label+' '+count,tx,midY);
-      tx+=ctx.measureText(label+' '+count).width+10;
-      constState._pillBounds.sections.push({x:sx-4,w:tx-sx,key:filterKey});
-    }
-    drawPillSection('Revelados',revealedNodes.length,'#00dc82','people');
-    drawPillSection('Anônimos',anonNodes,'#ff4466','anon');
-    drawPillSection('Eventos',eventsCount,'#60a5fa','events');
-    // Total on right
-    ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='400 8px Inter,sans-serif';
-    ctx.fillText(filteredNodes.length+'',pillX+pillW-10,midY);
-    ctx.restore();
-    ctx.textBaseline='alphabetic';
+    // Pill bar removed — filters are now HTML buttons above canvas
   }
   draw();
 }
 
 function handleConstTap(tx,ty,W,H){
-  // Tap on legend pill → toggle filter
-  if(constState._pillBounds&&constState._pillBounds.sections){
-    const pb=constState._pillBounds;
-    if(ty>=pb.y&&ty<=pb.y+pb.h&&tx>=pb.x&&tx<=pb.x+pb.w){
-      const relX=tx-pb.x;
-      for(const sec of pb.sections){
-        if(relX>=sec.x&&relX<sec.x+sec.w){
-          setConstFilter(constFilter===sec.key?'all':sec.key);
-          haptic([15]);return;
-        }
-      }
-    }
-  }
   // Tap center → show own profile card
   if(constState._mcx!==undefined){
     const dCenter=Math.hypot(tx-constState._mcx,ty-constState._mcy);
