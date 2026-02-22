@@ -1441,16 +1441,16 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
     <div id="constSearchCount" style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.3rem;min-height:.8rem"></div>
   </div>
-  <div id="constFilters" style="display:flex;gap:.35rem;padding:.5rem .8rem .3rem;overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:2;background:var(--bg)">
-    <button class="elog-filter active" onclick="filterConst('all',this)">Todos</button>
-    <button class="elog-filter" onclick="filterConst('people',this)">Revelados</button>
-    <button class="elog-filter" onclick="filterConst('anon',this)">Anônimos</button>
-    <button class="elog-filter" onclick="filterConst('events',this)">Eventos</button>
-  </div>
   <div class="const-copy"><p>Aqui ficam os encontros.<br>O resto passou.</p></div>
   <div class="const-feedback" id="constFeedback"></div>
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge hidden" id="constNotifBadge">0</span></div>
   <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas>
+    <div id="constFilters" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:.3rem;padding:.35rem .5rem;background:rgba(10,10,25,.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:20px;border:1px solid rgba(255,255,255,.08);z-index:5;white-space:nowrap">
+      <button class="elog-filter active" onclick="filterConst('all',this)">Todos</button>
+      <button class="elog-filter" onclick="filterConst('people',this)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#00dc82;margin-right:4px;vertical-align:middle"></span>Revelados</button>
+      <button class="elog-filter" onclick="filterConst('anon',this)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff4466;margin-right:4px;vertical-align:middle"></span>Anônimos</button>
+      <button class="elog-filter" onclick="filterConst('events',this)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#60a5fa;margin-right:4px;vertical-align:middle"></span>Eventos</button>
+    </div>
     <div id="constLoader" class="const-loader hidden">
       <div class="const-loader-inner">
         <svg class="const-loader-svg" viewBox="0 0 80 80" width="64" height="64">
@@ -5386,10 +5386,17 @@ function updateConstFilterBadges(){
   const anon=nodes.filter(n=>!n.isEvent).length-revealed.length;
   const events=nodes.filter(n=>!!n.isEvent).length;
   const btns=document.querySelectorAll('#constFilters .elog-filter');
+  function setBtnText(btn,label,count){
+    if(!btn)return;
+    // Preserve first child (color dot span) if it exists
+    const dot=btn.querySelector('span');
+    btn.textContent=label+' '+count;
+    if(dot)btn.prepend(dot);
+  }
   if(btns[0])btns[0].textContent='Todos '+nodes.length;
-  if(btns[1])btns[1].textContent='Revelados '+revealed.length;
-  if(btns[2])btns[2].textContent='Anônimos '+anon;
-  if(btns[3])btns[3].textContent='Eventos '+events;
+  setBtnText(btns[1],'Revelados',revealed.length);
+  setBtnText(btns[2],'Anônimos',anon);
+  setBtnText(btns[3],'Eventos',events);
 }
 // ── Constellation search ──
 function toggleConstSearch(){
