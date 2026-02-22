@@ -6802,6 +6802,18 @@ app.post('/api/games/invite-message', (req, res) => {
 });
 
 // POST create temporary game chat between two players without a relation
+// GET find active relation between two users
+app.get('/api/games/find-relation', (req, res) => {
+  const { userA, userB } = req.query;
+  if (!userA || !userB) return res.json({ relationId: null });
+  const pairKey = [userA, userB].sort().join('_');
+  const relId = IDX.relationPair.get(pairKey);
+  if (relId && db.relations[relId] && db.relations[relId].expiresAt > Date.now()) {
+    return res.json({ relationId: relId });
+  }
+  res.json({ relationId: null });
+});
+
 app.post('/api/games/temp-chat', (req, res) => {
   const { hostUserId, opponentUserId, gameId, gameName } = req.body;
   if (!hostUserId || !opponentUserId) return res.status(400).json({ error: 'hostUserId e opponentUserId obrigatorios' });

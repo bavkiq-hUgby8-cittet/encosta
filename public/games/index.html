@@ -400,6 +400,29 @@
             font-size: 14px;
         }
 
+        /* ONLINE PLAYERS SECTION */
+        .lobby-online{padding:0 16px 8px}
+        .lobby-online-title{font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+        .lobby-online-title .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse-dot 2s infinite}
+        @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+        .lobby-online-list{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+        .lobby-online-list::-webkit-scrollbar{display:none}
+        .lobby-player{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:56px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .lobby-player .lp-av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:.85rem;position:relative;border:2px solid transparent;transition:border-color .2s}
+        .lobby-player .lp-av img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+        .lobby-player.selected .lp-av{border-color:var(--ac);box-shadow:0 0 12px rgba(255,107,53,.4)}
+        .lobby-player .lp-name{font-size:.55rem;color:var(--t2);max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+        .lobby-player.is-me .lp-av{opacity:.5}
+        .lobby-player.is-me .lp-name{color:var(--t3)}
+        .lobby-no-players{font-size:.65rem;color:var(--t3);padding:12px 0;text-align:center}
+        /* Selected opponent indicator */
+        .lobby-selected-bar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.12);border-radius:12px;margin:0 16px 8px}
+        .lobby-selected-bar .lsb-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:.7rem}
+        .lobby-selected-bar .lsb-info{flex:1}
+        .lobby-selected-bar .lsb-name{font-size:.7rem;font-weight:700;color:var(--t1)}
+        .lobby-selected-bar .lsb-hint{font-size:.55rem;color:var(--ac)}
+        .lobby-selected-bar .lsb-clear{background:none;border:none;color:var(--t3);font-size:.7rem;cursor:pointer;padding:4px 8px}
+
         /* MODALS */
         .modal-overlay {
             position: fixed;
@@ -1047,10 +1070,19 @@
 
         <div class="stats-bar" id="statsBar"></div>
 
-        <div class="opponent-bar" id="opponentBar" style="display: none;"></div>
-
         <!-- Incoming invites banner -->
         <div id="inviteBanners" style="padding:0 16px"></div>
+
+        <!-- Online players section -->
+        <div class="lobby-online" id="lobbyOnline">
+            <div class="lobby-online-title"><span class="dot"></span> Jogadores no lobby</div>
+            <div class="lobby-online-list" id="lobbyPlayersList">
+                <div class="lobby-no-players">Ninguem aqui ainda...</div>
+            </div>
+        </div>
+
+        <!-- Selected opponent bar -->
+        <div id="selectedOpponentBar" style="display:none"></div>
 
         <div class="tabs" id="tabs"></div>
 
@@ -1133,7 +1165,9 @@
             currentSession: null,
             isPaused: false,
             gameInvite: null,
-            socket: null
+            socket: null,
+            lobbyPlayers: [],
+            selectedOpponent: null
         };
 
         function getUrlParams() {
@@ -1160,7 +1194,9 @@
 
             STATE.socket.on('game-lobby-update', (data) => {
                 STATE.onlineCount = data.count || 0;
+                STATE.lobbyPlayers = data.users || [];
                 updateOnlineBadge();
+                renderLobbyPlayers();
             });
 
             STATE.socket.on('game-invite', (data) => {
@@ -1212,6 +1248,57 @@
 
         function updateOnlineBadge() {
             $('onlineBadge').textContent = `${STATE.onlineCount} Online`;
+        }
+
+        function renderLobbyPlayers() {
+            const list = $('lobbyPlayersList');
+            if (!list) return;
+            const params = getUrlParams();
+            const others = STATE.lobbyPlayers.filter(p => p.userId !== params.userId);
+            if (others.length === 0) {
+                list.innerHTML = '<div class="lobby-no-players">Ninguem aqui ainda...</div>';
+                return;
+            }
+            list.innerHTML = '';
+            others.forEach(p => {
+                const el = document.createElement('div');
+                el.className = 'lobby-player' + (STATE.selectedOpponent === p.userId ? ' selected' : '');
+                const initial = (p.nickname || '?').charAt(0).toUpperCase();
+                const avInner = p.photo ? '<img src="'+esc(p.photo)+'" alt="">' : initial;
+                el.innerHTML = '<div class="lp-av" style="background:'+esc(p.color || '#58a6ff')+'">'+avInner+'</div><div class="lp-name">'+esc(p.nickname || '?')+'</div>';
+                el.onclick = () => selectOpponent(p);
+                list.appendChild(el);
+            });
+        }
+
+        async function selectOpponent(player) {
+            STATE.selectedOpponent = player.userId;
+            STATE.partnerId = player.userId;
+            haptic('short');
+            renderLobbyPlayers();
+            // Show selected bar
+            const bar = $('selectedOpponentBar');
+            const initial = (player.nickname || '?').charAt(0).toUpperCase();
+            bar.style.display = '';
+            bar.innerHTML = '<div class="lobby-selected-bar"><div class="lsb-av" style="background:'+(player.color || '#58a6ff')+'">'+initial+'</div><div class="lsb-info"><div class="lsb-name">'+esc(player.nickname || 'Jogador')+'</div><div class="lsb-hint">Escolha um jogo para convidar</div></div><button class="lsb-clear" onclick="clearOpponent()">X</button></div>';
+            // Try to find existing relation with this player
+            if (!STATE.relationId) {
+                try {
+                    const params = getUrlParams();
+                    const r = await fetch('/api/games/find-relation?userA='+encodeURIComponent(params.userId)+'&userB='+encodeURIComponent(player.userId));
+                    const data = await r.json();
+                    if (data.relationId) STATE.relationId = data.relationId;
+                } catch(e) {}
+            }
+        }
+
+        function clearOpponent() {
+            STATE.selectedOpponent = null;
+            // Only clear partnerId if it was set from lobby selection
+            const params = getUrlParams();
+            STATE.partnerId = params.partnerId || '';
+            renderLobbyPlayers();
+            $('selectedOpponentBar').style.display = 'none';
         }
 
         function makeAvatar(name, color, size = 48) {
@@ -1335,20 +1422,7 @@
         }
 
         function renderOpponentBar() {
-            if (!STATE.partnerId) {
-                $('opponentBar').style.display = 'none';
-                return;
-            }
-
-            const bar = $('opponentBar');
-            bar.style.display = 'flex';
-            bar.innerHTML = `
-                <div class="opponent-avatar" style="background-color: var(--indigo);">VS</div>
-                <div class="opponent-info">
-                    <div class="opponent-name">Desafiando oponente</div>
-                    <div class="opponent-status">Aguardando resposta...</div>
-                </div>
-            `;
+            // Replaced by lobby-selected-bar + renderLobbyPlayers
         }
 
         async function loadGames() {
@@ -1795,11 +1869,15 @@
 
             renderTabs();
             renderStatsBar();
-            renderOpponentBar();
             initSocket();
 
             await loadGames();
             await loadStats();
+
+            // If came from chat with a partnerId, pre-select as opponent
+            if (STATE.partnerId) {
+                selectOpponent({ userId: STATE.partnerId, nickname: STATE.partnerId.slice(0,8), color: '#58a6ff', photo: '' });
+            }
         });
     </script>
 </body>
