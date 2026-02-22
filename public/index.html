@@ -11344,6 +11344,9 @@ const VA = (function(){
           if(evt.name==='mostrar_pessoa'){
             console.log('[VA] mostrar_pessoa:',args.nome);
             handleMostrarPessoa((args.nome||'').toLowerCase().trim(),evt.call_id);
+          }else if(evt.name==='consultar_rede'){
+            console.log('[VA] consultar_rede (real-time fetch)');
+            handleConsultarRede(evt.call_id);
           }else if(evt.name==='salvar_nota'){
             console.log('[VA] salvar_nota:',args.sobre,args.nota);
             handleSalvarNota(args.sobre||'',args.nota||'',evt.call_id);
@@ -11457,6 +11460,27 @@ const VA = (function(){
       if(d.ok) resultText='Nota salva com sucesso: "'+sobre+': '+nota+'"';
       else resultText='Erro ao salvar: '+(d.error||'');
     }catch(e){resultText='Erro ao salvar nota: '+e.message}
+    if(dc&&dc.readyState==='open'){
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
+      dc.send(JSON.stringify({type:'response.create'}));
+    }
+  }
+
+  // ── CONSULTAR REDE — real-time data fetch ──
+  async function handleConsultarRede(callId){
+    let resultText='Sem dados disponíveis.';
+    try{
+      const uid=typeof state!=='undefined'?state.userId:null;
+      if(!uid) throw new Error('no user');
+      const r=await fetch('/api/agent/context/'+uid);
+      const d=await r.json();
+      if(d.context){
+        resultText='DADOS ATUALIZADOS EM TEMPO REAL ('+new Date().toLocaleTimeString('pt-BR')+'):\n'+d.context;
+        if(d.gossip) resultText+='\n\nFOFOCA QUENTE: '+d.gossip;
+      }else{
+        resultText='Erro: '+(d.error||'contexto vazio');
+      }
+    }catch(e){resultText='Erro ao consultar rede: '+e.message}
     if(dc&&dc.readyState==='open'){
       dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
       dc.send(JSON.stringify({type:'response.create'}));

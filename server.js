@@ -6313,6 +6313,13 @@ REGRA DE OURO — ECONOMIA EXTREMA (cada palavra custa dinheiro!):
 - Se não tem nada relevante pra dizer, uma reação curta basta ("haha", "boa!", "entendi!")
 - PROIBIDO: "quer saber mais?", "posso te ajudar com algo?", "o que acha?"
 
+DADOS EM TEMPO REAL — USE consultar_rede:
+- SEMPRE chame consultar_rede ANTES de responder sobre conexões, estrelas, encontros, curtidas
+- Os dados nas instruções iniciais podem estar DESATUALIZADOS
+- Se o usuário perguntar "quem me curtiu?", "quantas estrelas tenho?", "encontrei alguém?" → consultar_rede primeiro
+- Se o usuário perguntar algo genérico ou pessoal, não precisa consultar
+- Os dados retornados são o estado REAL do banco neste momento
+
 O QUE VOCÊ SABE E PODE FALAR:
 - Conexões do usuário (quem conheceu, quantas vezes, quando)
 - Estrelas (quem deu, quem recebeu)
@@ -6360,6 +6367,15 @@ ${openingInstruction}`,
           }
         },{
           type: 'function',
+          name: 'consultar_rede',
+          description: 'Busca dados atualizados em tempo real da rede do usuário. Use SEMPRE antes de responder perguntas sobre conexões, estrelas, encontros, curtidas ou qualquer dado que possa ter mudado. Os dados iniciais podem estar desatualizados — esta função retorna o estado real do banco de dados agora.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },{
+          type: 'function',
           name: 'salvar_nota',
           description: 'Salva uma informação pessoal que o usuário contou sobre alguém ou sobre si mesmo. Ex: "essa é minha mãe", "ele é meu melhor amigo", "a gente se conheceu na festa". Use sempre que o usuário compartilhar algo pessoal sobre uma conexão.',
           parameters: {
@@ -6379,6 +6395,14 @@ ${openingInstruction}`,
     const d = await r.json();
     res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession, openingText });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// Real-time context for agent (called via tool during conversation)
+app.get('/api/agent/context/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const { context, greeting, gossip } = buildUserContext(userId);
+  if (!context) return res.status(404).json({ error: 'Usuário não encontrado' });
+  res.json({ context, gossip, ts: Date.now() });
 });
 
 // Save agent note about a connection
