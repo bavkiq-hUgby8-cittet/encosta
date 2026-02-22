@@ -4588,6 +4588,14 @@ app.get('/api/status', (req, res) => {
 io.on('connection', (socket) => {
   let currentUserId = null;
 
+  // Auto-identify from query param (lobby iframe sends userId in query)
+  const qUserId = socket.handshake?.query?.userId;
+  if (qUserId && typeof qUserId === 'string' && qUserId.length > 3) {
+    currentUserId = qUserId;
+    socket.touchUserId = qUserId;
+    socket.join(`user:${qUserId}`);
+  }
+
   socket.on('identify', (userId) => {
     currentUserId = userId;
     socket.touchUserId = userId;
@@ -4712,7 +4720,8 @@ io.on('connection', (socket) => {
   // ═══ TOUCHGAMES — Real-time game events ═══
   // Send game invite as a chat message (main flow from index.html)
   socket.on('game-invite-chat', ({ fromUserId, toUserId, gameId, sessionId, gameName, gameIcon, gameFile, relationId }) => {
-    if (!fromUserId || !toUserId || !gameId || !sessionId) return;
+    console.log('[game-invite-chat]', { fromUserId, toUserId, gameId, sessionId, relationId: relationId || '(lookup)', socketUser: socket.touchUserId });
+    if (!fromUserId || !toUserId || !gameId || !sessionId) { console.log('[game-invite-chat] REJECTED: missing fields'); return; }
     const now = Date.now();
     // Check if target is busy
     const targetBusy = Object.values(db.gameSessions).find(gs =>
@@ -6151,6 +6160,7 @@ ${connections.length ? connections.join('\n') : '- Nenhuma conexão ainda'}
 
 ${recentStars.length ? 'ESTRELAS RECENTES (7 dias): ' + starsFromWho.join(', ') + ' deram estrela' : ''}
 ${activeEvents.length ? 'EVENTOS ATIVOS AGORA: ' + activeEvents.map(e => e.name).join(', ') : ''}
+${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (informações que o usuário te contou antes):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
 `.trim();
 
   // Build gossip — pick the most interesting piece of news
@@ -6244,6 +6254,14 @@ AÇÕES VISUAIS:
 - Use SEMPRE que citar alguém pelo nome (ex: "a Lala te curtiu" → chamar mostrar_pessoa com "Lala")
 - Pode usar durante a saudação de fofoca também (se mencionar alguém, mostre!)
 
+MEMÓRIA — SALVAR INFORMAÇÕES:
+- Quando o usuário contar algo pessoal sobre uma conexão, use salvar_nota para guardar
+- Ex: "essa é minha mãe" → salvar_nota(sobre: "Lala", nota: "é a mãe do usuário")
+- Ex: "a gente se conheceu na festa" → salvar_nota(sobre: "Fulano", nota: "se conheceram na festa")
+- Ex: "eu trabalho com marketing" → salvar_nota(sobre: "eu", nota: "trabalha com marketing")
+- Confirme que salvou com algo tipo "Anotado! Vou lembrar disso"
+- Consulte as NOTAS PESSOAIS nos seus dados para lembrar o que já sabe
+
 ${openingInstruction}`,
         tools: [{
           type: 'function',
@@ -6256,6 +6274,18 @@ ${openingInstruction}`,
             },
             required: ['nome']
           }
+        },{
+          type: 'function',
+          name: 'salvar_nota',
+          description: 'Salva uma informação pessoal que o usuário contou sobre alguém ou sobre si mesmo. Ex: "essa é minha mãe", "ele é meu melhor amigo", "a gente se conheceu na festa". Use sempre que o usuário compartilhar algo pessoal sobre uma conexão.',
+          parameters: {
+            type: 'object',
+            properties: {
+              sobre: { type: 'string', description: 'Sobre quem é a nota (nome/apelido da pessoa, ou "eu" se for sobre o próprio usuário)' },
+              nota: { type: 'string', description: 'A informação a ser salva (ex: "é minha mãe", "meu melhor amigo", "nos conhecemos na festa X")' }
+            },
+            required: ['sobre', 'nota']
+          }
         }],
         turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 600 },
         input_audio_transcription: { model: 'whisper-1' }
@@ -6265,6 +6295,20 @@ ${openingInstruction}`,
     const d = await r.json();
     res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession, openingText });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// Save agent note about a connection
+app.post('/api/agent/note', (req, res) => {
+  const { userId, aboutName, note } = req.body;
+  if (!userId || !note) return res.status(400).json({ error: 'userId e note obrigatórios' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+  if (!user.agentNotes) user.agentNotes = [];
+  // Max 50 notes per user
+  if (user.agentNotes.length >= 50) user.agentNotes.shift();
+  user.agentNotes.push({ about: aboutName || '', note, ts: Date.now() });
+  saveDB('users');
+  res.json({ ok: true, total: user.agentNotes.length });
 });
 
 // Text fallback (Groq or OpenAI chat)

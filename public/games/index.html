@@ -1152,6 +1152,12 @@
             const params = getUrlParams();
             STATE.socket = io({ query: { userId: params.userId } });
 
+            // CRITICAL: identify this socket so server knows who we are
+            STATE.socket.emit('identify', params.userId);
+            STATE.socket.on('connect', () => {
+                STATE.socket.emit('identify', params.userId);
+            });
+
             STATE.socket.on('game-lobby-update', (data) => {
                 STATE.onlineCount = data.count || 0;
                 updateOnlineBadge();
