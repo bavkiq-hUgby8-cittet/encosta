@@ -530,6 +530,20 @@
             gap: 12px;
         }
 
+        /* Invite banner - inline card in lobby */
+        .invite-banner{background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.15);border-radius:14px;padding:12px;margin-bottom:10px;animation:slideUp .3s ease}
+        .invite-banner .ib-row{display:flex;align-items:center;gap:10px}
+        .invite-banner .ib-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:.9rem;flex-shrink:0}
+        .invite-banner .ib-info{flex:1}
+        .invite-banner .ib-name{font-size:.75rem;font-weight:700;color:var(--t1)}
+        .invite-banner .ib-game{font-size:.65rem;color:var(--ac);margin-top:2px}
+        .invite-banner .ib-desc{font-size:.55rem;color:var(--t3);margin-top:2px}
+        .invite-banner .ib-actions{display:flex;gap:8px;margin-top:10px}
+        .invite-banner .ib-btn{flex:1;padding:8px;border-radius:10px;border:none;font-family:'Orbitron',monospace;font-size:.65rem;font-weight:700;cursor:pointer;text-align:center}
+        .invite-banner .ib-btn.accept{background:var(--ac);color:#fff}
+        .invite-banner .ib-btn.decline{background:rgba(255,255,255,.06);color:var(--t2)}
+        .invite-banner .ib-timer{height:3px;background:var(--ac);border-radius:2px;margin-top:8px;transition:width 1s linear}
+
         .btn {
             padding: 12px 16px;
             border: none;
@@ -1035,6 +1049,9 @@
 
         <div class="opponent-bar" id="opponentBar" style="display: none;"></div>
 
+        <!-- Incoming invites banner -->
+        <div id="inviteBanners" style="padding:0 16px"></div>
+
         <div class="tabs" id="tabs"></div>
 
         <div class="main" id="main">
@@ -1108,6 +1125,7 @@
             userColor: '',
             userPhoto: '',
             partnerId: '',
+            relationId: '',
             games: [],
             selectedCategory: 'todos',
             stats: { wins: 0, gamesPlayed: 0 },
@@ -1125,7 +1143,8 @@
                 userName: params.get('userName') || 'Player',
                 userColor: params.get('userColor') || '#ff6b35',
                 userPhoto: params.get('userPhoto') || '',
-                partnerId: params.get('partnerId') || ''
+                partnerId: params.get('partnerId') || '',
+                relationId: params.get('relationId') || ''
             };
         }
 
@@ -1383,7 +1402,8 @@
                         gameId,
                         gameName,
                         gameFile: file,
-                        sessionId: session.id
+                        sessionId: session.id,
+                        relationId: STATE.relationId || params.relationId || ''
                     });
                 } catch (e) {
                     showToast('Erro ao iniciar jogo');
@@ -1482,53 +1502,69 @@
         }
 
         function showInviteModal(data) {
-            const overlay = document.createElement('div');
-            overlay.className = 'modal-overlay';
-            overlay.id = 'inviteModal';
-            overlay.innerHTML = `
-                <div class="invite-modal">
-                    <div class="invite-header">
-                        <div style="font-size: 12px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;">Você foi desafiado!</div>
-                    </div>
-                    <div class="invite-opponent">
-                        <div class="invite-opponent-avatar" style="background-color: ${data.fromColor || 'var(--ac)'};">
-                            ${(data.fromName || 'Player').substring(0, 2).toUpperCase()}
-                        </div>
-                        <div class="invite-opponent-info">
-                            <h3>${esc(data.fromName || 'Oponente')}</h3>
-                            <p>Deseja jogar?</p>
-                        </div>
-                    </div>
-                    <div class="invite-game">
-                        <div class="invite-game-icon">
-                            ${getSVGIcon(data.gameId)}
-                        </div>
-                        <div class="invite-game-info">
-                            <h4>${esc(data.gameName)}</h4>
-                            <p>Multipjogador • Tempo limitado</p>
-                        </div>
-                    </div>
-                    <div class="invite-buttons">
-                        <button class="btn btn-secondary" id="declineBtn">Recusar</button>
-                        <button class="btn btn-primary" id="acceptBtn">Aceitar</button>
+            // Show as inline banner in lobby (not modal overlay)
+            const container = $('inviteBanners');
+            if (!container) return;
+            // Remove existing banner for same session
+            const existing = container.querySelector('[data-session="'+data.sessionId+'"]');
+            if (existing) existing.remove();
+
+            const fromName = data.fromName || 'Jogador';
+            const fromColor = data.fromColor || '#58a6ff';
+            const gameName = data.gameName || 'Jogo';
+            const initial = fromName.charAt(0).toUpperCase();
+
+            const banner = document.createElement('div');
+            banner.className = 'invite-banner';
+            banner.setAttribute('data-session', data.sessionId);
+            banner.innerHTML = `
+                <div class="ib-row">
+                    <div class="ib-avatar" style="background:${esc(fromColor)}">${initial}</div>
+                    <div class="ib-info">
+                        <div class="ib-name">${esc(fromName)} te convidou!</div>
+                        <div class="ib-game">${esc(gameName)}</div>
+                        <div class="ib-desc">Aceite para entrar na mesa</div>
                     </div>
                 </div>
+                <div class="ib-actions">
+                    <button class="ib-btn decline" data-action="decline">Recusar</button>
+                    <button class="ib-btn accept" data-action="accept">Jogar!</button>
+                </div>
+                <div class="ib-timer" style="width:100%"></div>
             `;
 
-            document.body.appendChild(overlay);
+            container.prepend(banner);
+            haptic('medium');
 
-            $('acceptBtn').onclick = () => {
+            // Accept handler
+            banner.querySelector('[data-action="accept"]').onclick = () => {
                 STATE.gameInvite = data;
                 STATE.socket.emit('game-accept', { sessionId: data.sessionId, userId: getUrlParams().userId });
-                overlay.remove();
+                banner.innerHTML = '<div style="text-align:center;padding:10px;font-size:.7rem;color:var(--ac);font-weight:700">Aceito! Preparando jogo...</div>';
                 haptic('success');
             };
 
-            $('declineBtn').onclick = () => {
+            // Decline handler
+            banner.querySelector('[data-action="decline"]').onclick = () => {
                 STATE.socket.emit('game-decline', { sessionId: data.sessionId, userId: getUrlParams().userId });
-                overlay.remove();
+                banner.remove();
                 haptic('short');
             };
+
+            // 60s auto-expire timer
+            const timerBar = banner.querySelector('.ib-timer');
+            const startTime = Date.now();
+            const expireTime = startTime + 60000;
+            const timerInterval = setInterval(() => {
+                const remaining = expireTime - Date.now();
+                if (remaining <= 0) {
+                    clearInterval(timerInterval);
+                    banner.innerHTML = '<div style="text-align:center;padding:8px;font-size:.6rem;color:var(--t3)">Convite expirado</div>';
+                    setTimeout(() => banner.remove(), 2000);
+                    return;
+                }
+                timerBar.style.width = Math.round((remaining / 60000) * 100) + '%';
+            }, 1000);
         }
 
         function startGameWithOpponent(data) {

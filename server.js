@@ -2044,7 +2044,7 @@ app.get('/api/relations/:userId', (req, res) => {
       eventId: evtId || null,
       eventName: isEvent ? (evObj?.name || r.eventName || null) : null,
       lastMessageTime,
-      lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').slice(0, 40)) : null,
+      lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').startsWith('[game-invite:') ? 'Convite para jogar' : (lastMsg.text || '').slice(0, 40)) : null,
       lastMessageUserId: lastMsg ? lastMsg.userId : null,
       partnerVerified: isEvent ? !!(evObj && evObj.verified) : !!(p && p.verified),
       partnerAccessory: isEvent ? null : (p?.avatarAccessory || null)
