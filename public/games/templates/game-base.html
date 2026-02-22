@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<title>Jogo — Touch?</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0f;--s1:#12121a;--s2:#1a1a24;--b1:rgba(255,255,255,.08);
+  --t1:#f5f5f7;--t2:#8888a0;--t3:#555568;
+  --ac:#ff6b35;--ac2:#ff8f65;--ok:#34d399;--err:#f87171;
+}
+html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--t1);overflow:hidden}
+body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+
+.g-header{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--b1);flex-shrink:0}
+.g-status{padding:.3rem .7rem;background:var(--s1);border-radius:16px;font-size:.7rem;color:var(--t2)}
+.g-score{font-size:.85rem;font-weight:700;color:var(--ac)}
+
+.g-board{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.5rem;overflow:hidden;position:relative}
+
+.g-footer{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid var(--b1);flex-shrink:0}
+.g-btn{flex:1;padding:.7rem;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:.8rem;font-family:inherit;transition:opacity .15s,transform .1s}
+.g-btn:active{opacity:.85;transform:scale(.97)}
+.g-btn.primary{background:var(--ac);color:#fff}
+.g-btn.secondary{background:var(--s1);color:var(--t2);border:1px solid var(--b1)}
+
+.g-toast{position:fixed;top:1rem;left:50%;transform:translateX(-50%);padding:.6rem 1.2rem;background:var(--s2);border:1px solid var(--b1);border-radius:12px;font-size:.75rem;color:var(--t1);z-index:100;opacity:0;transition:opacity .3s;pointer-events:none}
+.g-toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="g-header">
+  <div class="g-status" id="gStatus">Carregando...</div>
+  <div class="g-score" id="gScore">0</div>
+</div>
+
+<div class="g-board" id="gBoard">
+  <!-- SEU JOGO AQUI -->
+</div>
+
+<div class="g-footer">
+  <button class="g-btn secondary" onclick="doSurrender()">Desistir</button>
+  <button class="g-btn primary" onclick="doNewGame()">Novo Jogo</button>
+</div>
+
+<div class="g-toast" id="gToast"></div>
+
+<script src="/games/core/bridge.js"></script>
+<script>
+// ── Estado do jogo ──
+var G = {
+  score: 0,
+  moves: [],
+  startTime: Date.now(),
+  isMultiplayer: !!touchBridge.opponentId,
+  myTurn: true
+};
+
+// ── Helpers ──
+function setStatus(txt){ document.getElementById('gStatus').textContent = txt; }
+function setScore(n){ G.score = n; document.getElementById('gScore').textContent = n + ' pts'; }
+function toast(msg){
+  var t = document.getElementById('gToast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2000);
+}
+
+// ── Lifecycle ──
+function initGame(){
+  setStatus(G.isMultiplayer ? 'Sua vez' : 'Jogando');
+  renderBoard();
+}
+
+function renderBoard(){
+  var board = document.getElementById('gBoard');
+  board.innerHTML = '<div style="color:var(--t3);font-size:1rem">Implemente seu jogo aqui</div>';
+}
+
+function doSurrender(){
+  if(!confirm('Desistir do jogo?')) return;
+  touchBridge.submitResult({
+    winner: touchBridge.opponentId || null,
+    score: G.score,
+    duration: Math.floor((Date.now() - G.startTime) / 1000),
+    moves: G.moves,
+    surrendered: true
+  });
+}
+
+function doNewGame(){
+  G.score = 0; G.moves = []; G.startTime = Date.now();
+  setScore(0); initGame();
+}
+
+// ── Multiplayer hooks ──
+touchBridge.onOpponentMove = function(move){
+  G.myTurn = true;
+  setStatus('Sua vez');
+  // Aplique a jogada do oponente ao tabuleiro
+};
+
+touchBridge.onOpponentDisconnected = function(){
+  setStatus('Oponente saiu');
+  toast('Oponente desconectou');
+};
+
+// ── Iniciar ──
+window.addEventListener('DOMContentLoaded', initGame);
+</script>
+</body>
+</html>

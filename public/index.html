@@ -231,6 +231,27 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .fire-edge.left{left:0;right:50%;border-radius:0 2px 0 0}
 .fire-edge.right{left:50%;right:0;border-radius:2px 0 0 0}
 @keyframes fire-edge-pulse{0%{opacity:.3;height:2px}100%{opacity:.9;height:5px}}
+/* ═══ FULL-SCREEN LIGHTNING — white short-circuit effect ═══ */
+.lightning-layer{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:0;transition:opacity .4s}
+.lightning-layer.active{opacity:1}
+/* Screen flash — brief white pulse across entire screen */
+.lt-screenflash{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.18) 0%,rgba(200,220,255,.06) 40%,transparent 70%);opacity:0;animation:lt-screenflash 2.8s ease infinite}
+@keyframes lt-screenflash{0%{opacity:0}4%{opacity:1}7%{opacity:0}9%{opacity:.6}11%{opacity:0}50%{opacity:0}100%{opacity:0}}
+/* Individual lightning bolts — white, bright, full height */
+.lt-bolt{position:absolute;bottom:0;opacity:0;filter:drop-shadow(0 0 6px rgba(255,255,255,.9)) drop-shadow(0 0 20px rgba(180,200,255,.5)) drop-shadow(0 0 40px rgba(140,160,255,.2))}
+.lt-bolt svg{width:100%;height:100%}
+.lt-bolt.b1{left:15%;width:28px;height:55vh;animation:lt-flash1 3.2s ease infinite}
+.lt-bolt.b2{left:42%;width:35px;height:65vh;animation:lt-flash2 2.6s ease infinite .4s}
+.lt-bolt.b3{right:18%;width:24px;height:50vh;animation:lt-flash1 3.8s ease infinite .9s}
+.lt-bolt.b4{left:55%;width:20px;height:40vh;animation:lt-flash2 4.1s ease infinite 1.5s}
+.lt-bolt.b5{left:28%;width:30px;height:58vh;animation:lt-flash1 3.5s ease infinite 2.0s}
+.lt-bolt.b6{right:30%;width:22px;height:45vh;animation:lt-flash2 2.9s ease infinite 1.2s}
+/* Flash keyframes — irregular, like real lightning */
+@keyframes lt-flash1{0%{opacity:0;transform:scaleY(.8) scaleX(1)}2%{opacity:1;transform:scaleY(1) scaleX(1.1)}4%{opacity:.1;transform:scaleY(1) scaleX(.9)}5.5%{opacity:.95;transform:scaleY(1.02) scaleX(1.05)}7%{opacity:.15}8.5%{opacity:.8;transform:scaleY(.98) scaleX(1)}10%{opacity:0;transform:scaleY(.9) scaleX(1)}100%{opacity:0}}
+@keyframes lt-flash2{0%{opacity:0}3%{opacity:.9;transform:scaleY(1.05) scaleX(1.1)}5%{opacity:0}6%{opacity:.7;transform:scaleY(1) scaleX(.95)}8%{opacity:.1}9%{opacity:.85}11%{opacity:0}100%{opacity:0}}
+/* Bottom glow — white electrical glow at speaker zone */
+.lt-base-glow{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);width:80%;height:30px;background:radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.4) 0%,rgba(180,200,255,.15) 40%,transparent 70%);opacity:0;animation:lt-base-pulse 1.2s ease infinite;filter:blur(4px)}
+@keyframes lt-base-pulse{0%{opacity:.1}15%{opacity:.8}30%{opacity:.15}45%{opacity:.6}60%{opacity:.1}100%{opacity:.1}}
 /* Sonic instruction — speakers touching animation */
 /* ═══ SONIC INSTRUCT — phones + lightning at bottom ═══ */
 .sonic-instruct{position:absolute;bottom:3%;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.4rem;opacity:0;transition:opacity .5s;z-index:3;width:90%;max-width:280px}
@@ -246,22 +267,92 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .si-phone.left .si-speaker{right:2px}
 .si-phone.right .si-speaker{left:2px}
 .si-spk-dot{width:2px;height:2px;border-radius:50%;background:var(--ac);opacity:.5}
-/* Lightning bolts between phones */
-.si-energy{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.si-bolt{position:absolute;opacity:0;animation:si-bolt-flash .7s ease infinite;filter:drop-shadow(0 0 4px rgba(255,107,53,.7)) drop-shadow(0 0 8px rgba(255,200,100,.3))}
-.si-bolt:nth-child(1){top:10%;left:30%;animation-delay:0s}
-.si-bolt:nth-child(2){top:40%;left:45%;animation-delay:.25s}
-.si-bolt:nth-child(3){top:15%;left:55%;animation-delay:.5s}
-@keyframes si-bolt-flash{0%{opacity:0;transform:scale(.6)}10%{opacity:1;transform:scale(1.1)}20%{opacity:.15;transform:scale(1)}30%{opacity:.9;transform:scale(1.05)}50%{opacity:.3;transform:scale(.95)}100%{opacity:0;transform:scale(.7)}}
+/* Lightning bolts between phones — WHITE, bright */
+.si-energy{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:50px;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.si-bolt{position:absolute;opacity:0;animation:si-bolt-flash .5s ease infinite;filter:drop-shadow(0 0 6px rgba(255,255,255,.9)) drop-shadow(0 0 12px rgba(180,200,255,.5))}
+.si-bolt:nth-child(1){top:5%;left:20%;animation-delay:0s}
+.si-bolt:nth-child(2){top:35%;left:40%;animation-delay:.2s}
+.si-bolt:nth-child(3){top:10%;left:55%;animation-delay:.4s}
+.si-bolt:nth-child(4){top:45%;left:25%;animation-delay:.6s}
+@keyframes si-bolt-flash{0%{opacity:0;transform:scale(.5) rotate(-5deg)}8%{opacity:1;transform:scale(1.15) rotate(2deg)}15%{opacity:.05;transform:scale(1) rotate(0)}22%{opacity:.9;transform:scale(1.08) rotate(-2deg)}35%{opacity:.1}45%{opacity:.7;transform:scale(.95)}55%{opacity:0}100%{opacity:0}}
 @keyframes si-slide-l{0%,100%{transform:translateX(0)}50%{transform:translateX(14px)}}
 @keyframes si-slide-r{0%,100%{transform:translateX(0)}50%{transform:translateX(-14px)}}
 .si-label{font-size:.48rem;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;opacity:.5;display:flex;align-items:center;gap:.25rem}
 .si-text{font-size:.68rem;color:var(--ac2);text-align:center;max-width:220px;line-height:1.4;font-weight:600;letter-spacing:.02em}
 .si-text em{color:#fff;font-style:normal;font-weight:700}
-.si-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.5),rgba(255,200,100,.15) 50%,transparent 70%);animation:si-glow-pulse .8s ease-in-out infinite;filter:blur(5px)}
-@keyframes si-glow-pulse{0%,100%{opacity:.2;transform:translate(-50%,-50%) scale(.7)}50%{opacity:1;transform:translate(-50%,-50%) scale(2)}}
+/* Center glow between phones — white electric */
+.si-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.6),rgba(200,220,255,.2) 50%,transparent 70%);animation:si-glow-pulse .6s ease-in-out infinite;filter:blur(6px)}
+@keyframes si-glow-pulse{0%,100%{opacity:.1;transform:translate(-50%,-50%) scale(.6)}50%{opacity:1;transform:translate(-50%,-50%) scale(2.2)}}
 /* Screenshot block in chat */
 #chat .cms{-webkit-user-select:none;user-select:none}
+/* ═══ TOUCHGAMES v2 — Premium Lobby ═══ */
+.game-lobby-overlay{position:fixed;inset:0;background:rgba(4,4,10,.92);backdrop-filter:blur(20px);z-index:200;display:none;flex-direction:column;opacity:0;transition:opacity .35s cubic-bezier(.22,1,.36,1)}
+.game-lobby-overlay.visible{display:flex;opacity:1}
+.gl-header{display:flex;align-items:center;justify-content:space-between;padding:1.2rem 1.2rem .5rem;flex-shrink:0}
+.gl-title{display:flex;align-items:center;gap:.5rem;font-size:1.15rem;font-weight:800;color:var(--t1);letter-spacing:-.01em}
+.gl-title svg{width:20px;height:20px;color:var(--ac)}
+.gl-close{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);transition:all .2s}
+.gl-close:active{background:rgba(255,255,255,.1);transform:scale(.9)}
+.gl-opponent{display:flex;align-items:center;gap:.7rem;padding:.4rem 1.2rem .8rem;margin:0 1.2rem;background:linear-gradient(135deg,rgba(255,107,53,.04),rgba(255,107,53,.02));border:1px solid rgba(255,107,53,.1);border-radius:14px}
+.gl-opp-avatar{width:40px;height:40px;border-radius:50%;background:var(--s2);overflow:hidden;border:2px solid var(--ac);box-shadow:0 0 12px rgba(255,107,53,.2);flex-shrink:0}
+.gl-opp-avatar img{width:100%;height:100%;object-fit:cover}
+.gl-opp-info{flex:1}
+.gl-opp-name{font-size:.82rem;font-weight:700;color:var(--t1)}
+.gl-opp-sub{font-size:.6rem;color:var(--t3);margin-top:.1rem}
+.gl-section-title{padding:.6rem 1.2rem .3rem;font-size:.6rem;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase}
+.gl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.7rem;padding:.4rem 1.2rem 1.2rem;overflow-y:auto;flex:1}
+.gl-card{background:linear-gradient(145deg,var(--s1),rgba(26,26,36,.8));border:1px solid var(--b1);border-radius:16px;padding:1rem .8rem .8rem;display:flex;flex-direction:column;align-items:center;gap:.4rem;cursor:pointer;transition:all .2s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
+.gl-card::before{content:'';position:absolute;inset:0;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.02),transparent);pointer-events:none}
+.gl-card:active{transform:scale(.95);border-color:var(--ac);box-shadow:0 0 20px rgba(255,107,53,.15)}
+.gl-card-icon{width:44px;height:44px;background:rgba(255,107,53,.06);border-radius:12px;padding:8px;color:var(--ac);display:flex;align-items:center;justify-content:center}
+.gl-card-icon svg{width:100%;height:100%}
+.gl-card-name{font-size:.8rem;font-weight:700;color:var(--t1);text-align:center}
+.gl-card-desc{font-size:.58rem;color:var(--t3);text-align:center;line-height:1.3;min-height:2em}
+.gl-card-meta{display:flex;gap:.4rem;align-items:center;font-size:.55rem;color:var(--t3);margin-top:auto}
+.gl-card-badge{padding:.15rem .45rem;border-radius:8px;font-size:.5rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.gl-card-badge.solo{background:rgba(52,211,153,.08);color:#34d399;border:1px solid rgba(52,211,153,.15)}
+.gl-card-badge.duo{background:rgba(99,102,241,.08);color:#818cf8;border:1px solid rgba(99,102,241,.15)}
+.gl-card-badge.multi{background:rgba(251,191,36,.08);color:#fbbf24;border:1px solid rgba(251,191,36,.15)}
+.gl-card-stars{display:flex;align-items:center;gap:.2rem;font-size:.55rem;color:#fbbf24}
+/* ═══ TOUCHGAMES v2 — Invite Accept Modal ═══ */
+.game-invite-modal{position:fixed;inset:0;background:rgba(4,4,10,.88);backdrop-filter:blur(16px);z-index:210;display:none;align-items:center;justify-content:center;padding:2rem}
+.game-invite-modal.visible{display:flex}
+.gi-card{background:linear-gradient(145deg,var(--s1),var(--s2));border-radius:20px;padding:1.5rem;width:100%;max-width:320px;position:relative;overflow:hidden;animation:gi-bounce .4s cubic-bezier(.22,1,.36,1)}
+.gi-card::before{content:'';position:absolute;inset:-2px;border-radius:22px;background:conic-gradient(from 0deg,var(--ac),transparent 30%,transparent 70%,var(--ac));z-index:-1;animation:gi-rotate 6s linear infinite;opacity:.4}
+.gi-card::after{content:'';position:absolute;inset:0;border-radius:20px;background:linear-gradient(145deg,var(--s1),var(--s2));z-index:-1}
+@keyframes gi-bounce{0%{opacity:0;transform:scale(.8) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes gi-rotate{to{transform:rotate(360deg)}}
+.gi-from{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
+.gi-from-avatar{width:48px;height:48px;border-radius:50%;background:var(--s2);overflow:hidden;border:2px solid var(--ac);box-shadow:0 0 16px rgba(255,107,53,.25);flex-shrink:0}
+.gi-from-avatar img{width:100%;height:100%;object-fit:cover}
+.gi-from-info{flex:1}
+.gi-from-name{font-size:.9rem;font-weight:700;color:var(--t1)}
+.gi-from-label{font-size:.65rem;color:var(--ac);font-weight:600;margin-top:.1rem}
+.gi-game{display:flex;align-items:center;gap:.8rem;padding:.8rem;background:rgba(255,107,53,.04);border:1px solid rgba(255,107,53,.12);border-radius:14px;margin-bottom:1.2rem}
+.gi-game-icon{width:44px;height:44px;background:rgba(255,107,53,.08);border-radius:10px;padding:6px;color:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.gi-game-icon svg{width:100%;height:100%}
+.gi-game-info{flex:1}
+.gi-game-name{font-size:.85rem;font-weight:700;color:var(--t1)}
+.gi-game-desc{font-size:.58rem;color:var(--t3);margin-top:.15rem}
+.gi-actions{display:flex;gap:.6rem}
+.gi-btn{flex:1;padding:.75rem;border-radius:14px;border:none;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .15s}
+.gi-btn.accept{background:linear-gradient(135deg,var(--ac),#ff8f65);color:#fff;box-shadow:0 4px 20px rgba(255,107,53,.3)}
+.gi-btn.accept:active{transform:scale(.96);box-shadow:0 2px 12px rgba(255,107,53,.4)}
+.gi-btn.decline{background:rgba(255,255,255,.04);color:var(--t2);border:1px solid rgba(255,255,255,.08)}
+.gi-btn.decline:active{transform:scale(.96);background:rgba(255,255,255,.08)}
+/* ═══ TOUCHGAMES v2 — Waiting Overlay ═══ */
+.game-waiting-overlay{position:fixed;inset:0;z-index:240;background:rgba(4,4,10,.95);backdrop-filter:blur(12px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem}
+.game-waiting-overlay.visible{display:flex}
+.gw-spinner{width:48px;height:48px;border:3px solid rgba(255,255,255,.08);border-top-color:var(--ac);border-radius:50%;animation:gw-spin 1s linear infinite}
+@keyframes gw-spin{to{transform:rotate(360deg)}}
+.gw-text{font-size:.85rem;color:var(--t1);font-weight:600}
+.gw-sub{font-size:.65rem;color:var(--t3)}
+.gw-cancel{padding:.6rem 1.5rem;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:var(--t2);font-family:inherit;font-size:.75rem;font-weight:600;cursor:pointer;margin-top:.5rem}
+.gw-cancel:active{background:rgba(255,255,255,.1);transform:scale(.96)}
+/* Game iframe fullscreen */
+.game-iframe-container{position:fixed;inset:0;z-index:250;background:var(--bg);display:none}
+.game-iframe-container.visible{display:block}
+.game-iframe-container iframe{width:100%;height:100%;border:none}
 /* Bottom section — anchored tab bar */
 .home-bottom{display:flex;flex-direction:column;align-items:center;width:100%;position:relative;z-index:5;flex-shrink:0;padding:0 1.2rem;padding-bottom:max(env(safe-area-inset-bottom),.6rem);transition:opacity .3s}
 .home-bottom.sonic-hidden{opacity:0;pointer-events:none}
@@ -621,6 +712,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-action-icon.success{color:#86efac}
 .cd-action-icon.star .cd-icon{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.15)}
 .cd-action-icon.star{color:#fbbf24}
+.cd-action-icon.game .cd-icon{background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.2)}
+.cd-action-icon.game{color:#818cf8}
 .cd-action-icon.disabled{opacity:.4;pointer-events:none}
 .cd-action-icon.revealed-new .cd-icon{background:rgba(251,191,36,.2);border-color:rgba(251,191,36,.5);animation:cdRevealPulse 1.5s ease-in-out 3}
 .cd-action-icon.revealed-new{color:#fbbf24;pointer-events:none}
@@ -1235,15 +1328,27 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="fire-particles"><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div><div class="fire-p"></div></div>
     <div class="fire-edge left"></div><div class="fire-edge right"></div>
     <div class="fire-speaker"><div class="fire-spk-wave"></div><div class="fire-spk-wave"></div><div class="fire-spk-wave"></div></div>
+    <!-- LIGHTNING LAYER — full-screen white electric bolts -->
+    <div class="lightning-layer" id="lightningLayer">
+      <div class="lt-screenflash"></div>
+      <div class="lt-base-glow"></div>
+      <div class="lt-bolt b1"><svg viewBox="0 0 30 300" fill="none" preserveAspectRatio="none"><path d="M15 0L8 45h7L5 120h9L2 200h10L0 300h4l12-105h-8l10-80h-7l8-70h-6z" fill="rgba(255,255,255,.9)" stroke="rgba(200,220,255,.6)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b2"><svg viewBox="0 0 35 300" fill="none" preserveAspectRatio="none"><path d="M18 0l-5 60h6L8 150h8l-6 80h7L10 300h3l8-95h-6l7-75h-7l6-70h-5z" fill="rgba(255,255,255,.85)" stroke="rgba(220,230,255,.5)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b3"><svg viewBox="0 0 26 300" fill="none" preserveAspectRatio="none"><path d="M13 0L7 55h6L3 140h8L1 220h6l-2 80h3l6-85h-5l8-80h-6l6-65h-5z" fill="rgba(255,255,255,.8)" stroke="rgba(180,200,255,.5)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b4"><svg viewBox="0 0 22 300" fill="none" preserveAspectRatio="none"><path d="M11 0L6 70h5L2 170h7L0 300h3l7-135h-5l7-95h-5z" fill="rgba(255,255,255,.75)" stroke="rgba(200,215,255,.4)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b5"><svg viewBox="0 0 32 300" fill="none" preserveAspectRatio="none"><path d="M16 0l-6 50h7L6 130h9l-8 90h8L8 300h3l9-85h-7l9-90h-7l7-75h-6z" fill="rgba(255,255,255,.88)" stroke="rgba(210,225,255,.5)" stroke-width=".3"/></svg></div>
+      <div class="lt-bolt b6"><svg viewBox="0 0 24 300" fill="none" preserveAspectRatio="none"><path d="M12 0L7 65h5L3 160h7L1 250h5l-1 50h3l5-55h-4l7-90h-6l6-95h-5z" fill="rgba(255,255,255,.78)" stroke="rgba(190,210,255,.4)" stroke-width=".3"/></svg></div>
+    </div>
     <div class="sonic-instruct" id="sonicInstruct">
       <div class="si-scene">
         <div class="si-phone left">
           <div class="si-speaker"><div class="si-spk-dot"></div><div class="si-spk-dot"></div><div class="si-spk-dot"></div></div>
         </div>
         <div class="si-energy">
-          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,180,80,.9)" stroke="rgba(255,107,53,1)" stroke-width=".5"/></svg></div>
-          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,200,100,.8)" stroke="rgba(255,140,60,1)" stroke-width=".5"/></svg></div>
-          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,160,60,.85)" stroke="rgba(255,107,53,1)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,255,255,.95)" stroke="rgba(200,220,255,.8)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(240,245,255,.9)" stroke="rgba(180,200,255,.7)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(255,255,255,.85)" stroke="rgba(200,220,255,.6)" stroke-width=".5"/></svg></div>
+          <div class="si-bolt"><svg viewBox="0 0 16 28" fill="none"><path d="M10 1L3 14h5l-2 13 9-16h-6z" fill="rgba(230,240,255,.9)" stroke="rgba(190,210,255,.7)" stroke-width=".5"/></svg></div>
         </div>
         <div class="si-glow"></div>
         <div class="si-phone right">
@@ -3766,6 +3871,7 @@ async function handleMainButton(){
   fb.classList.remove('active');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
+  const ltLayer=$('lightningLayer');if(ltLayer)ltLayer.classList.add('active');
   const si=$('sonicInstruct');if(si)si.classList.add('active');
   // Hide bottom nav + motivation during sonic to give space for animation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.add('sonic-hidden');
@@ -3840,38 +3946,89 @@ async function handleMainButton(){
     }
 
     txt.textContent='TOUCHING...';
-    sts.textContent='Encoste os alto-falantes';
-    setTimeout(()=>{if(homeSonicActive){fb.classList.add('active');sts.textContent='Encoste os alto-falantes ou use codigo'}},10000);
+    sts.textContent='Emitindo som...';
+    // Show fallback code option after 8s
+    setTimeout(()=>{if(homeSonicActive){fb.classList.add('active')}},8000);
 
-    // Delayed deep health check: after 3s verify mic is actually producing data
+    // ═══ SMART HEALTH MONITORING ═══
+    // Phase 1 (3s): Check if audio pipeline is alive
+    // Phase 2 (8s): If no signal at all, warn user about volume
+    // Phase 3 (20s): If still nothing, auto-retry once then offer code
+    var _sonicRetried=false;
     setTimeout(()=>{
       if(!homeSonicActive||!sonicAnalyser)return;
       const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
       sonicAnalyser.getByteFrequencyData(testBuf);
-      // Check if we get ANY signal at all (sum > 0 means audio pipeline works)
       let totalEnergy=0;
       for(let i=0;i<testBuf.length;i++)totalEnergy+=testBuf[i];
-      // Also check mic track is still alive
       const track=sonicStream&&sonicStream.getAudioTracks()[0];
       const trackDead=!track||track.readyState==='ended'||!track.enabled;
       const ctxBroken=sonicEmitCtx.state!=='running'||sonicMicCtx.state!=='running';
       if(trackDead||ctxBroken){
-        console.warn('[sonic health] Audio broken after 3s. Track:',track?.readyState,'EmitCtx:',sonicEmitCtx.state,'MicCtx:',sonicMicCtx.state,'Energy:',totalEnergy);
+        console.warn('[sonic health] Audio broken after 3s. Track:',track?.readyState,'EmitCtx:',sonicEmitCtx.state,'MicCtx:',sonicMicCtx.state);
         stopHomeSonic();
-        showToast('Microfone travou, reiniciando...');
-        setTimeout(()=>location.reload(),800);
+        showToast('Problema no audio. Tente novamente.');
+        return;
+      }
+      // If emit context is running, show friendly message
+      if(sonicEmitCtx.state==='running'){
+        sts.textContent='Encoste os alto-falantes';
       }
     },3000);
+    // Phase 2: volume check
+    setTimeout(()=>{
+      if(!homeSonicActive||!sonicAnalyser)return;
+      const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
+      sonicAnalyser.getByteFrequencyData(testBuf);
+      const _minB=Math.floor(18000/freqPerBin),_maxB=Math.ceil(20000/freqPerBin);
+      let _anySignal=false;
+      for(let i=_minB;i<=_maxB&&i<testBuf.length;i++){if(testBuf[i]>10){_anySignal=true;break}}
+      if(!_anySignal){
+        sts.textContent='Volume no maximo? Encoste os celulares';
+        // Try resuming contexts one more time
+        try{sonicEmitCtx.resume();sonicMicCtx.resume()}catch(e){}
+      }
+    },8000);
+    // Phase 3: auto-retry
+    setTimeout(()=>{
+      if(!homeSonicActive||!sonicAnalyser||_sonicRetried)return;
+      const testBuf=new Uint8Array(sonicAnalyser.frequencyBinCount);
+      sonicAnalyser.getByteFrequencyData(testBuf);
+      const _minB=Math.floor(18000/freqPerBin),_maxB=Math.ceil(20000/freqPerBin);
+      let _anySignal=false;
+      for(let i=_minB;i<=_maxB&&i<testBuf.length;i++){if(testBuf[i]>10){_anySignal=true;break}}
+      if(!_anySignal){
+        _sonicRetried=true;
+        console.warn('[sonic] No signal after 20s, auto-retrying oscillator');
+        // Restart oscillator
+        try{sonicOsc.stop()}catch(e){}
+        try{
+          sonicOsc=sonicEmitCtx.createOscillator();
+          sonicOsc.type='sine';
+          sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
+          const g2=sonicEmitCtx.createGain();
+          g2.gain.setValueAtTime(0.7,sonicEmitCtx.currentTime);
+          sonicOsc.connect(g2);g2.connect(sonicEmitCtx.destination);
+          sonicOsc.start();
+          sts.textContent='Tentando novamente... encoste os celulares';
+          showToast('Reconectando audio...');
+        }catch(e){
+          console.error('[sonic] Retry failed:',e);
+          sts.textContent='Use o codigo para conectar';
+          fb.classList.add('active');
+        }
+      }
+    },20000);
 
     let confirmHits=0,lastSnapped=0,_dbgFrames=0,_sonicCooldown=0;
     function detect(){
       if(!sonicActive)return;
-      // Runtime health: if mic track died or AudioContext suspended mid-run → reload
+      // Runtime health: if mic track died or AudioContext suspended mid-run
       const _rt=sonicStream&&sonicStream.getAudioTracks()[0];
       if(!_rt||_rt.readyState==='ended'||sonicMicCtx.state!=='running'){
-        console.warn('[sonic detect] Audio died mid-run, reloading');
-        stopHomeSonic();showToast('Reconectando microfone...');
-        setTimeout(()=>location.reload(),600);return;
+        console.warn('[sonic detect] Audio died mid-run');
+        stopHomeSonic();showToast('Problema no microfone. Tente novamente.');
+        return;
       }
       // Cooldown after detection — wait for server response
       if(_sonicCooldown>0){_sonicCooldown--;sonicAnimFrame=requestAnimationFrame(detect);return}
@@ -3879,11 +4036,17 @@ async function handleMainButton(){
       const minBin=Math.floor(18000/freqPerBin),maxBin=Math.ceil(20000/freqPerBin);
       let peakVal=0,peakBin=0;
       for(let i=minBin;i<=maxBin&&i<bufLen;i++){if(dataArr[i]>peakVal){peakVal=dataArr[i];peakBin=i}}
-      // Show debug info every ~30 frames (~0.5s)
+      // Show user-friendly status every ~30 frames (~0.5s)
       _dbgFrames++;
       if(_dbgFrames%30===0&&sts){
-        const peakHz=Math.round(peakBin*freqPerBin);
-        sts.textContent='Ouvindo... sinal: '+peakVal+' freq: '+peakHz+'Hz'+(confirmHits>0?' ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')':'');
+        if(peakVal>=SONIC_DETECT_THRESHOLD){
+          sts.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
+        }else if(peakVal>10){
+          sts.textContent='Sinal fraco... aproxime mais';
+        }else if(_dbgFrames>180){
+          // After ~3s of nothing, show helpful hints instead of raw data
+          sts.textContent='Encoste os alto-falantes um no outro';
+        }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const snapped=Math.round(Math.round(peakBin*freqPerBin)/100)*100;
@@ -3894,7 +4057,7 @@ async function handleMainButton(){
         const distFromOwn=Math.abs(snapped-sonicMyFreq);
         if(distFromOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
-          if(sts)sts.textContent='Detectando sinal... '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
+          if(sts)sts.textContent='Detectando... quase la!';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             haptic([60]);
             // DON'T say "Encontramos alguém" yet — wait for server to confirm
@@ -3917,15 +4080,13 @@ async function handleMainButton(){
     detect();
   }catch(e){
     console.error('Sonic error:',e);
+    stopHomeSonic();
     if(e.name==='NotAllowedError'){
-      sts.textContent='Microfone negado.';
-      fb.classList.add('active');
+      showToast('Permita o microfone para conectar');
+    }else if(e.message==='Timeout'){
+      showToast('Servidor nao respondeu. Tente novamente.');
     }else{
-      // Any other audio error (AbortError, InvalidStateError, etc.) → auto-reload
-      sts.textContent='Erro de áudio, reiniciando...';
-      stopHomeSonic();
-      setTimeout(()=>location.reload(),1200);
-      return;
+      showToast('Erro no audio. Toque em TOUCH para tentar de novo.');
     }
   }
 }
@@ -3941,6 +4102,7 @@ function stopHomeSonic(){
   fb.classList.remove('active');
   barsL.classList.remove('active');barsR.classList.remove('active');
   if(fire)fire.classList.remove('active');
+  const ltLayer=$('lightningLayer');if(ltLayer)ltLayer.classList.remove('active');
   const si=$('sonicInstruct');if(si)si.classList.remove('active');
   // Restore bottom nav + motivation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.remove('sonic-hidden');
@@ -4076,8 +4238,8 @@ async function initSonic(label,status,circle){
       // Runtime health check
       const _rt2=sonicStream&&sonicStream.getAudioTracks()[0];
       if(!_rt2||_rt2.readyState==='ended'||sonicMicCtx.state!=='running'){
-        stopSonicMode();showToast('Microfone perdeu conexão, recarregando...');
-        setTimeout(()=>location.reload(),600);return;
+        stopSonicMode();showToast('Problema no microfone. Tente novamente.');
+        return;
       }
       if(_sonicCooldown2>0){_sonicCooldown2--;sonicAnimFrame=requestAnimationFrame(detect);return}
       sonicAnalyser.getByteFrequencyData(dataArr);
@@ -4089,8 +4251,13 @@ async function initSonic(label,status,circle){
       }
       _dbgF2++;
       if(_dbgF2%30===0&&status){
-        const peakHz=Math.round(peakBin*freqPerBin);
-        status.textContent='Ouvindo... sinal: '+peakVal+' freq: '+peakHz+'Hz'+(confirmHits>0?' ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')':'');
+        if(peakVal>=SONIC_DETECT_THRESHOLD){
+          status.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
+        }else if(peakVal>10){
+          status.textContent='Sinal fraco... aproxime mais';
+        }else{
+          status.textContent='Aproxime os alto-falantes';
+        }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
         const detectedFreq=Math.round(peakBin*freqPerBin);
@@ -4099,7 +4266,7 @@ async function initSonic(label,status,circle){
         const distOwn=Math.abs(snapped-sonicMyFreq);
         if(distOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped){confirmHits++}else{confirmHits=1;lastSnapped=snapped}
-          if(status)status.textContent='Detectando sinal... '+snapped+'Hz ('+confirmHits+'/'+SONIC_CONFIRM_COUNT+')';
+          if(status)status.textContent='Detectando... quase la!';
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             haptic([60]);
             if(label)label.textContent='VERIFICANDO...';
@@ -4125,8 +4292,14 @@ async function initSonic(label,status,circle){
 
   }catch(e){
     console.error('Sonic init error:',e);
-    if(status)status.textContent=e.name==='NotAllowedError'?'Microfone negado. Use código.':'Erro: '+e.message;
     sonicActive=false;
+    if(e.name==='NotAllowedError'){
+      showToast('Permita o microfone para conectar');
+    }else if(e.message==='Server timeout'){
+      showToast('Servidor nao respondeu. Tente novamente.');
+    }else{
+      showToast('Erro no audio. Tente de novo.');
+    }
     const fb=$('sonicFallback');if(fb)fb.classList.add('active');
   }
 }
@@ -6045,6 +6218,30 @@ function initConstCanvas(){
         ctx.beginPath();for(let vi=0;vi<8;vi++){const va=vi*Math.PI/4-Math.PI/2;const vri=vi%2===0?br:br*.6;ctx.lineTo(bx+Math.cos(va)*vri,by+Math.sin(va)*vri)}ctx.closePath();ctx.fillStyle=vg;ctx.fill();
         ctx.strokeStyle='#0a0a0f';ctx.lineWidth=Math.max(.8,1.5*scale);ctx.stroke();
         ctx.fillStyle='#fff';ctx.font='700 '+Math.max(4,br*.85)+'px Inter';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',bx,by+.2)}
+      // Game invite bubble — "Vamos jogar?" badge
+      if(n._gameInvite&&r>4){
+        const bw=Math.max(40,r*3.5);const bh=Math.max(14,r*1.1);
+        const bx2=sx-bw/2;const by2=sy-r-bh-12;
+        const pulse=0.85+Math.sin(t*4)*0.15;
+        ctx.save();ctx.globalAlpha=depthAlpha*pulse;
+        // Bubble bg
+        ctx.beginPath();
+        const br2=bh/2;
+        ctx.moveTo(bx2+br2,by2);ctx.lineTo(bx2+bw-br2,by2);ctx.arc(bx2+bw-br2,by2+br2,br2,-Math.PI/2,Math.PI/2);ctx.lineTo(bx2+br2,by2+bh);ctx.arc(bx2+br2,by2+br2,br2,Math.PI/2,-Math.PI/2);ctx.closePath();
+        ctx.fillStyle='rgba(255,107,53,.9)';ctx.fill();
+        ctx.strokeStyle='rgba(255,143,101,.6)';ctx.lineWidth=.5;ctx.stroke();
+        // Bubble tail
+        ctx.beginPath();ctx.moveTo(sx-3,by2+bh);ctx.lineTo(sx,by2+bh+5);ctx.lineTo(sx+3,by2+bh);ctx.fillStyle='rgba(255,107,53,.9)';ctx.fill();
+        // Controller icon (small)
+        const ix=bx2+6;const iy=by2+bh/2;const is=Math.max(3,bh*.35);
+        ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(.6,is*.15);
+        ctx.beginPath();ctx.roundRect(ix-is,iy-is*.6,is*2,is*1.2,is*.25);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(ix-is*.4,iy);ctx.lineTo(ix+is*.4,iy);ctx.moveTo(ix,iy-is*.4);ctx.lineTo(ix,iy+is*.4);ctx.stroke();
+        // Text
+        ctx.fillStyle='#fff';ctx.font='700 '+Math.max(5,bh*.5)+'px Inter';ctx.textAlign='left';ctx.textBaseline='middle';
+        ctx.fillText('Vamos jogar?',ix+is+3,iy+.5);
+        ctx.restore();
+      }
       // Label — show nickname only (real name only if revealed)
       if(r>3){
         const label=n._revealed?(n.realName||n.nickname):n.nickname;
@@ -6152,7 +6349,10 @@ function handleConstTap(tx,ty,W,H){
       const d=Math.hypot(tx-n._px,ty-n._py);
       if(d<(n.baseRadius*(n._pscale||1)*1.8+16)&&d<minD){minD=d;hit=n}
     });
-    if(hit){showConstDetail(hit)}else{
+    if(hit){
+      if(hit._gameInvite){showGameInviteModal(hit._gameInvite,hit);return}
+      showConstDetail(hit);
+    }else{
       $('constDetail').classList.remove('visible');
       constState.selectedNode=null;
       exitConstFP();
@@ -6168,8 +6368,8 @@ function handleConstTap(tx,ty,W,H){
     if(d<hitR&&d<minD){minD=d;hit=n}
   });
   if(hit){
+    if(hit._gameInvite){showGameInviteModal(hit._gameInvite,hit);return}
     showConstDetail(hit);
-    // FPV only activates from center node (VOCÊ), not from other nodes
   }else{hideConstDetail();if(constState.fpMode)exitConstFP()}
 }
 function enterConstFP(){
@@ -6387,6 +6587,8 @@ function showConstDetail(node){
     if(node.isPrestador){
       aHtml+=iconBtn(ICONS.tip,'Gorjeta',"event.stopPropagation();constTipAction('"+node.id+"')",'tip');
     }
+    // Play game
+    aHtml+=iconBtn(ICONS.game||'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h4m-2-2v4M14.5 10.5h.01M18.5 10.5h.01"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg>','Jogar',"openGameLobby('"+node.id+"')",'game');
     // History
     aHtml+=iconBtn(ICONS.history,'Histórico',"openHistoryPanel()",'');
   }
@@ -10346,6 +10548,270 @@ async function verifyEvent(eventId,btn){
     else{btn.textContent='Erro';showToast(d.error||'Erro')}
   }catch(e){btn.textContent='Erro';btn.disabled=false}
 }
+
+// ═══ TOUCHGAMES v2 — Lobby, Invite, Iframe, PostMessage ═══
+var _gameLobbyTarget=null,_gameManifest=null,_gameIframeSession=null;
+var _pendingGameInvites={};// userId → {fromUserId,gameId,sessionId,gameName,gameIcon,gameDesc,gameFile}
+var _waitingSessionId=null;// session we're hosting, waiting for accept
+
+function _findNodeById(uid){return(constState.nodes||[]).find(n=>n.id===uid)||null}
+
+async function openGameLobby(targetUserId){
+  _gameLobbyTarget=targetUserId;
+  const overlay=$('gameLobbyOverlay');
+  if(!overlay)return;
+  // Load manifest
+  if(!_gameManifest){
+    try{
+      const r=await fetch('/api/games/manifest');
+      _gameManifest=await r.json();
+    }catch(e){_gameManifest={games:[]};}
+  }
+  // Opponent info
+  const oppEl=$('glOpponent');
+  const node=constState.selectedNode;
+  if(node&&oppEl){
+    const av=node.profilePhoto?'<img src="'+esc(node.profilePhoto)+'" alt="">':'<div style="width:100%;height:100%;background:'+esc(node.color||'#333')+';display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#fff">?</div>';
+    oppEl.innerHTML='<div class="gl-opp-avatar">'+av+'</div><div class="gl-opp-info"><div class="gl-opp-name">'+esc(node.nickname||'???')+'</div><div class="gl-opp-sub">Escolha um jogo para jogar</div></div>';
+    oppEl.style.display='flex';
+  }
+  // Render game cards
+  const grid=$('glGrid');
+  let html='';
+  (_gameManifest.games||[]).forEach(g=>{
+    const badgeCls=g.players==='solo'?'solo':g.maxPlayers>2?'multi':'duo';
+    const badgeTxt=g.players==='solo'?'Solo':g.maxPlayers>2?g.maxPlayers+'P':'Duo';
+    html+='<div class="gl-card" onclick="launchGame(\''+g.id+'\',\''+g.file+'\')">';
+    html+='<div class="gl-card-icon">'+g.icon+'</div>';
+    html+='<div class="gl-card-name">'+esc(g.name)+'</div>';
+    html+='<div class="gl-card-desc">'+esc(g.description)+'</div>';
+    html+='<div class="gl-card-meta"><span class="gl-card-badge '+badgeCls+'">'+badgeTxt+'</span>';
+    if(g.awardStars)html+='<span class="gl-card-stars"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> +'+g.awardStars+'</span>';
+    html+='</div></div>';
+  });
+  grid.innerHTML=html;
+  overlay.classList.add('visible');
+}
+
+function closeGameLobby(){
+  const overlay=$('gameLobbyOverlay');
+  if(overlay)overlay.classList.remove('visible');
+  _gameLobbyTarget=null;
+}
+
+// ── Launch game (host side — sends invite, shows waiting screen) ──
+async function launchGame(gameId,file){
+  closeGameLobby();
+  hideConstDetail();
+  const isMulti=!!_gameLobbyTarget;
+  try{
+    const r=await fetch('/api/games/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gameId,hostUserId:state.userId,opponentUserId:_gameLobbyTarget||null})});
+    const d=await r.json();
+    if(!d.ok){showToast('Erro ao criar jogo');return}
+    _gameIframeSession=d.session;
+    _gameIframeSession._file=file;
+    if(isMulti&&socket){
+      // Find game info for the invite
+      const gInfo=(_gameManifest&&_gameManifest.games||[]).find(g=>g.id===gameId)||{};
+      socket.emit('game-invite',{fromUserId:state.userId,toUserId:_gameLobbyTarget,gameId,sessionId:d.session.id,gameName:gInfo.name||gameId,gameIcon:gInfo.icon||'',gameDesc:gInfo.description||'',gameFile:file});
+      // Show waiting overlay
+      _waitingSessionId=d.session.id;
+      _showWaiting(_gameLobbyTarget);
+    }else{
+      // Solo — open iframe immediately
+      _openGameIframe(d.session.id,gameId,file,null);
+    }
+  }catch(e){
+    showToast('Erro ao iniciar jogo');
+  }
+}
+
+function _showWaiting(opponentId){
+  const w=$('gameWaitingOverlay');if(!w)return;
+  const node=_findNodeById(opponentId);
+  const wName=w.querySelector('.gw-text');
+  if(wName)wName.textContent='Aguardando '+(node?esc(node.nickname):'jogador')+'...';
+  w.classList.add('visible');
+}
+function _hideWaiting(){
+  const w=$('gameWaitingOverlay');if(w)w.classList.remove('visible');
+  _waitingSessionId=null;
+}
+function cancelGameWaiting(){
+  if(_waitingSessionId&&socket){
+    socket.emit('game-surrender',{sessionId:_waitingSessionId,userId:state.userId});
+  }
+  _hideWaiting();
+  _gameIframeSession=null;
+  showToast('Convite cancelado');
+}
+
+function _openGameIframe(sessionId,gameId,file,opponentId){
+  const container=$('gameIframeContainer');if(!container)return;
+  const params='?sessionId='+sessionId+'&userId='+state.userId+(opponentId?'&opponentId='+opponentId:'')+'&gameId='+gameId;
+  container.innerHTML='<iframe src="/games/'+file+params+'" allow="autoplay"></iframe>';
+  container.classList.add('visible');
+}
+
+function closeGameIframe(){
+  const container=$('gameIframeContainer');
+  if(container){container.classList.remove('visible');container.innerHTML=''}
+  _gameIframeSession=null;
+  _hideWaiting();
+}
+
+// ── Game Invite Modal (invited player side) ──
+function showGameInviteModal(invite,node){
+  const modal=$('gameInviteModal');if(!modal)return;
+  // From info
+  const av=node&&node.profilePhoto?'<img src="'+esc(node.profilePhoto)+'" alt="">':'<div style="width:100%;height:100%;background:'+(node?esc(node.color||'#333'):'#333')+';display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#fff">?</div>';
+  const fromEl=modal.querySelector('.gi-from');
+  if(fromEl)fromEl.innerHTML='<div class="gi-from-avatar">'+av+'</div><div class="gi-from-info"><div class="gi-from-name">'+esc(node?node.nickname:'Jogador')+'</div><div class="gi-from-label">quer jogar com voce!</div></div>';
+  // Game info
+  const gameEl=modal.querySelector('.gi-game');
+  if(gameEl)gameEl.innerHTML='<div class="gi-game-icon">'+(invite.gameIcon||'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/></svg>')+'</div><div class="gi-game-info"><div class="gi-game-name">'+esc(invite.gameName||invite.gameId)+'</div><div class="gi-game-desc">'+esc(invite.gameDesc||'')+'</div></div>';
+  // Actions
+  const acts=modal.querySelector('.gi-actions');
+  if(acts)acts.innerHTML='<button class="gi-btn decline" onclick="declineGameInvite(\''+invite.sessionId+'\',\''+invite.fromUserId+'\')">Recusar</button><button class="gi-btn accept" onclick="acceptGameInvite(\''+invite.sessionId+'\',\''+invite.fromUserId+'\',\''+invite.gameId+'\',\''+esc(invite.gameFile||'')+'\')">Jogar</button>';
+  modal.classList.add('visible');
+}
+function hideGameInviteModal(){
+  const modal=$('gameInviteModal');if(modal)modal.classList.remove('visible');
+}
+
+function acceptGameInvite(sessionId,fromUserId,gameId,gameFile){
+  hideGameInviteModal();
+  // Remove invite from constellation node
+  const node=_findNodeById(fromUserId);
+  if(node)delete node._gameInvite;
+  delete _pendingGameInvites[fromUserId];
+  // Tell server
+  if(socket)socket.emit('game-accept',{sessionId,userId:state.userId});
+  // Open iframe as invited player
+  _openGameIframe(sessionId,gameId,gameFile,fromUserId);
+}
+
+function declineGameInvite(sessionId,fromUserId){
+  hideGameInviteModal();
+  const node=_findNodeById(fromUserId);
+  if(node)delete node._gameInvite;
+  delete _pendingGameInvites[fromUserId];
+  if(socket)socket.emit('game-decline',{sessionId,userId:state.userId});
+  showToast('Convite recusado');
+}
+
+// ── PostMessage handler for game iframes ──
+window.addEventListener('message',function(e){
+  if(!e.data||e.data.source!=='touchgame')return;
+  var type=e.data.type,data=e.data.data||{};
+  switch(type){
+    case 'game-ready':break;
+    case 'game-move':
+      if(socket)socket.emit('game-move',{sessionId:data.sessionId,userId:state.userId,move:data.move});
+      break;
+    case 'game-result':
+      fetch('/api/games/results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:data.sessionId,winner:data.winner||null,scores:{[state.userId]:data.score||0},duration:data.duration||0,surrendered:data.surrendered||false,gameId:data.gameId})}).catch(function(){});
+      if(data.surrendered)closeGameIframe();
+      break;
+    case 'game-state-update':break;
+    case 'award-stars':
+      if(data.amount>0){
+        fetch('/api/games/results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:data.sessionId||'bonus',winner:state.userId,scores:{[state.userId]:0},duration:0,gameId:'bonus'})}).catch(function(){});
+        showToast('+'+data.amount+' estrelas!');
+      }
+      break;
+    case 'game-request-close':
+      closeGameIframe();
+      break;
+  }
+});
+
+// ── Socket handlers for game events ──
+if(typeof socket!=='undefined'&&socket){
+  // Opponent sent a move → forward to iframe
+  socket.on('game-opponent-move',function(data){
+    var iframe=document.querySelector('#gameIframeContainer iframe');
+    if(iframe&&iframe.contentWindow)iframe.contentWindow.postMessage({type:'opponent-move',data:{move:data.move}},'*');
+  });
+  // Opponent surrendered
+  socket.on('game-opponent-surrendered',function(data){
+    var iframe=document.querySelector('#gameIframeContainer iframe');
+    if(iframe&&iframe.contentWindow)iframe.contentWindow.postMessage({type:'opponent-disconnected',data:{}},'*');
+    showToast('Oponente desistiu!');
+    setTimeout(closeGameIframe,2000);
+  });
+  // Received a game invite → store on constellation node + show bubble
+  socket.on('game-invite',function(data){
+    var inv={fromUserId:data.fromUserId,gameId:data.gameId,sessionId:data.sessionId,gameName:data.gameName||data.gameId,gameIcon:data.gameIcon||'',gameDesc:data.gameDesc||'',gameFile:data.gameFile||'',_ts:Date.now()};
+    _pendingGameInvites[data.fromUserId]=inv;
+    // Mark the node on constellation
+    var node=_findNodeById(data.fromUserId);
+    if(node)node._gameInvite=inv;
+    showToast((node?node.nickname:'Alguem')+' quer jogar com voce!');
+    haptic([30,50,30]);
+  });
+  // Opponent accepted → host opens iframe, both play
+  socket.on('game-start',function(data){
+    _hideWaiting();
+    if(_gameIframeSession&&_gameIframeSession.id===data.sessionId){
+      // Host side — open iframe now
+      _openGameIframe(data.sessionId,_gameIframeSession.gameId||data.gameId,_gameIframeSession._file||'',_gameLobbyTarget);
+    }else{
+      // Already in iframe — forward start event
+      var iframe=document.querySelector('#gameIframeContainer iframe');
+      if(iframe&&iframe.contentWindow)iframe.contentWindow.postMessage({type:'game-start',data:data},'*');
+    }
+  });
+  // Opponent declined invite
+  socket.on('game-declined',function(data){
+    _hideWaiting();
+    _gameIframeSession=null;
+    showToast('Convite recusado');
+  });
+  // Auto-expire invites after 60s
+  setInterval(function(){
+    var now=Date.now();
+    Object.keys(_pendingGameInvites).forEach(function(uid){
+      var inv=_pendingGameInvites[uid];
+      if(inv._ts&&now-inv._ts>60000){
+        delete _pendingGameInvites[uid];
+        var node=_findNodeById(uid);
+        if(node)delete node._gameInvite;
+      }
+    });
+  },10000);
+}
 </script>
+
+<!-- Game Lobby Modal -->
+<div class="game-lobby-overlay" id="gameLobbyOverlay">
+  <div class="gl-header">
+    <div class="gl-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="14.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="18.5" cy="10.5" r=".5" fill="currentColor"/></svg>TouchGames</div>
+    <div class="gl-close" onclick="closeGameLobby()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+  </div>
+  <div class="gl-opponent" id="glOpponent" style="display:none"></div>
+  <div class="gl-section-title">Jogos disponiveis</div>
+  <div class="gl-grid" id="glGrid"></div>
+</div>
+
+<!-- Game Invite Accept Modal -->
+<div class="game-invite-modal" id="gameInviteModal">
+  <div class="gi-card">
+    <div class="gi-from"></div>
+    <div class="gi-game"></div>
+    <div class="gi-actions"></div>
+  </div>
+</div>
+
+<!-- Waiting for opponent overlay -->
+<div class="game-waiting-overlay" id="gameWaitingOverlay">
+  <div class="gw-spinner"></div>
+  <div class="gw-text">Aguardando jogador...</div>
+  <div class="gw-sub">O convite foi enviado</div>
+  <button class="gw-cancel" onclick="cancelGameWaiting()">Cancelar convite</button>
+</div>
+
+<!-- Game Iframe Container -->
+<div class="game-iframe-container" id="gameIframeContainer"></div>
 </body>
 </html>
