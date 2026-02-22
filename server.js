@@ -4048,8 +4048,8 @@ app.post('/api/selfie', async (req, res) => {
 // Each phone emits a unique ultrasonic frequency AND listens.
 // When Phone B detects Phone A's frequency, it reports to server → match!
 const SONIC_FREQ_BASE = 18000; // 18kHz base
-const SONIC_FREQ_STEP = 100;   // 100Hz steps
-const SONIC_FREQ_SLOTS = 20;   // 20 possible frequencies (18000-19900Hz)
+const SONIC_FREQ_STEP = 300;   // 300Hz steps (must be > 200Hz self-detection filter on client)
+const SONIC_FREQ_SLOTS = 7;    // 7 frequencies: 18000, 18300, 18600, 18900, 19200, 19500, 19800
 const sonicQueue = {}; // { oderId: { userId, freq, socketId, joinedAt } }
 let nextFreqSlot = 0;
 
@@ -4063,8 +4063,9 @@ function findSonicUserByFreq(freq) {
   // Exact match first
   const exact = Object.values(sonicQueue).find(s => s.freq === freq);
   if (exact) return exact;
-  // Fuzzy match: ±100Hz tolerance (hardware imprecision in speaker/mic)
-  return Object.values(sonicQueue).find(s => Math.abs(s.freq - freq) <= 100) || null;
+  // Fuzzy match: ±150Hz tolerance (hardware imprecision in speaker/mic + snapping)
+  // Must be < SONIC_FREQ_STEP/2 (150 < 300/2=150) to avoid matching wrong slot
+  return Object.values(sonicQueue).find(s => Math.abs(s.freq - freq) <= 140) || null;
 }
 
 // Find sonicQueue entry by userId (searches all entries since operators use 'evt:' keys)
