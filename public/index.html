@@ -1149,15 +1149,21 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
 
 /* ═══ GUIDED ONBOARDING — VA-powered tour ═══ */
-.onb-guide-bubble{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:350;background:linear-gradient(135deg,rgba(167,139,250,.15),rgba(100,60,200,.15));backdrop-filter:blur(20px);border:1px solid rgba(167,139,250,.3);border-radius:20px;padding:16px 20px;max-width:320px;width:calc(100% - 40px);color:#f5f5f7;font-size:.85rem;line-height:1.5;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.4),0 0 60px rgba(167,139,250,.1);display:none;animation:onbBubbleIn .4s ease forwards}
-.onb-guide-bubble.visible{display:block}
-.onb-guide-bubble .onb-bubble-icon{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#7c3aed);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:.9rem;box-shadow:0 2px 12px rgba(167,139,250,.4)}
-.onb-guide-bubble .onb-bubble-text{font-weight:400;color:rgba(255,255,255,.9)}
-.onb-guide-bubble .onb-bubble-skip{margin-top:10px;background:none;border:none;color:rgba(255,255,255,.35);font-size:.7rem;cursor:pointer;font-family:inherit}
-.onb-guide-highlight{position:fixed;z-index:280;border:2px solid rgba(167,139,250,.6);border-radius:16px;box-shadow:0 0 30px rgba(167,139,250,.3),inset 0 0 20px rgba(167,139,250,.05);pointer-events:none;transition:all .5s cubic-bezier(.22,1,.36,1);opacity:0}
+.onb-invite{position:fixed;inset:0;z-index:400;background:radial-gradient(ellipse at 50% 40%,rgba(167,139,250,.08),#050508 70%);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;opacity:0;transition:opacity .5s ease}
+.onb-invite.active{display:flex;opacity:1}
+.onb-invite-orb{width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#7c3aed,#6d28d9);display:flex;align-items:center;justify-content:center;font-size:2.2rem;box-shadow:0 0 60px rgba(167,139,250,.3),0 0 120px rgba(124,58,237,.15);animation:onbOrbFloat 2.5s ease-in-out infinite}
+@keyframes onbOrbFloat{0%,100%{transform:scale(1) translateY(0);box-shadow:0 0 60px rgba(167,139,250,.3)}50%{transform:scale(1.06) translateY(-6px);box-shadow:0 0 80px rgba(167,139,250,.45),0 0 140px rgba(124,58,237,.2)}}
+.onb-invite h2{font-size:1.3rem;font-weight:700;color:#f5f5f7;text-align:center;margin:0}
+.onb-invite p{font-size:.82rem;color:rgba(255,255,255,.45);text-align:center;max-width:260px;line-height:1.5;margin:0}
+.onb-invite-btn{padding:14px 36px;background:linear-gradient(135deg,#a78bfa,#7c3aed);border:none;border-radius:14px;color:#fff;font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.04em;box-shadow:0 4px 20px rgba(124,58,237,.4);transition:transform .15s}
+.onb-invite-btn:active{transform:scale(.95)}
+.onb-invite-skip{background:none;border:none;color:rgba(255,255,255,.25);font-size:.72rem;cursor:pointer;font-family:inherit;margin-top:.2rem}
+.onb-guide-bubble{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:350;background:rgba(20,15,35,.85);backdrop-filter:blur(16px);border:1px solid rgba(167,139,250,.2);border-radius:16px;padding:12px 16px;max-width:300px;width:calc(100% - 40px);color:rgba(255,255,255,.85);font-size:.8rem;line-height:1.5;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;opacity:0;transition:opacity .3s ease}
+.onb-guide-bubble.visible{display:block;opacity:1}
+.onb-guide-bubble .onb-bubble-skip{margin-top:6px;background:none;border:none;color:rgba(255,255,255,.25);font-size:.65rem;cursor:pointer;font-family:inherit}
+.onb-guide-highlight{position:fixed;z-index:280;border:2px solid rgba(167,139,250,.5);border-radius:16px;box-shadow:0 0 24px rgba(167,139,250,.2);pointer-events:none;transition:all .4s ease;opacity:0}
 .onb-guide-highlight.visible{opacity:1}
-@keyframes onbBubbleIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-@keyframes onbPulseRing{0%{box-shadow:0 0 0 0 rgba(167,139,250,.4)}70%{box-shadow:0 0 0 12px rgba(167,139,250,0)}100%{box-shadow:0 0 0 0 rgba(167,139,250,0)}}
+@keyframes onbPulseRing{0%{box-shadow:0 0 0 0 rgba(167,139,250,.4)}70%{box-shadow:0 0 0 10px rgba(167,139,250,0)}100%{box-shadow:0 0 0 0 rgba(167,139,250,0)}}
 .onb-guide-highlight.pulse{animation:onbPulseRing 1.5s infinite}
 
 /* ═══ VOICE AGENT — Modern Gemini-style ═══ */
@@ -2336,12 +2342,9 @@ async function linkFirebaseToEncosta(user){
       state.userProfession=d.user.profession||null;
       state.userSports=d.user.sports||[];
       state.userHobbies=d.user.hobbies||[];
-      // ── Guided onboarding on first login ──
-      const needsOnboarding = !d.onboardingDone && !localStorage.getItem('touch_onboarding_done');
-      if(needsOnboarding){
-        setTimeout(()=>{
-          try{ GuidedOnboarding.start(); }catch(e){ console.warn('[onboarding] start err:', e); }
-        }, 1200); // wait for home to render
+      // ── Guided onboarding on first login — show invite ──
+      if(!d.onboardingDone && !localStorage.getItem('touch_onboarding_done')){
+        setTimeout(()=> showOnbInvite(), 1000);
       }
       const _ha=$('homeAvatar');
       if(_ha&&state.userName){
@@ -3067,6 +3070,74 @@ function initSocket(){
     }else if(status==='pending'||status==='in_process'){
       showToast('⏳ Gorjeta de R$'+amount.toFixed(2).replace('.',',')+' em processamento.');
     }
+  });
+  // ── Game socket events (MUST be inside initSocket so socket exists) ──
+  socket.on('game-invite-notify',function(data){
+    var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
+    var name=node?node.nickname:'Jogador';
+    // Show toast that opens the chat when tapped
+    showToast(name+' quer jogar '+data.gameName+'! Toque pra ver');
+    haptic([50,30,50]);
+    // Auto-open the chat with that person so they see the invite card
+    if(data.relationId&&data.fromUserId){
+      setTimeout(function(){
+        openChatFromInvite(data.relationId,data.fromUserId);
+      },600);
+    }
+  });
+  socket.on('game-invite',function(data){
+    var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
+    var name=node?node.nickname:'Jogador';
+    showToast(name+' quer jogar '+(data.gameName||'')+'!');
+    haptic([50,30,50]);
+  });
+  socket.on('game-ready-check',function(data){
+    showGameReadyCheck(data);
+  });
+  socket.on('game-player-ready',function(data){
+    var el=$('grReadyOpp');
+    if(el){el.textContent='Pronto!';el.style.color='var(--ac)'}
+  });
+  socket.on('game-player-unready',function(data){
+    var el=$('grReadyOpp');
+    if(el){el.textContent='Saiu';el.style.color='var(--pk)'}
+    setTimeout(function(){cancelGameReady()},1500);
+  });
+  socket.on('game-start',function(data){
+    _readyCheckSession=null;
+    var ov=document.querySelector('.game-ready-overlay');
+    if(ov)ov.remove();
+    var oppId=data.players?data.players.find(function(p){return p!==state.userId}):null;
+    var url=_tgBuildUrl(oppId);
+    url+='&acceptSession='+encodeURIComponent(data.sessionId)+'&acceptGame='+encodeURIComponent(data.gameId);
+    if(data.gameFile)url+='&gameFile='+encodeURIComponent(data.gameFile);
+    var frame=$('tgFrame');
+    if(frame){
+      frame.querySelector('iframe').src=url;
+      frame.classList.add('visible');
+    }
+    haptic([30,20,30,20,60]);
+  });
+  socket.on('game-target-busy',function(){showToast('Jogador esta ocupado')});
+  socket.on('game-target-offline',function(){showToast('Jogador esta offline')});
+  socket.on('game-no-relation',function(){showToast('Sem chat ativo com esse jogador')});
+  socket.on('game-declined',function(){showToast('Convite recusado')});
+  // Sonic game invite — someone touched you while in game lobby
+  socket.on('game-sonic-invite',function(data){
+    var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
+    var name=data.fromName||(node?node.nickname:'Jogador');
+    showToast(name+' encostou e quer jogar!');
+    haptic([80,40,80,40,80]);
+    if(data.relationId){
+      setTimeout(function(){
+        openChatFromInvite(data.relationId,data.fromUserId);
+      },600);
+    }
+  });
+  // Confirmation for the lobby user that their sonic touch sent a game invite
+  socket.on('game-sonic-invite-sent',function(data){
+    showToast('Touch enviado! Convite de jogo enviado');
+    haptic([40,20,40]);
   });
 }
 function updateConn(s){const d=$('connDot');if(d)d.className='cd'+(s!=='online'?' '+s:'')}
@@ -3971,9 +4042,7 @@ async function doRegister(){
       haptic([80]);
       // ── Guided onboarding for brand new users after registration ──
       if(!localStorage.getItem('touch_onboarding_done')){
-        setTimeout(()=>{
-          try{ GuidedOnboarding.start(); }catch(e){ console.warn('[onboarding] start err:', e); }
-        }, 1200);
+        setTimeout(()=> showOnbInvite(), 1000);
       }
     }
   }catch(e){showToast('Erro ao registrar.')}
@@ -5493,6 +5562,23 @@ function goToConnectionFromReveal(){
       },1200);
     }
   }).catch(()=>{});
+}
+// Open chat directly from a game invite notification
+async function openChatFromInvite(relationId,fromUserId){
+  try{
+    // If already viewing this chat, just scroll down to see invite
+    if(state.currentRelation&&state.currentRelation.relationId===relationId){
+      var mc=$('chatMessages');if(mc)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
+      return;
+    }
+    // Fetch relation data and open chat
+    var r=await fetch('/api/relations/'+state.userId);
+    var d=await r.json();
+    if(d.relations){
+      var rel=d.relations.find(function(r){return r.relationId===relationId});
+      if(rel)openChat(rel);
+    }
+  }catch(e){console.log('[openChatFromInvite] error',e)}
 }
 async function openChat(rel){
   state.currentRelation=rel;pulseSent=false;
@@ -11090,60 +11176,7 @@ window.addEventListener('message',function(e){
     if(type==='award-stars'&&data.amount>0){showToast('+'+data.amount+' estrelas!')}
   }
 });
-// ── Socket: game events ──
-if(typeof socket!=='undefined'&&socket){
-  // Notification toast when invite arrives (even outside chat)
-  socket.on('game-invite-notify',function(data){
-    var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
-    var name=node?node.nickname:'Jogador';
-    showToast(name+' quer jogar '+data.gameName+'!');
-    haptic([50,30,50]);
-  });
-  // Legacy game-invite (from games/index.html direct socket)
-  socket.on('game-invite',function(data){
-    var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
-    var name=node?node.nickname:'Jogador';
-    showToast(name+' quer jogar '+(data.gameName||'')+'!');
-    haptic([50,30,50]);
-  });
-  // Ready check — shown to BOTH players when invite accepted
-  socket.on('game-ready-check',function(data){
-    showGameReadyCheck(data);
-  });
-  // Other player is ready
-  socket.on('game-player-ready',function(data){
-    var el=$('grReadyOpp');
-    if(el){el.textContent='Pronto!';el.style.color='var(--ac)'}
-  });
-  // Other player cancelled ready
-  socket.on('game-player-unready',function(data){
-    var el=$('grReadyOpp');
-    if(el){el.textContent='Saiu';el.style.color='var(--pk)'}
-    setTimeout(function(){cancelGameReady()},1500);
-  });
-  // Game starts! Both confirmed ready
-  socket.on('game-start',function(data){
-    _readyCheckSession=null;
-    var ov=document.querySelector('.game-ready-overlay');
-    if(ov)ov.remove();
-    // Open the game in the TouchGames iframe
-    var oppId=data.players?data.players.find(function(p){return p!==state.userId}):null;
-    var url=_tgBuildUrl(oppId);
-    url+='&acceptSession='+encodeURIComponent(data.sessionId)+'&acceptGame='+encodeURIComponent(data.gameId);
-    if(data.gameFile)url+='&gameFile='+encodeURIComponent(data.gameFile);
-    var frame=$('tgFrame');
-    if(frame){
-      frame.querySelector('iframe').src=url;
-      frame.classList.add('visible');
-    }
-    haptic([30,20,30,20,60]);
-  });
-  // Error events
-  socket.on('game-target-busy',function(){showToast('Jogador esta ocupado')});
-  socket.on('game-target-offline',function(){showToast('Jogador esta offline')});
-  socket.on('game-no-relation',function(){showToast('Sem chat ativo com esse jogador')});
-  socket.on('game-declined',function(){showToast('Convite recusado')});
-}
+// ── Game socket events — registered via registerGameSocketEvents() inside initSocket() ──
 </script>
 
 <!-- TouchGames Microservice Frame -->
@@ -11157,11 +11190,17 @@ if(typeof socket!=='undefined'&&socket){
 <button style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.7rem;margin-top:.5rem;cursor:pointer" onclick="dismissSonicReconnect(false)">Cancelar</button>
 </div>
 
-<!-- ═══ GUIDED ONBOARDING BUBBLE ═══ -->
+<!-- ═══ GUIDED ONBOARDING ═══ -->
+<div class="onb-invite" id="onbInvite">
+  <div class="onb-invite-orb">✨</div>
+  <h2>Oi! Sou a Touch AI</h2>
+  <p>Posso te mostrar como conectar com algu&eacute;m em 30 segundos?</p>
+  <button class="onb-invite-btn" onclick="acceptGuidedOnboarding()">Vamos l&aacute;!</button>
+  <button class="onb-invite-skip" onclick="skipGuidedOnboarding()">Agora n&atilde;o</button>
+</div>
 <div class="onb-guide-bubble" id="onbGuideBubble">
-  <div class="onb-bubble-icon">✨</div>
   <div class="onb-bubble-text" id="onbBubbleText"></div>
-  <button class="onb-bubble-skip" id="onbSkipBtn" onclick="skipGuidedOnboarding()">Pular tour</button>
+  <button class="onb-bubble-skip" onclick="skipGuidedOnboarding()">Pular</button>
 </div>
 <div class="onb-guide-highlight" id="onbHighlight"></div>
 

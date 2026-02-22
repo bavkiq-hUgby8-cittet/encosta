@@ -4373,6 +4373,25 @@ function createSonicConnection(userIdA, userIdB) {
     io.to(`user:${userIdB}`).emit('relation-created', responseData);
     io.to(`user:${userIdA}`).emit('sonic-matched', { withUser: userIdB });
     io.to(`user:${userIdB}`).emit('sonic-matched', { withUser: userIdA });
+    // Check if either user is in the game lobby — if so, send game-sonic-invite to the other
+    const socketsA = [...io.sockets.sockets.values()].filter(s => s.touchUserId === userIdA);
+    const socketsB = [...io.sockets.sockets.values()].filter(s => s.touchUserId === userIdB);
+    const aInLobby = socketsA.some(s => s._inGameLobby);
+    const bInLobby = socketsB.some(s => s._inGameLobby);
+    if (aInLobby || bInLobby) {
+      const inviterUserId = aInLobby ? userIdA : userIdB;
+      const inviteeUserId = aInLobby ? userIdB : userIdA;
+      const inviterUser = db.users[inviterUserId];
+      const inviterName = inviterUser ? (inviterUser.nickname || inviterUser.name || '?') : '?';
+      console.log('[sonic-game-invite]', inviterName, 'is in lobby, inviting', inviteeUserId, 'relId:', relationId);
+      io.to(`user:${inviteeUserId}`).emit('game-sonic-invite', {
+        fromUserId: inviterUserId, fromName: inviterName, relationId
+      });
+      // Also notify the lobby user that the touch was sent as game invite
+      io.to(`user:${inviterUserId}`).emit('game-sonic-invite-sent', {
+        toUserId: inviteeUserId, relationId
+      });
+    }
   }
   // Notify operator dashboard if checkin
   if (isCheckin && operatorId) {
