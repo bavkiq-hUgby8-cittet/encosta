@@ -11163,8 +11163,8 @@ const VA = (function(){
     // Close WebRTC (this releases mic reference internally)
     if(dc){try{dc.close()}catch(e){}} dc=null;
     if(pc){try{pc.close()}catch(e){}} pc=null;
-    // DO NOT call track.stop() on mic — it kills hardware and breaks sonic match!
-    // Just drop the reference, browser will GC when PeerConnection is gone
+    // Stop VA mic tracks — safe because sonic uses its own sonicStream
+    if(micStream){try{micStream.getTracks().forEach(t=>t.stop())}catch(e){}}
     micStream=null;
     // Clean audio element
     if(audioEl){
@@ -11250,48 +11250,55 @@ const VA = (function(){
     requestAnimationFrame(anim);
   }
   async function handleMostrarPessoa(nome,callId){
-    // 1. Quick search in existing nodes
-    let found=_findNode(nome);
     let resultText='';
-    if(found){
-      resultText='Mostrando perfil de '+(found.realName||found.nickname)+'. Encontros: '+(found.encounters||0)+', último: '+(found.lastDate||'desconhecido');
-    }
-    // 2. Minimize VA overlay to floating mini-player
-    const overlay=$('vaOverlay');
-    if(overlay&&found){
-      overlay.classList.add('mini');
-      overlay.onclick=function(e){
-        if(overlay.classList.contains('mini')){overlay.classList.remove('mini');overlay.onclick=null;}
-      };
-    }
-    // 3. Navigate to constellation (this reloads data + reinits canvas)
-    if(found){
-      if(typeof showHistory==='function') showHistory();
-      // Wait for constellation to load, then re-find and animate
-      const _waitForNodes=()=>new Promise(resolve=>{
-        let tries=0;
-        const check=()=>{
-          if(constState.nodes&&constState.nodes.length>0){resolve(true);return}
-          if(++tries>30){resolve(false);return} // 3s max wait
-          setTimeout(check,100);
-        };
-        setTimeout(check,200); // initial delay for fetch to start
-      });
-      await _waitForNodes();
-      // Re-find node in fresh data (old reference is stale after reload)
-      const freshNode=_findNode(nome);
-      if(freshNode){
-        setTimeout(()=>_animateToNode(freshNode),200);
+    try{
+      // 1. Pre-check: do we know this person?
+      // Quick peek at existing nodes OR fetch fresh data
+      let preFound=_findNode(nome);
+      if(!preFound){
+        // Nodes not loaded yet — fetch to check if person exists
+        const uid=typeof state!=='undefined'?state.userId:'';
+        const data=await(await fetch('/api/constellation/'+uid)).json();
+        if(data.nodes){
+          // Temp store for search only (showHistory will properly load later)
+          const _tmpNodes=data.nodes.map(n=>({...n,nickname:n.nickname||'',realName:n.realName||''}));
+          preFound=_tmpNodes.find(n=>{
+            const nick=(n.nickname||'').toLowerCase(),real=(n.realName||'').toLowerCase();
+            return nick===nome||real===nome||nick.includes(nome)||real.includes(nome)||nome.includes(nick)||(real&&nome.includes(real));
+          });
+        }
       }
-    }else{
-      resultText='Pessoa "'+nome+'" não encontrada na constelação do usuário.';
+      if(!preFound){
+        resultText='Pessoa "'+nome+'" não encontrada na constelação.';
+      }else{
+        resultText='Mostrando perfil de '+(preFound.realName||preFound.nickname)+'. Encontros: '+(preFound.encounters||0)+', último: '+(preFound.lastDate||'desconhecido');
+        // 2. Minimize VA overlay
+        const overlay=$('vaOverlay');
+        if(overlay){
+          overlay.classList.add('mini');
+          overlay.onclick=function(){if(overlay.classList.contains('mini')){overlay.classList.remove('mini');overlay.onclick=null;}};
+        }
+        // 3. Navigate to constellation (full load + canvas init)
+        if(typeof showHistory==='function') showHistory();
+        // 4. Wait for constellation to fully load, then find and animate
+        const _poll=(tries)=>{
+          if(tries>20) return; // 2s max
+          const node=_findNode(nome);
+          if(node&&node.x3d!==undefined){
+            _animateToNode(node);
+          }else{
+            setTimeout(()=>_poll(tries+1),100);
+          }
+        };
+        setTimeout(()=>_poll(0),800); // wait 800ms for initial fetch+render
+      }
+    }catch(e){
+      console.error('[VA] mostrar_pessoa err:',e);
+      resultText='Erro ao buscar: '+e.message;
     }
-    // 4. Send function output back to agent so it can continue speaking
+    // 5. Send result back to agent (don't wait for animation)
     if(dc&&dc.readyState==='open'){
-      dc.send(JSON.stringify({
-        type:'conversation.item.create',
-        item:{type:'function_call_output',call_id:callId,output:resultText}
-      }));
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
       dc.send(JSON.stringify({type:'response.create'}));
     }
   }
