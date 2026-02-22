@@ -3060,6 +3060,13 @@ function showScreen(id){
   el.classList.add('active');
   if(id!=='reveal'&&typeof stopRevealLight==='function')stopRevealLight();
   if(state.timerInterval&&id!=='chat'){clearInterval(state.timerInterval);state.timerInterval=null}
+  // Close VA overlay when navigating away (unless mini-player mode)
+  if(typeof VA!=='undefined'){
+    const vaOv=document.getElementById('vaOverlay');
+    if(vaOv&&vaOv.classList.contains('active')&&!vaOv.classList.contains('mini')){
+      VA.close();
+    }
+  }
   // Close selfie camera when leaving reveal
   if(id!=='reveal')releaseSelfieCamera();
   // Stop constellation animation + gyro when leaving
