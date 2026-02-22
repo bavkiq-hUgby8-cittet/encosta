@@ -194,6 +194,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .sonic-status.active{opacity:1}
 .sonic-fallback{opacity:0;transition:opacity .3s;pointer-events:none}
 .sonic-fallback.active{opacity:1;pointer-events:auto}
+/* SONIC RECONNECT OVERLAY — appears after screen lock/unlock */
+.sonic-reconnect-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:1rem}
+.sonic-reconnect-overlay.active{display:flex}
+.sonic-reconnect-btn{width:120px;height:120px;border-radius:50%;border:3px solid rgba(255,107,53,.6);background:radial-gradient(circle,rgba(255,107,53,.25),rgba(255,60,20,.1));color:#fff;font-size:.85rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.3rem;animation:srPulse 2s ease-in-out infinite;-webkit-tap-highlight-color:transparent}
+.sonic-reconnect-btn svg{width:32px;height:32px;stroke:#ff6b35;fill:none;stroke-width:2}
+@keyframes srPulse{0%,100%{box-shadow:0 0 20px rgba(255,107,53,.3)}50%{box-shadow:0 0 40px rgba(255,107,53,.6)}}
+.sonic-reconnect-label{color:rgba(255,255,255,.6);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase}
 /* FIRE — energy rising from bottom (speaker zone) */
 .fire-overlay{position:absolute;bottom:0;left:0;right:0;height:40%;pointer-events:none;z-index:0;opacity:0;transition:opacity .6s}
 .fire-overlay.active{opacity:1}
@@ -2736,11 +2743,10 @@ function initSocket(){
   socket.on('connect',()=>{
     if(state.userId)socket.emit('identify',state.userId);
     updateConn('online');
-    // If sonic was running but got killed by disconnect, auto-restart
-    if(_sonicWasActive&&!homeSonicActive){
-      console.log('[socket reconnect] Sonic was active, auto-restarting...');
-      _sonicWasActive=false;
-      setTimeout(()=>{if(!homeSonicActive)handleMainButton()},500);
+    // If sonic was running but got killed by disconnect, show reconnect overlay
+    if(_sonicWasActive&&!homeSonicActive&&!sonicActive){
+      console.log('[socket reconnect] Sonic was active, showing reconnect overlay...');
+      setTimeout(()=>{if(!homeSonicActive&&!sonicActive&&_sonicWasActive)showSonicReconnect()},400);
     }
   });
   socket.on('disconnect',()=>{
@@ -3933,7 +3939,7 @@ async function handleMainButton(){
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.6,sonicEmitCtx.currentTime); // 60% — prevents speaker crackling
+    gain.gain.setValueAtTime(0.15,sonicEmitCtx.currentTime); // 15% — low volume for close-range only (~25cm)
     sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
     console.log('[sonic] Oscillator STARTED at',freq,'Hz. EmitCtx:',sonicEmitCtx.state,'currentTime:',sonicEmitCtx.currentTime);
@@ -4033,7 +4039,7 @@ async function handleMainButton(){
           sonicOsc.type='sine';
           sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
           const g2=sonicEmitCtx.createGain();
-          g2.gain.setValueAtTime(0.7,sonicEmitCtx.currentTime);
+          g2.gain.setValueAtTime(0.15,sonicEmitCtx.currentTime);
           sonicOsc.connect(g2);g2.connect(sonicEmitCtx.destination);
           sonicOsc.start();
           sts.textContent='Tentando novamente... encoste os celulares';
@@ -4067,11 +4073,11 @@ async function handleMainButton(){
       if(_dbgFrames%30===0&&sts){
         if(peakVal>=SONIC_DETECT_THRESHOLD){
           sts.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
-        }else if(peakVal>10){
-          sts.textContent='Sinal fraco... aproxime mais';
+        }else if(peakVal>30){
+          sts.textContent='Sinal fraco... encoste mais perto';
         }else if(_dbgFrames>180){
           // After ~3s of nothing, show helpful hints instead of raw data
-          sts.textContent='Encoste os alto-falantes um no outro';
+          sts.textContent='Encoste os celulares bem pertinho';
         }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
@@ -4176,8 +4182,8 @@ function generateQR(code){
 // ═══ SONIC — ultrasonic phone-to-phone ═══
 let sonicActive=false,sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null,sonicMyFreq=0;
 const SONIC_FFT_SIZE=8192;
-const SONIC_DETECT_THRESHOLD=50; // lowered further: phone speakers/mics are very weak at 18kHz+
-const SONIC_CONFIRM_COUNT=3; // need 3 consecutive detections to confirm (anti false-positive)
+const SONIC_DETECT_THRESHOLD=140; // high threshold = requires close proximity (~20-25cm / um palmo)
+const SONIC_CONFIRM_COUNT=5; // need 5 consecutive detections to confirm (close-range reliability)
 
 // Request mic permission and return stream (reusable)
 async function requestMic(){
@@ -4237,7 +4243,7 @@ async function initSonic(label,status,circle){
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.6,sonicEmitCtx.currentTime); // 60% — prevents speaker crackling
+    gain.gain.setValueAtTime(0.15,sonicEmitCtx.currentTime); // 15% — low volume for close-range only (~25cm)
     sonicOsc.connect(gain);
     gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
@@ -4281,10 +4287,10 @@ async function initSonic(label,status,circle){
       if(_dbgF2%30===0&&status){
         if(peakVal>=SONIC_DETECT_THRESHOLD){
           status.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
-        }else if(peakVal>10){
-          status.textContent='Sinal fraco... aproxime mais';
+        }else if(peakVal>30){
+          status.textContent='Sinal fraco... encoste mais perto';
         }else{
-          status.textContent='Aproxime os alto-falantes';
+          status.textContent='Encoste os celulares bem pertinho';
         }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
@@ -4349,6 +4355,25 @@ function stopSonicMode(){
   if(socket&&socket.connected){
     const _evId=localStorage.getItem('activeEventRole')==='operator'?localStorage.getItem('activeEventId'):null;
     socket.emit('sonic-stop',{userId:state.userId,eventId:_evId});
+  }
+}
+
+// ═══ SONIC RECONNECT — after screen lock/unlock ═══
+function showSonicReconnect(){
+  const ov=$('sonicReconnectOverlay');
+  if(ov)ov.classList.add('active');
+  console.log('[sonic-reconnect] Showing reconnect overlay');
+}
+function dismissSonicReconnect(restart){
+  const ov=$('sonicReconnectOverlay');
+  if(ov)ov.classList.remove('active');
+  _sonicWasActive=false;
+  if(restart){
+    console.log('[sonic-reconnect] User tapped reconnect — restarting sonic with user gesture');
+    // This is called from a click handler = valid user gesture = AudioContext will unlock
+    handleMainButton();
+  }else{
+    console.log('[sonic-reconnect] User cancelled reconnect');
   }
 }
 
@@ -10092,16 +10117,17 @@ document.addEventListener('visibilitychange',()=>{
         socket.emit('identify',state.userId);
       }
     }
-    // Auto-restart sonic if it was active before going to background
+    // Show reconnect overlay if sonic was active before going to background
+    // NOTE: AudioContext requires a user gesture to unlock on mobile — we cannot
+    // call handleMainButton() programmatically here. Instead show a tap-to-reconnect overlay.
     if(_sonicWasActive&&state.userId){
-      _sonicWasActive=false;
-      console.log('[visibility] Sonic was active, auto-restarting...');
-      // Small delay to let socket reconnect and audio subsystem wake up
+      console.log('[visibility] Sonic was active, showing reconnect overlay...');
+      // Small delay to let socket reconnect first
       setTimeout(()=>{
-        if(!homeSonicActive&&!sonicActive){
-          handleMainButton();
+        if(!homeSonicActive&&!sonicActive&&_sonicWasActive){
+          showSonicReconnect();
         }
-      },600);
+      },400);
     }
   }
 });
@@ -10115,10 +10141,9 @@ window.addEventListener('pageshow',(e)=>{
     console.log('[pageshow] bfcache restore, reconnecting...');
     if(!socket.connected)socket.connect();
     else socket.emit('identify',state.userId);
-    // If sonic was active, restart
+    // If sonic was active, show reconnect overlay (needs user gesture for AudioContext)
     if(_sonicWasActive){
-      _sonicWasActive=false;
-      setTimeout(()=>{if(!homeSonicActive)handleMainButton()},800);
+      setTimeout(()=>{if(!homeSonicActive&&!sonicActive)showSonicReconnect()},600);
     }
   }
 });
@@ -10131,10 +10156,9 @@ window.addEventListener('focus',()=>{
     if(sonicEmitCtx&&sonicEmitCtx.state==='suspended')sonicEmitCtx.resume().catch(()=>{});
     if(sonicMicCtx&&sonicMicCtx.state==='suspended')sonicMicCtx.resume().catch(()=>{});
   }
-  // If sonic died (contexts closed/interrupted) but flag says it should be on, restart
-  if(_sonicWasActive&&!homeSonicActive){
-    _sonicWasActive=false;
-    setTimeout(()=>{if(!homeSonicActive)handleMainButton()},500);
+  // If sonic died — show reconnect overlay (needs user gesture for AudioContext)
+  if(_sonicWasActive&&!homeSonicActive&&!sonicActive){
+    setTimeout(()=>{if(!homeSonicActive&&!sonicActive&&_sonicWasActive)showSonicReconnect()},400);
   }
 });
 // Block keyboard screenshot shortcuts (partial - won't work on all platforms)
@@ -10885,5 +10909,11 @@ if(typeof socket!=='undefined'&&socket){
 
 <!-- Game Iframe Container -->
 <div class="game-iframe-container" id="gameIframeContainer"></div>
+<!-- Sonic Reconnect Overlay — user gesture needed to restart AudioContext after screen lock -->
+<div class="sonic-reconnect-overlay" id="sonicReconnectOverlay">
+<button class="sonic-reconnect-btn" id="sonicReconnectBtn" onclick="dismissSonicReconnect(true)"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>Reconectar</button>
+<div class="sonic-reconnect-label">Toque para reativar o som</div>
+<button style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.7rem;margin-top:.5rem;cursor:pointer" onclick="dismissSonicReconnect(false)">Cancelar</button>
+</div>
 </body>
 </html>
