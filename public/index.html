@@ -130,7 +130,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .home-avatar{width:40px;height:40px;border-radius:50%;background:var(--s2);border:2px solid var(--ac);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff;overflow:hidden;flex-shrink:0;box-shadow:0 0 12px rgba(255,107,53,.15);transition:transform .2s}
 .home-user:active .home-avatar{transform:scale(.9)}
 .home-user-info{display:flex;flex-direction:column;gap:.15rem}
-.home-accessory-preview{width:32px;height:32px;border-radius:50%;overflow:visible;flex-shrink:0;opacity:.85;margin-left:.15rem;position:relative}
 .hg{font-size:.75rem;color:var(--t2);font-weight:400;letter-spacing:.01em;line-height:1.2}
 .hg .hg-nick{font-size:1.15rem;color:#fff;font-weight:900;letter-spacing:-.02em;display:block;margin-top:.1rem}
 .home-realname{font-size:.65rem;color:var(--t3);font-weight:400;letter-spacing:.02em;line-height:1}
@@ -1481,7 +1480,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
           <div class="home-stars-mini hidden" id="homeStarsMini"></div>
         </div>
       </div>
-      <div class="home-accessory-preview hidden" id="homeAccessoryPreview"></div>
     </div>
     <div class="home-icons">
       <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()" style="position:relative">&#x2726;<span class="network-badge hidden" id="networkBadge" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:#3b82f6;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span></div>
@@ -2359,7 +2357,6 @@ async function linkFirebaseToEncosta(user){
         _ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory);
         _ha.style.background='none';_ha.style.overflow='visible';
       }
-      _updateHomeAccessoryPreview();
       refreshHome();
       // Start polling for email verification if not yet verified
       if(!state.emailVerified)startEmailVerificationPoll();
@@ -3846,15 +3843,6 @@ function makeAvatar(nick,color,size,photo,verified,accessoryKey){
   if(verified) return '<div class="verified-wrap">'+inner+verifiedBadge(sizeClass)+'</div>';
   return inner;
 }
-function _updateHomeAccessoryPreview(){
-  const el=$('homeAccessoryPreview');if(!el)return;
-  if(state.userAccessory&&AVATAR_ACCESSORIES[state.userAccessory]){
-    el.innerHTML=makeAvatar(state.userName||'??',state.userColor||nickColor(state.userName||'??'),32,null,false,state.userAccessory);
-    el.classList.remove('hidden');
-  }else{
-    el.classList.add('hidden');el.innerHTML='';
-  }
-}
 async function doRegister(){
   const nick=$('regNick').value.trim(),birth=$('regBirth').value,terms=$('regTerms').checked,termsUso=$('regTermsUso').checked;
   if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');if(!terms)return showToast('Aceite os termos.');if(!termsUso)return showToast('Aceite os Termos de Uso.');
@@ -3886,7 +3874,6 @@ async function doRegister(){
         _ha.innerHTML=makeAvatar(nick,d.user.color||nickColor(nick),40,state.userPhoto||null,false,state.userAccessory);
         _ha.style.background='none';_ha.style.overflow='visible';
       }
-      _updateHomeAccessoryPreview();
       haptic([80]);
     }
   }catch(e){showToast('Erro ao registrar.')}
@@ -7584,7 +7571,6 @@ async function saveCompleteProfile(){
     state.userAccessory=state._selectedAccessory||null;
     // Update home avatar with new accessory
     const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory);_ha.style.background='none';_ha.style.overflow='visible'}
-    _updateHomeAccessoryPreview();
     showToast('Salvo!');haptic([40,20,40]);
     goHome();
   }catch(e){showToast('Erro ao salvar.')}
@@ -8244,7 +8230,10 @@ function showMyProfileSheet(){
     +(state.userStarsCount>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#fbbf24">'+state.userStarsCount+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">estrelas</div></div>':'')
     +(state.userGiftsReceived>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#f472b6">'+state.userGiftsReceived+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">presentes</div></div>':'')
     +'</div>'
-    +'</div></div>'
+    +'</div>'
+    // Accessory avatar preview (anonymous identity)
+    +(state.userAccessory&&AVATAR_ACCESSORIES[state.userAccessory]?'<div style="display:flex;flex-direction:column;align-items:center;gap:.2rem;flex-shrink:0">'+makeAvatar(state.userName||'??',color,44,null,false,state.userAccessory)+'<div style="font-size:.38rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600">anonimo</div></div>':'')
+    +'</div>'
     // Menu buttons — clean
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>ID</button>'
@@ -10344,7 +10333,7 @@ window.addEventListener('load',()=>{
         initSocket();requestAccelPermission();
         // Set home avatar
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
-        _updateHomeAccessoryPreview();
+
         if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
         else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
         refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
@@ -10354,7 +10343,7 @@ window.addEventListener('load',()=>{
         console.log('[load] validateUser failed but userId preserved, showing home with cached data');
         initSocket();requestAccelPermission();
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
-        _updateHomeAccessoryPreview();
+
         showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName||'')+'</span>';
         showToast('Reconectando ao servidor...');
         refreshHome();restoreFloatingEvent();
