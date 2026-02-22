@@ -1998,7 +1998,8 @@ app.get('/api/relations/:userId', (req, res) => {
       lastMessageTime,
       lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').slice(0, 40)) : null,
       lastMessageUserId: lastMsg ? lastMsg.userId : null,
-      partnerVerified: isEvent ? !!(evObj && evObj.verified) : !!(p && p.verified)
+      partnerVerified: isEvent ? !!(evObj && evObj.verified) : !!(p && p.verified),
+      partnerAccessory: isEvent ? null : (p?.avatarAccessory || null)
     };
   });
   // Sort by last message time descending (most recent first)
@@ -2289,6 +2290,7 @@ app.get('/api/notifications/:userId', (req, res) => {
       realName: iCanSee ? (liker.realName || null) : null,
       profilePhoto: iCanSee ? (liker.profilePhoto || liker.photoURL || null) : null,
       color: liker.color,
+      avatarAccessory: liker.avatarAccessory || null,
       timestamp: ts,
       seen: ts <= seenAt
     });
@@ -2301,10 +2303,11 @@ app.get('/api/notifications/:userId', (req, res) => {
     notifs.push({
       type: 'star',
       fromId: star.from,
-      nickname: giver ? (giver.nickname || giver.name) : 'Alguém',
+      nickname: giver ? (giver.nickname || giver.name) : 'Alguem',
       realName: null,
       profilePhoto: null,
       color: giver ? giver.color : '#fbbf24',
+      avatarAccessory: giver ? (giver.avatarAccessory || null) : null,
       timestamp: ts,
       seen: ts <= seenAt
     });
@@ -2321,6 +2324,7 @@ app.get('/api/notifications/:userId', (req, res) => {
         fromId: rr.fromUserId,
         nickname: from.nickname || from.name,
         color: from.color,
+        avatarAccessory: from.avatarAccessory || null,
         requestId: rr.id,
         timestamp: ts,
         seen: ts <= seenAt
@@ -2343,6 +2347,7 @@ app.get('/api/notifications/:userId', (req, res) => {
         fromId: fid,
         nickname: friend.nickname || friend.name,
         color: friend.color,
+        avatarAccessory: friend.avatarAccessory || null,
         topTag: friend.topTag || null,
         timestamp: ts,
         seen: ts <= seenAt
@@ -2362,6 +2367,7 @@ app.get('/api/notifications/:userId', (req, res) => {
       realName: data.realName || null,
       profilePhoto: data.profilePhoto || null,
       color: p.color,
+      avatarAccessory: p.avatarAccessory || null,
       timestamp: ts,
       seen: ts <= seenAt
     });
@@ -2383,6 +2389,7 @@ app.get('/api/notifications/:userId', (req, res) => {
       fromId: d.toUserId,
       nickname: recip.nickname || recip.name,
       color: recip.color,
+      avatarAccessory: recip.avatarAccessory || null,
       timestamp: ts,
       seen: ts <= seenAt
     });
@@ -2799,7 +2806,7 @@ app.post('/api/profile/update', async (req, res) => {
   }
   if (avatarAccessory !== undefined) {
     // Validate: must be null/empty (remove) or a valid accessory key
-    if (avatarAccessory && !['crown','cat_ears','halo','glasses','flame_aura','diamond_crown','lightning','mask','galaxy_ring','wings'].includes(avatarAccessory)) {
+    if (avatarAccessory && !['halo','cat_ears','glasses','paper_crown','headphones','crown','diamond_crown','flame_aura','lightning','mask','galaxy_ring','wings'].includes(avatarAccessory)) {
       return res.status(400).json({ error: 'Acessório inválido.' });
     }
     user.avatarAccessory = avatarAccessory || null;
@@ -3069,7 +3076,7 @@ app.get('/api/star/search-people/:userId', (req, res) => {
     if (!u.nickname && !u.name) continue;
     const nick = (u.nickname || u.name || '').toLowerCase();
     if (nick.includes(q)) {
-      results.push({ id: uid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, stars: (u.stars || []).length, verified: !!u.verified });
+      results.push({ id: uid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, stars: (u.stars || []).length, verified: !!u.verified, avatarAccessory: u.avatarAccessory || null });
     }
     if (results.length >= 20) break;
   }
