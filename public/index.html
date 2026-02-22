@@ -1148,43 +1148,52 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
 
-/* ═══ VOICE AGENT ═══ */
-@keyframes va-glow{0%,100%{box-shadow:0 4px 24px rgba(139,92,246,.45)}50%{box-shadow:0 4px 36px rgba(139,92,246,.7),0 0 60px rgba(139,92,246,.15)}}
-.va-overlay{position:fixed;inset:0;z-index:300;background:radial-gradient(ellipse at 50% 30%,rgba(30,15,60,.98),rgba(4,4,10,.99));backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:all .4s cubic-bezier(.22,1,.36,1)}
+/* ═══ VOICE AGENT — Modern Gemini-style ═══ */
+.va-overlay{position:fixed;inset:0;z-index:300;background:#0a0a0f;display:none;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:all .4s cubic-bezier(.22,1,.36,1);overflow:hidden}
 .va-overlay.active{display:flex;opacity:1}
-.va-overlay.mini{inset:auto 12px 80px auto;width:64px;height:64px;border-radius:50%;background:rgba(100,60,200,.9);backdrop-filter:blur(10px);justify-content:center;align-items:center;box-shadow:0 4px 20px rgba(100,60,200,.4),0 0 40px rgba(167,139,250,.2);border:2px solid rgba(167,139,250,.5);cursor:pointer}
-.va-overlay.mini .va-header,.va-overlay.mini .va-transcript,.va-overlay.mini #vaMainBtn,.va-overlay.mini #vaStopBtn,.va-overlay.mini .va-text-input,.va-overlay.mini #vaStatus{display:none!important}
+.va-overlay.mini{inset:auto 12px 80px auto;width:64px;height:64px;border-radius:50%;background:rgba(100,60,200,.9);backdrop-filter:blur(10px);justify-content:center;align-items:center;box-shadow:0 4px 20px rgba(100,60,200,.4),0 0 40px rgba(167,139,250,.2);border:2px solid rgba(167,139,250,.5);cursor:pointer;overflow:visible}
+.va-overlay.mini .va-header,.va-overlay.mini .va-transcript,.va-overlay.mini #vaMainBtn,.va-overlay.mini #vaStopBtn,.va-overlay.mini .va-text-input,.va-overlay.mini #vaStatus,.va-overlay.mini .va-text-row,.va-overlay.mini .va-center,.va-overlay.mini .va-canvas-bg{display:none!important}
 .va-overlay.mini .va-orb-container{transform:scale(.45)}
+/* Canvas background for animated rays */
+.va-canvas-bg{position:absolute;inset:0;z-index:0}
 .va-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;z-index:2}
 .va-title{font-size:.85rem;font-weight:600;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;letter-spacing:.04em}
 .va-title span{color:#a78bfa}
 .va-close{background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;padding:10px;border-radius:50%;transition:all .2s}
 .va-close:hover{color:#fff;background:rgba(255,255,255,.08)}
 .va-close svg{width:22px;height:22px}
-.va-center{display:flex;flex-direction:column;align-items:center;gap:24px}
-.va-orb{width:140px;height:140px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(167,139,250,.35),rgba(109,40,217,.2),transparent 70%);border:1.5px solid rgba(139,92,246,.15);display:flex;align-items:center;justify-content:center;position:relative;transition:all .5s ease}
-.va-orb::before{content:'';position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(139,92,246,.08);animation:va-ring 4s linear infinite}
-.va-orb::after{content:'';position:absolute;inset:-20px;border-radius:50%;border:1px solid rgba(139,92,246,.04);animation:va-ring 6s linear infinite reverse}
-@keyframes va-ring{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-.va-orb.listening{background:radial-gradient(circle at 40% 35%,rgba(167,139,250,.5),rgba(109,40,217,.35),transparent 70%);border-color:rgba(139,92,246,.4);box-shadow:0 0 60px rgba(139,92,246,.25);animation:va-orb-pulse 1.5s ease infinite}
-.va-orb.speaking{background:radial-gradient(circle at 40% 35%,rgba(52,211,153,.35),rgba(16,185,129,.2),transparent 70%);border-color:rgba(52,211,153,.3);box-shadow:0 0 60px rgba(52,211,153,.2);animation:va-orb-pulse 1s ease infinite}
-.va-orb.connecting{opacity:.5;animation:va-orb-pulse 2s ease infinite}
-@keyframes va-orb-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-.va-orb svg{width:36px;height:36px;color:rgba(255,255,255,.7)}
-.va-status-text{font-size:.82rem;color:rgba(255,255,255,.4);font-weight:500;min-height:20px;text-align:center}
-.va-transcript{font-size:.88rem;color:rgba(255,255,255,.7);text-align:center;max-width:300px;line-height:1.5;min-height:40px;max-height:120px;overflow-y:auto}
-.va-actions{display:flex;gap:16px;margin-top:12px}
-.va-btn{padding:10px 24px;border-radius:20px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-size:.8rem;font-weight:500;cursor:pointer;transition:all .2s;font-family:inherit}
-.va-btn:hover{background:rgba(255,255,255,.1);color:#fff}
-.va-btn.primary{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.3);color:#a78bfa}
-.va-btn.primary:hover{background:rgba(139,92,246,.35)}
-.va-btn.danger{color:#f87171;border-color:rgba(248,113,113,.2)}
+.va-center{display:flex;flex-direction:column;align-items:center;gap:28px;z-index:1;position:relative}
+/* Orb — glowing circle with pulsing rings */
+.va-orb-wrapper{position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center}
+.va-orb-ring{position:absolute;border-radius:50%;border:1px solid rgba(139,92,246,.1);animation:va-ring-spin 6s linear infinite}
+.va-orb-ring:nth-child(1){inset:-12px;border-color:rgba(139,92,246,.08);animation-duration:8s}
+.va-orb-ring:nth-child(2){inset:-28px;border-color:rgba(80,200,240,.06);animation-duration:12s;animation-direction:reverse}
+.va-orb-ring:nth-child(3){inset:-44px;border-color:rgba(236,72,153,.05);animation-duration:16s}
+@keyframes va-ring-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.va-orb{width:140px;height:140px;border-radius:50%;background:radial-gradient(circle at 45% 40%,rgba(139,92,246,.25),rgba(30,15,60,.6) 60%,rgba(10,10,15,.8));border:1.5px solid rgba(139,92,246,.15);display:flex;align-items:center;justify-content:center;position:relative;transition:all .6s cubic-bezier(.22,1,.36,1);cursor:pointer;box-shadow:0 0 40px rgba(139,92,246,.08),inset 0 0 40px rgba(139,92,246,.05)}
+.va-orb.idle{background:radial-gradient(circle at 45% 40%,rgba(139,92,246,.2),rgba(30,15,60,.5) 60%,rgba(10,10,15,.7));border-color:rgba(139,92,246,.12)}
+.va-orb.listening{background:radial-gradient(circle at 45% 40%,rgba(139,92,246,.45),rgba(109,40,217,.3) 50%,rgba(30,15,60,.6));border-color:rgba(139,92,246,.5);box-shadow:0 0 80px rgba(139,92,246,.3),0 0 160px rgba(139,92,246,.1),inset 0 0 40px rgba(139,92,246,.1);animation:va-breathe 2s ease-in-out infinite}
+.va-orb.speaking{background:radial-gradient(circle at 45% 40%,rgba(80,200,240,.4),rgba(139,92,246,.3) 50%,rgba(30,15,60,.6));border-color:rgba(80,200,240,.4);box-shadow:0 0 80px rgba(80,200,240,.25),0 0 160px rgba(139,92,246,.08),inset 0 0 40px rgba(80,200,240,.08);animation:va-breathe 1.2s ease-in-out infinite}
+.va-orb.connecting{opacity:.5;animation:va-breathe 2.5s ease-in-out infinite}
+@keyframes va-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.va-orb svg{width:40px;height:40px;color:rgba(255,255,255,.6);transition:all .3s}
+.va-orb.listening svg,.va-orb.speaking svg{color:rgba(255,255,255,.9)}
+.va-status-text{font-size:.82rem;color:rgba(255,255,255,.35);font-weight:500;min-height:20px;text-align:center;letter-spacing:.03em}
+.va-transcript{font-size:.9rem;color:rgba(255,255,255,.65);text-align:center;max-width:320px;line-height:1.6;min-height:40px;max-height:120px;overflow-y:auto;font-weight:400}
+.va-actions{display:flex;gap:16px;margin-top:8px}
+.va-btn{padding:14px 32px;border-radius:28px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .25s;font-family:inherit;letter-spacing:.02em}
+.va-btn:hover{background:rgba(255,255,255,.08);color:#fff}
+.va-btn.primary{background:linear-gradient(135deg,rgba(139,92,246,.25),rgba(80,200,240,.15));border-color:rgba(139,92,246,.25);color:#c4b5fd}
+.va-btn.primary:hover{background:linear-gradient(135deg,rgba(139,92,246,.4),rgba(80,200,240,.25));color:#fff}
+.va-btn.danger{color:#f87171;border-color:rgba(248,113,113,.15)}
 .va-btn.danger:hover{background:rgba(248,113,113,.1)}
-.va-text-row{position:absolute;bottom:0;left:0;right:0;padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;gap:8px;align-items:center;background:linear-gradient(transparent,rgba(4,4,10,.8))}
-.va-text-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:10px 16px;color:#e4e4e7;font-size:.85rem;font-family:inherit;outline:none;transition:border-color .2s}
-.va-text-input:focus{border-color:rgba(139,92,246,.4)}
-.va-text-input::placeholder{color:rgba(255,255,255,.2)}
-.va-send-btn{width:40px;height:40px;border-radius:50%;border:none;background:rgba(139,92,246,.2);color:#a78bfa;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+#vaStopBtn{display:none;margin-top:20px;width:80%;max-width:280px;padding:16px 32px;border-radius:28px;border:1.5px solid rgba(248,113,113,.2);background:rgba(248,113,113,.08);color:#f87171;font-size:1rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.03em;transition:all .25s;min-height:52px;z-index:1}
+#vaStopBtn:hover{background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.35)}
+.va-text-row{position:absolute;bottom:0;left:0;right:0;padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;gap:8px;align-items:center;background:linear-gradient(transparent,rgba(10,10,15,.95));z-index:2}
+.va-text-input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:24px;padding:12px 18px;color:#e4e4e7;font-size:.85rem;font-family:inherit;outline:none;transition:border-color .2s}
+.va-text-input:focus{border-color:rgba(139,92,246,.35)}
+.va-text-input::placeholder{color:rgba(255,255,255,.18)}
+.va-send-btn{width:42px;height:42px;border-radius:50%;border:none;background:rgba(139,92,246,.15);color:#a78bfa;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
 .va-send-btn:hover{background:#8b5cf6;color:#fff}
 .va-send-btn svg{width:18px;height:18px}
 </style>
@@ -11045,22 +11054,28 @@ if(typeof socket!=='undefined'&&socket){
 <button style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.7rem;margin-top:.5rem;cursor:pointer" onclick="dismissSonicReconnect(false)">Cancelar</button>
 </div>
 
-<!-- ═══ VOICE AGENT ═══ -->
+<!-- ═══ VOICE AGENT — Modern UI ═══ -->
 <div class="va-overlay" id="vaOverlay">
+  <canvas class="va-canvas-bg" id="vaCanvas"></canvas>
   <div class="va-header">
-    <div class="va-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg> <span>Touch</span> Agent</div>
+    <div class="va-title"><span>Touch</span> AI</div>
     <button class="va-close" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="va-center">
-    <div class="va-orb" id="vaOrb" onclick="VA.toggleVoice()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    <div class="va-orb-wrapper">
+      <div class="va-orb-ring"></div>
+      <div class="va-orb-ring"></div>
+      <div class="va-orb-ring"></div>
+      <div class="va-orb" id="vaOrb" onclick="VA.toggleVoice()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      </div>
     </div>
     <div class="va-status-text" id="vaStatus">Toque para conversar</div>
     <div class="va-transcript" id="vaTranscript"></div>
     <div class="va-actions">
       <button class="va-btn primary" id="vaMainBtn" onclick="VA.toggleVoice()">Iniciar conversa</button>
     </div>
-    <button id="vaStopBtn" onclick="VA.close()" style="display:none;margin-top:24px;width:80%;max-width:280px;padding:18px 32px;border-radius:28px;border:2px solid rgba(248,113,113,.3);background:rgba(248,113,113,.12);color:#f87171;font-size:1.05rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.03em;transition:all .2s;min-height:56px">Encerrar conversa</button>
+    <button id="vaStopBtn" onclick="VA.close()">Encerrar conversa</button>
   </div>
   <div class="va-text-row">
     <input type="text" class="va-text-input" id="vaTextInput" placeholder="Ou digite aqui..." autocomplete="off" onkeydown="if(event.key==='Enter')VA.sendText()">
@@ -11371,6 +11386,145 @@ const VA = (function(){
     },
     stop: cleanup
   };
+})();
+
+// ═══ VA Canvas — Animated rays background (Gemini-style) ═══
+(function(){
+  const canvas = document.getElementById('vaCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let raf = null, running = false;
+
+  // Ray config
+  const NUM_RAYS = 18;
+  const rays = [];
+  for(let i=0;i<NUM_RAYS;i++){
+    rays.push({
+      angle: (Math.PI*2/NUM_RAYS)*i,
+      speed: .003 + Math.random()*.004,
+      length: .3 + Math.random()*.5,
+      width: 1 + Math.random()*2.5,
+      hue: [260,200,320,180,280,340][i%6], // purple, cyan, pink, teal, violet, magenta
+      opacity: .08 + Math.random()*.12,
+      phase: Math.random()*Math.PI*2
+    });
+  }
+
+  // Particles
+  const NUM_PARTICLES = 40;
+  const particles = [];
+  for(let i=0;i<NUM_PARTICLES;i++){
+    particles.push({
+      angle: Math.random()*Math.PI*2,
+      dist: .1 + Math.random()*.6,
+      speed: .001 + Math.random()*.003,
+      size: .5 + Math.random()*1.5,
+      hue: [260,200,320][i%3],
+      opacity: .15 + Math.random()*.25
+    });
+  }
+
+  let t = 0;
+  let intensity = 0; // 0=idle, 1=listening/speaking
+  let targetIntensity = 0;
+
+  function resize(){
+    const r = window.devicePixelRatio||1;
+    canvas.width = canvas.clientWidth*r;
+    canvas.height = canvas.clientHeight*r;
+    ctx.setTransform(r,0,0,r,0,0);
+  }
+
+  function draw(){
+    if(!running){raf=null;return;}
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w/2, cy = h*0.44; // center slightly above middle (where orb is)
+    ctx.clearRect(0,0,w,h);
+    t += 1;
+
+    // Ease intensity
+    intensity += (targetIntensity - intensity) * .05;
+    const baseI = .3 + intensity * .7; // minimum glow even when idle
+
+    // Center glow
+    const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.min(w,h)*.6);
+    grd.addColorStop(0,`rgba(139,92,246,${.06*baseI})`);
+    grd.addColorStop(.3,`rgba(80,200,240,${.03*baseI})`);
+    grd.addColorStop(.6,`rgba(236,72,153,${.015*baseI})`);
+    grd.addColorStop(1,'transparent');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,w,h);
+
+    // Draw rays
+    const maxLen = Math.min(w,h)*.7;
+    for(const ray of rays){
+      ray.phase += ray.speed * (1 + intensity*2);
+      const wobble = Math.sin(ray.phase)*0.15;
+      const a = ray.angle + wobble;
+      const len = maxLen * ray.length * baseI * (.7 + Math.sin(ray.phase*.7)*.3);
+      const x1 = cx, y1 = cy;
+      const x2 = cx + Math.cos(a)*len;
+      const y2 = cy + Math.sin(a)*len;
+
+      const grad = ctx.createLinearGradient(x1,y1,x2,y2);
+      const op = ray.opacity * baseI;
+      grad.addColorStop(0,`hsla(${ray.hue},80%,65%,${op})`);
+      grad.addColorStop(.5,`hsla(${ray.hue},70%,55%,${op*.5})`);
+      grad.addColorStop(1,`hsla(${ray.hue},60%,50%,0)`);
+
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = ray.width * (.8 + intensity*.6);
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    // Draw particles
+    for(const p of particles){
+      p.angle += p.speed * (1 + intensity*1.5);
+      const d = maxLen * p.dist * baseI;
+      const px = cx + Math.cos(p.angle)*d;
+      const py = cy + Math.sin(p.angle)*d;
+      const op = p.opacity * baseI * (.5 + Math.sin(t*.03 + p.angle)*.5);
+      ctx.beginPath();
+      ctx.arc(px,py,p.size,0,Math.PI*2);
+      ctx.fillStyle = `hsla(${p.hue},70%,70%,${op})`;
+      ctx.fill();
+    }
+
+    raf = requestAnimationFrame(draw);
+  }
+
+  // Observe VA overlay visibility to start/stop
+  const observer = new MutationObserver(()=>{
+    const overlay = document.getElementById('vaOverlay');
+    if(!overlay) return;
+    const vis = overlay.classList.contains('active') && !overlay.classList.contains('mini');
+    if(vis && !running){
+      running = true;
+      resize();
+      draw();
+    } else if(!vis && running){
+      running = false;
+    }
+  });
+  const ov = document.getElementById('vaOverlay');
+  if(ov) observer.observe(ov,{attributes:true,attributeFilter:['class']});
+  window.addEventListener('resize',()=>{if(running)resize()});
+
+  // Observe orb state for intensity
+  const orbObs = new MutationObserver(()=>{
+    const orb = document.getElementById('vaOrb');
+    if(!orb) return;
+    if(orb.classList.contains('listening')) targetIntensity = .8;
+    else if(orb.classList.contains('speaking')) targetIntensity = 1;
+    else if(orb.classList.contains('connecting')) targetIntensity = .4;
+    else targetIntensity = 0;
+  });
+  const orbEl = document.getElementById('vaOrb');
+  if(orbEl) orbObs.observe(orbEl,{attributes:true,attributeFilter:['class']});
 })();
 
 </script>
