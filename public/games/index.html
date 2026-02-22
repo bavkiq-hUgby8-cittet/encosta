@@ -1197,6 +1197,14 @@
                 STATE.lobbyPlayers = data.users || [];
                 updateOnlineBadge();
                 renderLobbyPlayers();
+                // Update selected opponent bar if nickname was missing
+                if (STATE.selectedOpponent && STATE._selectedNickMissing) {
+                    const found = STATE.lobbyPlayers.find(p => p.userId === STATE.selectedOpponent);
+                    if (found && found.nickname && found.nickname !== '?') {
+                        STATE._selectedNickMissing = false;
+                        selectOpponent(found);
+                    }
+                }
             });
 
             STATE.socket.on('game-invite', (data) => {
@@ -1204,11 +1212,15 @@
             });
 
             STATE.socket.on('game-start', (data) => {
-                startGameWithOpponent(data);
+                // Parent (index.html) handles opening the game frame
+                // Lobby just closes waiting overlay - parent will reload iframe
+                closeWaitingOverlay();
+                window.parent.postMessage({ type: 'tg-game-start', data: data }, '*');
             });
 
             STATE.socket.on('game-ready-check', (data) => {
-                // If we're in the lobby iframe and get ready-check, notify parent
+                closeWaitingOverlay();
+                // Notify parent to show ready modal
                 window.parent.postMessage({ type: 'tg-ready-check', data: data }, '*');
             });
 
@@ -1455,75 +1467,74 @@
             haptic('medium');
             const params = getUrlParams();
 
+            // Multiplayer with opponent selected
             if (STATE.partnerId && isMultiplayer) {
                 try {
-                    const sessionResponse = await fetch('/api/games/sessions', {
+                    // 1. Create game session
+                    const sessionRes = await fetch('/api/games/sessions', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            gameId,
-                            gameFile: file,
-                            gameName: gameName,
-                            userId: params.userId,
-                            opponentId: STATE.partnerId,
-                            isMultiplayer: true
-                        })
+                        body: JSON.stringify({ gameId, gameFile: file, gameName, userId: params.userId, opponentId: STATE.partnerId, isMultiplayer: true })
                     });
-                    const data = await sessionResponse.json();
-                    const session = data.session || data;
+                    const sData = await sessionRes.json();
+                    const session = sData.session || sData;
                     STATE.currentSession = session;
-
                     showWaitingOverlay(gameName);
 
-                    // Send invite via HTTP API (reliable, saves to chat)
-                    try {
-                        const inviteRes = await fetch('/api/games/invite-message', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                fromUserId: params.userId,
-                                toUserId: STATE.partnerId,
-                                gameId,
-                                gameName,
-                                sessionId: session.id,
-                                relationId: STATE.relationId || params.relationId || ''
-                            })
-                        });
-                        const inviteData = await inviteRes.json();
-                        if (inviteData.code === 'OFFLINE') {
-                            showToast('Jogador esta offline');
-                            closeWaitingOverlay();
-                            return;
-                        }
-                        if (!inviteData.ok && inviteData.code === 'NO_RELATION') {
-                            showToast('Sem chat ativo com esse jogador');
-                            closeWaitingOverlay();
-                            return;
-                        }
-                    } catch (invErr) {
-                        console.error('Invite message failed:', invErr);
+                    // 2. Ensure we have a relationId (create temp chat if needed)
+                    let relId = STATE.relationId || params.relationId || '';
+                    if (!relId) {
+                        try {
+                            const findRes = await fetch('/api/games/find-relation?userA=' + encodeURIComponent(params.userId) + '&userB=' + encodeURIComponent(STATE.partnerId));
+                            const findData = await findRes.json();
+                            relId = findData.relationId || '';
+                        } catch(e) {}
                     }
-                } catch (e) {
-                    showToast('Erro ao iniciar jogo');
-                }
-            } else {
-                try {
-                    const sessionResponse = await fetch('/api/games/sessions', {
+                    if (!relId) {
+                        // No active relation - create temporary game chat
+                        try {
+                            const tempRes = await fetch('/api/games/temp-chat', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ hostUserId: params.userId, opponentUserId: STATE.partnerId, gameId, gameName })
+                            });
+                            const tempData = await tempRes.json();
+                            if (tempData.ok) relId = tempData.relationId;
+                        } catch(e) {}
+                    }
+                    STATE.relationId = relId;
+
+                    // 3. Send invite via HTTP API (reliable, saves to chat)
+                    const inviteRes = await fetch('/api/games/invite-message', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            gameId,
-                            gameFile: file,
-                            gameName: gameName,
-                            userId: params.userId,
-                            opponentId: null,
-                            isMultiplayer: false
-                        })
+                        body: JSON.stringify({ fromUserId: params.userId, toUserId: STATE.partnerId, gameId, gameName, sessionId: session.id, relationId: relId })
                     });
-                    const data = await sessionResponse.json();
-                    const session = data.session || data;
+                    const inviteData = await inviteRes.json();
+                    if (inviteData.code === 'OFFLINE') { showToast('Jogador offline'); closeWaitingOverlay(); return; }
+                    if (!inviteData.ok && inviteData.code === 'NO_RELATION') { showToast('Erro de conexao'); closeWaitingOverlay(); return; }
+                    console.log('[launchGame] invite sent ok:', inviteData);
+                } catch (e) {
+                    console.error('[launchGame] error:', e);
+                    showToast('Erro ao iniciar jogo');
+                    closeWaitingOverlay();
+                }
+            }
+            // Multiplayer but no opponent - prompt selection
+            else if (isMultiplayer && !STATE.partnerId) {
+                showToast('Selecione um jogador primeiro');
+            }
+            // Single player
+            else {
+                try {
+                    const sessionRes = await fetch('/api/games/sessions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ gameId, gameFile: file, gameName, userId: params.userId, opponentId: null, isMultiplayer: false })
+                    });
+                    const sData = await sessionRes.json();
+                    const session = sData.session || sData;
                     STATE.currentSession = session;
-
                     openGameFrame(file, session.id, gameId, gameName);
                 } catch (e) {
                     showToast('Erro ao iniciar jogo');
@@ -1832,7 +1843,7 @@
             if (acceptSession && acceptGame) {
                 // Coming from parent app after game-start: open game directly
                 setTimeout(() => {
-                    const gInfo = (STATE.manifest || []).find(g => g.id === acceptGame) || { name: acceptGame };
+                    const gInfo = GAMES.find(g => g.id === acceptGame) || { name: acceptGame };
                     const file = gameFileParam || gInfo.file || acceptGame + '.html';
                     STATE.currentSession = { id: acceptSession, gameId: acceptGame, opponentId: params.partnerId };
                     openGameFrame(file, acceptSession, acceptGame, gInfo.name || acceptGame);
@@ -1876,7 +1887,21 @@
 
             // If came from chat with a partnerId, pre-select as opponent
             if (STATE.partnerId) {
-                selectOpponent({ userId: STATE.partnerId, nickname: STATE.partnerId.slice(0,8), color: '#58a6ff', photo: '' });
+                // Try to find player in lobby list first
+                const found = STATE.lobbyPlayers.find(p => p.userId === STATE.partnerId);
+                if (found) {
+                    selectOpponent(found);
+                } else {
+                    // Fetch user info from server
+                    try {
+                        const r = await fetch('/api/user/' + encodeURIComponent(STATE.partnerId));
+                        const u = await r.json();
+                        selectOpponent({ userId: STATE.partnerId, nickname: u.nickname || u.name || 'Jogador', color: u.color || '#58a6ff', photo: u.profilePhoto || u.photoURL || '' });
+                    } catch(e) {
+                        STATE._selectedNickMissing = true;
+                        selectOpponent({ userId: STATE.partnerId, nickname: 'Jogador', color: '#58a6ff', photo: '' });
+                    }
+                }
             }
         });
     </script>
