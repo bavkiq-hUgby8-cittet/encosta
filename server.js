@@ -439,6 +439,39 @@ function findActiveRelation(userA, userB) {
   return (r && r.expiresAt > Date.now()) ? r : null;
 }
 
+// Helper: check if userId is revealed to targetUser, optionally scoped to eventId
+// Returns the canSee entry if revealed, null otherwise
+function isRevealedTo(userId, targetUser, eventId) {
+  if (!targetUser || !targetUser.canSee) return null;
+  // 1. Check permanent (non-event) reveal
+  if (targetUser.canSee[userId] && !targetUser.canSee[userId].eventId) return targetUser.canSee[userId];
+  // 2. If eventId provided, check event-scoped reveal
+  if (eventId) {
+    const evKey = userId + ':evt:' + eventId;
+    if (targetUser.canSee[evKey]) return targetUser.canSee[evKey];
+  }
+  // 3. Also check old-style entries (userId key with eventId field) for backwards compat
+  if (targetUser.canSee[userId] && targetUser.canSee[userId].eventId) {
+    // Old entry scoped to an event — only return if matches current event
+    if (eventId && targetUser.canSee[userId].eventId === eventId) return targetUser.canSee[userId];
+    return null; // scoped to different event
+  }
+  return null;
+}
+
+// Helper: get all non-event-scoped canSee entries for a user
+function getPermanentReveals(targetUser) {
+  if (!targetUser || !targetUser.canSee) return {};
+  const result = {};
+  for (const key in targetUser.canSee) {
+    const entry = targetUser.canSee[key];
+    if (!entry.eventId && !key.includes(':evt:')) {
+      result[key] = entry;
+    }
+  }
+  return result;
+}
+
 // Helper: check nickname taken in O(1)
 function isNickTaken(nick) { return IDX.nickname.has(nick.toLowerCase()); }
 
@@ -1910,12 +1943,13 @@ app.post('/api/session/join', (req, res) => {
   // Emit to operator if this is a checkin (operator only gets dashboard notification)
   if (isSessionCheckin && sessionOperatorId) {
     const opUser = db.users[sessionOperatorId];
-    const visRevealed = !!(opUser && opUser.canSee && opUser.canSee[userId]);
+    const revealEntry = isRevealedTo(userId, opUser, sessionEventId);
+    const visRevealed = !!revealEntry;
     io.to(`user:${sessionOperatorId}`).emit('checkin-created', {
       userId, nickname: userB.nickname || userB.name, color: userB.color,
       profilePhoto: userB.profilePhoto || userB.photoURL || null,
       timestamp: now, relationId,
-      revealed: visRevealed, revealData: visRevealed ? opUser.canSee[userId] : null,
+      revealed: visRevealed, revealData: visRevealed ? revealEntry : null,
       eventId: sessionEventId || null
     });
   }
@@ -2046,9 +2080,11 @@ app.get('/api/constellation/:userId', (req, res) => {
   const nodes = Object.values(byPerson).map(p => {
     const other = db.users[p.id];
     const me = db.users[req.params.userId];
-    // UNILATERAL: canSee means I can see their real data
-    const iCanSeeThem = !!(me && me.canSee && me.canSee[p.id]);
-    const theyCanSeeMe = !!(other && other.canSee && other.canSee[req.params.userId]);
+    // UNILATERAL: canSee means I can see their real data (only permanent reveals, not event-scoped)
+    const iCanSeeEntry = isRevealedTo(p.id, me, null);
+    const iCanSeeThem = !!iCanSeeEntry;
+    const theyCanSeeEntry = isRevealedTo(req.params.userId, other, null);
+    const theyCanSeeMe = !!theyCanSeeEntry;
     // Count unique touchers for this person
     const toucherCount = other ? new Set((db.encounters[p.id] || []).map(e => e.with)).size : 0;
     return {
@@ -2064,13 +2100,13 @@ app.get('/api/constellation/:userId', (req, res) => {
       firstDate: p.firstDate,
       // Only show real data if I can see them (they revealed to me)
       realName: iCanSeeThem ? (other.realName || null) : null,
-      profilePhoto: iCanSeeThem ? (other.profilePhoto || other.photoURL || (me.canSee[p.id] && me.canSee[p.id].profilePhoto) || p.lastSelfie || null) : null,
+      profilePhoto: iCanSeeThem ? (other.profilePhoto || other.photoURL || (iCanSeeEntry && iCanSeeEntry.profilePhoto) || p.lastSelfie || null) : null,
       instagram: iCanSeeThem ? (other.instagram || null) : null,
       tipsGiven: p.tipsGiven,
       tipsTotal: p.tipsTotal,
       iRevealedToPartner: !!theyCanSeeMe, // they can see me = I revealed to them
       partnerRevealedToMe: !!iCanSeeThem, // I can see them = they revealed to me
-      revealedAt: iCanSeeThem ? ((me.canSee[p.id] && me.canSee[p.id].revealedAt) || 0) : 0,
+      revealedAt: iCanSeeThem ? ((iCanSeeEntry && iCanSeeEntry.revealedAt) || 0) : 0,
       hasActiveRelation: !!findActiveRelation(req.params.userId, p.id),
       // New fields
       topTag: (other && other.topTag) || null,
@@ -2233,7 +2269,7 @@ app.get('/api/notifications/:userId', (req, res) => {
   (user.likedBy || []).forEach(likerId => {
     const liker = db.users[likerId];
     if (!liker) return;
-    const iCanSee = user.canSee && user.canSee[likerId];
+    const iCanSee = isRevealedTo(likerId, user, null);
     const ts = liker._likedAt?.[userId] || 0;
     if (!ts) return; // skip if no timestamp
     notifs.push({
@@ -2417,9 +2453,13 @@ app.post('/api/reveal/toggle', (req, res) => {
   const partner = db.users[partnerId];
   if (!partner) return res.status(404).json({ error: 'Usuário não encontrado.' });
   if (!reveal) {
-    // Unreveal: remove myself from partner's canSee
-    if (partner.canSee && partner.canSee[userId]) {
+    // Unreveal: remove myself from partner's canSee (permanent + all event-scoped)
+    if (partner.canSee) {
       delete partner.canSee[userId];
+      // Also remove event-scoped reveals
+      Object.keys(partner.canSee).forEach(k => {
+        if (k.startsWith(userId + ':evt:')) delete partner.canSee[k];
+      });
     }
     // Also remove from revealedTo array if it exists
     if (partner.revealedTo) {
@@ -2756,13 +2796,18 @@ app.post('/api/profile/update', async (req, res) => {
   }
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
 
-  // Propagate photo update to all canSee entries (so revealed photos stay fresh)
+  // Propagate photo update to all canSee entries (permanent + event-scoped)
   if (profilePhoto !== undefined && user.revealedTo && user.revealedTo.length > 0) {
     const freshPhoto = user.profilePhoto || user.photoURL || null;
     user.revealedTo.forEach(targetId => {
       const target = db.users[targetId];
-      if (target && target.canSee && target.canSee[userId]) {
-        target.canSee[userId].profilePhoto = freshPhoto;
+      if (target && target.canSee) {
+        // Update permanent reveal
+        if (target.canSee[userId]) target.canSee[userId].profilePhoto = freshPhoto;
+        // Update event-scoped reveals
+        Object.keys(target.canSee).forEach(k => {
+          if (k.startsWith(userId + ':evt:')) target.canSee[k].profilePhoto = freshPhoto;
+        });
       }
     });
   }
@@ -2781,7 +2826,7 @@ function getRelId(rel) { return rel.id || Object.keys(db.relations).find(k => db
 
 // ACTION 1: Me revelar (direto, sem aceite)
 app.post('/api/identity/reveal', (req, res) => {
-  const { userId, targetUserId } = req.body;
+  const { userId, targetUserId, eventId } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
@@ -2796,15 +2841,21 @@ app.post('/api/identity/reveal', (req, res) => {
   }
   const relId = rel ? getRelId(rel) : [userId, targetUserId].sort().join('_');
   const target = db.users[targetUserId];
-  if (target.canSee && target.canSee[userId]) return res.status(400).json({ error: 'Você já se revelou para essa pessoa.' });
+  // For event-scoped reveals, use composite key: userId:eventId
+  // For normal reveals (no eventId), use just userId
+  const canSeeKey = eventId ? userId + ':evt:' + eventId : userId;
+  if (target.canSee && target.canSee[canSeeKey]) return res.status(400).json({ error: 'Você já se revelou para essa pessoa.' });
+  // Also check if already revealed without event scope (permanent reveal)
+  if (!eventId && target.canSee && target.canSee[userId]) return res.status(400).json({ error: 'Você já se revelou para essa pessoa.' });
   // DIRETO: target agora pode ver minha identidade (sem precisar aceite)
   if (!target.canSee) target.canSee = {};
   const userPhoto = user.profilePhoto || user.photoURL || null;
-  target.canSee[userId] = {
+  target.canSee[canSeeKey] = {
     nickname: user.nickname || '', realName: user.realName || '', profilePhoto: userPhoto,
     instagram: user.instagram || '', bio: user.bio || '',
     phone: (user.privacy && user.privacy.phone) ? (user.phone || '') : '',
-    revealedAt: Date.now()
+    revealedAt: Date.now(),
+    eventId: eventId || null // null = permanent, string = scoped to that event only
   };
   if (!user.revealedTo) user.revealedTo = [];
   if (!user.revealedTo.includes(targetUserId)) user.revealedTo.push(targetUserId);
@@ -2834,8 +2885,8 @@ app.post('/api/identity/request-reveal', (req, res) => {
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Destinatário inválido.' });
   const user = db.users[userId];
   const target = db.users[targetUserId];
-  // Check if they already revealed
-  if (user.canSee && user.canSee[targetUserId]) return res.status(400).json({ error: 'Essa pessoa já se revelou para você.' });
+  // Check if they already revealed (permanent only for request-reveal)
+  if (isRevealedTo(targetUserId, user, null)) return res.status(400).json({ error: 'Essa pessoa já se revelou para você.' });
   let rel = findActiveRelation(userId, targetUserId);
   if (!rel) {
     const enc = (db.encounters[userId] || []).find(e => e.with === targetUserId);
@@ -4220,7 +4271,9 @@ function createSonicConnection(userIdA, userIdB) {
     const visitor = operatorId === userIdA ? userB : userA;
     const visitorId = visitor.id;
     const visitorUser = db.users[visitorId];
-    const visitorRevealed = !!(db.users[operatorId] && db.users[operatorId].canSee && db.users[operatorId].canSee[visitorId]);
+    const opUserDash = db.users[operatorId];
+    const visRevealEntry = isRevealedTo(visitorId, opUserDash, eventId);
+    const visitorRevealed = !!visRevealEntry;
     const totalUsers = Object.keys(db.users).length;
     const visitorStars = visitorUser ? (visitorUser.stars || []).length : 0;
     const visitorTopTag = visitorUser ? (visitorUser.topTag || null) : null;
@@ -4228,7 +4281,7 @@ function createSonicConnection(userIdA, userIdB) {
       userId: visitorId, nickname: visitor.nickname || visitor.name, color: visitor.color,
       profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now,
       relationId, revealed: visitorRevealed,
-      revealData: visitorRevealed ? db.users[operatorId].canSee[visitorId] : null,
+      revealData: visitorRevealed ? visRevealEntry : null,
       eventId: eventId || null,
       stars: visitorStars,
       topTag: visitorTopTag,
@@ -5716,12 +5769,15 @@ app.get('/api/operator/checkins/:userId', (req, res) => {
   const userId = req.params.userId;
   const list = db.encounters[userId] || [];
   const opUser = db.users[userId];
-  const checkins = list.filter(e => e.type === 'checkin').map(e => ({
-    with: e.with, withName: e.withName, withColor: e.withColor,
-    timestamp: e.timestamp, date: e.date, relationId: e.relationId || null,
-    revealed: !!(opUser && opUser.canSee && opUser.canSee[e.with]),
-    revealData: (opUser && opUser.canSee && opUser.canSee[e.with]) ? opUser.canSee[e.with] : null
-  }));
+  const checkins = list.filter(e => e.type === 'checkin').map(e => {
+    const revEntry = isRevealedTo(e.with, opUser, e.eventId || null);
+    return {
+      with: e.with, withName: e.withName, withColor: e.withColor,
+      timestamp: e.timestamp, date: e.date, relationId: e.relationId || null,
+      revealed: !!revEntry,
+      revealData: revEntry || null
+    };
+  });
   checkins.sort((a, b) => b.timestamp - a.timestamp);
   res.json({ checkins, total: checkins.length });
 });
@@ -5988,8 +6044,9 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
         const stars = (u.stars || []).length;
         const topTag = u.topTag || null;
         const creatorUser = db.users[ev.creatorId];
-        const revealed = !!(creatorUser && creatorUser.canSee && creatorUser.canSee[uid]);
-        const revealData = revealed ? creatorUser.canSee[uid] : null;
+        const revEntry = isRevealedTo(uid, creatorUser, req.params.eventId);
+        const revealed = !!revEntry;
+        const revealData = revEntry || null;
         return {
           userId: uid, nickname: u.nickname || u.name, color: u.color,
           profilePhoto: u.profilePhoto || u.photoURL || null,

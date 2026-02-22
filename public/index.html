@@ -3311,10 +3311,16 @@ async function refreshHome(){
       const _mpPhoto=mp.profilePhoto||mp.photoURL||null;
       if(_mpPhoto){state.userPhoto=_mpPhoto;localStorage.setItem('touch_userPhoto',_mpPhoto)}
       state.userRealName=mp.realName||null;
-      // Load canSee into revealedIds
+      // Load canSee into revealedIds (only permanent reveals, not event-scoped)
       if(mp.canSee){
         if(!state.revealedIds)state.revealedIds={};
-        Object.keys(mp.canSee).forEach(k=>{if(!state.revealedIds[k])state.revealedIds[k]=mp.canSee[k]});
+        Object.keys(mp.canSee).forEach(k=>{
+          // Skip event-scoped reveals (key format: userId:evt:eventId)
+          if(k.includes(':evt:'))return;
+          // Skip entries with eventId field (old format)
+          if(mp.canSee[k]&&mp.canSee[k].eventId)return;
+          if(!state.revealedIds[k])state.revealedIds[k]=mp.canSee[k];
+        });
       }
       if(mp.isPrestador)localStorage.setItem('touch_isPrestador','1');
       state.userVerified=!!mp.verified;
@@ -4681,7 +4687,8 @@ function doReveal(data){
 
 // Reveal data to operator (checkin mode)
 function revealToOperator(operatorId,eventId,eventName){
-  fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:operatorId})})
+  // Pass eventId so the reveal is SCOPED to this event only — not permanent for operator
+  fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:operatorId,eventId:eventId||null})})
   .then(r=>r.json()).then(d=>{
     if(d.error)showToast(d.error);
     else{showToast('Dados revelados!');if(eventId)showEventView(eventId,eventName);else enterChat()}
