@@ -11173,7 +11173,9 @@ const VA = (function(){
       if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
     }
     audioEl=null;
-    // UI
+    // UI — restore from mini mode if needed
+    const overlay=$('vaOverlay');
+    if(overlay){overlay.classList.remove('mini');overlay.onclick=null;}
     setOrb(''); setStatus(''); setTranscript('');
     $('vaMainBtn').style.display='';
     $('vaMainBtn').textContent='Iniciar conversa';
@@ -11195,99 +11197,92 @@ const VA = (function(){
       case 'response.audio_transcript.done':
       case 'response.done': setOrb('listening');setStatus('Fale agora');break;
       case 'error': console.error('[VA] error:',evt.error);setStatus('Erro: '+(evt.error?.message||''));break;
-      // ── FUNCTION CALLING — visual actions ──
+      // ── FUNCTION CALLING — visual actions + memory ──
       case 'response.function_call_arguments.done':
-        if(evt.name==='mostrar_pessoa'){
-          try{
-            const args=JSON.parse(evt.arguments||'{}');
-            const nome=(args.nome||'').toLowerCase().trim();
-            console.log('[VA] mostrar_pessoa:',nome);
-            handleMostrarPessoa(nome,evt.call_id);
-          }catch(e){console.error('[VA] fn parse err:',e)}
-        }
+        try{
+          const args=JSON.parse(evt.arguments||'{}');
+          if(evt.name==='mostrar_pessoa'){
+            console.log('[VA] mostrar_pessoa:',args.nome);
+            handleMostrarPessoa((args.nome||'').toLowerCase().trim(),evt.call_id);
+          }else if(evt.name==='salvar_nota'){
+            console.log('[VA] salvar_nota:',args.sobre,args.nota);
+            handleSalvarNota(args.sobre||'',args.nota||'',evt.call_id);
+          }
+        }catch(e){console.error('[VA] fn parse err:',e)}
         break;
     }
   }
 
   // ── MOSTRAR PESSOA — minimize VA, animate constellation + open profile ──
+  function _findNode(nome){
+    if(!constState.nodes||!constState.nodes.length) return null;
+    // Exact match first
+    let f=constState.nodes.find(n=>{
+      const nick=(n.nickname||'').toLowerCase();
+      const real=(n.realName||'').toLowerCase();
+      return nick===nome||real===nome;
+    });
+    // Partial match fallback
+    if(!f) f=constState.nodes.find(n=>{
+      const nick=(n.nickname||'').toLowerCase();
+      const real=(n.realName||'').toLowerCase();
+      return nick.includes(nome)||real.includes(nome)||nome.includes(nick)||(real&&nome.includes(real));
+    });
+    return f;
+  }
+  function _animateToNode(node){
+    if(!node||node.x3d===undefined){
+      if(node&&typeof showConstDetail==='function'){showConstDetail(node);haptic([40,20,40]);}
+      return;
+    }
+    const targetX=-node.x3d,targetY=-node.y3d,targetZ=1.8;
+    const startX=constState.cam.x,startY=constState.cam.y,startZ=constState.cam.zoom;
+    const duration=600,start=performance.now();
+    function anim(now){
+      const p=Math.min(1,(now-start)/duration);
+      const ease=1-Math.pow(1-p,3);
+      constState.cam.x=startX+(targetX-startX)*ease;
+      constState.cam.y=startY+(targetY-startY)*ease;
+      constState.cam.zoom=startZ+(targetZ-startZ)*ease;
+      if(p<1) requestAnimationFrame(anim);
+      else{if(typeof showConstDetail==='function')showConstDetail(node);haptic([40,20,40]);}
+    }
+    requestAnimationFrame(anim);
+  }
   async function handleMostrarPessoa(nome,callId){
-    // 1. Load constellation data if not loaded
-    if(!constState.nodes||!constState.nodes.length){
-      try{
-        const data=await(await fetch('/api/constellation/'+(typeof state!=='undefined'?state.userId:''))).json();
-        if(data.nodes&&data.nodes.length){
-          const now=Date.now();
-          constState.nodes=data.nodes.map((n,i)=>{
-            const angle=(i/data.nodes.length)*Math.PI*2;
-            return{...n,x3d:Math.cos(angle)*200,y3d:Math.sin(angle)*200,z3d:100,
-              color:n.color||(typeof nickColor==='function'?nickColor(n.nickname||'?'):'#ff6b35'),baseRadius:10};
-          });
-        }
-      }catch(e){console.log('[VA] constellation load err:',e)}
-    }
-    // 2. Search for person by name (fuzzy)
-    let found=null;
-    if(constState.nodes&&constState.nodes.length){
-      // Exact match first
-      found=constState.nodes.find(n=>{
-        const nick=(n.nickname||'').toLowerCase();
-        const real=(n.realName||'').toLowerCase();
-        return nick===nome||real===nome;
-      });
-      // Partial match fallback
-      if(!found) found=constState.nodes.find(n=>{
-        const nick=(n.nickname||'').toLowerCase();
-        const real=(n.realName||'').toLowerCase();
-        return nick.includes(nome)||real.includes(nome)||nome.includes(nick)||(real&&nome.includes(real));
-      });
-    }
-    // 3. If found, minimize VA overlay → show constellation → open profile
+    // 1. Quick search in existing nodes
+    let found=_findNode(nome);
     let resultText='';
     if(found){
       resultText='Mostrando perfil de '+(found.realName||found.nickname)+'. Encontros: '+(found.encounters||0)+', último: '+(found.lastDate||'desconhecido');
-      // Minimize VA overlay to floating mini-player
-      const overlay=$('vaOverlay');
-      if(overlay){
-        overlay.classList.add('mini');
-        // Click mini-player to restore full overlay
-        overlay.onclick=function _restore(e){
-          if(overlay.classList.contains('mini')){
-            overlay.classList.remove('mini');
-            overlay.onclick=null;
-          }
+    }
+    // 2. Minimize VA overlay to floating mini-player
+    const overlay=$('vaOverlay');
+    if(overlay&&found){
+      overlay.classList.add('mini');
+      overlay.onclick=function(e){
+        if(overlay.classList.contains('mini')){overlay.classList.remove('mini');overlay.onclick=null;}
+      };
+    }
+    // 3. Navigate to constellation (this reloads data + reinits canvas)
+    if(found){
+      if(typeof showHistory==='function') showHistory();
+      // Wait for constellation to load, then re-find and animate
+      const _waitForNodes=()=>new Promise(resolve=>{
+        let tries=0;
+        const check=()=>{
+          if(constState.nodes&&constState.nodes.length>0){resolve(true);return}
+          if(++tries>30){resolve(false);return} // 3s max wait
+          setTimeout(check,100);
         };
+        setTimeout(check,200); // initial delay for fetch to start
+      });
+      await _waitForNodes();
+      // Re-find node in fresh data (old reference is stale after reload)
+      const freshNode=_findNode(nome);
+      if(freshNode){
+        setTimeout(()=>_animateToNode(freshNode),200);
       }
-      // Navigate to constellation screen
-      if(typeof showScreen==='function')showScreen('history');
-      // Small delay for screen transition, then animate
-      setTimeout(()=>{
-        // Animate camera smoothly to node
-        if(found.x3d!==undefined){
-          const targetX=-found.x3d;
-          const targetY=-found.y3d;
-          const targetZ=1.8;
-          const startX=constState.cam.x,startY=constState.cam.y,startZ=constState.cam.zoom;
-          const duration=600;
-          const start=performance.now();
-          function animCam(now){
-            const p=Math.min(1,(now-start)/duration);
-            const ease=1-Math.pow(1-p,3); // ease-out cubic
-            constState.cam.x=startX+(targetX-startX)*ease;
-            constState.cam.y=startY+(targetY-startY)*ease;
-            constState.cam.zoom=startZ+(targetZ-startZ)*ease;
-            if(p<1) requestAnimationFrame(animCam);
-            else{
-              // Open profile detail
-              if(typeof showConstDetail==='function')showConstDetail(found);
-              haptic([40,20,40]);
-            }
-          }
-          requestAnimationFrame(animCam);
-        }else{
-          if(typeof showConstDetail==='function')showConstDetail(found);
-          haptic([40,20,40]);
-        }
-      },300);
     }else{
       resultText='Pessoa "'+nome+'" não encontrada na constelação do usuário.';
     }
@@ -11297,6 +11292,26 @@ const VA = (function(){
         type:'conversation.item.create',
         item:{type:'function_call_output',call_id:callId,output:resultText}
       }));
+      dc.send(JSON.stringify({type:'response.create'}));
+    }
+  }
+
+  // ── SALVAR NOTA — agent memory ──
+  async function handleSalvarNota(sobre,nota,callId){
+    let resultText='Nota salva.';
+    try{
+      const uid=typeof state!=='undefined'?state.userId:null;
+      if(!uid) throw new Error('no user');
+      const r=await fetch('/api/agent/note',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({userId:uid,aboutName:sobre,note:nota})
+      });
+      const d=await r.json();
+      if(d.ok) resultText='Nota salva com sucesso: "'+sobre+': '+nota+'"';
+      else resultText='Erro ao salvar: '+(d.error||'');
+    }catch(e){resultText='Erro ao salvar nota: '+e.message}
+    if(dc&&dc.readyState==='open'){
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
       dc.send(JSON.stringify({type:'response.create'}));
     }
   }
@@ -11334,7 +11349,9 @@ const VA = (function(){
       setOrb('');
     },
     close(){
-      $('vaOverlay').classList.remove('active');
+      const ov=$('vaOverlay');
+      ov.classList.remove('mini','active');
+      ov.onclick=null;
       cleanup();
     },
     toggleVoice(){
