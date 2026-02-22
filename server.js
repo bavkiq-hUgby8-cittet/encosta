@@ -1667,12 +1667,15 @@ app.post('/api/touch-link/connect', (req, res) => {
   const signOwner = getZodiacSign(owner.birthdate);
   const signVisitor = getZodiacSign(visitor.birthdate);
   const zodiacPhrase = getZodiacPhrase(signOwner, signVisitor);
-  const pairEncounters = (db.encounters[owner.id] || []).filter(e => e.with === visitor.id).length;
+  const pairEncAll = (db.encounters[owner.id] || []).filter(e => e.with === visitor.id);
+  const pairEncounters = pairEncAll.length;
+  const now24h = Date.now() - 86400000;
+  const pairEncounters24h = pairEncAll.filter(e => e.timestamp > now24h).length;
   const responseData = {
     relationId: existing ? existing.id : relationId, phrase, expiresAt, renewed: !!existing,
-    encounterCount: pairEncounters,
-    userA: { id: owner.id, name: owner.nickname, realName: owner.realName || null, color: owner.color, profilePhoto: owner.profilePhoto || null, photoURL: owner.photoURL || null, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '', verified: !!owner.verified },
-    userB: { id: visitor.id, name: visitor.nickname, realName: visitor.realName || null, color: visitor.color, profilePhoto: visitor.profilePhoto || null, photoURL: visitor.photoURL || null, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '', verified: !!visitor.verified },
+    encounterCount: pairEncounters, encounterCount24h: pairEncounters24h,
+    userA: { id: owner.id, name: owner.nickname, realName: owner.realName || null, color: owner.color, profilePhoto: owner.profilePhoto || null, photoURL: owner.photoURL || null, score: calcScore(owner.id), stars: (owner.stars || []).length, sign: signOwner, signInfo: signOwner ? ZODIAC_INFO[signOwner] : null, isPrestador: !!owner.isPrestador, serviceLabel: owner.serviceLabel || '', verified: !!owner.verified, accessory: owner.avatarAccessory || null },
+    userB: { id: visitor.id, name: visitor.nickname, realName: visitor.realName || null, color: visitor.color, profilePhoto: visitor.profilePhoto || null, photoURL: visitor.photoURL || null, score: calcScore(visitor.id), stars: (visitor.stars || []).length, sign: signVisitor, signInfo: signVisitor ? ZODIAC_INFO[signVisitor] : null, isPrestador: !!visitor.isPrestador, serviceLabel: visitor.serviceLabel || '', verified: !!visitor.verified, accessory: visitor.avatarAccessory || null },
     zodiacPhrase
   };
   io.to(`user:${owner.id}`).emit('relation-created', responseData);
@@ -1930,15 +1933,18 @@ app.post('/api/session/join', (req, res) => {
       zodiacPhrase: null
     };
   } else {
-    const sessPairEnc = (db.encounters[session.userA] || []).filter(e => e.with === userId).length;
+    const sessPairAll = (db.encounters[session.userA] || []).filter(e => e.with === userId);
+    const sessPairEnc = sessPairAll.length;
+    const sessNow24h = Date.now() - 86400000;
+    const sessPairEnc24h = sessPairAll.filter(e => e.timestamp > sessNow24h).length;
     responseData = {
       relationId, phrase, expiresAt, renewed: !!existing,
       isServiceTouch: !!session.isServiceTouch, isCheckin: false,
-      encounterCount: sessPairEnc,
+      encounterCount: sessPairEnc, encounterCount24h: sessPairEnc24h,
       requireReveal: !!opRequireRevealJoin,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
-      userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '', verified: !!userA.verified },
-      userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
+      userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: zodiacInfoA, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '', verified: !!userA.verified, accessory: userA.avatarAccessory || null },
+      userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified, accessory: userB.avatarAccessory || null },
       zodiacPhrase
     };
   }
@@ -3952,13 +3958,16 @@ app.post('/api/event/encosta-accept', (req, res) => {
   const lastEnc = myEncounters.filter(e => e.with === fromUserId).sort((a,b) => b.timestamp - a.timestamp)[0];
   recordEncounter(fromUserId, userId, phrase, 'digital');
   saveDB('users', 'relations', 'messages', 'encounters');
-  const digPairEnc = myEncounters.filter(e => e.with === fromUserId).length;
+  const digPairAll = myEncounters.filter(e => e.with === fromUserId);
+  const digPairEnc = digPairAll.length;
+  const digNow24h = Date.now() - 86400000;
+  const digPairEnc24h = digPairAll.filter(e => e.timestamp > digNow24h).length;
   const responseData = {
     relationId, phrase, expiresAt, renewed: !!existing, type: 'digital', eventName: ev ? ev.name : '',
-    encounterCount: digPairEnc,
+    encounterCount: digPairEnc, encounterCount24h: digPairEnc24h,
     lastEncounter: lastEnc ? { phrase: lastEnc.phrase, timestamp: lastEnc.timestamp } : null,
-    userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: getZodiacSign(userA.birthdate), signInfo: getZodiacSign(userA.birthdate) ? ZODIAC_INFO[getZodiacSign(userA.birthdate)] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-    userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: getZodiacSign(userB.birthdate), signInfo: getZodiacSign(userB.birthdate) ? ZODIAC_INFO[getZodiacSign(userB.birthdate)] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' }
+    userA: { id: userA.id, name: userA.nickname || userA.name, realName: userA.realName || null, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: getZodiacSign(userA.birthdate), signInfo: getZodiacSign(userA.birthdate) ? ZODIAC_INFO[getZodiacSign(userA.birthdate)] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '', accessory: userA.avatarAccessory || null },
+    userB: { id: userB.id, name: userB.nickname || userB.name, realName: userB.realName || null, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: getZodiacSign(userB.birthdate), signInfo: getZodiacSign(userB.birthdate) ? ZODIAC_INFO[getZodiacSign(userB.birthdate)] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', accessory: userB.avatarAccessory || null }
   };
   io.to(`user:${fromUserId}`).emit('relation-created', responseData);
   io.to(`user:${userId}`).emit('relation-created', responseData);
@@ -4218,18 +4227,21 @@ function createSonicConnection(userIdA, userIdB) {
       zodiacPhrase: null
     };
   } else {
-    const sonicPairEnc = (db.encounters[userIdA] || []).filter(e => e.with === userIdB).length;
+    const sonicPairAll = (db.encounters[userIdA] || []).filter(e => e.with === userIdB);
+    const sonicPairEnc = sonicPairAll.length;
+    const sonicNow24h = Date.now() - 86400000;
+    const sonicPairEnc24h = sonicPairAll.filter(e => e.timestamp > sonicNow24h).length;
     responseData = {
       relationId, phrase: phrase, expiresAt, renewed: !!existing,
       sonicMatch: true, isCheckin, isServiceTouch,
-      encounterCount: sonicPairEnc,
+      encounterCount: sonicPairEnc, encounterCount24h: sonicPairEnc24h,
       isEventMatch: !!sharedEventId, sharedEventId: sharedEventId || null, sharedEventName: sharedEventName || null,
       eventId: eventId || sharedEventId || null, eventName: eventObj ? eventObj.name : (sharedEventName || null),
       requireReveal: !!opRequireReveal,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
-      userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '' },
-      userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '' },
+      userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '', accessory: userA.avatarAccessory || null },
+      userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', accessory: userB.avatarAccessory || null },
       zodiacPhrase
     };
   }
