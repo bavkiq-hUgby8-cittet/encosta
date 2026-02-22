@@ -2434,13 +2434,13 @@ app.post('/api/reveal/toggle', (req, res) => {
 
 // ── GIFTS CATALOG ──
 const GIFT_CATALOG = [
-  { id: 'flowers', name: 'Bouquet de Flores', emoji: '💐', needsAddress: true, description: 'Um bouquet entregue com carinho' },
-  { id: 'coffee', name: 'Café Especial', emoji: '☕', needsAddress: true, description: 'Um café especial na porta' },
-  { id: 'letter', name: 'Carta Selada', emoji: '💌', needsAddress: false, description: 'Uma carta digital com selo Touch?' },
-  { id: 'playlist', name: 'Playlist', emoji: '🎵', needsAddress: false, description: 'Uma playlist dedicada' },
-  { id: 'star', name: 'Estrela', emoji: '⭐', needsAddress: false, description: 'Uma estrela na constelação da pessoa' },
-  { id: 'book', name: 'Livro', emoji: '📖', needsAddress: true, description: 'Um livro surpresa entregue' },
-  { id: 'dessert', name: 'Sobremesa', emoji: '🍰', needsAddress: true, description: 'Uma sobremesa entregue' }
+  { id: 'flowers', name: 'Bouquet de Flores', icon: 'flowers', needsAddress: false, scoreCost: 15, description: 'Um bouquet digital com carinho' },
+  { id: 'coffee', name: 'Café Especial', icon: 'coffee', needsAddress: false, scoreCost: 10, description: 'Um café digital especial' },
+  { id: 'letter', name: 'Carta Selada', icon: 'letter', needsAddress: false, scoreCost: 5, description: 'Uma carta digital com selo Touch?' },
+  { id: 'playlist', name: 'Playlist', icon: 'playlist', needsAddress: false, scoreCost: 8, description: 'Uma playlist dedicada' },
+  { id: 'star', name: 'Estrela', icon: 'star', needsAddress: false, scoreCost: 0, description: 'Uma estrela da sua constelação' },
+  { id: 'book', name: 'Livro', icon: 'book', needsAddress: false, scoreCost: 12, description: 'Um livro digital surpresa' },
+  { id: 'dessert', name: 'Sobremesa', icon: 'dessert', needsAddress: false, scoreCost: 10, description: 'Uma sobremesa digital' }
 ];
 
 app.get('/api/gift-catalog', (req, res) => { res.json(GIFT_CATALOG); });
@@ -2457,7 +2457,7 @@ app.post('/api/gift/send', (req, res) => {
   const fromUser = db.users[fromUserId];
   const id = uuidv4();
   const giftRecord = {
-    id, giftId, giftName: gift.name, emoji: gift.emoji, message: message || '',
+    id, giftId, giftName: gift.name, icon: gift.icon, scoreCost: gift.scoreCost || 0, message: message || '',
     from: fromUserId, fromName: fromUser?.nickname || fromUser?.name || '?', fromColor: fromUser?.color,
     to: toUserId, relationId,
     needsAddress: gift.needsAddress,
@@ -2482,6 +2482,49 @@ app.post('/api/gift/send', (req, res) => {
   // Notify recipient via socket
   io.to(`user:${toUserId}`).emit('gift-received', { relationId, gift: giftRecord });
   res.json({ ok: true, gift: giftRecord });
+});
+
+// Send star from personal balance (chat gift modal)
+app.post('/api/gift/send-star', (req, res) => {
+  const { fromUserId, toUserId, relationId, message } = req.body;
+  if (!fromUserId || !toUserId) return res.status(400).json({ error: 'Dados incompletos.' });
+  const fromUser = db.users[fromUserId];
+  const toUser = db.users[toUserId];
+  if (!fromUser || !toUser) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  // Check star balance
+  const starCount = (db.stars[fromUserId] || []).filter(s => !s.donated && !s.pending).length;
+  if (starCount < 1) return res.status(400).json({ error: 'Sem estrelas para doar.' });
+  // Find the first available star to transfer
+  const userStars = db.stars[fromUserId] || [];
+  const starToTransfer = userStars.find(s => !s.donated && !s.pending);
+  if (!starToTransfer) return res.status(400).json({ error: 'Nenhuma estrela disponível.' });
+  // Mark as donated
+  starToTransfer.donated = true;
+  starToTransfer.donatedTo = toUserId;
+  starToTransfer.donatedAt = Date.now();
+  // Award star to recipient
+  awardStar(toUserId, 'gift', fromUserId);
+  // Create gift record
+  const id = uuidv4();
+  const giftRecord = {
+    id, giftId: 'star', giftName: 'Estrela', icon: 'star', message: message || '',
+    from: fromUserId, fromName: fromUser.nickname || fromUser.name || '?', fromColor: fromUser.color,
+    to: toUserId, relationId: relationId || null,
+    needsAddress: false, addressStatus: 'none', address: null,
+    status: 'delivered', createdAt: Date.now()
+  };
+  if (!db.gifts[toUserId]) db.gifts[toUserId] = [];
+  if (!db.gifts[fromUserId]) db.gifts[fromUserId] = [];
+  db.gifts[toUserId].push(giftRecord);
+  db.gifts[fromUserId].push({ ...giftRecord, _role: 'sender' });
+  saveDB('gifts', 'stars', 'users');
+  // Notify recipient
+  io.to(`user:${toUserId}`).emit('star-received', {
+    fromUserId, fromName: fromUser.nickname || fromUser.name || '?',
+    total: (db.stars[toUserId] || []).length
+  });
+  const remaining = (db.stars[fromUserId] || []).filter(s => !s.donated && !s.pending).length;
+  res.json({ ok: true, remainingStars: remaining });
 });
 
 // Respond to address request (recipient accepts/declines)

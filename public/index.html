@@ -400,7 +400,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 #chat{flex-direction:column;background:var(--bg)}
 /* Header */
 .ch{display:flex;align-items:center;justify-content:space-between;padding:.6rem .8rem;background:rgba(12,12,20,.94);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-bottom:1px solid rgba(255,255,255,.04);padding-top:max(env(safe-area-inset-top),.6rem);flex-shrink:0;z-index:2}
-.chl{display:flex;align-items:center;gap:.6rem;flex:1;min-width:0}
+.chl{display:flex;align-items:center;gap:.5rem;flex:1;min-width:0}
+.ch-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:#fff;overflow:hidden;border:1.5px solid rgba(255,255,255,.08);transition:.15s}
+.ch-avatar:active{transform:scale(.92)}
+.ch-avatar img{width:100%;height:100%;object-fit:cover}
+.ch-avatar.anon{background:rgba(255,68,102,.12);border-color:rgba(255,68,102,.15);color:rgba(255,68,102,.7)}
+.ch-avatar.revealed{border-color:rgba(0,220,130,.2)}
+.ch-avatar.event{background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.15);color:rgba(96,165,250,.7)}
 .ch-info{cursor:pointer;display:flex;flex-direction:column;min-width:0;gap:.1rem}
 .ch-info:active{opacity:.7}
 .chb{width:32px;height:32px;border-radius:50%;background:transparent;border:none;color:var(--t1);font-size:1.05rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
@@ -411,8 +417,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cht{font-size:.68rem;font-weight:700;font-family:'SF Mono','Courier New',monospace;padding:.3rem .65rem;border-radius:10px;background:rgba(255,255,255,.04);color:var(--t2);letter-spacing:.05em;transition:all .4s;flex-shrink:0;border:1px solid rgba(255,255,255,.06)}
 .cht.urg{background:rgba(248,113,113,.08);color:#f87171;border-color:rgba(248,113,113,.12);animation:urg-pulse 2s ease infinite}
 @keyframes urg-pulse{0%,100%{opacity:1}50%{opacity:.5}}
-/* ID action bar */
-.chat-id-bar{display:flex;gap:.35rem;padding:.35rem .8rem;justify-content:center}
+/* Action bar (3 buttons: reveal + request + more) */
+.chat-action-bar{display:flex;gap:.3rem;padding:.3rem .7rem;align-items:center;justify-content:center}
+.chat-id-bar{display:flex;gap:.3rem;flex:1;justify-content:center}
+.cab-btn{padding:.35rem .7rem;border-radius:10px;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03);color:rgba(255,255,255,.4);display:inline-flex;align-items:center;gap:.3rem;transition:all .2s;flex-shrink:0}
+.cab-btn:active{background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);transform:scale(.96)}
+.cab-btn svg{opacity:.5}
 .id-bar-btn{padding:.35rem .75rem;border-radius:10px;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;border:1px solid rgba(255,255,255,.08);transition:all .2s;background:rgba(255,255,255,.03);color:var(--t2);display:inline-flex;align-items:center;gap:.35rem;letter-spacing:.01em}
 .id-bar-btn svg{width:13px;height:13px;flex-shrink:0}
 .id-bar-btn.reveal{background:rgba(0,220,130,.06);color:#00dc82;border-color:rgba(0,220,130,.12)}
@@ -457,9 +467,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cia{display:flex;align-items:flex-end;gap:.4rem;padding:.4rem .7rem .35rem}
 .cia-wrap{flex:1;display:flex;align-items:flex-end;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:12px;transition:border-color .25s;overflow:hidden}
 .cia-wrap:focus-within{border-color:rgba(255,107,53,.25)}
-.cia-plus{width:36px;height:36px;border:none;background:transparent;color:rgba(255,255,255,.3);font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s;padding:0 0 0 .25rem}
-.cia-plus:active{color:var(--ac);transform:scale(.9)}
-.cia input{flex:1;padding:.55rem .65rem .55rem .15rem;background:transparent;border:none;color:var(--t1);font-size:.84rem;font-family:inherit;outline:none;min-height:20px}
+.cia input{flex:1;padding:.55rem .7rem;background:transparent;border:none;color:var(--t1);font-size:.84rem;font-family:inherit;outline:none;min-height:20px}
 .cia input::placeholder{color:rgba(255,255,255,.2)}
 .sb{width:34px;height:34px;border-radius:10px;background:var(--ac);border:none;color:#fff;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s cubic-bezier(.22,1,.36,1);opacity:0;transform:scale(.3);pointer-events:none;flex-shrink:0}
 .sb.active{opacity:1;transform:scale(1);pointer-events:auto}
@@ -908,9 +916,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-last{font-size:.68rem;color:var(--t3);margin-top:.4rem;padding:.3rem .8rem;background:var(--s1);border-radius:10px;border:1px solid var(--b1)}
 
 /* CONTACT REQUEST */
-.contact-menu{display:flex;gap:.3rem;flex-wrap:wrap;padding:.4rem .8rem;animation:mi .3s ease}
-.contact-opt{padding:.3rem .6rem;font-size:.68rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t2);cursor:pointer;font-family:inherit}
-.contact-opt:active{background:var(--s2)}
+.contact-modal-opt{display:flex;align-items:center;gap:.5rem;padding:.65rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;color:rgba(255,255,255,.7);font-size:.78rem;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
+.contact-modal-opt:active{background:rgba(255,255,255,.08);transform:scale(.97)}
+.contact-modal-opt .cmo-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);flex-shrink:0}
+.contact-modal-opt .cmo-icon svg{width:16px;height:16px;stroke:var(--opt-color,rgba(255,255,255,.5))}
 .contact-req-banner{padding:.6rem .8rem;background:linear-gradient(135deg,rgba(255,107,53,.06),rgba(255,61,113,.04));border:1px solid rgba(255,107,53,.12);border-radius:12px;margin:.4rem .8rem;animation:mi .3s ease}
 .contact-req-text{font-size:.78rem;color:var(--t1);margin-bottom:.4rem}
 .contact-req-actions{display:flex;gap:.4rem}
@@ -1218,7 +1227,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="home" class="screen">
   <!-- Floating event button (persistent while event active) - positioned below daily counter -->
   <div id="floatingEventBtn" style="display:none;position:absolute;top:12%;left:50%;transform:translateX(-50%);z-index:8;padding:.45rem .9rem;background:rgba(96,165,250,.12);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.25);border-radius:16px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
-    <span style="font-size:.7rem;font-weight:600;color:#60a5fa">📍 <span id="floatingEventName"></span> · Ver evento</span>
+    <span style="font-size:.7rem;font-weight:600;color:#60a5fa;display:inline-flex;align-items:center;gap:.3rem"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> <span id="floatingEventName"></span> · Ver evento</span>
   </div>
   <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
   <div class="ptr-indicator" id="ptrIndicator"><div class="ptr-spinner"></div></div>
@@ -1358,18 +1367,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="selfie-modal">
         <div class="selfie-border"></div>
         <div class="selfie-header">
-          <h3 id="sfTitle">📸 Registrem esse momento!</h3>
+          <h3 id="sfTitle">Registrem esse momento!</h3>
           <div class="selfie-phrase" id="sfPhrase">Vocês se encontraram... agora sorriam!</div>
         </div>
-        <div class="selfie-emojis" id="sfEmojis">🎉 😄 ✨ 💫 🤳</div>
+        <div class="selfie-emojis" id="sfEmojis" style="display:none"></div>
         <div class="selfie-camera-area" id="sfCameraArea">
-          <div class="sf-placeholder" id="sfPlaceholder">📷</div>
+          <div class="sf-placeholder" id="sfPlaceholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
           <video id="selfieVideo" autoplay playsinline style="display:none"></video>
           <img id="sfCapturedImg" class="sf-captured" style="display:none">
         </div>
         <div class="selfie-actions" id="sfActions">
           <button class="sf-btn sf-btn-close" onclick="closeSelfieModal()">Fechar</button>
-          <button class="sf-btn sf-btn-capture" id="sfCaptureBtn" onclick="selfieCapture()">📸 Tirar Selfie</button>
+          <button class="sf-btn sf-btn-capture" id="sfCaptureBtn" onclick="selfieCapture()">Tirar Selfie</button>
         </div>
       </div>
     </div>
@@ -1390,6 +1399,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="ch">
     <div class="chl">
       <button class="chb" onclick="goHome()">&#x2190;</button>
+      <div class="ch-avatar" id="chatAvatar" onclick="showPartnerProfile()"></div>
       <div class="ch-info" onclick="showPartnerProfile()">
         <span class="chn" id="chatPartner">Pessoa</span>
         <span class="ch-sub" id="chatSub"></span>
@@ -1406,27 +1416,24 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="cms" id="chatMessages"><div class="ti" id="typingIndicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
   <!-- Quick phrases -->
   <div class="qp-bar" id="quickPhrases"></div>
-  <!-- Bottom: input + expandable menu -->
+  <!-- Bottom: action bar + input -->
   <div class="chat-bottom" style="position:relative">
-    <!-- ID action buttons (only visible when relevant) -->
-    <div class="chat-id-bar" id="chatIdBar">
-      <button class="id-pill reveal" onclick="revealMyself(state.currentPartnerId)" type="button" id="revealIdBtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg> Revelar ID</button>
+    <!-- 3-button action bar: Revelar + Pedir + Mais -->
+    <div class="chat-action-bar" id="chatActionBar">
+      <div class="chat-id-bar" id="chatIdBar"></div>
+      <button class="cab-btn" onclick="togglePlusMenu()" type="button" id="cabMoreBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Mais</button>
     </div>
-    <!-- Plus menu (all actions here) -->
+    <!-- Plus menu (expanded actions) -->
     <div class="plus-menu" id="plusMenu">
       <button class="pm-item" onclick="pickPhoto();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(88,166,255,.08)"><svg viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><span class="pm-label">Foto</span></button>
-      <button class="pm-item" onclick="requestSelfie();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(255,200,87,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="#ffc857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></div><span class="pm-label">Selfie</span></button>
-      <button class="pm-item" onclick="openContactMenu();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(163,113,247,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="#a371f7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg></div><span class="pm-label">Contato</span></button>
+      <button class="pm-item" onclick="openContactModal();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(163,113,247,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="#a371f7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg></div><span class="pm-label">Contato</span></button>
       <button class="pm-item" onclick="openGiftPicker();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(255,107,53,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg></div><span class="pm-label">Presente</span></button>
-      <button class="pm-item" onclick="openDeclModal();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(52,211,153,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div><span class="pm-label">Declarar</span></button>
       <button class="pm-item" onclick="sendPulse();closePlusMenu()" type="button" id="pulseBtn"><div class="pm-ico" style="background:rgba(255,61,113,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pk)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div><span class="pm-label">Pulsar</span></button>
       <button class="pm-item" onclick="getHoroscope();closePlusMenu()" type="button" id="horoscopeBtn"><div class="pm-ico" style="background:rgba(251,191,36,.06)"><svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg></div><span class="pm-label">Astral</span></button>
-      <button class="pm-item" onclick="pickFile();closePlusMenu()" type="button"><div class="pm-ico" style="background:rgba(255,255,255,.03)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></div><span class="pm-label">Arquivo</span></button>
     </div>
     <!-- Input row -->
     <div class="cia">
       <div class="cia-wrap">
-        <button class="cia-plus" onclick="togglePlusMenu()" type="button">+</button>
         <input type="text" id="chatInput" placeholder="Mensagem..." maxlength="500" autocomplete="off">
       </div>
       <button class="sb" id="sendBtn" onclick="sendMessage()" type="button">&#x2191;</button>
@@ -1789,7 +1796,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <!-- Photo -->
     <div class="cp-photo-wrap">
       <div class="cp-photo" id="cpPhotoPreview" onclick="$('cpPhotoInput').click()">
-        <span id="cpPhotoPlaceholder" style="font-size:1.6rem;color:var(--t3)">📷</span>
+        <span id="cpPhotoPlaceholder" style="color:var(--t3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
       </div>
       <div class="cp-photo-label" onclick="$('cpPhotoInput').click()">Alterar foto</div>
       <input type="file" id="cpPhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
@@ -2798,7 +2805,7 @@ function initSocket(){
   socket.on('contact-request',data=>showContactRequest(data));
   socket.on('contact-shared',({relationId,contactType,value})=>{
     // Save contact info as persistent message in chat
-    const labels={instagram:'📸 Instagram',whatsapp:'💬 WhatsApp',x:'𝕏 X',email:'📧 Email'};
+    const labels={instagram:'Instagram',whatsapp:'WhatsApp',x:'X',email:'Email'};
     const text=(labels[contactType]||contactType)+': '+value;
     if(state.currentRelation?.relationId===relationId){
       appendMessage({userId:'system',text,timestamp:Date.now()});
@@ -2816,18 +2823,18 @@ function initSocket(){
   });
   // Star donation confirmed
   socket.on('star-donation-confirmed',({toUserId,toName,recipientStars,pendingRemaining})=>{
-    showToast('⭐ Estrela doada para '+toName+'!');
+    showToast('Estrela doada para '+toName+'!');
     // If more pending, next modal will come via star-must-donate
   });
   // Star received from someone
   socket.on('star-received',({fromUserId,fromName,total})=>{
     haptic([80,40,80,40,80]);playSound('connect');
-    showToast('⭐ '+fromName+' te deu uma estrela! (Total: '+total+')');
+    showToast(fromName+' te deu uma estrela! (Total: '+total+')');
     updateNotifBadge();
   });
   // Network notification: someone donated a star
   socket.on('star-donated-notification',({recipientName,donorName,recipientStars})=>{
-    showToast('⭐ '+recipientName+' ganhou estrela de '+donorName+'!');
+    showToast(recipientName+' ganhou estrela de '+donorName+'!');
     updateNotifBadge();
   });
   socket.on('like-toggled',({fromUserId,liked})=>{
@@ -2960,8 +2967,8 @@ function renderEvCanvas(){
   const cs=14+Math.sin(t*2)*.8;
   c.beginPath();c.arc(cx,cy,cs,0,Math.PI*2);c.fillStyle='rgba(96,165,250,.2)';c.fill();c.strokeStyle='rgba(96,165,250,.35)';c.lineWidth=1;c.stroke();
   c.beginPath();c.arc(cx,cy,cs*.45,0,Math.PI*2);c.fillStyle='#60a5fa';c.fill();
-  c.font='600 6px Inter';c.fillStyle='rgba(96,165,250,.5)';c.textAlign='center';c.textBaseline='top';
-  c.fillText('📍',cx,cy+cs+3);
+  // Pin icon drawn as path instead of emoji
+  c.save();c.translate(cx,cy+cs+6);c.scale(.4,.4);c.beginPath();c.arc(0,-4,5,Math.PI,0);c.lineTo(0,8);c.closePath();c.fillStyle='rgba(96,165,250,.5)';c.fill();c.beginPath();c.arc(0,-4,2,0,Math.PI*2);c.fillStyle='rgba(10,10,25,.4)';c.fill();c.restore();
   // Move nodes — aquarium float
   const pad=30;const speedLim=0.6;
   evNodes.forEach(n=>{
@@ -4536,7 +4543,7 @@ function doReveal(data){
     const badge=document.createElement('div');
     badge.className='rv-service-badge';
     badge.style.borderColor='rgba(96,165,250,.3)';badge.style.background='rgba(96,165,250,.08)';badge.style.color='#60a5fa';
-    badge.innerHTML='📍 Check-in em '+esc(evName);
+    badge.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" style="vertical-align:middle;margin-right:3px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Check-in em '+esc(evName);
     moment.after(badge);
     phraseEl.innerHTML='';phraseEl.style.display='none';
     if(subEl)subEl.style.display='none';
@@ -5064,6 +5071,26 @@ async function openChat(rel){
   const pRealName=isEventRel?null:(partner?.realName||null);
   const pName=pRealName||pNick;
   state.currentPartnerId=partner?.id||rel.partnerId||null;
+  // Avatar in header
+  const avatarEl=$('chatAvatar');
+  const partnerPhoto=rel.partnerPhoto||partner?.profilePhoto||null;
+  const isRevealed=!!(rel.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[state.currentPartnerId]));
+  if(isEventRel){
+    avatarEl.className='ch-avatar event';
+    avatarEl.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  }else if(isRevealed&&partnerPhoto){
+    avatarEl.className='ch-avatar revealed';
+    avatarEl.innerHTML='<img src="'+partnerPhoto+'" alt="">';
+  }else if(isRevealed){
+    const initials=esc((pRealName||pNick||'?').slice(0,2).toUpperCase());
+    avatarEl.className='ch-avatar revealed';
+    avatarEl.style.background='rgba(0,220,130,.1)';
+    avatarEl.innerHTML=initials;
+  }else{
+    const initials=esc((pNick||'?').slice(0,2).toUpperCase());
+    avatarEl.className='ch-avatar anon';
+    avatarEl.innerHTML=initials;
+  }
   // Event-type chat: show event info
   if(isEventRel){
     $('chatPartner').textContent=pNick;
@@ -5075,8 +5102,13 @@ async function openChat(rel){
     $('chatPartner').textContent=pNick;
     $('chatSub').textContent='nickname';
   }
-  // Load pending reveals for this partner and update chat ID bar
-  updateChatIdBar();
+  // Update action bar: hide ID buttons for event chats
+  if(isEventRel){
+    const ab=$('chatActionBar');if(ab)ab.style.display='none';
+  }else{
+    const ab=$('chatActionBar');if(ab)ab.style.display='flex';
+    updateChatIdBar();
+  }
   $('chatPhrase').textContent=rel.phrase;
   closePlusMenu();hideTyping();
   const mc=$('chatMessages'),ti=$('typingIndicator');mc.innerHTML='';mc.appendChild(ti);
@@ -5225,13 +5257,17 @@ function appendEphemeral(msg,fromHistory){
   const mc=$('chatMessages'),ti=$('typingIndicator'),near=nearBot();
   const div=document.createElement('div');
   div.className='msg ephemeral'+(msg.userId===state.userId?' mine':'');
-  div.innerHTML=esc(msg.text)+'<span class="eph-badge">efêmera</span>';
+  const EPH_DURATION=8;
+  if(!fromHistory){
+    const countEl=document.createElement('span');countEl.className='eph-badge';countEl.textContent=EPH_DURATION+'s';
+    div.textContent='';div.appendChild(document.createTextNode(msg.text));div.appendChild(countEl);
+    let remaining=EPH_DURATION;
+    const interval=setInterval(()=>{remaining--;if(remaining<=0){clearInterval(interval);countEl.textContent='';div.style.transition='opacity .5s,transform .5s';div.style.opacity='0';div.style.transform='scale(.95)';setTimeout(()=>div.remove(),600)}else{countEl.textContent=remaining+'s'}},1000);
+  }else{
+    div.textContent=msg.text;
+  }
   mc.insertBefore(div,ti);
   if(near||msg.userId===state.userId)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
-  // Only auto-fade on real-time receive, not from history
-  if(!fromHistory){
-    setTimeout(()=>{div.style.transition='opacity .6s,transform .6s';div.style.opacity='0';div.style.transform='scale(.95)';setTimeout(()=>div.remove(),700)},8000);
-  }
 }
 
 // ═══ PHOTO / FILE IN CHAT ═══
@@ -5359,7 +5395,7 @@ async function showRelations(){
       if(isEventRel){
         // Event relation: show event icon and name
         displayName=r.eventName||r.partnerName||'Evento';
-        photoHtml='<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;box-shadow:0 0 12px rgba(96,165,250,.2)">📍</div>';
+        photoHtml='<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 12px rgba(96,165,250,.2)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>';
         nameHtml='<div class="rn" style="color:#60a5fa">'+esc(displayName)+'</div><div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">evento</div>';
       }else{
         displayName=r.partnerRealName||r.partnerName;
@@ -5906,9 +5942,8 @@ function initConstCanvas(){
         ctx.fillStyle=evGrad;ctx.fill();
         if(r>5){
           ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';
-          ctx.font=Math.max(6,Math.min(14,r*0.9))+'px sans-serif';
-          ctx.textAlign='center';ctx.textBaseline='middle';
-          ctx.fillText('📍',sx,sy);
+          // Draw pin icon on canvas
+          ctx.save();ctx.translate(sx,sy);const ps=r*0.07;ctx.scale(ps,ps);ctx.beginPath();ctx.arc(0,-4,5,Math.PI,0);ctx.lineTo(0,8);ctx.closePath();ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';ctx.fill();ctx.beginPath();ctx.arc(0,-4,2,0,Math.PI*2);ctx.fillStyle='rgba(96,165,250,'+(depthAlpha*0.5).toFixed(2)+')';ctx.fill();ctx.restore();
         }
       }else if(n._revealed&&n._imgLoaded&&n._img&&r>4){
         drawCroppedImage(n._img,sx,sy,r);
@@ -6407,7 +6442,7 @@ async function loadTransactions(nodeId, isMe){
         label='Ingresso'+(tx.eventName?' — '+esc(tx.eventName):'');
         detail='R$ '+tx.amount.toFixed(2).replace('.',',');
       }else if(tx.type==='checkin'){
-        icon='📍';
+        icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
         label='Check-in'+(tx.eventName?' — '+esc(tx.eventName):'');
         detail=tx.phrase?'"'+esc(tx.phrase)+'"':'';
       }else if(tx.type==='connection'){
@@ -6702,7 +6737,7 @@ async function loadNotifications(){
         :'<div class="notif-ico" style="background:'+(n.color||'var(--ac)')+'">'+esc((n.nickname||'?').slice(0,2).toUpperCase())+'</div>';
       let text='',icon='';
       if(n.type==='like'){icon='❤️';text='<strong>'+esc(name)+'</strong> curtiu você'}
-      else if(n.type==='star'){icon='⭐';text='<strong>'+esc(name)+'</strong> te deu uma estrela'}
+      else if(n.type==='star'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';text='<strong>'+esc(name)+'</strong> te deu uma estrela'}
       else if(n.type==='friend-star'){icon='✨';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
       else if(n.type==='network-star'){icon='✨';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
       else if(n.type==='reveal-request'){icon='👁';text='<strong>'+esc(name)+'</strong> pediu seu ID'}
@@ -6792,12 +6827,12 @@ function showMoreMenu(){
   overlay.className='more-menu-overlay';
   overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
   overlay.innerHTML='<div class="more-menu-sheet"><div class="more-menu-handle"></div><div class="more-menu-grid">'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showRelations()"><div class="mm-ico">💬</div><div class="mm-lbl">Conversas</div></div>'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showBoardingPass()"><div class="mm-ico">🪪</div><div class="mm-lbl">ID</div></div>'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()"><div class="mm-ico">💼</div><div class="mm-lbl">Prestador</div></div>'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showManual()"><div class="mm-ico">❓</div><div class="mm-lbl">Tutorial</div></div>'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/site\',\'_blank\')"><div class="mm-ico">🌐</div><div class="mm-lbl">Sobre o Touch</div></div>'
-    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/termos\',\'_blank\')"><div class="mm-ico">📜</div><div class="mm-lbl">Termos de Uso</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showRelations()"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><div class="mm-lbl">Conversas</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showBoardingPass()"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div><div class="mm-lbl">ID</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showPrestadorRegister()"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 00-8 0v2"/></svg></div><div class="mm-lbl">Prestador</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showManual()"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div><div class="mm-lbl">Tutorial</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/site\',\'_blank\')"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div><div class="mm-lbl">Sobre o Touch</div></div>'
+    +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/termos\',\'_blank\')"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg></div><div class="mm-lbl">Termos de Uso</div></div>'
     +(state.userIsAdmin?'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showVerificationPanel()"><div class="mm-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</div><div class="mm-lbl">Verificações</div></div>':'')
     +'</div></div>';
   document.body.appendChild(overlay);
@@ -7224,14 +7259,14 @@ function _showNextStarModal(){
   overlay.innerHTML=`
     <div style="background:var(--c2,#1a1a2e);border-radius:20px;padding:1.5rem;width:100%;max-width:380px;max-height:85vh;overflow-y:auto;border:1px solid rgba(251,191,36,.3);box-shadow:0 0 40px rgba(251,191,36,.15)">
       <div style="text-align:center;margin-bottom:1rem">
-        <div style="font-size:2.5rem;margin-bottom:.5rem;animation:pulse 1.5s ease infinite">⭐</div>
+        <div style="margin-bottom:.5rem;animation:pulse 1.5s ease infinite"><svg width="40" height="40" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div style="font-size:1rem;font-weight:700;color:#fbbf24;margin-bottom:.3rem">Você ganhou uma estrela!</div>
         <div style="font-size:.72rem;color:var(--t2,#aaa)">${reasonText}</div>
         <div style="font-size:.65rem;color:var(--t3,#777);margin-top:.4rem">Escolha alguém para presentear — a estrela deve ser doada agora!</div>
       </div>
       <div style="position:relative;margin-bottom:.8rem">
         <input id="starSearchInput" type="text" placeholder="Buscar por nickname..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:.6rem .8rem .6rem 2rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;color:#fff;font-size:.8rem;outline:none">
-        <div style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);font-size:.75rem;opacity:.4">🔍</div>
+        <div style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);opacity:.4"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>
       </div>
       <div id="starSearchResults" style="min-height:120px;max-height:300px;overflow-y:auto"></div>
     </div>`;
@@ -7253,9 +7288,9 @@ function _showNextStarModal(){
             <div style="width:36px;height:36px;border-radius:50%;background:${p.color||'#666'};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0">${(p.nickname||'?').slice(0,2).toUpperCase()}</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:.78rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nickname||'?'} ${p.verified?'<span style="color:#3b82f6;font-size:.6rem">✓</span>':''}</div>
-              <div style="font-size:.6rem;color:var(--t3,#777)">⭐ ${p.stars||0} estrelas</div>
+              <div style="font-size:.6rem;color:var(--t3,#777)"><svg width="9" height="9" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> ${p.stars||0} estrelas</div>
             </div>
-            <div style="font-size:.65rem;color:#fbbf24;font-weight:600">Doar ⭐</div>
+            <div style="font-size:.65rem;color:#fbbf24;font-weight:600"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Doar</div>
           </div>`).join('');
       }catch(e){res.innerHTML='<div style="text-align:center;padding:1rem;color:#f87171;font-size:.7rem">Erro na busca</div>';}
     },300);
@@ -7277,21 +7312,21 @@ async function _loadStarSuggestions(container,pendingStarId){
         <div style="width:36px;height:36px;border-radius:50%;background:${p.color||'#666'};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0">${(p.nickname||'?').slice(0,2).toUpperCase()}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.78rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nickname||'?'} ${p.verified?'<span style="color:#3b82f6;font-size:.6rem">✓</span>':''}</div>
-          <div style="font-size:.6rem;color:var(--t3,#777)">⭐ ${p.starsCount||0} estrelas</div>
+          <div style="font-size:.6rem;color:var(--t3,#777)"><svg width="9" height="9" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> ${p.starsCount||0} estrelas</div>
         </div>
-        <div style="font-size:.65rem;color:#fbbf24;font-weight:600">Doar ⭐</div>
+        <div style="font-size:.65rem;color:#fbbf24;font-weight:600"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Doar</div>
       </div>`).join('');
   }catch(e){container.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3,#777);font-size:.7rem">Busque por nickname acima</div>';}
 }
 
 async function confirmStarDonate(pendingStarId,targetId,targetName){
-  if(!confirm('Doar ⭐ estrela para '+targetName+'?'))return;
+  if(!confirm('Doar estrela para '+targetName+'?'))return;
   try{
     const r=await fetch('/api/star/donate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fromUserId:state.userId,toUserId:targetId,pendingStarId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
     haptic([60,30,60,30,100]);
-    showToast('⭐ Estrela doada para '+targetName+'!');
+    showToast('Estrela doada para '+targetName+'!');
     // Close modal
     const ov=document.getElementById('starDonateOverlay');
     if(ov)ov.remove();
@@ -7683,7 +7718,7 @@ function renderProfile(d,userId){
     html+='<div style="display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center;margin:.5rem 0">';
     d.starDetails.forEach(s=>{
       const tip=s.reason==='gift'?'Presente de '+(s.fromName||'?'):s.reason==='organic'?'Orgânica ('+s.milestone+'x com '+(s.withName||'?')+')':'Marco';
-      html+='<div title="'+tip+'" style="font-size:1rem;cursor:help;transition:.15s" onmouseenter="this.style.transform=\'scale(1.3)\'" onmouseleave="this.style.transform=\'none\'">⭐</div>';
+      html+='<div title="'+tip+'" style="cursor:help;transition:.15s" onmouseenter="this.style.transform=\'scale(1.3)\'" onmouseleave="this.style.transform=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>';
     });
     html+='</div>';
   }
@@ -7925,30 +7960,65 @@ let giftCatalog=[];
 async function openGiftPicker(){
   if(!state.currentRelation)return;
   if(!giftCatalog.length){try{giftCatalog=await fetch('/api/gift-catalog').then(r=>r.json())}catch(e){return showToast('Erro ao carregar presentes.')}}
+  // Add star gift option at the top
+  const starGift={id:'_star',name:'Dar Estrela',description:'Transfere uma estrela do seu saldo',emoji:'',scoreCost:0,isStarGift:true};
   let html='<div class="modal-overlay" onclick="closeGiftModal(event)">';
   html+='<div class="modal-sheet" onclick="event.stopPropagation()">';
   html+='<div class="modal-handle"></div>';
-  html+='<div class="modal-title">&#x1F381; Escolha um presente</div>';
+  html+='<div class="modal-title">Enviar presente</div>';
+  html+='<div style="text-align:center;font-size:.72rem;color:rgba(255,255,255,.3);margin-bottom:.6rem">Presentes digitais transferem score para a pessoa</div>';
+  // Star gift card (special)
+  html+='<div class="gift-option gift-star" onclick="selectStarGift()" style="margin-bottom:.5rem;grid-column:1/-1;display:flex;align-items:center;gap:.7rem;padding:.7rem .9rem">';
+  html+='<svg width="22" height="22" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  html+='<div style="flex:1"><div class="g-name" style="margin:0">Dar Estrela</div><div class="g-desc" style="margin-top:.15rem">Transfere 1 estrela do seu saldo</div></div>';
+  html+='<div style="font-size:.65rem;color:rgba(251,191,36,.6);font-weight:600">Saldo: '+(state.userStarsCount||0)+'</div></div>';
   html+='<div class="gift-grid">';
   giftCatalog.forEach(g=>{
+    const cost=g.scoreCost||10;
     html+='<div class="gift-option" onclick="selectGift(\''+g.id+'\')">';
-    html+='<div class="g-emoji">'+g.emoji+'</div>';
+    html+='<div class="g-emoji" style="font-size:1.4rem">'+g.emoji+'</div>';
     html+='<div class="g-name">'+esc(g.name)+'</div>';
-    html+='<div class="g-desc">'+esc(g.description)+'</div>';
+    html+='<div class="g-desc">'+cost+' pts</div>';
     html+='</div>';
   });
   html+='</div></div></div>';
   $('giftModal').innerHTML=html;$('giftModal').classList.remove('hidden');
 }
 function closeGiftModal(e){if(e&&e.target.classList.contains('modal-overlay'))$('giftModal').classList.add('hidden');$('giftModal').innerHTML=''}
-function selectGift(giftId){
-  const gift=giftCatalog.find(g=>g.id===giftId);if(!gift)return;
+function selectStarGift(){
+  if(!state.userStarsCount||state.userStarsCount<1)return showToast('Sem estrelas no saldo.');
   let html='<div class="modal-overlay" onclick="closeGiftModal(event)">';
   html+='<div class="modal-sheet" onclick="event.stopPropagation()">';
   html+='<div class="modal-handle"></div>';
-  html+='<div class="modal-title">'+gift.emoji+' '+esc(gift.name)+'</div>';
-  html+='<div style="text-align:center;font-size:.8rem;color:var(--t2);margin-bottom:.8rem">'+esc(gift.description)+'</div>';
-  if(gift.needsAddress)html+='<div style="text-align:center;font-size:.7rem;color:var(--warn);margin-bottom:.6rem">&#x1F4E6; Requer endereço (pediremos permissão)</div>';
+  html+='<div class="modal-title">Dar Estrela</div>';
+  html+='<div style="text-align:center;margin:.5rem 0"><svg width="32" height="32" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>';
+  html+='<div style="text-align:center;font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:.6rem">Transferir 1 estrela do seu saldo ('+(state.userStarsCount||0)+' disponíveis)</div>';
+  html+='<input class="gift-msg-input" id="giftMsg" placeholder="Deixe uma mensagem (opcional)" maxlength="120">';
+  html+='<div style="margin-top:.8rem;text-align:center"><button class="bp" style="max-width:200px" onclick="confirmSendStar()">Transferir estrela</button></div>';
+  html+='</div></div>';
+  $('giftModal').innerHTML=html;
+}
+async function confirmSendStar(){
+  const msg=$('giftMsg')?$('giftMsg').value.trim():'';
+  try{
+    const r=await fetch('/api/gift/send-star',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({relationId:state.currentRelation.relationId,fromUserId:state.userId,message:msg})});
+    const d=await r.json();
+    if(d.error)return showToast(d.error);
+    if(state.userStarsCount)state.userStarsCount--;
+    showToast('Estrela transferida!');haptic([50,30,50]);
+    $('giftModal').classList.add('hidden');$('giftModal').innerHTML='';
+  }catch(e){showToast('Erro ao transferir.')}
+}
+function selectGift(giftId){
+  const gift=giftCatalog.find(g=>g.id===giftId);if(!gift)return;
+  const cost=gift.scoreCost||10;
+  let html='<div class="modal-overlay" onclick="closeGiftModal(event)">';
+  html+='<div class="modal-sheet" onclick="event.stopPropagation()">';
+  html+='<div class="modal-handle"></div>';
+  html+='<div class="modal-title">'+esc(gift.name)+'</div>';
+  html+='<div style="text-align:center;font-size:1.8rem;margin:.3rem 0">'+gift.emoji+'</div>';
+  html+='<div style="text-align:center;font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:.5rem">'+esc(gift.description)+'</div>';
+  html+='<div style="text-align:center;font-size:.7rem;color:rgba(255,107,53,.7);margin-bottom:.6rem">Custo: '+cost+' pontos de score</div>';
   html+='<input class="gift-msg-input" id="giftMsg" placeholder="Mensagem (opcional)" maxlength="120">';
   html+='<div style="margin-top:.8rem;text-align:center"><button class="bp" style="max-width:200px" onclick="confirmSendGift(\''+giftId+'\')">Enviar presente</button></div>';
   html+='</div></div>';
@@ -7971,7 +8041,7 @@ function openDeclModal(){
   let html='<div class="modal-overlay" onclick="closeDeclModal(event)">';
   html+='<div class="modal-sheet" onclick="event.stopPropagation()">';
   html+='<div class="modal-handle"></div>';
-  html+='<div class="modal-title">&#x1F4DD; Declaração</div>';
+  html+='<div class="modal-title">Declaração</div>';
   html+='<div style="text-align:center;font-size:.78rem;color:var(--t2);margin-bottom:.8rem">Escreva algo para ficar no perfil dessa pessoa. Todos que se conectarem a ela poderão ler.</div>';
   html+='<textarea class="decl-input" id="declText" placeholder="Escreva sua declaração..." maxlength="280" oninput="updateDeclCounter()"></textarea>';
   html+='<div class="decl-counter" id="declCounter">0/280</div>';
@@ -8139,14 +8209,14 @@ function releaseAllMedia(){
 }
 // ═══ SELFIE MODAL ═══
 const SELFIE_PHRASES=[
-  {title:'📸 Registrem esse momento!',phrase:'Vocês se encontraram... agora sorriam!',emojis:'🎉 😄 ✨ 💫 🤳'},
-  {title:'✨ Que encontro!',phrase:'Guardem essa memória pra sempre!',emojis:'💖 😊 🌟 📸 🎊'},
-  {title:'🤳 Hora da selfie!',phrase:'Um sorriso vale mais que mil palavras!',emojis:'😁 🥳 ⭐ 💥 📷'},
-  {title:'💫 Momento especial!',phrase:'Esse encontro merece uma foto!',emojis:'🎉 😍 ✨ 🤩 📸'},
-  {title:'🎉 Olha só quem se encontrou!',phrase:'Vamos eternizar esse momento?',emojis:'💫 😄 🌈 ⚡ 🤳'},
-  {title:'😄 Sorriam!',phrase:'A melhor selfie é a que tem história!',emojis:'📸 💖 ✨ 🎊 😁'},
-  {title:'🌟 Conexão feita!',phrase:'Agora falta só a foto pra marcar!',emojis:'🤳 🥳 💫 🎉 😊'},
-  {title:'💖 Que momento!',phrase:'Dois sorrisos, uma selfie perfeita!',emojis:'😄 ✨ 📷 🌟 🎊'}
+  {title:'Registrem esse momento!',phrase:'Vocês se encontraram... agora sorriam!'},
+  {title:'Que encontro!',phrase:'Guardem essa memória pra sempre!'},
+  {title:'Hora da selfie!',phrase:'Um sorriso vale mais que mil palavras!'},
+  {title:'Momento especial!',phrase:'Esse encontro merece uma foto!'},
+  {title:'Olha só quem se encontrou!',phrase:'Vamos eternizar esse momento?'},
+  {title:'Sorriam!',phrase:'A melhor selfie é a que tem história!'},
+  {title:'Conexão feita!',phrase:'Agora falta só a foto pra marcar!'},
+  {title:'Que momento!',phrase:'Dois sorrisos, uma selfie perfeita!'}
 ];
 let _sfCaptured=false;
 
@@ -8160,7 +8230,7 @@ function revealCaptureSelfie(){
   _sfCaptured=false;
   $('sfCapturedImg').style.display='none';
   $('sfPlaceholder').style.display='flex';
-  $('sfCaptureBtn').textContent='📸 Tirar Selfie';
+  $('sfCaptureBtn').textContent='Tirar Selfie';
   $('sfCaptureBtn').className='sf-btn sf-btn-capture';
   $('sfCaptureBtn').onclick=selfieCapture;
   // Show modal
@@ -8263,21 +8333,35 @@ function sfConfetti(){
 
 // ═══ CONTACT REQUESTS ═══
 function openContactMenu(){
-  const area=$('contactRequestArea');
-  if(area.innerHTML){area.innerHTML='';return}
+  // Legacy — redirect to modal version
+  openContactModal();
+}
+function openContactModal(){
+  if(!state.currentRelation)return;
   const types=[
-    {id:'instagram',emoji:'📸',label:'Instagram'},
-    {id:'whatsapp',emoji:'💬',label:'WhatsApp'},
-    {id:'x',emoji:'𝕏',label:'X / Twitter'},
-    {id:'email',emoji:'📧',label:'Email'},
-    {id:'foto',emoji:'📷',label:'Foto'}
+    {id:'instagram',label:'Instagram',color:'#e1306c',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>'},
+    {id:'whatsapp',label:'WhatsApp',color:'#25d366',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>'},
+    {id:'x',label:'X / Twitter',color:'#fff',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/></svg>'},
+    {id:'email',label:'Email',color:'#60a5fa',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>'}
   ];
-  let html='<div class="contact-menu">';
+  let html='<div class="modal-overlay" onclick="closeContactModal(event)">';
+  html+='<div class="modal-sheet" onclick="event.stopPropagation()">';
+  html+='<div class="modal-handle"></div>';
+  html+='<div class="modal-title">Pedir contato</div>';
+  html+='<div style="text-align:center;font-size:.75rem;color:rgba(255,255,255,.35);margin-bottom:.8rem">Escolha qual contato quer pedir</div>';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem">';
   types.forEach(t=>{
-    html+='<button type="button" class="contact-opt" onclick="requestContact(\''+t.id+'\')">'+t.emoji+' '+t.label+'</button>';
+    html+='<button type="button" class="contact-modal-opt" onclick="requestContact(\''+t.id+'\');closeContactModal()" style="--opt-color:'+t.color+'">';
+    html+='<div class="cmo-icon">'+t.icon+'</div>';
+    html+='<span>'+t.label+'</span></button>';
   });
-  html+='</div>';
+  html+='</div></div></div>';
+  const area=$('contactRequestArea');
   area.innerHTML=html;
+}
+function closeContactModal(e){
+  if(e&&e.target&&!e.target.classList.contains('modal-overlay'))return;
+  $('contactRequestArea').innerHTML='';
 }
 async function requestContact(type){
   if(!state.currentRelation)return;
@@ -8290,9 +8374,9 @@ async function requestContact(type){
 function showContactRequest(data){
   const area=$('contactRequestArea');
   const labels={instagram:'Instagram',whatsapp:'WhatsApp',x:'X / Twitter',email:'Email',foto:'Foto'};
-  const emojis={instagram:'📸',whatsapp:'💬',x:'𝕏',email:'📧',foto:'📷'};
+  const colors={instagram:'#e1306c',whatsapp:'#25d366',x:'#fff',email:'#60a5fa',foto:'#a78bfa'};
   let html='<div class="contact-req-banner" id="contactReq-'+data.requestId+'">';
-  html+='<div class="contact-req-text">'+esc(data.from.name)+' quer seu <strong>'+emojis[data.contactType]+' '+(labels[data.contactType]||data.contactType)+'</strong></div>';
+  html+='<div class="contact-req-text">'+esc(data.from.name)+' quer seu <strong style="color:'+(colors[data.contactType]||'var(--t1)')+'">'+(labels[data.contactType]||data.contactType)+'</strong></div>';
   if(data.contactType!=='foto'){
     html+='<input class="contact-req-input" id="contactVal-'+data.requestId+'" placeholder="Seu '+(labels[data.contactType]||'')+'">';
   }
@@ -8320,7 +8404,7 @@ function showEncostaRequest(data){
   let html='<div class="encosta-req-banner" id="encostaReq-'+data.requestId+'">';
   html+='<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem">'+makeAvatar(data.from.name,color,38,data.from.profilePhoto||data.from.photoURL||null);
   html+='<div><div class="encosta-req-title">'+esc(data.from.name)+' quer conectar</div>';
-  html+='<div class="encosta-req-sub">📍 '+esc(data.eventName)+'</div></div></div>';
+  html+='<div class="encosta-req-sub"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" style="vertical-align:middle;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'+esc(data.eventName)+'</div></div></div>';
   html+='<div class="encosta-req-actions">';
   html+='<button type="button" class="bp" style="flex:1;font-size:.82rem" onclick="acceptEncostaReq(\''+data.requestId+'\',\''+data.eventId+'\',\''+data.from.id+'\',true)">Aceitar</button>';
   html+='<button type="button" class="bs" style="flex:1;font-size:.82rem" onclick="acceptEncostaReq(\''+data.requestId+'\',\''+data.eventId+'\',\''+data.from.id+'\',false)">Recusar</button>';
@@ -8418,7 +8502,7 @@ async function loadNearbyPeople(){
       html+='<div class="loc-person">';
       html+=makeAvatar(nick,color,36,p.profilePhoto||null);
       html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+'</div><div class="loc-person-dist">'+dist+'</div>';
-      if(p.score||p.stars)html+='<div class="loc-person-pts">'+(p.score?'&#x26A1;'+p.score:'')+(p.stars?' ⭐'+p.stars:'')+'</div>';
+      if(p.score||p.stars)html+='<div class="loc-person-pts">'+(p.score?'&#x26A1;'+p.score:'')+(p.stars?' <svg width="9" height="9" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'+p.stars:'')+'</div>';
       html+='</div>';
       html+='<button class="loc-encosta-btn" onclick="encostaFromLocation(\''+p.id+'\')">'+i18n('loc_encosta')+'</button>';
       html+='</div>';
@@ -8439,7 +8523,7 @@ async function loadNearbyEvents(){
       const dist=ev.distance<1000?Math.round(ev.distance)+'m':((ev.distance/1000).toFixed(1))+'km';
       html+='<div class="evt-card" onclick="openEventDetail(\''+ev.id+'\')">';
       html+='<div class="evt-card-name">'+esc(ev.name)+'</div>';
-      html+='<div class="evt-card-meta"><span>📍 '+dist+'</span><span>'+esc(ev.participantCount||0)+' '+i18n('evt_people')+'</span></div>';
+      html+='<div class="evt-card-meta"><span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'+dist+'</span><span>'+esc(ev.participantCount||0)+' '+i18n('evt_people')+'</span></div>';
       if(ev.description)html+='<div class="evt-card-desc">'+esc(ev.description)+'</div>';
       html+='</div>';
     });
@@ -8463,9 +8547,9 @@ function _renderEventForm(){
   html+='<div class="form-title">&#x1F4CD; '+i18n('create_event_title')+'</div>';
   html+='<div class="form-sub">Crie um ponto de encontro digital em um local físico. Quem estiver por perto poderá entrar e se conectar.</div>';
   if(myLat){
-    html+='<div style="font-size:.65rem;color:var(--ok);margin-bottom:.6rem">📍 Localização detectada ('+myLat.toFixed(4)+', '+myLng.toFixed(4)+')</div>';
+    html+='<div style="font-size:.65rem;color:var(--ok);margin-bottom:.6rem;display:flex;align-items:center;gap:.25rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Localização detectada ('+myLat.toFixed(4)+', '+myLng.toFixed(4)+')</div>';
   }else{
-    html+='<div style="font-size:.65rem;color:var(--ac2);margin-bottom:.6rem">📍 Sem GPS — insira as coordenadas manualmente</div>';
+    html+='<div style="font-size:.65rem;color:var(--ac2);margin-bottom:.6rem;display:flex;align-items:center;gap:.25rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Sem GPS — insira as coordenadas manualmente</div>';
   }
   html+='<div class="loc-fg"><label>'+i18n('evt_name')+'</label><input type="text" id="evtName" maxlength="60" placeholder="'+i18n('evt_name_ph')+'"></div>';
   html+='<div class="loc-fg"><label>'+i18n('evt_desc')+'</label><textarea id="evtDesc" maxlength="200" placeholder="'+i18n('evt_desc_ph')+'"></textarea></div>';
@@ -8590,7 +8674,7 @@ const LANG={
 pt:{
   loc_btn:'Localização',ticket_btn:'Meu Bilhete',loc_title:'Explorar ao redor',
   create_event_btn:'+ Evento',loc_activate:'Ative sua localização para descobrir pessoas e eventos.',
-  loc_searching:'Buscando localização...',loc_active:'📍 Localização ativa',
+  loc_searching:'Buscando localização...',loc_active:'Localização ativa',
   loc_denied:'Localização negada. Permita no navegador.',tab_nearby:'Pessoas',tab_events:'Eventos',
   loc_loading:'Carregando...',loc_no_people:'Ninguém por perto no momento.',
   loc_no_events:'Nenhum evento por perto.',loc_encosta:'Touch',loc_need_gps:'Ative o GPS primeiro.',
@@ -8636,7 +8720,7 @@ pt:{
 en:{
   loc_btn:'Location',ticket_btn:'My Ticket',loc_title:'Explore nearby',
   create_event_btn:'+ Event',loc_activate:'Enable your location to discover people and events.',
-  loc_searching:'Searching location...',loc_active:'📍 Location active',
+  loc_searching:'Searching location...',loc_active:'Location active',
   loc_denied:'Location denied. Allow in browser.',tab_nearby:'People',tab_events:'Events',
   loc_loading:'Loading...',loc_no_people:'Nobody nearby right now.',
   loc_no_events:'No events nearby.',loc_encosta:'Touch',loc_need_gps:'Enable GPS first.',
@@ -8672,7 +8756,7 @@ en:{
 es:{
   loc_btn:'Ubicación',ticket_btn:'Mi Boleto',loc_title:'Explorar alrededor',
   create_event_btn:'+ Evento',loc_activate:'Activa tu ubicación para descubrir personas y eventos.',
-  loc_searching:'Buscando ubicación...',loc_active:'📍 Ubicación activa',
+  loc_searching:'Buscando ubicación...',loc_active:'Ubicación activa',
   loc_denied:'Ubicación denegada. Permite en el navegador.',tab_nearby:'Personas',tab_events:'Eventos',
   loc_loading:'Cargando...',loc_no_people:'Nadie cerca por ahora.',
   loc_no_events:'No hay eventos cerca.',loc_encosta:'Tocar',loc_need_gps:'Activa el GPS primero.',
@@ -10181,7 +10265,7 @@ async function showVerificationPanel(){
     html+='<div style="font-size:.75rem;font-weight:600;color:var(--t2);margin:.8rem 0 .4rem">Eventos verificados ('+d.verifiedEvents.length+')</div>';
     d.verifiedEvents.forEach(e=>{
       html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:.3rem">';
-      html+='<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:.9rem">📍</div>';
+      html+='<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>';
       html+='<div style="flex:1"><div style="font-size:.78rem;font-weight:600;color:var(--t1)">'+esc(e.name)+' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.6rem;font-weight:800">✓</span></div><div style="font-size:.6rem;color:var(--t3)">'+e.participants+' participantes</div></div>';
       html+='</div>';
     });
@@ -10205,7 +10289,7 @@ async function showVerificationPanel(){
     html+='<div id="verifyEventResults">';
     d.allEvents.filter(e=>!e.verified).forEach(e=>{
       html+='<div style="display:flex;align-items:center;gap:.4rem;padding:.35rem;margin-bottom:.15rem">';
-      html+='<span style="font-size:.85rem">📍</span>';
+      html+='<span style="display:inline-flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>';
       html+='<div style="flex:1;font-size:.72rem;color:var(--t1)">'+esc(e.name)+' <span style="color:var(--t3);font-size:.6rem">'+e.participants+' pax</span></div>';
       html+='<button onclick="event.stopPropagation();verifyEvent(\''+e.id+'\',this)" style="font-size:.58rem;padding:.2rem .5rem;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:8px;color:#3b82f6;cursor:pointer;font-weight:600">Verificar</button>';
       html+='</div>';
