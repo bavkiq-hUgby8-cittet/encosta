@@ -6113,6 +6113,10 @@ O QUE VOCÊ NÃO DEVE FAZER:
 
 ${context}
 
+IMPORTANTE SOBRE NOMES:
+- Chame o usuário pelo NOME REAL (${user.name || ''}) se disponível, senão pelo apelido (${user.nickname || ''})
+- Nas conexões, use o nome que aparece nos dados — prefira nomes reais quando revelados
+
 SAUDAÇÃO INICIAL (fale isso quando a conversa começar):
 "${greeting}"`,
         turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 500 },
