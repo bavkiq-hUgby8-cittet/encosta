@@ -11148,21 +11148,21 @@ const VA = (function(){
     }
   }
 
-  // ── CLEANUP — kills everything ──
+  // ── CLEANUP — close WebRTC without killing shared audio hardware ──
   function cleanup(){
     active = false; busy = false;
     // Nullify callbacks
     if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
     if(dc){dc.onopen=null;dc.onclose=null;dc.onmessage=null;}
-    // Close
+    // Close WebRTC (this releases mic reference internally)
     if(dc){try{dc.close()}catch(e){}} dc=null;
     if(pc){try{pc.close()}catch(e){}} pc=null;
-    // Kill mic
-    if(micStream){micStream.getTracks().forEach(t=>{t.enabled=false;t.stop();});} micStream=null;
-    // Kill audio
+    // DO NOT call track.stop() on mic — it kills hardware and breaks sonic match!
+    // Just drop the reference, browser will GC when PeerConnection is gone
+    micStream=null;
+    // Clean audio element
     if(audioEl){
       audioEl.pause();
-      if(audioEl.srcObject) audioEl.srcObject.getTracks().forEach(t=>t.stop());
       audioEl.srcObject=null;
       if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
     }
