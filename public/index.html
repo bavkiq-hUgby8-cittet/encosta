@@ -492,9 +492,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .rv-btn-mini .rv-ico{font-size:.7rem;line-height:1;opacity:.5}
 
 /* ═══ CHAT — Premium UI Redesign ═══ */
-#chat{flex-direction:column;background:var(--bg)}
-/* Header */
-.ch{display:flex;align-items:center;justify-content:space-between;padding:.6rem .8rem;background:rgba(12,12,20,.94);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-bottom:1px solid rgba(255,255,255,.04);padding-top:max(env(safe-area-inset-top),.6rem);flex-shrink:0;z-index:2}
+#chat{flex-direction:column;background:var(--bg);height:100dvh;height:100vh}
+/* Header — stays visible when keyboard opens */
+.ch{display:flex;align-items:center;justify-content:space-between;padding:.6rem .8rem;background:rgba(12,12,20,.98);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-bottom:1px solid rgba(255,255,255,.04);padding-top:max(env(safe-area-inset-top),.6rem);flex-shrink:0;z-index:10;position:sticky;top:0}
 .chl{display:flex;align-items:center;gap:.5rem;flex:1;min-width:0}
 .ch-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:#fff;overflow:hidden;border:1.5px solid rgba(255,255,255,.08);transition:.15s}
 .ch-avatar:active{transform:scale(.92)}
@@ -558,7 +558,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .qp-chip:active{background:rgba(255,107,53,.12);color:rgba(255,255,255,.8);border-color:rgba(255,107,53,.2);transform:scale(.95)}
 .qp-chip.sent{opacity:.15;pointer-events:none;transform:scale(.95)}
 /* Chat bottom area */
-.chat-bottom{background:rgba(12,12,20,.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;padding-bottom:max(env(safe-area-inset-bottom),.5rem)}
+.chat-bottom{background:rgba(12,12,20,.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;padding-bottom:max(env(safe-area-inset-bottom),.5rem);position:sticky;bottom:0;z-index:10}
 .cia{display:flex;align-items:flex-end;gap:.4rem;padding:.4rem .7rem .35rem}
 .cia-wrap{flex:1;display:flex;align-items:flex-end;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:12px;transition:border-color .25s;overflow:hidden}
 .cia-wrap:focus-within{border-color:rgba(255,107,53,.25)}
@@ -2999,6 +2999,8 @@ function goHome(){
   // Full cleanup: stop any active sonic/audio before returning home
   if(homeSonicActive)stopHomeSonic();
   stopSonicMode(); // ensure all audio contexts + mic streams are fully released
+  // Reset chat viewport adjustments
+  var chatEl=$('chat');if(chatEl){chatEl.style.height='';chatEl.style.transform=''}
   showScreen('home');refreshHome();
 }
 
@@ -5273,29 +5275,34 @@ async function openChat(rel){
   state.currentRelation=rel;pulseSent=false;
   const pb=$('pulseBtn');if(pb)pb.style.opacity='1';
   const partner=(rel.userA?.id===state.userId)?rel.userB:rel.userA;
-  const isEventRel=!!(rel.isEvent||rel.eventId);
+  const partnerId=partner?.id||rel.partnerId||null;
+  // isEvent only if the partner itself is an event (evt:xxx), NOT just because they met at an event
+  const isEventRel=!!(rel.isEvent||(typeof partnerId==='string'&&partnerId.startsWith('evt:')));
   const pNick=isEventRel?(rel.eventName||rel.partnerName||'Evento'):(partner?.nickname||rel.partnerName||'Pessoa');
   const pRealName=isEventRel?null:(partner?.realName||null);
   const pName=pRealName||pNick;
   state.currentPartnerId=partner?.id||rel.partnerId||null;
-  // Avatar in header
+  // Avatar in header — reset previous inline styles first
   const avatarEl=$('chatAvatar');
-  const partnerPhoto=rel.partnerPhoto||partner?.profilePhoto||null;
+  avatarEl.style.background='';
+  const partnerPhoto=rel.partnerPhoto||partner?.profilePhoto||partner?.photoURL||null;
   const isRevealed=!!(rel.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[state.currentPartnerId]));
   if(isEventRel){
     avatarEl.className='ch-avatar event';
     avatarEl.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
   }else if(isRevealed&&partnerPhoto){
     avatarEl.className='ch-avatar revealed';
-    avatarEl.innerHTML='<img src="'+partnerPhoto+'" alt="">';
+    avatarEl.innerHTML='<img src="'+esc(partnerPhoto)+'" alt="">';
   }else if(isRevealed){
     const initials=esc((pRealName||pNick||'?').slice(0,2).toUpperCase());
     avatarEl.className='ch-avatar revealed';
     avatarEl.style.background='rgba(0,220,130,.1)';
     avatarEl.innerHTML=initials;
   }else{
+    const pColor=partner?.color||rel.partnerColor||nickColor(pNick||'??');
     const initials=esc((pNick||'?').slice(0,2).toUpperCase());
     avatarEl.className='ch-avatar anon';
+    avatarEl.style.background='rgba(255,68,102,.12)';
     avatarEl.innerHTML=initials;
   }
   // Event-type chat: show event info
@@ -5347,6 +5354,8 @@ async function openChat(rel){
   localStorage.setItem('lastRead_'+rel.relationId,Date.now().toString());
   refreshRelations();
   requestAnimationFrame(()=>{mc.scrollTop=mc.scrollHeight;$('chatInput').focus()});
+  // When input gets focus (keyboard opens), scroll to bottom after a delay
+  $('chatInput').onfocus=function(){setTimeout(function(){mc.scrollTop=mc.scrollHeight},350)};
 }
 async function loadStreak(){
   if(!state.currentPartnerId)return;
@@ -5595,7 +5604,8 @@ async function showRelations(){
       const h=Math.floor(r.timeLeft/3600000),m=Math.floor((r.timeLeft%3600000)/60000);
       let tc='ok';if(r.timeLeft<3600000)tc='low';else if(r.timeLeft<43200000)tc='med';
       const card=document.createElement('div');card.className='rc';card.style.animationDelay=(idx*0.06)+'s';card.style.animation='mi .35s ease '+(idx*0.06)+'s both';
-      const isEventRel=!!(r.isEvent||r.eventId);
+      const rpid2=r.userA===state.userId?r.userB:r.userA;
+      const isEventRel=!!(r.isEvent||(typeof rpid2==='string'&&rpid2.startsWith('evt:')));
       const pColor=isEventRel?'#60a5fa':(r.partnerColor||nickColor(r.partnerName||'??'));
       const timeLabel=tc==='low'?'expirando':'restante';
       let displayName,nameHtml,photoHtml;
@@ -7039,11 +7049,26 @@ function updateNetworkBadge(){
 function openChatFromConst(nodeId){
   hideConstDetail();
   // Find active relation with this user
-  fetch('/api/relations/'+state.userId).then(r=>r.json()).then(rels=>{
-    const rel=rels.find(r=>r.partnerId===nodeId&&r.expiresAt>Date.now());
-    if(rel){showScreen('chat');loadChat(rel.id,rel.partnerId,rel.partnerName,rel.partnerColor)}
-    else showToast('Conexão expirada');
-  }).catch(()=>showToast('Erro ao abrir chat'));
+  fetch('/api/relations/'+state.userId).then(function(r){return r.json()}).then(function(rels){
+    // Find relation where partner matches nodeId
+    var rel=rels.find(function(r){
+      var pid=r.userA===state.userId?r.userB:r.userA;
+      return (pid===nodeId||r.partnerId===nodeId)&&r.expiresAt>Date.now();
+    });
+    if(!rel){showToast('Conexao expirada');return}
+    var pid=rel.userA===state.userId?rel.userB:rel.userA;
+    var isEvt=!!(rel.isEvent||(typeof pid==='string'&&pid.startsWith('evt:')));
+    openChat({
+      relationId:rel.id,phrase:rel.phrase,expiresAt:rel.expiresAt,
+      partnerName:isEvt?(rel.eventName||rel.partnerName):rel.partnerName,
+      partnerId:pid,isEvent:isEvt,eventId:rel.eventId,eventName:rel.eventName,
+      partnerPhoto:rel.partnerPhoto||null,
+      partnerRevealedToMe:rel.partnerRevealedToMe||false,
+      iRevealedToPartner:rel.iRevealedToPartner||false,
+      userA:{id:rel.userA,nickname:rel.userA===state.userId?state.userName:(rel.partnerName||'?'),realName:rel.userA===state.userId?null:rel.partnerRealName},
+      userB:{id:rel.userB,nickname:rel.userB===state.userId?state.userName:(rel.partnerName||'?'),realName:rel.userB===state.userId?null:rel.partnerRealName}
+    });
+  }).catch(function(){showToast('Erro ao abrir chat')});
 }
 function navigateToConstNode(nodeId){
   toggleNotifPanel();
@@ -10017,7 +10042,26 @@ $('chatInput').addEventListener('input',()=>{handleTyping();updateSendBtn()});
 $('chatInput').addEventListener('focus',()=>closePlusMenu());
 document.addEventListener('click',e=>{const pm=$('plusMenu');if(pm&&pm.classList.contains('open')&&!pm.contains(e.target)&&!e.target.closest('.cia-plus'))closePlusMenu()});
 $('joinCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')joinSession()});
-if(window.visualViewport){let ph=window.visualViewport.height;window.visualViewport.addEventListener('resize',()=>{if($('chat').classList.contains('active')&&window.visualViewport.height<ph)requestAnimationFrame(()=>{$('chatMessages').scrollTop=99999});ph=window.visualViewport.height})}
+if(window.visualViewport){
+  let ph=window.visualViewport.height;
+  window.visualViewport.addEventListener('resize',()=>{
+    const chatEl=$('chat');
+    if(chatEl&&chatEl.classList.contains('active')){
+      const vh=window.visualViewport.height;
+      // Resize chat to visible viewport (handles keyboard open/close)
+      chatEl.style.height=vh+'px';
+      requestAnimationFrame(()=>{$('chatMessages').scrollTop=99999});
+    }
+    ph=window.visualViewport.height;
+  });
+  window.visualViewport.addEventListener('scroll',()=>{
+    const chatEl=$('chat');
+    if(chatEl&&chatEl.classList.contains('active')){
+      // Keep chat anchored to top of visual viewport
+      chatEl.style.transform='translateY('+window.visualViewport.offsetTop+'px)';
+    }
+  });
+}
 
 // ═══ RESOURCE CLEANUP + SCREENSHOT PROTECTION ═══
 document.addEventListener('visibilitychange',()=>{
