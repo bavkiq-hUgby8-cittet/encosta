@@ -4694,10 +4694,42 @@ io.on('connection', (socket) => {
     else if (userId) delete sonicQueue[userId];
   });
 
+  // ═══ TOUCHGAMES — Lobby presence ═══
+  socket.on('game-lobby-join', () => {
+    socket._inGameLobby = true;
+    // Broadcast lobby count to all connected users
+    const lobbyUsers = [...io.sockets.sockets.values()].filter(s => s._inGameLobby && s.touchUserId);
+    const lobbyInfo = lobbyUsers.map(s => ({ userId: s.touchUserId }));
+    io.emit('game-lobby-update', { count: lobbyInfo.length, users: lobbyInfo });
+  });
+  socket.on('game-lobby-leave', () => {
+    socket._inGameLobby = false;
+    const lobbyUsers = [...io.sockets.sockets.values()].filter(s => s._inGameLobby && s.touchUserId);
+    const lobbyInfo = lobbyUsers.map(s => ({ userId: s.touchUserId }));
+    io.emit('game-lobby-update', { count: lobbyInfo.length, users: lobbyInfo });
+  });
+
   // ═══ TOUCHGAMES — Real-time game events ═══
   socket.on('game-invite', ({ fromUserId, toUserId, gameId, sessionId, gameName, gameIcon, gameDesc, gameFile }) => {
     if (!fromUserId || !toUserId || !gameId) return;
+    // Check if target is already playing
+    const now = Date.now();
+    const targetBusy = Object.values(db.gameSessions).find(gs =>
+      gs.players.includes(toUserId) && gs.status === 'playing' && (!gs.createdAt || now - gs.createdAt < 3600000)
+    );
+    if (targetBusy) {
+      // Notify sender that target is busy
+      const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === fromUserId);
+      senderSockets.forEach(s => s.emit('game-target-busy', { toUserId, sessionId }));
+      return;
+    }
     const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === toUserId);
+    if (targetSockets.length === 0) {
+      // Target offline — notify sender
+      const senderSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === fromUserId);
+      senderSockets.forEach(s => s.emit('game-target-offline', { toUserId, sessionId }));
+      return;
+    }
     targetSockets.forEach(s => s.emit('game-invite', { fromUserId, gameId, sessionId, gameName: gameName || '', gameIcon: gameIcon || '', gameDesc: gameDesc || '', gameFile: gameFile || '' }));
   });
 
@@ -6316,10 +6348,30 @@ app.get('/api/games/manifest', (req, res) => {
   }
 });
 
+// GET check if player is busy (in active game)
+app.get('/api/games/player-status/:userId', (req, res) => {
+  const uid = req.params.userId;
+  const now = Date.now();
+  const activeSession = Object.values(db.gameSessions).find(gs =>
+    gs.players.includes(uid) &&
+    (gs.status === 'playing' || gs.status === 'waiting') &&
+    (!gs.createdAt || now - gs.createdAt < 3600000) // max 1h old
+  );
+  res.json({ busy: !!activeSession, gameId: activeSession ? activeSession.gameId : null, sessionId: activeSession ? activeSession.id : null });
+});
+
 // POST create game session
 app.post('/api/games/sessions', (req, res) => {
   const { gameId, hostUserId, opponentUserId, gameFile } = req.body;
   if (!gameId || !hostUserId) return res.status(400).json({ error: 'gameId e hostUserId obrigatorios' });
+  const now = Date.now();
+  // Enforce one game at a time: cancel any previous waiting/playing sessions for host
+  Object.values(db.gameSessions).forEach(gs => {
+    if (gs.players.includes(hostUserId) && (gs.status === 'waiting' || gs.status === 'playing') && (!gs.createdAt || now - gs.createdAt < 3600000)) {
+      gs.status = 'cancelled';
+      gs.endedAt = now;
+    }
+  });
   const sessionId = 'gs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const players = [hostUserId];
   if (opponentUserId) players.push(opponentUserId);
@@ -6331,8 +6383,8 @@ app.post('/api/games/sessions', (req, res) => {
     hostUserId,
     status: opponentUserId ? 'waiting' : 'playing', // solo starts immediately
     moves: [],
-    createdAt: Date.now(),
-    startedAt: opponentUserId ? null : Date.now(),
+    createdAt: now,
+    startedAt: opponentUserId ? null : now,
     endedAt: null,
     winner: null,
     scores: {}
@@ -6340,6 +6392,40 @@ app.post('/api/games/sessions', (req, res) => {
   db.gameSessions[sessionId] = gs;
   saveDB('gameSessions');
   res.json({ ok: true, session: gs });
+});
+
+// POST create temporary game chat between two players without a relation
+app.post('/api/games/temp-chat', (req, res) => {
+  const { hostUserId, opponentUserId, gameId, gameName } = req.body;
+  if (!hostUserId || !opponentUserId) return res.status(400).json({ error: 'hostUserId e opponentUserId obrigatorios' });
+  // Check if active relation already exists
+  const pairKey = [hostUserId, opponentUserId].sort().join('_');
+  const existingRid = IDX.relationPair.get(pairKey);
+  const now = Date.now();
+  if (existingRid && db.relations[existingRid] && db.relations[existingRid].expiresAt > now) {
+    // Already have active relation
+    return res.json({ ok: true, relationId: existingRid, isNew: false });
+  }
+  // Create temporary game relation (30 min duration)
+  const relationId = 'grel_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const phrase = 'TouchGames: ' + (gameName || 'Jogo');
+  db.relations[relationId] = {
+    id: relationId,
+    userA: hostUserId,
+    userB: opponentUserId,
+    phrase,
+    createdAt: now,
+    expiresAt: now + 1800000, // 30 min
+    provocations: {},
+    renewed: 0,
+    selfie: null,
+    isGameChat: true,
+    gameId: gameId || null
+  };
+  idxAddRelation(relationId, hostUserId, opponentUserId);
+  db.messages[relationId] = [];
+  saveDB('relations', 'messages');
+  res.json({ ok: true, relationId, isNew: true, phrase });
 });
 
 // GET game session

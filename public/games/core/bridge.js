@@ -59,6 +59,8 @@
     onOpponentDisconnected: function(){ /* override */ },
     onGameClose: function(){ /* override */ },
     onGameStart: function(data){ /* override */ },
+    onPause: function(){ /* override — game should freeze */ },
+    onResume: function(){ /* override — game should continue */ },
 
     // ── Internos ──
 
@@ -81,10 +83,18 @@
           if(bridge.onOpponentDisconnected) bridge.onOpponentDisconnected();
           break;
         case 'game-close':
-          if(bridge.onGameClose) bridge.onGameClose();
+          if(msg.data && msg.data.reason === 'pause'){
+            if(bridge.onPause) bridge.onPause();
+          } else {
+            if(bridge.onGameClose) bridge.onGameClose();
+          }
           break;
         case 'game-start':
-          if(bridge.onGameStart) bridge.onGameStart(msg.data);
+          if(msg.data && msg.data.resumed){
+            if(bridge.onResume) bridge.onResume();
+          } else {
+            if(bridge.onGameStart) bridge.onGameStart(msg.data);
+          }
           break;
         case 'response':
           var cb = bridge._listeners[msg.data.callId];
