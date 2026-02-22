@@ -4663,7 +4663,7 @@ io.on('connection', (socket) => {
     // Notify all players game is starting
     gs.players.forEach(pId => {
       const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === pId);
-      targetSockets.forEach(s => s.emit('game-start', { sessionId, gameId: gs.gameId, players: gs.players }));
+      targetSockets.forEach(s => s.emit('game-start', { sessionId, gameId: gs.gameId, gameFile: gs.gameFile || '', players: gs.players }));
     });
   });
 
@@ -6239,7 +6239,7 @@ app.get('/api/games/manifest', (req, res) => {
 
 // POST create game session
 app.post('/api/games/sessions', (req, res) => {
-  const { gameId, hostUserId, opponentUserId } = req.body;
+  const { gameId, hostUserId, opponentUserId, gameFile } = req.body;
   if (!gameId || !hostUserId) return res.status(400).json({ error: 'gameId e hostUserId obrigatorios' });
   const sessionId = 'gs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const players = [hostUserId];
@@ -6247,6 +6247,7 @@ app.post('/api/games/sessions', (req, res) => {
   const gs = {
     id: sessionId,
     gameId,
+    gameFile: gameFile || gameId + '.html',
     players,
     hostUserId,
     status: opponentUserId ? 'waiting' : 'playing', // solo starts immediately
@@ -6310,6 +6311,17 @@ app.post('/api/games/results', (req, res) => {
     winSockets.forEach(s => s.emit('stars-awarded', { amount: award, reason: 'game-win', gameId: gs ? gs.gameId : null }));
   }
   res.json({ ok: true });
+});
+
+// GET leaderboard for ALL games (aggregated stats for a user)
+app.get('/api/games/leaderboard/all', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.json({ wins: 0, played: 0, winRate: 0 });
+  const scores = db.gameScores[userId] || [];
+  const wins = scores.filter(s => s.won).length;
+  const played = scores.length;
+  const winRate = played > 0 ? Math.round(wins / played * 100) : 0;
+  res.json({ wins, played, winRate });
 });
 
 // GET leaderboard for a game
