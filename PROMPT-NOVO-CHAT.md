@@ -28,8 +28,8 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
 ## ESTRUTURA DO PROJETO (atualizado 23/02/2026)
 
 Arquivos principais:
-- `server.js` (7063 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
-- `public/index.html` (11658 linhas) -- Frontend SPA completo (23+ telas)
+- `server.js` (~7100 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `public/index.html` (~11900 linhas) -- Frontend SPA completo (23+ telas)
 - `public/games/index.html` (1909 linhas) -- TouchGames lobby (microservico iframe)
 - `public/games/*.html` -- 11 jogos individuais (campo-minado, dama, xadrez, memory, rali, reflexo, cor-errada, empilha, impostor, speed-tap, 2048)
 - `public/operator.html` -- Painel do operador de eventos
@@ -79,9 +79,10 @@ Podem se revelar, dar estrelas, fazer check-in em eventos, enviar presentes digi
 10. VOICE AGENT: Agente de voz AI (OpenAI Realtime WebRTC) que conhece a rede social, salva notas, mostra perfis, faz fofoca automatica, maximo 1 frase por resposta
 11. TOUCHGAMES: Microservico com 11 jogos, lobby com jogadores online, convites via chat, ready-check para ambos confirmarem, suporte multiplayer via socket
 12. ASSINATURAS: Touch Plus R$50/mes (agente AI, acessorios premium, faixa VIP), Selo R$10/mes (selo visual no perfil)
-13. GORJETAS: Pagamento via MercadoPago (Pix, cartao, checkout pro, saved card, one-tap)
-14. SWIPE-BACK: Gesto de arrastar da borda esquerda pra voltar
-15. PAINEL RESTAURANTE: Menu CRUD, pedidos em tempo real, status por mesa
+13. GORJETAS: Pagamento via MercadoPago (Pix, cartao, checkout pro, saved card, one-tap) -- qualquer usuario pode receber
+14. EXTRATO FINANCEIRO: Tela de extrato com summary cards (recebido, enviado, liquido, pendentes), filtros por tipo, lista de gorjetas com fotos e valores
+15. SWIPE-BACK: Gesto de arrastar da borda esquerda pra voltar
+16. PAINEL RESTAURANTE: Menu CRUD, pedidos em tempo real, status por mesa
 
 ## MAPA DO SERVER.JS (secoes principais)
 
@@ -140,6 +141,10 @@ PENDENTE/NAO TESTADO:
 
 ## ULTIMOS COMMITS (23/02/2026 -- sessao mais recente)
 
+3baf30e feat: financial screen + history redesign with photos and payment integration
+5a00f97 feat: allow tips to any user, not just prestadores
+f48eb20 fix: login flow auto-recover via Firebase re-link
+ae02900 feat: admin diagnostic + force-reload endpoints
 10742ef feat: configurar dominio touch-irl.com
 5c914eb feat: checkout redesenhado + preparacao Apple Pay/Google Pay via Stripe
 4339570 fix: convite de jogo agora chega no chat + convite via sonic touch no lobby
