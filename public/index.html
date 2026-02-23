@@ -12713,13 +12713,16 @@ function onbBubbleActionClick(){
   if(btn)btn.style.display='none';
   const ov=document.getElementById('vaOverlay');
   if(ov)ov.classList.remove('active');
+  // Pré-criar Audio no contexto do clique (desbloqueia autoplay mobile)
+  const warmup=new Audio();warmup.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+  warmup.play().then(function(){warmup.pause();}).catch(function(){});
   setTimeout(()=> GuidedOnboarding.signalStep('HOME_VISIBLE'), 600);
 }
 
 const GuidedOnboarding=(function(){
   let audioEl=null;
   let active=false,busy=false,step=0,_ft=null;
-  let stepsData=null; // {step1:{url,text},step2:...}
+  let stepsData=null;
   const $=id=>document.getElementById(id);
 
   function bubble(t){
@@ -12740,44 +12743,43 @@ const GuidedOnboarding=(function(){
   }
 
   function playStep(key){
-    if(!stepsData||!stepsData[key])return;
-    cleanup(); // limpar áudio anterior
-    audioEl=new Audio(stepsData[key].url);
-    audioEl.playsInline=true;
-    // Mostrar texto na bubble enquanto áudio toca
+    if(!stepsData||!stepsData[key]){console.warn('[Onb] no data for',key);return;}
+    cleanup();
     bubble(stepsData[key].text);
-    // VA orb speaking
     var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
     var st=$('vaStatus');if(st)st.textContent='';
-
+    audioEl=new Audio(stepsData[key].url);
+    audioEl.playsInline=true;
     audioEl.onended=function(){
       var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
       onStepEnd(key);
     };
-    audioEl.onerror=function(){
-      console.error('[Onb] Audio error:',key);
+    audioEl.onerror=function(e){
+      console.error('[Onb] Audio error:',key,e);
+      var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
       onStepEnd(key);
     };
-    audioEl.play().catch(function(e){console.error('[Onb] play fail:',e);onStepEnd(key);});
+    audioEl.play().catch(function(e){
+      console.warn('[Onb] play blocked:',key,e.message);
+      // Fallback sem áudio — avançar step pelo texto
+      var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
+      setTimeout(function(){onStepEnd(key);},3000);
+    });
   }
 
   function onStepEnd(key){
     if(key==='step1'){
-      // Mostrar botão "Começar"
       setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},400);
     }
     else if(key==='step2'){
-      // Highlight botão TOUCH
       setTimeout(function(){hl('#mainBtn',12);},400);
     }
     else if(key==='step3'){
-      // Mostrar spark + tocar step4 com delay
       var spk=$('onbSpark');if(spk)spk.classList.add('active');
       step=4;
       setTimeout(function(){playStep('step4');},1200);
     }
     else if(key==='step4'){
-      // Fim — esconder spark e encerrar
       var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
       _ft=setTimeout(finish,2000);
     }
@@ -12786,7 +12788,6 @@ const GuidedOnboarding=(function(){
   function finish(){
     if(_ft){clearTimeout(_ft);_ft=null;}
     cleanup();step=0;bubble(null);hl(null);
-    // Limpar tudo sem popup — áudio já se despediu
     document.getElementById('onbGuideBubble')?.classList.remove('visible');
     document.getElementById('onbHighlight')?.classList.remove('visible','pulse');
     var spk=document.getElementById('onbSpark');if(spk)spk.classList.remove('active');
@@ -12803,23 +12804,33 @@ const GuidedOnboarding=(function(){
     async start(){
       if(busy||active)return;
       busy=true;
-      // Loading screen já está visível
       $('vaMainBtn').style.display='none';
       $('vaStopBtn').style.display='none';
       try{
+        console.log('[Onb] Fetching audio data...');
         const r=await fetch('/api/agent/onboarding-audio');
         const d=await r.json();
-        if(!d.ready){console.error('[Onb] Audio not ready');busy=false;return;}
+        console.log('[Onb] Audio response:',JSON.stringify(d.ready));
+        if(!d.ready){
+          console.error('[Onb] Audio files not ready');
+          // Esconder loading e abortar silenciosamente
+          var ld=$('onbLoading');if(ld)ld.classList.remove('active');
+          busy=false;return;
+        }
         stepsData={};
         for(const k of Object.keys(d.steps)){stepsData[k]={url:d.steps[k].url,text:d.steps[k].text};}
-      }catch(e){console.error('[Onb] fetch fail:',e);busy=false;return;}
-      // Pronto — esconder loading, mostrar VA overlay, tocar step1
+      }catch(e){
+        console.error('[Onb] fetch fail:',e);
+        var ld2=$('onbLoading');if(ld2)ld2.classList.remove('active');
+        busy=false;return;
+      }
       active=true;busy=false;step=1;
-      var ld=$('onbLoading');if(ld)ld.classList.remove('active');
+      var ld3=$('onbLoading');if(ld3)ld3.classList.remove('active');
       $('vaOverlay').classList.add('active');
       $('vaStopBtn').style.display='';
-      bubble(null);
-      playStep('step1');
+      // Step1: mostrar texto + botão Começar (áudio toca no clique do Começar)
+      bubble(stepsData.step1.text);
+      setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},500);
     },
     signalStep(name){
       if(!active)return;
