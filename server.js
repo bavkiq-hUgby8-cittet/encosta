@@ -4479,8 +4479,8 @@ function createSonicConnection(userIdA, userIdB) {
 setInterval(() => {
   const now = Date.now();
   for (const [uid, entry] of Object.entries(sonicQueue)) {
-    // Operators (isCheckin) get 10 min timeout, regular users 1 min
-    const maxAge = entry.isCheckin ? 600000 : 60000;
+    // Operators (isCheckin) get 10 min timeout, regular users 3 min
+    const maxAge = entry.isCheckin ? 600000 : 180000;
     if (now - entry.joinedAt > maxAge) delete sonicQueue[uid];
   }
 }, 30000);
