@@ -5570,7 +5570,7 @@ app.post('/mp/webhook', (req, res) => {
 // ── Saved Card with MP Customer API ──
 app.get('/api/tip/saved-card/:userId', (req, res) => {
   const user = db.users[req.params.userId];
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return res.json({ hasSaved: false });
   if (user.savedCard && user.savedCard.lastFour && user.savedCard.customerId) {
     res.json({ hasSaved: true, lastFour: user.savedCard.lastFour, brand: user.savedCard.brand || 'Cartão', cardId: user.savedCard.cardId || null });
   } else {
@@ -5581,9 +5581,15 @@ app.get('/api/tip/saved-card/:userId', (req, res) => {
 // Save card: tokenize → create MP customer → save card to customer
 app.post('/api/tip/save-card', paymentLimiter, async (req, res) => {
   const { userId, token, email, cpf } = req.body;
-  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'User not found' });
-  if (!token) return res.status(400).json({ error: 'Token do cartão é obrigatório.' });
-  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  // Auto-create minimal user entry if not found (can happen after server restart before Firebase sync)
+  if (!db.users[userId]) {
+    console.log('save-card: user not in memory, creating minimal entry for', userId);
+    db.users[userId] = { id: userId, nickname: 'user', email: email || '', createdAt: Date.now() };
+    saveDB('users');
+  }
+  if (!token) return res.status(400).json({ error: 'Token do cartao e obrigatorio.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento nao configurado. Verifique as credenciais.' });
   const user = db.users[userId];
   try {
     let customerId = user.savedCard?.customerId;
