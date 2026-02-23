@@ -25,7 +25,7 @@ if (!ADMIN_SECRET) console.warn('⚠️ ADMIN_SECRET não configurado! Endpoints
 // ── Security: Allowed origins for CORS ──
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 // Fallback: allow common origins in dev
-const DEFAULT_ORIGINS = ['https://encosta.onrender.com', 'http://localhost:3000', 'http://localhost:5500'];
+const DEFAULT_ORIGINS = ['https://touch-irl.com', 'https://www.touch-irl.com', 'https://encosta.onrender.com', 'http://localhost:3000', 'http://localhost:5500'];
 const CORS_ORIGINS = ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_ORIGINS;
 
 const app = express();
@@ -35,7 +35,7 @@ const io = new Server(server, {
     origin: (origin, cb) => {
       // Allow no-origin requests (mobile apps, curl, server-to-server)
       if (!origin) return cb(null, true);
-      if (CORS_ORIGINS.includes(origin) || origin.endsWith('.onrender.com')) return cb(null, true);
+      if (CORS_ORIGINS.includes(origin) || origin.endsWith('.onrender.com') || origin.endsWith('.touch-irl.com')) return cb(null, true);
       cb(new Error('CORS blocked: ' + origin));
     },
     methods: ['GET', 'POST']
@@ -849,7 +849,7 @@ app.post('/api/auth/send-verification', authLimiter, async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Usuário sem email.' });
     if (userRecord.emailVerified) return res.json({ ok: true, alreadyVerified: true });
     // Generate verification link
-    const appUrl = process.env.APP_URL || 'https://encosta-push.onrender.com';
+    const appUrl = process.env.APP_URL || 'https://touch-irl.com';
     const link = await firebaseAuth.generateEmailVerificationLink(email, { url: appUrl });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
@@ -876,7 +876,7 @@ app.post('/api/auth/send-magic-link', authLimiter, async (req, res) => {
   const { email, returnUrl } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
   try {
-    const appUrl = returnUrl || process.env.APP_URL || 'https://encosta-push.onrender.com';
+    const appUrl = returnUrl || process.env.APP_URL || 'https://touch-irl.com';
     const link = await firebaseAuth.generateSignInWithEmailLink(email, {
       url: appUrl, handleCodeInApp: true
     });
@@ -906,7 +906,7 @@ app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
   try {
-    const appUrl = process.env.APP_URL || 'https://encosta-push.onrender.com';
+    const appUrl = process.env.APP_URL || 'https://touch-irl.com';
     const link = await firebaseAuth.generatePasswordResetLink(email, { url: appUrl });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
@@ -1050,7 +1050,7 @@ const MP_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || '';
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
 const MP_APP_ID = process.env.MP_APP_ID || '';
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
-const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://encosta.onrender.com/mp/callback';
+const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://touch-irl.com/mp/callback';
 const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
 
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
