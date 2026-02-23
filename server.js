@@ -5447,10 +5447,48 @@ app.get('/api/tips/:userId', (req, res) => {
   const enriched = tips.map(t => ({
     ...t,
     payerName: db.users[t.payerId]?.nickname || '?',
+    payerPhoto: db.users[t.payerId]?.profilePhoto || null,
+    payerColor: db.users[t.payerId]?.color || null,
     receiverName: db.users[t.receiverId]?.nickname || '?',
-    receiverService: db.users[t.receiverId]?.serviceLabel || ''
+    receiverPhoto: db.users[t.receiverId]?.profilePhoto || null,
+    receiverColor: db.users[t.receiverId]?.color || null,
+    receiverService: db.users[t.receiverId]?.serviceLabel || '',
+    direction: t.payerId === userId ? 'sent' : 'received'
   }));
   res.json(enriched);
+});
+
+// Financial summary for user (extrato)
+app.get('/api/financial/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const allTips = Object.values(db.tips).filter(t => t.payerId === userId || t.receiverId === userId);
+  const received = allTips.filter(t => t.receiverId === userId && t.status === 'approved');
+  const sent = allTips.filter(t => t.payerId === userId && t.status === 'approved');
+  const pending = allTips.filter(t => (t.payerId === userId || t.receiverId === userId) && (t.status === 'pending' || t.status === 'in_process'));
+  const totalReceived = received.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalSent = sent.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalFees = received.reduce((s, t) => s + (t.fee || 0), 0);
+  const netReceived = totalReceived - totalFees;
+  // Group by month
+  const byMonth = {};
+  allTips.filter(t => t.status === 'approved').forEach(t => {
+    const d = new Date(t.createdAt);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    if (!byMonth[key]) byMonth[key] = { received: 0, sent: 0, fees: 0, count: 0 };
+    if (t.receiverId === userId) { byMonth[key].received += t.amount || 0; byMonth[key].fees += t.fee || 0; }
+    if (t.payerId === userId) byMonth[key].sent += t.amount || 0;
+    byMonth[key].count++;
+  });
+  res.json({
+    summary: { totalReceived, totalSent, totalFees, netReceived, pendingCount: pending.length },
+    byMonth,
+    isPrestador: !!user.isPrestador,
+    mpConnected: !!user.mpConnected,
+    tipsReceivedCount: received.length,
+    tipsSentCount: sent.length
+  });
 });
 
 // Full transaction history for a user (tips, entries, encounters)
@@ -6496,7 +6534,11 @@ function canUsePremiumVA(userId) {
 function canUseVA(userId) {
   const user = db.users[userId];
   if (!user) return { allowed: false, reason: 'not_found' };
-  // Plus subscriber can always use
+  // Admin always has access, no limits
+  if (user.isAdmin) return { allowed: true, reason: 'admin' };
+  // Top 01 — unlimited access (no daily limit)
+  if (user.registrationOrder === 1) return { allowed: true, reason: 'top1_unlimited' };
+  // Plus subscriber with daily limit
   if (user.isSubscriber) {
     const usage = getVaUsageToday(userId);
     if (usage.cost >= VA_DAILY_LIMIT_CENTS) {
@@ -6515,8 +6557,6 @@ function canUseVA(userId) {
       return { allowed: true, reason: 'granted', grantedBy: grantor.nickname || grantor.name };
     }
   }
-  // Admin always has access
-  if (user.isAdmin) return { allowed: true, reason: 'admin' };
   return { allowed: false, reason: 'not_plus' };
 }
 
