@@ -11900,8 +11900,10 @@ const VA = (function(){
         audioEl.play().catch(()=>{});
       };
 
-      // 4. Mic
-      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      // 4. Mic — echo cancellation ON to prevent agent hearing itself
+      micStream = await navigator.mediaDevices.getUserMedia({audio:{
+        echoCancellation:true, noiseSuppression:true, autoGainControl:true
+      }});
       micStream.getTracks().forEach(t => pc.addTrack(t, micStream));
 
       // 5. Data channel
@@ -12436,7 +12438,9 @@ const GuidedOnboarding=(function(){
       pc.ontrack=e=>{audioEl.srcObject=e.streams[0];audioEl.play().catch(()=>{});};
 
       // Mic muted — onboarding is one-way voice, user just clicks
-      micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+      micStream=await navigator.mediaDevices.getUserMedia({audio:{
+        echoCancellation:true, noiseSuppression:true, autoGainControl:true
+      }});
       micStream.getTracks().forEach(t=>{t.enabled=false;pc.addTrack(t,micStream);});
 
       dc=pc.createDataChannel('oai-events');

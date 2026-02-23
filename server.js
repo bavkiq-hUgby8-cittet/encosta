@@ -6657,7 +6657,7 @@ ${openingInstruction}`,
             required: ['sobre', 'nota']
           }
         }],
-        turn_detection: { type: 'server_vad', threshold: 0.7, prefix_padding_ms: 200, silence_duration_ms: 800 },
+        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -6728,7 +6728,7 @@ REGRAS:
             required: ['etapa']
           }
         }],
-        turn_detection: { type: 'server_vad', threshold: 0.7, prefix_padding_ms: 200, silence_duration_ms: 800 },
+        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -6904,7 +6904,7 @@ ${isNewSession ? (gossip ? `SAUDAÇÃO COM FOFOCA:\n"${gossip}"` : `SAUDAÇÃO:\
           { type:'function', name:'mostrar_pessoa', description:'Mostra o perfil de uma conexão na constelação.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva informação pessoal sobre conexão.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} }
         ],
-        turn_detection: { type: 'server_vad', threshold: 0.7, prefix_padding_ms: 200, silence_duration_ms: 800 },
+        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
