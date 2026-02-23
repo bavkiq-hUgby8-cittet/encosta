@@ -6734,6 +6734,7 @@ IMPORTANTE SOBRE NOMES:
 AÇÕES VISUAIS:
 - Quando mencionar alguém da rede, use mostrar_pessoa pra mostrar o perfil na tela
 - Use SEMPRE que citar alguém pelo nome
+- Use navegar_tela quando o usuário pedir pra ir pra alguma tela (constelação, perfil, etc)
 
 MEMÓRIA — SALVAR E USAR INFORMAÇÕES:
 - SEMPRE use salvar_nota quando o usuário contar algo sobre alguém:
@@ -6777,6 +6778,17 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
               nota: { type: 'string', description: 'A informação a ser salva (ex: "é minha mãe", "meu melhor amigo", "nos conhecemos na festa X")' }
             },
             required: ['sobre', 'nota']
+          }
+        },{
+          type: 'function',
+          name: 'navegar_tela',
+          description: 'Navega para uma tela do app. Use quando o usuário pedir pra ir pra constelação, perfil, tela de conexão, etc. Telas: home, history (constelação), encounter (conectar), locationScreen (mapa), myProfile (meu perfil), subscription (assinatura).',
+          parameters: {
+            type: 'object',
+            properties: {
+              tela: { type: 'string', description: 'ID da tela: home, history, encounter, locationScreen, myProfile, subscription' }
+            },
+            required: ['tela']
           }
         }],
         turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },

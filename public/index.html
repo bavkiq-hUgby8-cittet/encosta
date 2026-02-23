@@ -1226,6 +1226,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-overlay.premium .va-title::after{content:'PRO';font-size:.5rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;padding:2px 6px;border-radius:8px;font-weight:800;letter-spacing:.04em;margin-left:6px}
 .va-overlay.premium .va-orb{border-color:rgba(245,158,11,.25);box-shadow:0 0 60px rgba(245,158,11,.15),0 0 120px rgba(139,92,246,.1),inset 0 0 40px rgba(245,158,11,.05)}
 .va-overlay.mini.premium{border-color:rgba(245,158,11,.6);box-shadow:0 4px 20px rgba(245,158,11,.4)}
+#vaMiniStatus{transition:background .3s,box-shadow .3s}
+.va-overlay:not(.mini) #vaMiniStatus{display:none!important}
 .va-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;z-index:2}
 .va-title{font-size:.85rem;font-weight:600;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;letter-spacing:.04em}
 .va-title span{color:#a78bfa}
@@ -12151,12 +12153,50 @@ function showVAUpgradeModal(mode) {
 const VA = (function(){
   let pc = null, dc = null, audioEl = null, micStream = null;
   let active = false, busy = false, premiumMode = false;
+  let _inactivityTimer = null;
+  const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+  let _transcriptHistory = []; // últimas trocas de mensagens
+  const MAX_TRANSCRIPT_HISTORY = 6;
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
 
   function setStatus(t){ const e=$('vaStatus'); if(e) e.textContent=t; }
   function setTranscript(t){ const e=$('vaTranscript'); if(e) e.textContent=t; }
+  function _addToHistory(role, text){
+    if(!text||!text.trim()) return;
+    _transcriptHistory.push({role,text:text.trim().slice(0,200)});
+    if(_transcriptHistory.length>MAX_TRANSCRIPT_HISTORY) _transcriptHistory.shift();
+  }
   function setOrb(c){ const o=$('vaOrb'); if(o){o.className='va-orb';if(c)o.classList.add(c);} }
+  // Mini mode status indicator
+  function _updateMiniStatus(state){
+    let badge=$('vaMiniStatus');
+    if(!badge){
+      badge=document.createElement('div');badge.id='vaMiniStatus';
+      badge.style.cssText='position:absolute;bottom:-6px;right:-6px;width:16px;height:16px;border-radius:50%;border:2px solid #0a0a14;z-index:2;transition:background .3s';
+      const orbWrap=document.querySelector('.va-orb-wrapper');
+      if(orbWrap)orbWrap.appendChild(badge);
+    }
+    const colors={listening:'#22c55e',speaking:'#8b5cf6',thinking:'#f59e0b',idle:'#6b7280'};
+    badge.style.background=colors[state]||colors.idle;
+    if(state==='speaking'||state==='thinking') badge.style.animation='va-breathe-listen 1.5s ease-in-out infinite';
+    else badge.style.animation='none';
+  }
+  // Inactivity timer — auto-disconnect after 5 min of silence
+  function _resetInactivityTimer(){
+    if(_inactivityTimer) clearTimeout(_inactivityTimer);
+    if(!active) return;
+    _inactivityTimer=setTimeout(()=>{
+      if(active){
+        console.log('[VA] Inactivity timeout — auto-disconnecting');
+        setTranscript('Desconectado por inatividade. Até mais!');
+        cleanup();
+      }
+    }, INACTIVITY_TIMEOUT_MS);
+  }
+  function _clearInactivityTimer(){
+    if(_inactivityTimer){clearTimeout(_inactivityTimer);_inactivityTimer=null;}
+  }
 
   // ── CONNECT ──
   async function connect(){
@@ -12213,8 +12253,10 @@ const VA = (function(){
       dc.onopen = () => {
         active = true; busy = false;
         setOrb('speaking'); setStatus('');
+        _updateMiniStatus('speaking');
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
+        _resetInactivityTimer();
         // Agent speaks first — use exact opening text from server
         const openingText = td.openingText || 'E aí! Sou o Touch, seu assistente.';
         dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale EXATAMENTE isso (pode adaptar levemente o tom, mas mantenha os nomes e dados): "'+openingText.replace(/"/g,'\\"')+'" — MÁXIMO 2 frases, natural e animada.'}}));
@@ -12234,7 +12276,24 @@ const VA = (function(){
       await pc.setRemoteDescription({type:'answer', sdp: await sr.text()});
 
       pc.onconnectionstatechange = () => {
-        if(pc&&(pc.connectionState==='disconnected'||pc.connectionState==='failed')) cleanup();
+        if(pc&&(pc.connectionState==='disconnected'||pc.connectionState==='failed')){
+          const wasPremium = premiumMode;
+          cleanup();
+          // Oferecer reconexão
+          setStatus('Conexão perdida');
+          setTranscript('');
+          const mainBtn=$('vaMainBtn');
+          if(mainBtn){
+            mainBtn.style.display='';
+            mainBtn.textContent='🔄 Reconectar';
+            mainBtn.onclick=function(){
+              mainBtn.onclick=function(){VA.toggleVoice()};
+              mainBtn.textContent=wasPremium?'✦ Iniciar assistente premium':'🎙️ Iniciar conversa';
+              premiumMode=wasPremium;
+              connect();
+            };
+          }
+        }
       };
 
     } catch(err){
@@ -12249,6 +12308,8 @@ const VA = (function(){
   // ── CLEANUP — close WebRTC without killing shared audio hardware ──
   function cleanup(){
     active = false; busy = false;
+    _clearInactivityTimer();
+    _transcriptHistory = [];
     // Nullify callbacks
     if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
     if(dc){dc.onopen=null;dc.onclose=null;dc.onmessage=null;}
@@ -12279,11 +12340,26 @@ const VA = (function(){
   // ── EVENTS ──
   function handleEvent(evt){
     switch(evt.type){
-      case 'input_audio_buffer.speech_started': setOrb('listening');setStatus('Ouvindo...');break;
-      case 'input_audio_buffer.speech_stopped': setOrb('connecting');setStatus('Processando...');break;
-      case 'conversation.item.input_audio_transcription.completed': if(evt.transcript)setTranscript('Você: '+evt.transcript);break;
+      case 'input_audio_buffer.speech_started':
+        setOrb('listening');setStatus('Ouvindo...');
+        _updateMiniStatus('listening');
+        _resetInactivityTimer();
+        // Limpa transcript da última fala do agente pra mostrar nova interação
+        setTranscript('');
+        break;
+      case 'input_audio_buffer.speech_stopped':
+        setOrb('connecting');setStatus('Processando...');
+        _updateMiniStatus('thinking');
+        break;
+      case 'conversation.item.input_audio_transcription.completed':
+        if(evt.transcript){
+          setTranscript('Você: '+evt.transcript);
+          _addToHistory('user',evt.transcript);
+        }
+        break;
       case 'response.audio.delta':
         setOrb('speaking');setStatus('');
+        _updateMiniStatus('speaking');
         // Mute mic while agent speaks to prevent echo/feedback loop
         if(micStream)micStream.getAudioTracks().forEach(t=>{t.enabled=false});
         break;
@@ -12292,14 +12368,23 @@ const VA = (function(){
         setTranscript(c.startsWith('Touch: ')?c+(evt.delta||''):'Touch: '+(evt.delta||''));
         break;
       case 'response.audio_transcript.done':
+        // Salva resposta completa no histórico
+        if(evt.transcript) _addToHistory('agent',evt.transcript);
+        // Transcript done — do NOT unmute mic here (wait for response.done to prevent echo)
+        break;
       case 'response.done':
         setOrb('listening');setStatus('Fale agora');
-        // Unmute mic after agent finishes speaking
+        _updateMiniStatus('listening');
+        // Unmute mic ONLY after full response completes (audio + transcript + tools)
         if(micStream)micStream.getAudioTracks().forEach(t=>{t.enabled=true});
+        // Reset inactivity timer
+        _resetInactivityTimer();
         break;
       case 'error': console.error('[VA] error:',evt.error);setStatus('Erro: '+(evt.error?.message||''));break;
       // ── FUNCTION CALLING — visual actions + memory ──
       case 'response.function_call_arguments.done':
+        setOrb('connecting');setStatus('Processando ação...');
+        _updateMiniStatus('thinking');
         try{
           const args=JSON.parse(evt.arguments||'{}');
           if(evt.name==='mostrar_pessoa'){
