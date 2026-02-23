@@ -1907,8 +1907,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div id="tipPixSection" style="display:none;margin-top:.6rem">
     <div style="background:rgba(0,220,130,.04);border:1px solid rgba(0,220,130,.12);border-radius:16px;padding:.8rem">
       <div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:.5rem;line-height:1.4">PIX — qualquer banco, instantâneo</div>
-      <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem">
-      <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)">
+      <input type="email" id="tipPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" style="margin-bottom:.4rem" oninput="validatePixFields()">
+      <input type="text" id="tipPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this);validatePixFields()">
       <button class="tip-pay-btn" id="tipPixBtn" onclick="processPixTip()" disabled style="margin-top:.5rem;background:linear-gradient(135deg,#00dc82,#00b36b)">Gerar PIX</button>
       <div id="tipPixQR" class="hidden" style="text-align:center;padding:.8rem 0">
         <div style="font-size:.7rem;font-weight:600;color:var(--ok);margin-bottom:.4rem">PIX gerado! Escaneie ou copie:</div>
@@ -3151,6 +3151,7 @@ function initSocket(){
     setTimeout(function(){cancelGameReady()},1500);
   });
   socket.on('game-start',function(data){
+    if(_readyCheckTimeout){clearTimeout(_readyCheckTimeout);_readyCheckTimeout=null}
     _readyCheckSession=null;
     var ov=document.querySelector('.game-ready-overlay');
     if(ov)ov.remove();
@@ -3169,6 +3170,11 @@ function initSocket(){
   socket.on('game-target-offline',function(){showToast('Jogador esta offline')});
   socket.on('game-no-relation',function(){showToast('Sem chat ativo com esse jogador')});
   socket.on('game-declined',function(){showToast('Convite recusado')});
+  socket.on('game-ready-cancelled',function(){
+    _readyCheckSession=null;
+    var ov=document.querySelector('.game-ready-overlay');if(ov)ov.remove();
+    showToast('O outro jogador desistiu');
+  });
   // Sonic game invite — someone touched you while in game lobby
   socket.on('game-sonic-invite',function(data){
     var node=(constState.nodes||[]).find(function(n){return n.id===data.fromUserId});
@@ -9890,6 +9896,13 @@ function formatEmail(el) {
 }
 
 // ── PIX Payment ──
+function validatePixFields(){
+  var email=($('tipPixEmail')||{}).value||'';
+  var cpf=(($('tipPixCPF')||{}).value||'').replace(/\D/g,'');
+  var btn=$('tipPixBtn');
+  if(btn)btn.disabled=!(email.includes('@')&&cpf.length>=11);
+}
+
 async function processPixTip() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
   const cpf = ($('tipPixCPF').value || '').replace(/\D/g, '');
@@ -11331,7 +11344,16 @@ function showGameReadyCheck(data){
     '</div></div>';
   document.body.appendChild(ov);
   haptic([40,30,40]);
+  // 60s timeout — auto-cancel if not both ready
+  if(_readyCheckTimeout)clearTimeout(_readyCheckTimeout);
+  _readyCheckTimeout=setTimeout(function(){
+    if(_readyCheckSession){
+      cancelGameReady();
+      showToast('Tempo esgotado! Convite expirado.');
+    }
+  },60000);
 }
+var _readyCheckTimeout=null;
 function confirmGameReady(){
   if(!_readyCheckSession)return;
   var btn=$('grGoBtn');
@@ -11340,6 +11362,7 @@ function confirmGameReady(){
   if(socket)socket.emit('game-ready',{sessionId:_readyCheckSession,userId:state.userId});
 }
 function cancelGameReady(){
+  if(_readyCheckTimeout){clearTimeout(_readyCheckTimeout);_readyCheckTimeout=null}
   if(_readyCheckSession&&socket)socket.emit('game-cancel-ready',{sessionId:_readyCheckSession,userId:state.userId});
   _readyCheckSession=null;
   var ov=document.querySelector('.game-ready-overlay');

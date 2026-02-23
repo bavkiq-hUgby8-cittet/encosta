@@ -4914,6 +4914,20 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('game-cancel-ready', ({ sessionId, userId }) => {
+    if (!dbLoaded || !sessionId || !userId) return;
+    const gs = db.gameSessions[sessionId];
+    if (!gs) return;
+    gs.status = 'cancelled';
+    delete gs._readyPlayers;
+    saveDB('gameSessions');
+    const other = gs.players.find(p => p !== userId);
+    if (other) {
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.touchUserId === other);
+      targetSockets.forEach(s => s.emit('game-ready-cancelled', { sessionId }));
+    }
+  });
+
   socket.on('game-decline', ({ sessionId, userId }) => {
     if (!dbLoaded || !sessionId || !userId) return;
     const gs = db.gameSessions[sessionId];
@@ -5834,14 +5848,18 @@ app.post('/api/subscription/create-card', paymentLimiter, async (req, res) => {
     if (!payerCpf || payerCpf === '00000000000') {
       return res.status(400).json({ error: 'Cadastre seu CPF no perfil antes de assinar.' });
     }
+    const planAmounts = { touch_plus: 50.00, touch_selo: 10.00 };
+    const planNames = { touch_plus: 'Touch? Plus', touch_selo: 'Selo de Verificacao' };
+    const subAmount = planAmounts[planId] || 50.00;
+    const subName = planNames[planId] || 'Touch? Plus';
     const paymentData = {
-      transaction_amount: 9.90,
+      transaction_amount: subAmount,
       token: tokenData.id,
       payment_method_id: user.savedCard.paymentMethodId || 'visa',
       installments: 1,
       payer: { email: payerEmail, identification: { type: 'CPF', number: payerCpf } },
-      description: 'Touch? Plus — Assinatura mensal',
-      statement_descriptor: 'TOUCH PLUS',
+      description: subName + ' — Assinatura mensal',
+      statement_descriptor: planId === 'touch_selo' ? 'TOUCH SELO' : 'TOUCH PLUS',
       metadata: { user_id: userId, type: 'subscription', plan: planId }
     };
     console.log('💳 Sub card pay:', { email: payerEmail, cpf: payerCpf ? '***' + payerCpf.slice(-4) : 'none', method: user.savedCard.paymentMethodId, token: tokenData.id?.slice(0, 8) });
