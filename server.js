@@ -2465,29 +2465,7 @@ app.get('/api/notifications/:userId', (req, res) => {
       seen: ts <= seenAt
     });
   });
-  // 6. Star donations in network (broadcast — "fulano ganhou estrela")
-  const recentDonations = Object.values(db.starDonations || {}).filter(d => {
-    if (d.fromUserId === userId || d.toUserId === userId) return false; // skip own
-    const recipInNetwork = myFriendIds.includes(d.toUserId);
-    const donorInNetwork = myFriendIds.includes(d.fromUserId);
-    return recipInNetwork || donorInNetwork;
-  }).slice(-20);
-  recentDonations.forEach(d => {
-    const recip = db.users[d.toUserId];
-    if (!recip) return;
-    const ts = d.timestamp || 0;
-    if (!ts) return;
-    notifs.push({
-      type: 'network-star',
-      fromId: d.toUserId,
-      nickname: recip.nickname || recip.name,
-      color: recip.color,
-      avatarAccessory: recip.avatarAccessory || null,
-      timestamp: ts,
-      seen: ts <= seenAt
-    });
-  });
-  // 7. Game invites received (from chat messages)
+  // 6. Game invites received (from chat messages)
   const myRelIds = Object.keys(db.relations).filter(rid => {
     const r = db.relations[rid];
     return r && (r.userA === userId || r.userB === userId);
@@ -6815,8 +6793,14 @@ async function generateOnbAudio() {
   }
 }
 setTimeout(generateOnbAudio, 2000);
-app.get('/api/agent/onboarding-audio', (req, res) => {
+app.get('/api/agent/onboarding-audio', async (req, res) => {
   const fs2 = require('fs');
+  // Gerar sob demanda se não existem
+  const allExist = Object.keys(ONB_STEPS).every(k => fs2.existsSync(path.join(ONB_AUDIO_DIR, k + '.mp3')));
+  if (!allExist) {
+    console.log('🎙️ Onboarding audio not ready, generating on demand...');
+    await generateOnbAudio();
+  }
   const steps = {};
   for (const k of Object.keys(ONB_STEPS)) {
     steps[k] = { url: '/audio/onb/' + k + '.mp3', text: ONB_STEPS[k], exists: fs2.existsSync(path.join(ONB_AUDIO_DIR, k + '.mp3')) };
