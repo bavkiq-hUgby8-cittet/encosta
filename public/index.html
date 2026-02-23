@@ -12771,7 +12771,7 @@ const GuidedOnboarding=(function(){
         var st2=$('vaStatus');if(st2)st2.textContent='';
         $('vaStopBtn').style.display='';
         bubble(null);
-        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Comece a ETAPA 1 — Boas-vindas. Se apresente e peça pro usuário apertar o botão Começar pra ver a home.'}}));
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Comece a ETAPA 1. NÃO se apresente. Vá direto ao ponto: peça pro usuário apertar o botão Começar.'}}));
       };
       dc.onmessage=e=>{try{onEvt(JSON.parse(e.data))}catch(x){}};
       dc.onclose=()=>{if(active)cleanup();};
@@ -12810,33 +12810,31 @@ const GuidedOnboarding=(function(){
       case 'response.audio_transcript.done':
         // Agent done talking — show next action
         if(step===1){
-          // Mostrar botão "Começar" na bubble em vez de highlight no X
           setTimeout(()=>{var btn=$('onbBubbleAction');if(btn)btn.style.display='';},400);
         }
         else if(step===2){
           setTimeout(()=>hl('#mainBtn',12),400);
-          // Spark NÃO aparece aqui — só depois de clicar TOUCH (step 3)
         }
         else if(step===3){
-          // Agente explicou como encostar — mostrar spark agora
+          // Agente explicou como encostar — mostrar spark
           var spk=$('onbSpark');if(spk)spk.classList.add('active');
-          // Avança automaticamente pra etapa final
+          // Avança pra step 4 com delay pra garantir que a resposta anterior terminou
           step=4;
-          if(dc&&dc.readyState==='open'){
-            dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'STEP:BACK_HOME'}]}}));
-            dc.send(JSON.stringify({type:'response.create'}));
-          }
-        }
-        else if(step===4){
-          // Esconder spark
-          var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
-          // Agente já se despediu por voz — encerrar sem popup
-          _ft=setTimeout(finish,3000);
+          setTimeout(()=>{
+            if(dc&&dc.readyState==='open'){
+              dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'STEP:BACK_HOME'}]}}));
+              dc.send(JSON.stringify({type:'response.create'}));
+            }
+          },800);
         }
         break;
 
       case 'response.done':
-        if(step===4&&!_ft)_ft=setTimeout(finish,5000);
+        // Step 4: agente terminou de falar a despedida — encerrar
+        if(step===4&&!_ft){
+          var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
+          _ft=setTimeout(finish,2000);
+        }
         break;
 
       case 'response.function_call_arguments.done':
