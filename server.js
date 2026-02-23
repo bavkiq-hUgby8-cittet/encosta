@@ -104,7 +104,14 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '5mb' }));
+// Parse JSON for all routes EXCEPT Stripe webhook (needs raw body for signature verification)
+app.use((req, res, next) => {
+  if (req.path === '/api/stripe/webhook') {
+    express.raw({ type: 'application/json' })(req, res, next);
+  } else {
+    express.json({ limit: '5mb' })(req, res, next);
+  }
+});
 
 // ── DB readiness gate: return 503 for API calls while DB is loading ──
 app.use((req, res, next) => {
@@ -5512,12 +5519,45 @@ app.post('/mp/webhook', (req, res) => {
         tip.status = p.status;
         tip.statusDetail = p.status_detail;
         if (p.status === 'approved') {
-          const receiver = db.users[tip.receiverId];
-          if (receiver) {
-            receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
-            receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
+          // Handle subscription PIX activation
+          if (tip.type === 'subscription' && tip.planId) {
+            const sub = Object.values(db.subscriptions).find(s => s.mpPaymentId && String(s.mpPaymentId) === String(paymentId));
+            if (sub) {
+              sub.status = 'authorized';
+              const user = db.users[sub.userId];
+              if (user) {
+                user.isSubscriber = true;
+                user.verified = true;
+                user.verifiedAt = user.verifiedAt || Date.now();
+                user.verificationType = user.verificationType || 'subscriber';
+              }
+              console.log('[webhook] Subscription PIX approved:', { userId: sub.userId, plan: sub.planId });
+              saveDB('users');
+            }
           }
-          io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, from: db.users[tip.payerId]?.nickname || '?' });
+          // Handle event entry PIX activation
+          else if (tip.type === 'entry' && tip.eventId) {
+            const ev = db.operatorEvents[tip.eventId];
+            if (ev) {
+              ev.revenue = (ev.revenue || 0) + tip.amount;
+              ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+              if (!ev.participants) ev.participants = [];
+              if (!ev.participants.includes(tip.payerId)) ev.participants.push(tip.payerId);
+              saveDB('operatorEvents');
+              io.emit('checkin', { eventId: ev.id, userId: tip.payerId });
+              io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId: tip.payerId, amount: tip.amount, eventId: ev.id, status: 'approved', method: 'pix' });
+              console.log('[webhook] Entry PIX approved:', { event: ev.name, userId: tip.payerId });
+            }
+          }
+          // Regular tip
+          else {
+            const receiver = db.users[tip.receiverId];
+            if (receiver && tip.receiverId !== 'platform') {
+              receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
+              receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
+            }
+            io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, from: db.users[tip.payerId]?.nickname || '?' });
+          }
         }
         saveDB('tips', 'users');
       }).catch(e => console.error('Webhook MP fetch error:', e));
@@ -6129,6 +6169,75 @@ app.post('/api/subscription/cancel', async (req, res) => {
   } catch (e) {
     console.error('Cancel sub error:', e);
     res.status(500).json({ error: 'Erro ao cancelar: ' + e.message });
+  }
+});
+
+// ═══ SUBSCRIPTION PIX — one-time payment that activates 30 days ═══
+app.post('/api/subscription/create-pix', paymentLimiter, async (req, res) => {
+  const { userId, planId, email, cpf } = req.body;
+  if (!userId || !planId) return res.status(400).json({ error: 'Dados incompletos.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const plan = SUBSCRIPTION_PLANS[planId];
+  if (!plan) return res.status(400).json({ error: 'Plano nao encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento nao configurado.' });
+
+  const payerEmail = email || user.email || '';
+  if (!payerEmail || payerEmail.includes('@touch.app')) {
+    return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
+  }
+  const payerCPF = (cpf || user.cpf || '').replace(/\D/g, '');
+  if (!payerCPF || payerCPF.length < 11) {
+    return res.status(400).json({ error: 'CPF obrigatorio para PIX.' });
+  }
+
+  const subId = uuidv4();
+
+  try {
+    const paymentData = {
+      transaction_amount: plan.amount,
+      description: plan.description + ' (30 dias)',
+      payment_method_id: 'pix',
+      payer: { email: payerEmail, identification: { type: 'CPF', number: payerCPF } },
+      statement_descriptor: 'TOUCH ASSINATURA',
+      metadata: { user_id: userId, plan_id: plan.id, sub_id: subId, type: 'subscription_pix' },
+      notification_url: (process.env.APP_URL || 'https://touch-irl.com') + '/mp/webhook'
+    };
+
+    const result = await mpPayment.create({ body: paymentData });
+
+    console.log('[sub-pix] Payment created:', { id: result.id, status: result.status, plan: plan.id });
+
+    const pixData = result.point_of_interaction?.transaction_data;
+
+    // Save subscription as pending (will be activated by webhook when PIX is paid)
+    db.subscriptions[userId] = {
+      id: subId, userId, planId: plan.id,
+      mpPaymentId: result.id, status: 'pending',
+      startedAt: Date.now(), expiresAt: Date.now() + 30 * 86400000,
+      amount: plan.amount, gateway: 'mercadopago', method: 'pix',
+      createdAt: Date.now()
+    };
+    // Also save as a tip/payment record for tracking
+    if (!db.tips) db.tips = {};
+    db.tips[subId] = {
+      id: subId, payerId: userId, receiverId: 'platform',
+      amount: plan.amount, mpPaymentId: result.id,
+      status: result.status, method: 'pix', type: 'subscription',
+      planId: plan.id, createdAt: Date.now()
+    };
+    saveDB('users', 'tips');
+
+    res.json({
+      subId, status: result.status,
+      qrCode: pixData?.qr_code || '',
+      qrCodeBase64: pixData?.qr_code_base64 || '',
+      ticketUrl: pixData?.ticket_url || '',
+      expiresIn: 30
+    });
+  } catch (e) {
+    console.error('[sub-pix] error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro ao gerar PIX: ' + (e.message || 'tente novamente') });
   }
 });
 
@@ -6954,6 +7063,141 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
   }
 });
 
+// ═══ PAY EVENT ENTRY — PIX ═══
+app.post('/api/operator/event/:eventId/pay-entry-pix', paymentLimiter, async (req, res) => {
+  const { userId, payerEmail, payerCPF } = req.body;
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
+  if (!ev.entryPrice || ev.entryPrice <= 0) return res.status(400).json({ error: 'Evento sem cobranca de ingresso.' });
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP nao configurado.' });
+
+  const amount = ev.entryPrice;
+  const touchFee = Math.round(amount * TOUCH_FEE_PERCENT) / 100;
+  const receiver = db.users[ev.creatorId];
+
+  const email = payerEmail || user.email;
+  const cpf = (payerCPF || user.cpf || '').replace(/\D/g, '');
+  if (!email || email.includes('@touch.app')) return res.status(400).json({ error: 'Informe seu email para pagar com PIX.' });
+  if (!cpf || cpf.length < 11) return res.status(400).json({ error: 'CPF obrigatorio para PIX.' });
+
+  try {
+    const paymentData = {
+      transaction_amount: amount,
+      description: 'Ingresso Touch? -- ' + ev.name,
+      payment_method_id: 'pix',
+      payer: { email, identification: { type: 'CPF', number: cpf } },
+      statement_descriptor: 'TOUCH INGRESSO',
+      metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry_pix' },
+      notification_url: (process.env.APP_URL || 'https://touch-irl.com') + '/mp/webhook'
+    };
+
+    let result;
+    if (receiver && receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      result = await new Payment(receiverClient).create({ body: paymentData });
+    } else {
+      result = await mpPayment.create({ body: paymentData });
+    }
+
+    console.log('[pix-entry] Payment created:', { id: result.id, status: result.status, event: ev.name });
+
+    const pixData = result.point_of_interaction?.transaction_data;
+    const tipId = uuidv4();
+    db.tips[tipId] = {
+      id: tipId, payerId: userId, receiverId: ev.creatorId,
+      amount, fee: touchFee, mpPaymentId: result.id,
+      status: result.status, statusDetail: result.status_detail,
+      method: 'pix', type: 'entry', eventId: ev.id, eventName: ev.name,
+      createdAt: Date.now()
+    };
+    saveDB('tips');
+
+    io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount, eventId: ev.id, nickname: user.nickname || user.name, status: 'pending', method: 'pix' });
+
+    res.json({
+      status: result.status, tipId,
+      qrCode: pixData?.qr_code || '',
+      qrCodeBase64: pixData?.qr_code_base64 || '',
+      ticketUrl: pixData?.ticket_url || '',
+      expiresIn: 30
+    });
+  } catch (e) {
+    console.error('[pix-entry] error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro ao gerar PIX: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// ═══ PAY EVENT ENTRY — Checkout Pro (MP redirect) ═══
+app.post('/api/operator/event/:eventId/pay-entry-checkout', paymentLimiter, async (req, res) => {
+  const { userId } = req.body;
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
+  if (!ev.entryPrice || ev.entryPrice <= 0) return res.status(400).json({ error: 'Evento sem cobranca de ingresso.' });
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP nao configurado.' });
+
+  const amount = ev.entryPrice;
+  const touchFee = Math.round(amount * TOUCH_FEE_PERCENT) / 100;
+  const receiver = db.users[ev.creatorId];
+  const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
+  const tipId = uuidv4();
+
+  try {
+    const prefData = {
+      items: [{
+        id: 'entry_' + tipId,
+        title: 'Ingresso Touch? -- ' + ev.name,
+        quantity: 1,
+        unit_price: amount,
+        currency_id: 'BRL'
+      }],
+      payer: { email: user.email || 'pagamento@encosta.app' },
+      back_urls: {
+        success: baseUrl + '/tip-result?status=approved&tipId=' + tipId,
+        failure: baseUrl + '/tip-result?status=rejected&tipId=' + tipId,
+        pending: baseUrl + '/tip-result?status=pending&tipId=' + tipId
+      },
+      auto_return: 'approved',
+      external_reference: tipId,
+      notification_url: baseUrl + '/mp/webhook',
+      statement_descriptor: 'TOUCH INGRESSO',
+      metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry_checkout' }
+    };
+
+    let preference;
+    if (receiver && receiver.mpConnected && receiver.mpAccessToken) {
+      prefData.marketplace_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      preference = await new Preference(receiverClient).create({ body: prefData });
+    } else {
+      preference = await new Preference(mpClient).create({ body: prefData });
+    }
+
+    db.tips[tipId] = {
+      id: tipId, payerId: userId, receiverId: ev.creatorId,
+      amount, fee: touchFee, mpPreferenceId: preference.id,
+      status: 'pending', statusDetail: 'waiting_checkout',
+      method: 'checkout_pro', type: 'entry', eventId: ev.id, eventName: ev.name,
+      createdAt: Date.now()
+    };
+    saveDB('tips');
+
+    console.log('[entry-checkout] Preference created:', preference.id);
+    res.json({ preferenceId: preference.id, initPoint: preference.init_point, sandboxInitPoint: preference.sandbox_init_point, tipId });
+  } catch (e) {
+    console.error('[entry-checkout] error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro ao criar checkout: ' + (e.message || 'tente novamente') });
+  }
+});
+
 app.get('/api/operator/events/:userId', (req, res) => {
   const userId = req.params.userId;
   const evIds = IDX.operatorByCreator.get(userId) || [];
@@ -7106,44 +7350,54 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   res.json({ ok: true, order });
 });
 
-// ═══ STRIPE — Express Checkout (Apple Pay / Google Pay) ═══
-// These endpoints activate only when STRIPE_SECRET_KEY and STRIPE_PUBLIC_KEY are set in env
+// ═══ STRIPE — Full Payment Integration ═══
+// Payment Element (Card, Link, Apple Pay, Google Pay), Subscriptions, Connect
+// Activates when STRIPE_SECRET_KEY + STRIPE_PUBLIC_KEY are set in environment
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_PUBLIC = process.env.STRIPE_PUBLIC_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+const STRIPE_CONNECT_CLIENT_ID = process.env.STRIPE_CONNECT_CLIENT_ID || '';
 let stripeInstance = null;
 if (STRIPE_SECRET) {
   try { stripeInstance = require('stripe')(STRIPE_SECRET); console.log('[stripe] Initialized'); }
   catch(e) { console.log('[stripe] stripe package not installed, skipping'); }
 }
 
+// Config — frontend uses this to know if Stripe is available
 app.get('/api/stripe/config', (req, res) => {
-  res.json({ publicKey: STRIPE_PUBLIC || null });
+  res.json({ publicKey: STRIPE_PUBLIC || null, connectClientId: STRIPE_CONNECT_CLIENT_ID || null });
 });
 
+// Legacy Express Checkout endpoint (kept for backward compatibility)
 app.post('/api/stripe/pay', async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { paymentMethodId, amount, payerId, receiverId } = req.body;
   if (!paymentMethodId || !amount || amount < 1) return res.status(400).json({ error: 'Dados invalidos' });
   try {
-    const paymentIntent = await stripeInstance.paymentIntents.create({
-      amount: Math.round(amount * 100), // cents
+    const intentData = {
+      amount: Math.round(amount * 100),
       currency: 'brl',
       payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
       metadata: { payerId, receiverId, source: 'touch-express-checkout' }
-    });
+    };
+    const receiver = receiverId ? db.users[receiverId] : null;
+    if (receiver && receiver.stripeConnectId && receiver.stripeConnected) {
+      const fee = Math.round(Math.round(amount * 100) * TOUCH_FEE_PERCENT / 100);
+      intentData.application_fee_amount = fee;
+      intentData.transfer_data = { destination: receiver.stripeConnectId };
+    }
+    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
     if (paymentIntent.status === 'succeeded') {
-      // Record the tip in the database
       const tipId = uuidv4();
       if (!db.tips) db.tips = {};
-      db.tips[tipId] = { payerId, receiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripeId: paymentIntent.id };
+      db.tips[tipId] = { id: tipId, payerId, receiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripePaymentIntentId: paymentIntent.id };
       saveDB('tips');
-      // Notify receiver
       const payer = db.users[payerId];
       const payerName = payer ? (payer.nickname || payer.name || '?') : '?';
       io.to(`user:${receiverId}`).emit('tip-received', { amount, from: payerName, status: 'approved' });
-      res.json({ ok: true });
+      res.json({ ok: true, tipId });
     } else {
       res.json({ ok: false, error: 'Pagamento nao confirmado', status: paymentIntent.status });
     }
@@ -7151,6 +7405,400 @@ app.post('/api/stripe/pay', async (req, res) => {
     console.error('[stripe/pay] error:', e.message);
     res.json({ ok: false, error: e.message });
   }
+});
+
+// Create PaymentIntent — used by Payment Element (Card + Link + Apple Pay + Google Pay)
+app.post('/api/stripe/create-payment-intent', paymentLimiter, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { amount, currency, payerId, receiverId, type, eventId } = req.body;
+  if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
+
+  const amountCents = Math.round(amount * 100);
+  const curr = (currency || 'brl').toLowerCase();
+
+  try {
+    const intentData = {
+      amount: amountCents,
+      currency: curr,
+      automatic_payment_methods: { enabled: true },
+      metadata: { payerId: payerId || '', receiverId: receiverId || '', type: type || 'tip', eventId: eventId || '', source: 'touch-payment-element' }
+    };
+
+    // Split payment if receiver has Stripe Connect
+    const receiver = receiverId ? db.users[receiverId] : null;
+    if (receiver && receiver.stripeConnectId && receiver.stripeConnected) {
+      const fee = Math.round(amountCents * TOUCH_FEE_PERCENT / 100);
+      intentData.application_fee_amount = fee;
+      intentData.transfer_data = { destination: receiver.stripeConnectId };
+    }
+
+    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
+
+    // Pre-save as pending
+    const tipId = uuidv4();
+    if (type === 'entry' && eventId) {
+      if (!db.eventPayments) db.eventPayments = {};
+      db.eventPayments[tipId] = {
+        id: tipId, payerId, eventId, amount, currency: curr,
+        stripePaymentIntentId: paymentIntent.id, status: 'pending',
+        method: 'stripe-payment-element', createdAt: Date.now()
+      };
+      saveDB('eventPayments');
+    } else {
+      if (!db.tips) db.tips = {};
+      db.tips[tipId] = {
+        id: tipId, payerId, receiverId, amount,
+        stripePaymentIntentId: paymentIntent.id, status: 'pending',
+        method: 'stripe-payment-element', createdAt: Date.now()
+      };
+      saveDB('tips');
+    }
+
+    console.log('[stripe] PaymentIntent created:', { id: paymentIntent.id, amount, type, currency: curr });
+    res.json({ clientSecret: paymentIntent.client_secret, tipId, paymentIntentId: paymentIntent.id });
+  } catch(e) {
+    console.error('[stripe/create-pi] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Confirm payment — called after Payment Element completes on frontend
+app.post('/api/stripe/confirm-payment', async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { paymentIntentId, tipId } = req.body;
+
+  try {
+    const pi = await stripeInstance.paymentIntents.retrieve(paymentIntentId);
+    const meta = pi.metadata || {};
+
+    if (pi.status === 'succeeded') {
+      if (meta.type === 'entry' && meta.eventId) {
+        const ep = db.eventPayments && db.eventPayments[tipId];
+        if (ep) { ep.status = 'approved'; saveDB('eventPayments'); }
+        const ev = db.operatorEvents[meta.eventId];
+        if (ev && meta.payerId) {
+          ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+          ev.revenue = (ev.revenue || 0) + (pi.amount / 100);
+          if (!ev.participants) ev.participants = [];
+          if (!ev.participants.includes(meta.payerId)) ev.participants.push(meta.payerId);
+          saveDB('operatorEvents');
+          io.emit('checkin', { eventId: ev.id, userId: meta.payerId });
+        }
+      } else {
+        const tip = db.tips[tipId];
+        if (tip && tip.status !== 'approved') {
+          tip.status = 'approved';
+          const receiver = db.users[tip.receiverId];
+          if (receiver) {
+            receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
+            receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
+          }
+          saveDB('tips', 'users');
+          const payer = db.users[tip.payerId];
+          io.to(`user:${tip.receiverId}`).emit('tip-received', {
+            amount: tip.amount, tipId: tip.id, from: payer?.nickname || '?', status: 'approved'
+          });
+        }
+      }
+      res.json({ ok: true, status: 'approved' });
+    } else {
+      res.json({ ok: false, status: pi.status });
+    }
+  } catch(e) {
+    console.error('[stripe/confirm] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create Stripe Checkout Session for subscriptions
+app.post('/api/stripe/create-subscription', paymentLimiter, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { userId, planId, email } = req.body;
+  if (!userId || !planId) return res.status(400).json({ error: 'Dados incompletos.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const plan = SUBSCRIPTION_PLANS[planId];
+  if (!plan) return res.status(400).json({ error: 'Plano nao encontrado.' });
+
+  const payerEmail = email || user.email || '';
+  if (!payerEmail || payerEmail.includes('@touch.app')) {
+    return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
+  }
+
+  const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
+  const subId = uuidv4();
+
+  try {
+    // Create or get Stripe Customer
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripeInstance.customers.create({
+        email: payerEmail,
+        metadata: { userId, source: 'touch-app' }
+      });
+      customerId = customer.id;
+      user.stripeCustomerId = customerId;
+      saveDB('users');
+    }
+
+    // Create Checkout Session in subscription mode
+    const session = await stripeInstance.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: plan.currency.toLowerCase(),
+          product_data: { name: plan.description, metadata: { planId: plan.id } },
+          unit_amount: Math.round(plan.amount * 100),
+          recurring: { interval: 'month', interval_count: plan.frequency || 1 }
+        },
+        quantity: 1
+      }],
+      success_url: baseUrl + '/stripe/sub-result?session_id={CHECKOUT_SESSION_ID}&subId=' + subId + '&userId=' + userId,
+      cancel_url: baseUrl + '/?subResult=cancelled',
+      metadata: { userId, planId: plan.id, subId },
+      allow_promotion_codes: true
+    });
+
+    // Pre-save subscription
+    db.subscriptions[userId] = {
+      id: subId, userId, planId: plan.id,
+      stripeSessionId: session.id, status: 'pending',
+      startedAt: Date.now(), expiresAt: Date.now() + 30 * 86400000,
+      amount: plan.amount, gateway: 'stripe', createdAt: Date.now()
+    };
+    saveDB('users');
+
+    console.log('[stripe] Checkout session created:', { id: session.id, plan: plan.id });
+    res.json({ subId, url: session.url });
+  } catch(e) {
+    console.error('[stripe/subscription] error:', e.message);
+    res.status(500).json({ error: 'Erro ao criar assinatura: ' + e.message });
+  }
+});
+
+// Stripe subscription return page
+app.get('/stripe/sub-result', async (req, res) => {
+  const { session_id, subId, userId } = req.query;
+  if (session_id && userId && db.subscriptions[userId]) {
+    try {
+      if (stripeInstance) {
+        const session = await stripeInstance.checkout.sessions.retrieve(session_id);
+        if (session.payment_status === 'paid') {
+          const sub = db.subscriptions[userId];
+          sub.status = 'authorized';
+          sub.stripeSubscriptionId = session.subscription;
+          const user = db.users[userId];
+          if (user) {
+            user.isSubscriber = true;
+            user.verified = true;
+            user.verifiedAt = user.verifiedAt || Date.now();
+            user.verificationType = user.verificationType || 'subscriber';
+          }
+          saveDB('users');
+        }
+      }
+    } catch(e) { console.error('[stripe/sub-result] error:', e.message); }
+  }
+  res.redirect('/?subResult=ok');
+});
+
+// Cancel Stripe subscription
+app.post('/api/stripe/cancel-subscription', async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  const sub = db.subscriptions[userId];
+  if (!sub || sub.gateway !== 'stripe') return res.status(404).json({ error: 'Assinatura Stripe nao encontrada.' });
+
+  try {
+    if (sub.stripeSubscriptionId) {
+      await stripeInstance.subscriptions.cancel(sub.stripeSubscriptionId);
+    }
+    sub.status = 'cancelled';
+    sub.cancelledAt = Date.now();
+    const user = db.users[userId];
+    if (user) {
+      user.isSubscriber = false;
+      if (user.verificationType === 'subscriber') {
+        user.verified = false;
+        delete user.verifiedAt;
+        delete user.verificationType;
+      }
+    }
+    saveDB('users');
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('[stripe/cancel-sub] error:', e.message);
+    res.status(500).json({ error: 'Erro ao cancelar: ' + e.message });
+  }
+});
+
+// Stripe Connect — onboarding URL for receivers (prestadores)
+app.get('/api/stripe/connect-url/:userId', async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+
+  const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
+
+  try {
+    let accountId = user.stripeConnectId;
+    if (!accountId) {
+      const account = await stripeInstance.accounts.create({
+        type: 'express',
+        country: user.country || 'BR',
+        email: user.email || undefined,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        metadata: { userId, source: 'touch-app' }
+      });
+      accountId = account.id;
+      user.stripeConnectId = accountId;
+      saveDB('users');
+    }
+
+    const link = await stripeInstance.accountLinks.create({
+      account: accountId,
+      refresh_url: baseUrl + '/api/stripe/connect-refresh/' + userId,
+      return_url: baseUrl + '/stripe/connect-result?userId=' + userId,
+      type: 'account_onboarding'
+    });
+
+    res.json({ url: link.url });
+  } catch(e) {
+    console.error('[stripe/connect] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Stripe Connect — refresh (re-generate onboarding link)
+app.get('/api/stripe/connect-refresh/:userId', async (req, res) => {
+  const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
+  res.redirect(baseUrl + '/api/stripe/connect-url/' + req.params.userId);
+});
+
+// Stripe Connect return page
+app.get('/stripe/connect-result', async (req, res) => {
+  const { userId } = req.query;
+  if (userId && db.users[userId] && db.users[userId].stripeConnectId && stripeInstance) {
+    try {
+      const account = await stripeInstance.accounts.retrieve(db.users[userId].stripeConnectId);
+      db.users[userId].stripeConnected = account.charges_enabled;
+      db.users[userId].stripeConnectCountry = account.country;
+      saveDB('users');
+      console.log('[stripe/connect] Account connected:', { userId, chargesEnabled: account.charges_enabled, country: account.country });
+    } catch(e) { console.error('[stripe/connect-result]', e.message); }
+  }
+  res.redirect('/?stripeConnected=ok');
+});
+
+// Stripe Connect — check status
+app.get('/api/stripe/connect-status/:userId', async (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  res.json({
+    connected: !!user.stripeConnected,
+    connectId: user.stripeConnectId || null,
+    country: user.stripeConnectCountry || null
+  });
+});
+
+// Stripe Webhook — verify signatures and handle events
+app.post('/api/stripe/webhook', (req, res) => {
+  if (!stripeInstance) return res.sendStatus(400);
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.warn('[stripe/webhook] No webhook secret configured, skipping verification');
+    return res.sendStatus(400);
+  }
+
+  const sig = req.headers['stripe-signature'];
+  let event;
+  try {
+    event = stripeInstance.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch(e) {
+    console.warn('[stripe/webhook] Signature invalid:', e.message);
+    return res.sendStatus(401);
+  }
+
+  console.log('[stripe/webhook] Event:', event.type);
+
+  switch(event.type) {
+    case 'payment_intent.succeeded': {
+      const pi = event.data.object;
+      // Find and update tip
+      const tip = Object.values(db.tips || {}).find(t => t.stripePaymentIntentId === pi.id);
+      if (tip && tip.status !== 'approved') {
+        tip.status = 'approved';
+        const receiver = db.users[tip.receiverId];
+        if (receiver) {
+          receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
+          receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
+        }
+        const payer = db.users[tip.payerId];
+        io.to(`user:${tip.receiverId}`).emit('tip-received', {
+          amount: tip.amount, tipId: tip.id, from: payer?.nickname || '?', status: 'approved'
+        });
+        saveDB('tips', 'users');
+      }
+      // Find and update event payment
+      const ep = Object.values(db.eventPayments || {}).find(e => e.stripePaymentIntentId === pi.id);
+      if (ep && ep.status !== 'approved') {
+        ep.status = 'approved';
+        const ev = db.operatorEvents[ep.eventId];
+        if (ev) {
+          ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+          ev.revenue = (ev.revenue || 0) + ep.amount;
+          if (!ev.participants) ev.participants = [];
+          if (!ev.participants.includes(ep.payerId)) ev.participants.push(ep.payerId);
+          saveDB('operatorEvents');
+        }
+        saveDB('eventPayments');
+      }
+      break;
+    }
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      const sub = event.data.object;
+      const entry = Object.entries(db.subscriptions || {}).find(([k, v]) => v.stripeSubscriptionId === sub.id);
+      if (entry) {
+        const [uid, userSub] = entry;
+        const isActive = sub.status === 'active' || sub.status === 'trialing';
+        userSub.status = isActive ? 'authorized' : sub.status;
+        const user = db.users[uid];
+        if (user) {
+          user.isSubscriber = isActive;
+          if (isActive) {
+            user.verified = true;
+            user.verifiedAt = user.verifiedAt || Date.now();
+            user.verificationType = user.verificationType || 'subscriber';
+          } else if (user.verificationType === 'subscriber') {
+            user.verified = false;
+            delete user.verifiedAt;
+            delete user.verificationType;
+          }
+        }
+        if (sub.status === 'canceled') userSub.cancelledAt = Date.now();
+        saveDB('users');
+      }
+      break;
+    }
+    case 'account.updated': {
+      // Stripe Connect account status change
+      const acct = event.data.object;
+      const userEntry = Object.entries(db.users || {}).find(([k, v]) => v.stripeConnectId === acct.id);
+      if (userEntry) {
+        const [uid, user] = userEntry;
+        user.stripeConnected = acct.charges_enabled;
+        saveDB('users');
+        console.log('[stripe/webhook] Connect account updated:', { userId: uid, chargesEnabled: acct.charges_enabled });
+      }
+      break;
+    }
+  }
+
+  res.json({ received: true });
 });
 
 // ═══ TOUCHGAMES — REST API ═══

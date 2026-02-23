@@ -1862,11 +1862,32 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
     </button>
 
-    <!-- 4. NEW CARD -->
+    <!-- 4. STRIPE — Card + Link (Payment Element) -->
+    <button id="tipStripeToggle" onclick="payTipWithStripe()" style="display:none;align-items:center;gap:.6rem;width:100%;padding:.7rem .9rem;border-radius:14px;border:1px solid rgba(99,91,255,.2);background:rgba(99,91,255,.06);cursor:pointer;font-family:inherit;transition:all .2s">
+      <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#635bff,#4f46e5);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+      <div style="flex:1;text-align:left">
+        <div style="font-size:.72rem;font-weight:700;color:#a5b4fc">Cartao / Link</div>
+        <div style="font-size:.48rem;color:var(--t3)">Visa, Master, Amex, Link</div>
+      </div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+
+    <!-- 5. NEW CARD (MP) -->
     <button id="tipNewCardToggle" onclick="showNewCardForm()" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.6rem .9rem;border-radius:14px;border:1px dashed rgba(99,102,241,.15);background:transparent;cursor:pointer;font-family:inherit">
       <div style="width:32px;height:32px;border-radius:10px;background:rgba(99,102,241,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
       <div style="font-size:.68rem;font-weight:600;color:var(--t2)">Adicionar cartao</div>
     </button>
+  </div>
+
+  <!-- STRIPE PAYMENT ELEMENT CONTAINER -->
+  <div id="tipStripeContainer" style="display:none;margin-top:.6rem">
+    <div style="background:rgba(99,91,255,.05);border:1px solid rgba(99,91,255,.15);border-radius:16px;padding:.8rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <div style="font-size:.65rem;font-weight:600;color:#a5b4fc">Pagamento via Stripe</div>
+        <button onclick="$('tipStripeContainer').style.display='none';$('tipPayMethods').style.display=''" style="padding:2px 6px;border:none;background:rgba(255,255,255,.08);border-radius:6px;color:var(--t3);font-size:.5rem;cursor:pointer;font-family:inherit">Voltar</button>
+      </div>
+      <!-- Payment Element will be mounted here by JS -->
+    </div>
   </div>
 
   <!-- NEW CARD FORM — expandable -->
@@ -2213,7 +2234,16 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       </div>
       <!-- Payment methods for Plus -->
       <div id="subPayMethods" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.5rem;text-align:left">
-        <!-- Express Checkout (Stripe) -->
+        <!-- Stripe — Card/Link/Apple Pay/Google Pay (subscription via Stripe Checkout) -->
+        <button id="subStripeBtn" onclick="stripeSubscribe('touch_plus')" style="display:none;align-items:center;gap:.6rem;width:100%;padding:.75rem .9rem;border-radius:14px;border:1px solid rgba(99,91,255,.25);background:rgba(99,91,255,.08);cursor:pointer;font-family:inherit;transition:all .2s">
+          <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#635bff,#4f46e5);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+          <div style="flex:1;text-align:left">
+            <div style="font-size:.72rem;font-weight:700;color:#a5b4fc">Cartao / Apple Pay / Link</div>
+            <div style="font-size:.48rem;color:var(--t3)">Visa, Master, Amex + wallets</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <!-- Express Checkout (Stripe) — legacy buttons -->
         <div id="subExpressCheckout" style="display:none">
           <button id="subApplePayBtn" onclick="expressCheckout('apple','touch_plus')" style="display:none;width:100%;padding:.85rem;border-radius:14px;border:none;background:#000;color:#fff;font-size:.85rem;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer">
             <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:middle;margin-right:.3rem;margin-top:-2px" fill="#fff"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.52-3.23 0-1.44.64-2.2.46-3.06-.4C3.79 16.17 4.36 9.02 8.73 8.76c1.26.07 2.14.72 2.88.75.97-.2 1.9-.87 3.04-.79 1.37.1 2.39.65 3.07 1.65-2.67 1.6-2.03 5.12.37 6.1-.5 1.3-.73 1.88-1.38 3.03-.99 1.72-2.38 3.44-4.1 3.5l.44.28zM12.03 8.67c-.16-2.35 1.73-4.35 3.94-4.67.3 2.62-2.34 4.87-3.94 4.67z"/></svg>
@@ -2272,6 +2302,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       </div>
       <div style="font-size:.5rem;color:rgba(139,92,246,.6);margin-bottom:.6rem;font-weight:600">Nao inclui assistente AI</div>
       <div style="display:flex;flex-direction:column;gap:.5rem;text-align:left">
+        <!-- Stripe Selo -->
+        <button id="subStripeBtnSelo" onclick="stripeSubscribe('touch_selo')" style="display:none;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(99,91,255,.2);background:rgba(99,91,255,.06);cursor:pointer;font-family:inherit;transition:all .2s">
+          <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#635bff,#4f46e5);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+          <div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:700;color:#a5b4fc">Cartao / Apple Pay / Link</div><div style="font-size:.45rem;color:var(--t3)">Visa, Master, Amex + wallets</div></div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
         <!-- PIX Selo -->
         <button onclick="subscribeWithPix('touch_selo')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.7rem .9rem;border-radius:14px;border:1px solid rgba(0,220,130,.2);background:rgba(0,220,130,.06);cursor:pointer;font-family:inherit;transition:all .2s">
           <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#00dc82,#00b36b);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M13.5 3L7 10h4l-1 11 6.5-7h-4l1-11"/></svg></div>
@@ -8606,6 +8642,13 @@ async function showSubscriptionScreen() {
   loadSubSavedCard();
   // Load current status
   await loadSubStatus();
+  // Show Stripe buttons if configured
+  fetch('/api/stripe/config').then(r => r.json()).then(d => {
+    if (d.publicKey) {
+      var sb = $('subStripeBtn'); if (sb) sb.style.display = 'flex';
+      var ss = $('subStripeBtnSelo'); if (ss) ss.style.display = 'flex';
+    }
+  }).catch(() => {});
 }
 
 async function toggleGrantVA(targetId) {
@@ -9635,9 +9678,16 @@ function showTipScreen(receiverId) {
     }
   }).catch(() => {});
 
-  // Initialize Express Checkout (Apple Pay / Google Pay) if Stripe configured
-  $('tipExpressCheckout').style.display='none';
+  // Initialize Stripe (Express Checkout + Payment Element toggle)
+  $('tipExpressCheckout').style.display = 'none';
+  $('tipStripeContainer').style.display = 'none';
+  var stripeToggle = $('tipStripeToggle');
+  if (stripeToggle) stripeToggle.style.display = 'none';
   initExpressCheckout();
+  // Show Stripe card/Link button if Stripe is configured
+  fetch('/api/stripe/config').then(r => r.json()).then(d => {
+    if (d.publicKey && stripeToggle) stripeToggle.style.display = 'flex';
+  }).catch(() => {});
 
   showScreen('tipScreen');
 }
@@ -9654,53 +9704,146 @@ function showNewCardForm() {
 function validateSavedCVV() {
   updateTipBtns();
 }
-// Express Checkout — Apple Pay / Google Pay (requires Stripe)
-// Will activate automatically when STRIPE_PUBLIC_KEY is configured on the server
-function initExpressCheckout(){
-  // Check if Stripe is configured on this server
-  fetch('/api/stripe/config').then(r=>r.json()).then(d=>{
-    if(!d.publicKey)return; // Stripe not configured yet
-    // Load Stripe.js dynamically
-    if(!window.Stripe){
-      var s=document.createElement('script');s.src='https://js.stripe.com/v3/';
-      s.onload=function(){setupExpressCheckout(d.publicKey)};
+// ═══ STRIPE — Payment Element + Express Checkout ═══
+// Unified: Card, Link, Apple Pay, Google Pay — all in one component
+// Activates automatically when STRIPE_PUBLIC_KEY is configured on the server
+let _stripeReady = false;
+let _stripePublicKey = null;
+
+function loadStripeJS() {
+  return new Promise((resolve) => {
+    if (window.Stripe) return resolve();
+    fetch('/api/stripe/config').then(r => r.json()).then(d => {
+      if (!d.publicKey) return resolve();
+      _stripePublicKey = d.publicKey;
+      if (window.Stripe) return resolve();
+      var s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/';
+      s.onload = function() { _stripeReady = true; resolve(); };
+      s.onerror = function() { resolve(); };
       document.head.appendChild(s);
-    }else{setupExpressCheckout(d.publicKey)}
-  }).catch(()=>{});
-}
-function setupExpressCheckout(pubKey){
-  try{
-    var stripe=Stripe(pubKey);
-    // Check if Apple Pay or Google Pay is available on this device
-    var paymentRequest=stripe.paymentRequest({country:'BR',currency:'brl',total:{label:'Touch?',amount:100},requestPayerEmail:true});
-    paymentRequest.canMakePayment().then(function(result){
-      if(!result)return;
-      var container=$('tipExpressCheckout');if(!container)return;
-      container.style.display='';
-      if(result.applePay){$('tipApplePayBtn').style.display=''}
-      else if(result.googlePay){$('tipGooglePayBtn').style.display=''}
-      window._stripeInstance=stripe;
-      window._stripePaymentRequest=paymentRequest;
-    });
-  }catch(e){console.log('[express-checkout] error:',e)}
-}
-function expressCheckout(type){
-  if(!tipState.amount||tipState.amount<1)return showToast('Escolha um valor.');
-  if(!window._stripeInstance||!window._stripePaymentRequest)return showToast('Pagamento express indisponivel.');
-  // Update the payment request amount
-  window._stripePaymentRequest.update({total:{label:'Gorjeta Touch?',amount:Math.round(tipState.amount*100)}});
-  // Show the native payment sheet (Apple Pay / Google Pay)
-  window._stripePaymentRequest.show();
-  window._stripePaymentRequest.on('paymentmethod',function(ev){
-    // Send to server to create payment intent and confirm
-    fetch('/api/stripe/pay',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({paymentMethodId:ev.paymentMethod.id,amount:tipState.amount,payerId:state.userId,receiverId:tipState.receiverId})
-    }).then(r=>r.json()).then(d=>{
-      if(d.ok){ev.complete('success');showTipResult('OK','Pago!');haptic([40,20,40])}
-      else{ev.complete('fail');showToast(d.error||'Erro no pagamento')}
-    }).catch(()=>{ev.complete('fail');showToast('Erro de conexao')});
+    }).catch(() => resolve());
   });
+}
+
+function initExpressCheckout() {
+  loadStripeJS().then(() => {
+    if (!_stripePublicKey || !window.Stripe) return;
+    try {
+      var stripe = Stripe(_stripePublicKey);
+      var paymentRequest = stripe.paymentRequest({ country: 'BR', currency: 'brl', total: { label: 'Touch?', amount: 100 }, requestPayerEmail: true });
+      paymentRequest.canMakePayment().then(function(result) {
+        if (!result) return;
+        var container = $('tipExpressCheckout'); if (!container) return;
+        container.style.display = '';
+        if (result.applePay) { $('tipApplePayBtn').style.display = '' }
+        else if (result.googlePay) { $('tipGooglePayBtn').style.display = '' }
+        // Also show Link button if available
+        if (result.link) { var lb = $('tipLinkBtn'); if (lb) lb.style.display = ''; }
+        window._stripeInstance = stripe;
+        window._stripePaymentRequest = paymentRequest;
+      });
+    } catch(e) { console.log('[express-checkout] error:', e) }
+  });
+}
+
+function expressCheckout(type, planId) {
+  // For subscriptions, redirect to Stripe Checkout
+  if (planId) return stripeSubscribe(planId);
+
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  if (!window._stripeInstance || !window._stripePaymentRequest) return showToast('Pagamento express indisponivel.');
+  window._stripePaymentRequest.update({ total: { label: 'Gorjeta Touch?', amount: Math.round(tipState.amount * 100) } });
+  window._stripePaymentRequest.show();
+  window._stripePaymentRequest.on('paymentmethod', function(ev) {
+    fetch('/api/stripe/pay', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentMethodId: ev.paymentMethod.id, amount: tipState.amount, payerId: state.userId, receiverId: tipState.receiverId })
+    }).then(r => r.json()).then(d => {
+      if (d.ok) { ev.complete('success'); showTipResult('OK', 'Pago!'); haptic([40, 20, 40]) }
+      else { ev.complete('fail'); showToast(d.error || 'Erro no pagamento') }
+    }).catch(() => { ev.complete('fail'); showToast('Erro de conexao') });
+  });
+}
+
+// Stripe Payment Element — full card + Link + wallets in one form
+async function showStripePaymentElement(containerId, amount, currency, onSuccess, metadata) {
+  if (!_stripePublicKey || !window.Stripe) { showToast('Stripe nao configurado.'); return null; }
+  const stripe = window._stripeInstance || Stripe(_stripePublicKey);
+  window._stripeInstance = stripe;
+
+  // Create PaymentIntent on server
+  const resp = await fetch('/api/stripe/create-payment-intent', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, currency: currency || 'brl', payerId: state.userId, ...metadata })
+  });
+  const data = await resp.json();
+  if (data.error) { showToast(data.error); return null; }
+
+  const container = $(containerId);
+  if (!container) return null;
+  container.innerHTML = '<div id="' + containerId + '-pe" style="margin-bottom:.5rem"></div><button id="' + containerId + '-submit" class="tip-pay-btn" style="background:linear-gradient(135deg,#635bff,#4f46e5);margin-top:.5rem" disabled>Processando...</button><div id="' + containerId + '-msg" style="font-size:.5rem;color:var(--err);margin-top:.3rem;text-align:center;display:none"></div>';
+
+  const elements = stripe.elements({ clientSecret: data.clientSecret, appearance: {
+    theme: 'night', variables: { colorPrimary: '#635bff', colorBackground: '#1a1a2e', colorText: '#e2e8f0', borderRadius: '12px', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
+  }});
+  const paymentElement = elements.create('payment', { layout: 'tabs' });
+  paymentElement.mount('#' + containerId + '-pe');
+
+  const submitBtn = $(containerId + '-submit');
+  paymentElement.on('ready', () => { submitBtn.disabled = false; submitBtn.textContent = 'Pagar R$' + amount.toFixed(2).replace('.', ','); });
+  paymentElement.on('change', (ev) => {
+    const msgEl = $(containerId + '-msg');
+    if (ev.error) { msgEl.style.display = ''; msgEl.textContent = ev.error.message; }
+    else { msgEl.style.display = 'none'; }
+  });
+
+  submitBtn.onclick = async function() {
+    submitBtn.disabled = true; submitBtn.textContent = 'Processando...';
+    const { error } = await stripe.confirmPayment({ elements, confirmParams: { return_url: window.location.origin + '/?stripeReturn=ok&tipId=' + data.tipId }, redirect: 'if_required' });
+    if (error) {
+      submitBtn.disabled = false; submitBtn.textContent = 'Pagar R$' + amount.toFixed(2).replace('.', ',');
+      const msgEl = $(containerId + '-msg'); msgEl.style.display = ''; msgEl.textContent = error.message;
+    } else {
+      // Payment succeeded without redirect
+      const confirm = await fetch('/api/stripe/confirm-payment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIntentId: data.paymentIntentId, tipId: data.tipId })
+      }).then(r => r.json());
+      if (confirm.ok && onSuccess) onSuccess(data.tipId);
+      else if (!confirm.ok) showToast('Pagamento pendente de confirmacao.');
+    }
+  };
+
+  return { elements, stripe, tipId: data.tipId, paymentIntentId: data.paymentIntentId };
+}
+
+// Pay tip with Stripe Payment Element
+async function payTipWithStripe() {
+  if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
+  $('tipPayMethods').style.display = 'none';
+  $('tipStripeContainer').style.display = '';
+  await showStripePaymentElement('tipStripeContainer', tipState.amount, 'brl',
+    function(tipId) { showTipResult('OK', 'Pago!'); haptic([40, 20, 40]); },
+    { receiverId: tipState.receiverId, type: 'tip' }
+  );
+}
+
+// Subscribe with Stripe Checkout
+async function stripeSubscribe(planId) {
+  const resp = await fetch('/api/stripe/create-subscription', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: state.userId, planId })
+  });
+  const data = await resp.json();
+  if (data.error) return showToast(data.error);
+  if (data.url) window.location.href = data.url;
+}
+
+// Connect Stripe for receivers (prestadores)
+async function connectStripe() {
+  const resp = await fetch('/api/stripe/connect-url/' + state.userId).then(r => r.json());
+  if (resp.error) return showToast(resp.error);
+  if (resp.url) window.location.href = resp.url;
 }
 function payWithMercadoPago() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
@@ -9745,7 +9888,68 @@ async function subscribeWithCard() {
   }
 }
 async function subscribeWithPix(planId) {
-  showToast('PIX para assinatura em breve!');
+  // Show PIX form for subscription
+  const existing = document.getElementById('subPixOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'subPixOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  const planName = planId === 'touch_plus' ? 'Touch? Plus (R$50)' : 'Selo (R$10)';
+  overlay.innerHTML = '<div style="background:var(--bg);border-radius:20px;padding:1.5rem;max-width:340px;width:100%">'
+    + '<div style="font-size:.85rem;font-weight:700;color:var(--t1);text-align:center;margin-bottom:.8rem">' + planName + ' via PIX</div>'
+    + '<div style="font-size:.55rem;color:var(--t3);text-align:center;margin-bottom:.8rem">Pagamento unico que ativa 30 dias de assinatura.</div>'
+    + '<input type="email" id="subPixEmail" class="tip-input" placeholder="Seu e-mail" autocomplete="email" value="' + (state.userEmail || '') + '" style="margin-bottom:.4rem">'
+    + '<input type="text" id="subPixCPF" class="tip-input" placeholder="Seu CPF" inputmode="numeric" maxlength="14" autocomplete="off" oninput="formatCPF(this)" style="margin-bottom:.6rem">'
+    + '<button id="subPixBtn" onclick="processSubPix(\'' + planId + '\')" style="width:100%;padding:.75rem;border-radius:14px;border:none;background:linear-gradient(135deg,#00dc82,#00b36b);color:#fff;font-size:.8rem;font-weight:700;font-family:inherit;cursor:pointer">Gerar PIX</button>'
+    + '<div id="subPixQR" style="display:none;text-align:center;padding:.8rem 0">'
+    + '  <div style="font-size:.7rem;font-weight:600;color:var(--ok);margin-bottom:.4rem">PIX gerado!</div>'
+    + '  <img id="subPixQRImg" style="width:180px;height:180px;border-radius:10px;background:#fff;padding:6px" alt="QR Code">'
+    + '  <div style="margin-top:.5rem"><button onclick="copySubPixCode()" style="padding:.35rem .8rem;border-radius:10px;background:rgba(0,220,130,.12);border:1px solid rgba(0,220,130,.25);color:#00dc82;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar codigo PIX</button></div>'
+    + '  <input type="hidden" id="subPixCode">'
+    + '  <div style="font-size:.5rem;color:var(--t3);margin-top:.4rem">Expira em 30 minutos. Assinatura ativa apos pagamento.</div>'
+    + '</div>'
+    + '<button onclick="document.getElementById(\'subPixOverlay\').remove()" style="width:100%;margin-top:.6rem;padding:.5rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:transparent;color:var(--t3);font-size:.65rem;font-family:inherit;cursor:pointer">Cancelar</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function processSubPix(planId) {
+  const email = document.getElementById('subPixEmail').value.trim();
+  const cpf = document.getElementById('subPixCPF').value.replace(/\D/g, '');
+  if (!email) return showToast('Informe seu email.');
+  if (cpf.length < 11) return showToast('Informe seu CPF.');
+
+  const btn = document.getElementById('subPixBtn');
+  btn.disabled = true; btn.textContent = 'Gerando...';
+
+  try {
+    const resp = await fetch('/api/subscription/create-pix', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: state.userId, planId, email, cpf })
+    });
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); btn.disabled = false; btn.textContent = 'Gerar PIX'; return; }
+
+    // Show QR code
+    const qrDiv = document.getElementById('subPixQR');
+    qrDiv.style.display = '';
+    document.getElementById('subPixQRImg').src = 'data:image/png;base64,' + data.qrCodeBase64;
+    document.getElementById('subPixCode').value = data.qrCode;
+    btn.style.display = 'none';
+    document.getElementById('subPixEmail').style.display = 'none';
+    document.getElementById('subPixCPF').style.display = 'none';
+  } catch (e) {
+    showToast('Erro ao gerar PIX.');
+    btn.disabled = false; btn.textContent = 'Gerar PIX';
+  }
+}
+
+function copySubPixCode() {
+  const code = document.getElementById('subPixCode').value;
+  if (code && navigator.clipboard) {
+    navigator.clipboard.writeText(code).then(() => showToast('Codigo PIX copiado!'));
+  }
 }
 function showSubNewCard() {
   showToast('Cadastre um cartão na tela de gorjeta primeiro.');
@@ -10144,9 +10348,37 @@ function checkTipResultParam() {
   const params = new URLSearchParams(window.location.search);
   const tipResult = params.get('tipResult');
   if (tipResult) {
-    if (tipResult === 'approved') showToast('Gorjeta confirmada! ✅');
-    else if (tipResult === 'pending') showToast('Pagamento em processamento ⏳');
-    else showToast('Pagamento não aprovado ❌');
+    if (tipResult === 'approved') showToast('Gorjeta confirmada!');
+    else if (tipResult === 'pending') showToast('Pagamento em processamento...');
+    else showToast('Pagamento nao aprovado.');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  // Handle Stripe Payment Element return (redirect flow)
+  const stripeReturn = params.get('stripeReturn');
+  if (stripeReturn) {
+    const piClientSecret = params.get('payment_intent_client_secret');
+    const tipId = params.get('tipId');
+    if (piClientSecret && _stripePublicKey) {
+      loadStripeJS().then(() => {
+        if (!window.Stripe) return;
+        const stripe = Stripe(_stripePublicKey);
+        stripe.retrievePaymentIntent(piClientSecret).then(({ paymentIntent }) => {
+          if (paymentIntent && paymentIntent.status === 'succeeded') {
+            fetch('/api/stripe/confirm-payment', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentIntentId: paymentIntent.id, tipId })
+            }).then(() => showToast('Pagamento confirmado!'));
+          } else if (paymentIntent && paymentIntent.status === 'processing') {
+            showToast('Pagamento em processamento...');
+          }
+        });
+      });
+    }
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  // Handle Stripe Connect return
+  if (params.get('stripeConnected') === 'ok') {
+    showToast('Stripe conectado com sucesso!');
     window.history.replaceState({}, '', window.location.pathname);
   }
 }
@@ -10417,12 +10649,22 @@ async function showPrestadorDash() {
       pdMini('Semana', fmt(d.stats.weekTotal), d.stats.weekCount) +
       pdMini('Mês', fmt(d.stats.monthTotal), d.stats.monthCount);
 
-    // MP status
+    // Payment gateways status
+    let gwHtml = '';
     if (d.mpConnected) {
-      $('pdMpStatus').innerHTML = '<div style="padding:.5rem;border-radius:12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:.65rem;color:#10b981;text-align:center">✅ Conta Mercado Pago conectada — gorjetas caem direto na sua conta</div>';
+      gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:.65rem;color:#10b981;text-align:center;margin-bottom:.3rem">Mercado Pago conectado</div>';
     } else {
-      $('pdMpStatus').innerHTML = '<div style="padding:.5rem;border-radius:12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:.65rem;color:#fbbf24;text-align:center">⚠️ Conta MP não conectada — gorjetas ficam com a plataforma Touch?</div>';
+      gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:.65rem;color:#fbbf24;text-align:center;margin-bottom:.3rem">MP nao conectado <button onclick="connectMercadoPago()" style="margin-left:.3rem;padding:2px 8px;border-radius:6px;border:1px solid rgba(251,191,36,.3);background:transparent;color:#fbbf24;font-size:.55rem;cursor:pointer;font-family:inherit">Conectar</button></div>';
     }
+    // Check Stripe Connect status
+    fetch('/api/stripe/connect-status/' + state.userId).then(r=>r.json()).then(sc => {
+      if (sc.connected) {
+        gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(99,91,255,.08);border:1px solid rgba(99,91,255,.2);font-size:.65rem;color:#a5b4fc;text-align:center">Stripe Connect ativo (' + (sc.country || 'BR') + ')</div>';
+      } else {
+        gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(99,91,255,.06);border:1px solid rgba(99,91,255,.15);font-size:.65rem;color:var(--t3);text-align:center">Stripe <button onclick="connectStripe()" style="margin-left:.3rem;padding:2px 8px;border-radius:6px;border:1px solid rgba(99,91,255,.3);background:transparent;color:#a5b4fc;font-size:.55rem;cursor:pointer;font-family:inherit">Conectar Stripe</button> <span style="font-size:.45rem;opacity:.6">(EUA/Internacional)</span></div>';
+      }
+      $('pdMpStatus').innerHTML = gwHtml;
+    }).catch(() => { $('pdMpStatus').innerHTML = gwHtml; });
 
     // Tips list
     if (d.tips.length === 0) {
