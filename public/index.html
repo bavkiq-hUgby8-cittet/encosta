@@ -4123,11 +4123,13 @@ function makeAvatar(nick,color,size,photo,verified,accessoryKey){
     // Real photo — NO accessory overlay (accessory is for anonymous identity only)
     inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>';
   } else {
-    // Anonymous silhouette avatar
-    inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:visible;flex-shrink:0">'
-      +'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)">'+ANON_AVATAR_SVG+'</div>';
+    // Anonymous silhouette avatar — outer wrapper without border-radius to avoid mobile clipping
+    inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;overflow:visible;flex-shrink:0">'
+      +'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;border:1.5px solid rgba(255,255,255,.12);box-shadow:0 2px 8px rgba(0,0,0,.2)"><svg viewBox="0 0 100 100" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50" fill="#222236"/><circle cx="50" cy="38" r="16" fill="#424262"/><ellipse cx="50" cy="78" rx="26" ry="18" fill="#424262"/></svg></div>';
     if(accessoryKey&&AVATAR_ACCESSORIES[accessoryKey]){
-      inner+='<div style="position:absolute;top:0;left:0;width:'+size+'px;height:'+size+'px;pointer-events:none">'+AVATAR_ACCESSORIES[accessoryKey].svg+'</div>';
+      // Inject accessory SVG with explicit width/height for mobile compatibility
+      const accSvg=AVATAR_ACCESSORIES[accessoryKey].svg.replace('<svg ','<svg width="'+size+'" height="'+size+'" ');
+      inner+='<div style="position:absolute;top:0;left:0;width:'+size+'px;height:'+size+'px;pointer-events:none;overflow:visible">'+accSvg+'</div>';
     }
     inner+='</div>';
   }
@@ -8814,6 +8816,7 @@ function showMyProfileSheet(){
     +'<div style="font-size:.4rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem;opacity:.6">anônimo</div>'
     +makeAvatar(state.userName||'??',color,56,null,false,state.userAccessory||null)
     +'<div style="font-size:.78rem;font-weight:800;color:var(--t2);margin-top:.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">@'+esc(state.userName||'??')+'</div>'
+    +(state.userAccessory&&AVATAR_ACCESSORIES[state.userAccessory]?'<div style="font-size:.4rem;color:var(--t3);margin-top:.15rem;opacity:.5">'+AVATAR_ACCESSORIES[state.userAccessory].name+'</div>':'<div style="font-size:.4rem;color:var(--t3);margin-top:.15rem;opacity:.5;cursor:pointer" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()">escolher acessório</div>')
     +'</div>'
     +'</div>'
     // Badges row
