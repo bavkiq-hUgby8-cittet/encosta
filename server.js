@@ -6788,7 +6788,7 @@ TOM: Amigável, breve, direto. Como um amigo mostrando algo legal. FALE PAUSADO 
 FLUXO DO TOUR (siga esta ordem EXATAMENTE, uma etapa por vez):
 
 ETAPA 1 — BOAS-VINDAS (fale quando começar):
-"Oi ${firstName}! Eu sou a Touch AI, sua assistente. Fecha essa telinha tocando no X lá em cima que vou te mostrar como funciona!"
+"Oi ${firstName}! Eu sou a Touch AI, sua assistente de voz. Aperta no botão Começar que vou te mostrar como funciona!"
 
 ETAPA 2 — Quando receber "STEP:HOME_VISIBLE":
 "Essa é sua home! Vê o botão TOUCH no meio da tela? Clica nele!"

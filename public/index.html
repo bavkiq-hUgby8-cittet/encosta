@@ -1177,9 +1177,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .onb-finish-btn{padding:13px 36px;background:linear-gradient(135deg,#818cf8,#6366f1);border:none;border-radius:16px;color:#fff;font-size:.9rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 6px 24px rgba(99,102,241,.4);margin-top:.3rem}
 .onb-finish-btn:active{transform:scale(.95)}
 /* ═══ ONBOARDING — BUBBLE (agent speech) ═══ */
-.onb-guide-bubble{position:fixed;bottom:30%;left:50%;transform:translateX(-50%);z-index:350;background:rgba(15,12,30,.94);backdrop-filter:blur(20px);border:1px solid rgba(99,102,241,.15);border-radius:20px;padding:16px 20px;max-width:310px;width:calc(100% - 36px);color:rgba(255,255,255,.9);font-size:.84rem;line-height:1.55;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5),0 0 60px rgba(99,102,241,.04);display:none;opacity:0;transition:opacity .3s ease}
+.onb-guide-bubble{position:fixed;bottom:18%;left:50%;transform:translateX(-50%);z-index:350;background:rgba(15,12,30,.94);backdrop-filter:blur(20px);border:1px solid rgba(99,102,241,.15);border-radius:20px;padding:16px 20px;max-width:310px;width:calc(100% - 36px);color:rgba(255,255,255,.9);font-size:.84rem;line-height:1.55;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5),0 0 60px rgba(99,102,241,.04);display:none;opacity:0;transition:opacity .3s ease}
 .onb-guide-bubble.visible{display:block;opacity:1}
-.onb-guide-bubble .onb-bubble-skip{margin-top:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:7px 20px;color:rgba(255,255,255,.45);font-size:.72rem;cursor:pointer;font-family:inherit;font-weight:600}
+.onb-guide-bubble .onb-bubble-action{margin-top:12px;background:linear-gradient(135deg,rgba(99,102,241,.3),rgba(80,200,240,.2));border:1px solid rgba(99,102,241,.35);border-radius:14px;padding:10px 28px;color:#c4b5fd;font-size:.82rem;cursor:pointer;font-family:inherit;font-weight:700;letter-spacing:.02em;transition:all .25s}
+.onb-guide-bubble .onb-bubble-action:hover{background:linear-gradient(135deg,rgba(99,102,241,.5),rgba(80,200,240,.3));color:#fff}
+.onb-guide-bubble .onb-bubble-skip{margin-top:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:7px 20px;color:rgba(255,255,255,.45);font-size:.72rem;cursor:pointer;font-family:inherit;font-weight:600}
 /* ═══ ONBOARDING — LOADING ═══ */
 .onb-loading{position:fixed;inset:0;z-index:450;background:radial-gradient(ellipse at 50% 40%,rgba(99,102,241,.06),rgba(5,5,8,.96) 70%);backdrop-filter:blur(24px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;opacity:0;transition:opacity .4s ease}
 .onb-loading.active{display:flex;opacity:1}
@@ -12017,6 +12019,7 @@ window.addEventListener('message',function(e){
 </div>
 <div class="onb-guide-bubble" id="onbGuideBubble">
   <div class="onb-bubble-text" id="onbBubbleText"></div>
+  <button class="onb-bubble-action" id="onbBubbleAction" style="display:none" onclick="onbBubbleActionClick()">Começar</button>
   <button class="onb-bubble-skip" onclick="skipGuidedOnboarding()">Pular</button>
 </div>
 <div class="onb-guide-highlight" id="onbHighlight"></div>
@@ -12691,6 +12694,14 @@ function closeOnbFinish(){
   const f=document.getElementById('onbFinish');
   if(f) f.classList.remove('active');
 }
+function onbBubbleActionClick(){
+  // Botão "Começar" — fecha VA overlay e vai pra home
+  const btn=document.getElementById('onbBubbleAction');
+  if(btn)btn.style.display='none';
+  const ov=document.getElementById('vaOverlay');
+  if(ov)ov.classList.remove('active');
+  setTimeout(()=> GuidedOnboarding.signalStep('HOME_VISIBLE'), 600);
+}
 
 const GuidedOnboarding=(function(){
   let pc=null,dc=null,audioEl=null,micStream=null;
@@ -12717,8 +12728,12 @@ const GuidedOnboarding=(function(){
   function finish(){
     if(_ft){clearTimeout(_ft);_ft=null;}
     cleanup();step=0;bubble(null);hl(null);
-    // Show closing screen instead of just disappearing
-    if(typeof showOnbFinish==='function') showOnbFinish();
+    // Limpar tudo sem popup — agente já se despediu por voz
+    document.getElementById('onbGuideBubble')?.classList.remove('visible');
+    document.getElementById('onbHighlight')?.classList.remove('visible','pulse');
+    var spk=document.getElementById('onbSpark');if(spk)spk.classList.remove('active');
+    var ld=document.getElementById('onbLoading');if(ld)ld.classList.remove('active');
+    var ov=document.getElementById('vaOverlay');if(ov)ov.classList.remove('active','mini');
     fetch('/api/agent/onboarding-done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
   }
 
@@ -12753,7 +12768,7 @@ const GuidedOnboarding=(function(){
         var st2=$('vaStatus');if(st2)st2.textContent='';
         $('vaStopBtn').style.display='';
         bubble(null);
-        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Comece a ETAPA 1 — Boas-vindas. Se apresente e peça pro usuário fechar essa tela tocando no X lá em cima pra ver a home.'}}));
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Comece a ETAPA 1 — Boas-vindas. Se apresente e peça pro usuário apertar o botão Começar pra ver a home.'}}));
       };
       dc.onmessage=e=>{try{onEvt(JSON.parse(e.data))}catch(x){}};
       dc.onclose=()=>{if(active)cleanup();};
@@ -12790,16 +12805,18 @@ const GuidedOnboarding=(function(){
         break;
 
       case 'response.audio_transcript.done':
-        // Agent done talking — highlight next action
-        if(step===1)setTimeout(()=>{const x=document.querySelector('.va-close');if(x)hl(x,12);},400);
+        // Agent done talking — show next action
+        if(step===1){
+          // Mostrar botão "Começar" na bubble em vez de highlight no X
+          setTimeout(()=>{var btn=$('onbBubbleAction');if(btn)btn.style.display='';},400);
+        }
         else if(step===2){
           setTimeout(()=>hl('#mainBtn',12),400);
-          // Mostrar spark animation na parte inferior do celular
-          var spk=$('onbSpark');if(spk)spk.classList.add('active');
+          // Spark NÃO aparece aqui — só depois de clicar TOUCH (step 3)
         }
         else if(step===3){
-          // Esconder spark
-          var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
+          // Agente explicou como encostar — mostrar spark agora
+          var spk=$('onbSpark');if(spk)spk.classList.add('active');
           // Avança automaticamente pra etapa final
           step=4;
           if(dc&&dc.readyState==='open'){
@@ -12808,7 +12825,10 @@ const GuidedOnboarding=(function(){
           }
         }
         else if(step===4){
-          _ft=setTimeout(finish,5000);
+          // Esconder spark
+          var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
+          // Agente já se despediu por voz — encerrar sem popup
+          _ft=setTimeout(finish,3000);
         }
         break;
 
