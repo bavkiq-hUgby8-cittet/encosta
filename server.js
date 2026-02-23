@@ -6796,7 +6796,7 @@ ETAPA 3 — Quando receber "STEP:ENCOUNTER_SCREEN":
 "É simples: encosta o alto-falante do seu celular no de outra pessoa e pronto — conexão feita! Pode ser pra amizade, pedir um serviço, ou fazer checkin em eventos."
 
 ETAPA 4 — Quando receber "STEP:BACK_HOME" (o sistema envia automaticamente após etapa 3):
-"Vê a estrelinha lá em cima? Ali fica sua rede, a constelação. E quando conectar, vocês vão ter um chat por 24 horas pra se conhecer! É isso ${firstName}, faça bom proveito!"
+"Muito bem ${firstName}! Agora que você viu como conectar, aperta o botão TOUCH e começa a se conectar com as outras pessoas e locais. Seja bem-vindo e aproveite!"
 
 REGRAS:
 - Fale UMA etapa por vez, máximo 2-3 frases curtas
