@@ -5152,7 +5152,7 @@ app.post('/api/tip/create', paymentLimiter, async (req, res) => {
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
   // Accept tips for prestadores OR operators with acceptsTips events
   const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
-  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  if (!receiver) return res.status(404).json({ error: 'Destinatário não encontrado.' });
 
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
@@ -5289,7 +5289,7 @@ app.post('/api/tip/pix', async (req, res) => {
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
   const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
-  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  if (!receiver) return res.status(404).json({ error: 'Destinatário não encontrado.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
@@ -5357,7 +5357,7 @@ app.post('/api/tip/checkout', async (req, res) => {
   const receiver = db.users[receiverId];
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
   const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
-  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  if (!receiver) return res.status(404).json({ error: 'Destinatário não encontrado.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento não configurado.' });
@@ -5733,7 +5733,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
   if (!payer) return res.status(404).json({ error: 'Pagador não encontrado.' });
   if (!payer.savedCard?.customerId || !payer.savedCard?.cardId) return res.status(400).json({ error: 'Nenhum cartão salvo.' });
   const isOperatorWithTips = isOperatorWithTipsCheck(receiverId);
-  if (!receiver || (!receiver.isPrestador && !isOperatorWithTips)) return res.status(400).json({ error: 'Destinatário não aceita gorjetas.' });
+  if (!receiver) return res.status(404).json({ error: 'Destinatário não encontrado.' });
   const tipAmount = parseFloat(amount);
   if (tipAmount < 1 || tipAmount > 500) return res.status(400).json({ error: 'Valor entre R$1 e R$500.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
@@ -5848,8 +5848,9 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip', method: 'one_tap' }
     };
 
-    console.log('⚡ One-tap pay:', { amount: tipAmount, customer: payer.savedCard.customerId, card: card.id, last4: card.last_four_digits, method: card.payment_method?.id });
+    console.log('⚡ One-tap pay:', { amount: tipAmount, customer: customerId, card: card.id, last4: card.last_four_digits, method: card.payment_method?.id, receiverMpConnected: !!receiver.mpConnected });
 
+    // Payment always goes through — if receiver has MP connected, use split payment; otherwise goes to Touch account
     let result;
     if (receiver.mpConnected && receiver.mpAccessToken) {
       paymentData.application_fee = touchFee;
@@ -5857,13 +5858,16 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       const receiverPayment = new Payment(receiverClient);
       result = await receiverPayment.create({ body: paymentData });
     } else {
+      // Receiver has no MP connected — payment goes to Touch account
       result = await mpPayment.create({ body: paymentData });
     }
     console.log('⚡ One-tap result:', { id: result.id, status: result.status, detail: result.status_detail });
     return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
   } catch (e) {
-    console.error('One-tap error:', e.message, e.cause || '');
-    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+    console.error('One-tap error:', e.message, e.cause ? JSON.stringify(e.cause) : '');
+    // Extract MP error detail if available
+    const detail = e.cause?.message || e.message || 'tente novamente';
+    res.status(500).json({ error: 'Erro no pagamento: ' + detail, detail });
   }
 });
 
