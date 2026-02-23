@@ -6801,32 +6801,46 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
-// ── Onboarding — pre-recorded TTS (zero cost per user) ──
+// ── Onboarding — pre-recorded TTS HD (zero cost per user, high quality) ──
 const ONB_AUDIO_DIR = path.join(__dirname, 'public', 'audio', 'onb');
+const ONB_VERSION = 3; // Bump to force audio regeneration when text/voice/model changes
 const ONB_STEPS = {
-  step1: 'Oi! Aperta no botão Começar que vou te mostrar como funciona!',
-  step2: 'Essa é sua home! Vê o botão TOUCH no meio da tela? Clica nele!',
-  step3: 'É simples: toda vez que clicar nesse botão, seu alto-falante emite um som. Encosta dois celulares e eles se conectam!',
-  step4: 'Muito bem! Agora que você viu como conectar, aperta o botão TOUCH e começa a se conectar com as outras pessoas e locais. Seja bem-vindo e aproveite!'
+  step1: 'Oi! Aperta no botão Começar que eu vou te mostrar como funciona!',
+  step2: 'Essa é sua home! Vê o botão Touch no meio da tela? Clica nele!',
+  step3: 'É simples! Toda vez que clicar nesse botão, seu celular emite um som. Encosta dois celulares e eles se conectam!',
+  step4: 'Muito bem! Agora é só apertar o Touch e começar a se conectar com as pessoas ao seu redor. Seja bem-vindo!'
 };
 async function generateOnbAudio() {
   const fs2 = require('fs');
   if (!fs2.existsSync(ONB_AUDIO_DIR)) fs2.mkdirSync(ONB_AUDIO_DIR, { recursive: true });
   if (!OPENAI_API_KEY) { console.warn('⚠️ No OPENAI_API_KEY, skip onboarding TTS'); return; }
+
+  // Check version — delete old audio if version changed
+  const versionFile = path.join(ONB_AUDIO_DIR, '.version');
+  const currentVer = fs2.existsSync(versionFile) ? parseInt(fs2.readFileSync(versionFile, 'utf8')) : 0;
+  if (currentVer < ONB_VERSION) {
+    console.log(`🔄 Onboarding TTS version ${currentVer} → ${ONB_VERSION}, regenerating all audio...`);
+    for (const k of Object.keys(ONB_STEPS)) {
+      const fp = path.join(ONB_AUDIO_DIR, k + '.mp3');
+      if (fs2.existsSync(fp)) { fs2.unlinkSync(fp); console.log(`🗑️ Deleted old: ${k}.mp3`); }
+    }
+    fs2.writeFileSync(versionFile, String(ONB_VERSION));
+  }
+
   for (const [key, text] of Object.entries(ONB_STEPS)) {
     const fp = path.join(ONB_AUDIO_DIR, key + '.mp3');
     if (fs2.existsSync(fp)) { console.log(`✅ Onboarding TTS cached: ${key}.mp3`); continue; }
     try {
-      console.log(`🎙️ Generating onboarding TTS: ${key}...`);
+      console.log(`🎙️ Generating onboarding TTS HD: ${key}...`);
       const r = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'tts-1', voice: 'nova', input: text, speed: 0.92 })
+        body: JSON.stringify({ model: 'tts-1-hd', voice: 'shimmer', input: text, speed: 1.0 })
       });
       if (!r.ok) { console.error(`TTS ${key} failed:`, r.status); continue; }
       const buf = Buffer.from(await r.arrayBuffer());
       fs2.writeFileSync(fp, buf);
-      console.log(`✅ Saved: ${key}.mp3 (${(buf.length/1024).toFixed(1)}KB)`);
+      console.log(`✅ Saved HD: ${key}.mp3 (${(buf.length/1024).toFixed(1)}KB)`);
     } catch (e) { console.error(`TTS ${key}:`, e.message); }
   }
 }
