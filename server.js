@@ -6801,7 +6801,83 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
-// ── Onboarding — pre-recorded TTS HD (zero cost per user, high quality) ──
+// ══ ONBOARDING MODE ══
+// 'live'        = agente AI ao vivo via WebRTC (melhor qualidade, custa ~$0.08/user)
+// 'prerecorded' = áudios TTS pré-gravados (custo zero por user, qualidade inferior)
+const ONB_MODE = 'live'; // ← MUDE AQUI para alternar
+
+// ── Onboarding LIVE — AI agent via WebRTC (best quality) ──
+app.post('/api/agent/onboarding-session', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
+  const { userId } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+  const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || 'amigo';
+
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-realtime-preview',
+        voice: 'shimmer',
+        modalities: ['audio', 'text'],
+        instructions: `Você é "Touch", assistente de voz do app Touch? — rede social presencial.
+
+CONTEXTO: Este é o PRIMEIRO LOGIN do usuário ${firstName}. Você vai guiar um TOUR INTERATIVO pelo app.
+O usuário está vendo a tela do assistente e vai seguir suas instruções passo a passo.
+
+IDIOMA: Português brasileiro por padrão. Se o usuário falar outro idioma, mude.
+
+TOM: Amigável, animada, breve e direta. Como uma amiga mostrando algo legal. Gírias naturais.
+FALE PAUSADO — ritmo lento e claro. NUNCA fale rápido demais.
+
+FLUXO DO TOUR (siga esta ordem EXATAMENTE, uma etapa por vez):
+
+ETAPA 1 — BOAS-VINDAS (fale quando começar):
+"Oi ${firstName}! Eu sou a Touch, sua assistente. Fecha essa telinha tocando no X lá em cima que vou te mostrar como funciona!"
+
+ETAPA 2 — Quando receber "STEP:HOME_VISIBLE":
+"Essa é sua home! Vê o botão Touch no meio da tela? Clica nele!"
+
+ETAPA 3 — Quando receber "STEP:ENCOUNTER_SCREEN":
+"É simples! Encosta o celular no de outra pessoa e pronto — conexão feita! Pode ser pra amizade, pedir um serviço, ou fazer checkin em eventos."
+
+ETAPA 4 — Quando receber "STEP:BACK_HOME" (o sistema envia automaticamente após etapa 3):
+"Muito bem ${firstName}! Agora é só apertar o Touch e começar a se conectar com as pessoas ao seu redor. Seja bem-vindo!"
+
+REGRAS:
+- Fale UMA etapa por vez, máximo 2 frases curtas
+- ESPERE o sinal de STEP antes de avançar
+- NÃO mencione código, QR code, sala, ou criar sessão — só encostar celulares
+- Se o usuário perguntar algo, responda brevemente e retome o tour
+- Se o usuário disser "pular" ou "skip", diga "Beleza! Qualquer hora me chama" e encerre
+- NUNCA invente etapas extras. Quando terminar etapa 4, pare.
+- Use a função avancar_tour para sinalizar que terminou de falar uma etapa`,
+        tools: [{
+          type: 'function',
+          name: 'avancar_tour',
+          description: 'Sinaliza que o agente terminou de falar a etapa atual e está esperando a ação do usuário.',
+          parameters: {
+            type: 'object',
+            properties: {
+              etapa: { type: 'string', description: 'Nome da etapa concluída: boas_vindas, home, encounter, final' }
+            },
+            required: ['etapa']
+          }
+        }],
+        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
+        input_audio_transcription: { model: 'whisper-1' }
+      })
+    });
+    if (!r.ok) { const e = await r.text(); console.error('OpenAI onboarding err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
+    const d = await r.json();
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at });
+  } catch (e) { console.error('Onboarding session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ── Onboarding PRE-RECORDED — TTS HD (zero cost per user) ──
 const ONB_AUDIO_DIR = path.join(__dirname, 'public', 'audio', 'onb');
 const ONB_VERSION = 3; // Bump to force audio regeneration when text/voice/model changes
 const ONB_STEPS = {
@@ -6857,7 +6933,7 @@ app.get('/api/agent/onboarding-audio', async (req, res) => {
   for (const k of Object.keys(ONB_STEPS)) {
     steps[k] = { url: '/audio/onb/' + k + '.mp3', text: ONB_STEPS[k], exists: fs2.existsSync(path.join(ONB_AUDIO_DIR, k + '.mp3')) };
   }
-  res.json({ ready: Object.values(steps).every(s => s.exists), steps });
+  res.json({ mode: ONB_MODE, ready: Object.values(steps).every(s => s.exists), steps });
 });
 
 // Mark onboarding as done
