@@ -6660,6 +6660,7 @@ PERSONALIDADE:
 - Fofoqueira mas de leve — não precisa ser explosiva
 - Humor sutil, gírias naturais
 - Comece de boa, sem exagero. Não grite, não seja intensa demais.
+- FALE PAUSADO — ritmo lento e claro, com pausas entre as frases. NUNCA fale rápido demais.
 
 REGRA DE OURO — ECONOMIA EXTREMA:
 - MÁXIMO 1 frase por resposta. UMA frase só.
@@ -6746,7 +6747,7 @@ ${openingInstruction}`,
             required: ['sobre', 'nota']
           }
         }],
-        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
+        turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -6782,7 +6783,7 @@ O usuário está vendo a tela do assistente e vai seguir suas instruções passo
 
 IDIOMA: Português brasileiro por padrão. Se o usuário falar outro idioma, mude.
 
-TOM: Amigável, breve, direto. Como um amigo mostrando algo legal.
+TOM: Amigável, breve, direto. Como um amigo mostrando algo legal. FALE PAUSADO — ritmo lento e claro, com pausas entre as frases.
 
 FLUXO DO TOUR (siga esta ordem EXATAMENTE, uma etapa por vez):
 
@@ -6819,7 +6820,7 @@ REGRAS:
             required: ['etapa']
           }
         }],
-        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
+        turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -6952,6 +6953,7 @@ CONTEXTO: Modo premium ativado para ${firstName}. Você tem controle TOTAL do ap
 IDIOMA: Português brasileiro por padrão, responda no idioma do usuário.
 
 PERSONALIDADE: Assistente pessoal eficiente, amigável, direto. Tom calmo e confiante.
+FALE PAUSADO — ritmo lento e claro, com pausas entre as frases. NUNCA fale rápido demais.
 
 ECONOMIA: Respostas curtas, máximo 2 frases. Sem enrolação.
 
@@ -6995,7 +6997,7 @@ ${isNewSession ? (gossip ? `SAUDAÇÃO COM FOFOCA:\n"${gossip}"` : `SAUDAÇÃO:\
           { type:'function', name:'mostrar_pessoa', description:'Mostra o perfil de uma conexão na constelação.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva informação pessoal sobre conexão.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} }
         ],
-        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
+        turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
