@@ -95,6 +95,15 @@ const adminLimiter = rateLimit({
 });
 
 app.use(generalLimiter);
+
+// ── Redirect old domain to touch-irl.com ──
+app.use((req, res, next) => {
+  const host = req.hostname;
+  if (host && host.endsWith('.onrender.com')) {
+    return res.redirect(301, 'https://touch-irl.com' + req.originalUrl);
+  }
+  next();
+});
 app.use(express.json({ limit: '5mb' }));
 
 // ── DB readiness gate: return 503 for API calls while DB is loading ──

@@ -25,7 +25,7 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
    -> Email: ramonnvc@hotmail.com
    -> Nome: Ramon
 
-## ESTRUTURA DO PROJETO (atualizado 22/02/2026)
+## ESTRUTURA DO PROJETO (atualizado 23/02/2026)
 
 Arquivos principais:
 - `server.js` (7063 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
@@ -128,14 +128,24 @@ PENDENTE/NAO TESTADO:
 - Fluxo completo end-to-end (do lobby ate o jogo abrir) NAO foi confirmado funcionando pelo usuario
 - Ready-check modal pode ter problemas de timing
 - Game-start recarrega iframe do lobby com acceptSession params -- timing sensivel
+- Convite via sonic touch no lobby (encosta em alguem no lobby = convite de jogo)
 
 ## DEPLOY
 
-- Render: encosta.onrender.com (auto-deploy do GitHub, 2-3min build)
+- Dominio: touch-irl.com (Cloudflare DNS -> Render)
+- Render: encosta.onrender.com redireciona 301 para touch-irl.com
 - Firebase: Realtime Database para persistencia
 - MercadoPago: Pagamentos (Pix, cartao, checkout)
+- Stripe: Preparado para Apple Pay / Google Pay / Link (ativar com env vars STRIPE_SECRET_KEY + STRIPE_PUBLIC_KEY)
 
-## ULTIMOS COMMITS (22/02/2026 -- sessao mais recente)
+## ULTIMOS COMMITS (23/02/2026 -- sessao mais recente)
+
+10742ef feat: configurar dominio touch-irl.com
+5c914eb feat: checkout redesenhado + preparacao Apple Pay/Google Pay via Stripe
+4339570 fix: convite de jogo agora chega no chat + convite via sonic touch no lobby
+ccfe00f fix: silhueta anonima sumindo em alguns celulares
+
+## COMMITS ANTERIORES (22/02/2026)
 
 df8493d feat: sistema de assinaturas Plus R$50 + Selo R$10 com controle de AI
 12c2bcd fix: sincronizacao lobby + nickname correto + fluxo convite completo
@@ -169,9 +179,22 @@ Apos rollback: git push --force origin main (CUIDADO: sobrescreve GitHub)
 Ver .env.example para a lista completa. Principais:
 - FIREBASE_* (config do Firebase Admin SDK)
 - MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_PUBLIC_KEY
+- MP_REDIRECT_URI=https://touch-irl.com/mp/callback
+- APP_URL=https://touch-irl.com
 - OPENAI_API_KEY (para o voice agent)
 - ADMIN_SECRET (protege endpoints admin)
 - ALLOWED_ORIGINS (CORS)
+- STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY (quando ativar Apple Pay)
+
+## FLUXOS DE PAGAMENTO (mapeado 23/02/2026)
+
+1. GORJETAS (tipScreen): PIX, cartao novo, cartao salvo one-tap, Checkout Pro MP, Express Checkout Stripe (preparado)
+2. ASSINATURAS (subscriptionScreen): Touch Plus R$50/mes, Selo R$10/mes -- cartao salvo + MP Preapproval
+3. ENTRADA EM EVENTOS: Cartao novo ou one-tap com cartao salvo
+4. ESTRELAS: Compradas com pontos de jogo (sem dinheiro real)
+5. PRESENTES: Comprados com pontos (sem dinheiro real)
+
+PENDENTE: Atualizar checkout das assinaturas e eventos com novo design (PIX primeiro + Express Checkout)
 
 Quando estiver pronto, me avisa que a gente comeca.
 ```

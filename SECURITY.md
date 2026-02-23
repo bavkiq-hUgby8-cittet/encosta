@@ -112,8 +112,9 @@ object-src: 'none'
 
 ### Socket.IO
 - Origins permitidas: configurável via `ALLOWED_ORIGINS` env var
-- Default: `encosta.onrender.com`, `localhost:3000`, `localhost:5500`
-- Wildcard `*.onrender.com` para deploy previews
+- Default: `touch-irl.com`, `www.touch-irl.com`, `encosta.onrender.com`, `localhost:3000`, `localhost:5500`
+- Wildcard `*.onrender.com` e `*.touch-irl.com` para deploy previews
+- Redirect 301 automatico de `*.onrender.com` para `touch-irl.com`
 - Métodos: GET, POST apenas
 
 ### Express
