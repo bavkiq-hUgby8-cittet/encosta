@@ -3986,6 +3986,16 @@ app.post('/api/event/create', (req, res) => {
   res.json({ event: eventData });
 });
 
+// Count active events where user is a participant
+app.get('/api/events/active-count/:userId', (req, res) => {
+  const userId = req.params.userId;
+  let count = 0;
+  Object.values(db.operatorEvents || {}).forEach(ev => {
+    if (ev.active && Array.isArray(ev.participants) && ev.participants.includes(userId)) count++;
+  });
+  res.json({ count });
+});
+
 // List nearby events
 app.get('/api/events/nearby', (req, res) => {
   const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
