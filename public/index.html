@@ -8795,30 +8795,39 @@ function showMyProfileSheet(){
   overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem;position:relative;overflow:visible" id="profileSheet">'
     +'<div class="more-menu-handle"></div>'
     +'<div style="display:flex;justify-content:flex-end;margin-bottom:.3rem;margin-top:-.4rem"><button onclick="this.closest(\'.my-profile-overlay\').remove()" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--t2);font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;flex-shrink:0">&times;</button></div>'
-    // Header: avatar + name block
-    +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">'
+    // Header: two identity columns (revealed vs anonymous)
+    +'<div style="display:flex;align-items:flex-start;gap:.6rem;margin-bottom:.8rem">'
+    // Left: Revealed identity (real photo + real name)
+    +'<div style="display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;min-width:0">'
+    +'<div style="font-size:.4rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem;opacity:.6">revelado</div>'
     +avatarHtml
-    +'<div style="flex:1;min-width:0;overflow:hidden">'
-    +'<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap"><span style="font-size:1.3rem;font-weight:900;color:#fff;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">'+esc(state.userName||'??')+'</span>'+(isVerified?' <span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.9rem;font-weight:800" title="Verificado">✓</span>':'')+'</div>'
-    +(state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.15rem">'+esc(state.userRealName)+'</div>':'')
-    +'<div style="display:flex;align-items:center;gap:.4rem;margin-top:.25rem;flex-wrap:wrap">'
+    +(state.userRealName?'<div style="font-size:.78rem;font-weight:800;color:#fff;margin-top:.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">'+esc(state.userRealName)+'</div>':'<div style="font-size:.65rem;color:var(--t3);margin-top:.4rem;font-style:italic">sem nome real</div>')
+    +(isVerified?'<span style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:.55rem;font-weight:800;margin-top:.1rem">verificado</span>':'')
+    +'</div>'
+    // Divider
+    +'<div style="width:1px;min-height:70px;background:linear-gradient(to bottom,transparent,rgba(255,255,255,.08),transparent);align-self:center;flex-shrink:0"></div>'
+    // Right: Anonymous identity (silhouette + nickname)
+    +'<div style="display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;min-width:0">'
+    +'<div style="font-size:.4rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem;opacity:.6">anônimo</div>'
+    +makeAvatar(state.userName||'??',color,56,null,false,state.userAccessory||null)
+    +'<div style="font-size:.78rem;font-weight:800;color:var(--t2);margin-top:.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">@'+esc(state.userName||'??')+'</div>'
+    +'</div>'
+    +'</div>'
+    // Badges row
+    +'<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;justify-content:center;margin-bottom:.5rem">'
     +(state.userIsSubscriber?'<span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 6px;border-radius:6px;font-weight:700">✦ Plus</span>':'')
     +(state.userStarsCount>0?'<span style="font-size:.55rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:1px 6px;border-radius:6px;font-weight:600">★ '+state.userStarsCount+'</span>':'')
     +(hasEmailVerified?'<span style="font-size:.5rem;color:#22c55e;background:rgba(34,197,94,.1);padding:1px 6px;border-radius:6px;font-weight:600">Email</span>':'')
     +(hasFace?'<span style="font-size:.5rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">Face</span>':'')
     +(hasDoc?'<span style="font-size:.5rem;color:#a855f7;background:rgba(168,85,247,.1);padding:1px 6px;border-radius:6px;font-weight:600">Doc</span>':'')
-    +(state.userTopTag?'<span style="font-size:.5rem;color:'+(state.userTopTag==='top1'?'#FFD700':state.userTopTag==='top5'?'#C0C0C0':'#CD7F32')+';background:rgba(255,215,0,.1);padding:1px 6px;border-radius:6px;font-weight:700">'+(state.userTopTag==='top1'?'🏆 TOP 1':state.userTopTag==='top5'?'🥈 TOP 5':state.userTopTag==='top50'?'🥉 TOP 50':'')+'</span>':'')
+    +(state.userTopTag?'<span style="font-size:.5rem;color:'+(state.userTopTag==='top1'?'#FFD700':state.userTopTag==='top5'?'#C0C0C0':'#CD7F32')+';background:rgba(255,215,0,.1);padding:1px 6px;border-radius:6px;font-weight:700">'+(state.userTopTag==='top1'?'TOP 1':state.userTopTag==='top5'?'TOP 5':state.userTopTag==='top50'?'TOP 50':'')+'</span>':'')
     +'</div>'
     // Stats row
-    +'<div style="display:flex;gap:.8rem;margin-top:.4rem">'
+    +'<div style="display:flex;gap:1rem;justify-content:center;margin-bottom:.6rem">'
     +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#60a5fa">'+(state.userScore||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">score</div></div>'
     +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--t1)">'+(state.userUniqueConnections||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">conexões</div></div>'
     +(state.userStarsCount>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#fbbf24">'+state.userStarsCount+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">estrelas</div></div>':'')
     +(state.userGiftsReceived>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#f472b6">'+state.userGiftsReceived+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">presentes</div></div>':'')
-    +'</div>'
-    +'</div>'
-    // Accessory avatar preview (anonymous identity) — always show silhouette
-    +'<div style="display:flex;flex-direction:column;align-items:center;gap:.2rem;flex-shrink:0;margin-left:auto">'+makeAvatar(state.userName||'??',color,44,null,false,state.userAccessory||null)+'<div style="font-size:.38rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600">anônimo</div></div>'
     +'</div>'
     // Menu buttons — clean
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
