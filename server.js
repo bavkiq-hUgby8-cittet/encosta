@@ -4647,6 +4647,7 @@ app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req
 app.get('/api/status', (req, res) => {
   res.json({
     ok: true, uptime: process.uptime(),
+    dbLoadedFromCloud: _dbLoadedFromCloud,
     counts: {
       users: Object.keys(db.users).length,
       relations: Object.keys(db.relations).length,
@@ -4656,6 +4657,59 @@ app.get('/api/status', (req, res) => {
       messages: Object.keys(db.messages).length
     }
   });
+});
+
+// ── ADMIN: FIREBASE DIAGNOSTIC (read directly from Firebase, bypass memory cache) ──
+app.get('/api/admin/firebase-diagnostic', adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    // Read directly from Firebase RTDB (not from memory)
+    const snap = await withTimeout(rtdb.ref('/').once('value'), 30000, 'firebase diagnostic');
+    const data = snap.val();
+    if (!data) return res.json({ firebase: 'EMPTY', memory: { users: Object.keys(db.users).length }, backups: 0 });
+    const fbCounts = {};
+    DB_COLLECTIONS.forEach(c => { fbCounts[c] = data[c] ? Object.keys(data[c]).length : 0; });
+    const memCounts = {};
+    DB_COLLECTIONS.forEach(c => { memCounts[c] = Object.keys(db[c] || {}).length; });
+    const backupCount = data.backups ? Object.keys(data.backups).length : 0;
+    const backupKeys = data.backups ? Object.keys(data.backups).sort() : [];
+    res.json({
+      firebase: fbCounts,
+      memory: memCounts,
+      dbLoadedFromCloud: _dbLoadedFromCloud,
+      backupCount,
+      backupTimestamps: backupKeys.map(k => ({ id: k, date: new Date(parseInt(k)).toISOString() })),
+      serverUptime: process.uptime(),
+      lastKnownCounts: _lastKnownCounts
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ADMIN: FORCE RELOAD FROM FIREBASE ──
+app.post('/api/admin/force-reload', adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    // Create backup of current state first (even if empty, for logging)
+    const backupId = await createBackup('pre-force-reload');
+    // Read directly from Firebase
+    const snap = await withTimeout(rtdb.ref('/').once('value'), 30000, 'force reload');
+    const data = snap.val();
+    if (!data) return res.status(404).json({ error: 'Firebase is completely empty' });
+    const before = {};
+    DB_COLLECTIONS.forEach(c => { before[c] = Object.keys(db[c] || {}).length; });
+    DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
+    const after = {};
+    DB_COLLECTIONS.forEach(c => { after[c] = Object.keys(db[c] || {}).length; });
+    // Rebuild indexes
+    IDX.nickname.clear(); IDX.firebaseUid.clear();
+    if (IDX.operatorByCreator) IDX.operatorByCreator.clear();
+    Object.values(db.users).forEach(u => {
+      if (u.nickname) IDX.nickname.set(u.nickname.toLowerCase(), u.id);
+      if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, u.id);
+    });
+    _dbLoadedFromCloud = Object.keys(db.users).length > 0;
+    DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
+    initRegistrationCounter();
+    res.json({ ok: true, before, after, backupId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── SOCKET.IO ──
