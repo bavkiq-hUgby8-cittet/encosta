@@ -4333,7 +4333,7 @@ async function handleMainButton(){
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.55,sonicEmitCtx.currentTime); // 55% — alcance ~30-40cm, bom pra encostar
+    gain.gain.setValueAtTime(0.35,sonicEmitCtx.currentTime); // 35% — alcance curto, tem que encostar
     sonicOsc.connect(gain);gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
     console.log('[sonic] Oscillator STARTED at',freq,'Hz. EmitCtx:',sonicEmitCtx.state,'currentTime:',sonicEmitCtx.currentTime);
@@ -4343,7 +4343,7 @@ async function handleMainButton(){
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
     sonicAnalyser=sonicMicCtx.createAnalyser();
     sonicAnalyser.fftSize=SONIC_FFT_SIZE;
-    sonicAnalyser.smoothingTimeConstant=0.2;
+    sonicAnalyser.smoothingTimeConstant=0.3;
     source.connect(sonicAnalyser);
     const bufLen=sonicAnalyser.frequencyBinCount;
     const dataArr=new Uint8Array(bufLen);
@@ -4433,7 +4433,7 @@ async function handleMainButton(){
           sonicOsc.type='sine';
           sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
           const g2=sonicEmitCtx.createGain();
-          g2.gain.setValueAtTime(0.55,sonicEmitCtx.currentTime);
+          g2.gain.setValueAtTime(0.35,sonicEmitCtx.currentTime);
           sonicOsc.connect(g2);g2.connect(sonicEmitCtx.destination);
           sonicOsc.start();
           sts.textContent='Tentando novamente... encoste os celulares';
@@ -4490,15 +4490,15 @@ async function handleMainButton(){
             // DON'T say "Encontramos alguém" yet — wait for server to confirm
             txt.textContent='VERIFICANDO...';sts.textContent='Verificando conexão...';
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-            _sonicCooldown=90;confirmHits=0;lastSnapped=0;
-            // Timeout: if server doesn't confirm in 5s, resume detection
+            _sonicCooldown=180;confirmHits=0;lastSnapped=0;
+            // Timeout: if server doesn't confirm in 8s, resume detection
             setTimeout(()=>{
               if(sonicActive&&!state.currentRelation){
                 sts.textContent='Nenhuma conexão. Continue encostando...';
                 txt.textContent='TOUCHING...';
                 _sonicCooldown=0;
               }
-            },5000);
+            },8000);
           }
         }
       }else if(confirmHits>0)confirmHits=Math.max(0,confirmHits-1);
@@ -4577,8 +4577,8 @@ function generateQR(code){
 // ═══ SONIC — ultrasonic phone-to-phone ═══
 let sonicActive=false,sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null,sonicMyFreq=0;
 const SONIC_FFT_SIZE=8192;
-const SONIC_DETECT_THRESHOLD=130; // equilibrado: ~30-40cm de alcance, funciona na maioria dos celulares
-const SONIC_CONFIRM_COUNT=3; // 3 consecutive detections (rapido mas seguro)
+const SONIC_DETECT_THRESHOLD=165; // alto = tem que encostar (~20-25cm)
+const SONIC_CONFIRM_COUNT=5; // 5 consecutive detections to confirm
 
 // Request mic permission and return stream (reusable)
 async function requestMic(){
@@ -4638,7 +4638,7 @@ async function initSonic(label,status,circle){
     sonicOsc.type='sine';
     sonicOsc.frequency.setValueAtTime(freq,sonicEmitCtx.currentTime);
     const gain=sonicEmitCtx.createGain();
-    gain.gain.setValueAtTime(0.55,sonicEmitCtx.currentTime); // 55% — alcance ~30-40cm, bom pra encostar
+    gain.gain.setValueAtTime(0.35,sonicEmitCtx.currentTime); // 35% — alcance curto, tem que encostar
     sonicOsc.connect(gain);
     gain.connect(sonicEmitCtx.destination);
     sonicOsc.start();
@@ -4649,7 +4649,7 @@ async function initSonic(label,status,circle){
     const source=sonicMicCtx.createMediaStreamSource(sonicStream);
     sonicAnalyser=sonicMicCtx.createAnalyser();
     sonicAnalyser.fftSize=SONIC_FFT_SIZE;
-    sonicAnalyser.smoothingTimeConstant=0.2;
+    sonicAnalyser.smoothingTimeConstant=0.3;
     source.connect(sonicAnalyser);
     const bufLen=sonicAnalyser.frequencyBinCount;
     const dataArr=new Uint8Array(bufLen);
@@ -4703,7 +4703,7 @@ async function initSonic(label,status,circle){
             if(label)label.textContent='VERIFICANDO...';
             if(status)status.textContent='Verificando conexão...';
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
-            _sonicCooldown2=90;confirmHits=0;lastSnapped=0;
+            _sonicCooldown2=180;confirmHits=0;lastSnapped=0;
             setTimeout(()=>{
               if(sonicActive&&!state.currentRelation){
                 if(status)status.textContent='Tentando novamente...';
@@ -4711,7 +4711,7 @@ async function initSonic(label,status,circle){
                 if(circle){circle.classList.remove('bumped');circle.classList.add('listening')}
                 _sonicCooldown2=0;
               }
-            },6000);
+            },12000);
           }
         }
       }else{
