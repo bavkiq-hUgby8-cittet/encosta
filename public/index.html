@@ -1507,9 +1507,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         </div>
       </div>
     </div>
-    <div class="home-icons">
-      <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()" style="position:relative">&#x2726;<span class="network-badge hidden" id="networkBadge" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:#3b82f6;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span></div>
+    <div class="home-icons" style="flex-direction:column;gap:.5rem;align-items:flex-end">
       <div class="rb hidden" id="relBadge" onclick="showRelations()">&#x1F4AC;<span class="ct" id="relCount">0</span></div>
+      <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()" style="position:relative">&#x2726;<span class="notif-count-badge hidden" id="homeNotifBadge" style="position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;border-radius:8px;background:#ef4444;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span></div>
     </div>
   </div>
   <!-- CENTER: botão TOUCH grande -->
@@ -3197,6 +3197,7 @@ function initSocket(){
     state.revealedIds[fromUserId]={realName,profilePhoto,instagram,bio};
     syncRevealUI(fromUserId,realName,profilePhoto);
     refreshRelations();
+    updateNotifBadge();
     if(state.currentPartnerId!==fromUserId){
       showToast((realName||'Alguém')+' se revelou pra você! 🪪');
     }
@@ -3260,6 +3261,7 @@ function initSocket(){
     // Show toast that opens the chat when tapped
     showToast(name+' quer jogar '+data.gameName+'! Toque pra ver');
     haptic([50,30,50]);
+    updateNotifBadge();
     // Auto-open the chat with that person so they see the invite card
     if(data.relationId&&data.fromUserId){
       setTimeout(function(){
@@ -3941,7 +3943,7 @@ async function refreshHome(){
     ]);
     const c=$('dailyCounter'),n=$('dailyNum');
     if(d.count>0){c.classList.remove('hidden');n.textContent=d.count;const lbl=$('dailyLabel');if(lbl)lbl.textContent=d.count===1?'Toque em 24h':'Toques em 24h'}else c.classList.add('hidden');
-    if(cn.total>0){$('constBtn').classList.remove('hidden');updateNetworkBadge()}
+    if(cn.total>0){$('constBtn').classList.remove('hidden');updateNetworkBadge();updateNotifBadge()}
     // Update home background nodes
     initHomeNodes(cn.nodes||[]);
   }catch(e){}
@@ -7734,6 +7736,7 @@ async function loadNotifications(){
       else if(n.type==='network-star'){icon='✨';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
       else if(n.type==='reveal-request'){icon='👁';text='<strong>'+esc(name)+'</strong> pediu seu ID'}
       else if(n.type==='identity-revealed'){icon='🪪';text='<strong>'+esc(name)+'</strong> revelou o ID pra você'}
+      else if(n.type==='game-invite'){icon='🎮';text='<strong>'+esc(name)+'</strong> te convidou pra jogar '+(n.gameName?esc(n.gameName):'')}
       // Better timestamp formatting
       const ts=n.timestamp;
       let timeStr='';
@@ -7779,16 +7782,24 @@ function updateNotifBadge(){
     const count=data.unseenCount||0;
     const badge=$('constNotifBadge');
     if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
+    // Also update home rede button badge
+    const homeBadge=$('homeNotifBadge');
+    if(homeBadge){homeBadge.textContent=count;homeBadge.classList.toggle('hidden',count===0)}
   }).catch(()=>{});
 }
 
-// ═══ NETWORK BADGE (new connections on rede icon) ═══
+// ═══ NETWORK + NOTIF BADGE (unified on rede icon in home) ═══
 function updateNetworkBadge(){
   if(!state.userId)return;
-  fetch('/api/network/new-count/'+state.userId).then(r=>r.json()).then(data=>{
-    const count=data.newCount||0;
-    const badge=$('networkBadge');
-    if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
+  // Use notification unseen count as the badge on the home rede button
+  fetch('/api/notifications/'+state.userId).then(r=>r.json()).then(data=>{
+    const count=data.unseenCount||0;
+    // Home rede button badge
+    const homeBadge=$('homeNotifBadge');
+    if(homeBadge){homeBadge.textContent=count;homeBadge.classList.toggle('hidden',count===0)}
+    // Also update constellation panel badge
+    const constBadge=$('constNotifBadge');
+    if(constBadge){constBadge.textContent=count;constBadge.classList.toggle('hidden',count===0)}
   }).catch(()=>{});
 }
 

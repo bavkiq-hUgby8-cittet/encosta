@@ -2487,6 +2487,34 @@ app.get('/api/notifications/:userId', (req, res) => {
       seen: ts <= seenAt
     });
   });
+  // 7. Game invites received (from chat messages)
+  const myRelIds = Object.keys(db.relations).filter(rid => {
+    const r = db.relations[rid];
+    return r && (r.userA === userId || r.userB === userId);
+  });
+  myRelIds.forEach(rid => {
+    const msgs = db.messages[rid] || [];
+    msgs.forEach(m => {
+      if (!m.text || !m.text.startsWith('[game-invite:')) return;
+      if (m.userId === userId) return; // skip my own invites
+      const parts = m.text.replace('[game-invite:', '').replace(']', '').split(':');
+      const gameName = parts[2] || 'Jogo';
+      const sender = db.users[m.userId];
+      if (!sender) return;
+      const ts = m.timestamp || 0;
+      if (!ts) return;
+      notifs.push({
+        type: 'game-invite',
+        fromId: m.userId,
+        nickname: sender.nickname || sender.name,
+        color: sender.color,
+        avatarAccessory: sender.avatarAccessory || null,
+        gameName: gameName,
+        timestamp: ts,
+        seen: ts <= seenAt
+      });
+    });
+  });
   // Sort by timestamp desc
   notifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   const all = notifs.slice(0, 50);
@@ -6757,79 +6785,43 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
-// ── Onboarding guided session — FREE for first login, no subscription check ──
-app.post('/api/agent/onboarding-session', async (req, res) => {
-  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
-  const { userId } = req.body;
-  const user = db.users[userId];
-  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-
-  const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || 'amigo';
-
-  try {
-    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview',
-        voice: 'coral',
-        modalities: ['audio', 'text'],
-        instructions: `Você é "Touch AI", assistente de voz do app Touch? — rede social presencial.
-
-SEU NOME É "Touch AI" — NUNCA invente outro nome, NUNCA se apresente com nome diferente.
-
-CONTEXTO: Este é o PRIMEIRO LOGIN do usuário ${firstName}. Você vai guiar um TOUR INTERATIVO pelo app.
-O usuário está vendo a tela do assistente e vai seguir suas instruções passo a passo.
-
-IDIOMA: Português brasileiro por padrão. Se o usuário falar outro idioma, mude.
-
-TOM: Amigável, breve, direto. Como um amigo mostrando algo legal. FALE PAUSADO — ritmo lento e claro, com pausas entre as frases.
-
-FLUXO DO TOUR (siga esta ordem EXATAMENTE, uma etapa por vez):
-
-ETAPA 1 — BOAS-VINDAS (fale quando começar):
-"Oi ${firstName}! Aperta no botão Começar que vou te mostrar como funciona!"
-NÃO se apresente, NÃO diga seu nome, NÃO fale "eu sou a Touch AI". Vá DIRETO ao ponto.
-
-ETAPA 2 — Quando receber "STEP:HOME_VISIBLE":
-"Essa é sua home! Vê o botão TOUCH no meio da tela? Clica nele!"
-
-ETAPA 3 — Quando receber "STEP:ENCOUNTER_SCREEN":
-"É simples: toda vez que clicar nesse botão, seu alto-falante emite um som. Encosta dois celulares e eles se conectam!"
-
-ETAPA 4 — Quando receber "STEP:BACK_HOME" (o sistema envia automaticamente após etapa 3):
-"Muito bem ${firstName}! Agora que você viu como conectar, aperta o botão TOUCH e começa a se conectar com as outras pessoas e locais. Seja bem-vindo e aproveite!"
-FALE ESTA ETAPA COMPLETA. NÃO pare no meio. É a última etapa.
-
-REGRAS:
-- Fale UMA etapa por vez, máximo 2-3 frases curtas
-- ESPERE o sinal de STEP antes de avançar
-- NÃO mencione código, QR code, sala, ou criar sessão — só encostar celulares
-- Seu nome é SEMPRE "Touch AI" — nunca invente ou use outro nome
-- Se o usuário perguntar algo, responda brevemente e retome o tour
-- Se o usuário disser "pular" ou "skip", diga "Beleza! Qualquer hora me chama" e encerre
-- NUNCA invente etapas extras. Quando terminar etapa 4, pare.
-- Use a função avancar_tour para sinalizar que terminou de falar uma etapa`,
-        tools: [{
-          type: 'function',
-          name: 'avancar_tour',
-          description: 'Sinaliza que o agente terminou de falar a etapa atual e está esperando a ação do usuário.',
-          parameters: {
-            type: 'object',
-            properties: {
-              etapa: { type: 'string', description: 'Nome da etapa concluída: boas_vindas, home, encounter, final' }
-            },
-            required: ['etapa']
-          }
-        }],
-        turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },
-        input_audio_transcription: { model: 'whisper-1' }
-      })
-    });
-    if (!r.ok) { const e = await r.text(); console.error('OpenAI onboarding err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
-    const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at });
-  } catch (e) { console.error('Onboarding session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+// ── Onboarding — pre-recorded TTS (zero cost per user) ──
+const ONB_AUDIO_DIR = path.join(__dirname, 'public', 'audio', 'onb');
+const ONB_STEPS = {
+  step1: 'Oi! Aperta no botão Começar que vou te mostrar como funciona!',
+  step2: 'Essa é sua home! Vê o botão TOUCH no meio da tela? Clica nele!',
+  step3: 'É simples: toda vez que clicar nesse botão, seu alto-falante emite um som. Encosta dois celulares e eles se conectam!',
+  step4: 'Muito bem! Agora que você viu como conectar, aperta o botão TOUCH e começa a se conectar com as outras pessoas e locais. Seja bem-vindo e aproveite!'
+};
+async function generateOnbAudio() {
+  const fs2 = require('fs');
+  if (!fs2.existsSync(ONB_AUDIO_DIR)) fs2.mkdirSync(ONB_AUDIO_DIR, { recursive: true });
+  if (!OPENAI_API_KEY) { console.warn('⚠️ No OPENAI_API_KEY, skip onboarding TTS'); return; }
+  for (const [key, text] of Object.entries(ONB_STEPS)) {
+    const fp = path.join(ONB_AUDIO_DIR, key + '.mp3');
+    if (fs2.existsSync(fp)) { console.log(`✅ Onboarding TTS cached: ${key}.mp3`); continue; }
+    try {
+      console.log(`🎙️ Generating onboarding TTS: ${key}...`);
+      const r = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'tts-1', voice: 'nova', input: text, speed: 0.92 })
+      });
+      if (!r.ok) { console.error(`TTS ${key} failed:`, r.status); continue; }
+      const buf = Buffer.from(await r.arrayBuffer());
+      fs2.writeFileSync(fp, buf);
+      console.log(`✅ Saved: ${key}.mp3 (${(buf.length/1024).toFixed(1)}KB)`);
+    } catch (e) { console.error(`TTS ${key}:`, e.message); }
+  }
+}
+setTimeout(generateOnbAudio, 2000);
+app.get('/api/agent/onboarding-audio', (req, res) => {
+  const fs2 = require('fs');
+  const steps = {};
+  for (const k of Object.keys(ONB_STEPS)) {
+    steps[k] = { url: '/audio/onb/' + k + '.mp3', text: ONB_STEPS[k], exists: fs2.existsSync(path.join(ONB_AUDIO_DIR, k + '.mp3')) };
+  }
+  res.json({ ready: Object.values(steps).every(s => s.exists), steps });
 });
 
 // Mark onboarding as done
@@ -6877,6 +6869,31 @@ app.get('/api/agent/context/:userId', (req, res) => {
         const from = db.users[rr.fromUserId]; if (!from) return;
         notifs.push({ t: 'pedido de revelação pendente', who: from.nickname || from.name, ts: rr.createdAt || 0 });
       }
+    });
+    // Game invites received
+    const myRelIds = Object.keys(db.relations).filter(rid => {
+      const r = db.relations[rid]; return r && (r.userA === userId || r.userB === userId);
+    });
+    myRelIds.forEach(rid => {
+      (db.messages[rid] || []).forEach(m => {
+        if (!m.text || !m.text.startsWith('[game-invite:') || m.userId === userId) return;
+        const parts = m.text.replace('[game-invite:', '').replace(']', '').split(':');
+        const gameName = parts[2] || 'Jogo';
+        const sender = db.users[m.userId];
+        const ts = m.timestamp || 0;
+        if (ts && now - ts < week) notifs.push({ t: 'convite de jogo: ' + gameName, who: sender ? (sender.nickname || sender.name) : '?', ts });
+      });
+    });
+    // Friends who earned stars in network
+    const myEncounters = db.encounters[userId] || [];
+    const friendIds = [...new Set(myEncounters.filter(e => !e.isEvent && !(e.with || '').startsWith('evt:')).map(e => e.with))];
+    friendIds.forEach(fid => {
+      const f = db.users[fid]; if (!f || !f.stars) return;
+      f.stars.slice(-3).forEach(s => {
+        if (s.from === userId) return;
+        const ts = s.donatedAt || s.at || 0;
+        if (ts && now - ts < week) notifs.push({ t: 'ganhou uma estrela', who: f.nickname || f.name, ts });
+      });
     });
     notifs.sort((a, b) => b.ts - a.ts);
     if (notifs.length) {
