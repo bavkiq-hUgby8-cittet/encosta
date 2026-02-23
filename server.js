@@ -6713,7 +6713,7 @@ MEMÓRIA — SALVAR INFORMAÇÕES:
 - Confirme que salvou com algo tipo "Anotado! Vou lembrar disso"
 - Consulte as NOTAS PESSOAIS nos seus dados para lembrar o que já sabe
 
-${openingInstruction}`,
+IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar. NÃO gere respostas por conta própria.`,
         tools: [{
           type: 'function',
           name: 'mostrar_pessoa',
@@ -6845,7 +6845,44 @@ app.get('/api/agent/context/:userId', (req, res) => {
   const userId = req.params.userId;
   const { context, greeting, gossip } = buildUserContext(userId);
   if (!context) return res.status(404).json({ error: 'Usuário não encontrado' });
-  res.json({ context, gossip, ts: Date.now() });
+  // Include recent notifications for agent awareness
+  const user = db.users[userId];
+  let notifSummary = '';
+  if (user) {
+    const notifs = [];
+    const now = Date.now();
+    const week = 7 * 24 * 60 * 60 * 1000;
+    // Likes received
+    (user.likedBy || []).forEach(lid => {
+      const l = db.users[lid]; if (!l) return;
+      const ts = l._likedAt?.[userId] || 0;
+      if (ts && now - ts < week) notifs.push({ t: 'curtida', who: l.nickname || l.name, ts });
+    });
+    // Stars received
+    (user.stars || []).forEach(s => {
+      const g = db.users[s.from]; const ts = s.donatedAt || s.at || 0;
+      if (ts && now - ts < week) notifs.push({ t: 'estrela recebida', who: g ? (g.nickname || g.name) : '?', ts });
+    });
+    // Identity revealed to me
+    Object.entries(user.canSee || {}).forEach(([pid, data]) => {
+      const p = db.users[pid]; if (!p) return;
+      const ts = data.revealedAt || 0;
+      if (ts && now - ts < week) notifs.push({ t: 'revelou identidade', who: p.nickname || p.name, ts });
+    });
+    // Pending reveal requests
+    Object.values(db.revealRequests || {}).forEach(rr => {
+      if (rr.toUserId === userId && rr.status === 'pending') {
+        const from = db.users[rr.fromUserId]; if (!from) return;
+        notifs.push({ t: 'pedido de revelação pendente', who: from.nickname || from.name, ts: rr.createdAt || 0 });
+      }
+    });
+    notifs.sort((a, b) => b.ts - a.ts);
+    if (notifs.length) {
+      notifSummary = '\n\nNOTIFICAÇÕES RECENTES (últimos 7 dias):\n' +
+        notifs.slice(0, 15).map(n => `- ${n.who}: ${n.t} (${new Date(n.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})`).join('\n');
+    }
+  }
+  res.json({ context: context + notifSummary, gossip, ts: Date.now() });
 });
 
 // Save agent note about a connection
@@ -6985,7 +7022,7 @@ ${context}
 
 NOME DO USUÁRIO: ${firstName}
 
-${isNewSession ? (gossip ? `SAUDAÇÃO COM FOFOCA:\n"${gossip}"` : `SAUDAÇÃO:\n"${greeting}"`) : `CONTINUAÇÃO: "${openingText}"`}`,
+IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
         tools: [
           { type:'function', name:'navegar_tela', description:'Navega para uma tela do app. Telas: home, history (constelação), encounter (conectar), locationScreen (mapa), myProfile (meu perfil), subscription (assinatura).', parameters:{type:'object',properties:{tela:{type:'string',description:'ID da tela: home, history, encounter, locationScreen, myProfile, subscription'}},required:['tela']} },
           { type:'function', name:'abrir_perfil', description:'Abre o perfil detalhado de uma conexão pelo nome.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome ou apelido da pessoa'}},required:['nome']} },
