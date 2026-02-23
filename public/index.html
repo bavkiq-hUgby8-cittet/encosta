@@ -3290,12 +3290,7 @@ function showScreen(id){
       VA.close();
     }
   }
-  // ── Guided onboarding step signals ──
-  if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
-    if(id==='encounter'){
-      GuidedOnboarding.signalStep('ENCOUNTER_SCREEN');
-    }
-  }
+  // (onboarding signals now handled directly in handleMainButton)
   // Close selfie camera when leaving reveal
   if(id!=='reveal')releaseSelfieCamera();
   // Stop constellation animation + gyro when leaving
@@ -3320,10 +3315,7 @@ function goHome(){
   // Reset chat viewport adjustments
   var chatEl=$('chat');if(chatEl){chatEl.style.height='';chatEl.style.transform=''}
   showScreen('home');refreshHome();
-  // ── Guided onboarding: returning from encounter ──
-  if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
-    setTimeout(()=> GuidedOnboarding.signalStep('BACK_HOME'), 600);
-  }
+  // (onboarding BACK_HOME now auto-triggered after agent finishes etapa 3)
 }
 
 // ═══ SWIPE BACK GESTURE ═══
@@ -4231,11 +4223,11 @@ let homeSonicActive=false;
 let _sonicWasActive=false; // track if sonic was running before background/disconnect
 async function handleMainButton(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
-  // ── During guided onboarding: just show encounter screen, NO sonic/audio ──
+  // ── During guided onboarding: explain TOUCH without navigating away ──
   if(typeof GuidedOnboarding!=='undefined' && GuidedOnboarding.isActive()){
     haptic([40]);
-    showScreen('encounter');
-    showPhase('phaseChoose');
+    // Don't go to encounter screen — signal directly so agent explains
+    GuidedOnboarding.signalStep('ENCOUNTER_SCREEN');
     return;
   }
   if(homeSonicActive){stopHomeSonic();return}
@@ -12682,15 +12674,22 @@ const GuidedOnboarding=(function(){
         // Agent done talking — highlight next action
         if(step===1)setTimeout(()=>{const x=document.querySelector('.va-close');if(x)hl(x,12);},400);
         else if(step===2)setTimeout(()=>hl('#mainBtn',12),400);
-        else if(step===3)setTimeout(()=>{const b=document.querySelector('#encounter .bs');if(b)hl(b,8);},2500);
+        else if(step===3){
+          // Etapa 3 é a última — agente explicou TOUCH + constelação + chat 24h
+          // Agora avança automaticamente pra etapa final
+          step=4;
+          // Sinaliza pro agente fazer o encerramento
+          if(dc&&dc.readyState==='open'){
+            dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'STEP:BACK_HOME'}]}}));
+            dc.send(JSON.stringify({type:'response.create'}));
+          }
+        }
         else if(step===4){
-          setTimeout(()=>{const n=document.querySelector('.home-nav');if(n)hl(n,6);},400);
-          _ft=setTimeout(finish,7000);
+          _ft=setTimeout(finish,5000);
         }
         break;
 
       case 'response.done':
-        // Full response done — clear bubble for next step only if not final
         if(step===4&&!_ft)_ft=setTimeout(finish,5000);
         break;
 
@@ -12724,7 +12723,6 @@ const GuidedOnboarding=(function(){
       bubble(null);hl(null);
       if(name==='HOME_VISIBLE')step=2;
       else if(name==='ENCOUNTER_SCREEN')step=3;
-      else if(name==='BACK_HOME')step=4;
       dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'STEP:'+name}]}}));
       dc.send(JSON.stringify({type:'response.create'}));
     },
