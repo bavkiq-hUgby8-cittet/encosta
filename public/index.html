@@ -2391,6 +2391,14 @@ let firebaseApp=null, firebaseAuthInstance=null, fbUser=null, loginIsRegister=fa
       if(user&&!state.userId){
         // User is signed in via Firebase but not linked to ENCOSTA yet
         await linkFirebaseToEncosta(user);
+      }else if(user&&state.userId){
+        // User signed in AND has local userId — silently re-link to keep firebaseUid up to date
+        // This handles cases where Firebase UID changed (e.g. re-registration during data loss)
+        fetch('/api/auth/link',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({firebaseUid:user.uid,email:user.email,encUserId:state.userId})
+        }).catch(()=>{});
       }
     });
   }catch(e){console.warn('Firebase init falhou:',e.message)}
@@ -11020,9 +11028,13 @@ async function validateUser(){
         await new Promise(ok=>setTimeout(ok,2000));
         continue;
       }
-      // After retries, truly not found
-      console.warn('[validateUser] User not found after retries');
+      // After retries, truly not found — try to recover via Firebase Auth link
+      console.warn('[validateUser] User not found after retries, attempting Firebase re-link...');
+      const recovered=await _tryFirebaseRelink();
+      if(recovered)return true;
+      // Truly gone — clear and go to login
       localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');
+      localStorage.removeItem('touch_userColor');localStorage.removeItem('touch_userPhoto');localStorage.removeItem('touch_email');
       state.userId=null;state.userName=null;return false;
     }catch(e){
       console.warn('[validateUser] Network error (attempt '+(attempt+1)+'/3):',e.message);
@@ -11033,6 +11045,44 @@ async function validateUser(){
     }
   }
   return false;
+}
+
+// Attempt to recover user session via Firebase Auth when localStorage userId is stale
+async function _tryFirebaseRelink(){
+  try{
+    if(!firebaseAuthInstance)return false;
+    const user=firebaseAuthInstance.currentUser;
+    if(!user){console.log('[relink] No Firebase user');return false}
+    console.log('[relink] Firebase user found, attempting re-link...');
+    const token=await user.getIdToken();
+    const r=await fetch('/api/auth/link',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,phoneNumber:user.phoneNumber||null})
+    });
+    if(!r.ok){console.warn('[relink] Server returned',r.status);return false}
+    const d=await r.json();
+    if(!d.userId){console.warn('[relink] No userId in response');return false}
+    // Success — update state and localStorage
+    state.userId=d.userId;
+    state.userName=d.user.nickname||d.user.name;
+    state.userColor=d.user.color||'';
+    state.userPhoto=d.user.profilePhoto||d.user.photoURL||null;
+    state.email=d.user.email||null;
+    state.emailVerified=user.emailVerified||false;
+    state.userCpf=d.user.cpf||null;
+    state.userAccessory=d.user.avatarAccessory||null;
+    state.userProfession=d.user.profession||null;
+    state.userSports=d.user.sports||[];
+    state.userHobbies=d.user.hobbies||[];
+    localStorage.setItem('touch_userId',d.userId);
+    localStorage.setItem('touch_userName',state.userName);
+    localStorage.setItem('touch_userColor',state.userColor);
+    if(state.email)localStorage.setItem('touch_email',state.email);
+    if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
+    console.log('[relink] Success! Recovered user:',d.userId,'matched by:',d.matchedBy);
+    return true;
+  }catch(e){console.error('[relink] Error:',e.message);return false}
 }
 window.addEventListener('load',()=>{
   applyLang();
