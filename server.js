@@ -4712,6 +4712,37 @@ app.post('/api/admin/force-reload', adminLimiter, requireAdmin, async (req, res)
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Admin: force create connection between two users
+app.post('/api/admin/force-connect', adminLimiter, requireAdmin, (req, res) => {
+  const { userIdA, userIdB } = req.body;
+  if (!userIdA || !userIdB) return res.status(400).json({ error: 'userIdA and userIdB required' });
+  const userA = db.users[userIdA];
+  const userB = db.users[userIdB];
+  if (!userA) return res.status(404).json({ error: 'userA not found' });
+  if (!userB) return res.status(404).json({ error: 'userB not found' });
+  if (userIdA === userIdB) return res.status(400).json({ error: 'Cannot connect user to self' });
+  const existing = findActiveRelation(userIdA, userIdB);
+  const now = Date.now();
+  let relationId;
+  if (existing) {
+    existing.expiresAt = now + 86400000;
+    existing.renewed = (existing.renewed || 0) + 1;
+    relationId = existing.id;
+  } else {
+    relationId = uuidv4();
+    const phrase = smartPhrase(userIdA, userIdB);
+    db.relations[relationId] = { id: relationId, userA: userIdA, userB: userIdB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
+    idxAddRelation(relationId, userIdA, userIdB);
+    db.messages[relationId] = [];
+    recordEncounter(userIdA, userIdB, phrase, 'physical');
+  }
+  saveDB('relations', 'messages', 'encounters');
+  // Notify both users via socket
+  io.to(`user:${userIdA}`).emit('sonic-matched', { withUser: userIdB });
+  io.to(`user:${userIdB}`).emit('sonic-matched', { withUser: userIdA });
+  res.json({ ok: true, relationId, renewed: !!existing, userA: userA.nickname, userB: userB.nickname });
+});
+
 // ── SOCKET.IO ──
 io.on('connection', (socket) => {
   let currentUserId = null;
