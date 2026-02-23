@@ -5240,7 +5240,9 @@ function doReveal(data){
     h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
     h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
     iconRow.innerHTML=h;
-    if(tipBtn){tipBtn.dataset.receiverId=them.id}
+    // Set receiverId on the NEW tip button (iconRow.innerHTML destroyed the old one)
+    const newTipBtn=iconRow.querySelector('.rv-icon-btn.tip');
+    if(newTipBtn){newTipBtn.id='revealTipBtn';newTipBtn.dataset.receiverId=them.id}
   }else if(isCheckin){
     // CHECKIN: check entry price, reveal, go to event view
     const evId=data.eventId||null;
@@ -5301,8 +5303,13 @@ function revealToOperator(operatorId,eventId,eventName){
 
 function openTipFromReveal(){
   const btn=$('revealTipBtn')||document.querySelector('#rvIconRow .rv-icon-btn.tip');
-  if(btn&&btn.dataset.receiverId) showTipScreen(btn.dataset.receiverId);
-  else if(state.currentRelation&&state.currentRelation.partnerId) showTipScreen(state.currentRelation.partnerId);
+  if(btn&&btn.dataset.receiverId) return showTipScreen(btn.dataset.receiverId);
+  // Fallback: try currentRelation partnerId
+  if(state.currentRelation){
+    const rid=state.currentRelation.partnerId||(state.currentRelation.userA&&state.currentRelation.userA.id!==state.userId?state.currentRelation.userA.id:state.currentRelation.userB&&state.currentRelation.userB.id!==state.userId?state.currentRelation.userB.id:null);
+    if(rid) return showTipScreen(rid);
+  }
+  showToast('Nao foi possivel identificar o destinatario.');
 }
 
 // ═══ ENTRY PAYMENT — pay to enter operator event ═══
