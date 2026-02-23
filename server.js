@@ -7079,6 +7079,53 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   res.json({ ok: true, order });
 });
 
+// ═══ STRIPE — Express Checkout (Apple Pay / Google Pay) ═══
+// These endpoints activate only when STRIPE_SECRET_KEY and STRIPE_PUBLIC_KEY are set in env
+const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_PUBLIC = process.env.STRIPE_PUBLIC_KEY || '';
+let stripeInstance = null;
+if (STRIPE_SECRET) {
+  try { stripeInstance = require('stripe')(STRIPE_SECRET); console.log('[stripe] Initialized'); }
+  catch(e) { console.log('[stripe] stripe package not installed, skipping'); }
+}
+
+app.get('/api/stripe/config', (req, res) => {
+  res.json({ publicKey: STRIPE_PUBLIC || null });
+});
+
+app.post('/api/stripe/pay', async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { paymentMethodId, amount, payerId, receiverId } = req.body;
+  if (!paymentMethodId || !amount || amount < 1) return res.status(400).json({ error: 'Dados invalidos' });
+  try {
+    const paymentIntent = await stripeInstance.paymentIntents.create({
+      amount: Math.round(amount * 100), // cents
+      currency: 'brl',
+      payment_method: paymentMethodId,
+      confirm: true,
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      metadata: { payerId, receiverId, source: 'touch-express-checkout' }
+    });
+    if (paymentIntent.status === 'succeeded') {
+      // Record the tip in the database
+      const tipId = uuidv4();
+      if (!db.tips) db.tips = {};
+      db.tips[tipId] = { payerId, receiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripeId: paymentIntent.id };
+      saveDB('tips');
+      // Notify receiver
+      const payer = db.users[payerId];
+      const payerName = payer ? (payer.nickname || payer.name || '?') : '?';
+      io.to(`user:${receiverId}`).emit('tip-received', { amount, from: payerName, status: 'approved' });
+      res.json({ ok: true });
+    } else {
+      res.json({ ok: false, error: 'Pagamento nao confirmado', status: paymentIntent.status });
+    }
+  } catch(e) {
+    console.error('[stripe/pay] error:', e.message);
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ═══ TOUCHGAMES — REST API ═══
 
 // GET manifest
