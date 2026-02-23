@@ -284,17 +284,19 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
+let _dbLoadedFromCloud = false; // true if DB was loaded from Firebase with real data
 async function loadDB() {
-  console.log('🔄 loadDB() iniciando... RTDB URL:', FIREBASE_DB_URL);
+  console.log('loadDB() iniciando... RTDB URL:', FIREBASE_DB_URL);
   try {
-    // Load from Firebase Realtime Database (with 15s timeout)
-    console.log('📡 Tentando conectar ao RTDB...');
-    const snapshot = await withTimeout(rtdb.ref('/').once('value'), 15000, 'RTDB read');
+    // Load from Firebase Realtime Database (with 30s timeout — generous to survive slow cold starts)
+    console.log('Tentando conectar ao RTDB...');
+    const snapshot = await withTimeout(rtdb.ref('/').once('value'), 30000, 'RTDB read');
     const data = snapshot.val();
     if (data) {
       DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
       const userCount = Object.keys(db.users).length;
-      console.log(`✅ DB carregado do Firebase Realtime Database (${userCount} users)`);
+      if (userCount > 0) _dbLoadedFromCloud = true;
+      console.log('DB carregado do Firebase Realtime Database (' + userCount + ' users)');
     } else {
       console.log('ℹ️ RTDB vazio, tentando migração...');
       // Try Firestore migration (one-time)
@@ -343,19 +345,40 @@ async function loadDB() {
       createBackup('auto:server-start').catch(e => console.warn('Startup backup failed:', e.message));
     }
   } catch (e) {
-    console.error('❌ Erro ao carregar DB:', e.message);
-    console.log('🔄 Usando fallback local...');
+    console.error('Erro ao carregar DB (tentativa 1):', e.message);
+    // RETRY once with longer timeout before giving up
+    try {
+      console.log('Retry: tentando RTDB novamente com timeout maior...');
+      const retrySnap = await withTimeout(rtdb.ref('/').once('value'), 45000, 'RTDB retry');
+      const retryData = retrySnap.val();
+      if (retryData) {
+        DB_COLLECTIONS.forEach(c => { db[c] = retryData[c] || {}; });
+        const uc = Object.keys(db.users).length;
+        if (uc > 0) _dbLoadedFromCloud = true;
+        console.log('DB carregado do RTDB no retry (' + uc + ' users)');
+        dbLoaded = true;
+        DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
+        initRegistrationCounter();
+        if (Object.keys(db.users).length > 0) {
+          createBackup('auto:server-start-retry').catch(e => console.warn('Startup backup failed:', e.message));
+        }
+        return; // success on retry
+      }
+    } catch (retryErr) {
+      console.error('Retry tambem falhou:', retryErr.message);
+    }
+    console.log('Usando fallback local...');
     const DB_FILE = path.join(__dirname, 'db.json');
     try {
       if (fs.existsSync(DB_FILE)) {
         const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
         DB_COLLECTIONS.forEach(c => { db[c] = data[c] || {}; });
-        console.log('✅ DB carregado de db.json (fallback)');
+        console.log('DB carregado de db.json (fallback)');
       } else {
-        console.log('📦 DB novo criado (sem RTDB, sem db.json)');
+        console.log('DB novo criado (sem RTDB, sem db.json) — WRITES BLOQUEADOS para colecoes criticas ate reconectar');
       }
     } catch (e2) {
-      console.error('❌ Fallback db.json também falhou:', e2.message);
+      console.error('Fallback db.json tambem falhou:', e2.message);
     }
     dbLoaded = true;
     DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
@@ -633,14 +656,20 @@ async function flushToRTDB() {
       const data = db[c] || {};
       const count = Object.keys(data).length;
       const lastCount = _lastKnownCounts[c] || 0;
-      // Safety check: if a critical collection went from many entries to zero, SKIP it
-      if (CRITICAL_COLLECTIONS.includes(c) && count === 0 && lastCount > 5) {
-        console.error('🚨 CORRUPTION GUARD: collection "' + c + '" went from ' + lastCount + ' to 0 entries — SKIPPING write to protect data');
+      // PROTECTION 1: if server started with empty DB (no cloud data), NEVER overwrite critical collections
+      if (CRITICAL_COLLECTIONS.includes(c) && !_dbLoadedFromCloud && count < 5) {
+        console.error('PROTECTION: server started with empty DB — refusing to write "' + c + '" with only ' + count + ' entries to prevent data loss');
         return;
       }
-      // Safety check: if critical collection lost >50% of entries in one flush, warn but still save
-      if (CRITICAL_COLLECTIONS.includes(c) && lastCount > 10 && count < lastCount * 0.5) {
-        console.warn('⚠️ WARNING: collection "' + c + '" dropped from ' + lastCount + ' to ' + count + ' entries — saving but check for issues');
+      // PROTECTION 2: if a critical collection went from many entries to zero, SKIP it
+      if (CRITICAL_COLLECTIONS.includes(c) && count === 0 && lastCount > 0) {
+        console.error('CORRUPTION GUARD: collection "' + c + '" went from ' + lastCount + ' to 0 entries — SKIPPING write to protect data');
+        return;
+      }
+      // PROTECTION 3: if critical collection lost >30% of entries in one flush, SKIP it
+      if (CRITICAL_COLLECTIONS.includes(c) && lastCount > 5 && count < lastCount * 0.7) {
+        console.error('CORRUPTION GUARD: collection "' + c + '" dropped from ' + lastCount + ' to ' + count + ' entries (>30% loss) — SKIPPING write');
+        return;
       }
       updates[c] = data;
       _lastKnownCounts[c] = count;
@@ -5582,12 +5611,7 @@ app.get('/api/tip/saved-card/:userId', (req, res) => {
 app.post('/api/tip/save-card', paymentLimiter, async (req, res) => {
   const { userId, token, email, cpf } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
-  // Auto-create minimal user entry if not found (can happen after server restart before Firebase sync)
-  if (!db.users[userId]) {
-    console.log('save-card: user not in memory, creating minimal entry for', userId);
-    db.users[userId] = { id: userId, nickname: 'user', email: email || '', createdAt: Date.now() };
-    saveDB('users');
-  }
+  if (!db.users[userId]) return res.status(404).json({ error: 'Usuario nao encontrado. Faca login novamente.' });
   if (!token) return res.status(400).json({ error: 'Token do cartao e obrigatorio.' });
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento nao configurado. Verifique as credenciais.' });
   const user = db.users[userId];
