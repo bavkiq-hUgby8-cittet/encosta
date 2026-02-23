@@ -5207,7 +5207,14 @@ app.post('/api/tip/create', paymentLimiter, async (req, res) => {
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip' }
     };
 
-    console.log('💳 Processing payment:', { amount: tipAmount, method: paymentMethodId, email, receiverId, hasToken: !!token });
+    const isTestMode = MP_PUBLIC_KEY.startsWith('TEST-') || MP_ACCESS_TOKEN.startsWith('TEST-');
+    console.log('💳 Processing payment:', { amount: tipAmount, method: paymentMethodId, email, receiverId, hasToken: !!token, isTestMode });
+
+    // In test mode, use test email format if user email would cause issues
+    if (isTestMode && email && !email.includes('testuser.com')) {
+      console.log('💳 Test mode: using test-compatible email for payer');
+      paymentData.payer.email = 'test_user_' + Date.now() + '@testuser.com';
+    }
 
     const idempotencyKey = uuidv4();
     const requestOptions = { idempotencyKey };
@@ -5226,19 +5233,20 @@ app.post('/api/tip/create', paymentLimiter, async (req, res) => {
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     }
   } catch (e) {
-    console.error('Payment error:', e.message, e.cause ? JSON.stringify(e.cause) : '');
+    console.error('Payment error:', e.message, e.cause ? JSON.stringify(e.cause).slice(0,500) : '', e.status || '');
     const errMsg = (e.message || 'tente novamente').toLowerCase();
+    const errCause = JSON.stringify(e.cause || '').toLowerCase();
     // Provide more useful error messages
-    if (errMsg.includes('customer') && errMsg.includes('not found')) {
-      res.status(400).json({ error: 'Erro de cadastro no MercadoPago. Tente com outro email ou entre em contato.', detail: 'customer_not_found' });
-    } else if (errMsg.includes('token')) {
-      res.status(400).json({ error: 'Token do cartão inválido ou expirado. Tente novamente.' });
+    if ((errMsg.includes('customer') && errMsg.includes('not found')) || errCause.includes('customer')) {
+      res.status(400).json({ error: 'Erro de cadastro no pagamento. Tente novamente com os dados corretos.', detail: 'customer_not_found', hint: 'Em modo teste, use cartao de teste: 5031 4332 1540 6351, CVV 123, venc 11/30, nome APRO, CPF 12345678909' });
+    } else if (errMsg.includes('token') || errCause.includes('token')) {
+      res.status(400).json({ error: 'Token do cartao invalido ou expirado. Tente novamente.' });
     } else if (errMsg.includes('access_token') || errMsg.includes('401')) {
-      res.status(500).json({ error: 'Credenciais do Mercado Pago inválidas. Contate o suporte.' });
-    } else if (errMsg.includes('email')) {
-      res.status(400).json({ error: 'Email inválido. Atualize seu email no perfil.' });
+      res.status(500).json({ error: 'Credenciais do Mercado Pago invalidas. Contate o suporte.' });
+    } else if (errMsg.includes('email') || errCause.includes('email')) {
+      res.status(400).json({ error: 'Email invalido. Atualize seu email no perfil.' });
     } else {
-      res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+      res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente'), detail: errMsg });
     }
   }
 });
@@ -5886,7 +5894,13 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       metadata: { payer_id: payerId, receiver_id: receiverId, type: 'tip', method: 'one_tap' }
     };
 
-    console.log('⚡ One-tap pay:', { amount: tipAmount, customer: customerId, card: card.id, last4: card.last_four_digits, method: card.payment_method?.id, receiverMpConnected: !!receiver.mpConnected });
+    // In test mode, use test email
+    const isTestMode = MP_PUBLIC_KEY.startsWith('TEST-') || MP_ACCESS_TOKEN.startsWith('TEST-');
+    if (isTestMode) {
+      paymentData.payer.email = 'test_user_' + Date.now() + '@testuser.com';
+    }
+
+    console.log('⚡ One-tap pay:', { amount: tipAmount, customer: customerId, card: card.id, last4: card.last_four_digits, method: card.payment_method?.id, receiverMpConnected: !!receiver.mpConnected, isTestMode });
 
     // Payment always goes through — if receiver has MP connected, use split payment; otherwise goes to Touch account
     let result;

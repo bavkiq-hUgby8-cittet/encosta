@@ -10518,8 +10518,10 @@ async function payWithNewCard() {
     });
     const result = await resp.json();
     if (result.error) {
-      showPayError(translatePayError(result.error,result.detail));
-      btn.disabled=false;btn.textContent='💳 Pagar R$'+tipState.amount.toFixed(2).replace('.',',');
+      let errMsg=translatePayError(result.error,result.detail);
+      if(result.hint)errMsg+='<br><br><span style="font-size:.6rem;opacity:.7">'+result.hint+'</span>';
+      showPayError(errMsg);
+      btn.disabled=false;btn.textContent='Pagar R$'+tipState.amount.toFixed(2).replace('.',',');
       return;
     }
 
@@ -10628,6 +10630,8 @@ function translatePayError(msg,detail){
   for(const[k,v]of Object.entries(map)){
     if(msg&&msg.includes(k))return v;
   }
+  // If server sent a hint (test mode), append it
+  if(detail&&typeof detail==='string'&&detail.includes('teste'))return (msg||'Erro')+'<br><br><span style="font-size:.6rem;opacity:.7">'+detail+'</span>';
   return msg||'Erro ao processar pagamento. Tente novamente.';
 }
 function showPayError(msg){
