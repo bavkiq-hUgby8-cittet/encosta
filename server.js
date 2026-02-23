@@ -6711,16 +6711,17 @@ DADOS EM TEMPO REAL — USE consultar_rede:
 
 O QUE VOCÊ SABE E PODE FALAR:
 - Conexões do usuário (quem conheceu, quantas vezes, quando)
-- Estrelas (quem ganhou — mas sem revelar quem deu, exceto se deram pro próprio usuário)
+- Estrelas que O USUÁRIO recebeu: pode dizer QUEM DEU. Ex: "A Lala te deu uma estrela!"
+- Estrelas que AMIGOS do usuário receberam: pode dizer que ganharam, mas NUNCA quem deu
 - Curtidas e quem tá interessado
 - Eventos e o que rolou
 - Fofocas e novidades da rede
 - Parentescos e relações que aprendeu via notas
-- Dicas de quem reencontrar
 
-PRIVACIDADE:
+PRIVACIDADE — REGRAS DE OURO:
+- ESTRELAS DO USUÁRIO: "Fulano te deu uma estrela!" ✅ (pode revelar quem deu PRO USUÁRIO)
+- ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" ✅ / "Ciclano deu estrela pro Fulano" ❌ PROIBIDO
 - Só fale sobre coisas entre o usuário e outra pessoa diretamente
-- Estrelas de amigos: pode dizer "fulano ganhou estrela" mas NUNCA diga de quem deu
 - Nunca invente informações que não estão nos dados
 - Nunca revele dados sensíveis de terceiros
 
@@ -6791,7 +6792,7 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
             required: ['tela']
           }
         }],
-        turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },
+        turn_detection: { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 500, silence_duration_ms: 1500 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -7155,9 +7156,10 @@ QUANDO O USUÁRIO PEDIR:
 - "mostra meu perfil" → navegar_tela("myProfile")
 - "quem me curtiu?" → consultar_rede + responde
 
-PRIVACIDADE:
+PRIVACIDADE — REGRAS DE OURO:
+- ESTRELAS DO USUÁRIO: "Fulano te deu uma estrela!" ✅ (pode revelar quem deu PRO USUÁRIO)
+- ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" ✅ / "Ciclano deu estrela pro Fulano" ❌ PROIBIDO
 - Só fale sobre coisas entre o usuário e outra pessoa diretamente
-- Estrelas de amigos: pode dizer "fulano ganhou estrela" mas NUNCA diga de quem deu
 - Nunca invente informações que não estão nos dados
 
 NOMES: Só primeiro nome, NUNCA sobrenome.
@@ -7183,7 +7185,7 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
           { type:'function', name:'mostrar_pessoa', description:'Mostra o perfil de uma conexão na constelação.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva informação pessoal sobre conexão.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} }
         ],
-        turn_detection: { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 400, silence_duration_ms: 1200 },
+        turn_detection: { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 500, silence_duration_ms: 1500 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -7200,7 +7202,7 @@ app.post('/api/agent/chat', async (req, res) => {
   const { messages, userId } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages é obrigatório' });
   const { userName, context } = buildUserContext(userId);
-  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch? — rede social presencial.\n\nPERSONALIDADE: Fofoqueira curiosa! Adora saber de tudo sobre todo mundo. Quando o usuário menciona alguém, pergunte: "Quem é?", "É da família?", "Trabalha contigo?". Use notas pessoais pra lembrar o que já sabe. Tom descontraído, gírias naturais. MÁXIMO 2 frases por resposta. Pt-BR.\n\nPRIVACIDADE: Só fale de coisas entre o usuário e outra pessoa. Estrelas de amigos: diga que ganhou mas NUNCA de quem.\n\n${context}` };
+  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch? — rede social presencial.\n\nPERSONALIDADE: Fofoqueira curiosa! Adora saber de tudo sobre todo mundo. Quando o usuário menciona alguém, pergunte: "Quem é?", "É da família?", "Trabalha contigo?". Use notas pessoais pra lembrar o que já sabe. Tom descontraído, gírias naturais. MÁXIMO 2 frases por resposta. Pt-BR.\n\nPRIVACIDADE:\n- Estrelas DO USUÁRIO: pode dizer quem deu. "Fulano te deu estrela!"\n- Estrelas DE AMIGOS: pode dizer que ganhou, NUNCA de quem deu.\n- Só fale de coisas entre o usuário e outra pessoa.\n\n${context}` };
   const isGroq = !!GROQ_API_KEY;
   const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
   const model = isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';

@@ -1511,7 +1511,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
     <div class="home-icons" style="flex-direction:column;gap:.5rem;align-items:flex-end">
       <div class="rb hidden" id="relBadge" onclick="showRelations()">&#x1F4AC;<span class="ct" id="relCount">0</span></div>
-      <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()" style="position:relative">&#x2726;<span class="notif-count-badge hidden" id="homeNotifBadge" style="position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;border-radius:8px;background:#ef4444;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span></div>
+      <div class="constellation-btn hidden" id="constBtn" onclick="showHistory()" style="position:relative">&#x2726;<span class="notif-count-badge hidden" id="homeNotifBadge" style="position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;border-radius:8px;background:#ef4444;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span><span class="hidden" id="homeEventBadge" style="position:absolute;top:-5px;left:-5px;min-width:15px;height:15px;border-radius:8px;background:#60a5fa;font-size:.5rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg);line-height:1">0</span></div>
     </div>
   </div>
   <!-- CENTER: botão TOUCH grande -->
@@ -1694,7 +1694,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-header">
     <button class="chb" onclick="goHome()">&#x2190;</button>
     <h2>Minha Rede</h2>
-    <button id="constSearchToggle" onclick="toggleConstSearch()" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.1);border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t3);flex-shrink:0;transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+    
   </div>
   <div id="constSearchOverlay" class="const-search-overlay hidden">
     <div style="display:flex;align-items:center;gap:.4rem;background:rgba(10,10,25,.85);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:.35rem .6rem;max-width:280px;width:90%;backdrop-filter:blur(12px)">
@@ -1708,12 +1708,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-feedback" id="constFeedback"></div>
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge hidden" id="constNotifBadge">0</span></div>
   <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas>
-    <div id="constFilters" style="position:absolute;bottom:12px;left:8px;right:8px;display:flex;gap:.35rem;padding:.4rem .5rem;background:rgba(10,10,25,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:22px;border:1px solid rgba(255,255,255,.1);z-index:5;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none">
-      <button class="elog-filter active" onclick="filterConst('all',this)">Todos</button>
-      <button class="elog-filter" onclick="filterConst('people',this)"><span class="fdot" style="background:#00dc82"></span>Revelados</button>
-      <button class="elog-filter" onclick="filterConst('anon',this)"><span class="fdot" style="background:#ff4466"></span>Anonimos</button>
-      <button class="elog-filter" onclick="filterConst('events',this)"><span class="fdot" style="background:#60a5fa"></span>Eventos</button>
-      <button class="elog-filter" onclick="openFinancialScreen()"><span class="fdot" style="background:#fbbf24"></span>Financeiro</button>
+    <button id="constSearchFloat" onclick="toggleConstSearch()" style="position:absolute;bottom:58px;right:12px;z-index:6;width:32px;height:32px;border-radius:50%;background:rgba(10,10,25,.7);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+    <div id="constFilters" style="position:absolute;bottom:12px;left:8px;right:8px;display:flex;gap:.35rem;padding:.4rem .5rem;background:rgba(10,10,25,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:22px;border:1px solid rgba(255,255,255,.1);z-index:5;justify-content:center">
+      <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span>Revelados</button>
+      <button class="elog-filter active" id="cfAnon" onclick="toggleConstFilter('anon',this)"><span class="fdot" style="background:#ff4466"></span>Anônimos</button>
+      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)"><span class="fdot" style="background:#60a5fa"></span>Eventos</button>
     </div>
     <div id="constLoader" class="const-loader hidden">
       <div class="const-loader-inner">
@@ -3945,7 +3944,7 @@ async function refreshHome(){
     ]);
     const c=$('dailyCounter'),n=$('dailyNum');
     if(d.count>0){c.classList.remove('hidden');n.textContent=d.count;const lbl=$('dailyLabel');if(lbl)lbl.textContent=d.count===1?'Toque em 24h':'Toques em 24h'}else c.classList.add('hidden');
-    if(cn.total>0){$('constBtn').classList.remove('hidden');updateNetworkBadge();updateNotifBadge()}
+    if(cn.total>0){$('constBtn').classList.remove('hidden');updateNetworkBadge();updateNotifBadge();updateEventBadge()}
     // Update home background nodes
     initHomeNodes(cn.nodes||[]);
   }catch(e){}
@@ -6264,12 +6263,24 @@ async function showRelations(){
 }
 
 // ═══ CONSTELLATION ═══
-let constFilter='all'; // 'all','people','anon','events'
-function setConstFilter(f){ constFilter=f; updateConstFilterBadges(); }
-function filterConst(f,btn){
-  setConstFilter(f);
-  if(btn){document.querySelectorAll('#constFilters .elog-filter').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
+let constFilters={revealed:true,anon:true,events:false};
+function toggleConstFilter(type,btn){
+  if(type==='events'){
+    constFilters.events=!constFilters.events;
+    if(constFilters.events){constFilters.revealed=false;constFilters.anon=false}
+    else{constFilters.revealed=true;constFilters.anon=true}
+  }else{
+    constFilters[type]=!constFilters[type];
+  }
+  updateConstFilterUI();
   haptic([15]);
+}
+function updateConstFilterUI(){
+  const btnR=$('cfRevealed'),btnA=$('cfAnon'),btnE=$('cfEvents');
+  if(btnR){btnR.classList.toggle('active',constFilters.revealed);btnR.style.display=constFilters.events?'none':''}
+  if(btnA){btnA.classList.toggle('active',constFilters.anon);btnA.style.display=constFilters.events?'none':''}
+  if(btnE)btnE.classList.toggle('active',constFilters.events);
+  updateConstFilterBadges();
 }
 function updateConstFilterBadges(){
   if(!constState.nodes)return;
@@ -6277,18 +6288,15 @@ function updateConstFilterBadges(){
   const revealed=nodes.filter(n=>!n.isEvent&&!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id])));
   const anon=nodes.filter(n=>!n.isEvent).length-revealed.length;
   const events=nodes.filter(n=>!!n.isEvent).length;
-  const btns=document.querySelectorAll('#constFilters .elog-filter');
-  function setBtnText(btn,label,count){
+  function setBtnCount(btn,label,count){
     if(!btn)return;
-    // Preserve first child (color dot span) if it exists
     const dot=btn.querySelector('span');
     btn.textContent=label+' '+count;
     if(dot)btn.prepend(dot);
   }
-  if(btns[0])btns[0].textContent='Todos '+nodes.length;
-  setBtnText(btns[1],'Revelados',revealed.length);
-  setBtnText(btns[2],'Anônimos',anon);
-  setBtnText(btns[3],'Eventos',events);
+  setBtnCount($('cfRevealed'),'Revelados',revealed.length);
+  setBtnCount($('cfAnon'),'Anônimos',anon);
+  setBtnCount($('cfEvents'),'Eventos',events);
 }
 
 // ── Financial Screen ──
@@ -6417,16 +6425,16 @@ function renderFinancialList(){
 // ── Constellation search ──
 function toggleConstSearch(){
   const overlay=$('constSearchOverlay');
-  const btn=$('constSearchToggle');
+  const btn=$('constSearchFloat');
   if(!overlay)return;
   if(overlay.classList.contains('hidden')){
     overlay.classList.remove('hidden');
-    if(btn){btn.style.background='rgba(99,102,241,.2)';btn.style.borderColor='rgba(99,102,241,.4)'}
+    if(btn){btn.style.background='rgba(99,102,241,.3)';btn.style.borderColor='rgba(99,102,241,.4)'}
     setTimeout(()=>{const inp=$('constSearchInput');if(inp)inp.focus()},50);
   }else{
     clearConstSearch();
     overlay.classList.add('hidden');
-    if(btn){btn.style.background='none';btn.style.borderColor='rgba(255,255,255,.1)'}
+    if(btn){btn.style.background='rgba(10,10,25,.7)';btn.style.borderColor='rgba(255,255,255,.15)'}
   }
 }
 function onConstSearch(val){
@@ -6469,15 +6477,22 @@ async function showHistory(){
   fetch('/api/network/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
   // Show screen immediately with loading indicator
   clearConstSearch();
-  constFilter='all';
-  document.querySelectorAll('#constFilters .elog-filter').forEach((b,i)=>{b.classList.toggle('active',i===0)});
+  constFilters={revealed:true,anon:true,events:false};
+  updateConstFilterUI();
   const loader=$('constLoader');
   if(loader){loader.classList.remove('hidden','fade-out')}
   showScreen('history');
+  // Initialize canvas IMMEDIATELY so touch/zoom works while data loads
+  constState.nodes=[];
+  constState.cam={x:0,y:0,zoom:0.15};
+  constState._entryAnim={active:true,startTime:Date.now(),duration:900};
+  constState.selectedNode=null;
+  hideConstDetail();
+  requestAnimationFrame(()=>{initConstCanvas()});
   try{
     const data=await(await fetch('/api/constellation/'+state.userId)).json();
     const empty=$('constEmpty');
-    if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];if(loader){loader.classList.add('fade-out');setTimeout(()=>loader.classList.add('hidden'),500)}requestAnimationFrame(()=>requestAnimationFrame(()=>initConstCanvas()));return}
+    if(!data.nodes||!data.nodes.length){empty.classList.remove('hidden');constState.nodes=[];if(loader){loader.classList.add('fade-out');setTimeout(()=>loader.classList.add('hidden'),500)}return}
     empty.classList.add('hidden');
     // Load pending reveal requests for constellation state
     try{
@@ -6549,9 +6564,9 @@ async function showHistory(){
     });
     constState.nodes=nodes;
     updateConstFilterBadges();
+    // Re-trigger entry animation now that data arrived
     constState.cam={x:0,y:0,zoom:0.15};
     constState._entryAnim={active:true,startTime:Date.now(),duration:900};
-    constState.selectedNode=null;
     // Pre-load user's own photo for center node
     if(state.userPhoto&&!constState._myImgLoaded){
       const mi=new Image();mi.src=state.userPhoto;
@@ -6559,14 +6574,9 @@ async function showHistory(){
       mi.onload=()=>{constState._myImgLoaded=true;console.log('[MY PHOTO LOADED]')};
       mi.onerror=(e)=>{console.error('[MY PHOTO ERROR]',state.userPhoto?.substring(0,60),e);constState._myImgLoaded=false};
     }
-    hideConstDetail();
-    // Wait for screen to become visible before measuring canvas
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      initConstCanvas();
-      // Hide loader after canvas is ready
-      const ld=$('constLoader');
-      if(ld){ld.classList.add('fade-out');setTimeout(()=>ld.classList.add('hidden'),500)}
-    }));
+    // Hide loader — canvas already initialized
+    const ld=$('constLoader');
+    if(ld){ld.classList.add('fade-out');setTimeout(()=>ld.classList.add('hidden'),500)}
     // Show feedback if new nodes since last visit
     const prevCount=parseInt(localStorage.getItem('touch_const_count')||'0');
     if(data.total>prevCount&&prevCount>0){
@@ -6772,19 +6782,16 @@ function initConstCanvas(){
     const FP_FOV=260; // wider FOV — keeps nodes visible and closer together
     // Filter nodes — service-only connections hidden from constellation (stay in history)
     const filteredNodes=constState.nodes.filter(n=>{
-      // Pure service connections (no personal encounters) → hide from constellation
       if(!n.isEvent&&n.isServiceConnection)return false;
-      if(constFilter==='events')return !!n.isEvent;
-      if(constFilter==='people'){
-        // Revealed people only
-        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
-        return !n.isEvent&&isRevealed;
+      if(constFilters.events){
+        // Modo eventos: só mostrar eventos
+        return !!n.isEvent;
       }
-      if(constFilter==='anon'){
-        const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
-        return !n.isEvent&&!isRevealed;
-      }
-      return true; // 'all' = people + events (service-only already excluded above)
+      // Modo pessoas: esconder eventos
+      if(n.isEvent)return false;
+      const isRevealed=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
+      if(isRevealed)return constFilters.revealed;
+      return constFilters.anon;
     });
     const projected=filteredNodes.map(n=>{
       if(fpBlend<0.01){
@@ -6822,8 +6829,9 @@ function initConstCanvas(){
     const MAX_LINE=3; // max pixel thickness for LED core
     projected.forEach(({n,sx,sy,scale})=>{
       const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
-      const lineColor=lineBothVerified?'0,220,130':'100,140,255';
-      const depthAlpha=Math.max(0.03,scale*0.8);
+      const lineColor=n.isEvent?'96,165,250':(lineBothVerified?'0,220,130':'100,140,255');
+      let depthAlpha=Math.max(0.03,scale*0.8);
+      if(n.isEvent&&!n.eventActive)depthAlpha*=0.35;
       const rawThick=(0.3+Math.log2(1+(n.encounters||1))*0.4)*scale;
       const thick=Math.min(rawThick,MAX_LINE);
       const lineAlpha=depthAlpha*(0.1+n.intensity*.2);
@@ -6887,6 +6895,8 @@ function initConstCanvas(){
       const glowRGB=n.isEvent?'96,165,250':(theyRevealedToMe?'0,220,130':'255,68,102');
       // Depth-based opacity: close nodes=bright, far nodes=dim
       let depthAlpha=Math.max(0.15,Math.min(1,scale*1.2));
+      // Past events: faded colors
+      if(n.isEvent&&!n.eventActive)depthAlpha*=0.35;
       // Search dimming: non-matching nodes fade
       if(constState._searchQuery&&!n._searchMatch)depthAlpha*=0.12;
       // Search highlight: matching nodes pulse brighter
@@ -7801,6 +7811,15 @@ function updateNetworkBadge(){
     // Also update constellation panel badge
     const constBadge=$('constNotifBadge');
     if(constBadge){constBadge.textContent=count;constBadge.classList.toggle('hidden',count===0)}
+  }).catch(()=>{});
+}
+
+function updateEventBadge(){
+  if(!state.userId)return;
+  fetch('/api/events/active-count/'+state.userId).then(r=>r.json()).then(data=>{
+    const count=data.count||0;
+    const badge=$('homeEventBadge');
+    if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
   }).catch(()=>{});
 }
 
@@ -12157,6 +12176,11 @@ const VA = (function(){
   const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
   let _transcriptHistory = []; // últimas trocas de mensagens
   const MAX_TRANSCRIPT_HISTORY = 6;
+  // ── Anti-echo state ──
+  let _agentSpeaking = false;   // true while audio deltas are arriving
+  let _pendingToolCall = false;  // true between function_call and next response
+  let _unmuteTimer = null;       // delayed unmute after response.done
+  const UNMUTE_DELAY_MS = 800;   // delay to let WebRTC audio drain from speaker
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
 
@@ -12196,6 +12220,25 @@ const VA = (function(){
   }
   function _clearInactivityTimer(){
     if(_inactivityTimer){clearTimeout(_inactivityTimer);_inactivityTimer=null;}
+  }
+  // ── Anti-echo: safe mic mute/unmute ──
+  function _muteMic(){
+    if(_unmuteTimer){clearTimeout(_unmuteTimer);_unmuteTimer=null;}
+    if(micStream) micStream.getAudioTracks().forEach(t=>{t.enabled=false});
+  }
+  function _scheduleUnmute(){
+    // Cancel any pending unmute
+    if(_unmuteTimer){clearTimeout(_unmuteTimer);_unmuteTimer=null;}
+    // Don't unmute if agent is still speaking or a tool call is pending
+    if(_agentSpeaking||_pendingToolCall) return;
+    _unmuteTimer=setTimeout(()=>{
+      _unmuteTimer=null;
+      // Double-check: still safe to unmute?
+      if(!_agentSpeaking&&!_pendingToolCall&&active){
+        if(micStream) micStream.getAudioTracks().forEach(t=>{t.enabled=true});
+        console.log('[VA] Mic unmuted (safe)');
+      }
+    }, UNMUTE_DELAY_MS);
   }
 
   // ── CONNECT ──
@@ -12310,6 +12353,9 @@ const VA = (function(){
     active = false; busy = false;
     _clearInactivityTimer();
     _transcriptHistory = [];
+    // Reset anti-echo state
+    _agentSpeaking=false;_pendingToolCall=false;
+    if(_unmuteTimer){clearTimeout(_unmuteTimer);_unmuteTimer=null;}
     // Nullify callbacks
     if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
     if(dc){dc.onopen=null;dc.onclose=null;dc.onmessage=null;}
@@ -12358,10 +12404,11 @@ const VA = (function(){
         }
         break;
       case 'response.audio.delta':
+        _agentSpeaking=true;
         setOrb('speaking');setStatus('');
         _updateMiniStatus('speaking');
-        // Mute mic while agent speaks to prevent echo/feedback loop
-        if(micStream)micStream.getAudioTracks().forEach(t=>{t.enabled=false});
+        // Mute mic immediately while agent speaks — prevent echo/feedback loop
+        _muteMic();
         break;
       case 'response.audio_transcript.delta':
         var c=$('vaTranscript')?.textContent||'';
@@ -12370,19 +12417,26 @@ const VA = (function(){
       case 'response.audio_transcript.done':
         // Salva resposta completa no histórico
         if(evt.transcript) _addToHistory('agent',evt.transcript);
-        // Transcript done — do NOT unmute mic here (wait for response.done to prevent echo)
+        // Audio generation done — mark agent as no longer speaking
+        _agentSpeaking=false;
+        // Do NOT unmute here — wait for response.done + delay
         break;
       case 'response.done':
-        setOrb('listening');setStatus('Fale agora');
-        _updateMiniStatus('listening');
-        // Unmute mic ONLY after full response completes (audio + transcript + tools)
-        if(micStream)micStream.getAudioTracks().forEach(t=>{t.enabled=true});
-        // Reset inactivity timer
+        _agentSpeaking=false;
+        // If a tool call is pending, DON'T unmute — keep mic muted until next response
+        if(!_pendingToolCall){
+          setOrb('listening');setStatus('Fale agora');
+          _updateMiniStatus('listening');
+          // Delayed unmute — wait for WebRTC audio to drain from speaker
+          _scheduleUnmute();
+        }
         _resetInactivityTimer();
         break;
       case 'error': console.error('[VA] error:',evt.error);setStatus('Erro: '+(evt.error?.message||''));break;
       // ── FUNCTION CALLING — visual actions + memory ──
       case 'response.function_call_arguments.done':
+        _pendingToolCall=true; // Keep mic muted through the entire tool flow
+        _muteMic(); // Ensure mic stays muted
         setOrb('connecting');setStatus('Processando ação...');
         _updateMiniStatus('thinking');
         try{
@@ -12504,10 +12558,7 @@ const VA = (function(){
       resultText='Erro ao buscar: '+e.message;
     }
     // 5. Send result back to agent (don't wait for animation)
-    if(dc&&dc.readyState==='open'){
-      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
-      dc.send(JSON.stringify({type:'response.create'}));
-    }
+    _sendToolResult(callId,resultText);
   }
 
   // ── SALVAR NOTA — agent memory ──
@@ -12524,10 +12575,7 @@ const VA = (function(){
       if(d.ok) resultText='Nota salva com sucesso: "'+sobre+': '+nota+'"';
       else resultText='Erro ao salvar: '+(d.error||'');
     }catch(e){resultText='Erro ao salvar nota: '+e.message}
-    if(dc&&dc.readyState==='open'){
-      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
-      dc.send(JSON.stringify({type:'response.create'}));
-    }
+    _sendToolResult(callId,resultText);
   }
 
   // ── CONSULTAR REDE — real-time data fetch ──
@@ -12545,15 +12593,13 @@ const VA = (function(){
         resultText='Erro: '+(d.error||'contexto vazio');
       }
     }catch(e){resultText='Erro ao consultar rede: '+e.message}
-    if(dc&&dc.readyState==='open'){
-      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:resultText}}));
-      dc.send(JSON.stringify({type:'response.create'}));
-    }
+    _sendToolResult(callId,resultText);
   }
 
   // ── PREMIUM TOOL HANDLERS ──
   function _sendToolResult(callId,text){
     if(dc&&dc.readyState==='open'){
+      _pendingToolCall=false; // Tool done — next response.done can unmute
       dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:text}}));
       dc.send(JSON.stringify({type:'response.create'}));
     }
