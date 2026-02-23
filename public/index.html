@@ -12748,21 +12748,34 @@ const VA = (function(){
 })();
 
 
-// ═══ GUIDED ONBOARDING — AI-powered first-login tour (v2) ═══
+// ═══════════════════════════════════════════════════════════════
+// ═══ GUIDED ONBOARDING — Tour de 4 steps para novos usuários ═══
+// ═══════════════════════════════════════════════════════════════
+//
+// FLUXO:
+//   1. User aceita onboarding → loading → conecta WebRTC (mic MUDO)
+//   2. Step 1: Agente fala boas-vindas → highlight X → user fecha overlay
+//   3. Step 2: Agente fala sobre home → highlight botão Touch → user clica
+//   4. Step 3: Agente explica conexão → spark animation
+//   5. Step 4: Agente finaliza → auto-finish após 5s
+//
+// MODOS: 'live' (WebRTC ao vivo) ou 'prerecorded' (áudios .mp3 fixos)
 
 function showOnbInvite(){
-  const inv=document.getElementById('onbInvite');
+  var inv=document.getElementById('onbInvite');
   if(inv) inv.classList.add('active');
 }
 function _checkOnbDontShow(){
-  const cb=document.getElementById('onbDontShowAgain');
+  var cb=document.getElementById('onbDontShowAgain');
   if(cb&&cb.checked) localStorage.setItem('touch_onb_no_show','1');
 }
 function acceptGuidedOnboarding(){
   _checkOnbDontShow();
   document.getElementById('onbInvite').classList.remove('active');
-  // Show loading screen while agent connects
   document.getElementById('onbLoading').classList.add('active');
+  // Unlock audio on user gesture (mobile)
+  var warmup=new Audio();warmup.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+  warmup.play().then(function(){warmup.pause();}).catch(function(){});
   GuidedOnboarding.start();
 }
 function skipGuidedOnboarding(){
@@ -12772,96 +12785,92 @@ function skipGuidedOnboarding(){
   document.getElementById('onbGuideBubble').classList.remove('visible');
   document.getElementById('onbHighlight').classList.remove('visible','pulse');
   var spk=document.getElementById('onbSpark');if(spk)spk.classList.remove('active');
-  const v=document.getElementById('vaOverlay');
+  var v=document.getElementById('vaOverlay');
   if(v) v.classList.remove('active','mini');
   GuidedOnboarding.stop();
 }
+function onbBubbleActionClick(){
+  // Prerecorded mode step 1: user clicks "Começar" → hide overlay, signal home
+  var btn=document.getElementById('onbBubbleAction');if(btn)btn.style.display='none';
+  var ov=document.getElementById('vaOverlay');if(ov)ov.classList.remove('active');
+  setTimeout(function(){GuidedOnboarding.signalStep('HOME_VISIBLE');},600);
+}
 function showOnbFinish(){
-  // Hide onboarding UI
   document.getElementById('onbGuideBubble').classList.remove('visible');
   document.getElementById('onbHighlight').classList.remove('visible','pulse');
   var spk=document.getElementById('onbSpark');if(spk)spk.classList.remove('active');
   var ld=document.getElementById('onbLoading');if(ld)ld.classList.remove('active');
-  const v=document.getElementById('vaOverlay');
-  if(v) v.classList.remove('active','mini');
-  // Show finish modal
-  const f=document.getElementById('onbFinish');
-  if(f) f.classList.add('active');
+  var v=document.getElementById('vaOverlay');if(v) v.classList.remove('active','mini');
+  var f=document.getElementById('onbFinish');if(f) f.classList.add('active');
 }
 function closeOnbFinish(){
-  const f=document.getElementById('onbFinish');
-  if(f) f.classList.remove('active');
-}
-function onbBubbleActionClick(){
-  // Botão "Começar" — fecha VA overlay e vai pra home
-  const btn=document.getElementById('onbBubbleAction');
-  if(btn)btn.style.display='none';
-  const ov=document.getElementById('vaOverlay');
-  if(ov)ov.classList.remove('active');
-  // Pré-criar Audio no contexto do clique (desbloqueia autoplay mobile)
-  const warmup=new Audio();warmup.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-  warmup.play().then(function(){warmup.pause();}).catch(function(){});
-  setTimeout(()=> GuidedOnboarding.signalStep('HOME_VISIBLE'), 600);
+  var f=document.getElementById('onbFinish');if(f) f.classList.remove('active');
 }
 
 const GuidedOnboarding=(function(){
-  // Shared state
   let active=false,busy=false,step=0,_ft=null,_mode=null;
   const $=id=>document.getElementById(id);
 
-  // ── SHARED HELPERS ──
+  // ── Helpers visuais ──
   function bubble(t){
-    const e=$('onbBubbleText'),b=$('onbGuideBubble');
+    var e=$('onbBubbleText'),b=$('onbGuideBubble');
     if(!e||!b)return;
     if(t){e.textContent=t;b.classList.add('visible');}
     else{b.classList.remove('visible');e.textContent='';}
   }
   function hl(sel,pad){
-    const h=$('onbHighlight');if(!h)return;
+    var h=$('onbHighlight');if(!h)return;
     if(!sel){h.classList.remove('visible','pulse');return;}
-    const el=typeof sel==='string'?document.querySelector(sel):sel;
+    var el=typeof sel==='string'?document.querySelector(sel):sel;
     if(!el){h.classList.remove('visible','pulse');return;}
-    const r=el.getBoundingClientRect(),p=pad||8;
+    var r=el.getBoundingClientRect(),p=pad||8;
     h.style.top=(r.top-p)+'px';h.style.left=(r.left-p)+'px';
     h.style.width=(r.width+p*2)+'px';h.style.height=(r.height+p*2)+'px';
     h.classList.add('visible','pulse');
   }
-  function finish(){
-    if(_ft){clearTimeout(_ft);_ft=null;}
-    if(_mode==='live') _liveCleanup();
-    else _preCleanup();
-    step=0;bubble(null);hl(null);
+  function hideAllUI(){
     document.getElementById('onbGuideBubble')?.classList.remove('visible');
     document.getElementById('onbHighlight')?.classList.remove('visible','pulse');
     var spk=document.getElementById('onbSpark');if(spk)spk.classList.remove('active');
     var ld=document.getElementById('onbLoading');if(ld)ld.classList.remove('active');
     var ov=document.getElementById('vaOverlay');if(ov)ov.classList.remove('active','mini');
-    active=false;
+  }
+
+  // ── Finish — igual para ambos os modos ──
+  function finish(){
+    if(_ft){clearTimeout(_ft);_ft=null;}
+    if(_mode==='live')_liveCleanup(); else _preCleanup();
+    active=false;step=0;bubble(null);hl(null);
+    hideAllUI();
+    if(typeof showOnbFinish==='function') showOnbFinish();
     fetch('/api/agent/onboarding-done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(function(){});
   }
 
-  // ═══ MODE: LIVE — AI agent via WebRTC (best quality) ═══
-  let _lpc=null,_ldc=null,_lAudio=null,_lMic=null;
+  // ══════════════════════════════════════
+  // ══ MODO LIVE — WebRTC (mic mudo) ══
+  // ══════════════════════════════════════
+  var _lpc=null,_ldc=null,_lAudio=null,_lMic=null;
 
-  async function _liveConnect(){
+  async function _liveStart(){
     try{
-      const tr=await fetch('/api/agent/onboarding-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+      var tr=await fetch('/api/agent/onboarding-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
       if(!tr.ok)throw new Error('srv '+tr.status);
-      const td=await tr.json();
+      var td=await tr.json();
       if(!td.client_secret)throw new Error('no token');
 
       _lpc=new RTCPeerConnection();
+
+      // Audio output
       _lAudio=document.createElement('audio');
       _lAudio.autoplay=true;_lAudio.playsInline=true;_lAudio.style.display='none';
       document.body.appendChild(_lAudio);
       _lpc.ontrack=function(e){_lAudio.srcObject=e.streams[0];_lAudio.play().catch(function(){});};
 
-      // Mic muted — onboarding is one-way voice, user just clicks
-      _lMic=await navigator.mediaDevices.getUserMedia({audio:{
-        echoCancellation:true,noiseSuppression:true,autoGainControl:true
-      }});
+      // Mic MUDO — WebRTC precisa de track mas user não fala
+      _lMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       _lMic.getTracks().forEach(function(t){t.enabled=false;_lpc.addTrack(t,_lMic);});
 
+      // Data channel
       _ldc=_lpc.createDataChannel('oai-events');
       _ldc.onopen=function(){
         active=true;busy=false;step=1;
@@ -12870,18 +12879,21 @@ const GuidedOnboarding=(function(){
         var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
         var st=$('vaStatus');if(st)st.textContent='';
         $('vaStopBtn').style.display='';
-        bubble(null);
-        _ldc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Comece a ETAPA 1 — Boas-vindas. Se apresente e peça pro usuário fechar essa tela tocando no X lá em cima pra ver a home.'}}));
+        // Agente fala Step 1
+        _ldc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale a ETAPA 1 — boas-vindas. Se apresente e peça pro usuário fechar essa tela no X lá em cima.'}}));
       };
-      _ldc.onmessage=function(e){try{_liveOnEvt(JSON.parse(e.data))}catch(x){}};
-      _ldc.onclose=function(){if(active)_liveCleanup();};
+      _ldc.onmessage=function(e){try{_liveEvt(JSON.parse(e.data))}catch(x){}};
+      _ldc.onclose=function(){if(active){_liveCleanup();hideAllUI();active=false;}};
 
+      // SDP
       var offer=await _lpc.createOffer();
       await _lpc.setLocalDescription(offer);
       var sr=await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',{method:'POST',headers:{'Authorization':'Bearer '+td.client_secret,'Content-Type':'application/sdp'},body:offer.sdp});
       if(!sr.ok)throw new Error('SDP '+sr.status);
       await _lpc.setRemoteDescription({type:'answer',sdp:await sr.text()});
-      _lpc.onconnectionstatechange=function(){if(_lpc&&(_lpc.connectionState==='disconnected'||_lpc.connectionState==='failed'))_liveCleanup();};
+      _lpc.onconnectionstatechange=function(){
+        if(_lpc&&(_lpc.connectionState==='disconnected'||_lpc.connectionState==='failed')){_liveCleanup();hideAllUI();active=false;}
+      };
     }catch(err){
       console.error('[Onb Live]',err);busy=false;_liveCleanup();
       var ld=$('onbLoading');if(ld)ld.classList.remove('active');
@@ -12897,55 +12909,48 @@ const GuidedOnboarding=(function(){
     if(_lAudio){_lAudio.pause();_lAudio.srcObject=null;if(_lAudio.parentNode)_lAudio.parentNode.removeChild(_lAudio);_lAudio=null;}
   }
 
-  function _liveOnEvt(evt){
+  function _liveEvt(evt){
     switch(evt.type){
       case 'response.audio.delta':
         var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
         break;
       case 'response.audio_transcript.delta':
-        // Stream transcript into bubble
-        var c=$('onbBubbleText')?.textContent||'';
-        if(!$('onbGuideBubble')?.classList.contains('visible'))bubble(evt.delta||'');
-        else $('onbBubbleText').textContent=c+(evt.delta||'');
+        // Streaming do texto na bubble
+        var bub=$('onbBubbleText');
+        if(!$('onbGuideBubble')?.classList.contains('visible')) bubble(evt.delta||'');
+        else if(bub) bub.textContent=(bub.textContent||'')+(evt.delta||'');
         break;
       case 'response.audio_transcript.done':
         var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
-        // Agent done talking — highlight next action based on step
-        if(step===1)setTimeout(function(){var x=document.querySelector('.va-close');if(x)hl(x,12);},400);
-        else if(step===2){
+        // Agente terminou de falar — mostrar o que clicar
+        if(step===1){
+          setTimeout(function(){var x=document.querySelector('.va-close');if(x)hl(x,12);},400);
+        } else if(step===2){
           setTimeout(function(){hl('#mainBtn',12);},400);
           var spk=$('onbSpark');if(spk)spk.classList.add('active');
-        }
-        else if(step===3){
+        } else if(step===3){
           var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
+          // Auto-avança pra Step 4
           step=4;
           if(_ldc&&_ldc.readyState==='open'){
             _ldc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'STEP:BACK_HOME'}]}}));
             _ldc.send(JSON.stringify({type:'response.create'}));
           }
-        }
-        else if(step===4){
+        } else if(step===4){
           _ft=setTimeout(finish,5000);
         }
         break;
       case 'response.done':
         if(step===4&&!_ft)_ft=setTimeout(finish,5000);
         break;
-      case 'response.function_call_arguments.done':
-        try{
-          if(evt.name==='avancar_tour'&&_ldc&&_ldc.readyState==='open'){
-            _ldc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:'OK'}}));
-          }
-        }catch(e){}
-        break;
       case 'error':
-        console.error('[Onb Live] evt error:',evt.error);
+        console.error('[Onb Live] error:',evt.error);
         break;
     }
   }
 
-  function _liveSignalStep(name){
-    if(!active||!_ldc||_ldc.readyState!=='open')return;
+  function _liveSignal(name){
+    if(!_ldc||_ldc.readyState!=='open')return;
     bubble(null);hl(null);
     if(name==='HOME_VISIBLE')step=2;
     else if(name==='ENCOUNTER_SCREEN')step=3;
@@ -12953,49 +12958,47 @@ const GuidedOnboarding=(function(){
     _ldc.send(JSON.stringify({type:'response.create'}));
   }
 
-  // ═══ MODE: PRERECORDED — cached TTS audio files (zero cost) ═══
-  let _preAudio=null,_preSteps=null;
+  // ══════════════════════════════════════════
+  // ══ MODO PRERECORDED — áudios .mp3 fixos ══
+  // ══════════════════════════════════════════
+  var _preAudio=null,_preSteps=null;
 
   function _preCleanup(){
     if(_preAudio){_preAudio.pause();_preAudio.onended=null;_preAudio.onerror=null;_preAudio.src='';_preAudio=null;}
   }
 
-  function _prePlayStep(key){
-    if(!_preSteps||!_preSteps[key]){console.warn('[Onb Pre] no data for',key);return;}
+  function _prePlay(key){
+    if(!_preSteps||!_preSteps[key])return;
     _preCleanup();
     bubble(_preSteps[key].text);
     var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
     _preAudio=new Audio(_preSteps[key].url);
     _preAudio.playsInline=true;
     _preAudio.onended=function(){
-      var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
-      _preOnStepEnd(key);
+      var o=$('vaOrb');if(o)o.className='va-orb idle';
+      _preStepEnd(key);
     };
-    _preAudio.onerror=function(e){
-      console.error('[Onb Pre] Audio error:',key,e);
-      var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
-      _preOnStepEnd(key);
+    _preAudio.onerror=function(){
+      var o=$('vaOrb');if(o)o.className='va-orb idle';
+      _preStepEnd(key);
     };
-    _preAudio.play().catch(function(e){
-      console.warn('[Onb Pre] play blocked:',key,e.message);
-      var orb2=$('vaOrb');if(orb2)orb2.className='va-orb idle';
-      setTimeout(function(){_preOnStepEnd(key);},3000);
+    _preAudio.play().catch(function(){
+      var o=$('vaOrb');if(o)o.className='va-orb idle';
+      setTimeout(function(){_preStepEnd(key);},3000);
     });
   }
 
-  function _preOnStepEnd(key){
+  function _preStepEnd(key){
     if(key==='step1'){
-      setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},400);
-    }
-    else if(key==='step2'){
+      // No prerecorded, step1 mostra botão "Começar" pra user fechar overlay
+      // (handled by onbBubbleActionClick → signalStep HOME_VISIBLE)
+    } else if(key==='step2'){
       setTimeout(function(){hl('#mainBtn',12);},400);
-    }
-    else if(key==='step3'){
+    } else if(key==='step3'){
       var spk=$('onbSpark');if(spk)spk.classList.add('active');
       step=4;
-      setTimeout(function(){_prePlayStep('step4');},1200);
-    }
-    else if(key==='step4'){
+      setTimeout(function(){_prePlay('step4');},1200);
+    } else if(key==='step4'){
       var spk2=$('onbSpark');if(spk2)spk2.classList.remove('active');
       _ft=setTimeout(finish,2000);
     }
@@ -13003,36 +13006,38 @@ const GuidedOnboarding=(function(){
 
   async function _preStart(){
     try{
-      console.log('[Onb Pre] Fetching audio data...');
       var r=await fetch('/api/agent/onboarding-audio');
       var d=await r.json();
       if(!d.ready){
-        console.error('[Onb Pre] Audio files not ready');
+        console.error('[Onb Pre] Audio not ready');
         var ld=$('onbLoading');if(ld)ld.classList.remove('active');
         busy=false;return;
       }
       _preSteps={};
       for(var k of Object.keys(d.steps)){_preSteps[k]={url:d.steps[k].url,text:d.steps[k].text};}
     }catch(e){
-      console.error('[Onb Pre] fetch fail:',e);
-      var ld2=$('onbLoading');if(ld2)ld2.classList.remove('active');
+      console.error('[Onb Pre] fail:',e);
+      var ld=$('onbLoading');if(ld)ld.classList.remove('active');
       busy=false;return;
     }
     active=true;busy=false;step=1;
-    var ld3=$('onbLoading');if(ld3)ld3.classList.remove('active');
+    var ld2=$('onbLoading');if(ld2)ld2.classList.remove('active');
     $('vaOverlay').classList.add('active');
     $('vaStopBtn').style.display='';
+    // Step 1: mostra texto + botão Começar
     bubble(_preSteps.step1.text);
     setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},500);
   }
 
-  function _preSignalStep(name){
+  function _preSignal(name){
     bubble(null);hl(null);
-    if(name==='HOME_VISIBLE'){step=2;_prePlayStep('step2');}
-    else if(name==='ENCOUNTER_SCREEN'){step=3;_prePlayStep('step3');}
+    if(name==='HOME_VISIBLE'){step=2;_prePlay('step2');}
+    else if(name==='ENCOUNTER_SCREEN'){step=3;_prePlay('step3');}
   }
 
-  // ═══ PUBLIC API — delegates to active mode ═══
+  // ══════════════════════════════
+  // ══ API PÚBLICA ══
+  // ══════════════════════════════
   return{
     async start(){
       if(busy||active)return;
@@ -13040,54 +13045,26 @@ const GuidedOnboarding=(function(){
       $('vaMainBtn').style.display='none';
       $('vaStopBtn').style.display='none';
 
-      // Fetch mode from server
+      // Busca modo do server
       try{
-        var r=await fetch('/api/agent/onboarding-audio');
+        var r=await fetch('/api/agent/onboarding-config');
         var d=await r.json();
         _mode=d.mode||'prerecorded';
-        console.log('[Onb] Mode:',_mode);
-      }catch(e){
-        _mode='prerecorded';
-        console.warn('[Onb] Could not fetch mode, fallback to prerecorded');
-      }
+      }catch(e){_mode='prerecorded';}
+      console.log('[Onb] Modo:',_mode);
 
-      if(_mode==='live'){
-        _liveConnect();
-      }else{
-        // Use the data we already fetched
-        try{
-          var r2=await fetch('/api/agent/onboarding-audio');
-          var d2=await r2.json();
-          if(!d2.ready){
-            console.error('[Onb Pre] Audio not ready');
-            var ld=$('onbLoading');if(ld)ld.classList.remove('active');
-            busy=false;return;
-          }
-          _preSteps={};
-          for(var k of Object.keys(d2.steps)){_preSteps[k]={url:d2.steps[k].url,text:d2.steps[k].text};}
-          active=true;busy=false;step=1;
-          var ld2=$('onbLoading');if(ld2)ld2.classList.remove('active');
-          $('vaOverlay').classList.add('active');
-          $('vaStopBtn').style.display='';
-          bubble(_preSteps.step1.text);
-          setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},500);
-        }catch(e2){
-          console.error('[Onb Pre] fail:',e2);
-          var ld3=$('onbLoading');if(ld3)ld3.classList.remove('active');
-          busy=false;
-        }
-      }
+      if(_mode==='live') _liveStart();
+      else _preStart();
     },
     signalStep(name){
       if(!active)return;
-      if(_mode==='live') _liveSignalStep(name);
-      else _preSignalStep(name);
+      if(_mode==='live') _liveSignal(name);
+      else _preSignal(name);
     },
     isActive(){return active;},
     getStep(){return step;},
     stop(){
-      if(_mode==='live') _liveCleanup();
-      else _preCleanup();
+      if(_mode==='live')_liveCleanup(); else _preCleanup();
       active=false;step=0;
     },
     finish

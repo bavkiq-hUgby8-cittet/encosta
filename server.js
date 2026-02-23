@@ -6801,18 +6801,34 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
-// ══ ONBOARDING MODE ══
-// 'live'        = agente AI ao vivo via WebRTC (melhor qualidade, custa ~$0.08/user)
-// 'prerecorded' = áudios TTS pré-gravados (custo zero por user, qualidade inferior)
+// ══════════════════════════════════════════════════════════════
+// ══ ONBOARDING — Tour guiado de 4 steps para novos usuários ══
+// ══════════════════════════════════════════════════════════════
+//
+// MODO: 'live'        → agente AI ao vivo via WebRTC (voz natural, ~$0.08/user)
+//       'prerecorded' → áudios TTS pré-gravados (custo zero, qualidade inferior)
+//
 const ONB_MODE = 'live'; // ← MUDE AQUI para alternar
 
-// ── Onboarding LIVE — AI agent via WebRTC (best quality) ──
+// Os 4 steps do tour (texto-base para ambos os modos)
+const ONB_STEPS = {
+  step1: 'Oi! Eu sou a Touch, sua assistente. Fecha essa telinha no X lá em cima que vou te mostrar como funciona!',
+  step2: 'Essa é sua home! Vê o botão Touch no meio da tela? Clica nele!',
+  step3: 'É simples! Encosta o celular no de outra pessoa e pronto — conexão feita!',
+  step4: 'Muito bem! Agora é só apertar o Touch e começar a se conectar com as pessoas ao seu redor. Seja bem-vindo!'
+};
+
+// ── GET /api/agent/onboarding-config — retorna modo e steps ──
+app.get('/api/agent/onboarding-config', (req, res) => {
+  res.json({ mode: ONB_MODE, steps: ONB_STEPS });
+});
+
+// ── POST /api/agent/onboarding-session — cria sessão WebRTC para modo LIVE ──
 app.post('/api/agent/onboarding-session', async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
   const { userId } = req.body;
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-
   const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || 'amigo';
 
   try {
@@ -6825,49 +6841,33 @@ app.post('/api/agent/onboarding-session', async (req, res) => {
         modalities: ['audio', 'text'],
         instructions: `Você é "Touch", assistente de voz do app Touch? — rede social presencial.
 
-CONTEXTO: Este é o PRIMEIRO LOGIN do usuário ${firstName}. Você vai guiar um TOUR INTERATIVO pelo app.
-O usuário está vendo a tela do assistente e vai seguir suas instruções passo a passo.
+CONTEXTO: Este é o PRIMEIRO LOGIN do usuário ${firstName}.
+Você vai guiar um TOUR de 4 etapas. O mic do usuário está MUDO — ele só clica, não fala.
 
-IDIOMA: Português brasileiro por padrão. Se o usuário falar outro idioma, mude.
+IDIOMA: Português brasileiro.
+TOM: Amigável, animada, breve. Como uma amiga mostrando algo legal.
+FALE PAUSADO — ritmo lento e claro.
 
-TOM: Amigável, animada, breve e direta. Como uma amiga mostrando algo legal. Gírias naturais.
-FALE PAUSADO — ritmo lento e claro. NUNCA fale rápido demais.
+ETAPAS (fale EXATAMENTE uma por vez, espere o sinal STEP):
 
-FLUXO DO TOUR (siga esta ordem EXATAMENTE, uma etapa por vez):
-
-ETAPA 1 — BOAS-VINDAS (fale quando começar):
-"Oi ${firstName}! Eu sou a Touch, sua assistente. Fecha essa telinha tocando no X lá em cima que vou te mostrar como funciona!"
+ETAPA 1 — Quando receber o comando inicial:
+"Oi ${firstName}! Eu sou a Touch, sua assistente. Fecha essa telinha no X lá em cima que vou te mostrar como funciona!"
 
 ETAPA 2 — Quando receber "STEP:HOME_VISIBLE":
 "Essa é sua home! Vê o botão Touch no meio da tela? Clica nele!"
 
 ETAPA 3 — Quando receber "STEP:ENCOUNTER_SCREEN":
-"É simples! Encosta o celular no de outra pessoa e pronto — conexão feita! Pode ser pra amizade, pedir um serviço, ou fazer checkin em eventos."
+"É simples! Encosta o celular no de outra pessoa e pronto — conexão feita!"
 
-ETAPA 4 — Quando receber "STEP:BACK_HOME" (o sistema envia automaticamente após etapa 3):
+ETAPA 4 — Quando receber "STEP:BACK_HOME":
 "Muito bem ${firstName}! Agora é só apertar o Touch e começar a se conectar com as pessoas ao seu redor. Seja bem-vindo!"
 
 REGRAS:
-- Fale UMA etapa por vez, máximo 2 frases curtas
-- ESPERE o sinal de STEP antes de avançar
-- NÃO mencione código, QR code, sala, ou criar sessão — só encostar celulares
-- Se o usuário perguntar algo, responda brevemente e retome o tour
-- Se o usuário disser "pular" ou "skip", diga "Beleza! Qualquer hora me chama" e encerre
-- NUNCA invente etapas extras. Quando terminar etapa 4, pare.
-- Use a função avancar_tour para sinalizar que terminou de falar uma etapa`,
-        tools: [{
-          type: 'function',
-          name: 'avancar_tour',
-          description: 'Sinaliza que o agente terminou de falar a etapa atual e está esperando a ação do usuário.',
-          parameters: {
-            type: 'object',
-            properties: {
-              etapa: { type: 'string', description: 'Nome da etapa concluída: boas_vindas, home, encounter, final' }
-            },
-            required: ['etapa']
-          }
-        }],
-        turn_detection: { type: 'server_vad', threshold: 0.85, prefix_padding_ms: 300, silence_duration_ms: 1000 },
+- UMA etapa por vez, máximo 2 frases
+- ESPERE o sinal STEP antes de avançar
+- NÃO mencione QR code, sala, ou código
+- NUNCA invente etapas extras. Após etapa 4, pare.`,
+        turn_detection: { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 300, silence_duration_ms: 1500 },
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
@@ -6877,37 +6877,28 @@ REGRAS:
   } catch (e) { console.error('Onboarding session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
-// ── Onboarding PRE-RECORDED — TTS HD (zero cost per user) ──
+// ── Onboarding PRE-RECORDED — áudios TTS HD (fallback, custo zero) ──
 const ONB_AUDIO_DIR = path.join(__dirname, 'public', 'audio', 'onb');
-const ONB_VERSION = 3; // Bump to force audio regeneration when text/voice/model changes
-const ONB_STEPS = {
-  step1: 'Oi! Aperta no botão Começar que eu vou te mostrar como funciona!',
-  step2: 'Essa é sua home! Vê o botão Touch no meio da tela? Clica nele!',
-  step3: 'É simples! Toda vez que clicar nesse botão, seu celular emite um som. Encosta dois celulares e eles se conectam!',
-  step4: 'Muito bem! Agora é só apertar o Touch e começar a se conectar com as pessoas ao seu redor. Seja bem-vindo!'
-};
+const ONB_VERSION = 4; // Bump to force regeneration
 async function generateOnbAudio() {
   const fs2 = require('fs');
   if (!fs2.existsSync(ONB_AUDIO_DIR)) fs2.mkdirSync(ONB_AUDIO_DIR, { recursive: true });
   if (!OPENAI_API_KEY) { console.warn('⚠️ No OPENAI_API_KEY, skip onboarding TTS'); return; }
-
-  // Check version — delete old audio if version changed
   const versionFile = path.join(ONB_AUDIO_DIR, '.version');
   const currentVer = fs2.existsSync(versionFile) ? parseInt(fs2.readFileSync(versionFile, 'utf8')) : 0;
   if (currentVer < ONB_VERSION) {
-    console.log(`🔄 Onboarding TTS version ${currentVer} → ${ONB_VERSION}, regenerating all audio...`);
+    console.log(`🔄 Onboarding TTS v${currentVer} → v${ONB_VERSION}, regenerating...`);
     for (const k of Object.keys(ONB_STEPS)) {
       const fp = path.join(ONB_AUDIO_DIR, k + '.mp3');
-      if (fs2.existsSync(fp)) { fs2.unlinkSync(fp); console.log(`🗑️ Deleted old: ${k}.mp3`); }
+      if (fs2.existsSync(fp)) { fs2.unlinkSync(fp); console.log(`🗑️ Deleted: ${k}.mp3`); }
     }
     fs2.writeFileSync(versionFile, String(ONB_VERSION));
   }
-
   for (const [key, text] of Object.entries(ONB_STEPS)) {
     const fp = path.join(ONB_AUDIO_DIR, key + '.mp3');
-    if (fs2.existsSync(fp)) { console.log(`✅ Onboarding TTS cached: ${key}.mp3`); continue; }
+    if (fs2.existsSync(fp)) { console.log(`✅ ONB cached: ${key}.mp3`); continue; }
     try {
-      console.log(`🎙️ Generating onboarding TTS HD: ${key}...`);
+      console.log(`🎙️ Generating ONB HD: ${key}...`);
       const r = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -6916,19 +6907,15 @@ async function generateOnbAudio() {
       if (!r.ok) { console.error(`TTS ${key} failed:`, r.status); continue; }
       const buf = Buffer.from(await r.arrayBuffer());
       fs2.writeFileSync(fp, buf);
-      console.log(`✅ Saved HD: ${key}.mp3 (${(buf.length/1024).toFixed(1)}KB)`);
+      console.log(`✅ Saved: ${key}.mp3 (${(buf.length/1024).toFixed(1)}KB)`);
     } catch (e) { console.error(`TTS ${key}:`, e.message); }
   }
 }
-setTimeout(generateOnbAudio, 2000);
+if (ONB_MODE === 'prerecorded') setTimeout(generateOnbAudio, 2000); // só gera se precisa
 app.get('/api/agent/onboarding-audio', async (req, res) => {
   const fs2 = require('fs');
-  // Gerar sob demanda se não existem
   const allExist = Object.keys(ONB_STEPS).every(k => fs2.existsSync(path.join(ONB_AUDIO_DIR, k + '.mp3')));
-  if (!allExist) {
-    console.log('🎙️ Onboarding audio not ready, generating on demand...');
-    await generateOnbAudio();
-  }
+  if (!allExist) await generateOnbAudio();
   const steps = {};
   for (const k of Object.keys(ONB_STEPS)) {
     steps[k] = { url: '/audio/onb/' + k + '.mp3', text: ONB_STEPS[k], exists: fs2.existsSync(path.join(ONB_AUDIO_DIR, k + '.mp3')) };
