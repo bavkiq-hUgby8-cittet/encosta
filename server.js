@@ -6446,6 +6446,17 @@ function buildUserContext(userId) {
     }
   });
 
+  // Build notes index by person name (lowercase) for quick lookup
+  const notesMap = {};
+  (user.agentNotes || []).forEach(n => {
+    if (n.about) {
+      const key = n.about.toLowerCase().trim();
+      if (!notesMap[key]) notesMap[key] = [];
+      notesMap[key].push(n.note);
+    }
+  });
+
+  const connectionsWithoutNotes = [];
   const connections = Object.entries(connectionMap)
     .sort((a,b) => b[1].count - a[1].count)
     .slice(0, 15)
@@ -6454,7 +6465,13 @@ function buildUserContext(userId) {
       const stars = (u2?.stars || []).length;
       const isRevealed = user.canSee?.[id]?.name ? true : false;
       const realName = isRevealed ? (u2?.name || c.name) : null;
-      return `- ${c.name}${realName && realName !== c.name ? ' ('+realName+')' : ''}: ${c.count} encontro(s), último ${c.lastDate}${stars ? ', '+stars+' estrela(s)' : ''}${isRevealed ? ' [revelado]' : ' [anônimo]'}`;
+      const displayName = c.name;
+      const nameKey = displayName.toLowerCase().trim();
+      const realKey = realName ? realName.toLowerCase().trim() : '';
+      const hasNotes = notesMap[nameKey] || notesMap[realKey];
+      const notesSummary = hasNotes ? (notesMap[nameKey] || notesMap[realKey]).slice(-2).join('; ') : '';
+      if (!hasNotes && c.count >= 1) connectionsWithoutNotes.push(displayName);
+      return `- ${displayName}${realName && realName !== displayName ? ' ('+realName+')' : ''}: ${c.count} encontro(s), último ${c.lastDate}${stars ? ', '+stars+' estrela(s)' : ''}${isRevealed ? ' [revelado]' : ' [anônimo]'}${notesSummary ? ' | notas: '+notesSummary : ' | SEM NOTAS — pergunte quem é!'}`;
     });
 
   // Stars
@@ -6486,20 +6503,21 @@ function buildUserContext(userId) {
     .slice(0, 5)
     .map(e => `${e.withName} (${new Date(e.timestamp).toLocaleString('pt-BR', {hour:'2-digit',minute:'2-digit'})})`);
 
-  // Build greeting
-  let greeting = `E aí, ${userName}! Eu sou o Touch, seu assistente pessoal.`;
+  // Build greeting — tom fofoqueiro
+  let greeting = `E aí ${userName}!`;
   if (recent48h.length > 0) {
-    greeting += ` Vi que você encontrou ${recent48h[0]} recentemente!`;
-  }
-  if (recentStars.length > 0) {
-    greeting += ` ${starsFromWho[0]} te deu uma estrela essa semana!`;
-  } else if (userStars > 0) {
-    greeting += ` Você tem ${userStars} estrela${userStars > 1 ? 's' : ''} no total.`;
-  }
-  if (connections.length > 0) {
-    greeting += ` Tô por dentro de tudo que rola na sua rede. Me conta, o que você quer saber?`;
+    greeting += ` Vi que você encontrou ${recent48h[0]} — me conta, quem é essa pessoa?`;
+  } else if (recentStars.length > 0) {
+    greeting += ` ${starsFromWho[0]} te deu uma estrela! Eita, tá popular hein!`;
+  } else if (recentLikers.length > 0) {
+    greeting += ` Sabia que ${recentLikers[0]} te curtiu? Hmmm, interessante...`;
+  } else if (connectionsWithoutNotes.length > 0) {
+    const askAbout = connectionsWithoutNotes[Math.floor(Math.random() * connectionsWithoutNotes.length)];
+    greeting += ` Ei, tava curiosa — quem é ${askAbout}? Nunca me contou sobre essa pessoa!`;
+  } else if (connections.length > 0) {
+    greeting += ` Tô por dentro de tudo que rola na sua rede! Me conta as novidades!`;
   } else {
-    greeting += ` Sua rede tá começando — encontre pessoas pra eu te contar as novidades!`;
+    greeting += ` Sua rede tá começando — encontre pessoas que eu quero saber de tudo!`;
   }
 
   const context = `
@@ -6516,23 +6534,26 @@ ${connections.length ? connections.join('\n') : '- Nenhuma conexão ainda'}
 
 ${recentStars.length ? 'ESTRELAS RECENTES (7 dias): ' + starsFromWho.join(', ') + ' deram estrela' : ''}
 ${activeEvents.length ? 'EVENTOS ATIVOS AGORA: ' + activeEvents.map(e => e.name).join(', ') : ''}
-${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (informações que o usuário te contou antes):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
+${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (coisas que você já aprendeu sobre as pessoas):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
+${connectionsWithoutNotes.length ? '\nCONEXÕES SEM NOTAS (pergunte sobre essas pessoas quando tiver oportunidade!):\n' + connectionsWithoutNotes.slice(0, 8).join(', ') : ''}
 `.trim();
 
-  // Build gossip — pick the most interesting piece of news
+  // Build gossip — fofoqueira curiosa!
   let gossip = '';
   if (recentStars.length > 0) {
-    gossip = `E aí ${userName}! Cê viu que ${starsFromWho[0]} te deu uma estrela? Eita, estrela é tão difícil de ganhar hein! Quem será que tá de olho em você...`;
+    gossip = `${userName}! ${starsFromWho[0]} te deu uma estrela! Eita, tá de olho em você hein... me conta, quem é ${starsFromWho[0]} pra você?`;
   } else if (recent48h.length > 0) {
-    const lastPerson = recent48h[0];
-    gossip = `E aí ${userName}! Tu viu que encontrou ${lastPerson} faz pouco tempo? Conta aí, rolou alguma coisa boa?`;
+    const lastPerson = recent48h[0].split(' (')[0];
+    gossip = `${userName}! Vi que você encontrou ${lastPerson} faz pouco! Me conta, rolou alguma coisa?`;
   } else if (recentLikers.length > 0) {
-    gossip = `E aí ${userName}! Sabia que ${recentLikers[0]} te curtiu? Hmmm interessante hein... tá popular!`;
+    gossip = `${userName}! Sabia que ${recentLikers[0]} te curtiu? Hmmm, quem é essa pessoa hein?`;
+  } else if (connectionsWithoutNotes.length > 0) {
+    const askAbout = connectionsWithoutNotes[Math.floor(Math.random() * connectionsWithoutNotes.length)];
+    gossip = `${userName}! Faz tempo que a gente não conversa! Ei, me conta — quem é ${askAbout}? Tô curiosa!`;
   } else if (connections.length > 0) {
-    // Pick a random connection for gossip
     const randomConn = connections[Math.floor(Math.random() * Math.min(connections.length, 5))];
     const connName = randomConn.split(':')[0].replace('- ', '').trim();
-    gossip = `E aí ${userName}! Faz tempo que a gente não conversa! Tava aqui pensando... você viu algo novo sobre ${connName}?`;
+    gossip = `${userName}! Faz tempo! Tava pensando em ${connName}... tem novidade?`;
   }
 
   return { userName, context, greeting, gossip };
@@ -7006,10 +7027,22 @@ CONTEXTO: Modo premium ativado para ${firstName}. Você tem controle TOTAL do ap
 
 IDIOMA: Português brasileiro por padrão, responda no idioma do usuário.
 
-PERSONALIDADE: Assistente pessoal eficiente, amigável, direto. Tom calmo e confiante.
-FALE PAUSADO — ritmo lento e claro, com pausas entre as frases. NUNCA fale rápido demais.
+PERSONALIDADE — FOFOQUEIRA CURIOSA COM SUPERPODERES:
+- Mesma personalidade fofoqueira e curiosa, MAS com poderes de navegar o app!
+- Curiosa: quando o usuário menciona alguém, PERGUNTE sobre a pessoa! "Quem é esse?", "Trabalha contigo?"
+- Quando descobre algo novo, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem é"
+- Use NOTAS PESSOAIS pra lembrar o que já sabe e fazer fofoca inteligente
+- Tom descontraído, como amiga próxima. Gírias naturais, humor sutil.
+- FALE PAUSADO — ritmo lento e claro. NUNCA fale rápido demais.
 
-ECONOMIA: Respostas curtas, máximo 2 frases. Sem enrolação.
+REGRA DE OURO — RESPOSTAS CURTAS:
+- MÁXIMO 2 frases por resposta (1 info + 1 pergunta curiosa OU 1 info + 1 ação)
+- PROIBIDO: "posso ajudar?", "com certeza!", textões longos
+
+CURIOSIDADE ATIVA:
+- Quando alguém aparece e você não tem notas: "Quem é esse? Me conta!"
+- Aprenda parentescos: mãe, pai, irmão, primo, tio, namorada, melhor amigo, colega de trabalho
+- MAS: máximo 1 pergunta por resposta. Não bombardeie.
 
 DADOS: SEMPRE chame consultar_rede ANTES de responder sobre conexões/estrelas/curtidas.
 
@@ -7033,11 +7066,21 @@ QUANDO O USUÁRIO PEDIR:
 - "mostra meu perfil" → navegar_tela("myProfile")
 - "quem me curtiu?" → consultar_rede + responde
 
+PRIVACIDADE:
+- Só fale sobre coisas entre o usuário e outra pessoa diretamente
+- Estrelas de amigos: pode dizer "fulano ganhou estrela" mas NUNCA diga de quem deu
+- Nunca invente informações que não estão nos dados
+
 NOMES: Só primeiro nome, NUNCA sobrenome.
 
 ${context}
 
 NOME DO USUÁRIO: ${firstName}
+
+MEMÓRIA — SALVAR E USAR INFORMAÇÕES:
+- SEMPRE use salvar_nota quando o usuário contar algo sobre alguém
+- USE as notas pra fazer fofoca inteligente!
+- Se uma conexão não tem notas, PERGUNTE sobre ela na próxima oportunidade
 
 IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
         tools: [
@@ -7068,7 +7111,7 @@ app.post('/api/agent/chat', async (req, res) => {
   const { messages, userId } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages é obrigatório' });
   const { userName, context } = buildUserContext(userId);
-  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch?. Amigo próximo, pt-BR, respostas curtas. Sabe tudo da rede social do usuário.\n\n${context}` };
+  const sys = { role: 'system', content: `Você é "Touch", assistente do app Touch? — rede social presencial.\n\nPERSONALIDADE: Fofoqueira curiosa! Adora saber de tudo sobre todo mundo. Quando o usuário menciona alguém, pergunte: "Quem é?", "É da família?", "Trabalha contigo?". Use notas pessoais pra lembrar o que já sabe. Tom descontraído, gírias naturais. MÁXIMO 2 frases por resposta. Pt-BR.\n\nPRIVACIDADE: Só fale de coisas entre o usuário e outra pessoa. Estrelas de amigos: diga que ganhou mas NUNCA de quem.\n\n${context}` };
   const isGroq = !!GROQ_API_KEY;
   const endpoint = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
   const model = isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
