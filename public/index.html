@@ -8316,7 +8316,7 @@ async function startDeliveryFromProfile(eventId){
 }
 
 // === WAITER DASHBOARD ===
-let _waiterState={eventId:null,staffId:null,role:null,tables:[],menu:[],orders:[],cart:[],cartTable:null,activeTab:'tables',status:'online'};
+let _waiterState={eventId:null,staffId:null,role:null,tables:[],menu:[],orders:[],cart:[],cartTable:null,cartCustomer:'',cartNotes:'',activeTab:'tables',status:'online'};
 
 // Check if staff session was active on reload
 function checkStaffSession(){
@@ -8410,7 +8410,7 @@ function renderWaiterTab(){
     active.forEach(o=>{
       const statusLabel={pending:'Pendente',preparing:'Preparando',ready:'Pronto'}[o.status]||o.status;
       h+='<div class="wv-order-card">';
-      h+='<div class="wv-order-header"><span class="wv-order-table">Mesa '+o.table+'</span><span class="wv-order-status '+o.status+'">'+statusLabel+'</span></div>';
+      h+='<div class="wv-order-header"><span class="wv-order-table">Mesa '+o.table+(o.customerName?' - '+esc(o.customerName):'')+'</span><span class="wv-order-status '+o.status+'">'+statusLabel+'</span></div>';
       h+='<div class="wv-order-items">'+(o.items||[]).map(i=>i.qty+'x '+i.name).join('<br>')+'</div>';
       const total=(o.items||[]).reduce((s,i)=>s+(i.price||0)*i.qty,0);
       h+='<div class="wv-order-total">R$'+total.toFixed(2).replace('.',',')+'</div>';
@@ -8437,7 +8437,6 @@ function renderWaiterMenu(){
     cb.style.display='none';
     return;
   }
-  // Group by category
   const cats={};
   menu.forEach(item=>{
     const cat=item.category||'Geral';
@@ -8446,15 +8445,37 @@ function renderWaiterMenu(){
   });
   let h='';
   if(_waiterState.cartTable){
-    h+='<div style="padding:.4rem .6rem;margin-bottom:.5rem;background:rgba(59,130,246,.08);border-radius:8px;font-size:.6rem;color:#60a5fa;font-weight:600">Pedido para Mesa '+_waiterState.cartTable+'</div>';
+    h+='<div style="padding:.5rem .6rem;margin-bottom:.6rem;background:rgba(59,130,246,.08);border-radius:10px">';
+    h+='<div style="font-size:.65rem;font-weight:600;color:#60a5fa;margin-bottom:.4rem">Pedido para Mesa '+_waiterState.cartTable+'</div>';
+    h+='<input type="text" placeholder="Nome do cliente (opcional)" value="'+esc(_waiterState.cartCustomer||'')+'" oninput="_waiterState.cartCustomer=this.value" style="width:100%;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--t1);font-size:.6rem;font-family:inherit;box-sizing:border-box;margin-bottom:.3rem">';
+    h+='<input type="text" placeholder="Observacoes (ex: sem cebola, bem passado)" value="'+esc(_waiterState.cartNotes||'')+'" oninput="_waiterState.cartNotes=this.value" style="width:100%;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--t1);font-size:.6rem;font-family:inherit;box-sizing:border-box">';
+    h+='</div>';
   }else{
     h+='<div style="padding:.4rem .6rem;margin-bottom:.5rem;background:rgba(251,191,36,.08);border-radius:8px;font-size:.6rem;color:#fbbf24">Selecione uma mesa antes de fazer pedido</div>';
+  }
+  if(_waiterState.cart.length>0){
+    h+='<div style="margin-bottom:.6rem;padding:.5rem;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:10px">';
+    h+='<div style="font-size:.6rem;font-weight:600;color:#22c55e;margin-bottom:.3rem">Carrinho ('+_waiterState.cart.reduce((s,i)=>s+i.qty,0)+' itens)</div>';
+    _waiterState.cart.forEach((item,ci)=>{
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:.2rem 0;font-size:.58rem">';
+      h+='<span style="color:var(--t1);flex:1">'+esc(item.name)+'</span>';
+      h+='<div style="display:flex;align-items:center;gap:.3rem">';
+      h+='<button onclick="waiterCartQty('+ci+',-1)" style="width:22px;height:22px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(239,68,68,.1);color:#ef4444;font-size:.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center">-</button>';
+      h+='<span style="color:var(--t2);min-width:18px;text-align:center">'+item.qty+'</span>';
+      h+='<button onclick="waiterCartQty('+ci+',1)" style="width:22px;height:22px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(34,197,94,.1);color:#22c55e;font-size:.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>';
+      h+='<span style="color:var(--ac);min-width:50px;text-align:right">R$'+(item.price*item.qty).toFixed(2).replace('.',',')+'</span>';
+      h+='</div></div>';
+    });
+    const total=_waiterState.cart.reduce((s,i)=>s+i.price*i.qty,0);
+    h+='<div style="text-align:right;margin-top:.3rem;font-size:.65rem;font-weight:600;color:#22c55e">Total: R$'+total.toFixed(2).replace('.',',')+'</div>';
+    h+='</div>';
   }
   Object.entries(cats).forEach(([cat,items])=>{
     h+='<div class="wv-menu-cat"><div class="wv-menu-cat-title">'+esc(cat)+'</div>';
     items.forEach((item,idx)=>{
       const globalIdx=menu.indexOf(item);
-      h+='<div class="wv-menu-item"><span class="wv-menu-item-name">'+esc(item.name)+'</span>';
+      const desc=item.description?'<div style="font-size:.5rem;color:var(--t3);margin-top:.1rem">'+esc(item.description)+'</div>':'';
+      h+='<div class="wv-menu-item" style="flex-wrap:wrap"><div style="flex:1"><span class="wv-menu-item-name">'+esc(item.name)+'</span>'+desc+'</div>';
       h+='<span class="wv-menu-item-price">R$'+(item.price||0).toFixed(2).replace('.',',')+'</span>';
       h+='<button class="wv-menu-item-add" onclick="addToWaiterCart('+globalIdx+')">+</button></div>';
     });
@@ -8475,6 +8496,15 @@ function addToWaiterCart(menuIdx){
   haptic([20]);
 }
 
+function waiterCartQty(cartIdx,delta){
+  const item=_waiterState.cart[cartIdx];
+  if(!item)return;
+  item.qty+=delta;
+  if(item.qty<=0)_waiterState.cart.splice(cartIdx,1);
+  renderWaiterMenu();
+  updateWaiterCartBar();
+}
+
 function updateWaiterCartBar(){
   const cb=$('wvCartBar');
   const total=_waiterState.cart.reduce((s,i)=>s+i.price*i.qty,0);
@@ -8489,18 +8519,23 @@ function updateWaiterCartBar(){
 
 async function submitWaiterOrder(){
   if(!_waiterState.cartTable||_waiterState.cart.length===0){showToast('Carrinho vazio');return}
+  const custName=(_waiterState.cartCustomer||'').trim();
   try{
     const r=await fetch('/api/event/'+_waiterState.eventId+'/staff-order',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        userId:state.userId,table:_waiterState.cartTable,
-        items:_waiterState.cart.map(c=>({name:c.name,price:c.price,qty:c.qty}))
+        staffUserId:state.userId,table:_waiterState.cartTable,
+        customerName:custName,
+        items:_waiterState.cart.map(c=>({name:c.name,price:c.price,qty:c.qty})),
+        notes:(_waiterState.cartNotes||'').trim()
       })
     });
     const d=await r.json();
     if(d.error){showToast(d.error);return}
     showToast('Pedido enviado - Mesa '+_waiterState.cartTable);
     _waiterState.cart=[];
+    _waiterState.cartCustomer='';
+    _waiterState.cartNotes='';
     updateWaiterCartBar();
     await loadWaiterDashboard();
     switchWaiterTab('orders');
