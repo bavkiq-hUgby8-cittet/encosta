@@ -439,6 +439,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .menu-config label{font-size:.65rem;color:var(--t2);font-weight:600}
 .menu-config input{width:60px;padding:.3rem .5rem;background:var(--bg);border:1px solid var(--b1);border-radius:8px;color:var(--t1);font-size:.8rem;font-family:inherit;text-align:center}
 
+/* Staff invite cards */
+.staff-invite-card{padding:.8rem;border-radius:14px;background:var(--s1);border:1px solid var(--b1);text-align:center;cursor:pointer;transition:all .3s;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.staff-invite-card:active{transform:scale(.96)}
+.staff-invite-card.waiting{border-color:rgba(249,115,22,.4);animation:staffPulse 2s infinite}
+.staff-invite-icon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .5rem}
+.staff-invite-label{font-size:.75rem;font-weight:700;color:var(--t1)}
+.staff-invite-status{font-size:.55rem;color:var(--t3);margin-top:.2rem}
+@keyframes staffPulse{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.3)}50%{box-shadow:0 0 0 12px rgba(249,115,22,0)}}
+
 /* Print styles */
 @media print{
   *{margin:0;padding:0;box-shadow:none !important;text-shadow:none !important}
@@ -850,16 +859,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 
     <!-- STAFF TAB -->
     <div id="restTabStaff" style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
-        <div style="font-size:.8rem;font-weight:700;color:var(--t1)">Equipe Ativa</div>
-        <div style="display:flex;gap:.3rem">
-          <button class="menu-card-btn" onclick="callWaiter()" style="background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.3);color:#818cf8;padding:.5rem .8rem;font-size:.7rem">+ Chamar Garcom</button>
-          <button class="menu-card-btn" onclick="callDriver()" style="background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.3);color:#34d399;padding:.5rem .8rem;font-size:.7rem">+ Chamar Motoboy</button>
+      <div style="font-size:.8rem;font-weight:700;margin-bottom:.6rem;color:var(--t1)">Convidar Equipe</div>
+      <div style="font-size:.55rem;color:var(--t3);margin-bottom:.8rem;line-height:1.5">O funcionario deve abrir o Touch, ativar <b style="color:#f97316">Modo Servico</b>, e encostar os celulares. O TOUCH conecta automaticamente.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
+        <div id="staffCardWaiter" class="staff-invite-card" onclick="callWaiter()">
+          <div class="staff-invite-icon" style="background:rgba(129,140,248,.15);color:#818cf8">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div class="staff-invite-label">Garcom</div>
+          <div class="staff-invite-status" id="staffWaiterStatus">Toque para chamar</div>
+        </div>
+        <div id="staffCardDriver" class="staff-invite-card" onclick="callDriver()">
+          <div class="staff-invite-icon" style="background:rgba(52,211,153,.15);color:#34d399">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <div class="staff-invite-label">Motorista</div>
+          <div class="staff-invite-status" id="staffDriverStatus">Toque para chamar</div>
         </div>
       </div>
-      <div style="font-size:.6rem;color:var(--t3);margin-bottom:.6rem">Garcons e motoboys conectam via TOUCH. Ative o som e peca para a pessoa encostar o celular.</div>
+      <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Equipe Ativa</div>
       <div id="staffList" style="display:flex;flex-direction:column;gap:.4rem"></div>
-      <div id="staffEmpty" style="text-align:center;color:var(--t3);font-size:.7rem;padding:2rem 0">Nenhum membro da equipe ativo.<br>Use os botoes acima para chamar garcons ou motoboys.</div>
+      <div id="staffEmpty" style="text-align:center;color:var(--t3);font-size:.65rem;padding:1.2rem;background:var(--s1);border:1px dashed var(--b1);border-radius:12px;display:none">Nenhum membro conectado.</div>
     </div>
 
     <!-- PROFILE TAB -->
@@ -1294,7 +1314,14 @@ function initSocket(){
       console.log('[operator] sonic-matched: staying in queue, continuing detection');
     }
   });
-  S.socket.on('staff-joined',d=>{loadStaff()});
+  S.socket.on('staff-joined',d=>{
+    loadStaff();
+    const wCard=$('staffCardWaiter');const dCard=$('staffCardDriver');
+    if(wCard)wCard.classList.remove('waiting');
+    if(dCard)dCard.classList.remove('waiting');
+    $('staffWaiterStatus').textContent='Toque para chamar';
+    $('staffDriverStatus').textContent='Toque para chamar';
+  });
   S.socket.on('staff-left',d=>{loadStaff()});
   S.socket.on('staff-tables-updated',d=>{loadStaff()});
   S.socket.on('delivery-order-new',d=>{
@@ -2339,43 +2366,37 @@ function renderStaffList(staff){
   if(online.length===0){list.innerHTML='';if(empty)empty.style.display='';return}
   if(empty)empty.style.display='none';
   list.innerHTML=online.map(s=>{
-    const roleLabel=s.role==='waiter'?'Garcom':'Motoboy';
+    const roleLabel=s.role==='waiter'?'Garcom':'Motorista';
+    const roleBg=s.role==='waiter'?'rgba(129,140,248,.15)':'rgba(52,211,153,.15)';
     const roleColor=s.role==='waiter'?'#818cf8':'#34d399';
-    const tablesStr=s.tables&&s.tables.length>0?'Mesas: '+s.tables.join(', '):'Sem mesas';
+    const tablesStr=s.tables&&s.tables.length>0?s.tables.join(', '):'sem mesas';
+    const statusDot=s.status==='online'?'#34d399':'#666680';
     return '<div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px">'+
-      '<div style="width:32px;height:32px;border-radius:50%;background:'+roleColor+';display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff">'+s.name.charAt(0).toUpperCase()+'</div>'+
-      '<div style="flex:1"><div style="font-size:.75rem;font-weight:600">'+esc(s.name)+'</div>'+
-      '<div style="font-size:.55rem;color:var(--t3)">'+roleLabel+(s.role==='waiter'?' - '+tablesStr:'')+'</div></div>'+
-      (s.role==='waiter'?'<button class="menu-card-btn" onclick="assignTables(\''+s.id+'\')" style="font-size:.55rem">Mesas</button>':'')+
-      '<button class="menu-card-btn danger" onclick="disconnectStaff(\''+s.id+'\')" style="font-size:.55rem">X</button>'+
+      '<div style="width:36px;height:36px;border-radius:50%;background:'+roleBg+';color:'+roleColor+';display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">'+s.name.charAt(0).toUpperCase()+'</div>'+
+      '<div style="flex:1"><div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem"><span style="font-size:.75rem;font-weight:600;color:var(--t1)">'+esc(s.name)+'</span><span style="font-size:.5rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;background:'+roleBg+';color:'+roleColor+'">'+roleLabel+'</span></div>'+
+      '<div style="font-size:.55rem;color:var(--t3)">'+tablesStr+'</div></div>'+
+      '<div style="width:8px;height:8px;border-radius:50%;background:'+statusDot+';flex-shrink:0"></div>'+
+      (s.role==='waiter'?'<button class="menu-card-btn" onclick="assignTables(\''+s.id+'\')" style="font-size:.55rem;padding:.3rem .5rem">Mesas</button>':'')+
+      '<button class="menu-card-btn danger" onclick="disconnectStaff(\''+s.id+'\')" style="font-size:.55rem;padding:.3rem .5rem">X</button>'+
       '</div>';
   }).join('');
 }
 
 function callWaiter(){
-  if(!S.socket||!S.currentEventId){alert('Ative o evento primeiro.');return}
+  if(!S.socket||!S.currentEventId){showToast('Ative o evento primeiro.');return}
+  const card=$('staffCardWaiter');
+  if(card)card.classList.add('waiting');
+  $('staffWaiterStatus').textContent='Esperando TOUCH...';
   S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'waiter'});
-  S.socket.once('sonic-staff-role-set',()=>{
-    const toast=document.createElement('div');
-    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(99,102,241,.9);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
-    toast.textContent='Aguardando garcom... Ele deve ativar MODO SERVICO e usar TOUCH.';
-    document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),5000);
-  });
-  // Make sure sonic is active
   if(!homeSonicActive)startHomeSonic();
 }
 
 function callDriver(){
-  if(!S.socket||!S.currentEventId){alert('Ative o evento primeiro.');return}
+  if(!S.socket||!S.currentEventId){showToast('Ative o evento primeiro.');return}
+  const card=$('staffCardDriver');
+  if(card)card.classList.add('waiting');
+  $('staffDriverStatus').textContent='Esperando TOUCH...';
   S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'driver'});
-  S.socket.once('sonic-staff-role-set',()=>{
-    const toast=document.createElement('div');
-    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.9);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
-    toast.textContent='Aguardando motoboy... Ele deve ativar MODO SERVICO e usar TOUCH.';
-    document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),5000);
-  });
   if(!homeSonicActive)startHomeSonic();
 }
 
