@@ -406,6 +406,12 @@ function startCall(tier){
   currentTier = tier;
   var t = TIERS[tier];
 
+  // Send timezone before connecting
+  try{
+    var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if(tz)fetch('/api/user/timezone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,timezone:tz})}).catch(function(){});
+  }catch(e){}
+
   // Ring screen
   $('ringAvatar').className = 'ring-avatar ' + t.avatarClass;
   $('ringAvatar').innerHTML = t.icon;

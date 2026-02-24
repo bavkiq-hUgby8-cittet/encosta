@@ -2543,6 +2543,11 @@ async function linkFirebaseToEncosta(user){
       localStorage.setItem('touch_userColor',state.userColor);
       if(state.email)localStorage.setItem('touch_email',state.email);
       if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
+      // Send user timezone to server (auto-detect from browser)
+      try{
+        var userTz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if(userTz)fetch('/api/user/timezone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:d.userId,timezone:userTz})}).catch(function(){});
+      }catch(e){}
       // If user is BRAND NEW (just created, not linked) and needs to set nickname/birthdate, show register
       // But if user was found/linked to existing account, skip register even if birthdate is missing
       if(!d.user.birthdate&&!d.linked){
