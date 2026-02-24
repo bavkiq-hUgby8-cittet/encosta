@@ -2341,11 +2341,30 @@ function renderStaffList(staff){
 }
 
 function callWaiter(){
-  alert('Ative o TOUCH e peca para o garcom encostar o celular no alto-falante. Ele sera adicionado automaticamente.');
+  if(!S.socket||!S.currentEventId){alert('Ative o evento primeiro.');return}
+  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'waiter'});
+  S.socket.once('sonic-staff-role-set',()=>{
+    const toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(99,102,241,.9);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
+    toast.textContent='Aguardando garcom... Peca para ele usar TOUCH agora.';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),5000);
+  });
+  // Make sure sonic is active
+  if(!homeSonicActive)startHomeSonic();
 }
 
 function callDriver(){
-  alert('Ative o TOUCH e peca para o motoboy encostar o celular no alto-falante. Ele sera adicionado automaticamente.');
+  if(!S.socket||!S.currentEventId){alert('Ative o evento primeiro.');return}
+  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'driver'});
+  S.socket.once('sonic-staff-role-set',()=>{
+    const toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.9);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
+    toast.textContent='Aguardando motoboy... Peca para ele usar TOUCH agora.';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),5000);
+  });
+  if(!homeSonicActive)startHomeSonic();
 }
 
 async function assignTables(staffId){

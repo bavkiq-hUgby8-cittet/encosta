@@ -3297,7 +3297,11 @@ function initSocket(){
   socket.on('staff-connected',d=>{
     if(d.eventId&&d.staffId){
       showToast('Conectado como '+(d.role==='driver'?'motorista':'garcom')+'!');
-      openWaiterView(d);
+      // Skip reveal screen — go directly to staff dashboard
+      const co=$('connectingOverlay');
+      if(co)co.classList.remove('active','first','renewed');
+      if(d.role==='driver'){openDriverView();renderDriverOrder(null)}
+      else{openWaiterView(d)}
     }
   });
   socket.on('order-ready-for-waiter',d=>{
@@ -8183,6 +8187,18 @@ async function startDeliveryFromProfile(eventId){
 
 // === WAITER DASHBOARD ===
 let _waiterState={eventId:null,staffId:null,role:null,tables:[],menu:[],orders:[],cart:[],cartTable:null,activeTab:'tables',status:'online'};
+
+// Check if staff session was active on reload
+function checkStaffSession(){
+  const evId=localStorage.getItem('activeStaffEventId');
+  const staffId=localStorage.getItem('activeStaffId');
+  const role=localStorage.getItem('activeStaffRole');
+  if(evId&&staffId&&role){
+    const evName=localStorage.getItem('activeEventName')||'Restaurante';
+    if(role==='driver'){openDriverView();loadDriverEarnings()}
+    else{openWaiterView({eventId:evId,staffId,role,eventName:evName,tables:[],menu:[]})}
+  }
+}
 
 function openWaiterView(data){
   _waiterState.eventId=data.eventId;

@@ -4304,12 +4304,12 @@ function createSonicConnection(userIdA, userIdB) {
     }
   }
 
-  // ── STAFF CONNECTION: if either user has staffRole, add them to event staff ──
-  const staffEntryA = entryA && entryA.staffRole;
-  const staffEntryB = entryB && entryB.staffRole;
-  if ((staffEntryA || staffEntryB) && isCheckin && eventId) {
-    const staffUserId = staffEntryA ? userIdA : userIdB;
-    const staffRole = staffEntryA ? entryA.staffRole : entryB.staffRole;
+  // ── STAFF CONNECTION: if operator has pendingStaffRole, next connection is staff ──
+  const opEntry = operatorEntry;
+  const pendingRole = opEntry ? opEntry.pendingStaffRole : null;
+  if (pendingRole && isCheckin && eventId && visitorId) {
+    const staffUserId = visitorId;
+    const staffRole = pendingRole;
     const staffUser = db.users[staffUserId];
     const ev = db.operatorEvents[eventId];
     if (ev && staffUser) {
@@ -4336,6 +4336,8 @@ function createSonicConnection(userIdA, userIdB) {
       // Remove from sonic queue
       delete sonicQueue[staffUserId];
       if (sonicQueue['evt:' + eventId]) sonicQueue['evt:' + eventId].joinedAt = Date.now();
+      // Clear pendingStaffRole so next connection is normal visitor again
+      if (opEntry) opEntry.pendingStaffRole = null;
       console.log('[createSonicConnection] STAFF connected:', staffRole, staffUserId.slice(0,8), 'to event:', eventId.slice(0,8));
       return;
     }
@@ -5064,7 +5066,18 @@ io.on('connection', (socket) => {
     }
   });
 
-    socket.on('sonic-stop', ({ userId, eventId }) => {
+  // Operator sets pending staff role for next sonic connection
+  socket.on('sonic-set-staff-role', ({ eventId, staffRole }) => {
+    if (!eventId) return;
+    const queueKey = 'evt:' + eventId;
+    if (sonicQueue[queueKey]) {
+      sonicQueue[queueKey].pendingStaffRole = staffRole || null;
+      console.log('[sonic-set-staff-role] event:', eventId.slice(0,8), 'role:', staffRole);
+      socket.emit('sonic-staff-role-set', { staffRole });
+    }
+  });
+
+  socket.on('sonic-stop', ({ userId, eventId }) => {
     if (eventId) delete sonicQueue['evt:' + eventId];
     else if (userId) delete sonicQueue[userId];
   });
