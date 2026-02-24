@@ -3,275 +3,415 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Touch? — Ligar</title>
+<title>Touch? -- Ligar</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#fff}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#08080e;color:#fff;-webkit-font-smoothing:antialiased}
 
-/* -- Tela inicial: escolher assistente -- */
-.screen{display:none;height:100vh;width:100vw;position:fixed;top:0;left:0;flex-direction:column;align-items:center;justify-content:center}
+/* -- Screens -- */
+.screen{display:none;height:100vh;height:100dvh;width:100vw;position:fixed;top:0;left:0;flex-direction:column;align-items:center;justify-content:center}
 .screen.active{display:flex}
 
-/* Tela de selecao */
-#selectScreen{background:linear-gradient(180deg,#0a0a1a 0%,#111128 100%)}
-#selectScreen h2{font-size:1.3rem;color:#888;margin-bottom:32px;font-weight:400}
+/* ====== SELECT SCREEN ====== */
+#selectScreen{background:#08080e;padding:0 20px}
 
-.contact-list{width:100%;max-width:380px;padding:0 20px}
-.contact-card{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:16px;background:rgba(255,255,255,.04);margin-bottom:12px;cursor:pointer;transition:all .2s;border:1px solid transparent}
-.contact-card:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.1)}
-.contact-card:active{transform:scale(0.97)}
+.select-top{position:absolute;top:0;left:0;right:0;padding:52px 24px 16px;display:flex;align-items:center;justify-content:space-between}
+.select-title{font-size:1.5rem;font-weight:700;letter-spacing:-0.02em}
+.select-title span{color:#6c5ce7}
 
-.contact-avatar{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
-.avatar-plus{background:linear-gradient(135deg,#6c5ce7,#a855f7)}
-.avatar-pro{background:linear-gradient(135deg,#f39c12,#e67e22)}
-.avatar-dev{background:linear-gradient(135deg,#00ff41,#00cc33)}
+/* userId inline */
+.uid-area{display:flex;gap:8px;align-items:center}
+.uid-area input{width:120px;padding:7px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#777;font-size:0.75rem;transition:all .3s}
+.uid-area input:focus{outline:none;border-color:rgba(108,92,231,.5);color:#ccc;width:160px;background:rgba(255,255,255,.06)}
 
-.contact-info{flex:1}
-.contact-name{font-size:1.05rem;font-weight:600;margin-bottom:2px}
-.contact-desc{font-size:0.8rem;color:#666}
+.subtitle{font-size:0.95rem;color:rgba(255,255,255,.35);font-weight:400;margin-bottom:32px;letter-spacing:-0.01em}
 
-.contact-call{width:44px;height:44px;border-radius:50%;background:#2ecc71;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s}
-.contact-call:hover{transform:scale(1.1)}
-.contact-call svg{width:20px;height:20px;color:#fff}
+/* Contact cards */
+.contact-list{width:100%;max-width:400px}
+.contact-card{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.03);margin-bottom:10px;cursor:pointer;transition:all .25s ease;border:1px solid rgba(255,255,255,.04);position:relative;overflow:hidden}
+.contact-card::before{content:'';position:absolute;inset:0;border-radius:20px;opacity:0;transition:opacity .3s}
+.contact-card:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08);transform:translateY(-1px)}
+.contact-card:active{transform:scale(0.98);transition:transform .1s}
 
-/* Preferencia viva-voz */
-.pref-bar{margin-top:28px;display:flex;align-items:center;gap:12px;color:#555;font-size:0.85rem}
-.pref-bar label{cursor:pointer;display:flex;align-items:center;gap:8px}
-.toggle-switch{position:relative;width:44px;height:24px;background:#333;border-radius:12px;cursor:pointer;transition:background .3s}
-.toggle-switch.on{background:#6c5ce7}
-.toggle-switch .toggle-knob{position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .3s}
-.toggle-switch.on .toggle-knob{left:22px}
+.contact-card.tier-plus::before{background:linear-gradient(135deg,rgba(108,92,231,.08),transparent 60%)}
+.contact-card.tier-plus:hover::before{opacity:1}
+.contact-card.tier-pro::before{background:linear-gradient(135deg,rgba(243,156,18,.08),transparent 60%)}
+.contact-card.tier-pro:hover::before{opacity:1}
+.contact-card.tier-dev::before{background:linear-gradient(135deg,rgba(0,255,65,.06),transparent 60%)}
+.contact-card.tier-dev:hover::before{opacity:1}
 
-/* userId input discreto */
-.uid-bar{position:absolute;top:16px;left:16px;right:16px;display:flex;gap:8px;align-items:center}
-.uid-bar input{flex:1;padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid #222;border-radius:8px;color:#888;font-size:0.8rem}
-.uid-bar input:focus{outline:none;border-color:#6c5ce7;color:#fff}
+.contact-avatar{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1}
+.avatar-plus{background:linear-gradient(135deg,#6c5ce7,#a855f7);box-shadow:0 4px 20px rgba(108,92,231,.25)}
+.avatar-pro{background:linear-gradient(135deg,#f59e0b,#f97316);box-shadow:0 4px 20px rgba(245,158,11,.25)}
+.avatar-dev{background:linear-gradient(135deg,#10b981,#06d6a0);box-shadow:0 4px 20px rgba(16,185,129,.2)}
 
-/* -- Tela de ligacao ativa -- */
-#callScreen{background:linear-gradient(180deg,#0d0d20 0%,#0a0a14 100%)}
+.contact-avatar svg{width:24px;height:24px;color:#fff}
 
-.call-header{position:absolute;top:0;left:0;right:0;padding:48px 20px 20px;text-align:center}
-.call-tier{font-size:0.75rem;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
-.call-name{font-size:1.8rem;font-weight:700;margin-bottom:4px}
-.call-status{font-size:0.9rem;color:#888}
-.call-status.active{color:#2ecc71}
-.call-timer{font-size:0.85rem;color:#555;margin-top:4px;font-variant-numeric:tabular-nums}
+.contact-info{flex:1;position:relative;z-index:1}
+.contact-name{font-size:1rem;font-weight:600;margin-bottom:2px;letter-spacing:-0.01em}
+.contact-desc{font-size:0.78rem;color:rgba(255,255,255,.35);line-height:1.3}
 
-/* Avatar central grande */
-.call-avatar{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;margin-bottom:20px;position:relative}
-.call-avatar.speaking{animation:avatar-pulse 1s ease-in-out infinite}
-@keyframes avatar-pulse{0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.4)}50%{box-shadow:0 0 0 20px rgba(108,92,231,0)}}
-.call-avatar.speaking.pro{animation-name:avatar-pulse-pro}
-@keyframes avatar-pulse-pro{0%,100%{box-shadow:0 0 0 0 rgba(243,156,18,.4)}50%{box-shadow:0 0 0 20px rgba(243,156,18,0)}}
-.call-avatar.speaking.dev{animation-name:avatar-pulse-dev}
-@keyframes avatar-pulse-dev{0%,100%{box-shadow:0 0 0 0 rgba(0,255,65,.4)}50%{box-shadow:0 0 0 20px rgba(0,255,65,0)}}
+.contact-call{width:42px;height:42px;border-radius:50%;background:rgba(46,204,113,.12);border:1px solid rgba(46,204,113,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .25s;position:relative;z-index:1}
+.contact-call svg{width:18px;height:18px;color:#2ecc71}
+.contact-card:hover .contact-call{background:rgba(46,204,113,.2);border-color:rgba(46,204,113,.35);transform:scale(1.05)}
 
-/* Transcricao ao vivo */
-.call-transcript{position:absolute;top:50%;left:20px;right:20px;transform:translateY(40px);text-align:center;font-size:0.9rem;color:rgba(255,255,255,.5);max-height:120px;overflow:hidden}
-.call-transcript .t-line{margin-bottom:6px;opacity:0;animation:fadeIn .3s forwards}
-@keyframes fadeIn{to{opacity:1}}
-.t-user{color:rgba(255,255,255,.4)}
-.t-agent{color:rgba(255,255,255,.7)}
+/* Badge tier */
+.tier-badge{font-size:0.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-left:6px;position:relative;top:-1px}
+.badge-plus{background:rgba(108,92,231,.15);color:#a78bfa}
+.badge-pro{background:rgba(245,158,11,.12);color:#fbbf24}
+.badge-dev{background:rgba(16,185,129,.12);color:#34d399}
 
-/* Barra de controles inferior */
-.call-controls{position:absolute;bottom:0;left:0;right:0;padding:20px 20px 48px;display:flex;justify-content:center;gap:24px;align-items:center}
-.call-btn{width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;position:relative}
-.call-btn svg{width:24px;height:24px}
+/* Pref bar */
+.pref-bar{margin-top:28px;display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.3);font-size:0.8rem}
+.pref-bar svg{width:16px;height:16px;opacity:.5}
+.toggle-switch{position:relative;width:42px;height:24px;background:rgba(255,255,255,.08);border-radius:12px;cursor:pointer;transition:background .3s;flex-shrink:0}
+.toggle-switch.on{background:rgba(108,92,231,.4)}
+.toggle-switch .toggle-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:left .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.toggle-switch.on .toggle-knob{left:21px}
+
+/* ====== RING SCREEN ====== */
+#ringScreen{background:#08080e}
+.ring-wrapper{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.ring-avatar-wrap{position:relative;margin-bottom:24px}
+.ring-avatar{width:96px;height:96px;border-radius:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:2}
+.ring-avatar svg{width:36px;height:36px;color:#fff}
+.ring-pulse{position:absolute;inset:-12px;border-radius:34px;border:2px solid rgba(46,204,113,.2);animation:ring-expand 2s ease-out infinite;z-index:1}
+.ring-pulse:nth-child(2){animation-delay:.6s}
+.ring-pulse:nth-child(3){animation-delay:1.2s}
+@keyframes ring-expand{0%{transform:scale(.85);opacity:.6}100%{transform:scale(1.3);opacity:0}}
+
+.ring-text{font-size:1.3rem;font-weight:600;letter-spacing:-0.02em}
+.ring-sub{font-size:0.85rem;color:rgba(255,255,255,.35);margin-bottom:40px}
+.ring-dots{display:inline-flex;gap:4px;margin-left:4px}
+.ring-dots span{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.35);animation:dotPulse 1.4s infinite}
+.ring-dots span:nth-child(2){animation-delay:.2s}
+.ring-dots span:nth-child(3){animation-delay:.4s}
+@keyframes dotPulse{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+.ring-cancel{padding:14px 44px;border-radius:14px;background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.15);font-size:0.9rem;font-weight:500;cursor:pointer;transition:all .25s;letter-spacing:-.01em}
+.ring-cancel:hover{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.25)}
+.ring-cancel:active{transform:scale(.96)}
+
+/* ====== CALL SCREEN ====== */
+#callScreen{background:#08080e}
+
+.call-top{position:absolute;top:0;left:0;right:0;padding:48px 20px 0;text-align:center}
+.call-tier-label{font-size:0.65rem;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:3px;font-weight:600;margin-bottom:10px}
+.call-name{font-size:1.6rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:2px}
+.call-status-row{display:flex;align-items:center;justify-content:center;gap:6px}
+.call-dot{width:6px;height:6px;border-radius:50%;background:#555;transition:background .3s}
+.call-dot.live{background:#2ecc71;box-shadow:0 0 8px rgba(46,204,113,.4)}
+.call-status{font-size:0.82rem;color:rgba(255,255,255,.4);transition:color .3s}
+.call-status.active{color:rgba(255,255,255,.6)}
+.call-timer{font-size:0.75rem;color:rgba(255,255,255,.2);margin-top:6px;font-variant-numeric:tabular-nums;font-weight:500}
+
+/* Avatar central */
+.call-avatar-wrap{position:relative;margin-bottom:16px}
+.call-avatar{width:110px;height:110px;border-radius:32px;display:flex;align-items:center;justify-content:center;position:relative;z-index:2;transition:transform .3s}
+.call-avatar svg{width:42px;height:42px;color:#fff}
+
+/* Sound wave ring */
+.sound-ring{position:absolute;inset:-6px;border-radius:36px;border:2px solid transparent;z-index:1;transition:all .3s}
+.call-avatar-wrap.speaking .sound-ring{animation:soundPulse 1.2s ease-in-out infinite}
+.call-avatar-wrap.speaking .sound-ring.r1{border-color:currentColor;opacity:.3}
+.call-avatar-wrap.speaking .sound-ring.r2{inset:-14px;border-radius:40px;border-color:currentColor;opacity:.15;animation-delay:.2s}
+.call-avatar-wrap.speaking .sound-ring.r3{inset:-22px;border-radius:44px;border-color:currentColor;opacity:.06;animation-delay:.4s}
+@keyframes soundPulse{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.06);opacity:.15}}
+
+.color-plus{color:#a78bfa}
+.color-pro{color:#fbbf24}
+.color-dev{color:#34d399}
+
+/* Transcript */
+.call-transcript{position:absolute;top:55%;left:24px;right:24px;max-height:140px;overflow:hidden;text-align:center}
+.t-line{font-size:0.82rem;line-height:1.5;margin-bottom:4px;opacity:0;animation:tFadeIn .3s ease forwards}
+@keyframes tFadeIn{to{opacity:1}}
+.t-user{color:rgba(255,255,255,.3)}
+.t-agent{color:rgba(255,255,255,.55)}
+.t-system{color:rgba(255,255,255,.2);font-size:0.7rem}
+
+/* Waveform visualizer */
+.waveform{position:absolute;bottom:180px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:3px;height:32px;opacity:0;transition:opacity .3s}
+.waveform.visible{opacity:1}
+.wave-bar{width:3px;border-radius:2px;background:rgba(108,92,231,.4);height:8px;transition:height .1s}
+
+/* Controls */
+.call-controls{position:absolute;bottom:0;left:0;right:0;padding:20px 20px 48px;display:flex;justify-content:center;gap:20px;align-items:flex-end}
+.ctrl-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+.ctrl-label{font-size:0.65rem;color:rgba(255,255,255,.25);font-weight:500}
+
+.call-btn{width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;-webkit-tap-highlight-color:transparent}
+.call-btn svg{width:22px;height:22px}
 .call-btn:active{transform:scale(0.9)}
 
-.btn-mute{background:rgba(255,255,255,.1);color:#fff}
-.btn-mute.muted{background:rgba(231,76,60,.2);color:#e74c3c}
-.btn-speaker{background:rgba(255,255,255,.1);color:#fff}
-.btn-speaker.on{background:rgba(108,92,231,.2);color:#6c5ce7}
-.btn-hangup{width:70px;height:70px;background:#e74c3c;color:#fff}
-.btn-hangup:hover{background:#c0392b}
-.btn-hangup svg{width:28px;height:28px;transform:rotate(135deg)}
+.btn-mute{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.06)}
+.btn-mute:hover{background:rgba(255,255,255,.1)}
+.btn-mute.muted{background:rgba(239,68,68,.1);color:#ef4444;border-color:rgba(239,68,68,.15)}
 
-.btn-label{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:0.65rem;color:#555;white-space:nowrap}
+.btn-speaker{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.06)}
+.btn-speaker:hover{background:rgba(255,255,255,.1)}
+.btn-speaker.on{background:rgba(108,92,231,.1);color:#a78bfa;border-color:rgba(108,92,231,.2)}
 
-/* -- Tela de chamando (ring) -- */
-#ringScreen{background:linear-gradient(180deg,#0d0d20 0%,#0a0a14 100%)}
-.ring-avatar{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin-bottom:20px;animation:ring-glow 2s ease-in-out infinite}
-@keyframes ring-glow{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.3)}50%{box-shadow:0 0 0 30px rgba(46,204,113,0)}}
-.ring-text{font-size:1.2rem;font-weight:600;margin-bottom:4px}
-.ring-sub{font-size:0.85rem;color:#888;margin-bottom:40px}
-.ring-cancel{padding:14px 40px;border-radius:30px;background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:0.95rem;cursor:pointer;transition:all .2s}
-.ring-cancel:hover{background:rgba(231,76,60,.25)}
+.btn-hangup{width:64px;height:64px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 4px 24px rgba(239,68,68,.3);border:none}
+.btn-hangup:hover{box-shadow:0 4px 28px rgba(239,68,68,.4)}
+.btn-hangup svg{width:26px;height:26px;transform:rotate(135deg)}
+
+/* ====== Transitions ====== */
+.fade-in{animation:fadeInScreen .4s ease}
+@keyframes fadeInScreen{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ====== Scrollbar ====== */
+::-webkit-scrollbar{display:none}
+
+/* ====== Safe area ====== */
+@supports(padding-top: env(safe-area-inset-top)){
+  .select-top{padding-top:calc(env(safe-area-inset-top) + 12px)}
+  .call-top{padding-top:calc(env(safe-area-inset-top) + 12px)}
+  .call-controls{padding-bottom:calc(env(safe-area-inset-bottom) + 20px)}
+}
 </style>
 </head>
 <body>
 
-<!-- TELA 1: Selecionar assistente -->
+<!-- ======== TELA 1: Selecionar assistente ======== -->
 <div class="screen active" id="selectScreen">
-  <div class="uid-bar">
-    <input type="text" id="userIdInput" placeholder="userId" />
+  <div class="select-top">
+    <div class="select-title"><span>Touch</span>?</div>
+    <div class="uid-area">
+      <input type="text" id="userIdInput" placeholder="userId" spellcheck="false" autocomplete="off" />
+    </div>
   </div>
 
-  <h2>Ligar para</h2>
+  <div class="subtitle">Ligar para</div>
 
   <div class="contact-list">
     <!-- Plus -->
-    <div class="contact-card" onclick="startCall('plus')">
+    <div class="contact-card tier-plus" onclick="startCall('plus')">
       <div class="contact-avatar avatar-plus">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:28px;height:28px"><path d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM2 21a10 10 0 0 1 20 0"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </div>
       <div class="contact-info">
-        <div class="contact-name">Touch</div>
+        <div class="contact-name">Touch <span class="tier-badge badge-plus">Plus</span></div>
         <div class="contact-desc">Sua amiga fofoqueira</div>
       </div>
       <div class="contact-call">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
       </div>
     </div>
 
     <!-- Pro -->
-    <div class="contact-card" onclick="startCall('pro')">
+    <div class="contact-card tier-pro" onclick="startCall('pro')">
       <div class="contact-avatar avatar-pro">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:28px;height:28px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       </div>
       <div class="contact-info">
-        <div class="contact-name">Touch Pro</div>
+        <div class="contact-name">Touch <span class="tier-badge badge-pro">Pro</span></div>
         <div class="contact-desc">Fofoqueira com superpoderes</div>
       </div>
       <div class="contact-call">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
       </div>
     </div>
 
     <!-- UltimateDEV -->
-    <div class="contact-card" onclick="startCall('ultimatedev')">
+    <div class="contact-card tier-dev" onclick="startCall('ultimatedev')">
       <div class="contact-avatar avatar-dev">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:28px;height:28px"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
       </div>
       <div class="contact-info">
-        <div class="contact-name">Touch DEV</div>
+        <div class="contact-name">Touch <span class="tier-badge badge-dev">Dev</span></div>
         <div class="contact-desc">Modo desenvolvedor</div>
       </div>
       <div class="contact-call">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
       </div>
     </div>
   </div>
 
   <!-- Toggle viva-voz -->
   <div class="pref-bar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-    <label>
-      <span>Abrir no viva-voz</span>
-      <div class="toggle-switch on" id="speakerToggle" onclick="toggleSpeakerPref()">
-        <div class="toggle-knob"></div>
-      </div>
-    </label>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    <span>Viva-voz</span>
+    <div class="toggle-switch on" id="speakerToggle" onclick="toggleSpeakerPref()">
+      <div class="toggle-knob"></div>
+    </div>
   </div>
 </div>
 
-<!-- TELA 2: Chamando... -->
+<!-- ======== TELA 2: Chamando... ======== -->
 <div class="screen" id="ringScreen">
-  <div class="ring-avatar avatar-plus" id="ringAvatar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:40px;height:40px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+  <div class="ring-wrapper">
+    <div class="ring-avatar-wrap">
+      <div class="ring-pulse"></div>
+      <div class="ring-pulse"></div>
+      <div class="ring-pulse"></div>
+      <div class="ring-avatar avatar-plus" id="ringAvatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:36px;height:36px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+    </div>
+    <div class="ring-text" id="ringName">Touch</div>
+    <div class="ring-sub">Chamando<div class="ring-dots"><span></span><span></span><span></span></div></div>
+    <button class="ring-cancel" onclick="cancelCall()">Cancelar</button>
   </div>
-  <div class="ring-text" id="ringName">Ligando para Touch...</div>
-  <div class="ring-sub">Conectando</div>
-  <button class="ring-cancel" onclick="cancelCall()">Cancelar</button>
 </div>
 
-<!-- TELA 3: Em ligacao -->
+<!-- ======== TELA 3: Em ligacao ======== -->
 <div class="screen" id="callScreen">
-  <div class="call-header">
-    <div class="call-tier" id="callTier">PLUS</div>
+  <div class="call-top">
+    <div class="call-tier-label" id="callTier">PLUS</div>
     <div class="call-name" id="callName">Touch</div>
-    <div class="call-status" id="callStatus">Conectando...</div>
+    <div class="call-status-row">
+      <div class="call-dot" id="callDot"></div>
+      <div class="call-status" id="callStatus">Conectando</div>
+    </div>
     <div class="call-timer" id="callTimer">00:00</div>
   </div>
 
-  <div class="call-avatar avatar-plus" id="callAvatar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:48px;height:48px"><path d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM2 21a10 10 0 0 1 20 0"/></svg>
+  <div class="call-avatar-wrap" id="callAvatarWrap">
+    <div class="sound-ring r1"></div>
+    <div class="sound-ring r2"></div>
+    <div class="sound-ring r3"></div>
+    <div class="call-avatar avatar-plus" id="callAvatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:42px;height:42px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
   </div>
 
+  <div class="waveform" id="waveform"></div>
   <div class="call-transcript" id="callTranscript"></div>
 
   <div class="call-controls">
-    <button class="call-btn btn-mute" id="btnMute" onclick="toggleMute()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      <span class="btn-label">Mudo</span>
-    </button>
+    <div class="ctrl-wrap">
+      <button class="call-btn btn-mute" id="btnMute" onclick="toggleMute()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <span class="ctrl-label">Mudo</span>
+    </div>
 
-    <button class="call-btn btn-hangup" id="btnHangup" onclick="hangUp()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-      <span class="btn-label">Desligar</span>
-    </button>
+    <div class="ctrl-wrap">
+      <button class="call-btn btn-hangup" id="btnHangup" onclick="hangUp()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </button>
+      <span class="ctrl-label">Desligar</span>
+    </div>
 
-    <button class="call-btn btn-speaker on" id="btnSpeaker" onclick="toggleSpeaker()">
-      <svg id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-      <span class="btn-label" id="speakerLabel">Viva-voz</span>
-    </button>
+    <div class="ctrl-wrap">
+      <button class="call-btn btn-speaker on" id="btnSpeaker" onclick="toggleSpeaker()">
+        <svg id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+      <span class="ctrl-label" id="speakerLabel">Viva-voz</span>
+    </div>
   </div>
 </div>
 
 <script>
-// ── State ──
-let currentTier = 'plus';
-let pc = null;
-let dc = null;
-let audioEl = null;
-let localStream = null;
-let active = false;
-let muted = false;
-let speakerOn = true;
-let agentSpeaking = false;
-let callStartTime = null;
-let timerInterval = null;
+// -- State --
+var currentTier = 'plus';
+var pc = null;
+var dc = null;
+var audioEl = null;
+var localStream = null;
+var active = false;
+var muted = false;
+var speakerOn = true;
+var agentSpeaking = false;
+var callStartTime = null;
+var timerInterval = null;
+var analyser = null;
+var waveInterval = null;
 
 function $(id){ return document.getElementById(id); }
 
-// ── Speaker preference ──
-const SPEAKER_PREF_KEY = 'va_speaker_pref';
+// -- Waveform visualizer --
+(function initWaveform(){
+  var wf = $('waveform');
+  for(var i=0;i<24;i++){
+    var bar = document.createElement('div');
+    bar.className = 'wave-bar';
+    wf.appendChild(bar);
+  }
+})();
+
+function startWaveform(stream){
+  try{
+    var ctx = new (window.AudioContext||window.webkitAudioContext)();
+    var src = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 64;
+    src.connect(analyser);
+    var bars = $('waveform').children;
+    var data = new Uint8Array(analyser.frequencyBinCount);
+    $('waveform').classList.add('visible');
+    waveInterval = setInterval(function(){
+      if(!analyser) return;
+      analyser.getByteFrequencyData(data);
+      for(var i=0;i<bars.length;i++){
+        var v = data[i] || 0;
+        var h = Math.max(3, (v/255)*28);
+        bars[i].style.height = h + 'px';
+      }
+    },80);
+  }catch(e){}
+}
+
+function stopWaveform(){
+  $('waveform').classList.remove('visible');
+  if(waveInterval){clearInterval(waveInterval);waveInterval=null;}
+  analyser = null;
+}
+
+// -- Speaker preference --
+var SPEAKER_PREF_KEY = 'va_speaker_pref';
 function loadSpeakerPref(){
-  const v = localStorage.getItem(SPEAKER_PREF_KEY);
-  speakerOn = v !== 'false'; // default true
-  const tog = $('speakerToggle');
+  var v = localStorage.getItem(SPEAKER_PREF_KEY);
+  speakerOn = v !== 'false';
+  var tog = $('speakerToggle');
   if(speakerOn) tog.classList.add('on'); else tog.classList.remove('on');
 }
 function toggleSpeakerPref(){
   speakerOn = !speakerOn;
   localStorage.setItem(SPEAKER_PREF_KEY, speakerOn.toString());
-  const tog = $('speakerToggle');
+  var tog = $('speakerToggle');
   if(speakerOn) tog.classList.add('on'); else tog.classList.remove('on');
 }
 loadSpeakerPref();
 
-// ── Screens ──
+// -- Screens --
 function showScreen(id){
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  $(id).classList.add('active');
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active','fade-in'); });
+  var el = $(id);
+  el.classList.add('active','fade-in');
 }
 
-// ── Tier config ──
-const TIERS = {
-  plus: { name:'Touch', desc:'Sua amiga fofoqueira', avatarClass:'avatar-plus', tierLabel:'PLUS' },
-  pro: { name:'Touch Pro', desc:'Fofoqueira com superpoderes', avatarClass:'avatar-pro', tierLabel:'PRO' },
-  ultimatedev: { name:'Touch DEV', desc:'Modo desenvolvedor', avatarClass:'avatar-dev', tierLabel:'ULTIMATEDEV' }
+// -- Tier config --
+var TIERS = {
+  plus: { name:'Touch', avatarClass:'avatar-plus', tierLabel:'PLUS', colorClass:'color-plus',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
+  pro: { name:'Touch Pro', avatarClass:'avatar-pro', tierLabel:'PRO', colorClass:'color-pro',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
+  ultimatedev: { name:'Touch Dev', avatarClass:'avatar-dev', tierLabel:'DEV', colorClass:'color-dev',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>' }
 };
 
-// ── Start call ──
+// -- Start call --
 function startCall(tier){
-  const userId = $('userIdInput').value.trim();
+  var userId = $('userIdInput').value.trim();
   if(!userId){
-    $('userIdInput').style.borderColor='#e74c3c';
-    $('userIdInput').focus();
-    setTimeout(()=>$('userIdInput').style.borderColor='',2000);
+    var inp = $('userIdInput');
+    inp.style.borderColor='rgba(239,68,68,.5)';
+    inp.focus();
+    setTimeout(function(){inp.style.borderColor='';},2000);
     return;
   }
   currentTier = tier;
-  const t = TIERS[tier];
+  var t = TIERS[tier];
 
   // Ring screen
   $('ringAvatar').className = 'ring-avatar ' + t.avatarClass;
-  $('ringName').textContent = 'Ligando para ' + t.name + '...';
+  $('ringAvatar').innerHTML = t.icon;
+  $('ringName').textContent = t.name;
   showScreen('ringScreen');
 
-  // Start connection
   doConnect(userId, tier);
 }
 
@@ -280,95 +420,98 @@ function cancelCall(){
   showScreen('selectScreen');
 }
 
-// ── Connect ──
-async function doConnect(userId, tier){
-  try {
-    const sessionUrl = tier==='ultimatedev' ? '/api/agent/ultimate-session'
-      : tier==='pro' ? '/api/agent/premium-session'
-      : '/api/agent/session';
+// -- Connect --
+function doConnect(userId, tier){
+  var sessionUrl = tier==='ultimatedev' ? '/api/agent/ultimate-session'
+    : tier==='pro' ? '/api/agent/premium-session'
+    : '/api/agent/session';
 
-    const lastInt = parseInt(localStorage.getItem('va_last_'+tier)||'0');
+  var lastInt = parseInt(localStorage.getItem('va_last_'+tier)||'0');
 
-    const tr = await fetch(sessionUrl, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userId, lastInteraction: lastInt })
-    });
-
-    if(!tr.ok){
-      const err = await tr.json().catch(()=>({}));
-      throw new Error(err.error || 'Erro ' + tr.status);
-    }
-
-    const td = await tr.json();
+  fetch(sessionUrl, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ userId: userId, lastInteraction: lastInt })
+  })
+  .then(function(tr){
+    if(!tr.ok) return tr.json().catch(function(){return {};}).then(function(e){throw new Error(e.error||'Erro '+tr.status);});
+    return tr.json();
+  })
+  .then(function(td){
     if(!td.client_secret) throw new Error('Token nao recebido');
-
     localStorage.setItem('va_last_'+tier, Date.now().toString());
 
-    // PeerConnection
     pc = new RTCPeerConnection();
 
-    // Audio output
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
     audioEl.volume = speakerOn ? 1.0 : 0.4;
-    pc.ontrack = e => { audioEl.srcObject = e.streams[0]; };
-
-    // Mic input
-    localStream = await navigator.mediaDevices.getUserMedia({audio:true});
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-
-    // Data channel
-    dc = pc.createDataChannel('oai-events');
-    dc.onopen = () => {
-      active = true;
-      enterCallScreen(tier);
-      dc.send(JSON.stringify({type:'response.create'}));
-    };
-    dc.onmessage = e => {
-      try{ handleEvent(JSON.parse(e.data)); }catch(ex){}
-    };
-    dc.onclose = () => {
-      if(active) handleDisconnect();
+    pc.ontrack = function(e){
+      audioEl.srcObject = e.streams[0];
+      startWaveform(e.streams[0]);
     };
 
-    // SDP
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+    return navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      localStream = stream;
+      stream.getTracks().forEach(function(t){ pc.addTrack(t, stream); });
 
-    const sdpResp = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
-      method:'POST',
-      headers:{
-        'Authorization': 'Bearer ' + td.client_secret.value,
-        'Content-Type': 'application/sdp'
-      },
-      body: offer.sdp
+      dc = pc.createDataChannel('oai-events');
+      dc.onopen = function(){
+        active = true;
+        enterCallScreen(tier);
+        dc.send(JSON.stringify({type:'response.create'}));
+      };
+      dc.onmessage = function(e){
+        try{ handleEvent(JSON.parse(e.data)); }catch(ex){}
+      };
+      dc.onclose = function(){
+        if(active) handleDisconnect();
+      };
+
+      return pc.createOffer();
+    }).then(function(offer){
+      return pc.setLocalDescription(offer).then(function(){ return offer; });
+    }).then(function(offer){
+      return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',{
+        method:'POST',
+        headers:{
+          'Authorization':'Bearer '+td.client_secret.value,
+          'Content-Type':'application/sdp'
+        },
+        body: offer.sdp
+      });
+    }).then(function(sdpResp){
+      return sdpResp.text();
+    }).then(function(sdpText){
+      return pc.setRemoteDescription({type:'answer',sdp:sdpText});
     });
-
-    const answer = { type:'answer', sdp: await sdpResp.text() };
-    await pc.setRemoteDescription(answer);
-
-  } catch(err){
-    alert('Erro ao conectar: ' + err.message);
+  })
+  .catch(function(err){
+    alert('Erro ao conectar: '+err.message);
     cleanup();
     showScreen('selectScreen');
-  }
+  });
 }
 
-// ── Enter call screen ──
+// -- Enter call screen --
 function enterCallScreen(tier){
-  const t = TIERS[tier];
+  var t = TIERS[tier];
   $('callTier').textContent = t.tierLabel;
   $('callName').textContent = t.name;
   $('callStatus').textContent = 'Em ligacao';
   $('callStatus').classList.add('active');
+  $('callDot').classList.add('live');
   $('callAvatar').className = 'call-avatar ' + t.avatarClass;
+  $('callAvatar').innerHTML = t.icon;
+  $('callAvatarWrap').className = 'call-avatar-wrap ' + t.colorClass;
   $('callTranscript').innerHTML = '';
 
-  // Speaker state from preference
+  // Set waveform bar color
+  var wfColor = tier==='pro' ? 'rgba(251,191,36,.4)' : tier==='ultimatedev' ? 'rgba(52,211,153,.4)' : 'rgba(167,139,250,.4)';
+  Array.from($('waveform').children).forEach(function(b){ b.style.background = wfColor; });
+
   updateSpeakerUI();
 
-  // Timer
   callStartTime = Date.now();
   timerInterval = setInterval(updateTimer, 1000);
   updateTimer();
@@ -378,27 +521,27 @@ function enterCallScreen(tier){
 
 function updateTimer(){
   if(!callStartTime) return;
-  const diff = Math.floor((Date.now()-callStartTime)/1000);
-  const m = String(Math.floor(diff/60)).padStart(2,'0');
-  const s = String(diff%60).padStart(2,'0');
+  var diff = Math.floor((Date.now()-callStartTime)/1000);
+  var m = String(Math.floor(diff/60)).padStart(2,'0');
+  var s = String(diff%60).padStart(2,'0');
   $('callTimer').textContent = m+':'+s;
 }
 
-// ── Handle events ──
+// -- Handle events --
 function handleEvent(evt){
-  const userId = $('userIdInput').value.trim();
+  var userId = $('userIdInput').value.trim();
 
   switch(evt.type){
     case 'conversation.item.input_audio_transcription.completed':
       if(evt.transcript){
         addCallTranscript('user', evt.transcript);
-        fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,tier:currentTier,role:'user',content:evt.transcript})}).catch(()=>{});
-        if(currentTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,role:'user',content:evt.transcript})}).catch(()=>{});
+        fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,tier:currentTier,role:'user',content:evt.transcript})}).catch(function(){});
+        if(currentTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,role:'user',content:evt.transcript})}).catch(function(){});
       }
       break;
     case 'response.audio.delta':
       agentSpeaking = true;
-      $('callAvatar').classList.add('speaking');
+      $('callAvatarWrap').classList.add('speaking');
       $('callStatus').textContent = 'Falando...';
       break;
     case 'response.audio_transcript.delta':
@@ -407,24 +550,25 @@ function handleEvent(evt){
     case 'response.audio_transcript.done':
       if(evt.transcript){
         finalizeLiveAgent(evt.transcript);
-        fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,tier:currentTier,role:'assistant',content:evt.transcript})}).catch(()=>{});
-        if(currentTier==='ultimatedev'&&evt.transcript) fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,role:'assistant',content:evt.transcript})}).catch(()=>{});
+        fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,tier:currentTier,role:'assistant',content:evt.transcript})}).catch(function(){});
+        if(currentTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,role:'assistant',content:evt.transcript})}).catch(function(){});
       }
       agentSpeaking = false;
-      $('callAvatar').classList.remove('speaking');
+      $('callAvatarWrap').classList.remove('speaking');
       $('callStatus').textContent = 'Ouvindo...';
       break;
     case 'response.done':
       agentSpeaking = false;
-      $('callAvatar').classList.remove('speaking');
+      $('callAvatarWrap').classList.remove('speaking');
       $('callStatus').textContent = 'Ouvindo...';
       break;
     case 'error':
-      $('callStatus').textContent = 'Erro: '+(evt.error?.message||'');
+      $('callStatus').textContent = 'Erro: '+(evt.error&&evt.error.message||'');
       $('callStatus').classList.remove('active');
+      $('callDot').classList.remove('live');
       break;
     case 'response.function_call_arguments.done':
-      addCallTranscript('system', '['+( evt.name||'tool' )+']');
+      addCallTranscript('system', '['+(evt.name||'tool')+']');
       if(evt.call_id&&dc){
         dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:JSON.stringify({success:true,note:'Tool executada no modo ligacao.'})}}));
         dc.send(JSON.stringify({type:'response.create'}));
@@ -433,47 +577,46 @@ function handleEvent(evt){
   }
 }
 
-// ── Transcript in call ──
-let _liveAgentText = '';
+// -- Transcript --
+var _liveAgentText = '';
 function addCallTranscript(role, text){
-  const box = $('callTranscript');
-  // Remove live line
-  const live = box.querySelector('.t-live');
+  var box = $('callTranscript');
+  var live = box.querySelector('.t-live');
   if(live) live.remove();
-  const div = document.createElement('div');
+  var div = document.createElement('div');
   div.className = 't-line ' + (role==='user'?'t-user':role==='system'?'t-system':'t-agent');
-  div.textContent = role==='user' ? 'Voce: '+text : role==='system' ? text : 'Touch: '+text;
+  var prefix = role==='user' ? 'Voce: ' : role==='system' ? '' : TIERS[currentTier].name+': ';
+  div.textContent = prefix + text;
   box.appendChild(div);
-  // Keep max 6 lines visible
   while(box.children.length > 6) box.removeChild(box.firstChild);
   _liveAgentText = '';
 }
 
 function updateLiveAgent(delta){
   _liveAgentText += delta;
-  const box = $('callTranscript');
-  let live = box.querySelector('.t-live');
+  var box = $('callTranscript');
+  var live = box.querySelector('.t-live');
   if(!live){
     live = document.createElement('div');
     live.className = 't-line t-agent t-live';
     box.appendChild(live);
   }
-  live.textContent = 'Touch: ' + _liveAgentText;
+  live.textContent = TIERS[currentTier].name+': ' + _liveAgentText;
 }
 
 function finalizeLiveAgent(full){
-  const box = $('callTranscript');
-  const live = box.querySelector('.t-live');
+  var box = $('callTranscript');
+  var live = box.querySelector('.t-live');
   if(live) live.remove();
   addCallTranscript('agent', full);
 }
 
-// ── Controls ──
+// -- Controls --
 function toggleMute(){
   if(!localStream) return;
   muted = !muted;
-  localStream.getAudioTracks().forEach(t => t.enabled = !muted);
-  const btn = $('btnMute');
+  localStream.getAudioTracks().forEach(function(t){ t.enabled = !muted; });
+  var btn = $('btnMute');
   if(muted){
     btn.classList.add('muted');
     btn.querySelector('svg').innerHTML = '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .41-.04.81-.1 1.2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>';
@@ -491,9 +634,9 @@ function toggleSpeaker(){
 }
 
 function updateSpeakerUI(){
-  const btn = $('btnSpeaker');
-  const icon = $('speakerIcon');
-  const label = $('speakerLabel');
+  var btn = $('btnSpeaker');
+  var icon = $('speakerIcon');
+  var label = $('speakerLabel');
   if(speakerOn){
     btn.classList.add('on');
     icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
@@ -516,9 +659,11 @@ function handleDisconnect(){
   active = false;
   $('callStatus').textContent = 'Ligacao encerrada';
   $('callStatus').classList.remove('active');
-  $('callAvatar').classList.remove('speaking');
+  $('callDot').classList.remove('live');
+  $('callAvatarWrap').classList.remove('speaking');
+  stopWaveform();
   clearInterval(timerInterval);
-  setTimeout(()=>{
+  setTimeout(function(){
     cleanup();
     showScreen('selectScreen');
   }, 2000);
@@ -527,20 +672,21 @@ function handleDisconnect(){
 function cleanup(){
   active = false;
   muted = false;
+  agentSpeaking = false;
+  stopWaveform();
   if(dc){ try{dc.close();}catch(e){} dc=null; }
   if(pc){ try{pc.close();}catch(e){} pc=null; }
-  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  if(localStream){ localStream.getTracks().forEach(function(t){t.stop();}); localStream=null; }
   if(audioEl){ audioEl.srcObject=null; audioEl=null; }
 }
 
-// ── URL params ──
-const params = new URLSearchParams(location.search);
+// -- URL params --
+var params = new URLSearchParams(location.search);
 if(params.get('userId')) $('userIdInput').value = params.get('userId');
 if(params.get('tier')){
-  // Auto-call
-  const tier = params.get('tier');
+  var tier = params.get('tier');
   if(TIERS[tier] && params.get('userId')){
-    setTimeout(()=> startCall(tier), 500);
+    setTimeout(function(){ startCall(tier); }, 500);
   }
 }
 </script>
