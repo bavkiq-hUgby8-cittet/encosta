@@ -25,69 +25,125 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
    -> Email: ramonnvc@hotmail.com
    -> Nome: Ramon
 
-## ESTRUTURA DO PROJETO (atualizado 23/02/2026)
+## ESTRUTURA DO PROJETO (atualizado 24/02/2026)
 
 Arquivos principais:
-- `server.js` (~7100 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
-- `public/index.html` (~11900 linhas) -- Frontend SPA completo (23+ telas)
+- `server.js` (~9073 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `public/index.html` (~13431 linhas) -- Frontend SPA completo (23+ telas)
+- `public/va-admin.html` (~492 linhas) -- Painel admin dos 3 assistentes de voz
 - `public/games/index.html` (1909 linhas) -- TouchGames lobby (microservico iframe)
-- `public/games/*.html` -- 11 jogos individuais (campo-minado, dama, xadrez, memory, rali, reflexo, cor-errada, empilha, impostor, speed-tap, 2048)
+- `public/games/*.html` -- 11 jogos individuais
 - `public/operator.html` -- Painel do operador de eventos
 - `public/operator-restaurant.html` -- Painel do restaurante
 - `public/site.html` -- Landing page
 - `public/termos.html` -- Termos de uso
 - `simulador-estrelas.html` -- Simulador da economia de estrelas
 - `package.json` -- Dependencias (express, socket.io, firebase-admin, mercadopago, helmet, uuid, express-rate-limit)
-- `docs/` -- Documentacao tecnica (API.md, CHANGELOG.md, RESUMO-PROJETO.md, SESSION-STATE.md)
+- `docs/` -- Documentacao tecnica
 - `CHANGELOG-sessao-*.md` -- Changelogs por sessao
+- `.claude/CLAUDE.md` -- Instrucoes globais pro agente
 
 ## O QUE FAZER PRIMEIRO
 
 1. Acesse a pasta encosta na minha maquina
-2. `git log --oneline -20` para ver o historico recente
-3. Leia este arquivo (PROMPT-NOVO-CHAT.md) por completo
-4. Leia o CHANGELOG mais recente
+2. `git pull` para garantir que esta atualizado
+3. `git log --oneline -20` para ver o historico recente
+4. Leia este arquivo (PROMPT-NOVO-CHAT.md) por completo -- ELE TEM TUDO
 5. Me diga em que pe esta o projeto e pergunte o que preciso
 
 ## REGRAS DE TRABALHO
 
-- Sempre faca commit com mensagem descritiva em portugues
+- Sempre faca commit com mensagem descritiva
 - Sempre faca push para o GitHub apos cada commit
-- SEMPRE salve nos DOIS: maquina E GitHub (nunca um sem o outro)
-- Sincronize: o git da maquina deve estar no mesmo commit do GitHub
-- Se eu pedir backup, verifique que git status esta clean e push foi feito
+- SEMPRE salve nos DOIS: maquina E GitHub
 - Use Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com> nos commits
 - ZERO emojis no codigo -- usamos SVGs vetoriais para icones
+- Se eu pedir backup, verifique que git status esta clean e push foi feito
 
-## CONTEXTO RAPIDO DO APP
+## CONTEXTO DO APP
 
 Touch? e um app de conexao por proximidade. As pessoas se aproximam fisicamente,
-o celular detecta via ultrassom, e cria uma relacao anonima de 24h (chat efemero).
+o celular detecta via ultrassom (~18-22kHz), e cria uma relacao anonima de 24h (chat efemero).
 Podem se revelar, dar estrelas, fazer check-in em eventos, enviar presentes digitais.
+
+Dominio: touch-irl.com (Cloudflare DNS -> Render)
+Render: encosta.onrender.com redireciona 301 para touch-irl.com
+Firebase: Realtime Database para persistencia
+MercadoPago: Pagamentos (Pix, cartao, checkout)
+OpenAI: Voice Agent (Realtime API via WebRTC)
 
 ## FUNCIONALIDADES IMPLEMENTADAS
 
-1. ULTRASOM (Sonic): Deteccao por frequencia ultrassonica (~18-22kHz), gain 0.6, threshold 80, confirm 3, alcance ~10-12cm
-2. CHAT 24H: Chat efemero com timer, quick phrases, foto, mensagem efemera, menu plus com 8 opcoes SVG
-3. REVEAL: Revelar identidade real exige nome preenchido, mostra nickname+telefone
+1. ULTRASOM (Sonic): Deteccao por frequencia ultrassonica, gain 0.6, threshold 80, confirm 3
+2. CHAT 24H: Chat efemero com timer, quick phrases, foto, mensagem efemera
+3. REVEAL: Revelar identidade real exige nome preenchido
 4. CONSTELACAO: Mapa de conexoes em canvas (nodes = pessoas, links = relacoes)
 5. EVENTOS: Operador cria evento, check-in via sonic, menu de restaurante, pedidos
 6. ESTRELAS: Economia zero-sum (doar, comprar R$1.49, loja de acessorios, top tag)
 7. PRESENTES DIGITAIS: Catalogo com itens que custam estrelas
 8. BOARDING PASS: Cartao de embarque com dados do usuario
 9. SELFIE NO REVEAL: Foto do casal salva na relacao
-10. VOICE AGENT: Agente de voz AI (OpenAI Realtime WebRTC) que conhece a rede social, salva notas, mostra perfis, faz fofoca automatica, maximo 1 frase por resposta
-11. TOUCHGAMES: Microservico com 11 jogos, lobby com jogadores online, convites via chat, ready-check para ambos confirmarem, suporte multiplayer via socket
-12. ASSINATURAS: Touch Plus R$50/mes (agente AI, acessorios premium, faixa VIP), Selo R$10/mes (selo visual no perfil)
-13. GORJETAS: Pagamento via MercadoPago (Pix, cartao, checkout pro, saved card, one-tap) -- qualquer usuario pode receber
-14. EXTRATO FINANCEIRO: Tela de extrato com summary cards (recebido, enviado, liquido, pendentes), filtros por tipo, lista de gorjetas com fotos e valores
+10. VOICE AGENT 3-TIER: Sistema de 3 assistentes de voz AI (ver secao abaixo)
+11. TOUCHGAMES: Microservico com 11 jogos, lobby multiplayer, convites via chat
+12. ASSINATURAS: Touch Plus R$50/mes (agente AI, acessorios premium, faixa VIP), Selo R$10/mes
+13. GORJETAS: Pagamento via MercadoPago (Pix, cartao, checkout pro, saved card, one-tap)
+14. EXTRATO FINANCEIRO: Tela com summary cards, filtros, lista de gorjetas
 15. SWIPE-BACK: Gesto de arrastar da borda esquerda pra voltar
 16. PAINEL RESTAURANTE: Menu CRUD, pedidos em tempo real, status por mesa
 
-## MAPA DO SERVER.JS (secoes principais)
+=================================================================
+## VOICE AGENT -- SISTEMA DE 3 TIERS (DETALHADO)
+=================================================================
+
+O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
+
+### PLUS (basico -- qualquer assinante Touch Plus)
+- Custo: $0.08/sessao
+- 4 tools: navegar_tela, mostrar_perfil, listar_conexoes, consultar_relacao
+- Voz: coral, VAD threshold 0.95
+
+### PRO (premium -- qualquer assinante Touch Plus)
+- Custo: $0.15/sessao
+- 9 tools: as 4 do Plus + salvar_nota, ler_notas, buscar_pessoa, ver_estrelas, contar_fofoca
+- Voz: coral, VAD threshold 0.95
+
+### ULTIMATEDEV (apenas admin / Top 1)
+- Custo: $0.25/sessao
+- 18+ tools: as 9 do Pro + comando_dev, ver_fila_dev, aprovar_plano, rejeitar_plano,
+  aprender_usuario, escrever_pensamento, fazer_backup, salvar_arquivo
+- Visual: Matrix green neon, animacao de scan lines
+- Tem consciencia TOTAL da arquitetura do app (server.js, index.html, Firebase, WebRTC, Render, GitHub)
+- Personalidade: assertivo, critico, bom gosto, faz perguntas
+- Funciona como PONTE entre o dono do app (Ramon, nao sabe programar) e o desenvolvedor (Claude/GPT-4o)
+- Sistema Escriba: documenta automaticamente tudo (decisoes, ideias, comandos) a cada 2 minutos
+- Camera e tela: video via WebRTC a 2fps para OpenAI Realtime API vision
+- Persistencia de conversas entre sessoes (ultimas 20 msgs)
+
+### FLUXO DO ULTIMATEDEV (dev commands):
+1. Usuario fala instrucao por voz
+2. Agente chama tool `comando_dev` -> POST /api/dev/command
+3. GPT-4o gera plano com estimativa de tempo (~5-10s)
+4. Agente mostra plano, pergunta se aprova
+5. Se aprovado -> POST /api/dev/approve/:commandId -> GPT-4o gera edits JSON -> aplica no codigo -> git commit+push
+6. Se rejeitado -> POST /api/dev/reject/:commandId
+
+### VA ADMIN PANEL
+- URL: https://touch-irl.com/va-admin.html?userId=USER_ID
+- Permite ajustar voz, VAD, personalidade, regras de privacidade/memoria de cada tier
+- Salva no Firebase (colecao vaConfig)
+- PENDENTE: os prompts das sessoes ainda nao LEEM do vaConfig (estao hardcoded)
+
+### ANTI-ECHO SYSTEM
+- Flags: _agentSpeaking, _pendingToolCall, _unmuteTimer
+- Unmute com delay de 800ms apos agente parar de falar
+- Server VAD: threshold 0.95, prefix_padding_ms 500, silence_duration_ms 1500
+
+=================================================================
+## MAPA DO SERVER.JS (~9073 linhas)
+=================================================================
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET)
-Linha ~180-600: Firebase Admin, DB in-memory, indexes (IDX), top tag calc
+Linha ~180-600: Firebase Admin, DB in-memory com dirty tracking, indexes (IDX), top tag calc
 Linha ~600-760: Dirty tracking (saveDB), backup/rollback system
 Linha ~780-1050: Auth (Firebase verify, link accounts, unificacao de contas)
 Linha ~1050-1250: MercadoPago config, phrases bank, zodiac system
@@ -97,91 +153,94 @@ Linha ~4400-4600: Admin endpoints (reset, backup, rollback, recover)
 Linha ~4600-4900: Socket.IO (identify, messages, typing, sonic, game lobby, game events)
 Linha ~4900-5850: MercadoPago (prestador, tips, pix, checkout, saved card, one-tap, subscription)
 Linha ~5850-6080: Assinaturas (Plus + Selo)
-Linha ~6080-6440: Voice Agent (OpenAI Realtime, notas, acesso AI)
+Linha ~6080-6440: Voice Agent base (OpenAI Realtime sessions, notas, acesso)
 Linha ~6440-6810: Operator/Events/Restaurant (checkins, settings, events, menu, orders)
 Linha ~6810-7063: TouchGames REST API (manifest, sessions, invite-message, find-relation, temp-chat, results, leaderboard)
+Linha ~7063-7300: VA tier system (canUseProVA, canUseUltimateVA, /api/agent/access)
+Linha ~7300-7600: VA Premium session (Pro tier)
+Linha ~7600-8200: VA UltimateDEV session (prompt gigante com arquitetura, 18 tools)
+Linha ~8200-8600: Dev command endpoints (command, queue, approve, reject, learn, conversation)
+Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
+Linha ~8800-9073: VA Config system (GET/POST /api/va-config, test-prompt)
 
-## MAPA DO INDEX.HTML (secoes principais)
+### DB COLLECTIONS (Firebase):
+users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig
 
-Linha ~1-400: CSS completo (variaveris CSS, telas, componentes, animacoes)
+=================================================================
+## MAPA DO INDEX.HTML (~13431 linhas)
+=================================================================
+
+Linha ~1-400: CSS completo (variaveis CSS, telas, componentes, animacoes)
 Linha ~400-2800: HTML das 23+ telas (auth, home, constellation, chat, profile, events, stars, gifts, boarding-pass, reveal, operator, games, agent)
 Linha ~2800-5600: JavaScript principal (state, socket handlers, API calls, renderizacao)
 Linha ~5600-8000: Funcoes de tela (chat, constellation, profile, events, stars)
 Linha ~8000-9500: Sonic system, swipe-back, notifications, boarding pass
-Linha ~9500-10300: Voice Agent (WebRTC, audio pipeline, fofoca automatica)
-Linha ~10300-10900: TouchGames integration (launcher, invite handlers, ready-check modal)
-Linha ~10900-11658: Event handlers, game socket events, iframe communication
+Linha ~9500-11000: Voice Agent (WebRTC, audio pipeline, anti-echo, fofoca automatica)
+Linha ~11000-11500: VA Tier system (tier selector, switchTier, tier chips CSS)
+Linha ~11500-12000: VA UltimateDEV (dev tool handlers, escriba, camera/screen, dev tools bar)
+Linha ~12000-12500: TouchGames integration (launcher, invite handlers, ready-check modal)
+Linha ~12500-13431: Event handlers, game socket events, iframe communication
 
-## TOUCHGAMES -- FLUXO MULTIPLAYER (status atual)
+### VOICE AGENT FRONTEND (detalhes):
+- Variavel principal: vaTier ('plus' | 'pro' | 'ultimatedev')
+- VA.open(tier) -- abre overlay e busca /api/agent/access
+- VA.switchTier(newTier) -- troca tier e reconecta
+- connect() -- roteia para endpoint correto baseado em vaTier
+- Tool handlers: handleComandoDev, handleVerFilaDev, handleAprovarPlano, handleRejeitarPlano, handleAprenderUsuario, handleEscreverPensamento, handleFazerBackup, handleSalvarArquivo
+- Escriba: _escribaBuffer, _escribaLog(), _escribaFlush() (auto 2 min)
+- Camera: _startCamera() (640x480 @2fps via getUserMedia)
+- Screen: _startScreenShare() (@2fps via getDisplayMedia)
+- Dev tools bar: #vaDevTools com botoes camera/screen (so aparece em ultimatedev)
+- Cleanup: para video, flush escriba, fecha PeerConnection
 
-1. Jogador A abre lobby (games/index.html) -> ve "Jogadores no lobby" com avatares
-2. Jogador A clica em avatar -> seleciona oponente (busca relacao via /api/games/find-relation)
-3. Jogador A clica em jogo multiplayer -> cria session (/api/games/sessions) -> envia convite (/api/games/invite-message)
-4. Se nao tem relacao ativa, cria temp-chat automatico (/api/games/temp-chat, 30min)
-5. Convite salva como mensagem no chat: [game-invite:gameId:sessionId:gameName:]
-6. Jogador B recebe toast (game-invite-notify) + mensagem no chat (new-message)
-7. Jogador B abre chat -> ve card com "Jogar" e "Recusar" + timer 60s
-8. Jogador B clica "Jogar" -> game-accept -> server emite game-ready-check para AMBOS
-9. Ambos veem modal VS "Prontos?" -> clicam "Entrar!" -> game-ready
-10. Server: quando 2 prontos -> game-start -> ambos abrem iframe do jogo
+=================================================================
+## PENDENCIAS / COISAS NAO TESTADAS
+=================================================================
 
-PENDENTE/NAO TESTADO:
-- Fluxo completo end-to-end (do lobby ate o jogo abrir) NAO foi confirmado funcionando pelo usuario
-- Ready-check modal pode ter problemas de timing
-- Game-start recarrega iframe do lobby com acceptSession params -- timing sensivel
-- Convite via sonic touch no lobby (encosta em alguem no lobby = convite de jogo)
+### ALTA PRIORIDADE:
+1. VA Config NAO integrado aos prompts -- o painel admin salva no Firebase mas os endpoints de sessao (/api/agent/session, /api/agent/premium-session, /api/agent/ultimate-session) ainda usam prompts HARDCODED. Precisa: ler vaConfig no inicio de cada sessao e substituir os campos dinamicos (personality, memoryRules, etc.)
 
-## DEPLOY
+2. TouchGames fluxo completo -- nunca foi testado end-to-end. Ready-check modal pode ter problemas de timing.
 
-- Dominio: touch-irl.com (Cloudflare DNS -> Render)
-- Render: encosta.onrender.com redireciona 301 para touch-irl.com
-- Firebase: Realtime Database para persistencia
-- MercadoPago: Pagamentos (Pix, cartao, checkout)
-- Stripe: Preparado para Apple Pay / Google Pay / Link (ativar com env vars STRIPE_SECRET_KEY + STRIPE_PUBLIC_KEY)
+3. Camera/Screen no UltimateDEV -- implementado mas NAO testado. Depende do suporte real do OpenAI Realtime API a video tracks via WebRTC (pesquisa indicou que funciona com image snapshots a baixo FPS).
 
-## ULTIMOS COMMITS (23/02/2026 -- sessao mais recente)
+### MEDIA PRIORIDADE:
+4. Escriba system -- implementado, auto-flush a cada 2min, mas nao testado em sessao real.
+5. Dev command flow -- implementado (comando -> plano -> aprovacao -> edits -> git push) mas NAO testado end-to-end.
+6. Stripe Express Checkout -- preparado mas desativado (precisa STRIPE_SECRET_KEY e STRIPE_PUBLIC_KEY no .env)
 
-3baf30e feat: financial screen + history redesign with photos and payment integration
-5a00f97 feat: allow tips to any user, not just prestadores
-f48eb20 fix: login flow auto-recover via Firebase re-link
-ae02900 feat: admin diagnostic + force-reload endpoints
-10742ef feat: configurar dominio touch-irl.com
-5c914eb feat: checkout redesenhado + preparacao Apple Pay/Google Pay via Stripe
-4339570 fix: convite de jogo agora chega no chat + convite via sonic touch no lobby
-ccfe00f fix: silhueta anonima sumindo em alguns celulares
+### BAIXA PRIORIDADE:
+7. Convite via sonic touch no lobby (encosta em alguem = convite de jogo)
+8. Atualizar checkout das assinaturas com novo design (PIX primeiro + Express Checkout)
 
-## COMMITS ANTERIORES (22/02/2026)
+=================================================================
+## GIT LOG RECENTE (24/02/2026)
+=================================================================
 
-df8493d feat: sistema de assinaturas Plus R$50 + Selo R$10 com controle de AI
-12c2bcd fix: sincronizacao lobby + nickname correto + fluxo convite completo
-c6ef841 feat: redesign tela do Voice Agent -- visual moderno com raios animados
-a99d61f feat: lobby com jogadores online e fluxo de conexao
-0c575e3 fix: agente fala menos -- maximo 1 frase por resposta
-9d89a93 fix: convite agora salva via API HTTP ao inves de socket
-7d3644a fix: mic desliga ao encerrar + constelacao nao trava ao mostrar perfil
-15a80eb feat: agente salva notas pessoais + correcoes de bugs
-5a57086 fix: lobby socket nao se identificava pro server
-88d03dd feat: agente mostra perfil na constelacao em tempo real
-36e099f fix: agente fala saudacao/fofoca exata com nome real
-5b86a23 fix: convite no chat + lobby banner + preview corrigido
-a77bd47 fix: redesign completo do fluxo de convites TouchGames
-9c26d6b feat: agente de voz em tempo real -- OpenAI Realtime WebRTC
-f40f6f4 feat: TouchGames microservico independente + 6 jogos novos
+e163b66 feat: UltimateDEV consciousness + escriba + camera/screen vision
+d07a15f feat: VA admin panel — painel de controle dos 3 assistentes
+540d994 fix: security + cleanup for UltimateDEV
+ca25ac5 feat: filtros LED, busca com animacao, evento ao vivo, redesign visual
+210c733 feat: 3-tier VA system (Plus/Pro/UltimateDEV) + dev command executor
+1ccd782 feat: tom direto sem saudacao + modo ligacao (earpiece + sem legenda)
+08c1d93 feat: search overlay reposicionado + endpoint de eventos ativos
+eafef7d fix: anti-echo system + prompt upgrade (estrelas + privacidade)
+fb2ecc7 refactor: limpar e reorganizar onboarding — dual-mode (live/prerecorded)
+4443869 feat: onboarding dual-mode — live AI agent (WebRTC) + prerecorded TTS
 
 ## ROLLBACK RAPIDO
 
-Se algo quebrar, voltar para commits estaveis conhecidos:
-- ANTES das assinaturas: git reset --hard 12c2bcd
-- ANTES do voice agent redesign: git reset --hard a99d61f
-- ANTES de QUALQUER mudanca de games: git reset --hard 0c575e3
+Se algo quebrar, voltar para commits estaveis:
+- ANTES do UltimateDEV consciousness: git reset --hard d07a15f
+- ANTES do VA admin panel: git reset --hard 540d994
+- ANTES do 3-tier VA: git reset --hard ca25ac5
+- ANTES do redesign visual: git reset --hard 1ccd782
 - ANTES do voice agent inteiro: git reset --hard 1ffc98f
-- ANTES do TouchGames v3: git reset --hard b77f837
 
 Apos rollback: git push --force origin main (CUIDADO: sobrescreve GitHub)
 
 ## VARIAVEIS DE AMBIENTE (.env)
 
-Ver .env.example para a lista completa. Principais:
 - FIREBASE_* (config do Firebase Admin SDK)
 - MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_PUBLIC_KEY
 - MP_REDIRECT_URI=https://touch-irl.com/mp/callback
@@ -191,15 +250,13 @@ Ver .env.example para a lista completa. Principais:
 - ALLOWED_ORIGINS (CORS)
 - STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY (quando ativar Apple Pay)
 
-## FLUXOS DE PAGAMENTO (mapeado 23/02/2026)
+## FLUXOS DE PAGAMENTO
 
-1. GORJETAS (tipScreen): PIX, cartao novo, cartao salvo one-tap, Checkout Pro MP, Express Checkout Stripe (preparado)
-2. ASSINATURAS (subscriptionScreen): Touch Plus R$50/mes, Selo R$10/mes -- cartao salvo + MP Preapproval
+1. GORJETAS (tipScreen): PIX, cartao novo, cartao salvo one-tap, Checkout Pro MP
+2. ASSINATURAS (subscriptionScreen): Touch Plus R$50/mes, Selo R$10/mes
 3. ENTRADA EM EVENTOS: Cartao novo ou one-tap com cartao salvo
 4. ESTRELAS: Compradas com pontos de jogo (sem dinheiro real)
 5. PRESENTES: Comprados com pontos (sem dinheiro real)
-
-PENDENTE: Atualizar checkout das assinaturas e eventos com novo design (PIX primeiro + Express Checkout)
 
 Quando estiver pronto, me avisa que a gente comeca.
 ```
