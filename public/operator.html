@@ -32,23 +32,56 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .op-login-toggle{font-size:.7rem;color:var(--ac2);cursor:pointer;text-decoration:underline;transition:color .2s}
 .op-login-toggle:hover{color:var(--ac)}
 
-/* Events screen */
-.op-events{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;z-index:98;background:var(--bg);display:none;padding:2rem 1rem;overflow-y:auto}
-.op-events h2{font-size:1.4rem;font-weight:700;margin-bottom:.3rem}.op-events h2 span{color:var(--ac)}
-.op-events-sub{font-size:.7rem;color:var(--t3);text-align:center;max-width:300px;line-height:1.5;margin-bottom:1.2rem}
-.op-event-list{width:100%;max-width:360px;display:flex;flex-direction:column;gap:.6rem}
-.op-event-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem 1rem;cursor:pointer;transition:all .2s}
-.op-event-card:hover{border-color:var(--ac);transform:translateY(-1px)}
-.op-event-card.active{border-color:var(--ok)}
-.op-event-card.ended{opacity:.5}
-.op-event-name{font-size:.9rem;font-weight:600;color:var(--t1)}
-.op-event-meta{font-size:.65rem;color:var(--t3);margin-top:.2rem}
-.op-event-status{font-size:.6rem;font-weight:600;padding:.1rem .4rem;border-radius:6px;display:inline-block;margin-left:.4rem}
-.op-event-status.active{background:rgba(52,211,153,.15);color:var(--ok)}
-.op-event-status.ended{background:rgba(255,61,113,.1);color:var(--pk)}
-.op-event-create{display:flex;flex-direction:column;gap:.6rem;width:100%;max-width:360px;margin-top:1rem}
-.op-event-create-btn{padding:.7rem;background:var(--ac);border:none;border-radius:12px;color:#fff;font-size:.8rem;font-weight:600;font-family:inherit;cursor:pointer}
+/* Events screen — Redesigned */
+.op-events{position:absolute;inset:0;z-index:98;background:var(--bg);display:none;overflow-y:auto;overflow-x:hidden}
+.op-ev-header{padding:1.5rem 1.5rem .8rem;display:flex;align-items:center;justify-content:space-between}
+.op-ev-hello{display:flex;align-items:center;gap:.8rem}
+.op-ev-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0}
+.op-ev-greeting{font-size:.65rem;color:var(--t3)}
+.op-ev-name{font-size:1rem;font-weight:700}
+.op-ev-section{padding:0 1.5rem;margin-bottom:1rem}
+.op-ev-section-title{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem}
+.op-ev-section-title::after{content:'';flex:1;height:1px;background:var(--b1)}
+.op-event-list{display:flex;flex-direction:column;gap:.5rem}
+.op-event-card{background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem 1.2rem;cursor:pointer;transition:all .25s}
+.op-event-card:hover{border-color:rgba(255,107,53,.3);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.op-event-card.active{border-color:rgba(52,211,153,.3);background:linear-gradient(135deg,rgba(52,211,153,.04),transparent)}
+.op-event-card.ended{opacity:.45;cursor:default}
+.op-event-card.ended:hover{transform:none;box-shadow:none}
+.op-event-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem}
+.op-event-name{font-size:.95rem;font-weight:700;color:var(--t1)}
+.op-event-status{font-size:.55rem;font-weight:700;padding:.2rem .5rem;border-radius:8px;display:inline-block;letter-spacing:.03em;text-transform:uppercase}
+.op-event-status.active{background:rgba(52,211,153,.12);color:var(--ok);border:1px solid rgba(52,211,153,.2)}
+.op-event-status.ended{background:rgba(255,61,113,.08);color:var(--pk);border:1px solid rgba(255,61,113,.15)}
+.op-event-meta{font-size:.62rem;color:var(--t3);display:flex;gap:.8rem;flex-wrap:wrap}
+.op-event-stats{display:flex;gap:.6rem;margin-top:.6rem}
+.op-event-stat{display:flex;align-items:center;gap:.3rem;padding:.3rem .5rem;background:rgba(255,255,255,.03);border-radius:8px;font-size:.6rem;color:var(--t2)}
+.op-event-stat b{color:var(--fire);font-weight:700}
+/* Event type cards grid */
+.op-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.8rem}
+@media(max-width:500px){.op-type-grid{grid-template-columns:repeat(3,1fr)}}
+.op-type-card{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:.7rem .3rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:14px;cursor:pointer;transition:all .2s;text-align:center}
+.op-type-card:hover{border-color:rgba(255,107,53,.25);background:rgba(255,107,53,.04)}
+.op-type-card.selected{border-color:var(--fire);background:rgba(255,107,53,.08);box-shadow:0 0 16px rgba(255,107,53,.12)}
+.op-type-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;transition:transform .2s}
+.op-type-card:hover .op-type-icon{transform:scale(1.1)}
+.op-type-label{font-size:.58rem;font-weight:600;color:var(--t2);line-height:1.2}
+.op-type-card.selected .op-type-label{color:var(--fire)}
+/* Create event form */
+.op-ev-create-wrap{padding:0 1.5rem 2rem}
+.op-ev-create-card{background:var(--s1);border:1px solid var(--b1);border-radius:18px;padding:1.2rem}
+.op-ev-create-title{font-size:.85rem;font-weight:700;margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem}
+.op-ev-create-title svg{width:18px;height:18px;color:var(--fire)}
+.op-ev-form-row{display:flex;gap:.5rem;margin-bottom:.5rem}
+.op-ev-form-row>*{flex:1}
+.op-event-create-btn{padding:.75rem;background:linear-gradient(135deg,var(--fire),#ff8555);border:none;border-radius:14px;color:#fff;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(255,107,53,.2);width:100%}
+.op-event-create-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(255,107,53,.3)}
 .op-event-create-btn:active{transform:scale(.97)}
+/* History toggle */
+.op-ev-history-toggle{display:flex;align-items:center;gap:.4rem;padding:.5rem .8rem;background:rgba(255,255,255,.03);border:1px solid var(--b1);border-radius:10px;color:var(--t3);font-size:.62rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;width:fit-content;margin-top:.3rem}
+.op-ev-history-toggle:hover{color:var(--t2);border-color:rgba(255,255,255,.12)}
+.op-ev-history-toggle svg{width:12px;height:12px;transition:transform .3s}
+.op-ev-history-toggle.open svg{transform:rotate(180deg)}
 .op-event-end-btn{padding:.4rem .8rem;background:rgba(255,61,113,.15);border:1px solid rgba(255,61,113,.3);border-radius:10px;color:var(--pk);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s}
 .op-event-end-btn:hover{background:rgba(255,61,113,.3)}
 /* Paid tag */
@@ -57,13 +90,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .op-ci-paid-btn:hover{border-color:rgba(16,185,129,.4);color:#10b981;background:rgba(16,185,129,.08)}
 
 /* Setup / Cadastro */
-.op-setup{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:99;background:var(--bg);display:none}
+.op-setup{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;z-index:99;background:var(--bg);display:none}
+.op-setup::before{content:'';position:absolute;top:-50px;right:-50px;width:200px;height:200px;background:radial-gradient(circle,rgba(255,107,53,.06),transparent 70%);pointer-events:none}
 .op-setup h2{font-size:1.4rem;font-weight:700}.op-setup h2 span{color:var(--ac)}
 .op-setup-sub{font-size:.7rem;color:var(--t3);text-align:center;max-width:280px;line-height:1.5}
 .op-setup-field{display:flex;flex-direction:column;gap:.3rem;width:260px}
 .op-setup-label{font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
-.op-setup-input{padding:.6rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:border .2s}
-.op-setup-input:focus{border-color:var(--ac)}
+.op-setup-input{padding:.75rem 1rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:all .2s}
+.op-setup-input:focus{border-color:var(--fire);box-shadow:0 0 0 3px rgba(255,107,53,.1)}
 .op-setup-err{font-size:.65rem;color:var(--pk);min-height:1em}
 
 /* Logoff button */
@@ -449,66 +483,153 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 </div>
 
 <div class="op-events" id="opEvents">
-  <h2>Touch<span>?</span> Eventos</h2>
-  <div class="op-events-sub">Selecione um evento ativo ou crie um novo.</div>
-  <div class="op-event-list" id="opEventList"></div>
-  <div class="op-event-create">
-    <div class="op-login-field">
-      <label class="op-login-label">Nome do novo evento</label>
-      <input class="op-login-input" id="opNewEventName" type="text" placeholder="Ex: Festa de Verão, Happy Hour" maxlength="40">
-    </div>
-    <div class="op-login-field">
-      <label class="op-login-label">Tipo de serviço (opcional)</label>
-      <select class="op-login-input" id="opServiceType" style="cursor:pointer">
-        <option value="">Sem serviço</option>
-        <option value="bar">🍺 Bar / Drinks</option>
-        <option value="dj">🎵 DJ / Música</option>
-        <option value="food">🍕 Comida</option>
-        <option value="photo">📸 Fotografia</option>
-        <option value="custom">✏️ Outro</option>
-      </select>
-    </div>
-    <div class="op-login-field" id="opServiceCustomWrap" style="display:none">
-      <label class="op-login-label">Descreva o serviço</label>
-      <input class="op-login-input" id="opServiceCustom" type="text" placeholder="Ex: Decoração, Segurança..." maxlength="30">
-    </div>
-    <div class="op-login-field">
-      <label class="op-login-label">Valor do ingresso (opcional)</label>
-      <div style="display:flex;align-items:center;gap:.4rem">
-        <span style="font-size:.8rem;color:var(--t2);font-weight:600">R$</span>
-        <input class="op-login-input" id="opEntryPrice" type="number" placeholder="0,00" min="0" max="500" step="0.01" style="flex:1">
+  <!-- Header with user info -->
+  <div class="op-ev-header">
+    <div class="op-ev-hello">
+      <div class="op-ev-avatar" id="opEvAvatar" style="background:var(--fire)">?</div>
+      <div>
+        <div class="op-ev-greeting">Bem-vindo de volta</div>
+        <div class="op-ev-name" id="opEvUserName">Operador</div>
       </div>
-      <div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">Deixe em branco ou 0 para entrada gratuita. 10% de taxa Touch?.</div>
     </div>
-    <div class="op-login-field">
-      <label class="op-login-label">Modo de revelação de identidade</label>
-      <select class="op-login-input" id="opRevealMode" style="cursor:pointer">
-        <option value="optional">🔒 Opcional — cada pessoa escolhe se revela</option>
-        <option value="all_revealed">👁️ Todos revelados — identidade visível ao entrar</option>
-      </select>
-      <div style="font-size:.55rem;color:var(--t3);margin-top:.2rem" id="opRevealModeHint">Os participantes serão avisados antes de entrar.</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:.6rem;padding:.3rem 0">
-      <input type="checkbox" id="opAcceptsTips" style="accent-color:var(--ok);width:16px;height:16px;cursor:pointer">
-      <label for="opAcceptsTips" style="font-size:.72rem;color:var(--t2);cursor:pointer">Aceitar gorjetas neste evento 💰</label>
-    </div>
-    <button class="op-event-create-btn" onclick="opCreateEvent()">+ Criar Evento</button>
-    <div class="op-login-err" id="opEventErr"></div>
+    <button class="op-logoff" onclick="opLogoff()" style="font-size:.65rem">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      Sair
+    </button>
   </div>
-  <div style="margin-top:1.5rem">
-    <button class="op-logoff" onclick="opLogoff()">Sair da conta</button>
+
+  <!-- Active Events -->
+  <div class="op-ev-section">
+    <div class="op-ev-section-title">Eventos ativos</div>
+    <div class="op-event-list" id="opEventList"></div>
+  </div>
+
+  <!-- Past Events (collapsible) -->
+  <div class="op-ev-section" id="opPastSection" style="display:none">
+    <button class="op-ev-history-toggle" id="opHistoryToggle" onclick="toggleHistory()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      <span id="opHistoryLabel">Ver historico</span>
+    </button>
+    <div class="op-event-list" id="opPastList" style="display:none;margin-top:.5rem"></div>
+  </div>
+
+  <!-- Create New Event -->
+  <div class="op-ev-create-wrap">
+    <div class="op-ev-create-card">
+      <div class="op-ev-create-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Novo Evento
+      </div>
+
+      <!-- Event Type Selection -->
+      <div style="margin-bottom:.6rem">
+        <div style="font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.5rem">Tipo de evento</div>
+        <div class="op-type-grid" id="opTypeGrid">
+          <div class="op-type-card" onclick="selectEventType(this,'food')" data-type="food">
+            <div class="op-type-icon" style="background:rgba(249,115,22,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.8"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg></div>
+            <span class="op-type-label">Restaurante</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'bar')" data-type="bar">
+            <div class="op-type-icon" style="background:rgba(168,85,247,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.8"><path d="M8 2h8l-4 9v11m0 0H8m4 0h4M3 2h18"/></svg></div>
+            <span class="op-type-label">Bar</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'party')" data-type="party">
+            <div class="op-type-icon" style="background:rgba(236,72,153,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="1.8"><path d="M9 18V5l12-2v13M9 18c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zM21 16c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3z"/></svg></div>
+            <span class="op-type-label">Balada</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'graduation')" data-type="graduation">
+            <div class="op-type-icon" style="background:rgba(59,130,246,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.8"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+            <span class="op-type-label">Formatura</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'wedding')" data-type="wedding">
+            <div class="op-type-icon" style="background:rgba(251,191,36,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+            <span class="op-type-label">Casamento</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'streetfood')" data-type="streetfood">
+            <div class="op-type-icon" style="background:rgba(16,185,129,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4a2 2 0 012 2v6a2 2 0 01-2 2h-2M6 21a2 2 0 100-4 2 2 0 000 4zM16 21a2 2 0 100-4 2 2 0 000 4z"/></svg></div>
+            <span class="op-type-label">Comida de Rua</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'corporate')" data-type="corporate">
+            <div class="op-type-icon" style="background:rgba(96,165,250,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div>
+            <span class="op-type-label">Corporativo</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'festival')" data-type="festival">
+            <div class="op-type-icon" style="background:rgba(244,63,94,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+            <span class="op-type-label">Festival</span>
+          </div>
+          <div class="op-type-card" onclick="selectEventType(this,'custom')" data-type="custom">
+            <div class="op-type-icon" style="background:rgba(255,255,255,.06)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></div>
+            <span class="op-type-label">Outro</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden select for backward compat -->
+      <select class="op-login-input" id="opServiceType" style="display:none">
+        <option value="">Sem servico</option>
+        <option value="bar">Bar / Drinks</option>
+        <option value="dj">DJ / Musica</option>
+        <option value="food">Comida</option>
+        <option value="photo">Fotografia</option>
+        <option value="custom">Outro</option>
+      </select>
+
+      <!-- Event Name -->
+      <div class="op-login-field" style="margin-bottom:.5rem">
+        <label class="op-login-label">Nome do evento</label>
+        <input class="op-login-input" id="opNewEventName" type="text" placeholder="Ex: Festa de Verao, Happy Hour" maxlength="40">
+      </div>
+
+      <!-- Custom service description -->
+      <div class="op-login-field" id="opServiceCustomWrap" style="display:none;margin-bottom:.5rem">
+        <label class="op-login-label">Descreva o servico</label>
+        <input class="op-login-input" id="opServiceCustom" type="text" placeholder="Ex: Decoracao, Seguranca..." maxlength="30">
+      </div>
+
+      <!-- Price + Reveal in row -->
+      <div class="op-ev-form-row">
+        <div class="op-login-field">
+          <label class="op-login-label">Ingresso</label>
+          <div style="display:flex;align-items:center;gap:.3rem">
+            <span style="font-size:.75rem;color:var(--t2);font-weight:600">R$</span>
+            <input class="op-login-input" id="opEntryPrice" type="number" placeholder="0,00" min="0" max="500" step="0.01" style="flex:1">
+          </div>
+          <div style="font-size:.5rem;color:var(--t3);margin-top:.15rem">0 = gratuito. 10% taxa.</div>
+        </div>
+        <div class="op-login-field">
+          <label class="op-login-label">Revelacao</label>
+          <select class="op-login-input" id="opRevealMode" style="cursor:pointer;font-size:.75rem;padding:.6rem .5rem">
+            <option value="optional">Opcional</option>
+            <option value="all_revealed">Todos revelados</option>
+          </select>
+          <div style="font-size:.5rem;color:var(--t3);margin-top:.15rem" id="opRevealModeHint">Identidade dos participantes.</div>
+        </div>
+      </div>
+
+      <!-- Tips toggle -->
+      <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0;margin-bottom:.6rem">
+        <input type="checkbox" id="opAcceptsTips" style="accent-color:var(--ok);width:16px;height:16px;cursor:pointer">
+        <label for="opAcceptsTips" style="font-size:.7rem;color:var(--t2);cursor:pointer">Aceitar gorjetas neste evento</label>
+      </div>
+
+      <!-- Create button -->
+      <button class="op-event-create-btn" onclick="opCreateEvent()">Criar Evento</button>
+      <div class="op-login-err" id="opEventErr" style="margin-top:.3rem"></div>
+    </div>
   </div>
 </div>
 
 <div class="op-setup" id="opSetup">
-  <h2>Touch<span>?</span> Operador</h2>
-  <div class="op-setup-sub">Configure o nome do seu estabelecimento ou evento. Este nome aparecerá para as pessoas que fizerem check-in.</div>
+  <div style="width:10px;height:3px;background:var(--fire);border-radius:3px;margin-bottom:.5rem"></div>
+  <div style="font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:.3rem">Passo 1 de 1</div>
+  <h2 style="font-size:1.5rem;font-weight:800">Configurar <span style="color:var(--fire)">Perfil</span></h2>
+  <div class="op-setup-sub">Este nome aparecera para as pessoas que fizerem check-in no seu estabelecimento ou evento.</div>
   <div class="op-setup-field">
     <label class="op-setup-label">Nome do estabelecimento</label>
-    <input class="op-setup-input" id="opSetupNick" type="text" placeholder="Ex: Bar do João, Festa XYZ" maxlength="20">
+    <input class="op-setup-input" id="opSetupNick" type="text" placeholder="Ex: Bar do Joao, Festa XYZ" maxlength="20">
   </div>
   <div class="op-setup-field">
-    <label class="op-setup-label">Data de nascimento (responsável)</label>
+    <label class="op-setup-label">Data de nascimento (responsavel)</label>
     <input class="op-setup-input" id="opSetupBirth" type="date">
   </div>
   <div class="op-setup-err" id="opSetupErr"></div>
@@ -756,12 +877,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// Event type selector helper for new modernized UI
-function selectEventType(elem){
-  document.querySelectorAll('.op-event-type-card').forEach(el=>el.classList.remove('selected'));
-  if(elem)elem.classList.add('selected');
-}
-
 // ═══ STATE ═══
 const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false,showRealNames:true,hidePhotos:false,currentEventId:null,currentEventName:null};
 let opIsCreateAccount=false;
@@ -838,28 +953,74 @@ async function opDoEmailLogin(){
 
 // ═══ EVENTS SCREEN ═══
 async function showEventsScreen(){
-  $('opEvents').style.display='flex';$('opApp').style.display='none';
-  $('opEventList').innerHTML='<div style="text-align:center;color:var(--t3);font-size:.7rem">Carregando...</div>';
+  $('opEvents').style.display='';$('opApp').style.display='none';
+  // Update header with user info
+  const avEl=$('opEvAvatar');const nameEl=$('opEvUserName');
+  if(avEl){avEl.style.background=S.userColor||'var(--fire)';avEl.textContent=ini(S.userName||'O')}
+  if(nameEl)nameEl.textContent=S.userName||'Operador';
+  $('opEventList').innerHTML='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem">Carregando...</div>';
+  const pastSection=$('opPastSection');const pastList=$('opPastList');
+  if(pastSection)pastSection.style.display='none';
+  if(pastList)pastList.innerHTML='';
   try{
     const r=await fetch('/api/operator/events/'+S.userId);const d=await r.json();
     const list=$('opEventList');list.innerHTML='';
+    const activeEvents=[];const pastEvents=[];
     if(d.events&&d.events.length>0){
-      d.events.forEach(ev=>{
-        const card=document.createElement('div');
-        card.className='op-event-card'+(ev.active?' active':' ended');
-        const dt=new Date(ev.createdAt);
-        const dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
-        const statusBadge=ev.active?'<span class="op-event-status active">Ativo</span>':'<span class="op-event-status ended">Encerrado</span>';
-        const priceTag=ev.entryPrice>0?' · 🎫 R$'+ev.entryPrice.toFixed(2).replace('.',','):'';
-        const revTag=ev.revenue>0?' · 💰 R$'+ev.revenue.toFixed(2).replace('.',','):'';
-        card.innerHTML='<div class="op-event-name">'+esc(ev.name)+' '+statusBadge+'</div><div class="op-event-meta">'+dateStr+' · '+((ev.participants||[]).length)+' participantes'+priceTag+revTag+'</div>';
-        if(ev.active){card.onclick=()=>opSelectEvent(ev.id,ev.name)}
-        list.appendChild(card);
-      });
+      d.events.forEach(ev=>{if(ev.active)activeEvents.push(ev);else pastEvents.push(ev)});
+    }
+    if(activeEvents.length>0){
+      activeEvents.forEach(ev=>{list.appendChild(buildEventCard(ev))});
     }else{
-      list.innerHTML='<div style="text-align:center;color:var(--t3);font-size:.75rem;padding:1rem">Nenhum evento criado ainda.<br>Crie seu primeiro evento abaixo!</div>';
+      list.innerHTML='<div style="text-align:center;color:var(--t3);font-size:.72rem;padding:1.2rem;background:var(--s1);border:1px dashed var(--b1);border-radius:14px;line-height:1.6">Nenhum evento ativo.<br>Crie um novo abaixo para comecar!</div>';
+    }
+    if(pastEvents.length>0){
+      if(pastSection)pastSection.style.display='';
+      if($('opHistoryLabel'))$('opHistoryLabel').textContent='Historico ('+pastEvents.length+')';
+      if(pastList){pastList.innerHTML='';pastEvents.forEach(ev=>{pastList.appendChild(buildEventCard(ev))})}
     }
   }catch(e){$('opEventList').innerHTML='<div style="color:var(--pk);text-align:center;font-size:.7rem">Erro ao carregar eventos</div>'}
+}
+function buildEventCard(ev){
+  const card=document.createElement('div');
+  card.className='op-event-card'+(ev.active?' active':' ended');
+  const dt=new Date(ev.createdAt);
+  const dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+  const pCount=(ev.participants||[]).length;
+  const statusHtml=ev.active?'<span class="op-event-status active">AO VIVO</span>':'<span class="op-event-status ended">Encerrado</span>';
+  const priceStr=ev.entryPrice>0?'R$'+ev.entryPrice.toFixed(2).replace('.',','):'Gratuito';
+  const revStr=ev.revenue>0?'R$'+ev.revenue.toFixed(2).replace('.',','):'--';
+  let statsHtml='<div class="op-event-stats">';
+  statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg> <b>'+pCount+'</b></div>';
+  if(ev.entryPrice>0)statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg> '+priceStr+'</div>';
+  if(ev.revenue>0)statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> <b>'+revStr+'</b></div>';
+  statsHtml+='</div>';
+  card.innerHTML='<div class="op-event-card-top"><div class="op-event-name">'+esc(ev.name)+'</div>'+statusHtml+'</div><div class="op-event-meta"><span>'+dateStr+'</span>'+(ev.serviceLabel?'<span>'+esc(ev.serviceLabel)+'</span>':'')+'</div>'+statsHtml;
+  if(ev.active){card.onclick=()=>opSelectEvent(ev.id,ev.name)}
+  return card;
+}
+function toggleHistory(){
+  const list=$('opPastList');const toggle=$('opHistoryToggle');
+  if(!list)return;
+  const isOpen=list.style.display!=='none';
+  list.style.display=isOpen?'none':'';
+  if(toggle)toggle.classList.toggle('open',!isOpen);
+}
+let selectedEventType='';
+function selectEventType(elem,type){
+  document.querySelectorAll('.op-type-card').forEach(el=>el.classList.remove('selected'));
+  if(selectedEventType===type){selectedEventType='';$('opServiceType').value='';return}
+  elem.classList.add('selected');selectedEventType=type;
+  // Map visual types to service labels
+  const map={food:'food',bar:'bar',party:'dj',graduation:'custom',wedding:'custom',streetfood:'food',corporate:'custom',festival:'custom',custom:'custom'};
+  const nameMap={graduation:'Formatura',wedding:'Casamento',streetfood:'Comida de Rua',corporate:'Corporativo',festival:'Festival'};
+  $('opServiceType').value=map[type]||'';
+  // Show custom field for types that need it
+  const needsCustom=['graduation','wedding','corporate','festival'];
+  if(needsCustom.includes(type)){
+    $('opServiceCustomWrap').style.display='';
+    $('opServiceCustom').value=nameMap[type]||'';
+  }else{$('opServiceCustomWrap').style.display='none';$('opServiceCustom').value=''}
 }
 
 // Toggle custom service field
