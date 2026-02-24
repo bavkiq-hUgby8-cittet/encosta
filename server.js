@@ -748,7 +748,7 @@ async function flushToRTDB() {
     // Re-add failed collections for retry
     cols.forEach(c => _dirtyCollections.add(c));
     // Fallback: save locally
-    try { fs.writeFileSync(path.join(__dirname, 'db.json'), JSON.stringify(db), 'utf8'); } catch (e2) {}
+    fs.promises.writeFile(path.join(__dirname, 'db.json'), JSON.stringify(db), 'utf8').catch(e2 => console.error('File write error:', e2.message));
   }
 }
 
@@ -1504,7 +1504,9 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId
   if (!db.encounters[userAId]) db.encounters[userAId] = [];
   if (!db.encounters[userBId]) db.encounters[userBId] = [];
   db.encounters[userAId].push(trace);
+  if (db.encounters[userAId].length > 1000) db.encounters[userAId] = db.encounters[userAId].slice(-1000);
   db.encounters[userBId].push(traceB);
+  if (db.encounters[userBId].length > 1000) db.encounters[userBId] = db.encounters[userBId].slice(-1000);
   // Award score points (uses classification)
   if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
   if (!db.users[userBId].pointLog) db.users[userBId].pointLog = [];
@@ -2074,6 +2076,7 @@ app.post('/api/session/join', (req, res) => {
     const evName = evObj ? evObj.name : 'Evento';
     if (!db.encounters[codeVisitorId]) db.encounters[codeVisitorId] = [];
     db.encounters[codeVisitorId].push({ with: 'evt:' + sessionEventId, withName: evName, withColor: '#60a5fa', phrase, timestamp: now, date: new Date(now).toISOString().slice(0,10), type: 'checkin', points: 1, chatDurationH: 24, relationId, isEvent: true });
+    if (db.encounters[codeVisitorId].length > 1000) db.encounters[codeVisitorId] = db.encounters[codeVisitorId].slice(-1000);
     awardPoints(codeVisitorId, null, 'checkin');
     // Add to event participants
     if (evObj) {
@@ -2198,12 +2201,16 @@ app.get('/api/session/:id', (req, res) => {
 // Encounter trace (personal history)
 app.get('/api/encounters/:userId', (req, res) => {
   const list = db.encounters[req.params.userId] || [];
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
   const enriched = list.slice().reverse().map(e => {
     const other = db.users[e.with];
     const isRevealed = other?.revealedTo?.includes(req.params.userId);
     return { ...e, realName: isRevealed ? (other?.realName || null) : null, profilePhoto: isRevealed ? (other?.profilePhoto || other?.photoURL || null) : null, verified: !!(other && other.verified) };
   });
-  res.json(enriched); // newest first
+  const total = enriched.length;
+  const paginated = enriched.slice((page - 1) * limit, page * limit);
+  res.json({ data: paginated, page, limit, total, encounters: paginated }); // newest first, backward compatible
 });
 
 // Delete a specific encounter entry
@@ -2416,7 +2423,12 @@ app.get('/api/partner-score/:relationId/:userId', (req, res) => {
 app.get('/api/stars/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
-  res.json({ stars: user.stars || [], total: (user.stars || []).length });
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+  const allStars = user.stars || [];
+  const total = allStars.length;
+  const paginated = allStars.slice((page - 1) * limit, page * limit);
+  res.json({ data: paginated, page, limit, total, stars: paginated }); // backward compatible
 });
 
 // Boarding pass data
@@ -2652,9 +2664,12 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
   });
   // Sort by timestamp desc
   filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  const all = filtered.slice(0, 80);
-  const unseenCount = all.filter(n => !n.seen).length;
-  res.json({ notifications: all, unseenCount });
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+  const total = filtered.length;
+  const paginated = filtered.slice((page - 1) * limit, page * limit);
+  const unseenCount = paginated.filter(n => !n.seen).length;
+  res.json({ data: paginated, page, limit, total, notifications: paginated, unseenCount }); // backward compatible
 });
 
 // Mark network as seen (for badge on rede icon)
@@ -2816,6 +2831,7 @@ app.post('/api/gift/send', (req, res) => {
     // Also award score points for gifting
     if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
     db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift, type: 'gift', timestamp: Date.now() });
+    if (db.users[fromUserId].pointLog.length > 500) db.users[fromUserId].pointLog = db.users[fromUserId].pointLog.slice(-500);
     saveDB('users');
   }
   // Notify recipient via socket
@@ -2920,6 +2936,7 @@ app.post('/api/declaration/send', (req, res) => {
   // Award score points for declaration
   if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
   db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsDeclaration, type: 'declaration', timestamp: Date.now() });
+  if (db.users[fromUserId].pointLog.length > 500) db.users[fromUserId].pointLog = db.users[fromUserId].pointLog.slice(-500);
   saveDB('declarations', 'users');
   io.to(`user:${toUserId}`).emit('declaration-received', { relationId, declaration: decl });
   res.json({ ok: true, declaration: decl });
