@@ -6655,22 +6655,120 @@ function buildUserContext(userId) {
     greeting = `${userName}, sua rede tá começando! Encosta o celular em alguém que eu quero saber de todo mundo!`;
   }
 
+  // ── Active relations with chat messages ──
+  const activeRelations = Object.values(db.relations).filter(r => {
+    return r && (r.userA === userId || r.userB === userId) && r.expiresAt > now;
+  });
+  const chatSummaries = [];
+  activeRelations.forEach(r => {
+    const partnerId = r.userA === userId ? r.userB : r.userA;
+    const partner = db.users[partnerId];
+    const partnerName = partner ? (partner.nickname || partner.name) : '?';
+    const msgs = (db.messages[r.id] || []).slice(-10);
+    const timeLeft = Math.round((r.expiresAt - now) / 3600000);
+    let summary = `- Chat com ${partnerName}: ${timeLeft}h restantes`;
+    if (msgs.length) {
+      const lastMsgs = msgs.slice(-5).map(m => {
+        const who = m.userId === userId ? 'Voce' : partnerName;
+        const txt = (m.text || '').slice(0, 80);
+        if (txt.startsWith('[game-invite:')) {
+          const parts = txt.replace('[game-invite:', '').replace(']', '').split(':');
+          return `${who}: [convite jogo: ${parts[2] || 'jogo'}]`;
+        }
+        return `${who}: ${txt}`;
+      });
+      summary += '\n  ' + lastMsgs.join('\n  ');
+    } else {
+      summary += ' (nenhuma mensagem ainda)';
+    }
+    chatSummaries.push(summary);
+  });
+
+  // ── Game sessions (recent/active) ──
+  const gameSummaries = [];
+  Object.values(db.gameSessions || {}).forEach(gs => {
+    if (!gs || !gs.players || !gs.players.includes(userId)) return;
+    if (gs.status === 'cancelled' || gs.status === 'declined') return;
+    const ageMs = now - (gs.createdAt || 0);
+    if (ageMs > 7 * 24 * 60 * 60 * 1000) return; // Only last 7 days
+    const opponentId = gs.players.find(p => p !== userId);
+    const opponent = opponentId ? db.users[opponentId] : null;
+    const opName = opponent ? (opponent.nickname || opponent.name) : '?';
+    if (gs.status === 'waiting') {
+      const isHost = gs.hostUserId === userId;
+      gameSummaries.push(`- ${gs.gameName || 'Jogo'}: ${isHost ? 'voce convidou ' + opName : opName + ' te convidou'} (aguardando)`);
+    } else if (gs.status === 'playing') {
+      gameSummaries.push(`- ${gs.gameName || 'Jogo'}: jogando com ${opName} (em andamento)`);
+    } else if (gs.status === 'finished') {
+      const won = gs.winner === userId;
+      gameSummaries.push(`- ${gs.gameName || 'Jogo'}: ${won ? 'voce ganhou de' : 'voce perdeu pra'} ${opName}`);
+    }
+  });
+
+  // ── Pending stars (need to be donated) ──
+  const pendingStars = (user.pendingStars || []).map(ps => `- ${ps.reason} (ganhou ${formatTsForUser(ps.earnedAt, userId)})`);
+
+  // ── Reveal requests pending ──
+  const pendingReveals = [];
+  Object.values(db.revealRequests || {}).forEach(rr => {
+    if (rr.toUserId === userId && rr.status === 'pending') {
+      const from = db.users[rr.fromUserId];
+      pendingReveals.push(from ? (from.nickname || from.name) : '?');
+    }
+  });
+
+  // ── Tips received (last 7 days) ──
+  const recentTips = [];
+  Object.values(db.tips || {}).forEach(t => {
+    if (!t || t.receiverId !== userId) return;
+    if (now - (t.createdAt || 0) > 7 * 24 * 60 * 60 * 1000) return;
+    const payer = db.users[t.payerId];
+    const payerName = payer ? (payer.nickname || payer.name) : '?';
+    recentTips.push(`- ${payerName}: R$${(t.amount / 100).toFixed(2)} (${t.status === 'approved' ? 'aprovado' : 'pendente'})`);
+  });
+
+  // ── Subscription info ──
+  const sub = db.subscriptions ? db.subscriptions[userId] : null;
+  let subInfo = '';
+  if (sub && (sub.status === 'authorized' || sub.status === 'active')) {
+    subInfo = `- Assinatura: Touch? Plus ATIVA${sub.expiresAt ? ' (expira ' + formatTsForUser(sub.expiresAt, userId) + ')' : ''}`;
+  } else if (user.isSubscriber) {
+    subInfo = '- Assinatura: Touch? Plus ATIVA';
+  }
+
+  // ── Identity: who can the user see? ──
+  const revealedPeople = [];
+  Object.entries(user.canSee || {}).forEach(([pid, data]) => {
+    if (data && data.name) {
+      const p = db.users[pid];
+      const nick = p ? (p.nickname || '?') : '?';
+      if (nick !== data.name) revealedPeople.push(`${nick} = ${data.name}`);
+    }
+  });
+
   const context = `
-DADOS DO USUÁRIO ${userName}:
+DADOS DO USUARIO ${userName}:
 - Nome: ${userName}, Apelido: ${user.nickname}
 - Pontos: ${points}, Estrelas: ${userStars}, Tag: ${topTag || 'nenhuma'}
 - Curtidas recebidas: ${likesCount}${recentLikers.length ? ' (recentes: ' + recentLikers.join(', ') + ')' : ''}
-- Total de conexões únicas: ${Object.keys(connectionMap).length}
-${recent48h.length ? '- Encontros recentes (48h): ' + recent48h.join(', ') : '- Sem encontros nas últimas 48h'}
+- Total de conexoes unicas: ${Object.keys(connectionMap).length}
+${subInfo ? subInfo : '- Assinatura: nenhuma'}
+${recent48h.length ? '- Encontros recentes (48h): ' + recent48h.join(', ') : '- Sem encontros nas ultimas 48h'}
 ${userEvents.length ? '- Eventos participados: ' + userEvents.join(', ') : ''}
 
-CONEXÕES (top 15):
-${connections.length ? connections.join('\n') : '- Nenhuma conexão ainda'}
+CONEXOES (top 15):
+${connections.length ? connections.join('\n') : '- Nenhuma conexao ainda'}
 
 ${recentStars.length ? 'ESTRELAS RECENTES (7 dias): ' + starsFromWho.join(', ') + ' deram estrela' : ''}
 ${activeEvents.length ? 'EVENTOS ATIVOS AGORA: ' + activeEvents.map(e => e.name).join(', ') : ''}
-${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (coisas que você já aprendeu sobre as pessoas):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
-${connectionsWithoutNotes.length ? '\nCONEXÕES SEM NOTAS (pergunte sobre essas pessoas quando tiver oportunidade!):\n' + connectionsWithoutNotes.slice(0, 8).join(', ') : ''}
+${chatSummaries.length ? '\nCHATS ATIVOS (com ultimas mensagens):\n' + chatSummaries.join('\n') : ''}
+${gameSummaries.length ? '\nJOGOS RECENTES:\n' + gameSummaries.join('\n') : ''}
+${pendingStars.length ? '\nESTRELAS PENDENTES (precisa doar pra alguem!):\n' + pendingStars.join('\n') : ''}
+${pendingReveals.length ? '\nPEDIDOS DE REVELACAO PENDENTES (essas pessoas querem saber quem voce e!):\n- ' + pendingReveals.join(', ') : ''}
+${recentTips.length ? '\nGORJETAS RECEBIDAS (7 dias):\n' + recentTips.join('\n') : ''}
+${revealedPeople.length ? '\nIDENTIDADES REVELADAS (voce sabe o nome real de):\n- ' + revealedPeople.join(', ') : ''}
+${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (coisas que voce ja aprendeu sobre as pessoas):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
+${connectionsWithoutNotes.length ? '\nCONEXOES SEM NOTAS (pergunte sobre essas pessoas quando tiver oportunidade!):\n' + connectionsWithoutNotes.slice(0, 8).join(', ') : ''}
 `.trim();
 
   // Build gossip — JÁ CHEGA COM A FOFOCA, sem "E aí", direto no assunto
