@@ -8195,6 +8195,9 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
       // Use Claude Sonnet 4 for planning
       console.log('[DEV] Chamando Claude para planejamento... instrucao:', instruction.slice(0, 80));
       const planStart = Date.now();
+      // fetch com timeout via AbortController
+      const planAbort = new AbortController();
+      const planTimer = setTimeout(() => planAbort.abort(), 60000); // 60s timeout
       const planResp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -8207,8 +8210,10 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
           max_tokens: 2000,
           messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}\n\nPrimeiras 200 linhas do server.js:\n${serverCode.split('\n').slice(0, 200).join('\n')}\n\nPrimeiras 200 linhas do index.html:\n${indexCode.split('\n').slice(0, 200).join('\n')}` }],
           system: systemPrompt
-        })
+        }),
+        signal: planAbort.signal
       });
+      clearTimeout(planTimer);
       const planTime = Date.now() - planStart;
       if (planResp.ok) {
         const planData = await planResp.json();
@@ -8224,6 +8229,8 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
     } else {
       console.log('[DEV] ANTHROPIC_API_KEY nao configurada, usando GPT-4o fallback');
       // Fallback to GPT-4o if no Anthropic key
+      const planAbort2 = new AbortController();
+      const planTimer2 = setTimeout(() => planAbort2.abort(), 45000); // 45s timeout
       const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -8235,8 +8242,10 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
           ],
           max_tokens: 2000,
           temperature: 0.3
-        })
+        }),
+        signal: planAbort2.signal
       });
+      clearTimeout(planTimer2);
       if (planResp.ok) {
         const planData = await planResp.json();
         command.plan = planData.choices?.[0]?.message?.content || 'Plano nao gerado';
@@ -8247,8 +8256,10 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
       }
     }
   } catch (e) {
-    command.plan = 'Erro: ' + e.message;
+    const isAbort = e.name === 'AbortError';
+    command.plan = isAbort ? 'Timeout: a IA demorou demais para gerar o plano. Tente novamente.' : ('Erro: ' + e.message);
     command.status = 'plan_failed';
+    console.error('[DEV] Planning error:', e.name, e.message);
   }
   saveDB('ultimateBank');
   if (command.status === 'plan_failed') {
@@ -8354,11 +8365,18 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
     let editsRaw;
 
+    // Helper: fetch com timeout (AbortController)
+    function fetchWithTimeout(url, options, timeoutMs) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+    }
+
     if (ANTHROPIC_API_KEY) {
-      // Use Claude Sonnet 4 for code generation — full context
+      // Use Claude Opus 4 for code generation — full context
       console.log('[DEV] Chamando Claude para geracao de codigo... arquivos:', relevantFiles.join(', '));
       const editStart = Date.now();
-      const editResp = await fetch('https://api.anthropic.com/v1/messages', {
+      const editResp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'x-api-key': ANTHROPIC_API_KEY,
@@ -8371,7 +8389,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           system: editSystemPrompt,
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
         })
-      });
+      }, 90000); // 90s timeout para Claude gerar codigo
       const editTime = Date.now() - editStart;
 
       if (!editResp.ok) {
@@ -8389,7 +8407,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     } else {
       console.log('[DEV] ANTHROPIC_API_KEY nao configurada, usando GPT-4o fallback para geracao');
       // Fallback to GPT-4o
-      const editResp = await fetch('https://api.openai.com/v1/chat/completions', {
+      const editResp = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -8401,7 +8419,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           max_tokens: 16000,
           temperature: 0.2
         })
-      });
+      }, 60000); // 60s timeout para GPT-4o
 
       if (!editResp.ok) {
         cmd.status = 'failed';
@@ -8504,16 +8522,17 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       return res.json({ success: false, error: cmd.result, edits: appliedEdits });
     }
 
-    // Git commit + push (aguarda conclusao antes de responder)
+    // Git commit + push (aguarda conclusao antes de responder, com timeout)
     const { execFile: execFileCb } = require('child_process');
     const { promisify } = require('util');
     const execFileAsync = promisify(execFileCb);
     const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>`;
     let gitResult = 'git_pending';
+    const GIT_TIMEOUT = 30000; // 30s por operacao git
     try {
-      await execFileAsync('git', ['-C', __dirname, 'add', '-A']);
-      await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg]);
-      await execFileAsync('git', ['-C', __dirname, 'push']);
+      await execFileAsync('git', ['-C', __dirname, 'add', '-A'], { timeout: GIT_TIMEOUT });
+      await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg], { timeout: GIT_TIMEOUT });
+      await execFileAsync('git', ['-C', __dirname, 'push'], { timeout: GIT_TIMEOUT });
       cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
       cmd.status = 'done';
       gitResult = 'done';
@@ -8527,10 +8546,13 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
     res.json({ success: true, edits: appliedEdits, status: gitResult, engine: ANTHROPIC_API_KEY ? 'claude' : 'gpt4o' });
   } catch (e) {
+    const isAbort = e.name === 'AbortError';
+    const errMsg = isAbort ? 'Timeout: a API demorou demais para responder. Tente novamente.' : ('Erro: ' + e.message);
+    console.error('[DEV] Approve outer error:', e.name, e.message);
     cmd.status = 'failed';
-    cmd.result = 'Erro: ' + e.message;
+    cmd.result = errMsg;
     saveDB('ultimateBank');
-    res.json({ success: false, error: e.message });
+    res.json({ success: false, error: errMsg });
   }
 });
 
