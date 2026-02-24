@@ -4304,10 +4304,10 @@ function createSonicConnection(userIdA, userIdB) {
     }
   }
 
-  // ── STAFF CONNECTION: if operator has pendingStaffRole, next connection is staff ──
+  // ── STAFF CONNECTION: if operator has pendingStaffRole AND visitor is in service mode ──
   const opEntry = operatorEntry;
   const pendingRole = opEntry ? opEntry.pendingStaffRole : null;
-  if (pendingRole && isCheckin && eventId && visitorId) {
+  if (pendingRole && isCheckin && eventId && visitorId && isServiceTouch) {
     const staffUserId = visitorId;
     const staffRole = pendingRole;
     const staffUser = db.users[staffUserId];
@@ -4341,6 +4341,12 @@ function createSonicConnection(userIdA, userIdB) {
       console.log('[createSonicConnection] STAFF connected:', staffRole, staffUserId.slice(0,8), 'to event:', eventId.slice(0,8));
       return;
     }
+  }
+  // If operator is waiting for staff but visitor is NOT in service mode, treat as normal visitor
+  if (pendingRole && isCheckin && eventId && visitorId && !isServiceTouch) {
+    console.log('[createSonicConnection] pendingStaffRole=' + pendingRole + ' but visitor NOT in service mode — treating as normal checkin');
+    // Emit hint to visitor that they should enable service mode
+    io.to('user:' + visitorId).emit('staff-hint', { message: 'Ative o Modo Servico para conectar como ' + (pendingRole === 'driver' ? 'motorista' : 'garcom') });
   }
 
   const relPartnerA = isCheckin && eventId ? visitorId : userIdA;
