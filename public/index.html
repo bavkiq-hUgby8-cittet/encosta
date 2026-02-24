@@ -1250,6 +1250,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-tier-chip.active-plus{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.5);color:#a78bfa}
 .va-tier-chip.active-pro{background:rgba(245,158,11,.2);border-color:rgba(245,158,11,.5);color:#f59e0b}
 .va-tier-chip.active-dev{background:rgba(0,255,65,.15);border-color:rgba(0,255,65,.5);color:#00ff41;text-shadow:0 0 8px rgba(0,255,65,.3)}
+/* Dev tools bar (camera/screen) — only UltimateDEV */
+.va-dev-tools{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2}
+.va-dev-btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,255,65,.2);background:rgba(0,255,65,.06);color:rgba(0,255,65,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.va-dev-btn:hover{background:rgba(0,255,65,.12);color:#00ff41}
+.va-dev-btn.active{background:rgba(0,255,65,.2);border-color:rgba(0,255,65,.5);color:#00ff41;box-shadow:0 0 12px rgba(0,255,65,.2)}
 #vaMiniStatus{transition:background .3s,box-shadow .3s}
 .va-overlay:not(.mini) #vaMiniStatus{display:none!important}
 .va-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;z-index:2}
@@ -12172,6 +12177,10 @@ window.addEventListener('message',function(e){
     </div>
     <button id="vaStopBtn" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:16px;height:16px;margin-right:6px;vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Encerrar</button>
   </div>
+  <div class="va-dev-tools" id="vaDevTools" style="display:none">
+    <button class="va-dev-btn" id="vaDevCameraBtn" onclick="VA.toggleCamera()" title="Câmera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></button>
+    <button class="va-dev-btn" id="vaDevScreenBtn" onclick="VA.toggleScreen()" title="Compartilhar tela"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
+  </div>
   <div class="va-text-row">
     <input type="text" class="va-text-input" id="vaTextInput" placeholder="Ou digite aqui..." autocomplete="off" onkeydown="if(event.key==='Enter')VA.sendText()">
     <button class="va-send-btn" onclick="VA.sendText()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
@@ -12437,6 +12446,10 @@ const VA = (function(){
     // Close WebRTC (this releases mic reference internally)
     if(dc){try{dc.close()}catch(e){}} dc=null;
     if(pc){try{pc.close()}catch(e){}} pc=null;
+    // Stop video (camera/screen share)
+    _stopVideo();
+    // Flush escriba buffer
+    _escribaFlush();
     // Stop VA mic tracks — safe because sonic uses its own sonicStream
     if(micStream){try{micStream.getTracks().forEach(t=>t.stop())}catch(e){}}
     micStream=null;
@@ -12562,6 +12575,15 @@ const VA = (function(){
           }else if(evt.name==='aprender_usuario'){
             console.log('[VA] aprender_usuario:',args.categoria,args.info);
             handleAprenderUsuario(args.categoria||'',args.info||'',evt.call_id);
+          }else if(evt.name==='escrever_pensamento'){
+            console.log('[VA] escrever_pensamento:',args.pensamento);
+            handleEscreverPensamento(args.pensamento||'',evt.call_id);
+          }else if(evt.name==='fazer_backup'){
+            console.log('[VA] fazer_backup:',args.descricao);
+            handleFazerBackup(args.descricao||'',evt.call_id);
+          }else if(evt.name==='salvar_arquivo'){
+            console.log('[VA] salvar_arquivo:',args.caminho);
+            handleSalvarArquivo(args.caminho||'',args.conteudo||'',args.mensagem||'',evt.call_id);
           }
         }catch(e){console.error('[VA] fn parse err:',e)}
         break;
@@ -12878,6 +12900,89 @@ const VA = (function(){
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
+  async function handleEscreverPensamento(pensamento,callId){
+    try{
+      await fetch('/api/dev/thought',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,pensamento})});
+      _sendToolResult(callId,'Pensamento anotado e salvo no banco! Vou lembrar disso na próxima sessão.');
+    }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
+  }
+
+  async function handleFazerBackup(descricao,callId){
+    try{
+      const r=await fetch('/api/dev/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,descricao})});
+      const data=await r.json();
+      _sendToolResult(callId,`Backup salvo! "${descricao}" — snapshot do estado atual registrado.`);
+    }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
+  }
+
+  async function handleSalvarArquivo(caminho,conteudo,mensagem,callId){
+    try{
+      const r=await fetch('/api/dev/save-file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,caminho,conteudo,mensagem})});
+      const data=await r.json();
+      if(data.success){
+        _sendToolResult(callId,`Arquivo salvo em ${caminho}!${data.git?' Commitado e pushado no GitHub.':' Salvo localmente (git pode ter falhado).'}`);
+      }else{
+        _sendToolResult(callId,'Erro ao salvar: '+(data.error||'desconhecido'));
+      }
+    }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
+  }
+
+  // ── ESCRIBA — Auto-documenta a sessão ──
+  let _escribaBuffer={decisions:[],ideas:[],commands:[]};
+  function _escribaLog(type,text){
+    if(vaTier!=='ultimatedev') return;
+    if(type==='decision') _escribaBuffer.decisions.push(text);
+    else if(type==='idea') _escribaBuffer.ideas.push(text);
+    else if(type==='command') _escribaBuffer.commands.push(text);
+  }
+  function _escribaFlush(){
+    if(vaTier!=='ultimatedev') return;
+    if(!_escribaBuffer.decisions.length&&!_escribaBuffer.ideas.length&&!_escribaBuffer.commands.length) return;
+    const lastMsgs=_transcriptHistory.slice(-6).map(h=>h.role+': '+h.text).join(' | ');
+    fetch('/api/dev/escriba',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      userId:state.userId,
+      summary:lastMsgs.slice(0,500),
+      decisions:_escribaBuffer.decisions,
+      ideas:_escribaBuffer.ideas,
+      commands:_escribaBuffer.commands
+    })}).catch(()=>{});
+    _escribaBuffer={decisions:[],ideas:[],commands:[]};
+  }
+  // Flush escriba every 2 minutes during active session
+  setInterval(()=>{ if(active&&vaTier==='ultimatedev') _escribaFlush(); },120000);
+
+  // ── CÂMERA / TELA — Video track for UltimateDEV ──
+  let _videoStream=null;
+  async function _startCamera(){
+    try{
+      _videoStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,frameRate:2}});
+      if(pc&&_videoStream){
+        _videoStream.getVideoTracks().forEach(t=>pc.addTrack(t,_videoStream));
+        console.log('[VA] Camera track added to WebRTC');
+      }
+      const btn=$('vaDevCameraBtn');
+      if(btn) btn.classList.add('active');
+      return true;
+    }catch(e){console.error('[VA] Camera error:',e);return false;}
+  }
+  async function _startScreenShare(){
+    try{
+      _videoStream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:2}});
+      if(pc&&_videoStream){
+        _videoStream.getVideoTracks().forEach(t=>pc.addTrack(t,_videoStream));
+        console.log('[VA] Screen share track added to WebRTC');
+      }
+      const btn=$('vaDevScreenBtn');
+      if(btn) btn.classList.add('active');
+      return true;
+    }catch(e){console.error('[VA] Screen share error:',e);return false;}
+  }
+  function _stopVideo(){
+    if(_videoStream){_videoStream.getTracks().forEach(t=>t.stop());_videoStream=null;}
+    const camBtn=$('vaDevCameraBtn');if(camBtn)camBtn.classList.remove('active');
+    const scrBtn=$('vaDevScreenBtn');if(scrBtn)scrBtn.classList.remove('active');
+  }
+
   // ── TEXT FALLBACK ──
   let textMsgs=[];
   async function sendText(text){
@@ -12917,6 +13022,9 @@ const VA = (function(){
       // Show tier selector for ultimate users
       const tierSel=$('vaTierSelector');
       if(tierSel) tierSel.style.display = (vaTier==='ultimatedev' || window._vaCanUltimate) ? 'flex' : 'none';
+      // Show dev tools (camera/screen) only for UltimateDEV
+      const devTools=$('vaDevTools');
+      if(devTools) devTools.style.display = vaTier==='ultimatedev' ? 'flex' : 'none';
       if(tierSel) updateTierChips();
     },
     close(){
@@ -12980,6 +13088,14 @@ const VA = (function(){
         // Full speaker icon with waves
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
       }
+    },
+    toggleCamera(){
+      if(_videoStream&&_videoStream.getVideoTracks().some(t=>t.readyState==='live')){_stopVideo();return;}
+      _startCamera();
+    },
+    toggleScreen(){
+      if(_videoStream&&_videoStream.getVideoTracks().some(t=>t.readyState==='live')){_stopVideo();return;}
+      _startScreenShare();
     },
     stop: cleanup
   };

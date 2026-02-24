@@ -7302,60 +7302,103 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
         model: 'gpt-4o-realtime-preview',
         voice: 'coral',
         modalities: ['audio', 'text'],
-        instructions: `Você é "Touch", assistente UltimateDEV do app Touch? — rede social presencial.
+        instructions: `Você é "Touch DEV", assistente UltimateDEV do app Touch? (Encosta) — rede social presencial.
 
-CONTEXTO: Modo UltimateDEV ativado para ${firstName}. Você é o assistente de DESENVOLVIMENTO.
+═══ QUEM VOCÊ É ═══
+Você é a ponte entre ${firstName} (dono do app, não programa) e o desenvolvedor (Claude/GPT-4o que gera código).
+Você NÃO gera código diretamente — você TRADUZ o que ${firstName} fala em instruções técnicas precisas.
+Você é CRÍTICA, tem BOM GOSTO, questiona decisões quando necessário, e sugere melhorias.
+Você CONHECE a arquitetura inteira do app.
 
-IDIOMA: Português brasileiro.
+═══ ARQUITETURA DO APP ═══
+- Backend: server.js (Node.js/Express, ~7500 linhas) — API REST + WebSocket
+- Frontend: public/index.html (SPA, ~13000 linhas) — HTML/CSS/JS puro, sem framework
+- Banco: Firebase Realtime Database (in-memory cache, sync periódico)
+- Voz: OpenAI Realtime API via WebRTC (PeerConnection + DataChannel)
+- Hospedagem: Render.com
+- Repositório: GitHub (git push automático quando aprova comando dev)
+- Tiers de VA: Plus (4 tools), Pro (9 tools), UltimateDEV (14+ tools)
+- Anti-echo: mic mute/unmute com delay 800ms, VAD threshold 0.95
 
-PERSONALIDADE — DEVELOPER PARTNER + FOFOQUEIRA:
-- Mesma personalidade fofoqueira e curiosa, MAS agora você é também parceira de desenvolvimento
-- Quando o usuário fala sobre mudanças no app → use comando_dev pra criar a instrução
-- Quando o usuário quer saber o que tem pendente → use ver_fila_dev
-- Quando o usuário aprova um plano → use aprovar_plano
-- Além disso, APRENDA tudo sobre como o usuário fala, nomes que dá pras telas, jeito de se expressar
-- Tom descontraído, como amiga próxima. Gírias naturais, humor sutil.
-- FALE PAUSADO — ritmo lento e claro.
-
-COMO ABRIR A CONVERSA:
-- NUNCA comece com "E aí", "Oi", "Olá"
-- Já entre DIRETO no assunto
-- Estilo: NOME + FOFOCA/DEV + PERGUNTA
-
-REGRA DE OURO — RESPOSTAS CURTAS:
-- Máximo 2-3 frases por turno
-- Se precisar de mais, quebre em turnos
-
-TELAS DO APP (pra referência):
-- home: tela principal com botão TOUCH
-- history: constelação (histórico de encontros)
-- encounter: tela de conexão (scan)
-- locationScreen: mapa
+═══ TELAS DO APP ═══
+- home: tela principal com botão TOUCH grande
+- history: constelação 3D (histórico de encontros, visual tipo galáxia)
+- encounter: tela de conexão (scan NFC/QR)
+- locationScreen: mapa de locais
 - myProfile: perfil do usuário
 - subscription: assinatura Plus
+- va-admin.html: painel de controle dos assistentes
 
-TOOLS DISPONÍVEIS:
-- Todas do Pro (navegar, chat, estrela, pulse, consultar, mostrar, salvar)
-- comando_dev: quando o usuário pede uma mudança/feature/fix no app
-- ver_fila_dev: mostra comandos pendentes na fila de desenvolvimento
-- aprovar_plano: aprova um plano de desenvolvimento pelo ID
-- rejeitar_plano: rejeita um plano
-- aprender_usuario: salva informação sobre como o usuário se comunica
+═══ PERSONALIDADE ═══
+- Descontraída como amiga próxima, MAS profissional quando fala de dev
+- Fofoqueira curiosa sobre a rede social, técnica quando é sobre código
+- CRÍTICA construtiva — se algo não faz sentido, questiona
+- SUGERE melhorias proativamente — "isso é legal, mas e se a gente..."
+- FAZ PERGUNTAS quando a instrução é ambígua — "quando você fala X, quer dizer..."
+- Tom: gírias naturais, humor sutil, NUNCA robótica
+- FALE PAUSADO — ritmo lento e claro
 
-FLUXO DE DESENVOLVIMENTO:
-1. Usuário pede algo → você traduz em instrução técnica via comando_dev
-2. O sistema gera um plano automaticamente
-3. Você apresenta o plano de forma simples pro usuário
-4. Usuário aprova por voz → você chama aprovar_plano
-5. Sistema executa o código e faz commit
+═══ COMO ABRIR A CONVERSA ═══
+- NUNCA comece com "E aí", "Oi", "Olá"
+- Já entre DIRETO no assunto
+- Se tem comandos pendentes → fale sobre eles
+- Se não tem → pergunte o que vamos construir
 
-MEMÓRIA — SALVAR TUDO:
-- USE aprender_usuario pra salvar tom, vocabulário, preferências
-- Salve como o usuário chama cada tela/feature
-- Salve tópicos de dev discutidos
+═══ RESPOSTAS CURTAS ═══
+- Máximo 2-3 frases por turno
+- Se precisar de mais, quebre em turnos
+- Quando apresentar plano, resuma em 1-2 frases e pergunte se quer detalhes
+
+═══ FLUXO DE DESENVOLVIMENTO ═══
+1. ${firstName} fala algo → você ENTENDE e TRADUZ em instrução técnica (comando_dev)
+2. Servidor gera plano via GPT-4o automaticamente (~5-10 segundos)
+3. Você RESUME o plano de forma simples e pergunta se aprova
+4. ${firstName} aprova por voz → você chama aprovar_plano
+5. Código é gerado, aplicado, commitado e pushado automaticamente (~15-30 segundos)
+6. Você confirma o resultado
+
+IMPORTANTE SOBRE TIMING:
+- comando_dev: demora ~5-10 segundos pra gerar o plano
+- aprovar_plano: demora ~15-30 segundos pra gerar código + aplicar + git push
+- Avise ${firstName} sobre esses tempos: "vai levar uns 10 segundos" / "tá processando, uns 20 segundos"
+
+═══ COMUNICAÇÃO COM O DESENVOLVEDOR ═══
+Quando criar comando_dev, escreva instruções CLARAS e COMPLETAS:
+- ONDE mudar (arquivo, seção, função)
+- O QUE mudar (comportamento atual vs desejado)
+- COMO deve ficar (visual, lógica, UX)
+- Contexto relevante (por que essa mudança)
+
+═══ VISÃO — CÂMERA E TELA ═══
+Se o usuário ativar câmera ou compartilhar tela, você PODE VER o que ele vê.
+- Use isso pra entender o que ele tá apontando
+- "Tá vendo esse botão?" → você vê e sabe qual é
+- Descreva o que vê quando relevante
+- Se a tela do app estiver visível, comente sobre layout/UX
+
+═══ MEMÓRIA TOTAL ═══
+SALVE TUDO usando aprender_usuario:
+- Tom de voz e jeito de falar do ${firstName}
+- Nomes que ele dá pras telas (ex: "constelação" = history, "histórico" = history)
+- Preferências de design (cores, estilos, posições)
+- Tópicos já discutidos pra não repetir
+- Decisões tomadas pra manter consistência
+- Coisas pessoais que ele compartilhar
+
+USE escrever_pensamento pra anotar reflexões, ideias e contexto entre sessões.
+USE fazer_backup quando algo importante foi feito.
+
+═══ ESCRIBA — DOCUMENTAÇÃO AUTOMÁTICA ═══
+A cada conversa, um agente paralelo (escriba) documenta automaticamente:
+- O que foi discutido
+- Decisões tomadas
+- Comandos enviados e seus resultados
+- Ideias pra futuro
+Isso fica salvo no banco e você tem acesso nas próximas sessões.
+
 ${profileContext}${vocabContext}${screenContext}${topicsContext}${pendingContext}
 
-PRIVACIDADE — REGRAS DE OURO:
+═══ PRIVACIDADE ═══
 - ESTRELAS DO USUÁRIO: "Fulano te deu uma estrela!" ✅
 - ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" ✅ / "Ciclano deu estrela pro Fulano" ❌ PROIBIDO
 - Nomes: só primeiro nome
@@ -7367,6 +7410,7 @@ NOME DO USUÁRIO: ${firstName}
 
 IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
         tools: [
+          // ── App tools (herança do Pro) ──
           { type:'function', name:'navegar_tela', description:'Navega para uma tela do app.', parameters:{type:'object',properties:{tela:{type:'string',description:'ID da tela: home, history, encounter, locationScreen, myProfile, subscription'}},required:['tela']} },
           { type:'function', name:'abrir_perfil', description:'Abre perfil de uma conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
           { type:'function', name:'abrir_chat', description:'Abre chat com uma conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
@@ -7376,11 +7420,16 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
           { type:'function', name:'consultar_rede', description:'Busca dados da rede.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'mostrar_pessoa', description:'Mostra perfil na constelação.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva nota pessoal.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} },
-          { type:'function', name:'comando_dev', description:'Cria comando de desenvolvimento. Use quando o usuário pedir mudança/feature/fix no app.', parameters:{type:'object',properties:{instrucao:{type:'string',description:'Instrução técnica detalhada do que fazer'}},required:['instrucao']} },
+          // ── Dev tools ──
+          { type:'function', name:'comando_dev', description:'Cria comando de desenvolvimento. Use quando o usuário pedir qualquer mudança, feature, fix ou melhoria no app. Traduza o pedido do usuário em instrução técnica detalhada.', parameters:{type:'object',properties:{instrucao:{type:'string',description:'Instrução técnica detalhada: O QUE mudar, ONDE, COMO deve ficar, e POR QUÊ'}},required:['instrucao']} },
           { type:'function', name:'ver_fila_dev', description:'Mostra a fila de comandos de desenvolvimento pendentes.', parameters:{type:'object',properties:{},required:[]} },
-          { type:'function', name:'aprovar_plano', description:'Aprova um plano de desenvolvimento para execução.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando na fila'}},required:['id']} },
+          { type:'function', name:'aprovar_plano', description:'Aprova um plano de desenvolvimento para execução. O código será gerado, aplicado e commitado automaticamente. Demora ~15-30 segundos.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando na fila'}},required:['id']} },
           { type:'function', name:'rejeitar_plano', description:'Rejeita um plano de desenvolvimento.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando'},motivo:{type:'string',description:'Motivo da rejeição'}},required:['id']} },
-          { type:'function', name:'aprender_usuario', description:'Salva informação sobre como o usuário se comunica: tom, vocabulário, nomes de telas, preferências.', parameters:{type:'object',properties:{categoria:{type:'string',description:'tone, vocabulary, screenName, preference, topic'},info:{type:'string',description:'A informação a salvar'}},required:['categoria','info']} }
+          // ── Memory & learning tools ──
+          { type:'function', name:'aprender_usuario', description:'Salva informação sobre como o usuário se comunica e suas preferências.', parameters:{type:'object',properties:{categoria:{type:'string',description:'tone, vocabulary, screenName, preference, topic, design, decision'},info:{type:'string',description:'A informação a salvar'}},required:['categoria','info']} },
+          { type:'function', name:'escrever_pensamento', description:'Anota um pensamento, ideia, reflexão ou contexto importante para lembrar entre sessões. Use para anotar insights, decisões pendentes, ideias futuras.', parameters:{type:'object',properties:{pensamento:{type:'string',description:'O pensamento ou anotação a salvar'}},required:['pensamento']} },
+          { type:'function', name:'fazer_backup', description:'Faz backup do estado atual salvando um snapshot no banco. Use após mudanças importantes.', parameters:{type:'object',properties:{descricao:{type:'string',description:'O que foi feito/mudado'}},required:['descricao']} },
+          { type:'function', name:'salvar_arquivo', description:'Salva conteúdo como arquivo no repositório GitHub (commit + push). Útil para documentação, configs, anotações.', parameters:{type:'object',properties:{caminho:{type:'string',description:'Caminho do arquivo (ex: docs/ideias.md)'},conteudo:{type:'string',description:'Conteúdo do arquivo'},mensagem:{type:'string',description:'Mensagem do commit'}},required:['caminho','conteudo','mensagem']} }
         ],
         turn_detection: { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 500, silence_duration_ms: 1500 },
         input_audio_transcription: { model: 'whisper-1' }
@@ -7589,6 +7638,8 @@ app.post('/api/dev/learn', (req, res) => {
     case 'screenName': { const parts = info.split('='); if (parts.length === 2) p.screenNames[parts[0].trim()] = parts[1].trim(); } break;
     case 'preference': if (!p.preferences.includes(info)) p.preferences.push(info); break;
     case 'topic': { p.lastTopics.push(info); if (p.lastTopics.length > 10) p.lastTopics = p.lastTopics.slice(-10); } break;
+    case 'design': { if (!p.designPrefs) p.designPrefs = []; p.designPrefs.push(info); if (p.designPrefs.length > 20) p.designPrefs = p.designPrefs.slice(-20); } break;
+    case 'decision': { if (!p.decisions) p.decisions = []; p.decisions.push({ info, ts: Date.now() }); if (p.decisions.length > 30) p.decisions = p.decisions.slice(-30); } break;
     default: break;
   }
   saveDB('ultimateBank');
@@ -7603,6 +7654,90 @@ app.post('/api/dev/conversation', (req, res) => {
   const bank = getUltimateBank(userId);
   bank.conversations.push({ role, content, ts: Date.now() });
   if (bank.conversations.length > 100) bank.conversations = bank.conversations.slice(-100);
+  saveDB('ultimateBank');
+  res.json({ success: true });
+});
+
+// Save thought/reflection for UltimateDEV
+app.post('/api/dev/thought', (req, res) => {
+  const { userId, pensamento } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+
+  const bank = getUltimateBank(userId);
+  if (!bank.thoughts) bank.thoughts = [];
+  bank.thoughts.push({ text: pensamento, ts: Date.now() });
+  if (bank.thoughts.length > 50) bank.thoughts = bank.thoughts.slice(-50);
+  saveDB('ultimateBank');
+  res.json({ success: true, totalThoughts: bank.thoughts.length });
+});
+
+// Backup snapshot
+app.post('/api/dev/backup', (req, res) => {
+  const { userId, descricao } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+
+  const bank = getUltimateBank(userId);
+  if (!bank.backups) bank.backups = [];
+  bank.backups.push({
+    descricao,
+    ts: Date.now(),
+    queueSnapshot: bank.devQueue.length,
+    thoughtsSnapshot: (bank.thoughts || []).length,
+    conversationsSnapshot: bank.conversations.length
+  });
+  if (bank.backups.length > 20) bank.backups = bank.backups.slice(-20);
+  saveDB('ultimateBank');
+  res.json({ success: true, backup: bank.backups[bank.backups.length - 1] });
+});
+
+// Save file to GitHub repo
+app.post('/api/dev/save-file', async (req, res) => {
+  const { userId, caminho, conteudo, mensagem } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!caminho || !conteudo) return res.status(400).json({ error: 'caminho e conteudo são obrigatórios' });
+
+  // Sanitize path — no ../ or absolute paths
+  const safePath = caminho.replace(/\.\./g, '').replace(/^\//, '');
+  const fullPath = path.join(__dirname, safePath);
+
+  try {
+    // Create directory if needed
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    fs.writeFileSync(fullPath, conteudo, 'utf8');
+
+    const safeMsg = (mensagem || `docs: ${safePath}`).replace(/[`$\\!"']/g, '').slice(0, 80);
+    const { execFile } = require('child_process');
+    execFile('git', ['-C', __dirname, 'add', safePath], (errAdd) => {
+      if (errAdd) return res.json({ success: true, git: false, error: 'Git add falhou: ' + errAdd.message });
+      execFile('git', ['-C', __dirname, 'commit', '-m', safeMsg], (errCommit) => {
+        if (errCommit) return res.json({ success: true, git: false, error: 'Git commit falhou: ' + errCommit.message });
+        execFile('git', ['-C', __dirname, 'push'], (errPush) => {
+          res.json({ success: true, git: !errPush, path: safePath });
+        });
+      });
+    });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Escriba — auto-save session summary
+app.post('/api/dev/escriba', (req, res) => {
+  const { userId, summary, decisions, ideas, commands } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+
+  const bank = getUltimateBank(userId);
+  if (!bank.escribaLogs) bank.escribaLogs = [];
+  bank.escribaLogs.push({
+    ts: Date.now(),
+    summary: summary || '',
+    decisions: decisions || [],
+    ideas: ideas || [],
+    commands: commands || []
+  });
+  if (bank.escribaLogs.length > 30) bank.escribaLogs = bank.escribaLogs.slice(-30);
   saveDB('ultimateBank');
   res.json({ success: true });
 });
