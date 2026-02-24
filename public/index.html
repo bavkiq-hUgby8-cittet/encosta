@@ -3176,9 +3176,32 @@ async function forgotPassword(){
 async function doLogout(){
   try{
     if(firebaseAuthInstance)await firebaseAuthInstance.signOut();
-    localStorage.removeItem('touch_userId');localStorage.removeItem('touch_userName');localStorage.removeItem('touch_userColor');
+    // Limpa TODOS os dados do usuario do localStorage
+    localStorage.removeItem('touch_userId');
+    localStorage.removeItem('touch_userName');
+    localStorage.removeItem('touch_userColor');
+    localStorage.removeItem('touch_userPhoto');
+    localStorage.removeItem('touch_email');
+    localStorage.removeItem('touch_userAccessory');
+    localStorage.removeItem('touch_isPrestador');
+    localStorage.removeItem('touch_serviceModeEnabled');
+    localStorage.removeItem('touch_savedCard');
+    localStorage.removeItem('touch_const_count');
+    // Limpa evento ativo (CRITICO: sem isso evento gruda no aparelho)
+    localStorage.removeItem('activeEventId');
+    localStorage.removeItem('activeEventName');
+    localStorage.removeItem('activeEventRole');
+    // Limpa staff
+    localStorage.removeItem('activeStaffEventId');
+    localStorage.removeItem('activeStaffId');
+    localStorage.removeItem('activeStaffRole');
+    // Limpa VA
+    localStorage.removeItem('va_last_interaction');
     state.userId=null;state.userName=null;state.userColor='';fbUser=null;
     if(socket){socket.disconnect();socket=null}
+    // Esconde botao de evento flutuante se visivel
+    var floatBtn=document.getElementById('floatingEventBtn');
+    if(floatBtn)floatBtn.style.display='none';
     showScreen('login');
   }catch(e){showToast('Erro ao sair.')}
 }

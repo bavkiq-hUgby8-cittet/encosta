@@ -5289,7 +5289,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {});
+  socket.on('disconnect', () => {
+    // Limpa entradas do sonicQueue deste socket para evitar entradas orfas
+    for (const key in sonicQueue) {
+      if (sonicQueue[key].socketId === socket.id) {
+        console.log('[Sonic] Limpando entrada orfa do sonicQueue:', key, 'socket:', socket.id);
+        delete sonicQueue[key];
+      }
+    }
+  });
 });
 
 // ═══ MERCADOPAGO — Gorjetas ═══
