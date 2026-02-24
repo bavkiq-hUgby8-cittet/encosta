@@ -1909,6 +1909,23 @@ app.get('/api/user/:id', (req, res) => {
   res.json({ ...user, sign, signInfo: sign ? ZODIAC_INFO[sign] : null });
 });
 
+// ── Save user timezone ──
+app.post('/api/user/timezone', (req, res) => {
+  const { userId, timezone } = req.body;
+  if (!userId || !timezone) return res.status(400).json({ error: 'userId e timezone obrigatorios' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado' });
+  // Validate timezone string
+  try {
+    new Date().toLocaleString('en-US', { timeZone: timezone });
+  } catch (e) {
+    return res.status(400).json({ error: 'Timezone invalido: ' + timezone });
+  }
+  user.timezone = timezone;
+  saveDB('users');
+  res.json({ ok: true, timezone });
+});
+
 app.post('/api/session/create', (req, res) => {
   const { userId, isServiceTouch, isCheckin } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
@@ -4659,6 +4676,113 @@ app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req
   res.json({ ok: true, created, encounterUsers: Object.keys(db.encounters).length, totalEncounters: Object.values(db.encounters).reduce((s, a) => s + a.length, 0) });
 });
 
+// ── ADMIN PANEL ENDPOINTS ──
+
+app.get('/api/admin/dashboard-stats', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const users = Object.values(db.users);
+    const totalUsers = users.length;
+    const verified = users.filter(u => u.verified).length;
+    const premium = users.filter(u => u.isSubscriber).length;
+    const prestadores = users.filter(u => u.isPrestador).length;
+    const admins = users.filter(u => u.isAdmin).length;
+    const totalRelations = Object.keys(db.relations).length;
+    const totalEncounters = Object.keys(db.encounters).length;
+    const events = Object.values(db.events);
+    const activeEvents = events.filter(e => !e.endedAt && (!e.endsAt || new Date(e.endsAt) > new Date())).length;
+    const totalEvents = events.length;
+    const todayLocal = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    todayLocal.setHours(0,0,0,0);
+    const todayStart = todayLocal;
+    let todayEncounters = 0;
+    for (const uid of Object.keys(db.encounters)) {
+      const arr = db.encounters[uid];
+      if (Array.isArray(arr)) todayEncounters += arr.filter(e => e.timestamp && new Date(e.timestamp) >= todayStart).length;
+    }
+    let tipsTotal = 0, tipsCount = 0;
+    for (const uid of Object.keys(db.tips || {})) {
+      const arr = db.tips[uid];
+      if (Array.isArray(arr)) { tipsCount += arr.length; arr.forEach(t => { tipsTotal += (t.amount || 0); }); }
+    }
+    let subsActive = 0;
+    for (const uid of Object.keys(db.subscriptions || {})) {
+      const s = db.subscriptions[uid];
+      if (s && (s.status === 'authorized' || s.status === 'active')) subsActive++;
+    }
+    const seen = new Set();
+    [...io.sockets.sockets.values()].forEach(s => { if (s.touchUserId) seen.add(s.touchUserId); });
+    const onlineCount = seen.size;
+    const growth = {};
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    users.forEach(u => {
+      if (u.createdAt && new Date(u.createdAt).getTime() > thirtyDaysAgo) {
+        const day = new Date(u.createdAt).toISOString().slice(0, 10);
+        growth[day] = (growth[day] || 0) + 1;
+      }
+    });
+    res.json({ totalUsers, verified, premium, prestadores, admins, totalRelations, totalEncounters, todayEncounters, activeEvents, totalEvents, tipsTotal, tipsCount, subsActive, onlineCount, uptime: process.uptime(), growth });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/users', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const q = (req.query.q || '').toLowerCase().trim();
+    const filter = req.query.filter || 'all';
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    let users = Object.values(db.users);
+    if (filter === 'verified') users = users.filter(u => u.verified);
+    else if (filter === 'premium') users = users.filter(u => u.isSubscriber);
+    else if (filter === 'prestador') users = users.filter(u => u.isPrestador);
+    else if (filter === 'admin') users = users.filter(u => u.isAdmin);
+    if (q) users = users.filter(u => (u.nickname||'').toLowerCase().includes(q)||(u.name||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)||(u.id||'').toLowerCase().includes(q));
+    users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    const total = users.length;
+    const start = (page - 1) * limit;
+    const paged = users.slice(start, start + limit).map(u => ({ id: u.id, nickname: u.nickname, name: u.name, email: u.email, stars: (u.stars||[]).length, points: u.points||0, verified: !!u.verified, isSubscriber: !!u.isSubscriber, isPrestador: !!u.isPrestador, isAdmin: !!u.isAdmin, topTag: u.topTag||null, photoURL: u.photoURL||null, createdAt: u.createdAt||null }));
+    res.json({ users: paged, total, page, pages: Math.ceil(total / limit) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/toggle-admin', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId || !db.users[userId]) return res.status(404).json({ error: 'Usuario nao encontrado' });
+    db.users[userId].isAdmin = !db.users[userId].isAdmin;
+    markDirty('users');
+    res.json({ ok: true, isAdmin: db.users[userId].isAdmin });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/events', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const events = Object.values(db.events).map(e => {
+      const op = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.eventId === e.id) : null;
+      return { id: e.id, name: e.name, code: e.code, creatorId: e.creatorId, creatorName: e.creatorName, startsAt: e.startsAt, endsAt: e.endsAt, endedAt: e.endedAt, active: !e.endedAt && (!e.endsAt || new Date(e.endsAt) > new Date()), participants: (e.participants||[]).length, checkins: op?(op.checkinCount||0):0, revenue: op?(op.revenue||0):0, createdAt: e.createdAt };
+    });
+    events.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    res.json({ events });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/financial', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    let tipsTotal = 0, tipsCount = 0, tipsFee = 0;
+    const recentTips = [];
+    for (const uid of Object.keys(db.tips || {})) {
+      const arr = db.tips[uid];
+      if (!Array.isArray(arr)) continue;
+      arr.forEach(t => { tipsCount++; tipsTotal += (t.amount||0); tipsFee += (t.touchFee||0); if (recentTips.length < 50) recentTips.push({ amount: t.amount, from: t.payerNickname||t.payerId, to: t.receiverNickname||t.receiverId, date: t.createdAt, method: t.method||'card' }); });
+    }
+    recentTips.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    let subsActive = 0, subsTotal = 0;
+    for (const uid of Object.keys(db.subscriptions || {})) { const s = db.subscriptions[uid]; if (!s) continue; subsTotal++; if (s.status === 'authorized' || s.status === 'active') subsActive++; }
+    let eventRevenue = 0;
+    for (const oe of Object.values(db.operatorEvents || {})) { eventRevenue += (oe.revenue || 0); }
+    res.json({ tips: { total: tipsTotal, count: tipsCount, fee: tipsFee }, subscriptions: { active: subsActive, total: subsTotal }, events: { revenue: eventRevenue }, recentTips: recentTips.slice(0, 30) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── STATUS / HEALTH ──
 app.get('/api/status', (req, res) => {
   res.json({
@@ -5605,19 +5729,16 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
   const totalFees = tipsApproved.reduce((s, t) => s + (t.fee || 0), 0);
   const totalNet = totalReceived - totalFees;
 
-  // Today
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const tipsToday = tipsApproved.filter(t => t.createdAt >= todayStart.getTime());
+  // Today (using user's timezone)
+  const tipsToday = tipsApproved.filter(t => t.createdAt >= getUserTodayStart(userId));
   const todayTotal = tipsToday.reduce((s, t) => s + (t.amount || 0), 0);
 
-  // This week
-  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay()); weekStart.setHours(0,0,0,0);
-  const tipsWeek = tipsApproved.filter(t => t.createdAt >= weekStart.getTime());
+  // This week (using user's timezone)
+  const tipsWeek = tipsApproved.filter(t => t.createdAt >= getUserWeekStart(userId));
   const weekTotal = tipsWeek.reduce((s, t) => s + (t.amount || 0), 0);
 
-  // This month
-  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
-  const tipsMonth = tipsApproved.filter(t => t.createdAt >= monthStart.getTime());
+  // This month (using user's timezone)
+  const tipsMonth = tipsApproved.filter(t => t.createdAt >= getUserMonthStart(userId));
   const monthTotal = tipsMonth.reduce((s, t) => s + (t.amount || 0), 0);
 
   // Encounters (encostadas) received
@@ -6511,7 +6632,7 @@ function buildUserContext(userId) {
   const recent48h = encounters.filter(e => now - e.timestamp < 2 * h24 && !e.isEvent)
     .sort((a,b) => b.timestamp - a.timestamp)
     .slice(0, 5)
-    .map(e => `${e.withName} (${new Date(e.timestamp).toLocaleString('pt-BR', {hour:'2-digit',minute:'2-digit'})})`);
+    .map(e => `${e.withName} (${formatTsForUser(e.timestamp, userId)})`);
 
   // Build greeting — JÁ ENTRA NO ASSUNTO, sem "e aí", sem pausa
   // Estilo: "Ramon, [fofoca/novidade]! [pergunta curta]"
@@ -6574,6 +6695,86 @@ ${connectionsWithoutNotes.length ? '\nCONEXÕES SEM NOTAS (pergunte sobre essas 
 }
 
 // Ephemeral token — browser connects to OpenAI Realtime via WebRTC
+// ── Timezone Helper ──
+// Returns a Date object adjusted to the user's timezone (or server local if unknown)
+function getUserLocalNow(userId) {
+  const user = db.users[userId];
+  const tz = (user && user.timezone) ? user.timezone : 'America/Sao_Paulo';
+  try {
+    // Create date string in user's timezone, then parse back
+    const nowStr = new Date().toLocaleString('en-US', { timeZone: tz });
+    return new Date(nowStr);
+  } catch (e) {
+    return new Date();
+  }
+}
+
+// Returns formatted time string in user's timezone (HH:mm)
+function getUserLocalTime(userId) {
+  const user = db.users[userId];
+  const tz = (user && user.timezone) ? user.timezone : 'America/Sao_Paulo';
+  try {
+    return new Date().toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+// Returns formatted date+time in user's timezone
+function getUserLocalDateTime(userId) {
+  const user = db.users[userId];
+  const tz = (user && user.timezone) ? user.timezone : 'America/Sao_Paulo';
+  try {
+    return new Date().toLocaleString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+// Formats a timestamp to user's local time
+function formatTsForUser(ts, userId) {
+  const user = db.users[userId];
+  const tz = (user && user.timezone) ? user.timezone : 'America/Sao_Paulo';
+  try {
+    return new Date(ts).toLocaleString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+// Returns "today" start timestamp in user's timezone
+function getUserTodayStart(userId) {
+  const localNow = getUserLocalNow(userId);
+  localNow.setHours(0, 0, 0, 0);
+  return localNow.getTime();
+}
+
+// Returns "this week" start (Sunday) in user's timezone
+function getUserWeekStart(userId) {
+  const localNow = getUserLocalNow(userId);
+  localNow.setDate(localNow.getDate() - localNow.getDay());
+  localNow.setHours(0, 0, 0, 0);
+  return localNow.getTime();
+}
+
+// Returns "this month" start in user's timezone
+function getUserMonthStart(userId) {
+  const localNow = getUserLocalNow(userId);
+  localNow.setDate(1);
+  localNow.setHours(0, 0, 0, 0);
+  return localNow.getTime();
+}
+
+// Returns greeting period based on user's local time
+function getUserGreetingPeriod(userId) {
+  const localNow = getUserLocalNow(userId);
+  const h = localNow.getHours();
+  if (h >= 5 && h < 12) return 'manha';
+  if (h >= 12 && h < 18) return 'tarde';
+  if (h >= 18 && h < 22) return 'noite';
+  return 'madrugada';
+}
+
 // ── VA Cost Tracking Per User ──
 const VA_DAILY_LIMIT_CENTS = 50; // $0.50 per day
 const VA_SESSION_COST_CENTS = 8; // ~$0.08 per regular session
@@ -6583,7 +6784,8 @@ const VA_ULTIMATE_SESSION_COST_CENTS = 25; // ~$0.25 per UltimateDEV session
 function getVaUsageToday(userId) {
   const user = db.users[userId];
   if (!user) return { count: 0, cost: 0 };
-  const today = new Date().toISOString().slice(0, 10);
+  const localNow = getUserLocalNow(userId);
+  const today = localNow.getFullYear() + '-' + String(localNow.getMonth()+1).padStart(2,'0') + '-' + String(localNow.getDate()).padStart(2,'0');
   if (!user.vaUsage || user.vaUsage.date !== today) {
     user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0 };
   }
@@ -6593,7 +6795,8 @@ function getVaUsageToday(userId) {
 function trackVaSession(userId, isPremium) {
   const user = db.users[userId];
   if (!user) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const localNow = getUserLocalNow(userId);
+  const today = localNow.getFullYear() + '-' + String(localNow.getMonth()+1).padStart(2,'0') + '-' + String(localNow.getDate()).padStart(2,'0');
   if (!user.vaUsage || user.vaUsage.date !== today) {
     user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0 };
   }
@@ -6722,6 +6925,12 @@ app.post('/api/agent/session', async (req, res) => {
 
 IDIOMA:
 - Portugues brasileiro por padrao, mas responda no idioma que o usuario falar
+
+HORARIO LOCAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})
+TIMEZONE: ${(user.timezone || 'America/Sao_Paulo')}
+- Use esse horario como referencia para saudacoes (bom dia/boa tarde/boa noite)
+- Se o usuario mencionar um horario diferente do seu, pergunte em qual fuso horario ele esta e ajuste
+- Quando falar de horarios de encontros ou eventos, use o horario LOCAL do usuario
 
 PERSONALIDADE:
 ${tierCfg.personality}
@@ -7008,10 +7217,11 @@ app.get('/api/agent/context/:userId', (req, res) => {
     notifs.sort((a, b) => b.ts - a.ts);
     if (notifs.length) {
       notifSummary = '\n\nNOTIFICAÇÕES RECENTES (últimos 7 dias):\n' +
-        notifs.slice(0, 15).map(n => `- ${n.who}: ${n.t} (${new Date(n.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})`).join('\n');
+        notifs.slice(0, 15).map(n => `- ${n.who}: ${n.t} (${formatTsForUser(n.ts, userId)})`).join('\n');
     }
   }
-  res.json({ context: context + notifSummary, gossip, ts: Date.now() });
+  const localTimeInfo = `\n\nHORARIO LOCAL ATUAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})`;
+  res.json({ context: context + notifSummary + localTimeInfo, gossip, ts: Date.now() });
 });
 
 // Save agent note about a connection
@@ -7135,6 +7345,11 @@ app.post('/api/agent/premium-session', async (req, res) => {
 CONTEXTO: Modo premium ativado para ${firstName}. Voce tem controle TOTAL do app.
 IDIOMA: Portugues brasileiro por padrao, responda no idioma do usuario.
 
+HORARIO LOCAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})
+TIMEZONE: ${(user.timezone || 'America/Sao_Paulo')}
+- Use esse horario como referencia para saudacoes e contexto temporal
+- Se o usuario parecer em outro fuso, pergunte e se ajuste
+
 PERSONALIDADE:
 ${proCfg.personality}
 
@@ -7251,6 +7466,10 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
         input_audio_transcription: { model: 'whisper-1' },
         turn_detection: { type: 'server_vad', threshold: devCfg.vadThreshold || 0.95, prefix_padding_ms: devCfg.prefixPadding || 500, silence_duration_ms: devCfg.silenceDuration || 1500 },
         instructions: `Voce e "Touch DEV", assistente UltimateDEV do app Touch? (Encosta) — rede social presencial.
+
+HORARIO LOCAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})
+TIMEZONE: ${(user.timezone || 'America/Sao_Paulo')}
+- Use esse horario como referencia. Se o usuario parecer em outro fuso, pergunte.
 
 PERSONALIDADE:
 ${devCfg.personality}
