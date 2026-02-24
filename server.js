@@ -25,7 +25,7 @@ if (!ADMIN_SECRET) console.warn('⚠️ ADMIN_SECRET não configurado! Endpoints
 // ── Security: Allowed origins for CORS ──
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 // Fallback: allow common origins in dev
-const DEFAULT_ORIGINS = ['https://touch-irl.com', 'https://www.touch-irl.com', 'https://encosta.onrender.com', 'http://localhost:3000', 'http://localhost:5500'];
+const DEFAULT_ORIGINS = ['https://touch-irl.com', 'https://www.touch-irl.com', 'https://encosta.onrender.com'];
 const CORS_ORIGINS = ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_ORIGINS;
 
 const app = express();
@@ -492,6 +492,8 @@ const IDX = {
   email: new Map(),          // email.toLowerCase() → userId
   phone: new Map(),          // phone (e.g. +5511999...) → userId
   cpf: new Map(),            // cpf (digits only) → userId
+  tipsByPayer: new Map(),     // payerId -> [tipIds]
+  tipsByReceiver: new Map(),  // receiverId -> [tipIds]
 };
 
 function rebuildIndexes() {
@@ -500,6 +502,7 @@ function rebuildIndexes() {
   IDX.donationsByFrom.clear(); IDX.donationsByPair.clear();
   IDX.operatorByCreator.clear();
   IDX.email.clear(); IDX.phone.clear(); IDX.cpf.clear();
+  IDX.tipsByPayer.clear(); IDX.tipsByReceiver.clear();
   for (const [uid, u] of Object.entries(db.users)) {
     if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, uid);
     if (u.touchCode) IDX.touchCode.set(u.touchCode, uid);
@@ -550,6 +553,16 @@ function rebuildIndexes() {
     if (u.stars && !Array.isArray(u.stars)) u.stars = Object.values(u.stars);
     if (u.likedBy && !Array.isArray(u.likedBy)) u.likedBy = Object.values(u.likedBy);
     if (u.revealedTo && !Array.isArray(u.revealedTo)) u.revealedTo = Object.values(u.revealedTo);
+  }
+  for (const [tid, t] of Object.entries(db.tips || {})) {
+    if (t.payerId) {
+      if (!IDX.tipsByPayer.has(t.payerId)) IDX.tipsByPayer.set(t.payerId, []);
+      IDX.tipsByPayer.get(t.payerId).push(tid);
+    }
+    if (t.receiverId) {
+      if (!IDX.tipsByReceiver.has(t.receiverId)) IDX.tipsByReceiver.set(t.receiverId, []);
+      IDX.tipsByReceiver.get(t.receiverId).push(tid);
+    }
   }
   console.log(`🗂️ Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations, ${IDX.relationsByUser.size} userRels`);
 }
@@ -1188,7 +1201,7 @@ const SERVICE_TYPES = [
 ];
 
 // Cleanup expired relations + expired points every 60s
-setInterval(() => {
+const _cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [id, rel] of Object.entries(db.relations)) {
     if (rel.expiresAt && now > rel.expiresAt) {
@@ -3419,57 +3432,76 @@ app.post('/api/star/donate', (req, res) => {
   const fromUser = db.users[fromUserId];
   const toUser = db.users[toUserId];
 
-  // If pendingStarId provided, remove it from pending (earned via streak)
-  if (pendingStarId) {
-    if (!fromUser.pendingStars) fromUser.pendingStars = [];
-    const idx = fromUser.pendingStars.findIndex(p => p.id === pendingStarId);
-    if (idx === -1) return res.status(400).json({ error: 'Estrela pendente não encontrada.' });
-    fromUser.pendingStars.splice(idx, 1);
-  } else {
-    // Transfer: remove one star from the donor's stars[] array
-    if (!fromUser.stars || fromUser.stars.length === 0) {
-      return res.status(400).json({ error: 'Sem estrelas disponíveis para doar.' });
+  try {
+    let savedPendingStar = null;
+    let savedDonorStar = null;
+
+    // If pendingStarId provided, remove it from pending (earned via streak)
+    if (pendingStarId) {
+      if (!fromUser.pendingStars) fromUser.pendingStars = [];
+      const idx = fromUser.pendingStars.findIndex(p => p.id === pendingStarId);
+      if (idx === -1) return res.status(400).json({ error: 'Estrela pendente não encontrada.' });
+      savedPendingStar = fromUser.pendingStars[idx];
+      fromUser.pendingStars.splice(idx, 1);
+    } else {
+      // Transfer: remove one star from the donor's stars[] array
+      if (!fromUser.stars || fromUser.stars.length === 0) {
+        return res.status(400).json({ error: 'Sem estrelas disponíveis para doar.' });
+      }
+      // Save the star for rollback
+      savedDonorStar = fromUser.stars[0];
+      fromUser.stars.shift();
     }
-    // Remove the oldest star from donor (FIFO)
-    fromUser.stars.shift();
+
+    const donationId = uuidv4();
+    db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: pendingStarId ? 'earned' : 'transfer' };
+    // Update indexes
+    if (!IDX.donationsByFrom.has(fromUserId)) IDX.donationsByFrom.set(fromUserId, []);
+    IDX.donationsByFrom.get(fromUserId).push(donationId);
+    IDX.donationsByPair.set(fromUserId + '_' + toUserId, (IDX.donationsByPair.get(fromUserId + '_' + toUserId) || 0) + 1);
+    if (!toUser.stars) toUser.stars = [];
+    toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: pendingStarId ? 'earned' : 'transfer' });
+    recalcAllTopTags(); // re-rank after star change
+    saveDB('users', 'starDonations');
+
+    // Notify recipient
+    io.to(`user:${toUserId}`).emit('star-received', { fromUserId, fromName: fromUser.nickname, total: toUser.stars.length });
+
+    // Broadcast to network: "fulano ganhou estrela de beltrano"
+    const notifPayload = {
+      recipientId: toUserId,
+      recipientName: toUser.nickname || toUser.name,
+      donorId: fromUserId,
+      donorName: fromUser.nickname || fromUser.name,
+      recipientStars: toUser.stars.length,
+      timestamp: Date.now()
+    };
+    // Send to all users who have encountered either person
+    const encA = new Set((db.encounters[fromUserId] || []).map(e => e.with));
+    const encB = new Set((db.encounters[toUserId] || []).map(e => e.with));
+    const network = new Set([...encA, ...encB]);
+    network.delete(fromUserId);
+    network.delete(toUserId);
+    network.forEach(uid => {
+      io.to(`user:${uid}`).emit('star-donated-notification', notifPayload);
+    });
+    // Also notify donor confirmation
+    io.to(`user:${fromUserId}`).emit('star-donation-confirmed', { toUserId, toName: toUser.nickname, recipientStars: toUser.stars.length, donorStars: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
+
+    res.json({ ok: true, donationId, recipientStars: toUser.stars.length, donorStarsRemaining: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
+  } catch (err) {
+    console.error('Star donation error:', err.message);
+    // Rollback: restore the star if it was removed
+    if (pendingStarId && savedPendingStar) {
+      if (!fromUser.pendingStars) fromUser.pendingStars = [];
+      fromUser.pendingStars.push(savedPendingStar);
+    } else if (savedDonorStar) {
+      if (!fromUser.stars) fromUser.stars = [];
+      fromUser.stars.unshift(savedDonorStar);
+    }
+    saveDB('users');
+    res.status(500).json({ error: 'Erro ao processar doação. Estrela restaurada.' });
   }
-
-  const donationId = uuidv4();
-  db.starDonations[donationId] = { id: donationId, fromUserId, toUserId, timestamp: Date.now(), type: pendingStarId ? 'earned' : 'transfer' };
-  // Update indexes
-  if (!IDX.donationsByFrom.has(fromUserId)) IDX.donationsByFrom.set(fromUserId, []);
-  IDX.donationsByFrom.get(fromUserId).push(donationId);
-  IDX.donationsByPair.set(fromUserId + '_' + toUserId, (IDX.donationsByPair.get(fromUserId + '_' + toUserId) || 0) + 1);
-  if (!toUser.stars) toUser.stars = [];
-  toUser.stars.push({ id: donationId, from: fromUserId, fromName: fromUser.nickname, donatedAt: Date.now(), type: pendingStarId ? 'earned' : 'transfer' });
-  recalcAllTopTags(); // re-rank after star change
-  saveDB('users', 'starDonations');
-
-  // Notify recipient
-  io.to(`user:${toUserId}`).emit('star-received', { fromUserId, fromName: fromUser.nickname, total: toUser.stars.length });
-
-  // Broadcast to network: "fulano ganhou estrela de beltrano"
-  const notifPayload = {
-    recipientId: toUserId,
-    recipientName: toUser.nickname || toUser.name,
-    donorId: fromUserId,
-    donorName: fromUser.nickname || fromUser.name,
-    recipientStars: toUser.stars.length,
-    timestamp: Date.now()
-  };
-  // Send to all users who have encountered either person
-  const encA = new Set((db.encounters[fromUserId] || []).map(e => e.with));
-  const encB = new Set((db.encounters[toUserId] || []).map(e => e.with));
-  const network = new Set([...encA, ...encB]);
-  network.delete(fromUserId);
-  network.delete(toUserId);
-  network.forEach(uid => {
-    io.to(`user:${uid}`).emit('star-donated-notification', notifPayload);
-  });
-  // Also notify donor confirmation
-  io.to(`user:${fromUserId}`).emit('star-donation-confirmed', { toUserId, toName: toUser.nickname, recipientStars: toUser.stars.length, donorStars: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
-
-  res.json({ ok: true, donationId, recipientStars: toUser.stars.length, donorStarsRemaining: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
 });
 
 // ══ STAR SHOP — Buy stars with score points ══
@@ -4230,6 +4262,8 @@ app.post('/api/event/join', (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   if (Date.now() > ev.endsAt) return res.status(400).json({ error: 'Evento encerrado.' });
   if (!Array.isArray(ev.participants)) ev.participants = [];
+  // Prevent duplicate check-in
+  if (ev.participants.includes(userId)) return res.json({ ok: true, alreadyCheckedIn: true, eventId });
   if (!ev.participants.includes(userId)) ev.participants.push(userId);
   saveDB('operatorEvents');
   // Notify others in event
@@ -4749,7 +4783,7 @@ function createSonicConnection(userIdA, userIdB) {
 }
 
 // Cleanup stale sonic entries every 30s
-setInterval(() => {
+const _sonicQueueInterval = setInterval(() => {
   const now = Date.now();
   for (const [uid, entry] of Object.entries(sonicQueue)) {
     // Operators (isCheckin) get 10 min timeout, regular users 3 min
@@ -5730,6 +5764,10 @@ function handlePaymentResult(result, payerId, receiverId, amount, fee, res) {
     createdAt: Date.now()
   };
   db.tips[tipId] = tip;
+  if (!IDX.tipsByPayer.has(tip.payerId)) IDX.tipsByPayer.set(tip.payerId, []);
+  IDX.tipsByPayer.get(tip.payerId).push(tip.id);
+  if (!IDX.tipsByReceiver.has(tip.receiverId)) IDX.tipsByReceiver.set(tip.receiverId, []);
+  IDX.tipsByReceiver.get(tip.receiverId).push(tip.id);
   // Update receiver stats
   const receiver = db.users[receiverId];
   if (receiver && result.status === 'approved') {
@@ -5806,11 +5844,16 @@ app.post('/api/tip/pix', async (req, res) => {
 
     // Save tip
     const tipId = uuidv4();
-    db.tips[tipId] = {
+    const tipPix = {
       id: tipId, payerId, receiverId, amount: tipAmount, fee: touchFee,
       mpPaymentId: result.id, status: result.status, statusDetail: result.status_detail,
       method: 'pix', createdAt: Date.now()
     };
+    db.tips[tipId] = tipPix;
+    if (!IDX.tipsByPayer.has(tipPix.payerId)) IDX.tipsByPayer.set(tipPix.payerId, []);
+    IDX.tipsByPayer.get(tipPix.payerId).push(tipPix.id);
+    if (!IDX.tipsByReceiver.has(tipPix.receiverId)) IDX.tipsByReceiver.set(tipPix.receiverId, []);
+    IDX.tipsByReceiver.get(tipPix.receiverId).push(tipPix.id);
     saveDB('tips');
     io.to(`user:${receiverId}`).emit('tip-received', { amount: tipAmount, tipId, from: payer.nickname || '?', status: 'pending', method: 'pix' });
 
@@ -5876,11 +5919,16 @@ app.post('/api/tip/checkout', async (req, res) => {
     }
 
     // Pre-save tip as pending
-    db.tips[tipId] = {
+    const tipCheckoutPro = {
       id: tipId, payerId, receiverId, amount: tipAmount, fee: touchFee,
       mpPreferenceId: preference.id, status: 'pending', statusDetail: 'waiting_checkout',
       method: 'checkout_pro', createdAt: Date.now()
     };
+    db.tips[tipId] = tipCheckoutPro;
+    if (!IDX.tipsByPayer.has(tipCheckoutPro.payerId)) IDX.tipsByPayer.set(tipCheckoutPro.payerId, []);
+    IDX.tipsByPayer.get(tipCheckoutPro.payerId).push(tipCheckoutPro.id);
+    if (!IDX.tipsByReceiver.has(tipCheckoutPro.receiverId)) IDX.tipsByReceiver.set(tipCheckoutPro.receiverId, []);
+    IDX.tipsByReceiver.get(tipCheckoutPro.receiverId).push(tipCheckoutPro.id);
     saveDB('tips');
 
     console.log('🛒 Checkout Pro preference created:', preference.id);
@@ -5918,7 +5966,8 @@ app.get('/tip-result', (req, res) => {
 // Tip history for user
 app.get('/api/tips/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
-  const tips = Object.values(db.tips).filter(t => t.payerId === userId || t.receiverId === userId)
+  const tipIds = new Set([...(IDX.tipsByPayer.get(userId) || []), ...(IDX.tipsByReceiver.get(userId) || [])]);
+  const tips = Array.from(tipIds).map(tid => db.tips[tid]).filter(Boolean)
     .sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
   const enriched = tips.map(t => ({
     ...t,
@@ -5939,7 +5988,8 @@ app.get('/api/financial/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const allTips = Object.values(db.tips).filter(t => t.payerId === userId || t.receiverId === userId);
+  const tipIds = new Set([...(IDX.tipsByPayer.get(userId) || []), ...(IDX.tipsByReceiver.get(userId) || [])]);
+  const allTips = Array.from(tipIds).map(tid => db.tips[tid]).filter(Boolean);
   const received = allTips.filter(t => t.receiverId === userId && t.status === 'approved');
   const sent = allTips.filter(t => t.payerId === userId && t.status === 'approved');
   const pending = allTips.filter(t => (t.payerId === userId || t.receiverId === userId) && (t.status === 'pending' || t.status === 'in_process'));
@@ -6825,12 +6875,17 @@ app.post('/api/subscription/create-pix', paymentLimiter, async (req, res) => {
     };
     // Also save as a tip/payment record for tracking
     if (!db.tips) db.tips = {};
-    db.tips[subId] = {
+    const tipSubPix = {
       id: subId, payerId: userId, receiverId: 'platform',
       amount: plan.amount, mpPaymentId: result.id,
       status: result.status, method: 'pix', type: 'subscription',
       planId: plan.id, createdAt: Date.now()
     };
+    db.tips[subId] = tipSubPix;
+    if (!IDX.tipsByPayer.has(tipSubPix.payerId)) IDX.tipsByPayer.set(tipSubPix.payerId, []);
+    IDX.tipsByPayer.get(tipSubPix.payerId).push(tipSubPix.id);
+    if (!IDX.tipsByReceiver.has(tipSubPix.receiverId)) IDX.tipsByReceiver.set(tipSubPix.receiverId, []);
+    IDX.tipsByReceiver.get(tipSubPix.receiverId).push(tipSubPix.id);
     saveDB('users', 'tips');
 
     res.json({
@@ -9323,13 +9378,18 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
 
     // Always save payment record (approved, rejected, pending)
     const tipId = uuidv4();
-    db.tips[tipId] = {
+    const tipEntryCard = {
       id: tipId, payerId: userId, receiverId: ev.creatorId,
       amount, fee: touchFee, mpPaymentId: result.id,
       status: result.status, statusDetail: result.status_detail,
       type: 'entry', eventId: ev.id, eventName: ev.name,
       createdAt: Date.now()
     };
+    db.tips[tipId] = tipEntryCard;
+    if (!IDX.tipsByPayer.has(tipEntryCard.payerId)) IDX.tipsByPayer.set(tipEntryCard.payerId, []);
+    IDX.tipsByPayer.get(tipEntryCard.payerId).push(tipEntryCard.id);
+    if (!IDX.tipsByReceiver.has(tipEntryCard.receiverId)) IDX.tipsByReceiver.set(tipEntryCard.receiverId, []);
+    IDX.tipsByReceiver.get(tipEntryCard.receiverId).push(tipEntryCard.id);
 
     if (result.status === 'approved') {
       ev.revenue = (ev.revenue || 0) + amount;
@@ -9391,13 +9451,18 @@ app.post('/api/operator/event/:eventId/pay-entry-pix', paymentLimiter, async (re
 
     const pixData = result.point_of_interaction?.transaction_data;
     const tipId = uuidv4();
-    db.tips[tipId] = {
+    const tipEntryPixCard = {
       id: tipId, payerId: userId, receiverId: ev.creatorId,
       amount, fee: touchFee, mpPaymentId: result.id,
       status: result.status, statusDetail: result.status_detail,
       method: 'pix', type: 'entry', eventId: ev.id, eventName: ev.name,
       createdAt: Date.now()
     };
+    db.tips[tipId] = tipEntryPixCard;
+    if (!IDX.tipsByPayer.has(tipEntryPixCard.payerId)) IDX.tipsByPayer.set(tipEntryPixCard.payerId, []);
+    IDX.tipsByPayer.get(tipEntryPixCard.payerId).push(tipEntryPixCard.id);
+    if (!IDX.tipsByReceiver.has(tipEntryPixCard.receiverId)) IDX.tipsByReceiver.set(tipEntryPixCard.receiverId, []);
+    IDX.tipsByReceiver.get(tipEntryPixCard.receiverId).push(tipEntryPixCard.id);
     saveDB('tips');
 
     io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount, eventId: ev.id, nickname: user.nickname || user.name, status: 'pending', method: 'pix' });
@@ -9464,13 +9529,18 @@ app.post('/api/operator/event/:eventId/pay-entry-checkout', paymentLimiter, asyn
       preference = await new Preference(mpClient).create({ body: prefData });
     }
 
-    db.tips[tipId] = {
+    const tipEntryCheckoutPro = {
       id: tipId, payerId: userId, receiverId: ev.creatorId,
       amount, fee: touchFee, mpPreferenceId: preference.id,
       status: 'pending', statusDetail: 'waiting_checkout',
       method: 'checkout_pro', type: 'entry', eventId: ev.id, eventName: ev.name,
       createdAt: Date.now()
     };
+    db.tips[tipId] = tipEntryCheckoutPro;
+    if (!IDX.tipsByPayer.has(tipEntryCheckoutPro.payerId)) IDX.tipsByPayer.set(tipEntryCheckoutPro.payerId, []);
+    IDX.tipsByPayer.get(tipEntryCheckoutPro.payerId).push(tipEntryCheckoutPro.id);
+    if (!IDX.tipsByReceiver.has(tipEntryCheckoutPro.receiverId)) IDX.tipsByReceiver.set(tipEntryCheckoutPro.receiverId, []);
+    IDX.tipsByReceiver.get(tipEntryCheckoutPro.receiverId).push(tipEntryCheckoutPro.id);
     saveDB('tips');
 
     console.log('[entry-checkout] Preference created:', preference.id);
@@ -9961,7 +10031,12 @@ app.post('/api/stripe/pay', async (req, res) => {
     if (paymentIntent.status === 'succeeded') {
       const tipId = uuidv4();
       if (!db.tips) db.tips = {};
-      db.tips[tipId] = { id: tipId, payerId, receiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripePaymentIntentId: paymentIntent.id };
+      const tipStripeExpress = { id: tipId, payerId, receiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripePaymentIntentId: paymentIntent.id };
+      db.tips[tipId] = tipStripeExpress;
+      if (!IDX.tipsByPayer.has(tipStripeExpress.payerId)) IDX.tipsByPayer.set(tipStripeExpress.payerId, []);
+      IDX.tipsByPayer.get(tipStripeExpress.payerId).push(tipStripeExpress.id);
+      if (!IDX.tipsByReceiver.has(tipStripeExpress.receiverId)) IDX.tipsByReceiver.set(tipStripeExpress.receiverId, []);
+      IDX.tipsByReceiver.get(tipStripeExpress.receiverId).push(tipStripeExpress.id);
       saveDB('tips');
       const payer = db.users[payerId];
       const payerName = payer ? (payer.nickname || payer.name || '?') : '?';
@@ -10015,11 +10090,16 @@ app.post('/api/stripe/create-payment-intent', paymentLimiter, async (req, res) =
       saveDB('eventPayments');
     } else {
       if (!db.tips) db.tips = {};
-      db.tips[tipId] = {
+      const tipStripePending = {
         id: tipId, payerId, receiverId, amount,
         stripePaymentIntentId: paymentIntent.id, status: 'pending',
         method: 'stripe-payment-element', createdAt: Date.now()
       };
+      db.tips[tipId] = tipStripePending;
+      if (!IDX.tipsByPayer.has(tipStripePending.payerId)) IDX.tipsByPayer.set(tipStripePending.payerId, []);
+      IDX.tipsByPayer.get(tipStripePending.payerId).push(tipStripePending.id);
+      if (!IDX.tipsByReceiver.has(tipStripePending.receiverId)) IDX.tipsByReceiver.set(tipStripePending.receiverId, []);
+      IDX.tipsByReceiver.get(tipStripePending.receiverId).push(tipStripePending.id);
       saveDB('tips');
     }
 
@@ -10610,6 +10690,26 @@ const PORT = process.env.PORT || 3000;
     dbLoaded = true; // start with empty DB
   }
   console.log('✅ loadDB concluído, abrindo porta...');
+
+// Cleanup function for graceful shutdown
+function cleanupIntervals() {
+  if (_cleanupInterval) clearInterval(_cleanupInterval);
+  if (_sonicQueueInterval) clearInterval(_sonicQueueInterval);
+  console.log('Intervals cleaned up');
+}
+
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, cleaning up...');
+  cleanupIntervals();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, cleaning up...');
+  cleanupIntervals();
+  process.exit(0);
+});
+
   server.listen(PORT, '0.0.0.0', () => {
     const nets = require('os').networkInterfaces();
     let localIP = 'localhost';
