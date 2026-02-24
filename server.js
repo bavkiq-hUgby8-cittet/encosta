@@ -1611,6 +1611,7 @@ function awardPoints(userAId, userBId, type, overridePoints = null) {
     const val = overridePoints != null ? overridePoints : cfg.pointsCheckin;
     if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
     db.users[userAId].pointLog.push({ value: val, type: 'checkin', timestamp: now });
+    if (db.users[userAId].pointLog.length > 500) db.users[userAId].pointLog = db.users[userAId].pointLog.slice(-500);
     return;
   }
   if (!db.users[userBId]) return;
@@ -1621,7 +1622,9 @@ function awardPoints(userAId, userBId, type, overridePoints = null) {
   if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
   if (!db.users[userBId].pointLog) db.users[userBId].pointLog = [];
   db.users[userAId].pointLog.push({ value: classA.points, type: classA.type, with: userBId, timestamp: now });
+  if (db.users[userAId].pointLog.length > 500) db.users[userAId].pointLog = db.users[userAId].pointLog.slice(-500);
   db.users[userBId].pointLog.push({ value: classB.points, type: classB.type, with: userAId, timestamp: now });
+  if (db.users[userBId].pointLog.length > 500) db.users[userBId].pointLog = db.users[userBId].pointLog.slice(-500);
 }
 
 function calcScore(userId) {
@@ -3184,6 +3187,7 @@ app.post('/api/identity/reveal', (req, res) => {
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(chatMsg);
+  if (db.messages[relId].length > 500) db.messages[relId] = db.messages[relId].slice(-500);
   saveDB('users', 'messages');
   io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
@@ -3230,6 +3234,7 @@ app.post('/api/identity/request-reveal', (req, res) => {
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(chatMsg);
+  if (db.messages[relId].length > 500) db.messages[relId] = db.messages[relId].slice(-500);
   saveDB('revealRequests', 'messages');
   io.to(`user:${targetUserId}`).emit('new-message', { relationId: relId, message: chatMsg });
   io.to(`user:${userId}`).emit('new-message', { relationId: relId, message: chatMsg });
@@ -3269,6 +3274,7 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(acceptMsg);
+  if (db.messages[relId].length > 500) db.messages[relId] = db.messages[relId].slice(-500);
   saveDB('users', 'revealRequests', 'messages');
   io.to(`user:${rr.fromUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: acceptMsg });
@@ -3310,6 +3316,7 @@ app.post('/api/identity/reveal-decline', (req, res) => {
   const relId = rr.relationId;
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(declineMsg);
+  if (db.messages[relId].length > 500) db.messages[relId] = db.messages[relId].slice(-500);
   saveDB('revealRequests', 'messages');
   io.to(`user:${rr.fromUserId}`).emit('new-message', { relationId: relId, message: declineMsg });
   io.to(`user:${rr.toUserId}`).emit('new-message', { relationId: relId, message: declineMsg });
@@ -4355,6 +4362,7 @@ app.post('/api/respond-contact', (req, res) => {
     };
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(contactMsg);
+    if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
     saveDB('messages');
     io.to(`user:${fromUserId}`).emit('contact-shared', { relationId, contactType, value, from: toUserId });
   } else {
@@ -4875,6 +4883,7 @@ app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req
     const alreadyA = db.encounters[r.userA].some(e => e.with === r.userB && Math.abs(e.timestamp - ts) < 60000);
     if (!alreadyA) {
       db.encounters[r.userA].push({ with: r.userB, withName: uB.nickname || uB.name || '?', withColor: uB.color, phrase, timestamp: ts, date, type, points: 10, scoreType: 'first_encounter', chatDurationH: 24, relationId: rid });
+      if (db.encounters[r.userA].length > 1000) db.encounters[r.userA] = db.encounters[r.userA].slice(-1000);
       created++;
     }
     // Create encounter for userB
@@ -4882,6 +4891,7 @@ app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req
     const alreadyB = db.encounters[r.userB].some(e => e.with === r.userA && Math.abs(e.timestamp - ts) < 60000);
     if (!alreadyB) {
       db.encounters[r.userB].push({ with: r.userA, withName: uA.nickname || uA.name || '?', withColor: uA.color, phrase, timestamp: ts, date, type, points: 10, scoreType: 'first_encounter', chatDurationH: 24, relationId: rid });
+      if (db.encounters[r.userB].length > 1000) db.encounters[r.userB] = db.encounters[r.userB].slice(-1000);
       created++;
     }
     // If relation was renewed, add renewal encounters
@@ -4891,11 +4901,13 @@ app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req
       const alreadyRA = db.encounters[r.userA].some(e => e.with === r.userB && Math.abs(e.timestamp - renewTs) < 60000);
       if (!alreadyRA) {
         db.encounters[r.userA].push({ with: r.userB, withName: uB.nickname || uB.name || '?', withColor: uB.color, phrase: 'Reencontro', timestamp: renewTs, date: renewDate, type, points: 8, scoreType: 're_encounter_diff_day', chatDurationH: 24, relationId: rid });
+        if (db.encounters[r.userA].length > 1000) db.encounters[r.userA] = db.encounters[r.userA].slice(-1000);
         created++;
       }
       const alreadyRB = db.encounters[r.userB].some(e => e.with === r.userA && Math.abs(e.timestamp - renewTs) < 60000);
       if (!alreadyRB) {
         db.encounters[r.userB].push({ with: r.userA, withName: uA.nickname || uA.name || '?', withColor: uA.color, phrase: 'Reencontro', timestamp: renewTs, date: renewDate, type, points: 8, scoreType: 're_encounter_diff_day', chatDurationH: 24, relationId: rid });
+        if (db.encounters[r.userB].length > 1000) db.encounters[r.userB] = db.encounters[r.userB].slice(-1000);
         created++;
       }
     }
@@ -5139,6 +5151,7 @@ io.on('connection', (socket) => {
     const msg = { id: uuidv4(), userId, text, timestamp: Date.now() };
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
+    if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
     saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('new-message', { relationId, message: msg });
@@ -5170,6 +5183,7 @@ io.on('connection', (socket) => {
     // Save to messages so it appears when recipient opens chat
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
+    if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
     saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('ephemeral-received', { relationId, message: msg });
@@ -5183,6 +5197,7 @@ io.on('connection', (socket) => {
     const msg = { id: uuidv4(), userId, type: 'photo', photoData, timestamp: Date.now() };
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
+    if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
     saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('photo-received', { relationId, message: msg });
@@ -5328,6 +5343,7 @@ io.on('connection', (socket) => {
     const msg = { id: uuidv4(), userId: fromUserId, text: inviteText, timestamp: now };
     if (!db.messages[relId]) db.messages[relId] = [];
     db.messages[relId].push(msg);
+    if (db.messages[relId].length > 500) db.messages[relId] = db.messages[relId].slice(-500);
     saveDB('messages');
     // Notify both users
     io.to(`user:${fromUserId}`).emit('new-message', { relationId: relId, message: msg });
@@ -10439,6 +10455,7 @@ app.post('/api/games/invite-message', (req, res) => {
   const msg = { id: uuidv4(), userId: fromUserId, text: inviteText, timestamp: now };
   if (!db.messages[relId]) db.messages[relId] = [];
   db.messages[relId].push(msg);
+  if (db.messages[relId].length > 500) db.messages[relId] = db.messages[relId].slice(-500);
   saveDB('messages');
   console.log('[invite-message] SAVED to relation', relId, 'msg:', msg.id, 'from:', fromUserId, 'to:', toUserId);
   // Notify both via socket
