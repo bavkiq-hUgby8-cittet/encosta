@@ -8734,6 +8734,52 @@ app.post('/api/dev/escriba', (req, res) => {
   res.json({ success: true });
 });
 
+// GET /api/dev/history/:userId — consolidated dev history (queue + escriba + thoughts)
+app.get('/api/dev/history/:userId', (req, res) => {
+  if (!canUseUltimateVA(req.params.userId)) return res.status(403).json({ error: 'Acesso negado' });
+  const bank = getUltimateBank(req.params.userId);
+  const limit = parseInt(req.query.limit) || 50;
+
+  // Build unified timeline from all sources
+  const timeline = [];
+
+  // Dev queue items (commands, plans, approvals)
+  (bank.devQueue || []).forEach(cmd => {
+    timeline.push({
+      type: 'command',
+      ts: cmd.ts,
+      id: cmd.id,
+      status: cmd.status,
+      instruction: (cmd.instruction || '').slice(0, 200),
+      plan: cmd.plan ? (cmd.plan).slice(0, 300) : null,
+      result: cmd.result ? (cmd.result).slice(0, 200) : null,
+      approvedAt: cmd.approvedAt || null
+    });
+  });
+
+  // Escriba session logs
+  (bank.escribaLogs || []).forEach(log => {
+    timeline.push({
+      type: 'escriba',
+      ts: log.ts,
+      summary: (log.summary || '').slice(0, 200),
+      decisions: (log.decisions || []).slice(0, 5),
+      ideas: (log.ideas || []).slice(0, 5),
+      commands: (log.commands || []).slice(0, 5)
+    });
+  });
+
+  // Thoughts
+  (bank.thoughts || []).forEach(t => {
+    timeline.push({ type: 'thought', ts: t.ts, text: (t.text || '').slice(0, 200) });
+  });
+
+  // Sort by timestamp descending (newest first)
+  timeline.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  res.json({ timeline: timeline.slice(0, limit), total: timeline.length });
+});
+
 // ══ VA CONFIG — Admin panel for prompt/settings management ══
 const VA_DEFAULT_CONFIG = {
   plus: {
