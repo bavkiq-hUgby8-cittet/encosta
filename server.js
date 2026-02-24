@@ -7806,7 +7806,28 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
 
 // ══ DEV DIAGNOSTICO — testa se Claude ta funcionando ══
 app.get('/api/dev/diagnostico', async (req, res) => {
+  // Find admin/top1 userId automatically
+  const adminUser = Object.entries(db.users).find(([id, u]) => u.isAdmin || u.registrationOrder === 1);
+  const adminId = adminUser ? adminUser[0] : null;
+  const adminName = adminUser ? (adminUser[1].name || adminUser[1].nickname || 'sem nome') : 'NAO ENCONTRADO';
+
+  // Get dev queue for admin
+  const bank = adminId ? (db.ultimateBank[adminId] || {}) : {};
+  const recentQueue = (bank.devQueue || []).slice(-5).map(c => ({
+    id: c.id, status: c.status, instrucao: (c.instruction || '').slice(0, 80),
+    plano: c.plan ? (c.plan).slice(0, 100) + '...' : null,
+    resultado: c.result ? String(c.result).slice(0, 100) : null,
+    ts: c.ts ? new Date(c.ts).toLocaleString('pt-BR') : null
+  }));
+
+  // Get recent conversations
+  const recentConvos = adminId ? (getVaConversations(adminId, 'ultimatedev') || []).slice(-5).map(c => ({
+    role: c.role, content: (c.content || '').slice(0, 80), ts: c.ts ? new Date(c.ts).toLocaleString('pt-BR') : null
+  })) : [];
+
   const result = {
+    admin_userId: adminId,
+    admin_nome: adminName,
     anthropic_key_configurada: !!ANTHROPIC_API_KEY,
     anthropic_key_prefixo: ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.slice(0, 8) + '...' : 'NAO CONFIGURADA',
     openai_key_configurada: !!OPENAI_API_KEY,
@@ -7845,6 +7866,10 @@ app.get('/api/dev/diagnostico', async (req, res) => {
   } else {
     result.teste_claude = 'SKIP - sem API key';
   }
+
+  result.fila_dev = recentQueue;
+  result.ultimas_conversas = recentConvos;
+  result.total_conversas = adminId ? (getVaConversations(adminId, 'ultimatedev') || []).length : 0;
 
   console.log('[DEV] Diagnostico:', JSON.stringify(result));
   res.json(result);
