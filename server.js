@@ -9357,6 +9357,48 @@ app.post('/api/operator/event/:eventId/business-profile', (req, res) => {
   res.json({ ok: true, event: ev });
 });
 
+// ═══ EVENT DELETE & LIKE ═══
+
+app.post('/api/event/:eventId/delete', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { userId } = req.body;
+  if (ev.creatorId !== userId) return res.status(403).json({ error: 'Apenas o criador pode apagar o evento.' });
+  // End event first
+  ev.active = false;
+  ev.endedAt = Date.now();
+  delete sonicQueue['evt:' + ev.id];
+  // Expire all event relations
+  const now = Date.now();
+  for (const rId in db.relations) {
+    const r = db.relations[rId];
+    if (r.eventId === ev.id && r.expiresAt > now) {
+      r.expiresAt = now;
+    }
+  }
+  // Remove from operatorEvents
+  delete db.operatorEvents[req.params.eventId];
+  saveDB('operatorEvents', 'relations');
+  res.json({ ok: true });
+});
+
+app.post('/api/event/:eventId/like', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  if (!ev.likes) ev.likes = [];
+  const idx = ev.likes.indexOf(userId);
+  if (idx >= 0) {
+    ev.likes.splice(idx, 1);
+    saveDB('operatorEvents');
+    return res.json({ ok: true, liked: false, count: ev.likes.length });
+  }
+  ev.likes.push(userId);
+  saveDB('operatorEvents');
+  res.json({ ok: true, liked: true, count: ev.likes.length });
+});
+
 // ═══ STAFF (WAITER/DRIVER) SYSTEM ═══
 
 app.post('/api/operator/event/:eventId/staff/add', (req, res) => {
