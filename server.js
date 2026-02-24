@@ -232,7 +232,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -6578,6 +6578,7 @@ ${connectionsWithoutNotes.length ? '\nCONEXÕES SEM NOTAS (pergunte sobre essas 
 const VA_DAILY_LIMIT_CENTS = 50; // $0.50 per day
 const VA_SESSION_COST_CENTS = 8; // ~$0.08 per regular session
 const VA_PREMIUM_SESSION_COST_CENTS = 15; // ~$0.15 per premium session (more tools)
+const VA_ULTIMATE_SESSION_COST_CENTS = 25; // ~$0.25 per UltimateDEV session
 
 function getVaUsageToday(userId) {
   const user = db.users[userId];
@@ -6596,19 +6597,30 @@ function trackVaSession(userId, isPremium) {
   if (!user.vaUsage || user.vaUsage.date !== today) {
     user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0 };
   }
-  const cost = isPremium ? VA_PREMIUM_SESSION_COST_CENTS : VA_SESSION_COST_CENTS;
+  const cost = isPremium === 'ultimate' ? VA_ULTIMATE_SESSION_COST_CENTS : isPremium ? VA_PREMIUM_SESSION_COST_CENTS : VA_SESSION_COST_CENTS;
   user.vaUsage.sessions++;
   user.vaUsage.costCents += cost;
-  if (isPremium) user.vaUsage.premiumSessions = (user.vaUsage.premiumSessions || 0) + 1;
+  if (isPremium === 'ultimate') user.vaUsage.ultimateSessions = (user.vaUsage.ultimateSessions || 0) + 1;
+  else if (isPremium) user.vaUsage.premiumSessions = (user.vaUsage.premiumSessions || 0) + 1;
   // ── Detailed cost log per user (keeps last 100 entries) ──
   if (!user.vaCostLog) user.vaCostLog = [];
-  user.vaCostLog.push({ ts: Date.now(), type: isPremium ? 'premium' : 'standard', costCents: cost });
+  user.vaCostLog.push({ ts: Date.now(), type: isPremium === 'ultimate' ? 'ultimate' : isPremium ? 'premium' : 'standard', costCents: cost });
   if (user.vaCostLog.length > 100) user.vaCostLog = user.vaCostLog.slice(-100);
   saveDB('users');
 }
 
-// Check if user can use Premium VA (top 01 only for now)
+// Check if user can use Premium/Pro VA (top 01 only for now)
 function canUsePremiumVA(userId) {
+  const user = db.users[userId];
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  if (user.registrationOrder === 1) return true; // top 01
+  return false;
+}
+const canUseProVA = canUsePremiumVA; // alias — same logic
+
+// Check if user can use UltimateDEV VA (top 01 / admin only)
+function canUseUltimateVA(userId) {
   const user = db.users[userId];
   if (!user) return false;
   if (user.isAdmin) return true;
@@ -7073,7 +7085,10 @@ app.get('/api/agent/access/:userId', (req, res) => {
   const user = db.users[req.params.userId];
   const usage = user ? getVaUsageToday(req.params.userId) : { count: 0, cost: 0 };
   const premium = canUsePremiumVA(req.params.userId);
-  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS, premium });
+  const ultimate = canUseUltimateVA(req.params.userId);
+  // tier: highest available tier for this user
+  const tier = ultimate ? 'ultimatedev' : premium ? 'pro' : 'plus';
+  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS, premium, ultimate, tier });
 });
 
 // ── Cost dashboard — see all users' VA costs ──
@@ -7225,6 +7240,367 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
     const d = await r.json();
     res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isPremium: true });
   } catch (e) { console.error('Premium session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ══ ULTIMATEDEV HELPERS ══
+function getUltimateBank(userId) {
+  if (!db.ultimateBank[userId]) {
+    db.ultimateBank[userId] = {
+      conversations: [],
+      devQueue: [],
+      userProfile: { tone: '', preferences: [], vocabulary: [], screenNames: {}, lastTopics: [] }
+    };
+    saveDB('ultimateBank');
+  }
+  return db.ultimateBank[userId];
+}
+
+// ══ ULTIMATEDEV VA SESSION — dev mode (top 01 only) ══
+app.post('/api/agent/ultimate-session', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
+  const { userId, lastInteraction } = req.body;
+
+  if (!canUseUltimateVA(userId)) {
+    return res.status(403).json({ error: 'UltimateDEV apenas para Top 1.', reason: 'not_ultimate' });
+  }
+
+  const access = canUseVA(userId);
+  if (!access.allowed) {
+    return res.status(403).json({ error: 'Limite atingido.', reason: access.reason });
+  }
+
+  trackVaSession(userId, 'ultimate');
+
+  const { userName, context, greeting, gossip } = buildUserContext(userId);
+  const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
+  const isNewSession = msSinceLast > 60 * 60 * 1000;
+  const user = db.users[userId] || {};
+  const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || '';
+
+  const bank = getUltimateBank(userId);
+  const profile = bank.userProfile || {};
+  const recentConvos = (bank.conversations || []).slice(-20);
+  const pendingQueue = (bank.devQueue || []).filter(d => d.status === 'planned');
+
+  let openingText;
+  if (isNewSession && gossip) openingText = gossip;
+  else if (isNewSession) openingText = `${firstName}, modo dev ativado! O que vamos construir hoje?`;
+  else openingText = `${firstName}, voltou! Manda o próximo comando.`;
+
+  const profileContext = profile.tone ? `\nTOM DO USUÁRIO: ${profile.tone}` : '';
+  const vocabContext = profile.vocabulary?.length ? `\nVOCABULÁRIO DO USUÁRIO: ${profile.vocabulary.join(', ')}` : '';
+  const screenContext = Object.keys(profile.screenNames || {}).length ? `\nNOMES QUE ELE USA PRA TELAS: ${JSON.stringify(profile.screenNames)}` : '';
+  const topicsContext = profile.lastTopics?.length ? `\nÚLTIMOS TÓPICOS DE DEV: ${profile.lastTopics.join(', ')}` : '';
+  const pendingContext = pendingQueue.length ? `\nCOMANDOS PENDENTES DE APROVAÇÃO: ${pendingQueue.map(p => `[${p.id}] ${p.instruction}`).join('; ')}` : '';
+  const convContext = recentConvos.length ? `\nÚLTIMAS CONVERSAS:\n${recentConvos.map(c => `${c.role}: ${c.content}`).join('\n')}` : '';
+
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-realtime-preview',
+        voice: 'coral',
+        modalities: ['audio', 'text'],
+        instructions: `Você é "Touch", assistente UltimateDEV do app Touch? — rede social presencial.
+
+CONTEXTO: Modo UltimateDEV ativado para ${firstName}. Você é o assistente de DESENVOLVIMENTO.
+
+IDIOMA: Português brasileiro.
+
+PERSONALIDADE — DEVELOPER PARTNER + FOFOQUEIRA:
+- Mesma personalidade fofoqueira e curiosa, MAS agora você é também parceira de desenvolvimento
+- Quando o usuário fala sobre mudanças no app → use comando_dev pra criar a instrução
+- Quando o usuário quer saber o que tem pendente → use ver_fila_dev
+- Quando o usuário aprova um plano → use aprovar_plano
+- Além disso, APRENDA tudo sobre como o usuário fala, nomes que dá pras telas, jeito de se expressar
+- Tom descontraído, como amiga próxima. Gírias naturais, humor sutil.
+- FALE PAUSADO — ritmo lento e claro.
+
+COMO ABRIR A CONVERSA:
+- NUNCA comece com "E aí", "Oi", "Olá"
+- Já entre DIRETO no assunto
+- Estilo: NOME + FOFOCA/DEV + PERGUNTA
+
+REGRA DE OURO — RESPOSTAS CURTAS:
+- Máximo 2-3 frases por turno
+- Se precisar de mais, quebre em turnos
+
+TELAS DO APP (pra referência):
+- home: tela principal com botão TOUCH
+- history: constelação (histórico de encontros)
+- encounter: tela de conexão (scan)
+- locationScreen: mapa
+- myProfile: perfil do usuário
+- subscription: assinatura Plus
+
+TOOLS DISPONÍVEIS:
+- Todas do Pro (navegar, chat, estrela, pulse, consultar, mostrar, salvar)
+- comando_dev: quando o usuário pede uma mudança/feature/fix no app
+- ver_fila_dev: mostra comandos pendentes na fila de desenvolvimento
+- aprovar_plano: aprova um plano de desenvolvimento pelo ID
+- rejeitar_plano: rejeita um plano
+- aprender_usuario: salva informação sobre como o usuário se comunica
+
+FLUXO DE DESENVOLVIMENTO:
+1. Usuário pede algo → você traduz em instrução técnica via comando_dev
+2. O sistema gera um plano automaticamente
+3. Você apresenta o plano de forma simples pro usuário
+4. Usuário aprova por voz → você chama aprovar_plano
+5. Sistema executa o código e faz commit
+
+MEMÓRIA — SALVAR TUDO:
+- USE aprender_usuario pra salvar tom, vocabulário, preferências
+- Salve como o usuário chama cada tela/feature
+- Salve tópicos de dev discutidos
+${profileContext}${vocabContext}${screenContext}${topicsContext}${pendingContext}
+
+PRIVACIDADE — REGRAS DE OURO:
+- ESTRELAS DO USUÁRIO: "Fulano te deu uma estrela!" ✅
+- ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" ✅ / "Ciclano deu estrela pro Fulano" ❌ PROIBIDO
+- Nomes: só primeiro nome
+
+${context}
+${convContext}
+
+NOME DO USUÁRIO: ${firstName}
+
+IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
+        tools: [
+          { type:'function', name:'navegar_tela', description:'Navega para uma tela do app.', parameters:{type:'object',properties:{tela:{type:'string',description:'ID da tela: home, history, encounter, locationScreen, myProfile, subscription'}},required:['tela']} },
+          { type:'function', name:'abrir_perfil', description:'Abre perfil de uma conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
+          { type:'function', name:'abrir_chat', description:'Abre chat com uma conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
+          { type:'function', name:'iniciar_conexao', description:'Inicia processo de conexão.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'dar_estrela', description:'Dá estrela para conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
+          { type:'function', name:'enviar_pulse', description:'Envia pulse no chat.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'consultar_rede', description:'Busca dados da rede.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'mostrar_pessoa', description:'Mostra perfil na constelação.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
+          { type:'function', name:'salvar_nota', description:'Salva nota pessoal.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} },
+          { type:'function', name:'comando_dev', description:'Cria comando de desenvolvimento. Use quando o usuário pedir mudança/feature/fix no app.', parameters:{type:'object',properties:{instrucao:{type:'string',description:'Instrução técnica detalhada do que fazer'}},required:['instrucao']} },
+          { type:'function', name:'ver_fila_dev', description:'Mostra a fila de comandos de desenvolvimento pendentes.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'aprovar_plano', description:'Aprova um plano de desenvolvimento para execução.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando na fila'}},required:['id']} },
+          { type:'function', name:'rejeitar_plano', description:'Rejeita um plano de desenvolvimento.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando'},motivo:{type:'string',description:'Motivo da rejeição'}},required:['id']} },
+          { type:'function', name:'aprender_usuario', description:'Salva informação sobre como o usuário se comunica: tom, vocabulário, nomes de telas, preferências.', parameters:{type:'object',properties:{categoria:{type:'string',description:'tone, vocabulary, screenName, preference, topic'},info:{type:'string',description:'A informação a salvar'}},required:['categoria','info']} }
+        ],
+        turn_detection: { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 500, silence_duration_ms: 1500 },
+        input_audio_transcription: { model: 'whisper-1' }
+      })
+    });
+    if (!r.ok) { const e = await r.text(); console.error('Ultimate session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão UltimateDEV' }); }
+    const d = await r.json();
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isUltimate: true });
+  } catch (e) { console.error('Ultimate session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ══ DEV COMMAND ENDPOINTS ══
+// Create a dev command
+app.post('/api/dev/command', async (req, res) => {
+  const { userId, instruction } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!instruction) return res.status(400).json({ error: 'Instrução é obrigatória' });
+
+  const bank = getUltimateBank(userId);
+  const commandId = 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const command = { id: commandId, instruction, status: 'planning', plan: null, result: null, ts: Date.now(), approvedAt: null };
+  bank.devQueue.push(command);
+  saveDB('ultimateBank');
+
+  // Auto-generate plan using OpenAI GPT-4o
+  try {
+    const fs = require('fs');
+    const serverCode = fs.readFileSync(__filename, 'utf8').slice(0, 15000); // first 15k chars for context
+    const htmlPath = require('path').join(__dirname, 'public', 'index.html');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8').slice(0, 15000);
+
+    const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: `Você é um desenvolvedor expert em Node.js e HTML/CSS/JS. O app é uma rede social presencial chamada "Touch?" / "Encosta". Os dois arquivos principais são server.js (backend Express) e public/index.html (frontend SPA). Responda APENAS com um plano técnico em português, com no máximo 5 passos, descrevendo O QUE mudar e ONDE. Seja conciso.` },
+          { role: 'user', content: `INSTRUÇÃO DO USUÁRIO: ${instruction}\n\nTRECHO server.js (primeiras linhas):\n${serverCode.slice(0, 5000)}\n\nTRECHO index.html (primeiras linhas):\n${htmlCode.slice(0, 5000)}` }
+        ],
+        max_tokens: 1000,
+        temperature: 0.3
+      })
+    });
+    if (planResp.ok) {
+      const planData = await planResp.json();
+      command.plan = planData.choices?.[0]?.message?.content || 'Plano não gerado';
+      command.status = 'planned';
+    } else {
+      command.plan = 'Erro ao gerar plano: ' + planResp.status;
+      command.status = 'plan_failed';
+    }
+  } catch (e) {
+    command.plan = 'Erro: ' + e.message;
+    command.status = 'plan_failed';
+  }
+  saveDB('ultimateBank');
+  res.json({ id: commandId, status: command.status, plan: command.plan });
+});
+
+// Get dev queue
+app.get('/api/dev/queue/:userId', (req, res) => {
+  if (!canUseUltimateVA(req.params.userId)) return res.status(403).json({ error: 'Acesso negado' });
+  const bank = getUltimateBank(req.params.userId);
+  res.json({ queue: bank.devQueue.slice(-20).reverse() });
+});
+
+// Approve and execute a dev command
+app.post('/api/dev/approve/:commandId', async (req, res) => {
+  const { userId } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+
+  const bank = getUltimateBank(userId);
+  const cmd = bank.devQueue.find(c => c.id === req.params.commandId);
+  if (!cmd) return res.status(404).json({ error: 'Comando não encontrado' });
+  if (cmd.status !== 'planned') return res.status(400).json({ error: 'Comando não está pronto para aprovação. Status: ' + cmd.status });
+
+  cmd.approvedAt = Date.now();
+  cmd.status = 'executing';
+  saveDB('ultimateBank');
+
+  // Execute: call GPT-4o to generate code edits
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const serverPath = __filename;
+    const htmlPath = path.join(__dirname, 'public', 'index.html');
+    const serverCode = fs.readFileSync(serverPath, 'utf8');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+
+    // Send instruction + plan + full code context to GPT-4o for edits
+    const editResp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: `Você é um desenvolvedor expert. Gere APENAS edições no formato JSON. Cada edição é um objeto com: {"file": "server.js" ou "public/index.html", "old_string": "texto exato a substituir", "new_string": "texto novo"}. Retorne um array JSON puro, sem markdown, sem explicação. Se não precisar mudar um arquivo, não inclua. ATENÇÃO: old_string deve ser um trecho EXATO do código atual.` },
+          { role: 'user', content: `INSTRUÇÃO: ${cmd.instruction}\n\nPLANO: ${cmd.plan}\n\nserver.js (últimas 3000 chars):\n...${serverCode.slice(-3000)}\n\nindex.html (últimas 3000 chars):\n...${htmlCode.slice(-3000)}` }
+        ],
+        max_tokens: 4000,
+        temperature: 0.2
+      })
+    });
+
+    if (!editResp.ok) {
+      cmd.status = 'failed';
+      cmd.result = 'Erro GPT-4o: ' + editResp.status;
+      saveDB('ultimateBank');
+      return res.json({ success: false, error: cmd.result });
+    }
+
+    const editData = await editResp.json();
+    let editsRaw = editData.choices?.[0]?.message?.content || '[]';
+    // Clean markdown code fences if present
+    editsRaw = editsRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    let edits;
+    try { edits = JSON.parse(editsRaw); } catch (e) {
+      cmd.status = 'failed';
+      cmd.result = 'Erro parsing edits: ' + e.message;
+      saveDB('ultimateBank');
+      return res.json({ success: false, error: cmd.result });
+    }
+
+    if (!Array.isArray(edits) || edits.length === 0) {
+      cmd.status = 'failed';
+      cmd.result = 'Nenhuma edição gerada';
+      saveDB('ultimateBank');
+      return res.json({ success: false, error: cmd.result });
+    }
+
+    // Apply edits
+    const appliedEdits = [];
+    const fileMap = { 'server.js': serverPath, 'public/index.html': htmlPath };
+    for (const edit of edits) {
+      const filePath = fileMap[edit.file];
+      if (!filePath) { appliedEdits.push({ file: edit.file, ok: false, error: 'Arquivo desconhecido' }); continue; }
+      try {
+        let content = fs.readFileSync(filePath, 'utf8');
+        if (!content.includes(edit.old_string)) {
+          appliedEdits.push({ file: edit.file, ok: false, error: 'old_string não encontrado' });
+          continue;
+        }
+        content = content.replace(edit.old_string, edit.new_string);
+        fs.writeFileSync(filePath, content, 'utf8');
+        appliedEdits.push({ file: edit.file, ok: true });
+      } catch (e) {
+        appliedEdits.push({ file: edit.file, ok: false, error: e.message });
+      }
+    }
+
+    // Git commit + push
+    const { exec } = require('child_process');
+    const commitMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60)}`;
+    exec(`cd ${__dirname} && git add -A && git commit -m "${commitMsg.replace(/"/g, '\\"')}" && git push`, (err, stdout, stderr) => {
+      if (err) {
+        console.error('Git error:', err.message);
+        cmd.result = `Edições aplicadas mas git falhou: ${err.message}. Edits: ${JSON.stringify(appliedEdits)}`;
+        cmd.status = 'partial';
+      } else {
+        cmd.result = `Sucesso! ${appliedEdits.filter(e => e.ok).length}/${appliedEdits.length} edições aplicadas e commitadas. ${stdout}`;
+        cmd.status = 'done';
+      }
+      saveDB('ultimateBank');
+    });
+
+    res.json({ success: true, edits: appliedEdits, status: 'executing_git' });
+  } catch (e) {
+    cmd.status = 'failed';
+    cmd.result = 'Erro: ' + e.message;
+    saveDB('ultimateBank');
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Reject a dev command
+app.post('/api/dev/reject/:commandId', (req, res) => {
+  const { userId, motivo } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+
+  const bank = getUltimateBank(userId);
+  const cmd = bank.devQueue.find(c => c.id === req.params.commandId);
+  if (!cmd) return res.status(404).json({ error: 'Comando não encontrado' });
+  cmd.status = 'rejected';
+  cmd.result = motivo || 'Rejeitado pelo usuário';
+  saveDB('ultimateBank');
+  res.json({ success: true });
+});
+
+// Save user learning profile
+app.post('/api/dev/learn', (req, res) => {
+  const { userId, categoria, info } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!categoria || !info) return res.status(400).json({ error: 'categoria e info são obrigatórios' });
+
+  const bank = getUltimateBank(userId);
+  const p = bank.userProfile;
+  switch (categoria) {
+    case 'tone': p.tone = info; break;
+    case 'vocabulary': if (!p.vocabulary.includes(info)) p.vocabulary.push(info); break;
+    case 'screenName': { const parts = info.split('='); if (parts.length === 2) p.screenNames[parts[0].trim()] = parts[1].trim(); } break;
+    case 'preference': if (!p.preferences.includes(info)) p.preferences.push(info); break;
+    case 'topic': { p.lastTopics.push(info); if (p.lastTopics.length > 10) p.lastTopics = p.lastTopics.slice(-10); } break;
+    default: break;
+  }
+  saveDB('ultimateBank');
+  res.json({ success: true, profile: p });
+});
+
+// Save ultimate conversation message
+app.post('/api/dev/conversation', (req, res) => {
+  const { userId, role, content } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+
+  const bank = getUltimateBank(userId);
+  bank.conversations.push({ role, content, ts: Date.now() });
+  if (bank.conversations.length > 100) bank.conversations = bank.conversations.slice(-100);
+  saveDB('ultimateBank');
+  res.json({ success: true });
 });
 
 // Text fallback (Groq or OpenAI chat)
