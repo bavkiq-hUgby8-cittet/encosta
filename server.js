@@ -6983,7 +6983,7 @@ app.post('/api/agent/session', async (req, res) => {
   // Load conversation history for continuity
   const plusConvos = getVaConversations(userId, 'plus').slice(-20);
   const convHistoryPlus = plusConvos.length
-    ? `\nHISTORICO DE CONVERSAS ANTERIORES (use pra retomar de onde parou):\n${plusConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}`
+    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com esse usuario antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${plusConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
     : '';
 
   // Decide greeting mode: >1h = gossip opener, <1h = quick continue
@@ -6993,19 +6993,24 @@ app.post('/api/agent/session', async (req, res) => {
 
   let openingInstruction, openingText;
   if (plusConvos.length && !isNewSession) {
-    // Has recent history — resume from where we left off
+    // Has recent history -- resume from where we left off
     const lastMsg = plusConvos[plusConvos.length - 1];
     openingText = `${userName}, voltei! A gente tava falando sobre... continuamos?`;
-    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou — retome de onde parou!):\nVoce ja estava conversando com o usuario. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content}"\nRetome NATURALMENTE de onde parou, como se nada tivesse acontecido. Nao diga "oi" nem "ola". Provoque com algo da conversa anterior.`;
+    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou -- retome de onde parou!):\nVoce ja estava conversando com o usuario. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content}"\nRetome NATURALMENTE de onde parou, como se nada tivesse acontecido. Nao diga "oi" nem "ola". Provoque com algo da conversa anterior.`;
+  } else if (plusConvos.length && isNewSession) {
+    // Has old history -- reference previous session
+    const lastTopics = plusConvos.slice(-3).map(c => c.content.slice(0, 60));
+    openingText = `${userName}, e ai! Da ultima vez a gente tava conversando... lembra?`;
+    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h, mas voce ja conversou com esse usuario antes):\nMencione BREVEMENTE o que conversaram da ultima vez e pergunte se quer continuar ou falar de outra coisa.\nUltimos assuntos: ${lastTopics.join(' | ')}`;
   } else if (isNewSession && gossip) {
     openingText = gossip;
-    openingInstruction = `SAUDACAO DE FOFOCA (faz mais de 1h que nao fala com o usuario — comece com uma fofoca quente!):\n"${gossip}"`;
+    openingInstruction = `SAUDACAO DE FOFOCA (faz mais de 1h que nao fala com o usuario -- comece com uma fofoca quente!):\n"${gossip}"`;
   } else if (isNewSession) {
     openingText = greeting;
     openingInstruction = `SAUDACAO INICIAL (fale quando a conversa comecar):\n"${greeting}"`;
   } else {
     openingText = `${userName}, voltou! Manda ai.`;
-    openingInstruction = `CONTINUACAO (menos de 1h desde a ultima conversa — ULTRA breve, 1 frase so):\n"${openingText}"`;
+    openingInstruction = `CONTINUACAO (menos de 1h desde a ultima conversa -- ULTRA breve, 1 frase so):\n"${openingText}"`;
   }
 
   // Load tier config from vaConfig (admin panel)
@@ -7411,7 +7416,7 @@ app.post('/api/agent/premium-session', async (req, res) => {
   // Load conversation history for continuity
   const proConvos = getVaConversations(userId, 'pro').slice(-20);
   const convHistoryPro = proConvos.length
-    ? `\nHISTORICO DE CONVERSAS ANTERIORES (use pra retomar de onde parou):\n${proConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}`
+    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com esse usuario antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${proConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
     : '';
 
   const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
@@ -7419,14 +7424,27 @@ app.post('/api/agent/premium-session', async (req, res) => {
   const user = db.users[userId] || {};
   const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || '';
 
-  let openingText;
+  let openingText, openingInstruction;
   if (proConvos.length && !isNewSession) {
-    // Has recent history — resume from where we left off
+    // Has recent history -- resume from where we left off
     const lastMsg = proConvos[proConvos.length - 1];
     openingText = `${firstName}, voltei! Continuamos de onde paramos.`;
-  } else if (isNewSession && gossip) openingText = gossip;
-  else if (isNewSession) openingText = greeting;
-  else openingText = `${firstName}, voltou! Manda ai.`;
+    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou -- retome de onde parou!):\nVoce ja estava conversando com ${firstName}. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content}"\nRetome NATURALMENTE de onde parou. Nao diga "oi" nem "ola". Provoque com algo da conversa anterior.`;
+  } else if (proConvos.length && isNewSession) {
+    // Has old history -- reference previous session
+    const lastTopics = proConvos.slice(-3).map(c => c.content.slice(0, 60));
+    openingText = `${firstName}, e ai! Da ultima vez a gente tava conversando... lembra?`;
+    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h, mas voce ja conversou com esse usuario antes):\nMencione BREVEMENTE o que conversaram da ultima vez e pergunte se quer continuar ou falar de outra coisa.\nUltimos assuntos: ${lastTopics.join(' | ')}`;
+  } else if (isNewSession && gossip) {
+    openingText = gossip;
+    openingInstruction = `SAUDACAO DE FOFOCA:\n"${gossip}"`;
+  } else if (isNewSession) {
+    openingText = greeting;
+    openingInstruction = `SAUDACAO INICIAL:\n"${greeting}"`;
+  } else {
+    openingText = `${firstName}, voltou! Manda ai.`;
+    openingInstruction = `CONTINUACAO (menos de 1h desde a ultima conversa -- ULTRA breve):\n"${openingText}"`;
+  }
 
   // Load tier config from vaConfig (admin panel)
   const proCfg = getTierConfig('pro');
@@ -7454,6 +7472,7 @@ PERSONALIDADE:
 ${proCfg.personality}
 
 COMO ABRIR A CONVERSA:
+${openingInstruction}
 ${proCfg.openingRules}
 
 DADOS: SEMPRE chame consultar_rede ANTES de responder sobre conexoes/estrelas/curtidas.
@@ -7474,10 +7493,6 @@ ${proCfg.memoryRules}
 
 ${proCfg.extraInstructions ? 'INSTRUCOES EXTRAS:\n' + proCfg.extraInstructions : ''}
 
-RETOMADA DE CONVERSA:
-- Se tem HISTORICO abaixo, voce JA conversou com esse usuario antes
-- Retome NATURALMENTE de onde parou, como se nada tivesse acontecido
-- Nao diga "oi" nem "ola" — provoque com algo da conversa anterior
 ${convHistoryPro}
 
 IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.create do cliente para comecar.`,
@@ -7537,20 +7552,40 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
 
   const bank = getUltimateBank(userId);
   const profile = bank.userProfile || {};
-  const recentConvos = (bank.conversations || []).slice(-20);
+  // Load conversation history from BOTH sources for maximum coverage
+  const bankConvos = (bank.conversations || []).slice(-20);
+  const vaConvos = getVaConversations(userId, 'ultimatedev').slice(-20);
+  // Use whichever has more recent data
+  const recentConvos = vaConvos.length >= bankConvos.length ? vaConvos : bankConvos;
   const pendingQueue = (bank.devQueue || []).filter(d => d.status === 'planned');
 
-  let openingText;
-  if (isNewSession && gossip) openingText = gossip;
-  else if (isNewSession) openingText = `${firstName}, modo dev ativado! O que vamos construir hoje?`;
-  else openingText = `${firstName}, voltou! Manda o próximo comando.`;
+  // Decide opening based on conversation history (same logic as Plus/Pro)
+  let openingText, openingInstruction;
+  if (recentConvos.length && !isNewSession) {
+    // Has recent history -- resume from where we left off
+    const lastMsg = recentConvos[recentConvos.length - 1];
+    const lastTopic = lastMsg.content.slice(0, 100);
+    openingText = `${firstName}, voltei! Continuamos de onde paramos.`;
+    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou -- retome de onde parou!):\nVoce ja estava conversando com ${firstName}. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastTopic}"\nRetome NATURALMENTE de onde parou, como se nada tivesse acontecido. Nao diga "oi" nem "ola". Continue o assunto anterior.`;
+  } else if (recentConvos.length && isNewSession) {
+    // Has old history -- reference previous session
+    const lastTopics = recentConvos.slice(-3).map(c => c.content.slice(0, 60));
+    openingText = `${firstName}, e ai! Da ultima vez a gente tava falando sobre... lembra?`;
+    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h desde a ultima conversa, mas voce ja conversou com esse usuario antes):\nMencione BREVEMENTE o que discutiram da ultima vez e pergunte se quer continuar ou fazer algo novo.\nUltimos assuntos: ${lastTopics.join(' | ')}`;
+  } else if (gossip) {
+    openingText = gossip;
+    openingInstruction = `SAUDACAO DE FOFOCA:\n"${gossip}"`;
+  } else {
+    openingText = `${firstName}, modo dev ativado! O que vamos construir hoje?`;
+    openingInstruction = `PRIMEIRA CONVERSA (nunca conversou com esse usuario antes):\n"${openingText}"`;
+  }
 
-  const profileContext = profile.tone ? `\nTOM DO USUÁRIO: ${profile.tone}` : '';
-  const vocabContext = profile.vocabulary?.length ? `\nVOCABULÁRIO DO USUÁRIO: ${profile.vocabulary.join(', ')}` : '';
+  const profileContext = profile.tone ? `\nTOM DO USUARIO: ${profile.tone}` : '';
+  const vocabContext = profile.vocabulary?.length ? `\nVOCABULARIO DO USUARIO: ${profile.vocabulary.join(', ')}` : '';
   const screenContext = Object.keys(profile.screenNames || {}).length ? `\nNOMES QUE ELE USA PRA TELAS: ${JSON.stringify(profile.screenNames)}` : '';
-  const topicsContext = profile.lastTopics?.length ? `\nÚLTIMOS TÓPICOS DE DEV: ${profile.lastTopics.join(', ')}` : '';
-  const pendingContext = pendingQueue.length ? `\nCOMANDOS PENDENTES DE APROVAÇÃO: ${pendingQueue.map(p => `[${p.id}] ${p.instruction}`).join('; ')}` : '';
-  const convContext = recentConvos.length ? `\nÚLTIMAS CONVERSAS:\n${recentConvos.map(c => `${c.role}: ${c.content}`).join('\n')}` : '';
+  const topicsContext = profile.lastTopics?.length ? `\nULTIMOS TOPICOS DE DEV: ${profile.lastTopics.join(', ')}` : '';
+  const pendingContext = pendingQueue.length ? `\nCOMANDOS PENDENTES DE APROVACAO: ${pendingQueue.map(p => `[${p.id}] ${p.instruction}`).join('; ')}` : '';
+  const convContext = recentConvos.length ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com ${firstName} antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${recentConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch DEV'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===` : '';
 
   // Load tier config from vaConfig (admin panel)
   const devCfg = getTierConfig('ultimatedev');
@@ -7575,6 +7610,7 @@ PERSONALIDADE:
 ${devCfg.personality}
 
 COMO ABRIR A CONVERSA:
+${openingInstruction}
 ${devCfg.openingRules}
 
 ═══ ARQUITETURA DO APP ═══
