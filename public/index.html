@@ -7252,7 +7252,7 @@ function showConstDetail(node){
     const lastD=node.lastDate?new Date(node.lastDate):null;
     metaEl.innerHTML=lastD?'<div class="cd-time"><span>'+timeAgo(lastD)+'</span></div>':'';
     let evActions='';
-    if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo','goToEventLive(\\"'+esc(node.id)+'\\")','cd-act-primary')}
+    if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo',"goToEventLive('"+esc(node.id)+"','"+esc(node.nickname||'Evento')+"')",'cd-act-primary')}
     $('cdActions').innerHTML=evActions;
     $('cdAnonPreview').classList.add('hidden');
     const _evTags=$('cdProfileTags');if(_evTags){_evTags.style.display='none';_evTags.innerHTML=''}
@@ -7880,10 +7880,9 @@ function showHistoryEvents(){
   showHistory();
   setTimeout(()=>{constFilters={revealed:false,anon:false,events:true};updateConstFilterUI()},300);
 }
-function goToEventLive(eventNodeId){
-  hideConstDetail();goHome();
-  const evNode=constState.nodes.find(n=>n.id===eventNodeId);
-  if(evNode)showToast('Evento ao vivo: '+(evNode.nickname||'Evento'));
+function goToEventLive(eventNodeId,eventName){
+  hideConstDetail();
+  showEventView(eventNodeId,eventName||'Evento');
 }
 function openChatFromConst(nodeId){
   hideConstDetail();
