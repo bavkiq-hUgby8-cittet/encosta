@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch? — Voice Agent Test</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0a0a0f; color:#e0e0e0; min-height:100vh; }
+.container { max-width:800px; margin:0 auto; padding:20px; }
+h1 { text-align:center; font-size:1.5rem; margin-bottom:8px; color:#fff; }
+.subtitle { text-align:center; color:#888; font-size:0.85rem; margin-bottom:24px; }
+
+/* Auth */
+.auth-box { background:#1a1a2e; border-radius:12px; padding:24px; margin-bottom:20px; }
+.auth-box label { display:block; font-size:0.85rem; color:#aaa; margin-bottom:6px; }
+.auth-box input { width:100%; padding:10px 14px; background:#0d0d1a; border:1px solid #333; border-radius:8px; color:#fff; font-size:1rem; margin-bottom:12px; }
+.auth-box input:focus { outline:none; border-color:#6c5ce7; }
+
+/* Tier selector */
+.tier-selector { display:flex; gap:10px; margin-bottom:20px; justify-content:center; }
+.tier-btn { padding:12px 24px; border-radius:10px; border:2px solid #333; background:#1a1a2e; color:#aaa; cursor:pointer; font-size:0.9rem; font-weight:600; transition:all .2s; }
+.tier-btn:hover { border-color:#555; color:#fff; }
+.tier-btn.active-plus { border-color:#6c5ce7; color:#6c5ce7; background:#1a1a3e; }
+.tier-btn.active-pro { border-color:#f39c12; color:#f39c12; background:#2a1a0e; }
+.tier-btn.active-ultimatedev { border-color:#00ff41; color:#00ff41; background:#0a1a0e; }
+
+/* Status */
+.status-bar { text-align:center; padding:16px; margin-bottom:20px; border-radius:10px; background:#1a1a2e; }
+.status-bar .status-text { font-size:0.9rem; color:#888; }
+.status-bar .status-text.connected { color:#00ff41; }
+.status-bar .status-text.error { color:#e74c3c; }
+
+/* Orb */
+.orb-container { display:flex; justify-content:center; margin-bottom:20px; }
+.orb { width:100px; height:100px; border-radius:50%; background:radial-gradient(circle,#6c5ce7 0%,#0a0a0f 70%); transition:all .3s; cursor:pointer; position:relative; }
+.orb.pro { background:radial-gradient(circle,#f39c12 0%,#0a0a0f 70%); }
+.orb.ultimatedev { background:radial-gradient(circle,#00ff41 0%,#0a0a0f 70%); }
+.orb.speaking { animation:pulse 0.8s ease-in-out infinite; }
+.orb.connecting { animation:spin 1.5s linear infinite; opacity:0.6; }
+@keyframes pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.15);opacity:0.8;} }
+@keyframes spin { 0%{transform:rotate(0deg);} 100%{transform:rotate(360deg);} }
+
+/* Buttons */
+.controls { display:flex; gap:10px; justify-content:center; margin-bottom:20px; }
+.btn { padding:12px 28px; border-radius:10px; border:none; font-size:1rem; font-weight:600; cursor:pointer; transition:all .2s; }
+.btn-connect { background:#6c5ce7; color:#fff; }
+.btn-connect.pro { background:#f39c12; }
+.btn-connect.ultimatedev { background:#00ff41; color:#000; }
+.btn-connect:hover { opacity:0.85; transform:scale(1.02); }
+.btn-disconnect { background:#e74c3c; color:#fff; }
+.btn-disconnect:hover { opacity:0.85; }
+.btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+/* Transcript */
+.transcript-box { background:#1a1a2e; border-radius:12px; padding:16px; min-height:200px; max-height:400px; overflow-y:auto; margin-bottom:20px; }
+.transcript-box .msg { padding:6px 0; border-bottom:1px solid #222; font-size:0.9rem; line-height:1.4; }
+.transcript-box .msg.user { color:#6c5ce7; }
+.transcript-box .msg.agent { color:#f0f0f0; }
+.transcript-box .msg .time { color:#555; font-size:0.75rem; margin-right:8px; }
+.transcript-box .live { color:#888; font-style:italic; padding:8px 0; }
+
+/* History */
+.history-section { margin-top:20px; }
+.history-section h3 { font-size:0.9rem; color:#888; margin-bottom:10px; cursor:pointer; }
+.history-section h3:hover { color:#fff; }
+.history-list { background:#111; border-radius:8px; padding:12px; max-height:300px; overflow-y:auto; }
+.history-list .h-msg { padding:4px 0; font-size:0.8rem; color:#777; border-bottom:1px solid #1a1a1a; }
+.history-list .h-msg.h-user { color:#6c5ce7; }
+.history-list .h-msg.h-agent { color:#aaa; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Touch? Voice Agent Test</h1>
+  <p class="subtitle">Pagina de teste dos 3 assistentes de voz</p>
+
+  <!-- Auth -->
+  <div class="auth-box">
+    <label>User ID (do Firebase)</label>
+    <input type="text" id="userIdInput" placeholder="Cole seu userId aqui..." />
+  </div>
+
+  <!-- Tier Selector -->
+  <div class="tier-selector">
+    <button class="tier-btn active-plus" id="btnPlus" onclick="selectTier('plus')">Plus</button>
+    <button class="tier-btn" id="btnPro" onclick="selectTier('pro')">Pro</button>
+    <button class="tier-btn" id="btnUltimate" onclick="selectTier('ultimatedev')">UltimateDEV</button>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <span class="status-text" id="statusText">Selecione tier e clique Conectar</span>
+  </div>
+
+  <!-- Orb -->
+  <div class="orb-container">
+    <div class="orb" id="orb"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-connect" id="btnConnect" onclick="doConnect()">Conectar</button>
+    <button class="btn btn-disconnect" id="btnDisconnect" onclick="doDisconnect()" disabled>Desconectar</button>
+  </div>
+
+  <!-- Live Transcript -->
+  <div class="transcript-box" id="transcriptBox">
+    <div class="live" id="liveTranscript">Aguardando conexao...</div>
+  </div>
+
+  <!-- History -->
+  <div class="history-section">
+    <h3 onclick="loadHistory()">Historico de conversas anteriores (clique para carregar)</h3>
+    <div class="history-list" id="historyList" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+let currentTier = 'plus';
+let pc = null;
+let dc = null;
+let audioEl = null;
+let active = false;
+let agentSpeaking = false;
+let localStream = null;
+
+function $(id){ return document.getElementById(id); }
+
+function selectTier(tier){
+  if(active) doDisconnect();
+  currentTier = tier;
+  // Update buttons
+  ['btnPlus','btnPro','btnUltimate'].forEach(id => {
+    $(id).className = 'tier-btn';
+  });
+  if(tier==='plus') $('btnPlus').className='tier-btn active-plus';
+  else if(tier==='pro') $('btnPro').className='tier-btn active-pro';
+  else $('btnUltimate').className='tier-btn active-ultimatedev';
+  // Update orb
+  $('orb').className = 'orb' + (tier!=='plus'?' '+tier:'');
+  // Update connect btn
+  $('btnConnect').className = 'btn btn-connect' + (tier!=='plus'?' '+tier:'');
+  setStatus('Tier: ' + tier.toUpperCase() + ' — pronto pra conectar');
+}
+
+function setStatus(msg, type){
+  const el = $('statusText');
+  el.textContent = msg;
+  el.className = 'status-text' + (type?' '+type:'');
+}
+
+function addTranscript(role, text){
+  const box = $('transcriptBox');
+  const live = $('liveTranscript');
+  if(live) live.remove();
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  const time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  div.innerHTML = `<span class="time">${time}</span>${role==='user'?'Voce':'Touch'}: ${text}`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setLiveTranscript(text){
+  let live = $('liveTranscript');
+  if(!live){
+    live = document.createElement('div');
+    live.className = 'live';
+    live.id = 'liveTranscript';
+    $('transcriptBox').appendChild(live);
+  }
+  live.textContent = text;
+  $('transcriptBox').scrollTop = $('transcriptBox').scrollHeight;
+}
+
+async function doConnect(){
+  const userId = $('userIdInput').value.trim();
+  if(!userId){ setStatus('Informe o userId!','error'); return; }
+
+  setStatus('Conectando...'); $('orb').classList.add('connecting');
+  $('btnConnect').disabled = true;
+
+  try {
+    const sessionUrl = currentTier==='ultimatedev' ? '/api/agent/ultimate-session'
+      : currentTier==='pro' ? '/api/agent/premium-session'
+      : '/api/agent/session';
+
+    const lastInt = parseInt(localStorage.getItem('va_test_last_'+currentTier)||'0');
+
+    const tr = await fetch(sessionUrl, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId, lastInteraction: lastInt })
+    });
+
+    if(!tr.ok){
+      const err = await tr.json().catch(()=>({}));
+      throw new Error(err.error || 'Erro ' + tr.status);
+    }
+
+    const td = await tr.json();
+    if(!td.client_secret) throw new Error('Token nao recebido');
+
+    // Save last interaction
+    localStorage.setItem('va_test_last_'+currentTier, Date.now().toString());
+
+    // PeerConnection
+    pc = new RTCPeerConnection();
+
+    // Audio output
+    audioEl = document.createElement('audio');
+    audioEl.autoplay = true;
+    pc.ontrack = e => { audioEl.srcObject = e.streams[0]; };
+
+    // Mic input
+    localStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    // Data channel
+    dc = pc.createDataChannel('oai-events');
+    dc.onopen = () => {
+      active = true;
+      setStatus('Conectado — ' + currentTier.toUpperCase(), 'connected');
+      $('orb').classList.remove('connecting');
+      $('btnConnect').disabled = true;
+      $('btnDisconnect').disabled = false;
+      setLiveTranscript('Conectado! Fale algo...');
+      // Trigger first response
+      dc.send(JSON.stringify({type:'response.create'}));
+    };
+    dc.onmessage = e => handleEvent(JSON.parse(e.data));
+
+    // SDP
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    const sdpResp = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+      method:'POST',
+      headers:{
+        'Authorization': 'Bearer ' + td.client_secret.value,
+        'Content-Type': 'application/sdp'
+      },
+      body: offer.sdp
+    });
+
+    const answer = { type:'answer', sdp: await sdpResp.text() };
+    await pc.setRemoteDescription(answer);
+
+  } catch(err){
+    setStatus('Erro: ' + err.message, 'error');
+    $('orb').classList.remove('connecting');
+    $('btnConnect').disabled = false;
+    cleanup();
+  }
+}
+
+function handleEvent(evt){
+  const userId = $('userIdInput').value.trim();
+
+  switch(evt.type){
+    case 'conversation.item.input_audio_transcription.completed':
+      if(evt.transcript){
+        addTranscript('user', evt.transcript);
+        // Persist to server
+        fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,tier:currentTier,role:'user',content:evt.transcript})}).catch(()=>{});
+      }
+      break;
+    case 'response.audio.delta':
+      agentSpeaking = true;
+      $('orb').classList.add('speaking');
+      break;
+    case 'response.audio_transcript.delta':
+      setLiveTranscript('Touch: ' + (evt.delta||''));
+      break;
+    case 'response.audio_transcript.done':
+      if(evt.transcript){
+        addTranscript('agent', evt.transcript);
+        // Persist to server
+        fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,tier:currentTier,role:'assistant',content:evt.transcript})}).catch(()=>{});
+      }
+      agentSpeaking = false;
+      $('orb').classList.remove('speaking');
+      break;
+    case 'response.done':
+      agentSpeaking = false;
+      $('orb').classList.remove('speaking');
+      setLiveTranscript('Ouvindo...');
+      break;
+    case 'error':
+      setStatus('Erro: ' + (evt.error?.message||'desconhecido'), 'error');
+      break;
+    case 'response.function_call_arguments.done':
+      setLiveTranscript('[Tool: ' + (evt.name||'?') + ']');
+      // Auto-respond to tool calls with empty result so agent continues
+      if(evt.call_id){
+        dc.send(JSON.stringify({
+          type:'conversation.item.create',
+          item:{type:'function_call_output',call_id:evt.call_id,output:JSON.stringify({success:true,note:'Tool executada no app principal. Teste apenas de voz.'})}
+        }));
+        dc.send(JSON.stringify({type:'response.create'}));
+      }
+      break;
+  }
+}
+
+function doDisconnect(){
+  cleanup();
+  setStatus('Desconectado');
+  $('orb').classList.remove('speaking','connecting');
+  $('btnConnect').disabled = false;
+  $('btnDisconnect').disabled = true;
+}
+
+function cleanup(){
+  active = false;
+  if(dc){ try{dc.close();}catch(e){} dc=null; }
+  if(pc){ try{pc.close();}catch(e){} pc=null; }
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  if(audioEl){ audioEl.srcObject=null; audioEl=null; }
+}
+
+async function loadHistory(){
+  const userId = $('userIdInput').value.trim();
+  if(!userId){ setStatus('Informe o userId primeiro!','error'); return; }
+
+  const list = $('historyList');
+  list.style.display = 'block';
+  list.innerHTML = '<div style="color:#555">Carregando...</div>';
+
+  try {
+    const resp = await fetch(`/api/va/conversation/${userId}/${currentTier}?limit=50`);
+    const data = await resp.json();
+
+    if(!data.conversations || !data.conversations.length){
+      list.innerHTML = '<div style="color:#555">Nenhuma conversa anterior nesse tier.</div>';
+      return;
+    }
+
+    list.innerHTML = data.conversations.map(c => {
+      const d = new Date(c.ts);
+      const time = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="h-msg h-${c.role==='user'?'user':'agent'}"><span style="color:#555;font-size:0.7rem">${time}</span> ${c.role==='user'?'Voce':'Touch'}: ${c.content}</div>`;
+    }).join('');
+  } catch(e){
+    list.innerHTML = '<div style="color:#e74c3c">Erro ao carregar historico</div>';
+  }
+}
+
+// Auto-load userId from URL param
+const params = new URLSearchParams(location.search);
+if(params.get('userId')) $('userIdInput').value = params.get('userId');
+if(params.get('tier')) selectTier(params.get('tier'));
+</script>
+</body>
+</html>

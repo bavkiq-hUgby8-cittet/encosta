@@ -232,7 +232,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -6677,21 +6677,32 @@ app.post('/api/agent/session', async (req, res) => {
 
   const { userName, context, greeting, gossip } = buildUserContext(userId);
 
+  // Load conversation history for continuity
+  const plusConvos = getVaConversations(userId, 'plus').slice(-20);
+  const convHistoryPlus = plusConvos.length
+    ? `\nHISTORICO DE CONVERSAS ANTERIORES (use pra retomar de onde parou):\n${plusConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}`
+    : '';
+
   // Decide greeting mode: >1h = gossip opener, <1h = quick continue
   const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
   const isNewSession = msSinceLast > 60 * 60 * 1000; // 1 hour
   const user = db.users[userId] || {};
 
   let openingInstruction, openingText;
-  if (isNewSession && gossip) {
+  if (plusConvos.length && !isNewSession) {
+    // Has recent history — resume from where we left off
+    const lastMsg = plusConvos[plusConvos.length - 1];
+    openingText = `${userName}, voltei! A gente tava falando sobre... continuamos?`;
+    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou — retome de onde parou!):\nVoce ja estava conversando com o usuario. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content}"\nRetome NATURALMENTE de onde parou, como se nada tivesse acontecido. Nao diga "oi" nem "ola". Provoque com algo da conversa anterior.`;
+  } else if (isNewSession && gossip) {
     openingText = gossip;
-    openingInstruction = `SAUDAÇÃO DE FOFOCA (faz mais de 1h que não fala com o usuário — comece com uma fofoca quente!):\n"${gossip}"`;
+    openingInstruction = `SAUDACAO DE FOFOCA (faz mais de 1h que nao fala com o usuario — comece com uma fofoca quente!):\n"${gossip}"`;
   } else if (isNewSession) {
     openingText = greeting;
-    openingInstruction = `SAUDAÇÃO INICIAL (fale quando a conversa começar):\n"${greeting}"`;
+    openingInstruction = `SAUDACAO INICIAL (fale quando a conversa comecar):\n"${greeting}"`;
   } else {
-    openingText = `${userName}, voltou! Manda aí.`;
-    openingInstruction = `CONTINUAÇÃO (menos de 1h desde a última conversa — ULTRA breve, 1 frase só):\n"${openingText}"`;
+    openingText = `${userName}, voltou! Manda ai.`;
+    openingInstruction = `CONTINUACAO (menos de 1h desde a ultima conversa — ULTRA breve, 1 frase so):\n"${openingText}"`;
   }
 
   try {
@@ -6780,9 +6791,10 @@ MEMÓRIA — SALVAR TUDO QUE OUVIR:
 - Não precisa confirmar toda vez — salve silenciosamente quando for info menor
 - Só confirme quando for algo importante: "Anotado! Agora sei quem é"
 - USE as notas pra fofoca inteligente! Se sabe que Lala é mãe e ganhou estrela: "Sua mãe tá brilhando hein!"
-- Se uma conexão não tem notas, PERGUNTE sobre ela na próxima oportunidade
+- Se uma conexao nao tem notas, PERGUNTE sobre ela na proxima oportunidade
+${convHistoryPlus}
 
-IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
+IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.create do cliente para comecar.`,
         tools: [{
           type: 'function',
           name: 'mostrar_pessoa',
@@ -7131,15 +7143,26 @@ app.post('/api/agent/premium-session', async (req, res) => {
   trackVaSession(userId, true); // premium cost
 
   const { userName, context, greeting, gossip } = buildUserContext(userId);
+
+  // Load conversation history for continuity
+  const proConvos = getVaConversations(userId, 'pro').slice(-20);
+  const convHistoryPro = proConvos.length
+    ? `\nHISTORICO DE CONVERSAS ANTERIORES (use pra retomar de onde parou):\n${proConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}`
+    : '';
+
   const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
   const isNewSession = msSinceLast > 60 * 60 * 1000;
   const user = db.users[userId] || {};
   const firstName = (user.name || user.nickname || '').split(' ')[0] || user.nickname || '';
 
   let openingText;
-  if (isNewSession && gossip) openingText = gossip;
+  if (proConvos.length && !isNewSession) {
+    // Has recent history — resume from where we left off
+    const lastMsg = proConvos[proConvos.length - 1];
+    openingText = `${firstName}, voltei! Continuamos de onde paramos.`;
+  } else if (isNewSession && gossip) openingText = gossip;
   else if (isNewSession) openingText = greeting;
-  else openingText = `${firstName}, voltou! Manda aí.`;
+  else openingText = `${firstName}, voltou! Manda ai.`;
 
   try {
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
@@ -7218,12 +7241,19 @@ MEMÓRIA — SALVAR TUDO QUE OUVIR:
 - Infos sobre conexões: parentesco, contexto, opinião → salvar_nota(sobre: "nome", nota: "...")
 - Não precisa confirmar toda vez — salve silenciosamente quando for info menor
 - USE as notas pra fofoca inteligente!
-- Se uma conexão não tem notas, PERGUNTE sobre ela na próxima oportunidade
+- Se uma conexao nao tem notas, PERGUNTE sobre ela na proxima oportunidade
 
-IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
+RETOMADA DE CONVERSA:
+- Se tem HISTORICO abaixo, voce JA conversou com esse usuario antes
+- Retome NATURALMENTE de onde parou, como se nada tivesse acontecido
+- Nao diga "oi" nem "ola" — provoque com algo da conversa anterior
+- Se a conexao caiu, demonstre que lembra do que estavam falando
+${convHistoryPro}
+
+IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.create do cliente para comecar.`,
         tools: [
-          { type:'function', name:'navegar_tela', description:'Navega para uma tela do app. Telas: home, history (constelação), encounter (conectar), locationScreen (mapa), myProfile (meu perfil), subscription (assinatura).', parameters:{type:'object',properties:{tela:{type:'string',description:'ID da tela: home, history, encounter, locationScreen, myProfile, subscription'}},required:['tela']} },
-          { type:'function', name:'abrir_perfil', description:'Abre o perfil detalhado de uma conexão pelo nome.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome ou apelido da pessoa'}},required:['nome']} },
+          { type:'function', name:'navegar_tela', description:'Navega para uma tela do app. Telas: home, history (constelacao), encounter (conectar), locationScreen (mapa), myProfile (meu perfil), subscription (assinatura).', parameters:{type:'object',properties:{tela:{type:'string',description:'ID da tela: home, history, encounter, locationScreen, myProfile, subscription'}},required:['tela']} },
+          { type:'function', name:'abrir_perfil', description:'Abre o perfil detalhado de uma conexao pelo nome.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome ou apelido da pessoa'}},required:['nome']} },
           { type:'function', name:'abrir_chat', description:'Abre o chat com uma conexão ativa pelo nome.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome ou apelido da pessoa'}},required:['nome']} },
           { type:'function', name:'iniciar_conexao', description:'Inicia o processo de conexão — vai pra tela encounter.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'dar_estrela', description:'Dá uma estrela para uma conexão.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa que vai receber a estrela'}},required:['nome']} },
@@ -7646,7 +7676,7 @@ app.post('/api/dev/learn', (req, res) => {
   res.json({ success: true, profile: p });
 });
 
-// Save ultimate conversation message
+// Save ultimate conversation message (legacy endpoint — now also handled by unified /api/va/conversation)
 app.post('/api/dev/conversation', (req, res) => {
   const { userId, role, content } = req.body;
   if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
@@ -7656,6 +7686,52 @@ app.post('/api/dev/conversation', (req, res) => {
   if (bank.conversations.length > 100) bank.conversations = bank.conversations.slice(-100);
   saveDB('ultimateBank');
   res.json({ success: true });
+});
+
+// ── Unified VA Conversation Persistence (all tiers) ──
+
+function getVaConversations(userId, tier) {
+  if (!db.vaConversations[userId]) db.vaConversations[userId] = {};
+  if (!db.vaConversations[userId][tier]) db.vaConversations[userId][tier] = [];
+  return db.vaConversations[userId][tier];
+}
+
+// POST /api/va/conversation — save a message for any tier
+app.post('/api/va/conversation', (req, res) => {
+  const { userId, tier, role, content } = req.body;
+  if (!userId || !tier || !role || !content) return res.status(400).json({ error: 'Missing fields' });
+  const validTiers = ['plus', 'pro', 'ultimatedev'];
+  if (!validTiers.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
+
+  const convos = getVaConversations(userId, tier);
+  convos.push({ role, content: content.slice(0, 500), ts: Date.now() });
+  // Keep last 100 messages per tier per user
+  if (convos.length > 100) {
+    db.vaConversations[userId][tier] = convos.slice(-100);
+  }
+
+  // Also mirror to ultimateBank for backward compat
+  if (tier === 'ultimatedev') {
+    const bank = getUltimateBank(userId);
+    bank.conversations.push({ role, content: content.slice(0, 500), ts: Date.now() });
+    if (bank.conversations.length > 100) bank.conversations = bank.conversations.slice(-100);
+    saveDB('ultimateBank');
+  }
+
+  saveDB('vaConversations');
+  res.json({ success: true });
+});
+
+// GET /api/va/conversation/:userId/:tier — retrieve conversation history
+app.get('/api/va/conversation/:userId/:tier', (req, res) => {
+  const { userId, tier } = req.params;
+  const limit = parseInt(req.query.limit) || 20;
+  const validTiers = ['plus', 'pro', 'ultimatedev'];
+  if (!validTiers.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
+
+  const convos = getVaConversations(userId, tier);
+  const recent = convos.slice(-limit);
+  res.json({ conversations: recent, total: convos.length });
 });
 
 // Save thought/reflection for UltimateDEV

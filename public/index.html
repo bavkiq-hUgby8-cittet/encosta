@@ -12494,7 +12494,9 @@ const VA = (function(){
         if(evt.transcript){
           setTranscript('Você: '+evt.transcript);
           _addToHistory('user',evt.transcript);
-          // Persist UltimateDEV conversations
+          // Persist conversation for ALL tiers
+          fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,tier:vaTier,role:'user',content:evt.transcript})}).catch(()=>{});
+          // Legacy: also save to ultimateBank for backward compat
           if(vaTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:evt.transcript})}).catch(()=>{});
         }
         break;
@@ -12510,9 +12512,11 @@ const VA = (function(){
         setTranscript(c.startsWith('Touch: ')?c+(evt.delta||''):'Touch: '+(evt.delta||''));
         break;
       case 'response.audio_transcript.done':
-        // Salva resposta completa no histórico
+        // Salva resposta completa no historico
         if(evt.transcript) _addToHistory('agent',evt.transcript);
-        // Persist UltimateDEV conversations
+        // Persist conversation for ALL tiers
+        if(evt.transcript) fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,tier:vaTier,role:'assistant',content:evt.transcript})}).catch(()=>{});
+        // Legacy: also save to ultimateBank for backward compat
         if(vaTier==='ultimatedev'&&evt.transcript) fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:evt.transcript})}).catch(()=>{});
         // Audio generation done — mark agent as no longer speaking
         _agentSpeaking=false;
