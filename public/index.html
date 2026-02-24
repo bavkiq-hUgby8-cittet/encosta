@@ -7608,52 +7608,95 @@ function showConstDetail(node){
   if(node.isEvent){
     window._constDetailNodeId=node.id;
     const cleanEventId=node.id.replace('evt:','');
+    // Avatar with gradient
     const av=$('cdAvatar');
-    av.innerHTML='';av.textContent='E';av.style.background='linear-gradient(135deg,#3b82f6,#60a5fa)';av.style.fontSize='1.1rem';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
-    $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>';
-    $('cdAlias').textContent='evento';$('cdAlias').style.display='';
+    av.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    av.style.background='linear-gradient(135deg,#3b82f6,#6366f1)';av.style.fontSize='';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
+    // Name
+    $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>'+(node.eventActive?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:6px;vertical-align:middle;box-shadow:0 0 6px rgba(34,197,94,.6)"></span>':'');
+    $('cdAlias').textContent=node.eventActive?'ao vivo':'evento encerrado';$('cdAlias').style.display='';
     $('cdStats').innerHTML='<span class="cd-stat-inline"><b>'+(node.encounters||0)+'</b> check-ins</span>';
+    // Meta
     const metaEl=$('cdMeta');
     const lastD=node.lastDate?new Date(node.lastDate):null;
     metaEl.innerHTML=lastD?'<div class="cd-time"><span>'+timeAgo(lastD)+'</span></div>':'';
+    // Actions: three-dots menu + ao vivo
     let evActions='';
+    evActions+='<button class="cd-action-icon" onclick="toggleEventMenu(event)" style="position:relative"><span class="cd-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span><span>Mais</span></button>';
     if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo',"goToEventLive('"+esc(cleanEventId)+"','"+esc(node.nickname||'Evento')+"')",'cd-act-primary')}
+    evActions+=iconBtn(ICONS.heart,'Curtir',"likeEvent('"+esc(cleanEventId)+"',this)",'cd-like-btn');
     $('cdActions').innerHTML=evActions;
     $('cdAnonPreview').classList.add('hidden');
     const _evTags=$('cdProfileTags');if(_evTags){_evTags.style.display='none';_evTags.innerHTML=''}
     $('cdDeclSection').classList.add('hidden');
-    const bizContainer=document.createElement('div');
-    bizContainer.id='cdBizInfo';
-    bizContainer.style.cssText='margin-top:.6rem;padding:0';
+    // Business profile container
     const existingBiz=document.getElementById('cdBizInfo');
     if(existingBiz)existingBiz.remove();
+    const bizContainer=document.createElement('div');
+    bizContainer.id='cdBizInfo';
+    bizContainer.style.cssText='margin-top:.5rem;padding:0';
     const actionsEl=$('cdActions');
     if(actionsEl&&actionsEl.parentElement)actionsEl.parentElement.insertBefore(bizContainer,actionsEl.nextSibling);
+    // Fetch business profile
     fetch('/api/event/'+cleanEventId+'/business-profile').then(r=>r.json()).then(d=>{
       const bp=d.businessProfile;
-      if(!bp||!bp.name){bizContainer.innerHTML='<div style="font-size:.6rem;color:var(--t3);text-align:center;padding:.5rem">Perfil do negocio nao cadastrado</div>';return}
-      let h='<div style="padding:.5rem .6rem;background:rgba(96,165,250,.05);border:1px solid rgba(96,165,250,.1);border-radius:12px">';
-      h+='<div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.4rem">'+esc(bp.name)+'</div>';
-      if(bp.type)h+='<div style="font-size:.6rem;color:#60a5fa;margin-bottom:.4rem;text-transform:capitalize">'+esc(bp.type)+'</div>';
-      if(bp.description)h+='<div style="font-size:.6rem;color:var(--t2);margin-bottom:.5rem;line-height:1.4">'+esc(bp.description)+'</div>';
-      const rows=[];
-      if(bp.address)rows.push('<span style="color:var(--t3)">Endereco:</span> '+esc(bp.address));
-      if(bp.phone)rows.push('<span style="color:var(--t3)">Tel:</span> '+esc(bp.phone));
-      if(bp.hours)rows.push('<span style="color:var(--t3)">Horario:</span> '+esc(bp.hours));
-      if(bp.website)rows.push('<span style="color:var(--t3)">Web:</span> '+esc(bp.website));
-      if(bp.instagram)rows.push('<span style="color:var(--t3)">Instagram:</span> @'+esc(bp.instagram.replace(/^@/,'')));
-      if(rows.length)h+='<div style="font-size:.6rem;color:var(--t2);display:flex;flex-direction:column;gap:.25rem">'+rows.join('')+'</div>';
-      if(bp.acceptsDelivery){
-        const fee=bp.deliveryFee?'R$'+Number(bp.deliveryFee).toFixed(2).replace('.',','):'Gratis';
-        h+='<div style="margin-top:.4rem;padding:.4rem;background:rgba(249,115,22,.08);border-radius:8px;border:1px solid rgba(249,115,22,.15);font-size:.6rem">';
-        h+='<span style="color:#f97316;font-weight:600">Delivery disponivel</span>';
-        h+=' <span style="color:var(--t3)">· Taxa: '+fee+'</span>';
-        if(bp.deliveryNote)h+=' <span style="color:var(--t3)">· '+esc(bp.deliveryNote)+'</span>';
+      let h='<div style="display:flex;flex-direction:column;gap:.5rem">';
+      if(bp&&bp.name){
+        // Business info card
+        h+='<div style="padding:.6rem;background:rgba(96,165,250,.04);border:1px solid rgba(96,165,250,.1);border-radius:12px">';
+        h+='<div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.2rem">'+esc(bp.name)+'</div>';
+        if(bp.type)h+='<div style="display:inline-block;font-size:.5rem;color:#60a5fa;background:rgba(96,165,250,.1);padding:.15rem .4rem;border-radius:6px;text-transform:capitalize;margin-bottom:.4rem">'+esc(bp.type)+'</div>';
+        if(bp.description)h+='<div style="font-size:.6rem;color:var(--t2);line-height:1.5;margin-bottom:.4rem">'+esc(bp.description)+'</div>';
+        // Info rows with icons
+        if(bp.address){
+          h+='<div style="display:flex;align-items:start;gap:.4rem;padding:.25rem 0;font-size:.58rem;color:var(--t2)">';
+          h+='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+          h+='<span>'+esc(bp.address)+'</span></div>';
+        }
+        if(bp.hours){
+          h+='<div style="display:flex;align-items:center;gap:.4rem;padding:.25rem 0;font-size:.58rem;color:var(--t2)">';
+          h+='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+          h+='<span>'+esc(bp.hours)+'</span></div>';
+        }
         h+='</div>';
+        // Contact buttons row
+        const contacts=[];
+        if(bp.phone){
+          const phoneClean=bp.phone.replace(/[^0-9+]/g,'');
+          contacts.push('<a href="https://wa.me/'+encodeURIComponent(phoneClean)+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:.3rem;padding:.45rem;background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.2);border-radius:10px;color:#25d366;font-size:.6rem;font-weight:600;text-decoration:none;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>WhatsApp</a>');
+        }
+        if(bp.instagram){
+          const igHandle=bp.instagram.replace(/^@/,'');
+          contacts.push('<a href="https://instagram.com/'+encodeURIComponent(igHandle)+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:.3rem;padding:.45rem;background:rgba(225,48,108,.08);border:1px solid rgba(225,48,108,.2);border-radius:10px;color:#e1306c;font-size:.6rem;font-weight:600;text-decoration:none;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>@'+esc(igHandle)+'</a>');
+        }
+        if(bp.website){
+          contacts.push('<a href="'+(bp.website.startsWith('http')?esc(bp.website):'https://'+esc(bp.website))+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:.3rem;padding:.45rem;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);border-radius:10px;color:#60a5fa;font-size:.6rem;font-weight:600;text-decoration:none;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>Site</a>');
+        }
+        if(contacts.length>0){
+          h+='<div style="display:flex;gap:.4rem">'+contacts.join('')+'</div>';
+        }
+        // Delivery badge
+        if(bp.acceptsDelivery){
+          const fee=bp.deliveryFee?'R$'+Number(bp.deliveryFee).toFixed(2).replace('.',','):'Gratis';
+          h+='<div style="display:flex;align-items:center;gap:.4rem;padding:.45rem .6rem;background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.12);border-radius:10px">';
+          h+='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>';
+          h+='<div style="flex:1"><div style="font-size:.6rem;font-weight:600;color:#f97316">Delivery disponivel</div>';
+          h+='<div style="font-size:.5rem;color:var(--t3)">Taxa: '+fee+(bp.deliveryNote?' · '+esc(bp.deliveryNote):'')+'</div></div></div>';
+        }
+      }else{
+        h+='<div style="text-align:center;padding:.8rem;font-size:.6rem;color:var(--t3)">Perfil do negocio nao cadastrado</div>';
       }
+      // Check-in history
+      h+='<div style="padding:.5rem .6rem;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px">';
+      h+='<div style="display:flex;align-items:center;justify-content:space-between">';
+      h+='<div style="display:flex;align-items:center;gap:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      h+='<span style="font-size:.65rem;font-weight:600;color:var(--t1)">'+(node.encounters||0)+' check-ins</span></div>';
+      const lastD2=node.lastDate?new Date(node.lastDate):null;
+      if(lastD2)h+='<span style="font-size:.5rem;color:var(--t3)">Ultimo: '+timeAgo(lastD2)+'</span>';
+      h+='</div></div>';
       h+='</div>';
       bizContainer.innerHTML=h;
-    }).catch(()=>{bizContainer.innerHTML=''});
+    }).catch(()=>{bizContainer.innerHTML='<div style="text-align:center;padding:.5rem;font-size:.6rem;color:var(--t3)">Erro ao carregar perfil</div>'});
     $('constDetail').classList.add('visible');
     return;
   }
@@ -7978,6 +8021,51 @@ function timeAgo(date){
   if(d<30)return Math.floor(d/7)+'sem atrás';
   return date.toLocaleDateString('pt-BR');
 }
+
+function toggleEventMenu(e){
+  if(e)e.stopPropagation();
+  const existing=document.getElementById('eventContextMenu');
+  if(existing){existing.remove();return}
+  const nodeId=window._constDetailNodeId;
+  if(!nodeId)return;
+  const cleanId=nodeId.replace('evt:','');
+  const menu=document.createElement('div');
+  menu.id='eventContextMenu';
+  menu.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:310;display:flex;align-items:flex-end;justify-content:center';
+  menu.innerHTML='<div onclick="event.stopPropagation()" style="width:100%;max-width:340px;margin:0 1rem 2rem;background:rgba(20,20,35,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:16px;overflow:hidden">'
+    +'<button onclick="deleteEvent(\''+cleanId+'\');document.getElementById(\'eventContextMenu\').remove()" style="width:100%;padding:.8rem;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.06);color:#ef4444;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:.4rem"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Apagar evento</button>'
+    +'<button onclick="document.getElementById(\'eventContextMenu\').remove()" style="width:100%;padding:.8rem;background:transparent;border:none;color:var(--t2);font-size:.7rem;cursor:pointer;font-family:inherit">Cancelar</button>'
+    +'</div>';
+  menu.onclick=function(){menu.remove()};
+  document.body.appendChild(menu);
+}
+
+async function deleteEvent(eventId){
+  if(!confirm('Tem certeza que deseja apagar este evento? Esta acao nao pode ser desfeita.'))return;
+  try{
+    const r=await fetch('/api/event/'+eventId+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+    const d=await r.json();
+    if(d.error){showToast(d.error);return}
+    showToast('Evento apagado');
+    hideConstDetail();
+    loadConstellationData();
+  }catch(e){showToast('Erro ao apagar evento')}
+}
+
+function likeEvent(eventId,btn){
+  if(!state.userId)return;
+  fetch('/api/event/'+eventId+'/like',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})})
+    .then(r=>r.json()).then(d=>{
+      if(d.liked){
+        if(btn)btn.classList.add('cd-act-primary');
+        showToast('Curtiu o evento!');
+      }else{
+        if(btn)btn.classList.remove('cd-act-primary');
+      }
+    }).catch(()=>{});
+  haptic([20]);
+}
+
 function hideConstDetail(){
   const d=$('constDetail');
   d.style.transform='';
