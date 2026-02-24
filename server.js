@@ -159,6 +159,47 @@ function isValidUUID(id) {
   return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
 }
 
+// ── User authentication middleware: verifies userId in request matches Firebase auth ──
+// Usage: app.get('/api/something/:userId', requireAuth, handler)
+// Sets req.authUserId to the verified user ID
+function requireAuth(req, res, next) {
+  // Extract userId from route params, body, or query
+  const requestedUserId = req.params.userId || req.body?.userId || req.query?.userId;
+  if (!requestedUserId) return res.status(400).json({ error: 'userId obrigatorio.' });
+
+  // Method 1: Firebase token verification (primary, secure)
+  if (req.firebaseUser) {
+    const fbUid = req.firebaseUser.uid;
+    const resolvedId = IDX.firebaseUid.get(fbUid);
+    if (resolvedId && resolvedId === requestedUserId) {
+      req.authUserId = resolvedId;
+      return next();
+    }
+    // Check linked UIDs
+    const user = db.users[requestedUserId];
+    if (user && user.linkedFirebaseUids && user.linkedFirebaseUids.includes(fbUid)) {
+      req.authUserId = requestedUserId;
+      return next();
+    }
+  }
+
+  // Method 2: Fallback for development (only if ADMIN_SECRET is not set)
+  // In production, ADMIN_SECRET is always set, so this never runs
+  if (!ADMIN_SECRET && requestedUserId && db.users[requestedUserId]) {
+    req.authUserId = requestedUserId;
+    return next();
+  }
+
+  // Method 3: Admin override via ADMIN_SECRET header
+  const secret = req.headers['x-admin-secret'];
+  if (ADMIN_SECRET && secret === ADMIN_SECRET) {
+    req.authUserId = requestedUserId;
+    return next();
+  }
+
+  return res.status(403).json({ error: 'Acesso negado. Autenticacao necessaria.' });
+}
+
 // ── Admin authentication middleware ──
 function requireAdmin(req, res, next) {
   // Method 1: ADMIN_SECRET header
@@ -262,10 +303,14 @@ function calculateTopTag(rank, totalUsers) {
 }
 
 // Recalculate all topTags based on stars ranking
-function recalcAllTopTags() {
+// PERFORMANCE: debounced to run at most once every 5 minutes (avoids O(n log n) on every star donation)
+let _topTagTimer = null;
+let _topTagLastRun = 0;
+const TOP_TAG_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
+
+function _doRecalcAllTopTags() {
   const users = Object.values(db.users);
   const totalUsers = users.length;
-  // Sort by stars count descending, then by registration order as tiebreaker
   const sorted = users
     .map(u => ({ id: u.id, stars: (u.stars || []).length, regOrder: u.registrationOrder || 9999 }))
     .sort((a, b) => b.stars - a.stars || a.regOrder - b.regOrder);
@@ -274,6 +319,26 @@ function recalcAllTopTags() {
     const user = db.users[s.id];
     if (user) user.topTag = calculateTopTag(rank, totalUsers);
   });
+  _topTagLastRun = Date.now();
+}
+
+function recalcAllTopTags(force = false) {
+  // Force: run immediately (used during init and admin operations)
+  if (force || !_topTagLastRun) {
+    if (_topTagTimer) { clearTimeout(_topTagTimer); _topTagTimer = null; }
+    _doRecalcAllTopTags();
+    return;
+  }
+  // Debounce: schedule if not already scheduled
+  if (!_topTagTimer) {
+    const elapsed = Date.now() - _topTagLastRun;
+    const delay = Math.max(0, TOP_TAG_DEBOUNCE_MS - elapsed);
+    _topTagTimer = setTimeout(() => {
+      _topTagTimer = null;
+      _doRecalcAllTopTags();
+      saveDB('users');
+    }, delay);
+  }
 }
 
 // Helper: promise with timeout
@@ -401,8 +466,8 @@ function initRegistrationCounter() {
     if (!u.revealedTo) u.revealedTo = [];
   });
   // Recalculate topTags based on stars ranking (not registration order)
-  recalcAllTopTags();
-  console.log(`📊 Registration counter: ${registrationCounter}, ${users.length} users migrated`);
+  recalcAllTopTags(true); // force: initial load
+  console.log(`Registration counter: ${registrationCounter}, ${users.length} users migrated`);
   // Build performance indexes
   rebuildIndexes();
   // Auto-verify Top 1 + grant 50 stars
@@ -2380,7 +2445,7 @@ app.post('/api/notifications/seen', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/notifications/:userId', (req, res) => {
+app.get('/api/notifications/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
@@ -2930,7 +2995,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 });
 
 // ── Update full profile ──
-app.post('/api/profile/update', async (req, res) => {
+app.post('/api/profile/update', requireAuth, async (req, res) => {
   const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
@@ -3516,7 +3581,7 @@ app.post('/api/declarations/send', (req, res) => {
 });
 
 // Get declarations for a user (only non-expired)
-app.get('/api/declarations/:userId', (req, res) => {
+app.get('/api/declarations/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
   const now = Date.now();
   let decls = (db.declarations[userId] || []).filter(d => d.expiresAt > now);
@@ -4040,7 +4105,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // Update user location (temporary, not stored permanently)
-app.post('/api/location/update', (req, res) => {
+app.post('/api/location/update', requireAuth, (req, res) => {
   const { userId, lat, lng } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (lat == null || lng == null) return res.status(400).json({ error: 'Localização inválida.' });
@@ -5813,7 +5878,7 @@ app.get('/tip-result', (req, res) => {
 });
 
 // Tip history for user
-app.get('/api/tips/:userId', (req, res) => {
+app.get('/api/tips/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
   const tips = Object.values(db.tips).filter(t => t.payerId === userId || t.receiverId === userId)
     .sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
@@ -5832,7 +5897,7 @@ app.get('/api/tips/:userId', (req, res) => {
 });
 
 // Financial summary for user (extrato)
-app.get('/api/financial/:userId', (req, res) => {
+app.get('/api/financial/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -5865,7 +5930,7 @@ app.get('/api/financial/:userId', (req, res) => {
 });
 
 // Full transaction history for a user (tips, entries, encounters)
-app.get('/api/user/:userId/transactions', (req, res) => {
+app.get('/api/user/:userId/transactions', requireAuth, (req, res) => {
   const userId = req.params.userId;
   if (!db.users[userId]) return res.status(404).json({ error: 'Usuário não encontrado.' });
   const transactions = [];
@@ -8756,7 +8821,12 @@ app.post('/api/dev/save-file', async (req, res) => {
 
   // Sanitize path — no ../ or absolute paths
   const safePath = caminho.replace(/\.\./g, '').replace(/^\//, '');
-  const fullPath = path.join(__dirname, safePath);
+  const fullPath = path.resolve(__dirname, safePath);
+
+  // Security check: ensure resolved path is within project directory
+  if (!fullPath.startsWith(__dirname)) {
+    return res.status(403).json({ error: 'Acesso negado: caminho fora do diretório do projeto' });
+  }
 
   try {
     // Create directory if needed
