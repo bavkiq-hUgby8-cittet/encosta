@@ -7161,20 +7161,23 @@ function getUserGreetingPeriod(userId) {
 }
 
 // ── VA Cost Tracking Per User ──
-const VA_DAILY_LIMIT_CENTS = 50; // $0.50 per day
+const VA_DAILY_LIMIT_CENTS = 50; // $0.50 per day (fallback, agora usa contagem de chamadas)
 const VA_SESSION_COST_CENTS = 8; // ~$0.08 per regular session
 const VA_PREMIUM_SESSION_COST_CENTS = 15; // ~$0.15 per premium session (more tools)
 const VA_ULTIMATE_SESSION_COST_CENTS = 25; // ~$0.25 per UltimateDEV session
+const VA_PLUS_DAILY_CALLS = 5; // Limite de 5 chamadas/dia para Plus
+const VA_PRO_DAILY_CALLS = 10; // Limite de 10 chamadas/dia para Pro
 
 function getVaUsageToday(userId) {
   const user = db.users[userId];
-  if (!user) return { count: 0, cost: 0 };
+  if (!user) return { count: 0, cost: 0, premium: 0, ultimate: 0 };
   const localNow = getUserLocalNow(userId);
   const today = localNow.getFullYear() + '-' + String(localNow.getMonth()+1).padStart(2,'0') + '-' + String(localNow.getDate()).padStart(2,'0');
   if (!user.vaUsage || user.vaUsage.date !== today) {
-    user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0 };
+    user.vaUsage = { date: today, sessions: 0, costCents: 0, premiumSessions: 0, ultimateSessions: 0 };
   }
-  return { count: user.vaUsage.sessions, cost: user.vaUsage.costCents, premium: user.vaUsage.premiumSessions || 0 };
+  const plusCalls = user.vaUsage.sessions - (user.vaUsage.premiumSessions || 0) - (user.vaUsage.ultimateSessions || 0);
+  return { count: user.vaUsage.sessions, cost: user.vaUsage.costCents, premium: user.vaUsage.premiumSessions || 0, ultimate: user.vaUsage.ultimateSessions || 0, plusCalls: Math.max(0, plusCalls) };
 }
 
 function trackVaSession(userId, isPremium) {
@@ -7217,16 +7220,27 @@ function canUseUltimateVA(userId) {
 }
 
 // Check if user can use VA (Plus subscriber OR granted by a Top)
-function canUseVA(userId) {
+function canUseVA(userId, requestedTier) {
   const user = db.users[userId];
   if (!user) return { allowed: false, reason: 'not_found' };
   // Admin always has access, no limits
   if (user.isAdmin) return { allowed: true, reason: 'admin' };
   // Top 01 — unlimited access (no daily limit)
   if (user.registrationOrder === 1) return { allowed: true, reason: 'top1_unlimited' };
-  // Plus subscriber with daily limit
+  // Plus subscriber with daily call limit
   if (user.isSubscriber) {
     const usage = getVaUsageToday(userId);
+    // Check by number of calls (primary limit)
+    if (requestedTier === 'pro') {
+      if (usage.premium >= VA_PRO_DAILY_CALLS) {
+        return { allowed: false, reason: 'daily_limit', usage, limit: VA_PRO_DAILY_CALLS, used: usage.premium, tierLimit: 'pro' };
+      }
+    } else {
+      if (usage.plusCalls >= VA_PLUS_DAILY_CALLS) {
+        return { allowed: false, reason: 'daily_limit', usage, limit: VA_PLUS_DAILY_CALLS, used: usage.plusCalls, tierLimit: 'plus' };
+      }
+    }
+    // Fallback: also check cost limit
     if (usage.cost >= VA_DAILY_LIMIT_CENTS) {
       return { allowed: false, reason: 'daily_limit', usage };
     }
@@ -7237,6 +7251,9 @@ function canUseVA(userId) {
     const grantor = db.users[user.vaAccessGrantedBy];
     if (grantor && grantor.isSubscriber) {
       const usage = getVaUsageToday(userId);
+      if (usage.plusCalls >= VA_PLUS_DAILY_CALLS) {
+        return { allowed: false, reason: 'daily_limit', usage, limit: VA_PLUS_DAILY_CALLS, used: usage.plusCalls, tierLimit: 'plus' };
+      }
       if (usage.cost >= VA_DAILY_LIMIT_CENTS) {
         return { allowed: false, reason: 'daily_limit', usage };
       }
@@ -7251,12 +7268,14 @@ app.post('/api/agent/session', async (req, res) => {
   const { userId, lastInteraction } = req.body;
 
   // Check VA access
-  const access = canUseVA(userId);
+  const access = canUseVA(userId, 'plus');
   if (!access.allowed) {
+    const limitMsg = access.tierLimit === 'plus' ? `Voce usou ${access.used}/${access.limit} chamadas hoje. Volte amanha!` : 'Limite diario atingido. Volte amanha!';
     return res.status(403).json({
-      error: access.reason === 'daily_limit' ? 'Limite diário atingido. Volte amanhã!' : 'Assine o Touch? Plus para usar o assistente AI.',
+      error: access.reason === 'daily_limit' ? limitMsg : 'Assine o Touch? Plus para usar o assistente AI.',
       reason: access.reason,
-      needsPlus: access.reason === 'not_plus'
+      needsPlus: access.reason === 'not_plus',
+      limit: access.limit, used: access.used
     });
   }
 
@@ -7685,7 +7704,7 @@ app.get('/api/agent/access/:userId', (req, res) => {
   const ultimate = canUseUltimateVA(req.params.userId);
   // tier: highest available tier for this user
   const tier = ultimate ? 'ultimatedev' : premium ? 'pro' : 'plus';
-  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS, premium, ultimate, tier });
+  res.json({ ...access, usage, dailyLimit: VA_DAILY_LIMIT_CENTS, plusDailyLimit: VA_PLUS_DAILY_CALLS, proDailyLimit: VA_PRO_DAILY_CALLS, premium, ultimate, tier });
 });
 
 // ── Cost dashboard — see all users' VA costs ──
@@ -7720,9 +7739,10 @@ app.post('/api/agent/premium-session', async (req, res) => {
     return res.status(403).json({ error: 'Premium VA apenas para testers autorizados.', reason: 'not_premium' });
   }
 
-  const access = canUseVA(userId);
+  const access = canUseVA(userId, 'pro');
   if (!access.allowed) {
-    return res.status(403).json({ error: 'Limite atingido.', reason: access.reason });
+    const msg = access.tierLimit === 'pro' ? `Limite de ${VA_PRO_DAILY_CALLS} chamadas Pro/dia atingido. Volte amanha!` : 'Limite atingido.';
+    return res.status(403).json({ error: msg, reason: access.reason, limit: access.limit, used: access.used });
   }
 
   trackVaSession(userId, true); // premium cost
@@ -7858,7 +7878,7 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
     return res.status(403).json({ error: 'UltimateDEV apenas para Top 1.', reason: 'not_ultimate' });
   }
 
-  const access = canUseVA(userId);
+  const access = canUseVA(userId, 'ultimate');
   if (!access.allowed) {
     return res.status(403).json({ error: 'Limite atingido.', reason: access.reason });
   }
