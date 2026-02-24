@@ -1287,6 +1287,9 @@ function initSocket(){
       console.log('[operator] sonic-matched: staying in queue, continuing detection');
     }
   });
+  S.socket.on('staff-joined',d=>{loadStaff()});
+  S.socket.on('staff-left',d=>{loadStaff()});
+  S.socket.on('staff-tables-updated',d=>{loadStaff()});
 }
 
 // ═══ SONIC — COPIED EXACTLY FROM MAIN APP ═══
@@ -2250,6 +2253,111 @@ function hexA(color,alpha){
   if(color.startsWith('hsl'))return color.replace('hsl','hsla').replace(')',','+alpha+')');
   if(color.startsWith('#')){const h=color.replace('#','');return'rgba('+(parseInt(h.substr(0,2),16)||99)+','+(parseInt(h.substr(2,2),16)||102)+','+(parseInt(h.substr(4,2),16)||241)+','+alpha+')'}
   return'rgba(99,102,241,'+alpha+')';
+}
+
+// ═══ BUSINESS PROFILE ═══
+$('bpDelivery')&&($('bpDelivery').onchange=function(){
+  $('bpDeliveryFeeWrap').style.display=this.checked?'':'none';
+  $('bpDeliveryNoteWrap').style.display=this.checked?'':'none';
+});
+
+async function loadBusinessProfile(){
+  if(!S.currentEventId)return;
+  try{
+    const r=await fetch('/api/event/'+S.currentEventId+'/business-profile');const d=await r.json();
+    if(d.businessProfile){
+      const bp=d.businessProfile;
+      if($('bpName'))$('bpName').value=bp.name||'';
+      if($('bpType'))$('bpType').value=bp.type||'';
+      if($('bpAddress'))$('bpAddress').value=bp.address||'';
+      if($('bpPhone'))$('bpPhone').value=bp.phone||'';
+      if($('bpHours'))$('bpHours').value=bp.hours||'';
+      if($('bpDescription'))$('bpDescription').value=bp.description||'';
+      if($('bpWebsite'))$('bpWebsite').value=bp.website||'';
+      if($('bpInstagram'))$('bpInstagram').value=bp.instagram||'';
+      if($('bpDelivery')){$('bpDelivery').checked=!!bp.acceptsDelivery;$('bpDeliveryFeeWrap').style.display=bp.acceptsDelivery?'':'none';$('bpDeliveryNoteWrap').style.display=bp.acceptsDelivery?'':'none'}
+      if($('bpDeliveryFee'))$('bpDeliveryFee').value=bp.deliveryFee||'';
+      if($('bpDeliveryNote'))$('bpDeliveryNote').value=bp.deliveryNote||'';
+    }
+  }catch(e){console.error('[loadBusinessProfile]',e)}
+}
+
+async function saveBusinessProfile(){
+  if(!S.currentEventId)return;
+  const bp={
+    name:$('bpName')?$('bpName').value.trim():'',
+    type:$('bpType')?$('bpType').value:'',
+    address:$('bpAddress')?$('bpAddress').value.trim():'',
+    phone:$('bpPhone')?$('bpPhone').value.trim():'',
+    hours:$('bpHours')?$('bpHours').value.trim():'',
+    description:$('bpDescription')?$('bpDescription').value.trim():'',
+    website:$('bpWebsite')?$('bpWebsite').value.trim():'',
+    instagram:$('bpInstagram')?$('bpInstagram').value.trim():'',
+    acceptsDelivery:$('bpDelivery')?$('bpDelivery').checked:false,
+    deliveryFee:$('bpDeliveryFee')?parseFloat($('bpDeliveryFee').value)||0:0,
+    deliveryNote:$('bpDeliveryNote')?$('bpDeliveryNote').value.trim():''
+  };
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/business-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessProfile:bp})});
+    if(r.ok){$('bpStatus').textContent='Perfil salvo com sucesso!';setTimeout(()=>{if($('bpStatus'))$('bpStatus').textContent=''},3000)}
+    else{const d=await r.json();$('bpStatus').textContent='Erro: '+(d.error||'Falha ao salvar');$('bpStatus').style.color='var(--pk)'}
+  }catch(e){$('bpStatus').textContent='Erro de conexao';$('bpStatus').style.color='var(--pk)'}
+}
+
+// ═══ STAFF MANAGEMENT ═══
+async function loadStaff(){
+  if(!S.currentEventId)return;
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/staff');const d=await r.json();
+    renderStaffList(d.staff||[]);
+  }catch(e){console.error('[loadStaff]',e)}
+}
+
+function renderStaffList(staff){
+  const list=$('staffList');const empty=$('staffEmpty');
+  if(!list)return;
+  const online=staff.filter(s=>s.status==='online');
+  if(online.length===0){list.innerHTML='';if(empty)empty.style.display='';return}
+  if(empty)empty.style.display='none';
+  list.innerHTML=online.map(s=>{
+    const roleLabel=s.role==='waiter'?'Garcom':'Motoboy';
+    const roleColor=s.role==='waiter'?'#818cf8':'#34d399';
+    const tablesStr=s.tables&&s.tables.length>0?'Mesas: '+s.tables.join(', '):'Sem mesas';
+    return '<div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px">'+
+      '<div style="width:32px;height:32px;border-radius:50%;background:'+roleColor+';display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff">'+s.name.charAt(0).toUpperCase()+'</div>'+
+      '<div style="flex:1"><div style="font-size:.75rem;font-weight:600">'+esc(s.name)+'</div>'+
+      '<div style="font-size:.55rem;color:var(--t3)">'+roleLabel+(s.role==='waiter'?' - '+tablesStr:'')+'</div></div>'+
+      (s.role==='waiter'?'<button class="menu-card-btn" onclick="assignTables(\''+s.id+'\')" style="font-size:.55rem">Mesas</button>':'')+
+      '<button class="menu-card-btn danger" onclick="disconnectStaff(\''+s.id+'\')" style="font-size:.55rem">X</button>'+
+      '</div>';
+  }).join('');
+}
+
+function callWaiter(){
+  alert('Ative o TOUCH e peca para o garcom encostar o celular no alto-falante. Ele sera adicionado automaticamente.');
+}
+
+function callDriver(){
+  alert('Ative o TOUCH e peca para o motoboy encostar o celular no alto-falante. Ele sera adicionado automaticamente.');
+}
+
+async function assignTables(staffId){
+  const input=prompt('Informe os numeros das mesas separados por virgula (ex: 1,2,3):');
+  if(!input)return;
+  const tables=input.split(',').map(n=>parseInt(n.trim())).filter(n=>n>0);
+  if(!tables.length){alert('Numeros invalidos.');return}
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/staff/'+staffId+'/tables',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tables})});
+    loadStaff();
+  }catch(e){alert('Erro ao atribuir mesas.')}
+}
+
+async function disconnectStaff(staffId){
+  if(!confirm('Desconectar este membro da equipe?'))return;
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/staff/'+staffId+'/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    loadStaff();
+  }catch(e){alert('Erro ao desconectar.')}
 }
 
 // ═══════════════════════════════════════════════════
