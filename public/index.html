@@ -533,6 +533,26 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 /* Quick phrases */
 .qp-bar{display:flex;gap:.3rem;padding:.35rem .8rem;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;background:transparent;scrollbar-width:none}
 .qp-bar::-webkit-scrollbar{display:none}
+.welcome-banner{position:fixed;top:0;left:0;right:0;z-index:9999;padding:1.2rem 1rem;background:linear-gradient(135deg,rgba(59,130,246,.95),rgba(99,102,241,.95));backdrop-filter:blur(20px);text-align:center;transform:translateY(-100%);transition:transform .5s cubic-bezier(.22,1,.36,1);pointer-events:none}
+.welcome-banner.visible{transform:translateY(0)}
+.wb-event{font-size:.6rem;color:rgba(255,255,255,.7);letter-spacing:.05em;text-transform:uppercase;margin-bottom:.3rem}
+.wb-phrase{font-size:1rem;font-weight:600;color:#fff;line-height:1.4}
+.biz-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9998;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .3s;pointer-events:none}
+.biz-modal-overlay.visible{opacity:1;pointer-events:auto}
+.biz-modal{width:100%;max-width:420px;max-height:85vh;overflow-y:auto;background:var(--card);border-radius:16px 16px 0 0;padding:1.2rem;transform:translateY(100%);transition:transform .4s cubic-bezier(.22,1,.36,1)}
+.biz-modal-overlay.visible .biz-modal{transform:translateY(0)}
+.biz-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.biz-modal-title{font-size:1.1rem;font-weight:700;color:var(--t1)}
+.biz-modal-close{width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.06);color:var(--t2);font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.biz-info-row{display:flex;align-items:flex-start;gap:.6rem;padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.biz-info-row:last-child{border-bottom:none}
+.biz-info-icon{width:20px;height:20px;color:var(--ac);flex-shrink:0;margin-top:.1rem}
+.biz-info-icon svg{width:100%;height:100%}
+.biz-info-content{flex:1}
+.biz-info-label{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.15rem}
+.biz-info-value{font-size:.75rem;color:var(--t1);line-height:1.4}
+.biz-delivery-btn{width:100%;padding:.7rem;border:none;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;margin-top:.8rem;font-family:inherit}
+.biz-delivery-btn:active{transform:scale(.97)}
 .qp-chip{padding:.35rem .7rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;color:rgba(255,255,255,.4);font-size:.68rem;cursor:pointer;flex-shrink:0;font-family:inherit;transition:all .2s;white-space:nowrap;font-weight:500;letter-spacing:.01em}
 .qp-chip:active{background:rgba(255,107,53,.12);color:rgba(255,255,255,.8);border-color:rgba(255,107,53,.2);transform:scale(.95)}
 .qp-chip.sent{opacity:.15;pointer-events:none;transform:scale(.95)}
@@ -3117,6 +3137,7 @@ function initSocket(){
       localStorage.setItem('activeEventName',evName);
       if(!localStorage.getItem('activeEventRole'))localStorage.setItem('activeEventRole','visitor');
       showFloatingEventBtn(d.eventId,evName);
+      if(d.welcomePhrase){showWelcomeBanner(d.welcomePhrase,evName)}
     }
     // Show epic connecting animation with continuous vibration, then reveal
     const co=$('connectingOverlay');
@@ -3154,6 +3175,15 @@ function initSocket(){
       showScreen('reveal');doReveal(d);
     }
   });
+  // Welcome banner for branded check-in phrase
+  function showWelcomeBanner(phrase,eventName){
+    const existing=document.querySelector('.welcome-banner');if(existing)existing.remove();
+    const banner=document.createElement('div');banner.className='welcome-banner';
+    banner.innerHTML='<div class="wb-event">'+esc(eventName)+'</div><div class="wb-phrase">'+esc(phrase)+'</div>';
+    document.body.appendChild(banner);
+    setTimeout(()=>banner.classList.add('visible'),50);
+    setTimeout(()=>{banner.classList.remove('visible');setTimeout(()=>banner.remove(),600)},5000);
+  }
   socket.on('new-message',({relationId,message})=>{
     if(state.currentRelation?.relationId===relationId){
       if(message.type==='reveal-request'||message.type==='reveal-accepted'||message.type==='reveal-declined'){
@@ -3521,6 +3551,9 @@ async function showEventView(eventId,eventName){
     const r=await fetch('/api/operator/event/'+eventId+'/attendees');const d=await r.json();
     $('evViewCount').textContent=(d.attendees||[]).length+' pessoas';
     (d.attendees||[]).forEach(a=>addEvNode(a,true));
+    if(d.quickPhrases&&d.quickPhrases.length>0)setEventQuickPhrases(d.quickPhrases);
+    if(d.businessProfile)window._currentEventBizProfile=d.businessProfile;
+    else window._currentEventBizProfile=null;
   }catch(e){console.error('[eventView] load error:',e)}
   // Load restaurant menu (if any)
   loadEventMenu(eventId);
@@ -6115,10 +6148,16 @@ function showTyping(){$('typingIndicator').classList.add('vis');if(nearBot())$('
 function hideTyping(){$('typingIndicator').classList.remove('vis')}
 
 // ═══ QUICK PHRASES (EPHEMERAL) ═══
-const QUICK_PHRASES=['Observei','Gostei','Algo ficou','Curioso','Queria te ver','Sem pressa','Sorrindo aqui','Pensando em ti'];
+const QUICK_PHRASES_DEFAULT=['Observei','Gostei','Algo ficou','Curioso','Queria te ver','Sem pressa','Sorrindo aqui','Pensando em ti'];
+const QUICK_PHRASES_EVENT=['Otimo atendimento','Voltarei','Recomendo','Preciso de ajuda','Obrigado','Parabens','Muito bom','Nota 10'];
+let _eventQuickPhrases=null;
+function setEventQuickPhrases(phrases){_eventQuickPhrases=Array.isArray(phrases)&&phrases.length>0?phrases:null}
 function loadQuickPhrases(){
   const bar=$('quickPhrases');if(!bar)return;bar.innerHTML='';
-  QUICK_PHRASES.forEach(p=>{
+  const rel=state.currentRelation;
+  const isEvent=rel&&(rel.isCheckin||rel.isServiceTouch);
+  const phrases=isEvent?(_eventQuickPhrases||QUICK_PHRASES_EVENT):QUICK_PHRASES_DEFAULT;
+  phrases.forEach(p=>{
     const chip=document.createElement('button');chip.className='qp-chip';chip.type='button';chip.textContent=p;
     chip.onclick=()=>{sendEphemeral(p);chip.classList.add('sent')};
     bar.appendChild(chip);
@@ -7264,6 +7303,7 @@ function showConstDetail(node){
     metaEl.innerHTML=lastD?'<div class="cd-time"><span>'+timeAgo(lastD)+'</span></div>':'';
     let evActions='';
     if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo',"goToEventLive('"+esc(node.id)+"','"+esc(node.nickname||'Evento')+"')",'cd-act-primary')}
+    evActions+=iconBtn(ICONS.id,'Perfil',"showBizProfile('"+esc(node.id)+"')",'');
     $('cdActions').innerHTML=evActions;
     $('cdAnonPreview').classList.add('hidden');
     const _evTags=$('cdProfileTags');if(_evTags){_evTags.style.display='none';_evTags.innerHTML=''}
@@ -7891,6 +7931,54 @@ function showHistoryEvents(){
   showHistory();
   setTimeout(()=>{constFilters={revealed:false,anon:false,events:true};updateConstFilterUI()},300);
 }
+// ═══ BUSINESS PROFILE MODAL ═══
+async function showBizProfile(eventId){
+  try{
+    const r=await fetch('/api/event/'+eventId+'/business-profile');
+    const d=await r.json();
+    if(d.error){showToast('Perfil nao disponivel');return}
+    const bp=d.businessProfile;
+    if(!bp||!bp.name){showToast('Perfil nao cadastrado');return}
+    const existing=document.querySelector('.biz-modal-overlay');if(existing)existing.remove();
+    const overlay=document.createElement('div');overlay.className='biz-modal-overlay';
+    let rows='';
+    const addRow=(icon,label,value)=>{if(!value)return;rows+='<div class="biz-info-row"><div class="biz-info-icon">'+icon+'</div><div class="biz-info-content"><div class="biz-info-label">'+label+'</div><div class="biz-info-value">'+esc(value)+'</div></div></div>'};
+    const mapIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    const phoneIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>';
+    const clockIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    const infoIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+    const globeIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>';
+    const camIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+    if(bp.type)addRow(infoIcon,'Tipo',bp.type);
+    if(bp.address)addRow(mapIcon,'Endereco',bp.address);
+    if(bp.phone)addRow(phoneIcon,'Telefone',bp.phone);
+    if(bp.hours)addRow(clockIcon,'Horario',bp.hours);
+    if(bp.description)addRow(infoIcon,'Sobre',bp.description);
+    if(bp.website)addRow(globeIcon,'Website',bp.website);
+    if(bp.instagram)addRow(camIcon,'Instagram','@'+bp.instagram.replace(/^@/,''));
+    let deliveryHtml='';
+    if(bp.acceptsDelivery){
+      const fee=bp.deliveryFee?'R$'+Number(bp.deliveryFee).toFixed(2).replace('.',','):'Gratis';
+      deliveryHtml='<div style="margin-top:.6rem;padding:.6rem;background:rgba(59,130,246,.08);border-radius:10px;border:1px solid rgba(59,130,246,.15)">'
+        +'<div style="font-size:.6rem;color:#60a5fa;font-weight:600;margin-bottom:.2rem">Aceita Delivery</div>'
+        +'<div style="font-size:.65rem;color:var(--t2)">Taxa: '+fee+(bp.deliveryNote?' · '+esc(bp.deliveryNote):'')+'</div>'
+        +'<button class="biz-delivery-btn" onclick="closeBizProfile();showToast('Delivery em breve!')">Pedir Delivery</button>'
+        +'</div>';
+    }
+    overlay.innerHTML='<div class="biz-modal">'
+      +'<div class="biz-modal-header"><div class="biz-modal-title">'+esc(bp.name)+'</div><button class="biz-modal-close" onclick="closeBizProfile()">X</button></div>'
+      +rows+deliveryHtml
+      +'</div>';
+    overlay.onclick=(e)=>{if(e.target===overlay)closeBizProfile()};
+    document.body.appendChild(overlay);
+    setTimeout(()=>overlay.classList.add('visible'),30);
+  }catch(e){console.error('[bizProfile]',e);showToast('Erro ao carregar perfil')}
+}
+function closeBizProfile(){
+  const o=document.querySelector('.biz-modal-overlay');
+  if(o){o.classList.remove('visible');setTimeout(()=>o.remove(),400)}
+}
+
 function goToEventLive(eventNodeId,eventName){
   hideConstDetail();
   showEventView(eventNodeId,eventName||'Evento');
