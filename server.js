@@ -3078,12 +3078,12 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
       user.phone = null;
     }
   }
-  if (instagram !== undefined) user.instagram = instagram;
-  if (tiktok !== undefined) user.tiktok = tiktok;
-  if (twitter !== undefined) user.twitter = twitter;
+  if (instagram !== undefined) user.instagram = sanitizeStr(instagram, 100);
+  if (tiktok !== undefined) user.tiktok = sanitizeStr(tiktok, 100);
+  if (twitter !== undefined) user.twitter = sanitizeStr(twitter, 100);
   if (privacy !== undefined) user.privacy = privacy;
-  if (bio !== undefined) user.bio = bio;
-  if (profession !== undefined) user.profession = profession;
+  if (bio !== undefined) user.bio = sanitizeStr(bio, 500);
+  if (profession !== undefined) user.profession = sanitizeStr(profession, 100);
   if (sports !== undefined) user.sports = Array.isArray(sports) ? sports.slice(0, 2) : [];
   if (hobbies !== undefined) user.hobbies = Array.isArray(hobbies) ? hobbies.slice(0, 2) : [];
   if (profilePhoto !== undefined) {
@@ -4178,7 +4178,7 @@ app.post('/api/location/update', requireAuth, (req, res) => {
 // Nearby people (within radius, only those who shared location recently <15min)
 app.get('/api/nearby/:userId', (req, res) => {
   const userId = req.params.userId;
-  const radius = parseInt(req.query.radius) || 500; // meters default
+  const radius = Math.max(0, Math.min(50000, parseInt(req.query.radius) || 500));
   const myLoc = db.checkins[userId];
   if (!myLoc) return res.json([]);
   const now = Date.now();
@@ -4240,7 +4240,7 @@ app.get('/api/events/active-count/:userId', (req, res) => {
 // List nearby events
 app.get('/api/events/nearby', (req, res) => {
   const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
-  const radius = parseInt(req.query.radius) || 5000; // 5km default
+  const radius = Math.max(0, Math.min(50000, parseInt(req.query.radius) || 5000));
   const now = Date.now();
   if (!lat || !lng) return res.json([]);
   const events = Object.values(db.events).filter(e => {
@@ -5174,6 +5174,10 @@ io.on('connection', (socket) => {
   }
 
   socket.on('identify', (userId) => {
+    // Validate userId exists in db.users before allowing room join
+    if (!userId || !db.users[userId]) {
+      return;
+    }
     currentUserId = userId;
     socket.touchUserId = userId;
     socket.join(`user:${userId}`);
@@ -8873,7 +8877,7 @@ app.post('/api/va/conversation', (req, res) => {
 // GET /api/va/conversation/:userId/:tier — retrieve conversation history
 app.get('/api/va/conversation/:userId/:tier', (req, res) => {
   const { userId, tier } = req.params;
-  const limit = parseInt(req.query.limit) || 20;
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
   const validTiers = ['plus', 'pro', 'ultimatedev'];
   if (!validTiers.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
 

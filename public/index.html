@@ -2766,7 +2766,7 @@ let firebaseApp=null, firebaseAuthInstance=null, fbUser=null, loginIsRegister=fa
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({firebaseUid:user.uid,email:user.email,encUserId:state.userId})
-        }).catch(()=>{});
+        }).catch(e=>{console.warn('API error [auth/link]:', e.message||e)});
       }
     });
   }catch(e){console.warn('Firebase init falhou:',e.message)}
@@ -3057,7 +3057,8 @@ async function registerWithEmail(){
           await cred.user.sendEmailVerification();
         }
       }catch(ve){
-        try{await cred.user.sendEmailVerification()}catch(ve2){}
+        console.warn('API error [auth/send-verification]:', ve.message||ve);
+        try{await cred.user.sendEmailVerification()}catch(ve2){console.warn('API error [firebase-sendEmailVerification]:', ve2.message||ve2)}
       }
     }
   }catch(e){
@@ -3080,7 +3081,7 @@ async function registerWithEmail(){
 async function resendEmailVerification(){
   if(!fbUser)return showToast('Faça login primeiro.');
   // Reload to get fresh emailVerified status
-  try{await fbUser.reload();fbUser=firebaseAuthInstance.currentUser}catch(e){}
+  try{await fbUser.reload();fbUser=firebaseAuthInstance.currentUser}catch(e){console.warn('API error [email-verify-reload]:', e.message||e)}
   if(fbUser.emailVerified){
     showToast('Email já verificado! ✅');
     state.emailVerified=true;
@@ -3094,6 +3095,7 @@ async function resendEmailVerification(){
     showToast('✉ Email de verificação enviado! Verifique spam.');
     return;
   }catch(e1){
+    console.warn('API error [firebase-sendEmailVerification]:', e1.message||e1);
     console.warn('[email-verify] Client SDK failed:',e1.code,e1.message);
     if(e1.code==='auth/too-many-requests'){return showToast('⏳ Aguarde um pouco antes de reenviar.')}
   }
@@ -3109,6 +3111,7 @@ async function resendEmailVerification(){
     else if(d.useClientFallback)showToast('⚠️ Serviço de email indisponível. Tente novamente mais tarde.');
     else showToast('✉ Verificação enviada!');
   }catch(e2){
+    console.warn('API error [auth/send-verification-fallback]:', e2.message||e2);
     showToast('Erro ao enviar verificação: '+(e2.message||'tente novamente'));
   }
 }
@@ -3116,7 +3119,10 @@ async function resendEmailVerification(){
 // Periodic email verification check (when user comes back after clicking link)
 function startEmailVerificationPoll(){
   if(!fbUser||fbUser.emailVerified||state.emailVerified)return;
+  let _evPollCount=0;
   const _evPoll=setInterval(async()=>{
+    _evPollCount++;
+    if(_evPollCount>60){clearInterval(_evPoll);return}
     if(!fbUser||state.emailVerified){clearInterval(_evPoll);return}
     try{
       await fbUser.reload();
@@ -3724,6 +3730,10 @@ function updateConn(s){const d=$('connDot');if(d)d.className='cd'+(s!=='online'?
 // ═══ NAV ═══
 function showScreen(id){
   const el=$(id);if(!el)return;
+  // Cleanup media resources when switching views
+  if(typeof releaseSelfieCamera==='function')releaseSelfieCamera();
+  if(state.timerInterval){clearInterval(state.timerInterval);state.timerInterval=null}
+  if(typingTimeout){clearTimeout(typingTimeout);typingTimeout=null}
   document.querySelectorAll('.screen').forEach(s=>{if(s.id!==id)s.classList.remove('active')});
   void el.offsetHeight;
   el.classList.add('active');
@@ -6776,6 +6786,7 @@ async function openFinancialScreen(){
     _finData=await finRes.json();
     _finTips=await tipsRes.json();
   }catch(e){
+    console.warn('API error [financial/tips]:', e.message||e);
     if(list)list.innerHTML='<div style="text-align:center;color:var(--err);padding:2rem;font-size:.82rem">Erro ao carregar dados</div>';
     return;
   }
@@ -8031,6 +8042,7 @@ async function loadTransactions(nodeId, isMe){
     });
     txEl.innerHTML=html;
   }catch(e){
+    console.warn('API error [user/transactions]:', e.message||e);
     txEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);opacity:.5">Erro ao carregar</div>';
   }
 }
@@ -8329,7 +8341,7 @@ async function loadNotifications(){
     const notifs=data.notifications||[];
     if(!notifs.length){list.innerHTML='<div class="notif-empty"><div style="font-size:1.8rem;margin-bottom:.5rem;opacity:.4">🔕</div>Nenhuma atividade ainda<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;opacity:.5">Mensagens, conexoes, estrelas e mais aparecem aqui</div></div>';return}
     // Mark as seen on server
-    apiFetch('/api/notifications/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
+    apiFetch('/api/notifications/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(e=>{console.warn('API error [notifications/seen]:', e.message||e)});
     let html='';
     let lastDateLabel='';
     notifs.forEach(n=>{
@@ -8411,7 +8423,7 @@ function dismissNotification(notifKey,btnEl){
   var item=btnEl.closest('.notif-item');
   if(item){item.style.transition='opacity .2s,transform .2s';item.style.opacity='0';item.style.transform='translateX(30px)';setTimeout(function(){item.remove()},220)}
   // Persist on server
-  apiFetch('/api/notifications/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,notifKey:notifKey})}).catch(function(){});
+  apiFetch('/api/notifications/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,notifKey:notifKey})}).catch(function(e){console.warn('API error [notifications/dismiss]:', e.message||e)});
 }
 // ── Dismiss all notifications ──
 function dismissAllNotifications(){
@@ -8419,7 +8431,7 @@ function dismissAllNotifications(){
   apiFetch('/api/notifications/dismiss-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).then(function(){
     loadNotifications();
     updateNotifBadge();
-  }).catch(function(){});
+  }).catch(function(e){console.warn('API error [notifications/dismiss-all]:', e.message||e)});
 }
 // Load notif count when constellation opens — only UNSEEN
 function updateNotifBadge(){
@@ -11600,7 +11612,7 @@ async function showStripePaymentElement(containerId, amount, currency, onSuccess
       const confirm = await fetch('/api/stripe/confirm-payment', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentIntentId: data.paymentIntentId, tipId: data.tipId })
-      }).then(r => r.json());
+      }).then(r => r.json()).catch(e => {console.warn('API error [stripe/confirm-payment]:', e.message||e);return {ok:false}});
       if (confirm.ok && onSuccess) onSuccess(data.tipId);
       else if (!confirm.ok) showToast('Pagamento pendente de confirmacao.');
     }
@@ -12161,7 +12173,7 @@ function checkTipResultParam() {
             fetch('/api/stripe/confirm-payment', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ paymentIntentId: paymentIntent.id, tipId })
-            }).then(() => showToast('Pagamento confirmado!'));
+            }).then(() => showToast('Pagamento confirmado!')).catch(e => console.warn('API error [stripe/confirm-payment-return]:', e.message||e));
           } else if (paymentIntent && paymentIntent.status === 'processing') {
             showToast('Pagamento em processamento...');
           }
