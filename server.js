@@ -4304,6 +4304,43 @@ function createSonicConnection(userIdA, userIdB) {
     }
   }
 
+  // ── STAFF CONNECTION: if either user has staffRole, add them to event staff ──
+  const staffEntryA = entryA && entryA.staffRole;
+  const staffEntryB = entryB && entryB.staffRole;
+  if ((staffEntryA || staffEntryB) && isCheckin && eventId) {
+    const staffUserId = staffEntryA ? userIdA : userIdB;
+    const staffRole = staffEntryA ? entryA.staffRole : entryB.staffRole;
+    const staffUser = db.users[staffUserId];
+    const ev = db.operatorEvents[eventId];
+    if (ev && staffUser) {
+      const staffId = uuidv4();
+      const staffMember = {
+        id: staffId, userId: staffUserId,
+        name: staffUser.realName || staffUser.nickname || staffUser.name || 'Staff',
+        role: staffRole, tables: [], status: 'online',
+        socketId: sonicQueue[staffUserId] ? sonicQueue[staffUserId].socketId : null,
+        connectedAt: now
+      };
+      if (!ev.staff) ev.staff = [];
+      // Remove any existing entry for this user
+      ev.staff = ev.staff.filter(s => s.userId !== staffUserId);
+      ev.staff.push(staffMember);
+      saveDB('operatorEvents');
+      // Notify operator
+      io.to(`user:${ev.operatorId}`).emit('staff-joined', { eventId, staff: staffMember });
+      // Notify staff member with their dashboard info
+      io.to(`user:${staffUserId}`).emit('staff-connected', {
+        eventId, eventName: ev.name, staffId, role: staffRole,
+        tables: [], menu: ev.menu || []
+      });
+      // Remove from sonic queue
+      delete sonicQueue[staffUserId];
+      if (sonicQueue['evt:' + eventId]) sonicQueue['evt:' + eventId].joinedAt = Date.now();
+      console.log('[createSonicConnection] STAFF connected:', staffRole, staffUserId.slice(0,8), 'to event:', eventId.slice(0,8));
+      return;
+    }
+  }
+
   const relPartnerA = isCheckin && eventId ? visitorId : userIdA;
   const relPartnerB = isCheckin && eventId ? ('evt:' + eventId) : userIdB;
 
@@ -4961,14 +4998,14 @@ io.on('connection', (socket) => {
   });
 
   // Sonic connection — ultrasonic frequency matching
-  socket.on('sonic-start', ({ userId, isCheckin, isServiceTouch, eventId }) => {
+  socket.on('sonic-start', ({ userId, isCheckin, isServiceTouch, eventId, staffRole }) => {
     if (!dbLoaded) return;
     if (!userId || !db.users[userId]) return;
     const freq = assignSonicFreq();
     // For checkin operators, use eventId as sonicQueue key to avoid overwriting phone's entry
     const queueKey = (isCheckin && eventId) ? ('evt:' + eventId) : userId;
-    sonicQueue[queueKey] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch, eventId: eventId || null, queueKey };
-    console.log('[sonic-start] user:', userId.slice(0,8)+'..', 'key:', queueKey.slice(0,12), 'freq:', freq, 'isCheckin:', !!isCheckin);
+    sonicQueue[queueKey] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch, eventId: eventId || null, queueKey, staffRole: staffRole || null };
+    console.log('[sonic-start] user:', userId.slice(0,8)+'..', 'key:', queueKey.slice(0,12), 'freq:', freq, 'isCheckin:', !!isCheckin, 'staffRole:', staffRole || 'none');
     socket.emit('sonic-assigned', { freq });
     // Join event socket room if checkin
     if (isCheckin && eventId) socket.join('event:' + eventId);
@@ -4997,7 +5034,37 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('sonic-stop', ({ userId, eventId }) => {
+  // Staff socket events
+  socket.on('staff-update-status', ({ eventId, userId, status }) => {
+    if (!dbLoaded || !eventId || !userId) return;
+    const ev = db.operatorEvents[eventId];
+    if (!ev || !ev.staff) return;
+    const member = ev.staff.find(s => s.userId === userId);
+    if (member) {
+      member.status = status;
+      saveDB('operatorEvents');
+      io.to(`user:${ev.operatorId}`).emit('staff-status-changed', { eventId, staffId: member.id, userId, status });
+    }
+  });
+
+  socket.on('staff-order-ready', ({ eventId, orderId }) => {
+    if (!dbLoaded || !eventId || !orderId) return;
+    const ev = db.operatorEvents[eventId];
+    if (!ev) return;
+    const order = (ev.orders || []).find(o => o.id === orderId);
+    if (order) {
+      order.status = 'ready';
+      saveDB('operatorEvents');
+      // Notify the waiter who placed the order
+      if (order.waiterId) {
+        const waiter = (ev.staff || []).find(s => s.id === order.waiterId);
+        if (waiter) io.to(`user:${waiter.userId}`).emit('order-ready-for-waiter', { eventId, order });
+      }
+      io.to('event:' + eventId).emit('order-status-update', { orderId, status: 'ready' });
+    }
+  });
+
+    socket.on('sonic-stop', ({ userId, eventId }) => {
     if (eventId) delete sonicQueue['evt:' + eventId];
     else if (userId) delete sonicQueue[userId];
   });
