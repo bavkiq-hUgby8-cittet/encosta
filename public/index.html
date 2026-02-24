@@ -7588,6 +7588,7 @@ function showConstDetail(node){
   // Event nodes: special detail card
   if(node.isEvent){
     window._constDetailNodeId=node.id;
+    const cleanEventId=node.id.replace('evt:','');
     const av=$('cdAvatar');
     av.innerHTML='';av.textContent='E';av.style.background='linear-gradient(135deg,#3b82f6,#60a5fa)';av.style.fontSize='1.1rem';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
     $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>';
@@ -7597,12 +7598,43 @@ function showConstDetail(node){
     const lastD=node.lastDate?new Date(node.lastDate):null;
     metaEl.innerHTML=lastD?'<div class="cd-time"><span>'+timeAgo(lastD)+'</span></div>':'';
     let evActions='';
-    if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo',"goToEventLive('"+esc(node.id)+"','"+esc(node.nickname||'Evento')+"')",'cd-act-primary')}
-    evActions+=iconBtn(ICONS.id,'Perfil',"showBizProfile('"+esc(node.id)+"')",'');
+    if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo',"goToEventLive('"+esc(cleanEventId)+"','"+esc(node.nickname||'Evento')+"')",'cd-act-primary')}
     $('cdActions').innerHTML=evActions;
     $('cdAnonPreview').classList.add('hidden');
     const _evTags=$('cdProfileTags');if(_evTags){_evTags.style.display='none';_evTags.innerHTML=''}
     $('cdDeclSection').classList.add('hidden');
+    const bizContainer=document.createElement('div');
+    bizContainer.id='cdBizInfo';
+    bizContainer.style.cssText='margin-top:.6rem;padding:0';
+    const existingBiz=document.getElementById('cdBizInfo');
+    if(existingBiz)existingBiz.remove();
+    const actionsEl=$('cdActions');
+    if(actionsEl&&actionsEl.parentElement)actionsEl.parentElement.insertBefore(bizContainer,actionsEl.nextSibling);
+    fetch('/api/event/'+cleanEventId+'/business-profile').then(r=>r.json()).then(d=>{
+      const bp=d.businessProfile;
+      if(!bp||!bp.name){bizContainer.innerHTML='<div style="font-size:.6rem;color:var(--t3);text-align:center;padding:.5rem">Perfil do negocio nao cadastrado</div>';return}
+      let h='<div style="padding:.5rem .6rem;background:rgba(96,165,250,.05);border:1px solid rgba(96,165,250,.1);border-radius:12px">';
+      h+='<div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.4rem">'+esc(bp.name)+'</div>';
+      if(bp.type)h+='<div style="font-size:.6rem;color:#60a5fa;margin-bottom:.4rem;text-transform:capitalize">'+esc(bp.type)+'</div>';
+      if(bp.description)h+='<div style="font-size:.6rem;color:var(--t2);margin-bottom:.5rem;line-height:1.4">'+esc(bp.description)+'</div>';
+      const rows=[];
+      if(bp.address)rows.push('<span style="color:var(--t3)">Endereco:</span> '+esc(bp.address));
+      if(bp.phone)rows.push('<span style="color:var(--t3)">Tel:</span> '+esc(bp.phone));
+      if(bp.hours)rows.push('<span style="color:var(--t3)">Horario:</span> '+esc(bp.hours));
+      if(bp.website)rows.push('<span style="color:var(--t3)">Web:</span> '+esc(bp.website));
+      if(bp.instagram)rows.push('<span style="color:var(--t3)">Instagram:</span> @'+esc(bp.instagram.replace(/^@/,'')));
+      if(rows.length)h+='<div style="font-size:.6rem;color:var(--t2);display:flex;flex-direction:column;gap:.25rem">'+rows.join('')+'</div>';
+      if(bp.acceptsDelivery){
+        const fee=bp.deliveryFee?'R$'+Number(bp.deliveryFee).toFixed(2).replace('.',','):'Gratis';
+        h+='<div style="margin-top:.4rem;padding:.4rem;background:rgba(249,115,22,.08);border-radius:8px;border:1px solid rgba(249,115,22,.15);font-size:.6rem">';
+        h+='<span style="color:#f97316;font-weight:600">Delivery disponivel</span>';
+        h+=' <span style="color:var(--t3)">· Taxa: '+fee+'</span>';
+        if(bp.deliveryNote)h+=' <span style="color:var(--t3)">· '+esc(bp.deliveryNote)+'</span>';
+        h+='</div>';
+      }
+      h+='</div>';
+      bizContainer.innerHTML=h;
+    }).catch(()=>{bizContainer.innerHTML=''});
     $('constDetail').classList.add('visible');
     return;
   }
@@ -8775,7 +8807,8 @@ function toggleDriverStatus(){
 
 function goToEventLive(eventNodeId,eventName){
   hideConstDetail();
-  showEventView(eventNodeId,eventName||'Evento');
+  const cleanId=eventNodeId.replace('evt:','');
+  showEventView(cleanId,eventName||'Evento');
 }
 function openChatFromConst(nodeId){
   hideConstDetail();
