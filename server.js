@@ -6552,7 +6552,9 @@ app.post('/api/subscription/create-pix', paymentLimiter, async (req, res) => {
 // ═══ VOICE AGENT — OpenAI Realtime (WebRTC) + text fallback ═══
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-if (!OPENAI_API_KEY && !GROQ_API_KEY) console.warn('⚠️ Nenhuma API key de agente configurada! Configure OPENAI_API_KEY (voz tempo real) ou GROQ_API_KEY (texto).');
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+if (!OPENAI_API_KEY && !GROQ_API_KEY) console.warn('Nenhuma API key de agente configurada! Configure OPENAI_API_KEY (voz tempo real) ou GROQ_API_KEY (texto).');
+if (!ANTHROPIC_API_KEY) console.warn('ANTHROPIC_API_KEY nao configurada! UltimateDEV usara GPT-4o como fallback.');
 
 // Build user context for the agent (connections, stars, events, etc.)
 function buildUserContext(userId) {
@@ -7692,32 +7694,98 @@ app.post('/api/dev/command', async (req, res) => {
   bank.devQueue.push(command);
   saveDB('ultimateBank');
 
-  // Auto-generate plan using OpenAI GPT-4o
+  // Auto-generate plan using Claude (Anthropic) or GPT-4o fallback
   try {
-    const serverCode = fs.readFileSync(__filename, 'utf8').slice(0, 15000); // first 15k chars for context
-    const htmlPath = path.join(__dirname, 'public', 'index.html');
-    const htmlCode = fs.readFileSync(htmlPath, 'utf8').slice(0, 15000);
+    // Build project file map for Claude context
+    const projectFiles = {};
+    const publicDir = path.join(__dirname, 'public');
+    const htmlFiles = fs.readdirSync(publicDir).filter(f => f.endsWith('.html'));
+    projectFiles['server.js'] = { lines: fs.readFileSync(__filename, 'utf8').split('\n').length, path: __filename };
+    for (const hf of htmlFiles) {
+      projectFiles['public/' + hf] = { lines: fs.readFileSync(path.join(publicDir, hf), 'utf8').split('\n').length, path: path.join(publicDir, hf) };
+    }
+    const fileMapStr = Object.entries(projectFiles).map(([f, info]) => `- ${f} (${info.lines} linhas)`).join('\n');
 
-    const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: `Você é um desenvolvedor expert em Node.js e HTML/CSS/JS. O app é uma rede social presencial chamada "Touch?" / "Encosta". Os dois arquivos principais são server.js (backend Express) e public/index.html (frontend SPA). Responda APENAS com um plano técnico em português, com no máximo 5 passos, descrevendo O QUE mudar e ONDE. Seja conciso.` },
-          { role: 'user', content: `INSTRUÇÃO DO USUÁRIO: ${instruction}\n\nTRECHO server.js (primeiras linhas):\n${serverCode.slice(0, 5000)}\n\nTRECHO index.html (primeiras linhas):\n${htmlCode.slice(0, 5000)}` }
-        ],
-        max_tokens: 1000,
-        temperature: 0.3
-      })
-    });
-    if (planResp.ok) {
-      const planData = await planResp.json();
-      command.plan = planData.choices?.[0]?.message?.content || 'Plano não gerado';
-      command.status = 'planned';
+    // Read key files for planning context (summaries, not full)
+    const serverCode = fs.readFileSync(__filename, 'utf8');
+    const indexCode = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
+
+    // Extract function/endpoint names from server.js for map
+    const endpointMap = [];
+    const lines = serverCode.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      if (ln.match(/^app\.(get|post|put|delete|patch)\(/)) endpointMap.push(`L${i+1}: ${ln.trim().slice(0, 120)}`);
+      else if (ln.match(/^function\s+\w+/)) endpointMap.push(`L${i+1}: ${ln.trim().slice(0, 120)}`);
+      else if (ln.match(/^const\s+\w+\s*=\s*(async\s+)?\(/)) endpointMap.push(`L${i+1}: ${ln.trim().slice(0, 120)}`);
+      else if (ln.match(/^\/\/ [=]+/)) endpointMap.push(`L${i+1}: ${ln.trim().slice(0, 120)}`);
+    }
+
+    const systemPrompt = `Voce e um desenvolvedor expert em Node.js e HTML/CSS/JS puro.
+O app se chama "Touch?" / "Encosta" — rede social presencial.
+
+ARQUIVOS DO PROJETO:
+${fileMapStr}
+
+MAPA DE ENDPOINTS E FUNCOES DO server.js:
+${endpointMap.join('\n')}
+
+Responda APENAS com um plano tecnico em portugues, com no maximo 7 passos.
+Cada passo deve indicar:
+1. QUAL ARQUIVO mexer
+2. ONDE no arquivo (funcao, endpoint, linha aproximada)
+3. O QUE fazer (adicionar, mudar, remover)
+Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
+
+    if (ANTHROPIC_API_KEY) {
+      // Use Claude Sonnet 4 for planning
+      const planResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}\n\nPrimeiras 200 linhas do server.js:\n${serverCode.split('\n').slice(0, 200).join('\n')}\n\nPrimeiras 200 linhas do index.html:\n${indexCode.split('\n').slice(0, 200).join('\n')}` }],
+          system: systemPrompt
+        })
+      });
+      if (planResp.ok) {
+        const planData = await planResp.json();
+        command.plan = planData.content?.[0]?.text || 'Plano nao gerado';
+        command.status = 'planned';
+      } else {
+        const errText = await planResp.text();
+        console.error('Claude plan err:', planResp.status, errText);
+        command.plan = 'Erro Claude: ' + planResp.status;
+        command.status = 'plan_failed';
+      }
     } else {
-      command.plan = 'Erro ao gerar plano: ' + planResp.status;
-      command.status = 'plan_failed';
+      // Fallback to GPT-4o if no Anthropic key
+      const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}` }
+          ],
+          max_tokens: 2000,
+          temperature: 0.3
+        })
+      });
+      if (planResp.ok) {
+        const planData = await planResp.json();
+        command.plan = planData.choices?.[0]?.message?.content || 'Plano nao gerado';
+        command.status = 'planned';
+      } else {
+        command.plan = 'Erro ao gerar plano: ' + planResp.status;
+        command.status = 'plan_failed';
+      }
     }
   } catch (e) {
     command.plan = 'Erro: ' + e.message;
@@ -7748,65 +7816,203 @@ app.post('/api/dev/approve/:commandId', async (req, res) => {
   cmd.status = 'executing';
   saveDB('ultimateBank');
 
-  // Execute: call GPT-4o to generate code edits
+  // Execute: call Claude (Anthropic) to generate code edits — full file context
   try {
     const serverPath = __filename;
-    const htmlPath = path.join(__dirname, 'public', 'index.html');
-    const serverCode = fs.readFileSync(serverPath, 'utf8');
-    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+    const publicDir = path.join(__dirname, 'public');
 
-    // Send instruction + plan + full code context to GPT-4o for edits
-    const editResp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: `Você é um desenvolvedor expert. Gere APENAS edições no formato JSON. Cada edição é um objeto com: {"file": "server.js" ou "public/index.html", "old_string": "texto exato a substituir", "new_string": "texto novo"}. Retorne um array JSON puro, sem markdown, sem explicação. Se não precisar mudar um arquivo, não inclua. ATENÇÃO: old_string deve ser um trecho EXATO do código atual.` },
-          { role: 'user', content: `INSTRUÇÃO: ${cmd.instruction}\n\nPLANO: ${cmd.plan}\n\nserver.js (últimas 3000 chars):\n...${serverCode.slice(-3000)}\n\nindex.html (últimas 3000 chars):\n...${htmlCode.slice(-3000)}` }
-        ],
-        max_tokens: 4000,
-        temperature: 0.2
-      })
-    });
-
-    if (!editResp.ok) {
-      cmd.status = 'failed';
-      cmd.result = 'Erro GPT-4o: ' + editResp.status;
-      saveDB('ultimateBank');
-      return res.json({ success: false, error: cmd.result });
+    // Build dynamic file map — all editable project files
+    const fileMap = { 'server.js': serverPath };
+    const htmlFiles = fs.readdirSync(publicDir).filter(f => f.endsWith('.html'));
+    for (const hf of htmlFiles) {
+      fileMap['public/' + hf] = path.join(publicDir, hf);
     }
 
-    const editData = await editResp.json();
-    let editsRaw = editData.choices?.[0]?.message?.content || '[]';
+    // Identify which files the plan mentions
+    const planLower = (cmd.plan || '').toLowerCase() + ' ' + (cmd.instruction || '').toLowerCase();
+    const relevantFiles = Object.keys(fileMap).filter(f => {
+      if (f === 'server.js') return true; // always include server context
+      const name = f.replace('public/', '').replace('.html', '');
+      return planLower.includes(f) || planLower.includes(name);
+    });
+    // If plan doesn't mention specific files, include server.js + index.html
+    if (relevantFiles.length <= 1) relevantFiles.push('public/index.html');
+
+    // Read full content of relevant files
+    const fileContents = {};
+    for (const f of relevantFiles) {
+      try {
+        fileContents[f] = fs.readFileSync(fileMap[f], 'utf8');
+      } catch (e) { /* skip unreadable */ }
+    }
+
+    const editSystemPrompt = `Voce e um desenvolvedor expert em Node.js e HTML/CSS/JS puro. ZERO frameworks.
+O app se chama "Touch?" / "Encosta" — rede social presencial.
+
+TAREFA: Gere edicoes de codigo no formato JSON.
+Cada edicao e um objeto com:
+{
+  "file": "server.js" ou "public/nome.html",
+  "old_string": "trecho EXATO do codigo atual (minimo 3 linhas de contexto)",
+  "new_string": "codigo novo que substitui o old_string"
+}
+
+REGRAS CRITICAS:
+1. Retorne APENAS um array JSON puro. Sem markdown, sem explicacao, sem texto extra.
+2. old_string DEVE ser copiado EXATAMENTE do codigo fornecido — incluindo espacos, tabs e quebras de linha.
+3. Inclua pelo menos 3 linhas de contexto unico no old_string pra evitar ambiguidade.
+4. Se precisar ADICIONAR codigo novo, use old_string com o trecho ANTES de onde inserir, e new_string com esse trecho + o codigo novo.
+5. Se precisar criar um arquivo novo, use old_string vazio "" e new_string com o conteudo completo, e file com o caminho.
+6. ZERO emojis no codigo.
+7. Mantenha o estilo do codigo existente (indentacao, nomenclatura, padrao).
+
+ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
+
+    const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
+      // For very large files, send strategic sections
+      const lines = content.split('\n');
+      if (lines.length > 3000) {
+        // Send first 500 + last 500 + search for relevant sections
+        const keywords = cmd.instruction.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        const relevantLines = [];
+        for (let i = 0; i < lines.length; i++) {
+          const ln = lines[i].toLowerCase();
+          if (keywords.some(kw => ln.includes(kw))) {
+            const start = Math.max(0, i - 10);
+            const end = Math.min(lines.length, i + 10);
+            relevantLines.push(`... [linhas ${start+1}-${end+1}] ...`);
+            for (let j = start; j < end; j++) relevantLines.push(`${j+1}: ${lines[j]}`);
+          }
+        }
+        return `=== ${f} (${lines.length} linhas) ===\n[PRIMEIRAS 500 LINHAS]\n${lines.slice(0, 500).map((l, i) => `${i+1}: ${l}`).join('\n')}\n\n[ULTIMAS 500 LINHAS]\n${lines.slice(-500).map((l, i) => `${lines.length - 500 + i + 1}: ${l}`).join('\n')}\n\n[TRECHOS RELEVANTES]\n${relevantLines.join('\n')}`;
+      }
+      return `=== ${f} (${lines.length} linhas) ===\n${lines.map((l, i) => `${i+1}: ${l}`).join('\n')}`;
+    }).join('\n\n');
+
+    let editsRaw;
+
+    if (ANTHROPIC_API_KEY) {
+      // Use Claude Sonnet 4 for code generation — full context
+      const editResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 16000,
+          system: editSystemPrompt,
+          messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
+        })
+      });
+
+      if (!editResp.ok) {
+        const errText = await editResp.text();
+        console.error('Claude edit err:', editResp.status, errText);
+        cmd.status = 'failed';
+        cmd.result = 'Erro Claude: ' + editResp.status;
+        saveDB('ultimateBank');
+        return res.json({ success: false, error: cmd.result });
+      }
+
+      const editData = await editResp.json();
+      editsRaw = editData.content?.[0]?.text || '[]';
+    } else {
+      // Fallback to GPT-4o
+      const editResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: editSystemPrompt },
+            { role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }
+          ],
+          max_tokens: 16000,
+          temperature: 0.2
+        })
+      });
+
+      if (!editResp.ok) {
+        cmd.status = 'failed';
+        cmd.result = 'Erro GPT-4o: ' + editResp.status;
+        saveDB('ultimateBank');
+        return res.json({ success: false, error: cmd.result });
+      }
+
+      const editData = await editResp.json();
+      editsRaw = editData.choices?.[0]?.message?.content || '[]';
+    }
+
     // Clean markdown code fences if present
     editsRaw = editsRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
     let edits;
     try { edits = JSON.parse(editsRaw); } catch (e) {
       cmd.status = 'failed';
-      cmd.result = 'Erro parsing edits: ' + e.message;
+      cmd.result = 'Erro parsing edits: ' + e.message + '\nRaw: ' + editsRaw.slice(0, 500);
       saveDB('ultimateBank');
       return res.json({ success: false, error: cmd.result });
     }
 
     if (!Array.isArray(edits) || edits.length === 0) {
       cmd.status = 'failed';
-      cmd.result = 'Nenhuma edição gerada';
+      cmd.result = 'Nenhuma edicao gerada';
       saveDB('ultimateBank');
       return res.json({ success: false, error: cmd.result });
     }
 
+    // Backup files before editing
+    const backups = {};
+    for (const edit of edits) {
+      if (fileMap[edit.file] && !backups[edit.file]) {
+        try { backups[edit.file] = fs.readFileSync(fileMap[edit.file], 'utf8'); } catch (e) { /* skip */ }
+      }
+    }
+
     // Apply edits
     const appliedEdits = [];
-    const fileMap = { 'server.js': serverPath, 'public/index.html': htmlPath };
+    let hasFailure = false;
     for (const edit of edits) {
       const filePath = fileMap[edit.file];
-      if (!filePath) { appliedEdits.push({ file: edit.file, ok: false, error: 'Arquivo desconhecido' }); continue; }
+      if (!filePath) {
+        // New file creation
+        if (edit.old_string === '' && edit.new_string) {
+          try {
+            const newPath = path.join(__dirname, edit.file);
+            const dir = path.dirname(newPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(newPath, edit.new_string, 'utf8');
+            appliedEdits.push({ file: edit.file, ok: true, action: 'created' });
+            continue;
+          } catch (e) { appliedEdits.push({ file: edit.file, ok: false, error: e.message }); hasFailure = true; continue; }
+        }
+        appliedEdits.push({ file: edit.file, ok: false, error: 'Arquivo desconhecido: ' + edit.file });
+        hasFailure = true;
+        continue;
+      }
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         if (!content.includes(edit.old_string)) {
-          appliedEdits.push({ file: edit.file, ok: false, error: 'old_string não encontrado' });
+          // Try trimmed match (whitespace tolerance)
+          const trimmedOld = edit.old_string.replace(/\s+/g, ' ').trim();
+          const contentNorm = content.replace(/\s+/g, ' ');
+          if (contentNorm.includes(trimmedOld)) {
+            // Find approximate position and do line-based replacement
+            appliedEdits.push({ file: edit.file, ok: false, error: 'old_string nao encontrado (whitespace diff). Verifique espacos/tabs.' });
+          } else {
+            appliedEdits.push({ file: edit.file, ok: false, error: 'old_string nao encontrado no arquivo' });
+          }
+          hasFailure = true;
+          continue;
+        }
+        // Check for multiple matches
+        const matchCount = content.split(edit.old_string).length - 1;
+        if (matchCount > 1) {
+          appliedEdits.push({ file: edit.file, ok: false, error: `old_string encontrado ${matchCount}x (ambiguo). Precisa de mais contexto.` });
+          hasFailure = true;
           continue;
         }
         content = content.replace(edit.old_string, edit.new_string);
@@ -7814,13 +8020,25 @@ app.post('/api/dev/approve/:commandId', async (req, res) => {
         appliedEdits.push({ file: edit.file, ok: true });
       } catch (e) {
         appliedEdits.push({ file: edit.file, ok: false, error: e.message });
+        hasFailure = true;
       }
     }
 
-    // Git commit + push (sanitize commit message to prevent shell injection)
+    // If ALL edits failed, rollback
+    const successCount = appliedEdits.filter(e => e.ok).length;
+    if (successCount === 0) {
+      for (const [f, backup] of Object.entries(backups)) {
+        try { fs.writeFileSync(fileMap[f], backup, 'utf8'); } catch (e) { /* skip */ }
+      }
+      cmd.status = 'failed';
+      cmd.result = 'Todas edicoes falharam. Rollback aplicado. Erros: ' + appliedEdits.map(e => `${e.file}: ${e.error}`).join('; ');
+      saveDB('ultimateBank');
+      return res.json({ success: false, error: cmd.result, edits: appliedEdits });
+    }
+
+    // Git commit + push
     const { execFile } = require('child_process');
-    const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}`;
-    // Use execFile for git add, then git commit, then git push — chained safely
+    const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}\n\nCo-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`;
     execFile('git', ['-C', __dirname, 'add', '-A'], (errAdd) => {
       if (errAdd) { cmd.status = 'partial'; cmd.result = 'Git add falhou: ' + errAdd.message; saveDB('ultimateBank'); return; }
       execFile('git', ['-C', __dirname, 'commit', '-m', safeMsg], (errCommit) => {
@@ -7828,10 +8046,10 @@ app.post('/api/dev/approve/:commandId', async (req, res) => {
         execFile('git', ['-C', __dirname, 'push'], (err, stdout, stderr) => {
           if (err) {
             console.error('Git error:', err.message);
-            cmd.result = `Edições aplicadas mas git falhou: ${err.message}. Edits: ${JSON.stringify(appliedEdits)}`;
+            cmd.result = `${successCount}/${edits.length} edicoes aplicadas mas git falhou: ${err.message}`;
             cmd.status = 'partial';
           } else {
-            cmd.result = `Sucesso! ${appliedEdits.filter(e => e.ok).length}/${appliedEdits.length} edições aplicadas e commitadas. ${stdout}`;
+            cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
             cmd.status = 'done';
           }
           saveDB('ultimateBank');
@@ -7839,7 +8057,7 @@ app.post('/api/dev/approve/:commandId', async (req, res) => {
       });
     });
 
-    res.json({ success: true, edits: appliedEdits, status: 'executing_git' });
+    res.json({ success: true, edits: appliedEdits, status: 'executing_git', engine: ANTHROPIC_API_KEY ? 'claude' : 'gpt4o' });
   } catch (e) {
     cmd.status = 'failed';
     cmd.result = 'Erro: ' + e.message;
