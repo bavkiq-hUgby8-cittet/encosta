@@ -7724,6 +7724,12 @@ ${devCfg.openingRules}
 - Se precisar de mais, quebre em turnos
 - Quando apresentar plano, resuma em 1-2 frases e pergunte se quer detalhes
 
+═══ QUANDO USAR CADA FERRAMENTA ═══
+- Se o usuario pedir QUALQUER mudanca no app (cor, layout, feature, fix, melhoria, texto) → use comando_dev IMEDIATAMENTE. Nao precisa consultar_rede antes.
+- consultar_rede: SOMENTE use quando precisar saber dados da rede (quantas pessoas, quem sao, estatisticas). NAO use antes de comando_dev.
+- Se o usuario perguntar "muda a cor", "adiciona botao", "tira isso", "coloca aquilo" → comando_dev direto, sem consultar nada antes.
+- NUNCA fique em silencio processando sem falar. Se vai chamar uma ferramenta, AVISE antes: "Vou enviar isso pro dev, espera uns 10 segundos."
+
 ═══ FLUXO DE DESENVOLVIMENTO ═══
 1. ${firstName} fala algo → você ENTENDE e TRADUZ em instrução técnica (comando_dev)
 2. Servidor gera plano via GPT-4o automaticamente (~5-10 segundos)
@@ -7780,7 +7786,7 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
           { type:'function', name:'iniciar_conexao', description:'Inicia processo de conexão.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'dar_estrela', description:'Dá estrela para conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
           { type:'function', name:'enviar_pulse', description:'Envia pulse no chat.', parameters:{type:'object',properties:{},required:[]} },
-          { type:'function', name:'consultar_rede', description:'Busca dados da rede.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'consultar_rede', description:'Busca estatisticas e dados da rede social (pessoas, encontros, numeros). NAO use para pedidos de mudanca no app — use comando_dev para isso.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'mostrar_pessoa', description:'Mostra perfil na constelação.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva nota pessoal.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} },
           // ── Dev tools ──

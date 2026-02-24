@@ -1419,6 +1419,23 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-wave-bar:nth-child(7){height:20px;animation-delay:.12s}
 @keyframes va-wave-anim{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
 .va-status-text{font-size:.82rem;color:rgba(255,255,255,.35);font-weight:500;min-height:20px;text-align:center;letter-spacing:.03em}
+/* Activity indicator bar — prominent feedback during thinking/tool calls */
+.va-activity-bar{display:none;flex-direction:column;align-items:center;gap:6px;margin-top:4px;padding:10px 20px;border-radius:16px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15);max-width:300px;width:100%;transition:all .3s}
+.va-activity-bar.active{display:flex}
+.va-activity-bar .va-act-label{font-size:.78rem;color:rgba(255,255,255,.6);font-weight:600;letter-spacing:.03em;text-align:center}
+.va-activity-bar .va-act-detail{font-size:.7rem;color:rgba(255,255,255,.3);text-align:center}
+.va-activity-bar .va-act-dots{display:flex;gap:6px;align-items:center;justify-content:center}
+.va-activity-bar .va-act-dots span{width:6px;height:6px;border-radius:50%;background:rgba(139,92,246,.7);animation:va-act-bounce 1.2s ease-in-out infinite}
+.va-activity-bar .va-act-dots span:nth-child(2){animation-delay:.15s}
+.va-activity-bar .va-act-dots span:nth-child(3){animation-delay:.3s}
+@keyframes va-act-bounce{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
+.va-overlay.ultimatedev .va-activity-bar{background:rgba(0,255,65,.06);border-color:rgba(0,255,65,.15)}
+.va-overlay.ultimatedev .va-activity-bar .va-act-label{color:rgba(0,255,65,.7)}
+.va-overlay.ultimatedev .va-activity-bar .va-act-detail{color:rgba(0,255,65,.35)}
+.va-overlay.ultimatedev .va-activity-bar .va-act-dots span{background:rgba(0,255,65,.7)}
+.va-overlay.pro .va-activity-bar{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.15)}
+.va-overlay.pro .va-activity-bar .va-act-label{color:rgba(245,158,11,.7)}
+.va-overlay.pro .va-activity-bar .va-act-dots span{background:rgba(245,158,11,.7)}
 .va-transcript{font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;max-width:320px;line-height:1.6;min-height:40px;max-height:120px;overflow-y:auto;font-weight:400;display:none}
 .va-earpiece-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .25s;margin-right:8px}
 .va-earpiece-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
@@ -12968,6 +12985,11 @@ window.addEventListener('message',function(e){
       <div class="va-wave"><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div></div>
     </div>
     <div class="va-status-text" id="vaStatus">Toque para conversar</div>
+    <div class="va-activity-bar" id="vaActivityBar">
+      <div class="va-act-dots"><span></span><span></span><span></span></div>
+      <div class="va-act-label" id="vaActLabel">Pensando...</div>
+      <div class="va-act-detail" id="vaActDetail"></div>
+    </div>
     <div class="va-transcript" id="vaTranscript"></div>
     <div class="va-actions">
       <button class="va-btn primary" id="vaMainBtn" onclick="VA.toggleVoice()">Iniciar conversa</button>
@@ -13073,6 +13095,28 @@ const VA = (function(){
     if(_transcriptHistory.length>MAX_TRANSCRIPT_HISTORY) _transcriptHistory.shift();
   }
   function setOrb(c){ const o=$('vaOrb'); if(o){o.className='va-orb';if(c)o.classList.add(c);} }
+  // ── Activity indicator — prominent "thinking" feedback ──
+  let _activityTimer = null;
+  let _activityStart = 0;
+  function _showVaActivity(label, detail){
+    const bar=$('vaActivityBar'), lbl=$('vaActLabel'), det=$('vaActDetail');
+    if(!bar) return;
+    bar.classList.add('active');
+    if(lbl) lbl.textContent = label || 'Pensando...';
+    if(det) det.textContent = detail || '';
+    _activityStart = Date.now();
+    // Watchdog: update elapsed time every 3s
+    if(_activityTimer) clearInterval(_activityTimer);
+    _activityTimer = setInterval(function(){
+      var elapsed = Math.round((Date.now() - _activityStart) / 1000);
+      if(det) det.textContent = (detail ? detail + ' - ' : '') + elapsed + 's';
+    }, 3000);
+  }
+  function _hideVaActivity(){
+    const bar=$('vaActivityBar');
+    if(bar) bar.classList.remove('active');
+    if(_activityTimer){ clearInterval(_activityTimer); _activityTimer=null; }
+  }
   // Mini mode status indicator
   function _updateMiniStatus(state){
     let badge=$('vaMiniStatus');
@@ -13233,6 +13277,7 @@ const VA = (function(){
   function cleanup(){
     active = false; busy = false;
     _clearInactivityTimer();
+    _hideVaActivity();
     _transcriptHistory = [];
     // Reset anti-echo state
     _agentSpeaking=false;_pendingToolCall=false;
@@ -13281,6 +13326,7 @@ const VA = (function(){
       case 'input_audio_buffer.speech_stopped':
         setOrb('connecting');setStatus('Processando...');
         _updateMiniStatus('thinking');
+        _showVaActivity('Pensando...');
         break;
       case 'conversation.item.input_audio_transcription.completed':
         if(evt.transcript){
@@ -13296,6 +13342,7 @@ const VA = (function(){
         _agentSpeaking=true;
         setOrb('speaking');setStatus('');
         _updateMiniStatus('speaking');
+        _hideVaActivity();
         // Mute mic immediately while agent speaks — prevent echo/feedback loop
         _muteMic();
         break;
@@ -13320,6 +13367,7 @@ const VA = (function(){
         if(!_pendingToolCall){
           setOrb('listening');setStatus('Fale agora');
           _updateMiniStatus('listening');
+          _hideVaActivity();
           // Delayed unmute — wait for WebRTC audio to drain from speaker
           _scheduleUnmute();
         }
@@ -13332,6 +13380,19 @@ const VA = (function(){
         _muteMic(); // Ensure mic stays muted
         setOrb('connecting');setStatus('Processando ação...');
         _updateMiniStatus('thinking');
+        // Show detailed activity for each tool
+        var _toolLabels = {
+          mostrar_pessoa:'Buscando pessoa...',consultar_rede:'Consultando rede...',
+          salvar_nota:'Salvando nota...',navegar_tela:'Navegando...',
+          abrir_perfil:'Abrindo perfil...',abrir_chat:'Abrindo chat...',
+          iniciar_conexao:'Iniciando conexao...',dar_estrela:'Dando estrela...',
+          enviar_pulse:'Enviando pulse...',comando_dev:'Enviando comando ao dev...',
+          ver_fila_dev:'Verificando fila...',aprovar_plano:'Aprovando plano...',
+          rejeitar_plano:'Rejeitando plano...',aprender_usuario:'Aprendendo sobre voce...',
+          escrever_pensamento:'Processando...',fazer_backup:'Fazendo backup...',
+          salvar_arquivo:'Salvando arquivo...'
+        };
+        _showVaActivity(_toolLabels[evt.name]||'Executando acao...', evt.name);
         try{
           const args=JSON.parse(evt.arguments||'{}');
           if(evt.name==='mostrar_pessoa'){
@@ -13531,6 +13592,7 @@ const VA = (function(){
   function _sendToolResult(callId,text){
     if(dc&&dc.readyState==='open'){
       _pendingToolCall=false; // Tool done — next response.done can unmute
+      _showVaActivity('Formulando resposta...');
       dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:text}}));
       dc.send(JSON.stringify({type:'response.create'}));
     }
