@@ -94,6 +94,12 @@ const adminLimiter = rateLimit({
   message: { error: 'Rate limit atingido nos endpoints admin.' }
 });
 
+const vaLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 min
+  max: 10, // 10 VA/dev calls per 5 min per IP
+  message: { error: 'Muitas chamadas ao assistente. Aguarde alguns minutos.' }
+});
+
 app.use(generalLimiter);
 
 // ── Redirect old domain to touch-irl.com ──
@@ -1502,8 +1508,14 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId
   // Award score points (uses classification)
   if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
   if (!db.users[userBId].pointLog) db.users[userBId].pointLog = [];
-  if (classA.points > 0) db.users[userAId].pointLog.push({ value: classA.points, type: classA.type, with: userBId, timestamp: now });
-  if (classB.points > 0) db.users[userBId].pointLog.push({ value: classB.points, type: classB.type, with: userAId, timestamp: now });
+  if (classA.points > 0) {
+    db.users[userAId].pointLog.push({ value: classA.points, type: classA.type, with: userBId, timestamp: now });
+    if (db.users[userAId].pointLog.length > 500) db.users[userAId].pointLog = db.users[userAId].pointLog.slice(-500);
+  }
+  if (classB.points > 0) {
+    db.users[userBId].pointLog.push({ value: classB.points, type: classB.type, with: userAId, timestamp: now });
+    if (db.users[userBId].pointLog.length > 500) db.users[userBId].pointLog = db.users[userBId].pointLog.slice(-500);
+  }
   // Update streaks
   updateStreak(userAId, userBId, today);
   // Check star eligibility (streak + milestone)
@@ -7330,7 +7342,7 @@ function canUseVA(userId, requestedTier) {
   return { allowed: false, reason: 'not_plus' };
 }
 
-app.post('/api/agent/session', async (req, res) => {
+app.post('/api/agent/session', vaLimiter, async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
   const { userId, lastInteraction } = req.body;
 
@@ -8265,7 +8277,7 @@ app.get('/api/dev/diagnostico', async (req, res) => {
 
 // ══ DEV COMMAND ENDPOINTS ══
 // Create a dev command
-app.post('/api/dev/command', async (req, res) => {
+app.post('/api/dev/command', vaLimiter, async (req, res) => {
   const { userId, instruction } = req.body;
   if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
   if (!instruction) return res.status(400).json({ error: 'Instrução é obrigatória' });
@@ -8405,7 +8417,7 @@ app.get('/api/dev/queue/:userId', (req, res) => {
 });
 
 // Approve and execute a dev command
-app.post('/api/dev/approve/:commandId', async (req, res) => {
+app.post('/api/dev/approve/:commandId', vaLimiter, async (req, res) => {
   const { userId } = req.body;
   if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
 
