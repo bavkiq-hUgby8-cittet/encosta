@@ -1881,7 +1881,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge hidden" id="constNotifBadge">0</span></div>
   <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas>
     <button id="constSearchFloat" onclick="toggleConstSearch()" style="position:absolute;bottom:58px;right:12px;z-index:6;width:32px;height:32px;border-radius:50%;background:rgba(10,10,25,.7);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-    <div id="constFilters" style="position:absolute;bottom:12px;left:8px;right:8px;display:flex;gap:.35rem;padding:.4rem .5rem;background:rgba(10,10,25,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:22px;border:1px solid rgba(255,255,255,.1);z-index:5;justify-content:center">
+    <div id="constFilters" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:.25rem;padding:.3rem .4rem;background:rgba(10,10,25,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:16px;border:1px solid rgba(255,255,255,.08);z-index:5">
       <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span>Revelados</button>
       <button class="elog-filter active" id="cfAnon" onclick="toggleConstFilter('anon',this)"><span class="fdot" style="background:#ff4466"></span>Anônimos</button>
       <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)" style="position:relative"><span class="fdot" style="background:#60a5fa"></span>Eventos<span id="cfEventsLive" class="hidden" style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:#60a5fa;color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;pointer-events:none;animation:pulse 2s infinite">0</span></button>
@@ -6657,7 +6657,11 @@ function toggleConstFilter(type,btn){
     if(constFilters.events){constFilters.revealed=false;constFilters.anon=false}
     else{constFilters.revealed=true;constFilters.anon=true}
   }else{
+    // Clicking Revelados or Anonimos turns off Events mode
+    if(constFilters.events){constFilters.events=false}
     constFilters[type]=!constFilters[type];
+    // If both off, turn both on (reset)
+    if(!constFilters.revealed&&!constFilters.anon){constFilters.revealed=true;constFilters.anon=true}
   }
   updateConstFilterUI();
   haptic([15]);
