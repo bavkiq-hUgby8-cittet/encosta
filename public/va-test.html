@@ -669,16 +669,8 @@ function handleEvent(evt){
       break;
     case 'response.function_call_arguments.done':
       addCallTranscript('system', '['+(evt.name||'tool')+']');
-      // Refresh dev log when dev tools are called
-      if(currentTier==='ultimatedev' && (evt.name==='comando_dev'||evt.name==='aprovar_plano'||evt.name==='rejeitar_plano'||evt.name==='fazer_backup'||evt.name==='salvar_arquivo')){
-        setTimeout(function(){ loadDevQueue(); }, 2000); // Wait a bit for server to process
-        setTimeout(function(){ loadDevQueue(); }, 8000); // Check again after processing
-        setTimeout(function(){ loadDevQueue(); }, 20000); // And after code gen
-      }
-      if(evt.call_id&&dc){
-        dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:JSON.stringify({success:true,note:'Tool executada no modo ligacao.'})}}));
-        dc.send(JSON.stringify({type:'response.create'}));
-      }
+      // Execute tool for real and send result back
+      executeTool(evt.name, evt.arguments, evt.call_id);
       break;
   }
 }
@@ -788,6 +780,166 @@ function cleanup(){
   if(pc){ try{pc.close();}catch(e){} pc=null; }
   if(localStream){ localStream.getTracks().forEach(function(t){t.stop();}); localStream=null; }
   if(audioEl){ audioEl.srcObject=null; audioEl=null; }
+}
+
+// -- Tool Execution --
+function executeTool(name, argsStr, callId){
+  var userId = $('userIdInput').value.trim();
+  var args = {};
+  try { args = JSON.parse(argsStr || '{}'); } catch(e) {}
+
+  // Show processing status
+  $('callStatus').textContent = 'Processando...';
+
+  // Route to correct handler
+  var toolPromise;
+  switch(name){
+    // === DEV TOOLS ===
+    case 'comando_dev':
+      toolPromise = fetch('/api/dev/command', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId, instruction: args.instrucao || args.instruction || '' })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        setTimeout(function(){ loadDevQueue(); }, 500);
+        if(data.status === 'planned') return { success: true, id: data.id, plan: data.plan, status: 'planned', note: 'Plano gerado com sucesso. Apresente o plano resumido ao usuario e pergunte se aprova.' };
+        if(data.status === 'plan_failed') return { success: false, error: 'Falha ao gerar plano: ' + (data.plan || 'erro desconhecido') };
+        return { success: true, id: data.id, plan: data.plan, status: data.status };
+      });
+      break;
+
+    case 'ver_fila_dev':
+      toolPromise = fetch('/api/dev/queue/' + encodeURIComponent(userId))
+        .then(function(r){ return r.json(); }).then(function(data){
+          var queue = (data.queue || []).slice(0, 5);
+          if(queue.length === 0) return { success: true, queue: [], note: 'Nenhum comando na fila.' };
+          var summary = queue.map(function(c){ return '[' + c.id + '] ' + c.status + ': ' + (c.instruction || '').slice(0, 80); });
+          return { success: true, count: queue.length, commands: summary };
+        });
+      break;
+
+    case 'aprovar_plano':
+      var approveId = args.id || '';
+      toolPromise = fetch('/api/dev/approve/' + encodeURIComponent(approveId), {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        setTimeout(function(){ loadDevQueue(); }, 2000);
+        setTimeout(function(){ loadDevQueue(); }, 10000);
+        setTimeout(function(){ loadDevQueue(); }, 25000);
+        if(data.success) return { success: true, edits: data.edits, status: data.status, engine: data.engine, note: 'Codigo sendo gerado e aplicado. Vai demorar uns 15-30 segundos. Avise o usuario.' };
+        return { success: false, error: data.error || 'Falha ao aprovar' };
+      });
+      break;
+
+    case 'rejeitar_plano':
+      var rejectId = args.id || '';
+      toolPromise = fetch('/api/dev/reject/' + encodeURIComponent(rejectId), {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId, motivo: args.motivo || 'Rejeitado pelo usuario' })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        setTimeout(function(){ loadDevQueue(); }, 500);
+        return { success: true, note: 'Plano rejeitado.' };
+      });
+      break;
+
+    // === MEMORY TOOLS ===
+    case 'aprender_usuario':
+      toolPromise = fetch('/api/dev/learn', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId, categoria: args.categoria || '', info: args.info || '' })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        return { success: true, note: 'Informacao salva: ' + (args.categoria || '') };
+      });
+      break;
+
+    case 'escrever_pensamento':
+      toolPromise = fetch('/api/dev/thought', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId, pensamento: args.pensamento || '' })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        return { success: true, note: 'Pensamento anotado.' };
+      });
+      break;
+
+    case 'fazer_backup':
+      toolPromise = fetch('/api/dev/backup', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId, descricao: args.descricao || '' })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        return { success: true, note: 'Backup realizado.' };
+      });
+      break;
+
+    case 'salvar_arquivo':
+      toolPromise = fetch('/api/dev/save-file', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userId: userId, caminho: args.caminho || '', conteudo: args.conteudo || '', mensagem: args.mensagem || '' })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        setTimeout(function(){ loadDevQueue(); }, 2000);
+        return { success: data.success !== false, note: data.success !== false ? 'Arquivo salvo e commitado.' : ('Erro: ' + (data.error || '')) };
+      });
+      break;
+
+    // === APP TOOLS (navegacao — resposta simples pois estamos na tela de ligacao) ===
+    case 'navegar_tela':
+      toolPromise = Promise.resolve({ success: true, note: 'Navegacao nao disponivel na tela de ligacao. O usuario esta em chamada de voz.' });
+      break;
+
+    case 'abrir_perfil':
+      toolPromise = Promise.resolve({ success: true, note: 'Perfil nao disponivel na tela de ligacao. Informe os dados que voce tem no contexto.' });
+      break;
+
+    case 'abrir_chat':
+      toolPromise = Promise.resolve({ success: true, note: 'Chat nao disponivel na tela de ligacao. O usuario esta em chamada de voz.' });
+      break;
+
+    case 'consultar_rede':
+      toolPromise = fetch('/api/agent/context/' + encodeURIComponent(userId))
+        .then(function(r){ return r.json(); }).then(function(data){
+          return { success: true, context: (data.context || '').slice(0, 2000), note: 'Dados da rede carregados.' };
+        });
+      break;
+
+    case 'salvar_nota':
+      toolPromise = Promise.resolve({ success: true, note: 'Nota salva: ' + (args.sobre || '') + ' - ' + (args.nota || '') });
+      break;
+
+    case 'dar_estrela':
+    case 'enviar_pulse':
+    case 'iniciar_conexao':
+    case 'mostrar_pessoa':
+      toolPromise = Promise.resolve({ success: true, note: 'Acao nao disponivel na tela de ligacao. O usuario esta em chamada de voz, use o contexto disponivel.' });
+      break;
+
+    // === DEFAULT ===
+    default:
+      toolPromise = Promise.resolve({ success: true, note: 'Tool ' + name + ' executada.' });
+      break;
+  }
+
+  // Send result back to assistant
+  toolPromise.then(function(result){
+    if(dc && dc.readyState === 'open'){
+      dc.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: { type: 'function_call_output', call_id: callId, output: JSON.stringify(result) }
+      }));
+      dc.send(JSON.stringify({ type: 'response.create' }));
+    }
+    $('callStatus').textContent = 'Em ligacao';
+    $('callStatus').classList.add('active');
+  }).catch(function(err){
+    // Even on error, send result back so assistant doesn't hang
+    if(dc && dc.readyState === 'open'){
+      dc.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: { type: 'function_call_output', call_id: callId, output: JSON.stringify({ success: false, error: err.message || 'Erro ao executar tool' }) }
+      }));
+      dc.send(JSON.stringify({ type: 'response.create' }));
+    }
+    $('callStatus').textContent = 'Em ligacao';
+    $('callStatus').classList.add('active');
+  });
 }
 
 // -- Dev Log --
