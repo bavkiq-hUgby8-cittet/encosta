@@ -809,6 +809,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <button class="op-rest-tab" onclick="switchRestTab('staff')">Equipe</button>
       <button class="op-rest-tab" onclick="switchRestTab('dashboard')">📊 Dashboard</button>
       <button class="op-rest-tab" onclick="switchRestTab('profile')">Perfil</button>
+      <button class="op-rest-tab" onclick="switchRestTab('delivery')">Entregas</button>
     </div>
 
     <!-- MENU TAB -->
@@ -891,6 +892,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <div class="menu-field" id="bpDeliveryNoteWrap" style="display:none"><label>Nota de entrega</label><input id="bpDeliveryNote" placeholder="Entrega em 30-45 min"></div>
       <button class="menu-save-btn" onclick="saveBusinessProfile()" style="margin-top:.5rem">Salvar Perfil</button>
       <div id="bpStatus" style="font-size:.6rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>
+    </div>
+
+    <!-- DELIVERY TAB -->
+    <div id="restTabDelivery" class="op-rest-content" style="display:none">
+      <div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Pedidos de Delivery</div>
+      <div id="opDeliveryList" style="font-size:.7rem;color:var(--t3);text-align:center;padding:1rem">Nenhum pedido de delivery</div>
     </div>
   </div>
 
@@ -2377,12 +2384,12 @@ function closeRestPanel(){$('opRestPanel').style.display='none'}
 
 function switchRestTab(tab){
   REST.activeTab=tab;
-  ['menu','orders','tables','staff','dashboard','profile'].forEach(t=>{
+  ['menu','orders','tables','staff','dashboard','profile','delivery'].forEach(t=>{
     const el=$('restTab'+t.charAt(0).toUpperCase()+t.slice(1));
     if(el)el.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('.op-rest-tab').forEach((b,i)=>{
-    const tabs=['menu','orders','tables','staff','dashboard','profile'];
+    const tabs=['menu','orders','tables','staff','dashboard','profile','delivery'];
     b.classList.toggle('active',tabs[i]===tab);
   });
   if(tab==='tables')renderTables();
@@ -2390,6 +2397,7 @@ function switchRestTab(tab){
   if(tab==='orders')renderOrders();
   if(tab==='staff')loadStaff();
   if(tab==='profile')loadBusinessProfile();
+  if(tab==='delivery')loadDeliveryOrders();
 }
 
 // ── Load menu from server ──
@@ -2800,6 +2808,87 @@ function playOrderBeep(){
     setTimeout(()=>initRestSocket(),200);
   };
 })();
+
+
+// ── DELIVERY MANAGEMENT ──
+async function loadDeliveryOrders(){
+  const list=$('opDeliveryList');
+  if(!list||!S.currentEventId)return;
+  try{
+    list.innerHTML='<div style="text-align:center;color:var(--t3);padding:1rem;font-size:.65rem">Use este painel para gerenciar entregas.</div>';
+  }catch(e){}
+}
+
+function renderDeliveryOrder(order){
+  const list=$('opDeliveryList');
+  if(!list)return;
+  const statusColors={pending:'#fbbf24',confirmed:'#3b82f6',preparing:'#60a5fa',ready_pickup:'#22c55e',on_the_way:'#8b5cf6',delivered:'#16a34a',cancelled:'#ef4444'};
+  const statusLabels={pending:'Pendente',confirmed:'Confirmado',preparing:'Preparando',ready_pickup:'Pronto p/ retirada',on_the_way:'A caminho',delivered:'Entregue',cancelled:'Cancelado'};
+  const addr=order.deliveryAddress||{};
+  const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood].filter(Boolean).join(', ');
+  const el=document.createElement('div');
+  el.id='del-order-'+order.id;
+  el.style.cssText='padding:.6rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);margin-bottom:.5rem';
+  el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">'
+    +'<span style="font-size:.7rem;font-weight:600;color:var(--t1)">#'+order.id.slice(0,6)+' - '+(order.customerName||'Cliente')+'</span>'
+    +'<span style="font-size:.5rem;padding:.1rem .4rem;border-radius:10px;background:rgba(255,255,255,.05);color:'+(statusColors[order.status]||'#999')+'">'+((statusLabels[order.status])||order.status)+'</span></div>'
+    +'<div style="font-size:.6rem;color:var(--t2);margin-bottom:.2rem">'+(order.items||[]).map(i=>i.qty+'x '+i.name).join(', ')+'</div>'
+    +'<div style="font-size:.55rem;color:var(--ac);margin-bottom:.3rem">'+addrStr+'</div>'
+    +'<div style="display:flex;gap:.3rem;flex-wrap:wrap">'
+    +(order.status==='pending'?'<button onclick="confirmDeliveryOp(''+order.id+'')" style="padding:.2rem .5rem;border:none;border-radius:6px;background:rgba(59,130,246,.2);color:#3b82f6;font-size:.55rem;cursor:pointer;font-family:inherit">Confirmar</button>':'')
+    +(order.status==='confirmed'?'<button onclick="prepareDeliveryOp(''+order.id+'')" style="padding:.2rem .5rem;border:none;border-radius:6px;background:rgba(251,191,36,.2);color:#fbbf24;font-size:.55rem;cursor:pointer;font-family:inherit">Preparando</button>':'')
+    +(order.status==='preparing'?'<button onclick="readyDeliveryOp(''+order.id+'')" style="padding:.2rem .5rem;border:none;border-radius:6px;background:rgba(34,197,94,.2);color:#22c55e;font-size:.55rem;cursor:pointer;font-family:inherit">Pronto</button>':'')
+    +((order.status==='ready_pickup'&&!order.driverId)?'<button onclick="assignDriverOp(''+order.id+'')" style="padding:.2rem .5rem;border:none;border-radius:6px;background:rgba(139,92,246,.2);color:#8b5cf6;font-size:.55rem;cursor:pointer;font-family:inherit">Atribuir Motorista</button>':'')
+    +'<span style="font-size:.55rem;font-weight:600;color:#22c55e;margin-left:auto">R$'+(order.total||0).toFixed(2).replace('.',',')+'</span></div>';
+  
+  const existing=document.getElementById('del-order-'+order.id);
+  if(existing)existing.replaceWith(el);
+  else{
+    const placeholder=list.querySelector('div[style*="text-align:center"]');
+    if(placeholder)list.innerHTML='';
+    list.appendChild(el);
+  }
+}
+
+async function confirmDeliveryOp(orderId){
+  try{
+    await fetch('/api/delivery/order/'+orderId+'/driver-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({driverId:'operator',status:'confirmed'})});
+  }catch(e){}
+}
+
+async function prepareDeliveryOp(orderId){
+  try{
+    await fetch('/api/delivery/order/'+orderId+'/driver-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({driverId:'operator',status:'preparing'})});
+  }catch(e){}
+}
+
+async function readyDeliveryOp(orderId){
+  try{
+    await fetch('/api/delivery/order/'+orderId+'/driver-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({driverId:'operator',status:'ready_pickup'})});
+  }catch(e){}
+}
+
+async function assignDriverOp(orderId){
+  const ev=currentEvent;
+  if(!ev||!ev.staff){showToast('Nenhum motorista disponivel');return}
+  const drivers=ev.staff.filter(s=>s.role==='driver'&&s.status==='online');
+  if(drivers.length===0){showToast('Nenhum motorista online');return}
+  const driver=drivers[0];
+  try{
+    await fetch('/api/delivery/order/'+orderId+'/assign-driver',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({driverId:driver.userId,driverName:driver.name,agreedFee:0})
+    });
+    showToast('Motorista '+driver.name+' atribuido');
+  }catch(e){showToast('Erro ao atribuir motorista')}
+}
+
+socket.on('delivery-order-new',d=>{
+  if(d.order)renderDeliveryOrder(d.order);
+});
+socket.on('delivery-status-update',d=>{
+  if(d.order)renderDeliveryOrder(d.order);
+});
 
 </script>
 </body>
