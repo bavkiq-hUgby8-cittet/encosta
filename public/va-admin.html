@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch AI — Painel de Controle</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+h1{font-size:1.4rem;color:#a78bfa;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+h1 span{font-size:.7rem;color:rgba(255,255,255,.3);font-weight:400}
+.subtitle{color:rgba(255,255,255,.4);font-size:.8rem;margin-bottom:24px}
+
+/* Tabs */
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:10px 20px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s;letter-spacing:.03em}
+.tab:hover{background:rgba(255,255,255,.08)}
+.tab.active-plus{background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.4);color:#a78bfa}
+.tab.active-pro{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:#f59e0b}
+.tab.active-dev{background:rgba(0,255,65,.1);border-color:rgba(0,255,65,.4);color:#00ff41;text-shadow:0 0 8px rgba(0,255,65,.2)}
+
+/* Panel */
+.panel{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px;display:none}
+.panel.active{display:block}
+.panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.panel-title{font-size:1.1rem;font-weight:700}
+.badge{font-size:.6rem;padding:3px 8px;border-radius:8px;font-weight:800;letter-spacing:.04em}
+.badge-plus{background:rgba(139,92,246,.2);color:#a78bfa}
+.badge-pro{background:rgba(245,158,11,.2);color:#f59e0b}
+.badge-dev{background:rgba(0,255,65,.15);color:#00ff41}
+
+/* Form */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:.7rem;font-weight:600;color:rgba(255,255,255,.5);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+input[type="text"],input[type="number"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#e0e0e0;font-size:.85rem;font-family:inherit;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:rgba(139,92,246,.5)}
+textarea{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#e0e0e0;font-size:.82rem;font-family:'Courier New',monospace;line-height:1.5;resize:vertical;min-height:120px;transition:border-color .2s}
+textarea.large{min-height:200px}
+
+/* Buttons */
+.btn-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn{padding:10px 20px;border-radius:10px;border:none;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-save{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(124,58,237,.3)}
+.btn-test{background:rgba(255,255,255,.08);color:#e0e0e0;border:1px solid rgba(255,255,255,.15)}
+.btn-test:hover{background:rgba(255,255,255,.12)}
+.btn-reset{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
+.btn-reset:hover{background:rgba(239,68,68,.15)}
+
+/* Test area */
+.test-area{margin-top:16px;background:rgba(0,0,0,.3);border-radius:12px;padding:16px;display:none}
+.test-area.active{display:block}
+.test-input-row{display:flex;gap:8px;margin-bottom:10px}
+.test-input-row input{flex:1}
+.test-input-row .btn{white-space:nowrap}
+.test-response{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15);border-radius:10px;padding:12px;font-size:.82rem;line-height:1.5;color:rgba(255,255,255,.8);min-height:40px;white-space:pre-wrap}
+
+/* Status */
+.toast{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:10px;font-size:.8rem;font-weight:600;transform:translateY(100px);opacity:0;transition:all .3s;z-index:999}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{background:#059669;color:#fff}
+.toast.error{background:#dc2626;color:#fff}
+
+/* Section divider */
+.section-title{font-size:.75rem;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:rgba(255,255,255,.3)}
+
+/* Responsive */
+@media(max-width:600px){
+  .form-row,.form-row-2{grid-template-columns:1fr}
+  .container{padding:12px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Touch AI <span>Painel de Controle</span></h1>
+  <div class="subtitle">Ajuste prompts, voz e configurações dos 3 assistentes</div>
+
+  <div class="tabs">
+    <div class="tab active-plus" data-tier="plus" onclick="switchTab('plus')">Plus</div>
+    <div class="tab" data-tier="pro" onclick="switchTab('pro')">Pro</div>
+    <div class="tab" data-tier="ultimatedev" onclick="switchTab('ultimatedev')">⚡ UltimateDEV</div>
+  </div>
+
+  <div id="loading" class="loading">Carregando configurações...</div>
+
+  <!-- PLUS Panel -->
+  <div class="panel active" id="panel-plus">
+    <div class="panel-header">
+      <div class="panel-title">Assistente Plus</div>
+      <span class="badge badge-plus">PLUS</span>
+    </div>
+
+    <div class="section-title">Configurações de Voz</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Voz</label>
+        <select id="plus-voice">
+          <option value="coral">Coral (feminino)</option>
+          <option value="alloy">Alloy (neutro)</option>
+          <option value="echo">Echo (masculino)</option>
+          <option value="fable">Fable (narrativo)</option>
+          <option value="onyx">Onyx (grave)</option>
+          <option value="nova">Nova (jovem)</option>
+          <option value="shimmer">Shimmer (suave)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">VAD Threshold</label>
+        <input type="number" id="plus-vadThreshold" min="0.5" max="1" step="0.05" value="0.95">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Max Frases por Turno</label>
+        <input type="number" id="plus-maxPhrases" min="1" max="10" value="2">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group">
+        <label class="form-label">Prefix Padding (ms)</label>
+        <input type="number" id="plus-prefixPadding" min="100" max="2000" step="100" value="500">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Silence Duration (ms)</label>
+        <input type="number" id="plus-silenceDuration" min="500" max="5000" step="100" value="1500">
+      </div>
+    </div>
+
+    <div class="section-title">Personalidade</div>
+    <div class="form-group">
+      <label class="form-label">Personalidade do agente (como se comporta, tom, estilo)</label>
+      <textarea id="plus-personality" class="large" placeholder="Ex: Você é uma amiga fofoqueira, curiosa e divertida..."></textarea>
+    </div>
+
+    <div class="section-title">Regras de Abertura</div>
+    <div class="form-group">
+      <label class="form-label">Como abrir a conversa (regras de saudação)</label>
+      <textarea id="plus-openingRules" placeholder="Ex: NUNCA comece com 'E aí'. Já entre DIRETO no assunto..."></textarea>
+    </div>
+
+    <div class="section-title">Memória</div>
+    <div class="form-group">
+      <label class="form-label">Regras de memória (o que salvar, como usar)</label>
+      <textarea id="plus-memoryRules" placeholder="Ex: SALVE SEMPRE que o usuário contar algo sobre alguém..."></textarea>
+    </div>
+
+    <div class="section-title">Privacidade</div>
+    <div class="form-group">
+      <label class="form-label">Regras de privacidade (estrelas, nomes, limites)</label>
+      <textarea id="plus-privacyRules" placeholder="Ex: ESTRELAS DO USUÁRIO: pode dizer quem deu. ESTRELAS DE AMIGOS: nunca dizer quem deu..."></textarea>
+    </div>
+
+    <div class="section-title">Instruções Extras</div>
+    <div class="form-group">
+      <label class="form-label">Qualquer instrução adicional (será adicionada ao final do prompt)</label>
+      <textarea id="plus-extraInstructions" placeholder="Instruções adicionais..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="saveConfig('plus')">Salvar Plus</button>
+      <button class="btn btn-test" onclick="toggleTest('plus')">Testar Prompt</button>
+      <button class="btn btn-reset" onclick="resetConfig('plus')">Resetar Padrão</button>
+    </div>
+
+    <div class="test-area" id="test-plus">
+      <div class="test-input-row">
+        <input type="text" id="test-input-plus" placeholder="Digite algo pra testar o agente Plus...">
+        <button class="btn btn-save" onclick="testPrompt('plus')">Enviar</button>
+      </div>
+      <div class="test-response" id="test-response-plus">Resposta aparecerá aqui...</div>
+    </div>
+  </div>
+
+  <!-- PRO Panel -->
+  <div class="panel" id="panel-pro">
+    <div class="panel-header">
+      <div class="panel-title">Assistente Pro</div>
+      <span class="badge badge-pro">PRO</span>
+    </div>
+
+    <div class="section-title">Configurações de Voz</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Voz</label>
+        <select id="pro-voice">
+          <option value="coral">Coral (feminino)</option>
+          <option value="alloy">Alloy (neutro)</option>
+          <option value="echo">Echo (masculino)</option>
+          <option value="fable">Fable (narrativo)</option>
+          <option value="onyx">Onyx (grave)</option>
+          <option value="nova">Nova (jovem)</option>
+          <option value="shimmer">Shimmer (suave)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">VAD Threshold</label>
+        <input type="number" id="pro-vadThreshold" min="0.5" max="1" step="0.05" value="0.95">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Max Frases</label>
+        <input type="number" id="pro-maxPhrases" min="1" max="10" value="2">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group">
+        <label class="form-label">Prefix Padding (ms)</label>
+        <input type="number" id="pro-prefixPadding" min="100" max="2000" step="100" value="500">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Silence Duration (ms)</label>
+        <input type="number" id="pro-silenceDuration" min="500" max="5000" step="100" value="1500">
+      </div>
+    </div>
+
+    <div class="section-title">Personalidade</div>
+    <div class="form-group">
+      <label class="form-label">Personalidade do agente Pro</label>
+      <textarea id="pro-personality" class="large" placeholder="Ex: Mesma personalidade fofoqueira, MAS com poderes de navegar o app..."></textarea>
+    </div>
+
+    <div class="section-title">Regras de Abertura</div>
+    <div class="form-group">
+      <label class="form-label">Como abrir a conversa</label>
+      <textarea id="pro-openingRules" placeholder="Regras de abertura..."></textarea>
+    </div>
+
+    <div class="section-title">Memória</div>
+    <div class="form-group">
+      <label class="form-label">Regras de memória</label>
+      <textarea id="pro-memoryRules" placeholder="Regras de memória..."></textarea>
+    </div>
+
+    <div class="section-title">Privacidade</div>
+    <div class="form-group">
+      <label class="form-label">Regras de privacidade</label>
+      <textarea id="pro-privacyRules" placeholder="Regras de privacidade..."></textarea>
+    </div>
+
+    <div class="section-title">Instruções Extras</div>
+    <div class="form-group">
+      <label class="form-label">Instruções adicionais</label>
+      <textarea id="pro-extraInstructions" placeholder="Instruções adicionais..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="saveConfig('pro')">Salvar Pro</button>
+      <button class="btn btn-test" onclick="toggleTest('pro')">Testar Prompt</button>
+      <button class="btn btn-reset" onclick="resetConfig('pro')">Resetar Padrão</button>
+    </div>
+
+    <div class="test-area" id="test-pro">
+      <div class="test-input-row">
+        <input type="text" id="test-input-pro" placeholder="Digite algo pra testar o agente Pro...">
+        <button class="btn btn-save" onclick="testPrompt('pro')">Enviar</button>
+      </div>
+      <div class="test-response" id="test-response-pro">Resposta aparecerá aqui...</div>
+    </div>
+  </div>
+
+  <!-- ULTIMATEDEV Panel -->
+  <div class="panel" id="panel-ultimatedev">
+    <div class="panel-header">
+      <div class="panel-title">Assistente UltimateDEV</div>
+      <span class="badge badge-dev">⚡DEV</span>
+    </div>
+
+    <div class="section-title">Configurações de Voz</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Voz</label>
+        <select id="ultimatedev-voice">
+          <option value="coral">Coral (feminino)</option>
+          <option value="alloy">Alloy (neutro)</option>
+          <option value="echo">Echo (masculino)</option>
+          <option value="fable">Fable (narrativo)</option>
+          <option value="onyx">Onyx (grave)</option>
+          <option value="nova">Nova (jovem)</option>
+          <option value="shimmer">Shimmer (suave)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">VAD Threshold</label>
+        <input type="number" id="ultimatedev-vadThreshold" min="0.5" max="1" step="0.05" value="0.95">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Max Frases</label>
+        <input type="number" id="ultimatedev-maxPhrases" min="1" max="10" value="3">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group">
+        <label class="form-label">Prefix Padding (ms)</label>
+        <input type="number" id="ultimatedev-prefixPadding" min="100" max="2000" step="100" value="500">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Silence Duration (ms)</label>
+        <input type="number" id="ultimatedev-silenceDuration" min="500" max="5000" step="100" value="1500">
+      </div>
+    </div>
+
+    <div class="section-title">Personalidade</div>
+    <div class="form-group">
+      <label class="form-label">Personalidade do agente UltimateDEV</label>
+      <textarea id="ultimatedev-personality" class="large" placeholder="Ex: Developer partner + fofoqueira. Traduz pedidos em instruções técnicas..."></textarea>
+    </div>
+
+    <div class="section-title">Regras de Abertura</div>
+    <div class="form-group">
+      <label class="form-label">Como abrir a conversa</label>
+      <textarea id="ultimatedev-openingRules" placeholder="Regras de abertura..."></textarea>
+    </div>
+
+    <div class="section-title">Memória</div>
+    <div class="form-group">
+      <label class="form-label">Regras de memória</label>
+      <textarea id="ultimatedev-memoryRules" placeholder="Regras de memória..."></textarea>
+    </div>
+
+    <div class="section-title">Privacidade</div>
+    <div class="form-group">
+      <label class="form-label">Regras de privacidade</label>
+      <textarea id="ultimatedev-privacyRules" placeholder="Regras de privacidade..."></textarea>
+    </div>
+
+    <div class="section-title">Instruções Extras</div>
+    <div class="form-group">
+      <label class="form-label">Instruções adicionais (dev-specific)</label>
+      <textarea id="ultimatedev-extraInstructions" class="large" placeholder="Ex: Instruções específicas para o modo dev, como lidar com comandos, etc..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="saveConfig('ultimatedev')" style="background:linear-gradient(135deg,#059669,#047857)">Salvar UltimateDEV</button>
+      <button class="btn btn-test" onclick="toggleTest('ultimatedev')">Testar Prompt</button>
+      <button class="btn btn-reset" onclick="resetConfig('ultimatedev')">Resetar Padrão</button>
+    </div>
+
+    <div class="test-area" id="test-ultimatedev">
+      <div class="test-input-row">
+        <input type="text" id="test-input-ultimatedev" placeholder="Digite algo pra testar o UltimateDEV...">
+        <button class="btn btn-save" onclick="testPrompt('ultimatedev')" style="background:linear-gradient(135deg,#059669,#047857)">Enviar</button>
+      </div>
+      <div class="test-response" id="test-response-ultimatedev">Resposta aparecerá aqui...</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Get userId from URL or localStorage
+const params = new URLSearchParams(location.search);
+let userId = params.get('userId') || localStorage.getItem('touchUserId') || '';
+if (!userId) {
+  userId = prompt('Digite seu userId (Top 1):');
+  if (userId) localStorage.setItem('touchUserId', userId);
+}
+
+const TIERS = ['plus', 'pro', 'ultimatedev'];
+const FIELDS = ['voice', 'vadThreshold', 'prefixPadding', 'silenceDuration', 'maxPhrases', 'personality', 'openingRules', 'memoryRules', 'privacyRules', 'extraInstructions'];
+let currentTier = 'plus';
+let configData = null;
+
+function switchTab(tier) {
+  currentTier = tier;
+  document.querySelectorAll('.tab').forEach(t => {
+    t.className = 'tab';
+    if (t.dataset.tier === tier) {
+      t.classList.add(tier === 'plus' ? 'active-plus' : tier === 'pro' ? 'active-pro' : 'active-dev');
+    }
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tier).classList.add('active');
+}
+
+function populateForm(tier, data) {
+  FIELDS.forEach(f => {
+    const el = document.getElementById(tier + '-' + f);
+    if (el && data[f] !== undefined && data[f] !== null && data[f] !== '') {
+      el.value = data[f];
+    }
+  });
+}
+
+function collectForm(tier) {
+  const settings = {};
+  FIELDS.forEach(f => {
+    const el = document.getElementById(tier + '-' + f);
+    if (!el) return;
+    if (el.type === 'number') settings[f] = parseFloat(el.value);
+    else settings[f] = el.value;
+  });
+  return settings;
+}
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/va-config?userId=' + userId);
+    if (r.status === 403) { showToast('Acesso negado — somente Top 1', 'error'); return; }
+    configData = await r.json();
+    TIERS.forEach(t => {
+      if (configData.tiers && configData.tiers[t]) populateForm(t, configData.tiers[t]);
+    });
+    document.getElementById('loading').style.display = 'none';
+    document.querySelectorAll('.panel').forEach(p => p.style.display === 'none' || '');
+    switchTab('plus');
+  } catch (e) {
+    showToast('Erro ao carregar: ' + e.message, 'error');
+  }
+}
+
+async function saveConfig(tier) {
+  const settings = collectForm(tier);
+  try {
+    const r = await fetch('/api/va-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, tier, settings })
+    });
+    const data = await r.json();
+    if (data.success) {
+      showToast('Salvo! Config do ' + tier.toUpperCase() + ' atualizada.', 'success');
+    } else {
+      showToast('Erro: ' + (data.error || 'desconhecido'), 'error');
+    }
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
+  }
+}
+
+function resetConfig(tier) {
+  if (!confirm('Resetar config do ' + tier.toUpperCase() + ' para o padrão?')) return;
+  FIELDS.forEach(f => {
+    const el = document.getElementById(tier + '-' + f);
+    if (!el) return;
+    if (f === 'voice') el.value = 'coral';
+    else if (f === 'vadThreshold') el.value = '0.95';
+    else if (f === 'prefixPadding') el.value = '500';
+    else if (f === 'silenceDuration') el.value = '1500';
+    else if (f === 'maxPhrases') el.value = tier === 'ultimatedev' ? '3' : '2';
+    else el.value = '';
+  });
+  showToast('Campos resetados. Clique Salvar pra aplicar.', 'success');
+}
+
+function toggleTest(tier) {
+  const area = document.getElementById('test-' + tier);
+  area.classList.toggle('active');
+}
+
+async function testPrompt(tier) {
+  const input = document.getElementById('test-input-' + tier);
+  const response = document.getElementById('test-response-' + tier);
+  if (!input.value.trim()) return;
+  response.textContent = 'Processando...';
+  try {
+    const r = await fetch('/api/va-config/test-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, tier, prompt: input.value.trim() })
+    });
+    const data = await r.json();
+    response.textContent = data.response || data.error || 'Sem resposta';
+  } catch (e) {
+    response.textContent = 'Erro: ' + e.message;
+  }
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// Enter key to send test
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id?.startsWith('test-input-')) {
+    const tier = e.target.id.replace('test-input-', '');
+    testPrompt(tier);
+  }
+});
+
+// Init
+loadConfig();
+</script>
+</body>
+</html>

@@ -232,7 +232,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -7605,6 +7605,108 @@ app.post('/api/dev/conversation', (req, res) => {
   if (bank.conversations.length > 100) bank.conversations = bank.conversations.slice(-100);
   saveDB('ultimateBank');
   res.json({ success: true });
+});
+
+// ══ VA CONFIG — Admin panel for prompt/settings management ══
+const VA_DEFAULT_CONFIG = {
+  plus: {
+    name: 'Plus',
+    voice: 'coral',
+    vadThreshold: 0.95,
+    prefixPadding: 500,
+    silenceDuration: 1500,
+    maxPhrases: 2,
+    personality: '',
+    openingRules: '',
+    memoryRules: '',
+    privacyRules: '',
+    extraInstructions: ''
+  },
+  pro: {
+    name: 'Pro',
+    voice: 'coral',
+    vadThreshold: 0.95,
+    prefixPadding: 500,
+    silenceDuration: 1500,
+    maxPhrases: 2,
+    personality: '',
+    openingRules: '',
+    memoryRules: '',
+    privacyRules: '',
+    extraInstructions: ''
+  },
+  ultimatedev: {
+    name: 'UltimateDEV',
+    voice: 'coral',
+    vadThreshold: 0.95,
+    prefixPadding: 500,
+    silenceDuration: 1500,
+    maxPhrases: 3,
+    personality: '',
+    openingRules: '',
+    memoryRules: '',
+    privacyRules: '',
+    extraInstructions: ''
+  }
+};
+
+function getVaConfig() {
+  if (!db.vaConfig || !db.vaConfig.tiers) {
+    db.vaConfig = { tiers: JSON.parse(JSON.stringify(VA_DEFAULT_CONFIG)), updatedAt: null };
+    saveDB('vaConfig');
+  }
+  return db.vaConfig;
+}
+
+// Get VA config for admin panel
+app.get('/api/va-config', (req, res) => {
+  // Only admin/top1 can access
+  const userId = req.query.userId;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  const config = getVaConfig();
+  res.json(config);
+});
+
+// Update VA config
+app.post('/api/va-config', (req, res) => {
+  const { userId, tier, settings } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!tier || !settings) return res.status(400).json({ error: 'tier e settings são obrigatórios' });
+
+  const config = getVaConfig();
+  if (!config.tiers[tier]) return res.status(400).json({ error: 'Tier inválido: ' + tier });
+
+  // Merge settings
+  Object.assign(config.tiers[tier], settings);
+  config.updatedAt = Date.now();
+  saveDB('vaConfig');
+  res.json({ success: true, tier, config: config.tiers[tier] });
+});
+
+// Send a test prompt to any tier
+app.post('/api/va-config/test-prompt', async (req, res) => {
+  const { userId, tier, prompt } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!prompt) return res.status(400).json({ error: 'prompt é obrigatório' });
+
+  try {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: `Você é a Touch AI (tier: ${tier}). Responda como se fosse o agente de voz. Seja breve.` },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 300,
+        temperature: 0.7
+      })
+    });
+    if (!r.ok) return res.status(502).json({ error: 'Erro OpenAI: ' + r.status });
+    const data = await r.json();
+    res.json({ response: data.choices?.[0]?.message?.content || 'Sem resposta' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Text fallback (Groq or OpenAI chat)
