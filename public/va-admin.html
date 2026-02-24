@@ -352,13 +352,9 @@ textarea.large{min-height:200px}
 <div class="toast" id="toast"></div>
 
 <script>
-// Get userId from URL or localStorage
+// Get userId from URL or localStorage — NO MORE prompt()!
 const params = new URLSearchParams(location.search);
 let userId = params.get('userId') || localStorage.getItem('touchUserId') || '';
-if (!userId) {
-  userId = prompt('Digite seu userId (Top 1):');
-  if (userId) localStorage.setItem('touchUserId', userId);
-}
 
 const TIERS = ['plus', 'pro', 'ultimatedev'];
 const FIELDS = ['voice', 'vadThreshold', 'prefixPadding', 'silenceDuration', 'maxPhrases', 'personality', 'openingRules', 'memoryRules', 'privacyRules', 'extraInstructions'];
@@ -398,6 +394,10 @@ function collectForm(tier) {
 }
 
 async function loadConfig() {
+  if (!userId) {
+    document.getElementById('loading').innerHTML = '<div style="text-align:center"><p style="margin-bottom:12px;color:#888">Cole seu userId para comecar:</p><input type="text" id="uidInput" style="padding:10px 14px;background:rgba(255,255,255,.05);border:1px solid #333;border-radius:8px;color:#fff;font-size:1rem;width:280px;margin-bottom:12px" placeholder="userId do Firebase"><br><button onclick="setUid()" style="padding:10px 20px;border-radius:10px;border:none;background:#7c3aed;color:#fff;font-weight:600;cursor:pointer">Entrar</button></div>';
+    return;
+  }
   try {
     const r = await fetch('/api/va-config?userId=' + userId);
     if (r.status === 403) { showToast('Acesso negado — somente Top 1', 'error'); return; }
@@ -406,11 +406,20 @@ async function loadConfig() {
       if (configData.tiers && configData.tiers[t]) populateForm(t, configData.tiers[t]);
     });
     document.getElementById('loading').style.display = 'none';
-    document.querySelectorAll('.panel').forEach(p => p.style.display === 'none' || '');
     switchTab('plus');
+    showToast('Config carregada!', 'success');
   } catch (e) {
     showToast('Erro ao carregar: ' + e.message, 'error');
   }
+}
+
+function setUid() {
+  const v = document.getElementById('uidInput')?.value?.trim();
+  if (!v) return;
+  userId = v;
+  localStorage.setItem('touchUserId', userId);
+  document.getElementById('loading').innerHTML = 'Carregando configuracoes...';
+  loadConfig();
 }
 
 async function saveConfig(tier) {
