@@ -6824,6 +6824,83 @@ function buildUserContext(userId) {
     recentTips.push(`- ${payerName}: R$${(t.amount / 100).toFixed(2)} (${t.status === 'approved' ? 'aprovado' : 'pendente'})`);
   });
 
+  // ── Unread messages per chat ──
+  const unreadChats = [];
+  activeRelations.forEach(r => {
+    const partnerId = r.userA === userId ? r.userB : r.userA;
+    const partner = db.users[partnerId];
+    const partnerName = partner ? (partner.nickname || partner.name) : '?';
+    const msgs = (db.messages[r.id] || []);
+    // Count messages from partner that are newer than user's last message
+    const myLastMsg = [...msgs].reverse().find(m => m.userId === userId);
+    const myLastTs = myLastMsg ? (myLastMsg.timestamp || 0) : 0;
+    const unread = msgs.filter(m => m.userId !== userId && (m.timestamp || 0) > myLastTs).length;
+    if (unread > 0) unreadChats.push(`${partnerName}: ${unread} msg nao lida(s)`);
+  });
+
+  // ── Pending game invites (waiting for user action) ──
+  const pendingGameInvites = [];
+  Object.values(db.gameSessions || {}).forEach(gs => {
+    if (!gs || !gs.players || !gs.players.includes(userId)) return;
+    if (gs.status !== 'waiting') return;
+    if (gs.hostUserId === userId) return; // user sent the invite, not received
+    const opponentId = gs.players.find(p => p !== userId);
+    const opponent = opponentId ? db.users[opponentId] : null;
+    const opName = opponent ? (opponent.nickname || opponent.name) : '?';
+    pendingGameInvites.push(`${opName} te convidou pra ${gs.gameName || 'jogo'}`);
+  });
+
+  // ── Declarations received ──
+  const declarations = [];
+  (db.declarations?.[userId] || []).slice(-5).forEach(d => {
+    const from = db.users[d.fromUserId];
+    const fromName = from ? (from.nickname || from.name) : '?';
+    declarations.push(`${fromName}: "${(d.text || '').slice(0, 80)}"`);
+  });
+
+  // ── Chats expiring soon (less than 6h) ──
+  const expiringChats = [];
+  activeRelations.forEach(r => {
+    const hoursLeft = Math.round((r.expiresAt - now) / 3600000);
+    if (hoursLeft <= 6 && hoursLeft > 0) {
+      const partnerId = r.userA === userId ? r.userB : r.userA;
+      const partner = db.users[partnerId];
+      const partnerName = partner ? (partner.nickname || partner.name) : '?';
+      expiringChats.push(`${partnerName}: expira em ${hoursLeft}h`);
+    }
+  });
+
+  // ── Who knows my real name (reverse reveal) ──
+  const whoKnowsMe = [];
+  Object.entries(db.users).forEach(([uid, u]) => {
+    if (uid === userId || !u.canSee) return;
+    if (u.canSee[userId] && u.canSee[userId].name) {
+      whoKnowsMe.push(u.nickname || u.name || '?');
+    }
+  });
+
+  // ── Current event status ──
+  let currentEventInfo = '';
+  const activeEventId = null; // This comes from client, but check server-side checkins
+  Object.values(db.operatorEvents || {}).forEach(ev => {
+    if (!ev.active) return;
+    const isParticipant = (ev.participants || []).some(p => p.userId === userId);
+    const isStaff = (ev.staff || []).some(s => s.userId === userId);
+    if (isParticipant) currentEventInfo = `VOCE ESTA NO EVENTO: ${ev.name} (participante)`;
+    if (isStaff) currentEventInfo = `VOCE ESTA NO EVENTO: ${ev.name} (staff - ${(ev.staff.find(s => s.userId === userId) || {}).role || 'equipe'})`;
+  });
+
+  // ── Contact frequency analysis ──
+  const seenOften = []; // last 7 days, 2+ encounters
+  const seenRarely = []; // last encounter > 14 days ago
+  const newConnections = []; // first encounter in last 3 days
+  Object.entries(connectionMap).forEach(([id, c]) => {
+    const daysSinceLast = c.ts ? Math.round((now - c.ts) / (24 * h24)) : 999;
+    if (c.count >= 2 && daysSinceLast <= 7) seenOften.push(c.name);
+    if (daysSinceLast > 14 && c.count >= 1) seenRarely.push(c.name);
+    if (c.count === 1 && daysSinceLast <= 3) newConnections.push(c.name);
+  });
+
   // ── Subscription info ──
   const sub = db.subscriptions ? db.subscriptions[userId] : null;
   let subInfo = '';
@@ -6852,9 +6929,15 @@ DADOS DO USUARIO ${userName}:
 ${subInfo ? subInfo : '- Assinatura: nenhuma'}
 ${recent48h.length ? '- Encontros recentes (48h): ' + recent48h.join(', ') : '- Sem encontros nas ultimas 48h'}
 ${userEvents.length ? '- Eventos participados: ' + userEvents.join(', ') : ''}
+${currentEventInfo ? '- ' + currentEventInfo : ''}
 
+${unreadChats.length ? '*** MENSAGENS NAO LIDAS (URGENTE!) ***\n' + unreadChats.map(u => '- ' + u).join('\n') + '\n' : ''}${pendingGameInvites.length ? '*** CONVITES DE JOGO ESPERANDO SUA RESPOSTA ***\n' + pendingGameInvites.map(g => '- ' + g).join('\n') + '\n' : ''}${expiringChats.length ? '*** CHATS EXPIRANDO EM BREVE ***\n' + expiringChats.map(c => '- ' + c).join('\n') + '\n' : ''}
 CONEXOES (top 15):
 ${connections.length ? connections.join('\n') : '- Nenhuma conexao ainda'}
+
+${newConnections.length ? 'CONEXOES NOVAS (ultimos 3 dias): ' + newConnections.join(', ') : ''}
+${seenOften.length ? 'PESSOAS QUE VE COM FREQUENCIA: ' + seenOften.join(', ') : ''}
+${seenRarely.length ? 'PESSOAS QUE NAO VE HA TEMPO (>14 dias): ' + seenRarely.slice(0, 5).join(', ') : ''}
 
 ${recentStars.length ? 'ESTRELAS RECENTES (7 dias): ' + starsFromWho.join(', ') + ' deram estrela' : ''}
 ${activeEvents.length ? 'EVENTOS ATIVOS AGORA: ' + activeEvents.map(e => e.name).join(', ') : ''}
@@ -6862,24 +6945,37 @@ ${chatSummaries.length ? '\nCHATS ATIVOS (com ultimas mensagens):\n' + chatSumma
 ${gameSummaries.length ? '\nJOGOS RECENTES:\n' + gameSummaries.join('\n') : ''}
 ${pendingStars.length ? '\nESTRELAS PENDENTES (precisa doar pra alguem!):\n' + pendingStars.join('\n') : ''}
 ${pendingReveals.length ? '\nPEDIDOS DE REVELACAO PENDENTES (essas pessoas querem saber quem voce e!):\n- ' + pendingReveals.join(', ') : ''}
+${declarations.length ? '\nDECLARAÇOES RECEBIDAS (o que as pessoas disseram sobre voce):\n' + declarations.map(d => '- ' + d).join('\n') : ''}
 ${recentTips.length ? '\nGORJETAS RECEBIDAS (7 dias):\n' + recentTips.join('\n') : ''}
 ${revealedPeople.length ? '\nIDENTIDADES REVELADAS (voce sabe o nome real de):\n- ' + revealedPeople.join(', ') : ''}
+${whoKnowsMe.length ? '\nQUEM SABE SEU NOME REAL: ' + whoKnowsMe.join(', ') : ''}
 ${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (coisas que voce ja aprendeu sobre as pessoas):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
 ${connectionsWithoutNotes.length ? '\nCONEXOES SEM NOTAS (pergunte sobre essas pessoas quando tiver oportunidade!):\n' + connectionsWithoutNotes.slice(0, 8).join(', ') : ''}
 `.trim();
 
-  // Build gossip — JÁ CHEGA COM A FOFOCA, sem "E aí", direto no assunto
+  // Build gossip — prioridade: urgencias primeiro, depois fofoca
   let gossip = '';
-  if (recentStars.length > 0) {
-    gossip = `${userName}, ${starsFromWho[0]} te deu uma estrela! Tá de olho em você hein... quem é ${starsFromWho[0]} pra você?`;
+  if (unreadChats.length > 0) {
+    const firstUnread = unreadChats[0].split(':')[0];
+    gossip = `${userName}, ${firstUnread} te mandou mensagem! Quer que eu resuma o que rolou no chat?`;
+  } else if (pendingGameInvites.length > 0) {
+    gossip = `${userName}, ${pendingGameInvites[0]}! Vai aceitar ou vai correr?`;
+  } else if (expiringChats.length > 0) {
+    const expName = expiringChats[0].split(':')[0];
+    gossip = `${userName}, seu chat com ${expName} ta quase expirando! Manda uma mensagem antes que acabe!`;
+  } else if (recentStars.length > 0) {
+    gossip = `${userName}, ${starsFromWho[0]} te deu uma estrela! Ta de olho em voce hein... quem e ${starsFromWho[0]} pra voce?`;
   } else if (recent48h.length > 0) {
     const lastPerson = recent48h[0].split(' (')[0];
-    gossip = `${userName}, vi que você encontrou ${lastPerson} faz pouco! Rolou alguma coisa?`;
+    gossip = `${userName}, vi que voce encontrou ${lastPerson} faz pouco! Rolou alguma coisa?`;
   } else if (recentLikers.length > 0) {
-    gossip = `${userName}, ${recentLikers[0]} te curtiu! Quem é essa pessoa hein?`;
+    gossip = `${userName}, ${recentLikers[0]} te curtiu! Quem e essa pessoa hein?`;
+  } else if (declarations.length > 0) {
+    const declFrom = declarations[0].split(':')[0];
+    gossip = `${userName}, ${declFrom} fez uma declaracao sobre voce! Quer saber o que disseram?`;
   } else if (connectionsWithoutNotes.length > 0) {
     const askAbout = connectionsWithoutNotes[Math.floor(Math.random() * connectionsWithoutNotes.length)];
-    gossip = `${userName}, faz tempo que a gente não conversa! Me conta, quem é ${askAbout}?`;
+    gossip = `${userName}, faz tempo que a gente nao conversa! Me conta, quem e ${askAbout}?`;
   } else if (connections.length > 0) {
     const randomConn = connections[Math.floor(Math.random() * Math.min(connections.length, 5))];
     const connName = randomConn.split(':')[0].replace('- ', '').split(' (')[0].trim();
@@ -7414,10 +7510,36 @@ app.get('/api/agent/context/:userId', (req, res) => {
         if (ts && now - ts < week) notifs.push({ t: 'ganhou uma estrela', who: f.nickname || f.name, ts });
       });
     });
+    // Connections made since session started (real-time awareness)
+    const encounters = db.encounters[userId] || [];
+    const recent1h = encounters.filter(e => now - e.timestamp < 3600000 && !e.isEvent);
+    if (recent1h.length) {
+      recent1h.forEach(e => {
+        notifs.unshift({ t: 'CONEXAO AGORA', who: e.withName, ts: e.timestamp });
+      });
+    }
+    // Unread messages right now
+    const activeRels = Object.values(db.relations).filter(r => r && (r.userA === userId || r.userB === userId) && r.expiresAt > now);
+    let totalUnread = 0;
+    const unreadDetails = [];
+    activeRels.forEach(r => {
+      const partnerId = r.userA === userId ? r.userB : r.userA;
+      const partner = db.users[partnerId];
+      const partnerName = partner ? (partner.nickname || partner.name) : '?';
+      const msgs = (db.messages[r.id] || []);
+      const myLastMsg = [...msgs].reverse().find(m => m.userId === userId);
+      const myLastTs = myLastMsg ? (myLastMsg.timestamp || 0) : 0;
+      const unread = msgs.filter(m => m.userId !== userId && (m.timestamp || 0) > myLastTs).length;
+      if (unread > 0) { totalUnread += unread; unreadDetails.push(`${partnerName}: ${unread}`); }
+    });
+    if (totalUnread > 0) {
+      notifs.unshift({ t: 'MSGS NAO LIDAS: ' + unreadDetails.join(', '), who: totalUnread + ' mensagens', ts: now });
+    }
+
     notifs.sort((a, b) => b.ts - a.ts);
     if (notifs.length) {
       notifSummary = '\n\nNOTIFICAÇÕES RECENTES (últimos 7 dias):\n' +
-        notifs.slice(0, 15).map(n => `- ${n.who}: ${n.t} (${formatTsForUser(n.ts, userId)})`).join('\n');
+        notifs.slice(0, 20).map(n => `- ${n.who}: ${n.t} (${formatTsForUser(n.ts, userId)})`).join('\n');
     }
   }
   const localTimeInfo = `\n\nHORARIO LOCAL ATUAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})`;
