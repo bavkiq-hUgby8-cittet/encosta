@@ -906,6 +906,24 @@ function hideActivity(){
 }
 
 // -- Tool Execution --
+
+// Fetch with timeout - prevents hanging forever
+function fetchWithTimeout(url, opts, timeoutMs){
+  timeoutMs = timeoutMs || 15000;
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, timeoutMs);
+  opts = opts || {};
+  opts.signal = controller.signal;
+  return fetch(url, opts).then(function(r){
+    clearTimeout(timer);
+    return r;
+  }).catch(function(err){
+    clearTimeout(timer);
+    if(err.name === 'AbortError') throw new Error('Timeout: servidor demorou mais de ' + Math.round(timeoutMs/1000) + 's');
+    throw err;
+  });
+}
+
 function executeTool(name, argsStr, callId){
   var userId = $('userIdInput').value.trim();
   var args = {};
@@ -939,10 +957,10 @@ function executeTool(name, argsStr, callId){
   switch(name){
     // === DEV TOOLS ===
     case 'comando_dev':
-      toolPromise = fetch('/api/dev/command', {
+      toolPromise = fetchWithTimeout('/api/dev/command', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId, instruction: args.instrucao || args.instruction || '' })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 45000).then(function(r){ return r.json(); }).then(function(data){
         setTimeout(function(){ loadDevQueue(); }, 500);
         if(data.status === 'planned') return { success: true, id: data.id, plan: data.plan, status: 'planned', note: 'Plano gerado com sucesso. Apresente o plano resumido ao usuario e pergunte se aprova.' };
         if(data.status === 'plan_failed') return { success: false, error: 'Falha ao gerar plano: ' + (data.plan || 'erro desconhecido') };
@@ -951,7 +969,7 @@ function executeTool(name, argsStr, callId){
       break;
 
     case 'ver_fila_dev':
-      toolPromise = fetch('/api/dev/queue/' + encodeURIComponent(userId))
+      toolPromise = fetchWithTimeout('/api/dev/queue/' + encodeURIComponent(userId), {}, 10000)
         .then(function(r){ return r.json(); }).then(function(data){
           var queue = (data.queue || []).slice(0, 5);
           if(queue.length === 0) return { success: true, queue: [], note: 'Nenhum comando na fila.' };
@@ -962,10 +980,10 @@ function executeTool(name, argsStr, callId){
 
     case 'aprovar_plano':
       var approveId = args.id || '';
-      toolPromise = fetch('/api/dev/approve/' + encodeURIComponent(approveId), {
+      toolPromise = fetchWithTimeout('/api/dev/approve/' + encodeURIComponent(approveId), {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 90000).then(function(r){ return r.json(); }).then(function(data){
         setTimeout(function(){ loadDevQueue(); }, 2000);
         setTimeout(function(){ loadDevQueue(); }, 10000);
         setTimeout(function(){ loadDevQueue(); }, 25000);
@@ -976,10 +994,10 @@ function executeTool(name, argsStr, callId){
 
     case 'rejeitar_plano':
       var rejectId = args.id || '';
-      toolPromise = fetch('/api/dev/reject/' + encodeURIComponent(rejectId), {
+      toolPromise = fetchWithTimeout('/api/dev/reject/' + encodeURIComponent(rejectId), {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId, motivo: args.motivo || 'Rejeitado pelo usuario' })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 10000).then(function(r){ return r.json(); }).then(function(data){
         setTimeout(function(){ loadDevQueue(); }, 500);
         return { success: true, note: 'Plano rejeitado.' };
       });
@@ -987,37 +1005,37 @@ function executeTool(name, argsStr, callId){
 
     // === MEMORY TOOLS ===
     case 'aprender_usuario':
-      toolPromise = fetch('/api/dev/learn', {
+      toolPromise = fetchWithTimeout('/api/dev/learn', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId, categoria: args.categoria || '', info: args.info || '' })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 10000).then(function(r){ return r.json(); }).then(function(data){
         return { success: true, note: 'Informacao salva: ' + (args.categoria || '') };
       });
       break;
 
     case 'escrever_pensamento':
-      toolPromise = fetch('/api/dev/thought', {
+      toolPromise = fetchWithTimeout('/api/dev/thought', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId, pensamento: args.pensamento || '' })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 10000).then(function(r){ return r.json(); }).then(function(data){
         return { success: true, note: 'Pensamento anotado.' };
       });
       break;
 
     case 'fazer_backup':
-      toolPromise = fetch('/api/dev/backup', {
+      toolPromise = fetchWithTimeout('/api/dev/backup', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId, descricao: args.descricao || '' })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 10000).then(function(r){ return r.json(); }).then(function(data){
         return { success: true, note: 'Backup realizado.' };
       });
       break;
 
     case 'salvar_arquivo':
-      toolPromise = fetch('/api/dev/save-file', {
+      toolPromise = fetchWithTimeout('/api/dev/save-file', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userId: userId, caminho: args.caminho || '', conteudo: args.conteudo || '', mensagem: args.mensagem || '' })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      }, 30000).then(function(r){ return r.json(); }).then(function(data){
         setTimeout(function(){ loadDevQueue(); }, 2000);
         return { success: data.success !== false, note: data.success !== false ? 'Arquivo salvo e commitado.' : ('Erro: ' + (data.error || '')) };
       });
@@ -1037,7 +1055,7 @@ function executeTool(name, argsStr, callId){
       break;
 
     case 'consultar_rede':
-      toolPromise = fetch('/api/agent/context/' + encodeURIComponent(userId))
+      toolPromise = fetchWithTimeout('/api/agent/context/' + encodeURIComponent(userId), {}, 10000)
         .then(function(r){ return r.json(); }).then(function(data){
           return { success: true, context: (data.context || '').slice(0, 2000), note: 'Dados da rede carregados.' };
         });
@@ -1060,8 +1078,23 @@ function executeTool(name, argsStr, callId){
       break;
   }
 
-  // Send result back to assistant
-  toolPromise.then(function(result){
+  // Send result back to assistant with safety watchdog
+  var toolSent = false;
+  var toolStartTime = Date.now();
+
+  // Watchdog: update activity indicator with elapsed time every 5s
+  var watchdog = setInterval(function(){
+    if(toolSent){ clearInterval(watchdog); return; }
+    var elapsed = Math.round((Date.now() - toolStartTime) / 1000);
+    var det = tl[2] || 'Processando';
+    showActivity(tl[0], tl[1], det + ' (' + elapsed + 's)', tl[3] || 0);
+  }, 5000);
+
+  function sendToolResult(result){
+    if(toolSent) return; // prevent double send
+    toolSent = true;
+    clearInterval(watchdog);
+
     // Show success/result activity
     if(result.success === false){
       showActivity('error', 'Erro: ' + (name || 'tool'), result.error || 'Falha na execucao');
@@ -1082,19 +1115,13 @@ function executeTool(name, argsStr, callId){
     }
     $('callStatus').textContent = 'Em ligacao';
     $('callStatus').classList.add('active');
+  }
+
+  toolPromise.then(function(result){
+    sendToolResult(result);
   }).catch(function(err){
     showActivity('error', 'Erro na tool', err.message || 'Falha ao executar');
-
-    // Even on error, send result back so assistant doesn't hang
-    if(dc && dc.readyState === 'open'){
-      dc.send(JSON.stringify({
-        type: 'conversation.item.create',
-        item: { type: 'function_call_output', call_id: callId, output: JSON.stringify({ success: false, error: err.message || 'Erro ao executar tool' }) }
-      }));
-      dc.send(JSON.stringify({ type: 'response.create' }));
-    }
-    $('callStatus').textContent = 'Em ligacao';
-    $('callStatus').classList.add('active');
+    sendToolResult({ success: false, error: err.message || 'Erro ao executar tool: ' + name });
   });
 }
 

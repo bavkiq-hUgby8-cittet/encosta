@@ -13476,13 +13476,27 @@ const VA = (function(){
     _sendToolResult(callId,resultText);
   }
 
+  // ── Fetch with timeout helper — prevents tools from hanging forever ──
+  function _fetchWithTimeout(url, opts, timeoutMs){
+    timeoutMs = timeoutMs || 15000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    opts = opts || {};
+    opts.signal = controller.signal;
+    return fetch(url, opts).then(r => { clearTimeout(timer); return r; }).catch(err => {
+      clearTimeout(timer);
+      if(err.name === 'AbortError') throw new Error('Timeout: servidor demorou mais de ' + Math.round(timeoutMs/1000) + 's');
+      throw err;
+    });
+  }
+
   // ── CONSULTAR REDE — real-time data fetch ──
   async function handleConsultarRede(callId){
     let resultText='Sem dados disponíveis.';
     try{
       const uid=typeof state!=='undefined'?state.userId:null;
       if(!uid) throw new Error('no user');
-      const r=await fetch('/api/agent/context/'+uid);
+      const r=await _fetchWithTimeout('/api/agent/context/'+uid, {}, 10000);
       const d=await r.json();
       if(d.context){
         resultText='DADOS ATUALIZADOS EM TEMPO REAL ('+new Date().toLocaleTimeString('pt-BR')+'):\n'+d.context;
@@ -13632,74 +13646,74 @@ const VA = (function(){
   // ── ULTIMATEDEV TOOL HANDLERS ──
   async function handleComandoDev(instrucao,callId){
     try{
-      const r=await fetch('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})});
+      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 45000);
       const data=await r.json();
       if(data.plan){
         // Save conversation
         fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Comando: '+instrucao})});
         fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+data.plan})});
-        _sendToolResult(callId,`Comando criado! ID: ${data.id}\n\nPlano gerado:\n${data.plan}\n\nPergunta pro usuário se ele quer aprovar este plano. Se sim, use aprovar_plano com ID ${data.id}`);
+        _sendToolResult(callId,`Comando criado! ID: ${data.id}\n\nPlano gerado:\n${data.plan}\n\nPergunta pro usuario se ele quer aprovar este plano. Se sim, use aprovar_plano com ID ${data.id}`);
       }else{
         _sendToolResult(callId,'Erro ao gerar plano: '+(data.error||'desconhecido'));
       }
-    }catch(e){_sendToolResult(callId,'Erro de conexão: '+e.message);}
+    }catch(e){_sendToolResult(callId,'Erro de conexao: '+e.message);}
   }
 
   async function handleVerFilaDev(callId){
     try{
-      const r=await fetch('/api/dev/queue/'+state.userId);
+      const r=await _fetchWithTimeout('/api/dev/queue/'+state.userId, {}, 10000);
       const data=await r.json();
-      if(!data.queue||data.queue.length===0){_sendToolResult(callId,'Fila de desenvolvimento está vazia. Nenhum comando pendente.');return;}
+      if(!data.queue||data.queue.length===0){_sendToolResult(callId,'Fila de desenvolvimento esta vazia. Nenhum comando pendente.');return;}
       const summary=data.queue.slice(0,5).map(c=>`[${c.id}] ${c.status}: ${c.instruction.slice(0,80)}`).join('\n');
-      _sendToolResult(callId,`Fila de desenvolvimento (últimos ${Math.min(5,data.queue.length)}):\n${summary}`);
+      _sendToolResult(callId,`Fila de desenvolvimento (ultimos ${Math.min(5,data.queue.length)}):\n${summary}`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleAprovarPlano(id,callId){
     try{
-      const r=await fetch('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+      const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 90000);
       const data=await r.json();
       if(data.success){
         fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Aprovei plano '+id})});
-        _sendToolResult(callId,`Plano ${id} aprovado e executando! ${data.edits?.filter(e=>e.ok).length||0} edições aplicadas. O código será commitado e pushado automaticamente. Diga pro usuário que está feito!`);
+        _sendToolResult(callId,`Plano ${id} aprovado e executando! ${data.edits?.filter(e=>e.ok).length||0} edicoes aplicadas. O codigo sera commitado e pushado automaticamente. Diga pro usuario que esta feito!`);
       }else{
-        _sendToolResult(callId,'Erro na execução: '+(data.error||'desconhecido'));
+        _sendToolResult(callId,'Erro na execucao: '+(data.error||'desconhecido'));
       }
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleRejeitarPlano(id,motivo,callId){
     try{
-      await fetch('/api/dev/reject/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,motivo})});
-      _sendToolResult(callId,`Plano ${id} rejeitado. Motivo: ${motivo||'não especificado'}. Pergunte pro usuário o que ele quer mudar.`);
+      await _fetchWithTimeout('/api/dev/reject/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,motivo})}, 10000);
+      _sendToolResult(callId,`Plano ${id} rejeitado. Motivo: ${motivo||'nao especificado'}. Pergunte pro usuario o que ele quer mudar.`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleAprenderUsuario(categoria,info,callId){
     try{
-      await fetch('/api/dev/learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,categoria,info})});
-      _sendToolResult(callId,`Anotado! Salvei: ${categoria} = "${info}". Vou lembrar disso nas próximas conversas.`);
+      await _fetchWithTimeout('/api/dev/learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,categoria,info})}, 10000);
+      _sendToolResult(callId,`Anotado! Salvei: ${categoria} = "${info}". Vou lembrar disso nas proximas conversas.`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleEscreverPensamento(pensamento,callId){
     try{
-      await fetch('/api/dev/thought',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,pensamento})});
-      _sendToolResult(callId,'Pensamento anotado e salvo no banco! Vou lembrar disso na próxima sessão.');
+      await _fetchWithTimeout('/api/dev/thought',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,pensamento})}, 10000);
+      _sendToolResult(callId,'Pensamento anotado e salvo no banco! Vou lembrar disso na proxima sessao.');
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleFazerBackup(descricao,callId){
     try{
-      const r=await fetch('/api/dev/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,descricao})});
+      const r=await _fetchWithTimeout('/api/dev/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,descricao})}, 10000);
       const data=await r.json();
-      _sendToolResult(callId,`Backup salvo! "${descricao}" — snapshot do estado atual registrado.`);
+      _sendToolResult(callId,`Backup salvo! "${descricao}" -- snapshot do estado atual registrado.`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleSalvarArquivo(caminho,conteudo,mensagem,callId){
     try{
-      const r=await fetch('/api/dev/save-file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,caminho,conteudo,mensagem})});
+      const r=await _fetchWithTimeout('/api/dev/save-file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,caminho,conteudo,mensagem})}, 30000);
       const data=await r.json();
       if(data.success){
         _sendToolResult(callId,`Arquivo salvo em ${caminho}!${data.git?' Commitado e pushado no GitHub.':' Salvo localmente (git pode ter falhado).'}`);
