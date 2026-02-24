@@ -131,8 +131,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .t-agent{color:rgba(255,255,255,.55)}
 .t-system{color:rgba(255,255,255,.2);font-size:0.7rem}
 
+/* Activity indicator */
+.activity-bar{position:absolute;bottom:186px;left:20px;right:20px;opacity:0;transform:translateY(6px);transition:all .35s ease;pointer-events:none;z-index:10}
+.activity-bar.visible{opacity:1;transform:translateY(0)}
+.activity-inner{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:14px;backdrop-filter:blur(8px)}
+.activity-icon{width:28px;height:28px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.activity-icon svg{width:14px;height:14px}
+.activity-icon.thinking{background:rgba(108,92,231,.12);color:#a78bfa}
+.activity-icon.tool{background:rgba(16,185,129,.12);color:#34d399}
+.activity-icon.claude{background:rgba(59,130,246,.12);color:#60a5fa}
+.activity-icon.code{background:rgba(245,158,11,.12);color:#fbbf24}
+.activity-icon.git{background:rgba(239,68,68,.12);color:#f87171}
+.activity-icon.error{background:rgba(239,68,68,.12);color:#ef4444}
+.activity-icon.success{background:rgba(16,185,129,.12);color:#10b981}
+
+/* Spinner inside icon */
+.activity-spinner{position:absolute;inset:0;border-radius:10px;border:2px solid transparent;border-top-color:currentColor;animation:actSpin .8s linear infinite}
+@keyframes actSpin{to{transform:rotate(360deg)}}
+
+.activity-text{flex:1;min-width:0}
+.activity-label{font-size:0.75rem;color:rgba(255,255,255,.6);font-weight:500;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.activity-detail{font-size:0.65rem;color:rgba(255,255,255,.25);line-height:1.3;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Animated dots for activity */
+.activity-dots{display:inline-flex;gap:3px;margin-left:4px;vertical-align:middle}
+.activity-dots span{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.4;animation:actDot 1.2s infinite}
+.activity-dots span:nth-child(2){animation-delay:.2s}
+.activity-dots span:nth-child(3){animation-delay:.4s}
+@keyframes actDot{0%,60%,100%{opacity:.3;transform:scale(1)}30%{opacity:1;transform:scale(1.3)}}
+
+/* Progress bar for long operations */
+.activity-progress{height:2px;background:rgba(255,255,255,.05);border-radius:1px;margin-top:6px;overflow:hidden;display:none}
+.activity-progress.visible{display:block}
+.activity-progress-fill{height:100%;background:linear-gradient(90deg,#6c5ce7,#a78bfa);border-radius:1px;transition:width .5s ease;width:0}
+
 /* Waveform visualizer */
-.waveform{position:absolute;bottom:180px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:3px;height:32px;opacity:0;transition:opacity .3s}
+.waveform{position:absolute;bottom:230px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:3px;height:32px;opacity:0;transition:opacity .3s}
 .waveform.visible{opacity:1}
 .wave-bar{width:3px;border-radius:2px;background:rgba(108,92,231,.4);height:8px;transition:height .1s}
 
@@ -342,6 +376,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 
   <div class="waveform" id="waveform"></div>
   <div class="call-transcript" id="callTranscript"></div>
+
+  <!-- Activity indicator -->
+  <div class="activity-bar" id="activityBar">
+    <div class="activity-inner">
+      <div class="activity-icon thinking" id="activityIcon">
+        <div class="activity-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="activitySvg"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </div>
+      <div class="activity-text">
+        <div class="activity-label" id="activityLabel">Pensando<span class="activity-dots"><span></span><span></span><span></span></span></div>
+        <div class="activity-detail" id="activityDetail"></div>
+      </div>
+    </div>
+    <div class="activity-progress" id="activityProgress"><div class="activity-progress-fill" id="activityFill"></div></div>
+  </div>
 
   <div class="call-controls">
     <div class="ctrl-wrap">
@@ -635,6 +684,7 @@ function handleEvent(evt){
     case 'conversation.item.input_audio_transcription.completed':
       if(evt.transcript){
         addCallTranscript('user', evt.transcript);
+        showActivity('thinking', 'Pensando', 'Processando sua mensagem');
         fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,tier:currentTier,role:'user',content:evt.transcript})}).catch(function(){});
         if(currentTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,role:'user',content:evt.transcript})}).catch(function(){});
       }
@@ -643,6 +693,7 @@ function handleEvent(evt){
       agentSpeaking = true;
       $('callAvatarWrap').classList.add('speaking');
       $('callStatus').textContent = 'Falando...';
+      hideActivity();
       break;
     case 'response.audio_transcript.delta':
       updateLiveAgent(evt.delta||'');
@@ -661,6 +712,7 @@ function handleEvent(evt){
       agentSpeaking = false;
       $('callAvatarWrap').classList.remove('speaking');
       $('callStatus').textContent = 'Ouvindo...';
+      hideActivity();
       break;
     case 'error':
       $('callStatus').textContent = 'Erro: '+(evt.error&&evt.error.message||'');
@@ -782,14 +834,105 @@ function cleanup(){
   if(audioEl){ audioEl.srcObject=null; audioEl=null; }
 }
 
+// -- Activity Indicator --
+var _activityTimer = null;
+var _activityIcons = {
+  thinking: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  tool: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  claude: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  git: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/>',
+  error: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+  success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
+};
+
+function showActivity(type, label, detail, duration){
+  var bar = $('activityBar');
+  var icon = $('activityIcon');
+  var svg = $('activitySvg');
+  var lbl = $('activityLabel');
+  var det = $('activityDetail');
+  var prog = $('activityProgress');
+  var fill = $('activityFill');
+
+  // Set icon style
+  icon.className = 'activity-icon ' + type;
+  svg.innerHTML = _activityIcons[type] || _activityIcons.thinking;
+
+  // Show/hide spinner (not on success/error)
+  var spinner = icon.querySelector('.activity-spinner');
+  if(type === 'success' || type === 'error'){
+    if(spinner) spinner.style.display = 'none';
+  } else {
+    if(spinner) spinner.style.display = '';
+  }
+
+  // Set text
+  var dots = (type !== 'success' && type !== 'error') ? '<span class="activity-dots"><span></span><span></span><span></span></span>' : '';
+  lbl.innerHTML = label + dots;
+  det.textContent = detail || '';
+  det.style.display = detail ? '' : 'none';
+
+  // Show progress bar for long operations
+  if(duration && duration > 3000){
+    prog.classList.add('visible');
+    fill.style.width = '0%';
+    fill.style.transition = 'none';
+    setTimeout(function(){
+      fill.style.transition = 'width ' + (duration * 0.9) + 'ms ease';
+      fill.style.width = '90%';
+    }, 50);
+  } else {
+    prog.classList.remove('visible');
+  }
+
+  // Show bar
+  bar.classList.add('visible');
+
+  // Auto-hide
+  if(_activityTimer) clearTimeout(_activityTimer);
+  if(type === 'success' || type === 'error'){
+    _activityTimer = setTimeout(function(){ hideActivity(); }, 3000);
+  } else if(duration){
+    // Don't auto-hide during processing, but set a max
+    _activityTimer = setTimeout(function(){ hideActivity(); }, duration + 5000);
+  }
+}
+
+function hideActivity(){
+  if(_activityTimer) clearTimeout(_activityTimer);
+  $('activityBar').classList.remove('visible');
+  $('activityProgress').classList.remove('visible');
+}
+
 // -- Tool Execution --
 function executeTool(name, argsStr, callId){
   var userId = $('userIdInput').value.trim();
   var args = {};
   try { args = JSON.parse(argsStr || '{}'); } catch(e) {}
 
-  // Show processing status
-  $('callStatus').textContent = 'Processando...';
+  // Show activity for the specific tool
+  var toolLabels = {
+    comando_dev: ['claude', 'Claude analisando o pedido', 'Gerando plano tecnico', 15000],
+    aprovar_plano: ['code', 'Gerando codigo', 'Claude escrevendo as alteracoes', 25000],
+    rejeitar_plano: ['tool', 'Rejeitando plano', ''],
+    ver_fila_dev: ['tool', 'Consultando fila', ''],
+    aprender_usuario: ['thinking', 'Salvando preferencia', ''],
+    escrever_pensamento: ['thinking', 'Anotando pensamento', ''],
+    fazer_backup: ['git', 'Fazendo backup', 'Salvando estado atual'],
+    salvar_arquivo: ['git', 'Salvando arquivo', 'Commit + push no GitHub', 10000],
+    consultar_rede: ['thinking', 'Consultando rede', 'Buscando dados do usuario'],
+    navegar_tela: ['tool', 'Navegando', ''],
+    abrir_perfil: ['tool', 'Abrindo perfil', ''],
+    abrir_chat: ['tool', 'Abrindo chat', ''],
+    salvar_nota: ['tool', 'Salvando nota', ''],
+    dar_estrela: ['tool', 'Dando estrela', ''],
+    enviar_pulse: ['tool', 'Enviando pulse', ''],
+    iniciar_conexao: ['tool', 'Iniciando conexao', ''],
+    mostrar_pessoa: ['tool', 'Buscando pessoa', '']
+  };
+  var tl = toolLabels[name] || ['tool', 'Executando ' + name, ''];
+  showActivity(tl[0], tl[1], tl[2], tl[3] || 0);
 
   // Route to correct handler
   var toolPromise;
@@ -919,6 +1062,17 @@ function executeTool(name, argsStr, callId){
 
   // Send result back to assistant
   toolPromise.then(function(result){
+    // Show success/result activity
+    if(result.success === false){
+      showActivity('error', 'Erro: ' + (name || 'tool'), result.error || 'Falha na execucao');
+    } else if(name === 'comando_dev' && result.plan){
+      showActivity('success', 'Plano gerado', 'Aguardando aprovacao');
+    } else if(name === 'aprovar_plano'){
+      showActivity('git', 'Aplicando e commitando', 'Git push em andamento', 15000);
+    } else {
+      showActivity('success', 'Pronto', tl[1] + ' concluido');
+    }
+
     if(dc && dc.readyState === 'open'){
       dc.send(JSON.stringify({
         type: 'conversation.item.create',
@@ -929,6 +1083,8 @@ function executeTool(name, argsStr, callId){
     $('callStatus').textContent = 'Em ligacao';
     $('callStatus').classList.add('active');
   }).catch(function(err){
+    showActivity('error', 'Erro na tool', err.message || 'Falha ao executar');
+
     // Even on error, send result back so assistant doesn't hang
     if(dc && dc.readyState === 'open'){
       dc.send(JSON.stringify({
