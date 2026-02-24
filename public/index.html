@@ -3197,6 +3197,18 @@ async function doLogout(){
     localStorage.removeItem('activeStaffRole');
     // Limpa VA
     localStorage.removeItem('va_last_interaction');
+    // Limpa onboarding (usuario novo deve ver onboarding)
+    localStorage.removeItem('touch_onboarded');
+    localStorage.removeItem('touch_onb_no_show');
+    // Limpa lastRead de chats (sao do usuario anterior)
+    var keysToRemove = [];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k && k.startsWith('lastRead_')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(function(k){localStorage.removeItem(k);});
+    // Limpa lang (reseta idioma pro padrao)
+    localStorage.removeItem('touch_lang');
     state.userId=null;state.userName=null;state.userColor='';fbUser=null;
     if(socket){socket.disconnect();socket=null}
     // Esconde botao de evento flutuante se visivel
