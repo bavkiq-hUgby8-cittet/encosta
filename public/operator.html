@@ -440,13 +440,32 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .menu-config input{width:60px;padding:.3rem .5rem;background:var(--bg);border:1px solid var(--b1);border-radius:8px;color:var(--t1);font-size:.8rem;font-family:inherit;text-align:center}
 
 /* Staff invite cards */
-.staff-invite-card{padding:.8rem;border-radius:14px;background:var(--s1);border:1px solid var(--b1);text-align:center;cursor:pointer;transition:all .3s;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.staff-invite-card{padding:1rem .8rem;border-radius:14px;background:var(--s1);border:1px solid var(--b1);text-align:center;cursor:pointer;transition:all .3s;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden}
 .staff-invite-card:active{transform:scale(.96)}
-.staff-invite-card.waiting{border-color:rgba(249,115,22,.4);animation:staffPulse 2s infinite}
-.staff-invite-icon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .5rem}
+.staff-invite-card.waiting{border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.06)}
+.staff-invite-card.waiting .staff-invite-icon{animation:staffIconPulse 1.5s ease-in-out infinite}
+.staff-invite-card.waiting .staff-invite-status{color:#f97316;font-weight:600}
+.staff-invite-card.waiting::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(249,115,22,.08) 0%,transparent 70%);animation:staffRadiate 2s ease-in-out infinite}
+.staff-invite-icon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .5rem;transition:all .3s}
 .staff-invite-label{font-size:.75rem;font-weight:700;color:var(--t1)}
-.staff-invite-status{font-size:.55rem;color:var(--t3);margin-top:.2rem}
-@keyframes staffPulse{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.3)}50%{box-shadow:0 0 0 12px rgba(249,115,22,0)}}
+.staff-invite-status{font-size:.55rem;color:var(--t3);margin-top:.2rem;transition:all .3s}
+.staff-invite-cancel{display:none;margin-top:.4rem;font-size:.5rem;color:#ef4444;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:.2rem .5rem;cursor:pointer;font-family:inherit}
+.staff-invite-card.waiting .staff-invite-cancel{display:inline-block}
+@keyframes staffIconPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(249,115,22,.4)}50%{transform:scale(1.08);box-shadow:0 0 0 10px rgba(249,115,22,0)}}
+@keyframes staffRadiate{0%,100%{opacity:.3}50%{opacity:1}}
+/* Delivery toggle */
+.delivery-toggle-wrap{display:flex;align-items:center;justify-content:space-between;padding:.6rem .8rem;margin-bottom:.8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px}
+.delivery-toggle-info{flex:1}
+.delivery-toggle-label{font-size:.7rem;font-weight:600;color:var(--t1)}
+.delivery-toggle-sub{font-size:.5rem;color:var(--t3);margin-top:.1rem}
+.delivery-switch{position:relative;width:44px;height:24px;flex-shrink:0}
+.delivery-switch input{opacity:0;width:0;height:0}
+.delivery-switch .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.1);border-radius:24px;transition:.3s}
+.delivery-switch .slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+.delivery-switch input:checked+.slider{background:#f97316}
+.delivery-switch input:checked+.slider:before{transform:translateX(20px)}
+.delivery-fields{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.delivery-fields.open{max-height:200px}
 
 /* Print styles */
 @media print{
@@ -862,19 +881,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <div style="font-size:.8rem;font-weight:700;margin-bottom:.6rem;color:var(--t1)">Convidar Equipe</div>
       <div style="font-size:.55rem;color:var(--t3);margin-bottom:.8rem;line-height:1.5">O funcionario deve abrir o Touch, ativar <b style="color:#f97316">Modo Servico</b>, e encostar os celulares. O TOUCH conecta automaticamente.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
-        <div id="staffCardWaiter" class="staff-invite-card" onclick="callWaiter()">
+        <div id="staffCardWaiter" class="staff-invite-card" onclick="callStaff('waiter')">
           <div class="staff-invite-icon" style="background:rgba(129,140,248,.15);color:#818cf8">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           </div>
           <div class="staff-invite-label">Garcom</div>
-          <div class="staff-invite-status" id="staffWaiterStatus">Toque para chamar</div>
+          <div class="staff-invite-status" id="staffWaiterStatus">Toque para ativar TOUCH</div>
+          <button class="staff-invite-cancel" onclick="event.stopPropagation();cancelStaffCall('waiter')">Cancelar</button>
         </div>
-        <div id="staffCardDriver" class="staff-invite-card" onclick="callDriver()">
+        <div id="staffCardDriver" class="staff-invite-card" onclick="callStaff('driver')">
           <div class="staff-invite-icon" style="background:rgba(52,211,153,.15);color:#34d399">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           </div>
           <div class="staff-invite-label">Motorista</div>
-          <div class="staff-invite-status" id="staffDriverStatus">Toque para chamar</div>
+          <div class="staff-invite-status" id="staffDriverStatus">Toque para ativar TOUCH</div>
+          <button class="staff-invite-cancel" onclick="event.stopPropagation();cancelStaffCall('driver')">Cancelar</button>
         </div>
       </div>
       <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Equipe Ativa</div>
@@ -904,19 +925,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <div class="menu-field"><label>Descricao</label><textarea id="bpDescription" placeholder="Conte sobre o seu negocio..." rows="3"></textarea></div>
       <div class="menu-field"><label>Website</label><input id="bpWebsite" placeholder="https://"></div>
       <div class="menu-field"><label>Instagram</label><input id="bpInstagram" placeholder="@seuperfil"></div>
-      <div style="display:flex;align-items:center;gap:.6rem;padding:.6rem 0;border-top:1px solid var(--b1);border-bottom:1px solid var(--b1);margin:.6rem 0">
-        <input type="checkbox" id="bpDelivery" style="accent-color:#f97316;width:18px;height:18px;cursor:pointer">
-        <div><label for="bpDelivery" style="font-size:.75rem;font-weight:600;color:var(--t1);cursor:pointer">Aceitar pedidos delivery</label><div style="font-size:.55rem;color:var(--t3)">Usuarios que ja visitaram seu evento podem pedir de casa.</div></div>
-      </div>
-      <div class="menu-field" id="bpDeliveryFeeWrap" style="display:none"><label>Taxa de entrega (R$)</label><input id="bpDeliveryFee" type="number" placeholder="0.00" min="0" step="0.50"></div>
-      <div class="menu-field" id="bpDeliveryNoteWrap" style="display:none"><label>Nota de entrega</label><input id="bpDeliveryNote" placeholder="Entrega em 30-45 min"></div>
       <button class="menu-save-btn" onclick="saveBusinessProfile()" style="margin-top:.5rem">Salvar Perfil</button>
       <div id="bpStatus" style="font-size:.6rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>
     </div>
 
     <!-- DELIVERY TAB -->
     <div id="restTabDelivery" class="op-rest-content" style="display:none">
-      <div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Pedidos de Delivery</div>
+      <div class="delivery-toggle-wrap">
+        <div class="delivery-toggle-info">
+          <div class="delivery-toggle-label">Aceitar Delivery</div>
+          <div class="delivery-toggle-sub">Clientes que visitaram seu evento podem pedir de casa</div>
+        </div>
+        <label class="delivery-switch">
+          <input type="checkbox" id="bpDelivery" onchange="toggleDeliveryMode()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="delivery-fields" id="deliveryFieldsWrap">
+        <div class="menu-field" id="bpDeliveryFeeWrap"><label>Taxa de entrega (R$)</label><input id="bpDeliveryFee" type="number" placeholder="0.00" min="0" step="0.50"></div>
+        <div class="menu-field" id="bpDeliveryNoteWrap"><label>Nota de entrega</label><input id="bpDeliveryNote" placeholder="Entrega em 30-45 min"></div>
+      </div>
+      <div style="font-size:.8rem;font-weight:700;color:var(--t1);margin:.6rem 0">Pedidos de Delivery</div>
       <div id="opDeliveryList" style="font-size:.7rem;color:var(--t3);text-align:center;padding:1rem">Nenhum pedido de delivery</div>
     </div>
   </div>
@@ -1316,11 +1345,8 @@ function initSocket(){
   });
   S.socket.on('staff-joined',d=>{
     loadStaff();
-    const wCard=$('staffCardWaiter');const dCard=$('staffCardDriver');
-    if(wCard)wCard.classList.remove('waiting');
-    if(dCard)dCard.classList.remove('waiting');
-    $('staffWaiterStatus').textContent='Toque para chamar';
-    $('staffDriverStatus').textContent='Toque para chamar';
+    if(_activeStaffCall){cancelStaffCall(_activeStaffCall)}
+    showToast((d.staff&&d.staff.role==='driver'?'Motorista':'Garcom')+' conectado!');
   });
   S.socket.on('staff-left',d=>{loadStaff()});
   S.socket.on('staff-tables-updated',d=>{loadStaff()});
@@ -2301,11 +2327,15 @@ function hexA(color,alpha){
   return'rgba(99,102,241,'+alpha+')';
 }
 
+// ═══ DELIVERY TOGGLE ═══
+function toggleDeliveryMode(){
+  const on=$('bpDelivery').checked;
+  const wrap=$('deliveryFieldsWrap');
+  if(wrap)wrap.classList.toggle('open',on);
+  saveBusinessProfile();
+}
+
 // ═══ BUSINESS PROFILE ═══
-$('bpDelivery')&&($('bpDelivery').onchange=function(){
-  $('bpDeliveryFeeWrap').style.display=this.checked?'':'none';
-  $('bpDeliveryNoteWrap').style.display=this.checked?'':'none';
-});
 
 async function loadBusinessProfile(){
   if(!S.currentEventId)return;
@@ -2321,7 +2351,7 @@ async function loadBusinessProfile(){
       if($('bpDescription'))$('bpDescription').value=bp.description||'';
       if($('bpWebsite'))$('bpWebsite').value=bp.website||'';
       if($('bpInstagram'))$('bpInstagram').value=bp.instagram||'';
-      if($('bpDelivery')){$('bpDelivery').checked=!!bp.acceptsDelivery;$('bpDeliveryFeeWrap').style.display=bp.acceptsDelivery?'':'none';$('bpDeliveryNoteWrap').style.display=bp.acceptsDelivery?'':'none'}
+      if($('bpDelivery')){$('bpDelivery').checked=!!bp.acceptsDelivery;const wrap=$('deliveryFieldsWrap');if(wrap)wrap.classList.toggle('open',!!bp.acceptsDelivery)}
       if($('bpDeliveryFee'))$('bpDeliveryFee').value=bp.deliveryFee||'';
       if($('bpDeliveryNote'))$('bpDeliveryNote').value=bp.deliveryNote||'';
     }
@@ -2382,23 +2412,40 @@ function renderStaffList(staff){
   }).join('');
 }
 
-function callWaiter(){
+let _activeStaffCall=null;
+
+function callStaff(role){
   if(!S.socket||!S.currentEventId){showToast('Ative o evento primeiro.');return}
-  const card=$('staffCardWaiter');
+  // If already calling this role, ignore (use cancel button)
+  if(_activeStaffCall===role)return;
+  // If calling another role, cancel it first
+  if(_activeStaffCall)cancelStaffCall(_activeStaffCall);
+  _activeStaffCall=role;
+  const isWaiter=role==='waiter';
+  const card=$(isWaiter?'staffCardWaiter':'staffCardDriver');
+  const status=$(isWaiter?'staffWaiterStatus':'staffDriverStatus');
   if(card)card.classList.add('waiting');
-  $('staffWaiterStatus').textContent='Esperando TOUCH...';
-  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'waiter'});
+  if(status)status.textContent='TOUCH ativado - encoste os celulares';
+  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:role});
   if(!homeSonicActive)opToggleTouch();
+  showToast('TOUCH ativado para '+(isWaiter?'Garcom':'Motorista'));
 }
 
-function callDriver(){
-  if(!S.socket||!S.currentEventId){showToast('Ative o evento primeiro.');return}
-  const card=$('staffCardDriver');
-  if(card)card.classList.add('waiting');
-  $('staffDriverStatus').textContent='Esperando TOUCH...';
-  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'driver'});
-  if(!homeSonicActive)opToggleTouch();
+function cancelStaffCall(role){
+  const isWaiter=role==='waiter';
+  const card=$(isWaiter?'staffCardWaiter':'staffCardDriver');
+  const status=$(isWaiter?'staffWaiterStatus':'staffDriverStatus');
+  if(card)card.classList.remove('waiting');
+  if(status)status.textContent='Toque para ativar TOUCH';
+  if(_activeStaffCall===role){
+    _activeStaffCall=null;
+    if(homeSonicActive)stopHomeSonic();
+  }
 }
+
+// Legacy aliases
+function callWaiter(){callStaff('waiter')}
+function callDriver(){callStaff('driver')}
 
 async function assignTables(staffId){
   const input=prompt('Informe os numeros das mesas separados por virgula (ex: 1,2,3):');
