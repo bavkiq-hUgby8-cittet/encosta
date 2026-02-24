@@ -14172,18 +14172,20 @@ const VA = (function(){
 
   // ── ULTIMATEDEV TOOL HANDLERS ──
   async function handleComandoDev(instrucao,callId){
+    _showVaActivity('Gerando plano...','Claude Opus esta analisando o pedido');
     try{
-      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 45000);
+      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 60000);
       const data=await r.json();
+      _hideVaActivity();
       if(data.plan){
         // Save conversation
         fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Comando: '+instrucao})});
         fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+data.plan})});
-        _sendToolResult(callId,`Comando criado! ID: ${data.id}\n\nPlano gerado:\n${data.plan}\n\nPergunta pro usuario se ele quer aprovar este plano. Se sim, use aprovar_plano com ID ${data.id}`);
+        _sendToolResult(callId,'Comando criado! ID: '+data.id+'\n\nPlano gerado:\n'+data.plan+'\n\nPergunta pro usuario se ele quer aprovar este plano. Se sim, use aprovar_plano com ID '+data.id);
       }else{
-        _sendToolResult(callId,'Erro ao gerar plano: '+(data.error||'desconhecido'));
+        _sendToolResult(callId,'Erro ao gerar plano: '+(data.error||'desconhecido')+'. Explique o erro ao usuario.');
       }
-    }catch(e){_sendToolResult(callId,'Erro de conexao: '+e.message);}
+    }catch(e){_hideVaActivity();_sendToolResult(callId,'Erro de conexao: '+e.message+'. O servidor pode estar lento. Diga pro usuario tentar de novo.');}
   }
 
   async function handleVerFilaDev(callId){
@@ -14197,16 +14199,20 @@ const VA = (function(){
   }
 
   async function handleAprovarPlano(id,callId){
+    _showVaActivity('Executando codigo...','Claude Opus gerando + aplicando edicoes');
     try{
-      const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 90000);
+      const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 120000);
+      _hideVaActivity();
       const data=await r.json();
       if(data.success){
         fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Aprovei plano '+id})});
-        _sendToolResult(callId,`Plano ${id} aprovado e executando! ${data.edits?.filter(e=>e.ok).length||0} edicoes aplicadas. O codigo sera commitado e pushado automaticamente. Diga pro usuario que esta feito!`);
+        var editOk=data.edits?data.edits.filter(function(e){return e.ok}).length:0;
+        var gitStatus=data.status==='done'?' Git commit e push OK!':data.status==='git_failed'?' AVISO: edicoes aplicadas mas git falhou.':' Processando git...';
+        _sendToolResult(callId,'Plano '+id+' executado com sucesso! '+editOk+' edicoes aplicadas.'+gitStatus+' Motor: '+(data.engine||'?')+'. Avise o usuario que ta feito e pergunte se quer testar!');
       }else{
-        _sendToolResult(callId,'Erro na execucao: '+(data.error||'desconhecido'));
+        _sendToolResult(callId,'Erro na execucao: '+(data.error||'desconhecido')+'. Explique o erro pro usuario e pergunte se quer tentar de novo.');
       }
-    }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
+    }catch(e){_hideVaActivity();_sendToolResult(callId,'Timeout ou erro: '+e.message+'. A operacao pode ter sido muito longa. Diga pro usuario aguardar e tentar de novo.');}
   }
 
   async function handleRejeitarPlano(id,motivo,callId){

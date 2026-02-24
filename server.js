@@ -8251,7 +8251,11 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
     command.status = 'plan_failed';
   }
   saveDB('ultimateBank');
-  res.json({ id: commandId, status: command.status, plan: command.plan });
+  if (command.status === 'plan_failed') {
+    res.json({ id: commandId, status: command.status, plan: null, error: command.plan });
+  } else {
+    res.json({ id: commandId, status: command.status, plan: command.plan });
+  }
 });
 
 // Get dev queue
@@ -8352,7 +8356,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
     if (ANTHROPIC_API_KEY) {
       // Use Claude Sonnet 4 for code generation — full context
-      console.log('[DEV] Chamando Claude para geracao de codigo... arquivos:', Object.keys(relevantFileMap).join(', '));
+      console.log('[DEV] Chamando Claude para geracao de codigo... arquivos:', relevantFiles.join(', '));
       const editStart = Date.now();
       const editResp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -8500,28 +8504,28 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       return res.json({ success: false, error: cmd.result, edits: appliedEdits });
     }
 
-    // Git commit + push
-    const { execFile } = require('child_process');
-    const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}\n\nCo-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`;
-    execFile('git', ['-C', __dirname, 'add', '-A'], (errAdd) => {
-      if (errAdd) { cmd.status = 'partial'; cmd.result = 'Git add falhou: ' + errAdd.message; saveDB('ultimateBank'); return; }
-      execFile('git', ['-C', __dirname, 'commit', '-m', safeMsg], (errCommit) => {
-        if (errCommit) { cmd.status = 'partial'; cmd.result = 'Git commit falhou: ' + errCommit.message; saveDB('ultimateBank'); return; }
-        execFile('git', ['-C', __dirname, 'push'], (err, stdout, stderr) => {
-          if (err) {
-            console.error('Git error:', err.message);
-            cmd.result = `${successCount}/${edits.length} edicoes aplicadas mas git falhou: ${err.message}`;
-            cmd.status = 'partial';
-          } else {
-            cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
-            cmd.status = 'done';
-          }
-          saveDB('ultimateBank');
-        });
-      });
-    });
+    // Git commit + push (aguarda conclusao antes de responder)
+    const { execFile: execFileCb } = require('child_process');
+    const { promisify } = require('util');
+    const execFileAsync = promisify(execFileCb);
+    const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>`;
+    let gitResult = 'git_pending';
+    try {
+      await execFileAsync('git', ['-C', __dirname, 'add', '-A']);
+      await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg]);
+      await execFileAsync('git', ['-C', __dirname, 'push']);
+      cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
+      cmd.status = 'done';
+      gitResult = 'done';
+    } catch (gitErr) {
+      console.error('[DEV] Git error:', gitErr.message);
+      cmd.result = `${successCount}/${edits.length} edicoes aplicadas mas git falhou: ${gitErr.message}`;
+      cmd.status = 'partial';
+      gitResult = 'git_failed';
+    }
+    saveDB('ultimateBank');
 
-    res.json({ success: true, edits: appliedEdits, status: 'executing_git', engine: ANTHROPIC_API_KEY ? 'claude' : 'gpt4o' });
+    res.json({ success: true, edits: appliedEdits, status: gitResult, engine: ANTHROPIC_API_KEY ? 'claude' : 'gpt4o' });
   } catch (e) {
     cmd.status = 'failed';
     cmd.result = 'Erro: ' + e.message;
