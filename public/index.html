@@ -2728,6 +2728,22 @@ const $=id=>document.getElementById(id);
 let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',userPhoto:localStorage.getItem('touch_userPhoto')||null,email:localStorage.getItem('touch_email')||null,userAccessory:localStorage.getItem('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
+// ═══ AUTH FETCH HELPER: automaticamente inclui Firebase token em todas as chamadas API ═══
+async function apiFetch(url, opts = {}) {
+  const headers = opts.headers ? { ...opts.headers } : {};
+  if (!headers['Content-Type'] && opts.body && typeof opts.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  // Attach Firebase token if available
+  try {
+    if (firebaseAuthInstance && firebaseAuthInstance.currentUser) {
+      const token = await firebaseAuthInstance.currentUser.getIdToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+    }
+  } catch (e) { /* token fetch failed, continue without */ }
+  return fetch(url, { ...opts, headers });
+}
+
 // ═══ FIREBASE AUTH ═══
 let firebaseApp=null, firebaseAuthInstance=null, fbUser=null, loginIsRegister=false;
 
@@ -6754,8 +6770,8 @@ async function openFinancialScreen(){
   if(summary)summary.innerHTML='';
   try{
     const[finRes,tipsRes]=await Promise.all([
-      fetch('/api/financial/'+state.userId),
-      fetch('/api/tips/'+state.userId)
+      apiFetch('/api/financial/'+state.userId),
+      apiFetch('/api/tips/'+state.userId)
     ]);
     _finData=await finRes.json();
     _finTips=await tipsRes.json();
@@ -7956,7 +7972,7 @@ async function loadTransactions(nodeId, isMe){
   if(!txEl)return;
   txEl.innerHTML='<div style="font-size:.6rem;color:var(--t3);padding:.2rem 0;text-align:center">Carregando histórico...</div>';
   try{
-    const d=await(await fetch('/api/user/'+state.userId+'/transactions')).json();
+    const d=await(await apiFetch('/api/user/'+state.userId+'/transactions')).json();
     let txList=d.transactions||[];
     // If viewing another user, filter to only transactions involving them
     if(!isMe&&nodeId){
@@ -8021,7 +8037,7 @@ async function loadTransactions(nodeId, isMe){
 async function loadDeclarations(targetId){
   const declBody=$('cdDeclBody');
   try{
-    const d=await(await fetch('/api/declarations/'+targetId)).json();
+    const d=await(await apiFetch('/api/declarations/'+targetId)).json();
     const decls=d.declarations||[];
     if(!decls.length){declBody.innerHTML='';return}
     let html='';
@@ -8045,7 +8061,7 @@ async function sendDeclaration(){
   const targetId=window._constDetailNodeId;
   if(!targetId||targetId===state.userId)return;
   try{
-    const r=await fetch('/api/declarations/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    const r=await apiFetch('/api/declarations/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       fromUserId:state.userId,toUserId:targetId,text
     })});
     const d=await r.json();
@@ -8309,11 +8325,11 @@ async function loadNotifications(){
   const list=$('notifList');
   list.innerHTML='<div class="notif-empty" style="opacity:.5">Carregando...</div>';
   try{
-    const data=await(await fetch('/api/notifications/'+state.userId)).json();
+    const data=await(await apiFetch('/api/notifications/'+state.userId)).json();
     const notifs=data.notifications||[];
     if(!notifs.length){list.innerHTML='<div class="notif-empty"><div style="font-size:1.8rem;margin-bottom:.5rem;opacity:.4">🔕</div>Nenhuma atividade ainda<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;opacity:.5">Mensagens, conexoes, estrelas e mais aparecem aqui</div></div>';return}
     // Mark as seen on server
-    fetch('/api/notifications/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
+    apiFetch('/api/notifications/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
     let html='';
     let lastDateLabel='';
     notifs.forEach(n=>{
@@ -8395,12 +8411,12 @@ function dismissNotification(notifKey,btnEl){
   var item=btnEl.closest('.notif-item');
   if(item){item.style.transition='opacity .2s,transform .2s';item.style.opacity='0';item.style.transform='translateX(30px)';setTimeout(function(){item.remove()},220)}
   // Persist on server
-  fetch('/api/notifications/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,notifKey:notifKey})}).catch(function(){});
+  apiFetch('/api/notifications/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,notifKey:notifKey})}).catch(function(){});
 }
 // ── Dismiss all notifications ──
 function dismissAllNotifications(){
   if(!state.userId)return;
-  fetch('/api/notifications/dismiss-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).then(function(){
+  apiFetch('/api/notifications/dismiss-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).then(function(){
     loadNotifications();
     updateNotifBadge();
   }).catch(function(){});
@@ -8408,7 +8424,7 @@ function dismissAllNotifications(){
 // Load notif count when constellation opens — only UNSEEN
 function updateNotifBadge(){
   if(!state.userId)return;
-  fetch('/api/notifications/'+state.userId).then(r=>r.json()).then(data=>{
+  apiFetch('/api/notifications/'+state.userId).then(r=>r.json()).then(data=>{
     const count=data.unseenCount||0;
     const badge=$('constNotifBadge');
     if(badge){badge.textContent=count;badge.classList.toggle('hidden',count===0)}
@@ -8558,7 +8574,7 @@ _startNotifPolling();
 function updateNetworkBadge(){
   if(!state.userId)return;
   // Use notification unseen count as the badge on the home rede button
-  fetch('/api/notifications/'+state.userId).then(r=>r.json()).then(data=>{
+  apiFetch('/api/notifications/'+state.userId).then(r=>r.json()).then(data=>{
     const count=data.unseenCount||0;
     // Home rede button badge
     const homeBadge=$('homeNotifBadge');
@@ -9429,7 +9445,7 @@ async function showEncounterLog(){
   try{
     const[encRes,tipsRes]=await Promise.all([
       fetch('/api/encounters/'+state.userId),
-      fetch('/api/tips/'+state.userId)
+      apiFetch('/api/tips/'+state.userId)
     ]);
     const encounters=await encRes.json()||[];
     const tips=await tipsRes.json()||[];
@@ -9698,7 +9714,7 @@ async function saveCompleteProfile(){
     }
   };
   try{
-    const r=await fetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const r=await apiFetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
     if(data.profilePhoto){state.userPhoto=data.profilePhoto;localStorage.setItem('touch_userPhoto',data.profilePhoto);constState._myImgLoaded=false}
@@ -11068,7 +11084,7 @@ function onLocationFail(){
 }
 async function updateLocationOnServer(){
   if(!myLat||!state.userId)return;
-  try{await fetch('/api/location/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,lat:myLat,lng:myLng})})}catch(e){}
+  try{await apiFetch('/api/location/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,lat:myLat,lng:myLng})})}catch(e){}
 }
 function switchLocTab(tab){
   locTab=tab;
@@ -11938,7 +11954,7 @@ function pollTipStatus(tipId) {
     polls++;
     if (polls > 60) { clearInterval(iv); return; } // Stop after 5 min
     try {
-      const tips = await (await fetch('/api/tips/' + state.userId)).json();
+      const tips = await (await apiFetch('/api/tips/' + state.userId)).json();
       const tip = tips.find(t => t.id === tipId);
       if (tip && tip.status === 'approved') {
         clearInterval(iv);
