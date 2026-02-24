@@ -6833,7 +6833,7 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
     });
     if (!r.ok) { const e = await r.text(); console.error('OpenAI session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão' }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession, openingText });
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, greeting, isNewSession, openingText, tier: 'plus' });
   } catch (e) { console.error('Agent session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
@@ -7238,7 +7238,7 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
     });
     if (!r.ok) { const e = await r.text(); console.error('Premium session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão premium' }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isPremium: true });
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isPremium: true, tier: 'pro' });
   } catch (e) { console.error('Premium session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
@@ -7388,7 +7388,7 @@ IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.crea
     });
     if (!r.ok) { const e = await r.text(); console.error('Ultimate session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão UltimateDEV' }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isUltimate: true });
+    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isUltimate: true, tier: 'ultimatedev' });
   } catch (e) { console.error('Ultimate session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
@@ -7407,9 +7407,8 @@ app.post('/api/dev/command', async (req, res) => {
 
   // Auto-generate plan using OpenAI GPT-4o
   try {
-    const fs = require('fs');
     const serverCode = fs.readFileSync(__filename, 'utf8').slice(0, 15000); // first 15k chars for context
-    const htmlPath = require('path').join(__dirname, 'public', 'index.html');
+    const htmlPath = path.join(__dirname, 'public', 'index.html');
     const htmlCode = fs.readFileSync(htmlPath, 'utf8').slice(0, 15000);
 
     const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -7464,8 +7463,6 @@ app.post('/api/dev/approve/:commandId', async (req, res) => {
 
   // Execute: call GPT-4o to generate code edits
   try {
-    const fs = require('fs');
-    const path = require('path');
     const serverPath = __filename;
     const htmlPath = path.join(__dirname, 'public', 'index.html');
     const serverCode = fs.readFileSync(serverPath, 'utf8');
@@ -7533,19 +7530,26 @@ app.post('/api/dev/approve/:commandId', async (req, res) => {
       }
     }
 
-    // Git commit + push
-    const { exec } = require('child_process');
-    const commitMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60)}`;
-    exec(`cd ${__dirname} && git add -A && git commit -m "${commitMsg.replace(/"/g, '\\"')}" && git push`, (err, stdout, stderr) => {
-      if (err) {
-        console.error('Git error:', err.message);
-        cmd.result = `Edições aplicadas mas git falhou: ${err.message}. Edits: ${JSON.stringify(appliedEdits)}`;
-        cmd.status = 'partial';
-      } else {
-        cmd.result = `Sucesso! ${appliedEdits.filter(e => e.ok).length}/${appliedEdits.length} edições aplicadas e commitadas. ${stdout}`;
-        cmd.status = 'done';
-      }
-      saveDB('ultimateBank');
+    // Git commit + push (sanitize commit message to prevent shell injection)
+    const { execFile } = require('child_process');
+    const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}`;
+    // Use execFile for git add, then git commit, then git push — chained safely
+    execFile('git', ['-C', __dirname, 'add', '-A'], (errAdd) => {
+      if (errAdd) { cmd.status = 'partial'; cmd.result = 'Git add falhou: ' + errAdd.message; saveDB('ultimateBank'); return; }
+      execFile('git', ['-C', __dirname, 'commit', '-m', safeMsg], (errCommit) => {
+        if (errCommit) { cmd.status = 'partial'; cmd.result = 'Git commit falhou: ' + errCommit.message; saveDB('ultimateBank'); return; }
+        execFile('git', ['-C', __dirname, 'push'], (err, stdout, stderr) => {
+          if (err) {
+            console.error('Git error:', err.message);
+            cmd.result = `Edições aplicadas mas git falhou: ${err.message}. Edits: ${JSON.stringify(appliedEdits)}`;
+            cmd.status = 'partial';
+          } else {
+            cmd.result = `Sucesso! ${appliedEdits.filter(e => e.ok).length}/${appliedEdits.length} edições aplicadas e commitadas. ${stdout}`;
+            cmd.status = 'done';
+          }
+          saveDB('ultimateBank');
+        });
+      });
     });
 
     res.json({ success: true, edits: appliedEdits, status: 'executing_git' });
