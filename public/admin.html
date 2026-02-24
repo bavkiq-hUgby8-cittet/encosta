@@ -496,7 +496,8 @@ async function api(m,path,body){
   const o={method:m,headers:h};
   if(body)o.body=JSON.stringify(body);
   const r=await fetch(path,o);
-  if(r.status===403){sessionStorage.removeItem('as');location.reload();throw new Error('403')}
+  if(r.status===403&&path.includes('/api/admin/')){sessionStorage.removeItem('as');location.reload();throw new Error('403')}
+  if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.error||'HTTP '+r.status)}
   return r.json();
 }
 function toast(msg,ok){const t=$('toast');t.textContent=msg;t.className='toast vis '+(ok?'toast-ok':'toast-err');setTimeout(()=>t.className='toast',3000)}
@@ -833,7 +834,7 @@ async function loadVa(){
 function switchVaTier(tier){
   _vaTier=tier;
   document.querySelectorAll('.va-tab').forEach(t=>t.classList.remove('on'));
-  document.querySelector('[data-t="'+tier+'"]').classList.add('on');
+  document.querySelector('.va-tab[data-t="'+tier+'"]').classList.add('on');
   document.querySelectorAll('.va-panel').forEach(p=>p.classList.remove('on'));
   $('va-'+tier).classList.add('on');
 }

@@ -90,7 +90,7 @@ const paymentLimiter = rateLimit({
 
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 200,
   message: { error: 'Rate limit atingido nos endpoints admin.' }
 });
 
@@ -3789,61 +3789,66 @@ if (!db.verifications) db.verifications = {};
 
 // Admin: verify a user
 app.post('/api/admin/verify', (req, res) => {
-  const { adminId, targetId, type, note } = req.body;
-  if (!adminId || !targetId) return res.status(400).json({ error: 'adminId e targetId obrigatórios.' });
-  const admin = db.users[adminId];
-  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin pode verificar.' });
-  const target = db.users[targetId];
-  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const { adminId, targetId, userId, type, note } = req.body;
+  const tid = targetId || userId;
+  const adminSecret = req.headers['x-admin-secret'];
+  const isAdminAuth = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
+  if (!tid) return res.status(400).json({ error: 'targetId obrigatorio.' });
+  if (!isAdminAuth) { const admin = db.users[adminId]; if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin pode verificar.' }); }
+  const target = db.users[tid];
+  if (!target) return res.status(404).json({ error: 'Usuario nao encontrado.' });
   target.verified = true;
   target.verifiedAt = Date.now();
-  target.verifiedBy = adminId;
+  target.verifiedBy = adminId || 'admin-panel';
   target.verificationType = type || 'standard';
-  db.verifications[targetId] = { userId: targetId, verifiedAt: Date.now(), by: adminId, type: type || 'standard', note: note || '' };
+  db.verifications[tid] = { userId: tid, verifiedAt: Date.now(), by: adminId || 'admin-panel', type: type || 'standard', note: note || '' };
   saveDB('users');
-  res.json({ ok: true, user: { id: targetId, nickname: target.nickname, verified: true, verificationType: target.verificationType } });
+  res.json({ ok: true, user: { id: tid, nickname: target.nickname, verified: true, verificationType: target.verificationType } });
 });
 
 // Admin: revoke verification
 app.post('/api/admin/unverify', (req, res) => {
-  const { adminId, targetId } = req.body;
-  if (!adminId || !targetId) return res.status(400).json({ error: 'adminId e targetId obrigatórios.' });
-  const admin = db.users[adminId];
-  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
-  const target = db.users[targetId];
-  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const { adminId, targetId, userId } = req.body;
+  const tid = targetId || userId;
+  const adminSecret = req.headers['x-admin-secret'];
+  const isAdminAuth = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
+  if (!tid) return res.status(400).json({ error: 'targetId obrigatorio.' });
+  if (!isAdminAuth) { const admin = db.users[adminId]; if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' }); }
+  const target = db.users[tid];
+  if (!target) return res.status(404).json({ error: 'Usuario nao encontrado.' });
   target.verified = false;
   delete target.verifiedAt;
   delete target.verifiedBy;
   delete target.verificationType;
-  delete db.verifications[targetId];
+  delete db.verifications[tid];
   saveDB('users');
   res.json({ ok: true });
 });
 
 // Admin: grant/revoke Touch? Plus (subscriber status)
 app.post('/api/admin/grant-plus', (req, res) => {
-  const { adminId, targetId, grant } = req.body;
-  if (!adminId || !targetId) return res.status(400).json({ error: 'adminId e targetId obrigatorios.' });
-  const admin = db.users[adminId];
-  if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' });
-  const target = db.users[targetId];
+  const { adminId, targetId, userId, months, grant } = req.body;
+  const tid = targetId || userId;
+  const adminSecret = req.headers['x-admin-secret'];
+  const isAdminAuth = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
+  if (!tid) return res.status(400).json({ error: 'targetId obrigatorio.' });
+  if (!isAdminAuth) { const admin = db.users[adminId]; if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Apenas admin.' }); }
+  const target = db.users[tid];
   if (!target) return res.status(404).json({ error: 'Usuario nao encontrado.' });
-  const shouldGrant = grant !== false; // default true
+  const shouldGrant = months !== undefined ? months > 0 : grant !== false;
   target.isSubscriber = shouldGrant;
   if (shouldGrant) {
-    // Create/update subscription record so status endpoint also reflects it
-    if (!db.subscriptions[targetId]) db.subscriptions[targetId] = {};
-    db.subscriptions[targetId].status = 'active';
-    db.subscriptions[targetId].planId = 'touch_plus';
-    db.subscriptions[targetId].startedAt = db.subscriptions[targetId].startedAt || Date.now();
-    db.subscriptions[targetId].expiresAt = null; // manual grant = no expiry
-    db.subscriptions[targetId].grantedBy = adminId;
-    db.subscriptions[targetId].isManualGrant = true;
+    if (!db.subscriptions[tid]) db.subscriptions[tid] = {};
+    db.subscriptions[tid].status = 'active';
+    db.subscriptions[tid].planId = 'touch_plus';
+    db.subscriptions[tid].startedAt = db.subscriptions[tid].startedAt || Date.now();
+    db.subscriptions[tid].expiresAt = null;
+    db.subscriptions[tid].grantedBy = adminId || 'admin-panel';
+    db.subscriptions[tid].isManualGrant = true;
   } else {
     target.isSubscriber = false;
-    if (db.subscriptions[targetId]) {
-      db.subscriptions[targetId].status = 'cancelled';
+    if (db.subscriptions[tid]) {
+      db.subscriptions[tid].status = 'cancelled';
     }
   }
   saveDB('users', 'subscriptions');
@@ -8846,17 +8851,21 @@ function getTierConfig(tier) {
 
 // Get VA config for admin panel
 app.get('/api/va-config', (req, res) => {
-  // Only admin/top1 can access
+  // Accept admin secret header OR userId-based auth
+  const adminSecret = req.headers['x-admin-secret'];
+  const isAdminAuth = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
   const userId = req.query.userId;
-  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!isAdminAuth && !canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
   const config = getVaConfig();
   res.json(config);
 });
 
 // Update VA config
 app.post('/api/va-config', (req, res) => {
+  const adminSecret = req.headers['x-admin-secret'];
+  const isAdminAuth = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
   const { userId, tier, settings } = req.body;
-  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!isAdminAuth && !canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
   if (!tier || !settings) return res.status(400).json({ error: 'tier e settings são obrigatórios' });
 
   const config = getVaConfig();
@@ -8871,8 +8880,10 @@ app.post('/api/va-config', (req, res) => {
 
 // Send a test prompt to any tier
 app.post('/api/va-config/test-prompt', async (req, res) => {
+  const adminSecret = req.headers['x-admin-secret'];
+  const isAdminAuth = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
   const { userId, tier, prompt } = req.body;
-  if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
+  if (!isAdminAuth && !canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
   if (!prompt) return res.status(400).json({ error: 'prompt e obrigatorio' });
 
   // Build system prompt from actual vaConfig (same as real sessions)
