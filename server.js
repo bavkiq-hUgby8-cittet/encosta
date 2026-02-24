@@ -9280,15 +9280,16 @@ app.get('/api/event/:eventId/staff/dashboard/:userId', (req, res) => {
 app.post('/api/event/:eventId/staff-order', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const { staffUserId, table, items, notes } = req.body;
-  const member = (ev.staff || []).find(s => s.userId === staffUserId);
+  const { staffUserId, userId: bodyUserId, table, items, notes, customerName } = req.body;
+  const staffUid = staffUserId || bodyUserId;
+  const member = (ev.staff || []).find(s => s.userId === staffUid);
   if (!member) return res.status(403).json({ error: 'Voce nao e staff deste evento.' });
   if (!items || !items.length) return res.status(400).json({ error: 'Pedido vazio.' });
   if (!ev.orders) ev.orders = [];
   const total = items.reduce((s, i) => s + (i.price * (i.qty || 1)), 0);
   const order = {
     id: require('uuid').v4(),
-    userId: staffUserId, userName: member.name,
+    userId: staffUid, userName: member.name, customerName: (customerName || '').trim(),
     waiterId: member.id, waiterName: member.name,
     items, table: Number(table) || 0, total, notes: (notes || '').trim(),
     paymentMethod: 'counter', status: 'pending',
@@ -9421,6 +9422,12 @@ app.get('/api/driver/:userId/earnings', (req, res) => {
   const deliveries = Object.values(db.deliveryOrders || {}).filter(o => o.driverId === userId && o.status === 'delivered');
   const totalEarnings = deliveries.reduce((s, o) => s + (o.driverFee || 0), 0);
   res.json({ totalDeliveries: deliveries.length, totalEarnings, deliveries: deliveries.slice(-20).reverse() });
+});
+
+app.get('/api/driver/:userId/active-orders', (req, res) => {
+  const userId = req.params.userId;
+  const orders = Object.values(db.deliveryOrders || {}).filter(o => o.driverId === userId && !['delivered', 'cancelled'].includes(o.status));
+  res.json({ orders });
 });
 
 
