@@ -574,6 +574,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
         <option value="custom">Outro</option>
       </select>
 
+      <!-- Welcome Phrase -->
+      <div class="op-login-field" style="margin-bottom:.5rem">
+        <label class="op-login-label">Frase de boas-vindas (opcional)</label>
+        <input class="op-login-input" id="opWelcomePhrase" type="text" placeholder="Ex: Bem-vindo ao nosso restaurante!" maxlength="120" style="font-size:.8rem">
+        <div style="font-size:.5rem;color:var(--t3);margin-top:.15rem">Aparece quando alguem faz check-in no seu evento.</div>
+      </div>
+
       <!-- Event Name -->
       <div class="op-login-field" style="margin-bottom:.5rem">
         <label class="op-login-label">Nome do evento</label>
@@ -799,7 +806,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <button class="op-rest-tab active" onclick="switchRestTab('menu')">🍕 Cardápio</button>
       <button class="op-rest-tab" onclick="switchRestTab('orders')">📋 Pedidos <span class="badge" id="ordersBadge" style="display:none">0</span></button>
       <button class="op-rest-tab" onclick="switchRestTab('tables')">🪑 Mesas</button>
+      <button class="op-rest-tab" onclick="switchRestTab('staff')">Equipe</button>
       <button class="op-rest-tab" onclick="switchRestTab('dashboard')">📊 Dashboard</button>
+      <button class="op-rest-tab" onclick="switchRestTab('profile')">Perfil</button>
     </div>
 
     <!-- MENU TAB -->
@@ -1037,10 +1046,11 @@ async function opCreateEvent(){
   const revealMode=$('opRevealMode').value||'optional';
   err.textContent='Criando...';
   try{
-    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice,revealMode})});
+    const welcomePhrase=$('opWelcomePhrase')?$('opWelcomePhrase').value.trim():'';
+    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice,revealMode,welcomePhrase})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error||'Erro ao criar.';return}
-    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';$('opRevealMode').value='optional';
+    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';$('opRevealMode').value='optional';if($('opWelcomePhrase'))$('opWelcomePhrase').value='';
     opSelectEvent(d.event.id,d.event.name);
   }catch(e){err.textContent='Erro: '+e.message}
 }
@@ -1076,7 +1086,7 @@ async function loadExistingEvent(){
     }
   }catch(e){console.error('[loadExistingEvent]',e)}
   // Load restaurant data for this event
-  loadRestMenu();loadRestOrders();
+  loadRestMenu();loadRestOrders();loadBusinessProfile();loadStaff();
 }
 
 async function opEndEvent(){

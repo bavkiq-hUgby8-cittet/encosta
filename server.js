@@ -232,7 +232,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -4490,7 +4490,8 @@ function createSonicConnection(userIdA, userIdB) {
       eventId: eventId || null,
       stars: visitorStars,
       topTag: visitorTopTag,
-      score: calcScore(visitorId)
+      score: calcScore(visitorId),
+      welcomePhrase: (eventId && db.operatorEvents[eventId]) ? (db.operatorEvents[eventId].welcomePhrase || '') : ''
     };
     io.to(`user:${operatorId}`).emit('checkin-created', checkinData);
     // Notify event room so phone users see new attendee
@@ -8467,7 +8468,7 @@ app.post('/api/operator/settings', (req, res) => {
 
 // ═══ OPERATOR EVENTS ═══
 app.post('/api/operator/event/create', (req, res) => {
-  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode } = req.body;
+  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
@@ -8480,7 +8481,26 @@ app.post('/api/operator/event/create', (req, res) => {
     entryPrice: price > 0 ? price : 0,
     revealMode: revealMode === 'all_revealed' ? 'all_revealed' : 'optional',
     revenue: 0, paidCheckins: 0,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    welcomePhrase: (welcomePhrase || '').trim().slice(0, 120),
+    quickPhrases: Array.isArray(quickPhrases) ? quickPhrases.slice(0, 8).map(p => String(p).trim().slice(0, 40)) : [],
+    businessProfile: businessProfile && typeof businessProfile === 'object' ? {
+      name: (businessProfile.name || '').trim().slice(0, 60),
+      type: (businessProfile.type || '').trim(),
+      address: (businessProfile.address || '').trim().slice(0, 200),
+      phone: (businessProfile.phone || '').trim().slice(0, 20),
+      hours: (businessProfile.hours || '').trim().slice(0, 200),
+      description: (businessProfile.description || '').trim().slice(0, 500),
+      website: (businessProfile.website || '').trim().slice(0, 100),
+      instagram: (businessProfile.instagram || '').trim().slice(0, 40),
+      acceptsDelivery: !!businessProfile.acceptsDelivery,
+      deliveryFee: parseFloat(businessProfile.deliveryFee) || 0,
+      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100)
+    } : null,
+    staff: [],
+    menu: [],
+    tables: 0,
+    orders: []
   };
   saveDB('operatorEvents');
   res.json({ event: db.operatorEvents[id] });
@@ -8857,12 +8877,249 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
         };
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
-    res.json({ attendees, eventName: ev.name, active: ev.active });
+    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
   }
 });
+
+
+// ═══ BUSINESS PROFILE ═══
+
+app.get('/api/event/:eventId/business-profile', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  res.json({
+    eventId: ev.id,
+    eventName: ev.name,
+    serviceLabel: ev.serviceLabel || '',
+    active: ev.active,
+    welcomePhrase: ev.welcomePhrase || '',
+    businessProfile: ev.businessProfile || null,
+    acceptsTips: ev.acceptsTips,
+    entryPrice: ev.entryPrice || 0,
+    participantCount: (ev.participants || []).length,
+    hasMenu: (ev.menu || []).length > 0,
+    createdAt: ev.createdAt
+  });
+});
+
+app.post('/api/operator/event/:eventId/business-profile', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { businessProfile, welcomePhrase, quickPhrases } = req.body;
+  if (welcomePhrase !== undefined) ev.welcomePhrase = String(welcomePhrase).trim().slice(0, 120);
+  if (Array.isArray(quickPhrases)) ev.quickPhrases = quickPhrases.slice(0, 8).map(p => String(p).trim().slice(0, 40));
+  if (businessProfile && typeof businessProfile === 'object') {
+    ev.businessProfile = {
+      name: (businessProfile.name || '').trim().slice(0, 60),
+      type: (businessProfile.type || '').trim(),
+      address: (businessProfile.address || '').trim().slice(0, 200),
+      phone: (businessProfile.phone || '').trim().slice(0, 20),
+      hours: (businessProfile.hours || '').trim().slice(0, 200),
+      description: (businessProfile.description || '').trim().slice(0, 500),
+      website: (businessProfile.website || '').trim().slice(0, 100),
+      instagram: (businessProfile.instagram || '').trim().slice(0, 40),
+      acceptsDelivery: !!businessProfile.acceptsDelivery,
+      deliveryFee: parseFloat(businessProfile.deliveryFee) || 0,
+      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100)
+    };
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true, event: ev });
+});
+
+// ═══ STAFF (WAITER/DRIVER) SYSTEM ═══
+
+app.post('/api/operator/event/:eventId/staff/add', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { userId, role, name } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!['waiter', 'driver'].includes(role)) return res.status(400).json({ error: 'Role invalido. Use waiter ou driver.' });
+  if (!ev.staff) ev.staff = [];
+  const existing = ev.staff.find(s => s.userId === userId);
+  if (existing) { existing.status = 'online'; existing.connectedAt = Date.now(); saveDB('operatorEvents'); return res.json({ ok: true, staff: existing }); }
+  const staffMember = {
+    id: require('uuid').v4(),
+    userId, name: name || db.users[userId].nickname || 'Staff',
+    role, tables: [], status: 'online', connectedAt: Date.now()
+  };
+  ev.staff.push(staffMember);
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('staff-joined', { eventId: ev.id, staff: staffMember });
+  res.json({ ok: true, staff: staffMember });
+});
+
+app.post('/api/operator/event/:eventId/staff/:staffId/tables', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const member = (ev.staff || []).find(s => s.id === req.params.staffId);
+  if (!member) return res.status(404).json({ error: 'Staff nao encontrado.' });
+  const { tables } = req.body;
+  if (!Array.isArray(tables)) return res.status(400).json({ error: 'tables deve ser um array.' });
+  member.tables = tables.map(Number).filter(n => n > 0);
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('staff-tables-updated', { eventId: ev.id, staffId: member.id, tables: member.tables });
+  res.json({ ok: true, staff: member });
+});
+
+app.get('/api/event/:eventId/staff/dashboard/:userId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const member = (ev.staff || []).find(s => s.userId === req.params.userId);
+  if (!member) return res.status(404).json({ error: 'Voce nao esta na equipe deste evento.' });
+  const myOrders = (ev.orders || []).filter(o => member.tables.includes(o.table) || o.waiterId === member.id);
+  res.json({ staff: member, menu: ev.menu || [], tables: member.tables, orders: myOrders, eventName: ev.name });
+});
+
+app.post('/api/event/:eventId/staff-order', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { staffUserId, table, items, notes } = req.body;
+  const member = (ev.staff || []).find(s => s.userId === staffUserId);
+  if (!member) return res.status(403).json({ error: 'Voce nao e staff deste evento.' });
+  if (!items || !items.length) return res.status(400).json({ error: 'Pedido vazio.' });
+  if (!ev.orders) ev.orders = [];
+  const total = items.reduce((s, i) => s + (i.price * (i.qty || 1)), 0);
+  const order = {
+    id: require('uuid').v4(),
+    userId: staffUserId, userName: member.name,
+    waiterId: member.id, waiterName: member.name,
+    items, table: Number(table) || 0, total, notes: (notes || '').trim(),
+    paymentMethod: 'counter', status: 'pending',
+    placedBy: 'waiter', createdAt: Date.now()
+  };
+  ev.orders.push(order);
+  saveDB('operatorEvents');
+  io.to(`user:${ev.creatorId}`).emit('new-order', { eventId: ev.id, order });
+  io.to('event:' + ev.id).emit('order-placed', { eventId: ev.id, order });
+  res.json({ ok: true, order });
+});
+
+app.post('/api/operator/event/:eventId/staff/:staffId/disconnect', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const idx = (ev.staff || []).findIndex(s => s.id === req.params.staffId);
+  if (idx < 0) return res.status(404).json({ error: 'Staff nao encontrado.' });
+  const member = ev.staff[idx];
+  member.status = 'offline';
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('staff-left', { eventId: ev.id, staffId: member.id, role: member.role });
+  res.json({ ok: true });
+});
+
+app.get('/api/operator/event/:eventId/staff', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  res.json({ staff: ev.staff || [] });
+});
+
+// ═══ DELIVERY ORDERS ═══
+
+app.get('/api/user/:userId/delivery-restaurants', (req, res) => {
+  const userId = req.params.userId;
+  const results = [];
+  for (const eid in db.operatorEvents) {
+    const ev = db.operatorEvents[eid];
+    if (!ev.businessProfile || !ev.businessProfile.acceptsDelivery) continue;
+    if (!(ev.menu && ev.menu.length > 0)) continue;
+    const wasVisitor = (ev.participants || []).includes(userId);
+    results.push({
+      eventId: ev.id, name: ev.name, serviceLabel: ev.serviceLabel,
+      businessProfile: ev.businessProfile,
+      menuCount: ev.menu.length, active: ev.active, wasVisitor,
+      deliveryFee: ev.businessProfile.deliveryFee || 0,
+      deliveryNote: ev.businessProfile.deliveryNote || ''
+    });
+  }
+  res.json({ restaurants: results });
+});
+
+app.post('/api/delivery/order', (req, res) => {
+  const { eventId, customerId, items, deliveryAddress, phone, notes, paymentMethod } = req.body;
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Restaurante nao encontrado.' });
+  if (!ev.businessProfile || !ev.businessProfile.acceptsDelivery) return res.status(400).json({ error: 'Restaurante nao aceita delivery.' });
+  if (!customerId || !db.users[customerId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!items || !items.length) return res.status(400).json({ error: 'Pedido vazio.' });
+  if (!deliveryAddress || !deliveryAddress.street) return res.status(400).json({ error: 'Endereco obrigatorio.' });
+  const subtotal = items.reduce((s, i) => s + (i.price * (i.qty || 1)), 0);
+  const deliveryFee = ev.businessProfile.deliveryFee || 0;
+  const total = subtotal + deliveryFee;
+  const order = {
+    id: require('uuid').v4(),
+    eventId, customerId,
+    customerName: db.users[customerId].nickname || db.users[customerId].name,
+    customerPhone: (phone || '').trim(),
+    items, subtotal, deliveryFee, total,
+    deliveryAddress,
+    status: 'pending', driverId: null, driverName: null,
+    paymentMethod: paymentMethod || 'pix',
+    paymentStatus: 'pending',
+    notes: (notes || '').trim(),
+    createdAt: Date.now(), deliveredAt: null
+  };
+  db.deliveryOrders[order.id] = order;
+  saveDB('deliveryOrders');
+  io.to(`user:${ev.creatorId}`).emit('delivery-order-new', { order });
+  res.json({ ok: true, order });
+});
+
+app.get('/api/delivery/order/:orderId', (req, res) => {
+  const order = db.deliveryOrders[req.params.orderId];
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
+  res.json({ order });
+});
+
+app.post('/api/delivery/order/:orderId/cancel', (req, res) => {
+  const order = db.deliveryOrders[req.params.orderId];
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
+  if (['on_the_way', 'delivered'].includes(order.status)) return res.status(400).json({ error: 'Pedido ja esta em entrega ou entregue.' });
+  order.status = 'cancelled';
+  saveDB('deliveryOrders');
+  const ev = db.operatorEvents[order.eventId];
+  if (ev) io.to(`user:${ev.creatorId}`).emit('delivery-order-cancelled', { orderId: order.id });
+  res.json({ ok: true });
+});
+
+app.post('/api/delivery/order/:orderId/assign-driver', (req, res) => {
+  const order = db.deliveryOrders[req.params.orderId];
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
+  const { driverId, driverName, agreedFee } = req.body;
+  order.driverId = driverId;
+  order.driverName = driverName || 'Entregador';
+  order.driverFee = parseFloat(agreedFee) || order.deliveryFee;
+  order.status = 'confirmed';
+  saveDB('deliveryOrders');
+  io.to(`user:${driverId}`).emit('driver-assigned', { order });
+  io.to(`user:${order.customerId}`).emit('delivery-status-update', { orderId: order.id, status: 'confirmed', driverName: order.driverName });
+  res.json({ ok: true, order });
+});
+
+app.post('/api/delivery/order/:orderId/driver-status', (req, res) => {
+  const order = db.deliveryOrders[req.params.orderId];
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
+  const { status } = req.body;
+  const validStatuses = ['preparing', 'ready_pickup', 'on_the_way', 'delivered'];
+  if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Status invalido.' });
+  order.status = status;
+  if (status === 'delivered') order.deliveredAt = Date.now();
+  saveDB('deliveryOrders');
+  io.to(`user:${order.customerId}`).emit('delivery-status-update', { orderId: order.id, status, driverName: order.driverName });
+  const ev = db.operatorEvents[order.eventId];
+  if (ev) io.to(`user:${ev.creatorId}`).emit('delivery-status-update', { orderId: order.id, status });
+  res.json({ ok: true, order });
+});
+
+app.get('/api/driver/:userId/earnings', (req, res) => {
+  const userId = req.params.userId;
+  const deliveries = Object.values(db.deliveryOrders || {}).filter(o => o.driverId === userId && o.status === 'delivered');
+  const totalEarnings = deliveries.reduce((s, o) => s + (o.driverFee || 0), 0);
+  res.json({ totalDeliveries: deliveries.length, totalEarnings, deliveries: deliveries.slice(-20).reverse() });
+});
+
 
 // ═══ RESTAURANT MENU & ORDERS ═══
 
