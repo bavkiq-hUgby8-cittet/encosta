@@ -7798,6 +7798,52 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
   } catch (e) { console.error('Ultimate session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
 });
 
+// ══ DEV DIAGNOSTICO — testa se Claude ta funcionando ══
+app.get('/api/dev/diagnostico', async (req, res) => {
+  const result = {
+    anthropic_key_configurada: !!ANTHROPIC_API_KEY,
+    anthropic_key_prefixo: ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.slice(0, 8) + '...' : 'NAO CONFIGURADA',
+    openai_key_configurada: !!OPENAI_API_KEY,
+    engine_ativo: ANTHROPIC_API_KEY ? 'claude-sonnet-4' : 'gpt-4o-fallback',
+    teste_claude: null,
+    tempo_ms: 0
+  };
+
+  if (ANTHROPIC_API_KEY) {
+    try {
+      const start = Date.now();
+      const testResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 50,
+          messages: [{ role: 'user', content: 'Responda apenas: OK' }]
+        })
+      });
+      result.tempo_ms = Date.now() - start;
+      if (testResp.ok) {
+        const data = await testResp.json();
+        result.teste_claude = 'OK - ' + (data.content?.[0]?.text || 'sem texto');
+      } else {
+        const errText = await testResp.text();
+        result.teste_claude = 'ERRO ' + testResp.status + ': ' + errText.slice(0, 200);
+      }
+    } catch (e) {
+      result.teste_claude = 'EXCECAO: ' + e.message;
+    }
+  } else {
+    result.teste_claude = 'SKIP - sem API key';
+  }
+
+  console.log('[DEV] Diagnostico:', JSON.stringify(result));
+  res.json(result);
+});
+
 // ══ DEV COMMAND ENDPOINTS ══
 // Create a dev command
 app.post('/api/dev/command', async (req, res) => {
@@ -7856,6 +7902,8 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
 
     if (ANTHROPIC_API_KEY) {
       // Use Claude Sonnet 4 for planning
+      console.log('[DEV] Chamando Claude para planejamento... instrucao:', instruction.slice(0, 80));
+      const planStart = Date.now();
       const planResp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -7870,17 +7918,20 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
           system: systemPrompt
         })
       });
+      const planTime = Date.now() - planStart;
       if (planResp.ok) {
         const planData = await planResp.json();
         command.plan = planData.content?.[0]?.text || 'Plano nao gerado';
         command.status = 'planned';
+        console.log('[DEV] Claude planejamento OK em', planTime + 'ms, plano:', (command.plan || '').slice(0, 100));
       } else {
         const errText = await planResp.text();
-        console.error('Claude plan err:', planResp.status, errText);
-        command.plan = 'Erro Claude: ' + planResp.status;
+        console.error('[DEV] Claude plan ERRO:', planResp.status, errText.slice(0, 200));
+        command.plan = 'Erro Claude: ' + planResp.status + ' - ' + errText.slice(0, 100);
         command.status = 'plan_failed';
       }
     } else {
+      console.log('[DEV] ANTHROPIC_API_KEY nao configurada, usando GPT-4o fallback');
       // Fallback to GPT-4o if no Anthropic key
       const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -8010,6 +8061,8 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
     if (ANTHROPIC_API_KEY) {
       // Use Claude Sonnet 4 for code generation — full context
+      console.log('[DEV] Chamando Claude para geracao de codigo... arquivos:', Object.keys(relevantFileMap).join(', '));
+      const editStart = Date.now();
       const editResp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -8024,19 +8077,22 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
         })
       });
+      const editTime = Date.now() - editStart;
 
       if (!editResp.ok) {
         const errText = await editResp.text();
-        console.error('Claude edit err:', editResp.status, errText);
+        console.error('[DEV] Claude edit ERRO:', editResp.status, errText.slice(0, 200), 'tempo:', editTime + 'ms');
         cmd.status = 'failed';
-        cmd.result = 'Erro Claude: ' + editResp.status;
+        cmd.result = 'Erro Claude: ' + editResp.status + ' - ' + errText.slice(0, 100);
         saveDB('ultimateBank');
         return res.json({ success: false, error: cmd.result });
       }
 
       const editData = await editResp.json();
       editsRaw = editData.content?.[0]?.text || '[]';
+      console.log('[DEV] Claude geracao OK em', editTime + 'ms, resposta:', (editsRaw || '').slice(0, 100));
     } else {
+      console.log('[DEV] ANTHROPIC_API_KEY nao configurada, usando GPT-4o fallback para geracao');
       // Fallback to GPT-4o
       const editResp = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
