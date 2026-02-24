@@ -521,6 +521,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .msg.photo img{border-radius:14px;max-width:220px;max-height:220px;display:block;object-fit:cover;border:1px solid rgba(255,255,255,.06)}
 .mt{font-size:.52rem;opacity:.3;margin-top:.2rem;font-weight:400;letter-spacing:.02em}
 @keyframes mi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.8}}
 /* Typing indicator */
 .ti{display:flex;align-items:center;gap:3px;padding:.35rem .7rem;align-self:flex-start;opacity:0;height:0;overflow:hidden;transition:opacity .2s,height .2s}
 .ti.vis{opacity:1;height:auto;overflow:visible}
@@ -1744,7 +1745,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div id="constFilters" style="position:absolute;bottom:12px;left:8px;right:8px;display:flex;gap:.35rem;padding:.4rem .5rem;background:rgba(10,10,25,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:22px;border:1px solid rgba(255,255,255,.1);z-index:5;justify-content:center">
       <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span>Revelados</button>
       <button class="elog-filter active" id="cfAnon" onclick="toggleConstFilter('anon',this)"><span class="fdot" style="background:#ff4466"></span>Anônimos</button>
-      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)"><span class="fdot" style="background:#60a5fa"></span>Eventos</button>
+      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)" style="position:relative"><span class="fdot" style="background:#60a5fa"></span>Eventos<span id="cfEventsLive" class="hidden" style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:#60a5fa;color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;pointer-events:none;animation:pulse 2s infinite">0</span></button>
     </div>
     <div id="constLoader" class="const-loader hidden">
       <div class="const-loader-inner">
@@ -6320,15 +6321,20 @@ function updateConstFilterBadges(){
   const revealed=nodes.filter(n=>!n.isEvent&&!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id])));
   const anon=nodes.filter(n=>!n.isEvent).length-revealed.length;
   const events=nodes.filter(n=>!!n.isEvent).length;
+  const activeEvents=nodes.filter(n=>!!n.isEvent&&!!n.eventActive).length;
   function setBtnCount(btn,label,count){
     if(!btn)return;
-    const dot=btn.querySelector('span');
-    btn.textContent=label+' '+count;
+    const dot=btn.querySelector('.fdot');
+    const live=btn.querySelector('#cfEventsLive');
+    btn.childNodes.forEach(c=>{if(c.nodeType===3)c.remove()});
+    btn.insertBefore(document.createTextNode(label+' '+count),live||null);
     if(dot)btn.prepend(dot);
   }
   setBtnCount($('cfRevealed'),'Revelados',revealed.length);
   setBtnCount($('cfAnon'),'Anônimos',anon);
   setBtnCount($('cfEvents'),'Eventos',events);
+  const liveBadge=$('cfEventsLive');
+  if(liveBadge){liveBadge.textContent=activeEvents;liveBadge.classList.toggle('hidden',activeEvents===0)}
 }
 
 // ── Financial Screen ──
