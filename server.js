@@ -7575,98 +7575,147 @@ app.post('/api/agent/onboarding-reset', (req, res) => {
 // Real-time context for agent (called via tool during conversation)
 app.get('/api/agent/context/:userId', (req, res) => {
   const userId = req.params.userId;
-  const { context, greeting, gossip } = buildUserContext(userId);
-  if (!context) return res.status(404).json({ error: 'Usuário não encontrado' });
-  // Include recent notifications for agent awareness
   const user = db.users[userId];
-  let notifSummary = '';
-  if (user) {
-    const notifs = [];
-    const now = Date.now();
-    const week = 7 * 24 * 60 * 60 * 1000;
-    // Likes received
-    (user.likedBy || []).forEach(lid => {
-      const l = db.users[lid]; if (!l) return;
-      const ts = l._likedAt?.[userId] || 0;
-      if (ts && now - ts < week) notifs.push({ t: 'curtida', who: l.nickname || l.name, ts });
-    });
-    // Stars received
-    (user.stars || []).forEach(s => {
-      const g = db.users[s.from]; const ts = s.donatedAt || s.at || 0;
-      if (ts && now - ts < week) notifs.push({ t: 'estrela recebida', who: g ? (g.nickname || g.name) : '?', ts });
-    });
-    // Identity revealed to me
-    Object.entries(user.canSee || {}).forEach(([pid, data]) => {
-      const p = db.users[pid]; if (!p) return;
-      const ts = data.revealedAt || 0;
-      if (ts && now - ts < week) notifs.push({ t: 'revelou identidade', who: p.nickname || p.name, ts });
-    });
-    // Pending reveal requests
-    Object.values(db.revealRequests || {}).forEach(rr => {
-      if (rr.toUserId === userId && rr.status === 'pending') {
-        const from = db.users[rr.fromUserId]; if (!from) return;
-        notifs.push({ t: 'pedido de revelação pendente', who: from.nickname || from.name, ts: rr.createdAt || 0 });
-      }
-    });
-    // Game invites received
-    const myRelIds = Object.keys(db.relations).filter(rid => {
-      const r = db.relations[rid]; return r && (r.userA === userId || r.userB === userId);
-    });
-    myRelIds.forEach(rid => {
-      (db.messages[rid] || []).forEach(m => {
-        if (!m.text || !m.text.startsWith('[game-invite:') || m.userId === userId) return;
-        const parts = m.text.replace('[game-invite:', '').replace(']', '').split(':');
-        const gameName = parts[2] || 'Jogo';
-        const sender = db.users[m.userId];
-        const ts = m.timestamp || 0;
-        if (ts && now - ts < week) notifs.push({ t: 'convite de jogo: ' + gameName, who: sender ? (sender.nickname || sender.name) : '?', ts });
-      });
-    });
-    // Friends who earned stars in network
-    const myEncounters = db.encounters[userId] || [];
-    const friendIds = [...new Set(myEncounters.filter(e => !e.isEvent && !(e.with || '').startsWith('evt:')).map(e => e.with))];
-    friendIds.forEach(fid => {
-      const f = db.users[fid]; if (!f || !f.stars) return;
-      f.stars.slice(-3).forEach(s => {
-        if (s.from === userId) return;
-        const ts = s.donatedAt || s.at || 0;
-        if (ts && now - ts < week) notifs.push({ t: 'ganhou uma estrela', who: f.nickname || f.name, ts });
-      });
-    });
-    // Connections made since session started (real-time awareness)
-    const encounters = db.encounters[userId] || [];
-    const recent1h = encounters.filter(e => now - e.timestamp < 3600000 && !e.isEvent);
-    if (recent1h.length) {
-      recent1h.forEach(e => {
-        notifs.unshift({ t: 'CONEXAO AGORA', who: e.withName, ts: e.timestamp });
-      });
-    }
-    // Unread messages right now
-    const activeRels = Object.values(db.relations).filter(r => r && (r.userA === userId || r.userB === userId) && r.expiresAt > now);
-    let totalUnread = 0;
-    const unreadDetails = [];
-    activeRels.forEach(r => {
-      const partnerId = r.userA === userId ? r.userB : r.userA;
-      const partner = db.users[partnerId];
-      const partnerName = partner ? (partner.nickname || partner.name) : '?';
-      const msgs = (db.messages[r.id] || []);
-      const myLastMsg = [...msgs].reverse().find(m => m.userId === userId);
-      const myLastTs = myLastMsg ? (myLastMsg.timestamp || 0) : 0;
-      const unread = msgs.filter(m => m.userId !== userId && (m.timestamp || 0) > myLastTs).length;
-      if (unread > 0) { totalUnread += unread; unreadDetails.push(`${partnerName}: ${unread}`); }
-    });
-    if (totalUnread > 0) {
-      notifs.unshift({ t: 'MSGS NAO LIDAS: ' + unreadDetails.join(', '), who: totalUnread + ' mensagens', ts: now });
-    }
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado' });
 
-    notifs.sort((a, b) => b.ts - a.ts);
-    if (notifs.length) {
-      notifSummary = '\n\nNOTIFICAÇÕES RECENTES (últimos 7 dias):\n' +
-        notifs.slice(0, 20).map(n => `- ${n.who}: ${n.t} (${formatTsForUser(n.ts, userId)})`).join('\n');
+  // Helper: get best display name (nickname + real name if revealed)
+  function getDisplayName(personId) {
+    const p = db.users[personId]; if (!p) return '?';
+    const nick = p.nickname || p.name || '?';
+    // Check if this person revealed identity TO the user
+    const revealed = user.canSee?.[personId];
+    if (revealed && revealed.name) {
+      const realName = p.name || revealed.name;
+      if (realName && realName !== nick) return nick + ' (nome real: ' + realName + ')';
     }
+    return nick;
   }
-  const localTimeInfo = `\n\nHORARIO LOCAL ATUAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})`;
-  res.json({ context: context + notifSummary + localTimeInfo, gossip, ts: Date.now() });
+
+  const now = Date.now();
+  const h24 = 24 * 60 * 60 * 1000;
+  const h48 = 2 * h24;
+
+  // ── REBUILD FRESH CONTEXT (not cached from session start) ──
+
+  // 1. Current connections with UPDATED info
+  const encounters = db.encounters[userId] || [];
+  const connectionMap = {};
+  encounters.filter(e => !e.isEvent && !(e.with||'').startsWith('evt:')).forEach(e => {
+    if (!connectionMap[e.with]) connectionMap[e.with] = { name: e.withName, count: 0, ts: 0 };
+    connectionMap[e.with].count++;
+    if (e.timestamp > connectionMap[e.with].ts) {
+      connectionMap[e.with].ts = e.timestamp;
+      connectionMap[e.with].lastDate = e.date;
+    }
+  });
+
+  const connectionLines = Object.entries(connectionMap)
+    .sort((a,b) => b[1].ts - a[1].ts)
+    .slice(0, 20)
+    .map(([id, c]) => {
+      const revealed = user.canSee?.[id];
+      const u2 = db.users[id];
+      const nick = c.name;
+      const realName = (revealed && revealed.name) ? (u2?.name || revealed.name) : null;
+      const stars = (u2?.stars || []).length;
+      const isRecent = (now - c.ts) < h48;
+      return `- ${nick}${realName && realName !== nick ? ' (NOME REAL: '+realName+')' : ''}: ${c.count}x encontros, ultimo ${c.lastDate}${stars ? ', '+stars+' estrelas' : ''}${revealed ? ' [REVELADO]' : ' [anonimo]'}${isRecent ? ' **RECENTE**' : ''}`;
+    });
+
+  // 2. FRESH notifications (not from session start)
+  const notifs = [];
+  const week = 7 * h24;
+
+  // Recent connections (last 24h - most important!)
+  encounters.filter(e => now - e.timestamp < h24 && !e.isEvent).forEach(e => {
+    notifs.push({ t: 'NOVA CONEXAO HOJE', who: getDisplayName(e.with), ts: e.timestamp, priority: 10 });
+  });
+
+  // Unread messages (CRITICAL - check right now)
+  const activeRels = Object.values(db.relations).filter(r => r && (r.userA === userId || r.userB === userId) && r.expiresAt > now);
+  const unreadDetails = [];
+  activeRels.forEach(r => {
+    const partnerId = r.userA === userId ? r.userB : r.userA;
+    const msgs = (db.messages[r.id] || []);
+    const myLastMsg = [...msgs].reverse().find(m => m.userId === userId);
+    const myLastTs = myLastMsg ? (myLastMsg.timestamp || 0) : 0;
+    const unreadMsgs = msgs.filter(m => m.userId !== userId && (m.timestamp || 0) > myLastTs);
+    if (unreadMsgs.length > 0) {
+      const lastMsg = unreadMsgs[unreadMsgs.length - 1];
+      unreadDetails.push({ who: getDisplayName(partnerId), count: unreadMsgs.length, lastText: (lastMsg.text || '').slice(0, 60), ts: lastMsg.timestamp || 0 });
+    }
+  });
+  if (unreadDetails.length) {
+    unreadDetails.forEach(u => {
+      notifs.push({ t: 'MSG NAO LIDA de ' + u.who + ' (' + u.count + 'x): "' + u.lastText + '"', who: u.who, ts: u.ts, priority: 9 });
+    });
+  }
+
+  // Likes received (last 7 days)
+  (user.likedBy || []).forEach(lid => {
+    const ts = (db.users[lid])?._likedAt?.[userId] || 0;
+    if (ts && now - ts < week) notifs.push({ t: 'te curtiu', who: getDisplayName(lid), ts, priority: 5 });
+  });
+
+  // Stars received (last 7 days)
+  (user.stars || []).forEach(s => {
+    const ts = s.donatedAt || s.at || 0;
+    if (ts && now - ts < week) notifs.push({ t: 'te deu uma estrela', who: getDisplayName(s.from), ts, priority: 6 });
+  });
+
+  // Identity reveals (last 7 days) - SHOW THE REAL NAME!
+  Object.entries(user.canSee || {}).forEach(([pid, data]) => {
+    const p = db.users[pid]; if (!p) return;
+    const ts = data.revealedAt || 0;
+    const nick = p.nickname || '?';
+    const realName = p.name || data.name || '?';
+    if (ts && now - ts < week) {
+      notifs.push({ t: 'revelou identidade! Nickname era "' + nick + '", nome real e "' + realName + '"', who: nick + ' -> ' + realName, ts, priority: 8 });
+    }
+  });
+
+  // Pending reveal requests
+  Object.values(db.revealRequests || {}).forEach(rr => {
+    if (rr.toUserId === userId && rr.status === 'pending') {
+      notifs.push({ t: 'QUER SE REVELAR pra voce! Aceite ou recuse.', who: getDisplayName(rr.fromUserId), ts: rr.createdAt || 0, priority: 7 });
+    }
+  });
+
+  // Game invites (last 7 days)
+  const myRelIds = Object.keys(db.relations).filter(rid => {
+    const r = db.relations[rid]; return r && (r.userA === userId || r.userB === userId);
+  });
+  myRelIds.forEach(rid => {
+    (db.messages[rid] || []).forEach(m => {
+      if (!m.text || !m.text.startsWith('[game-invite:') || m.userId === userId) return;
+      const parts = m.text.replace('[game-invite:', '').replace(']', '').split(':');
+      const gameName = parts[2] || 'Jogo';
+      const ts = m.timestamp || 0;
+      if (ts && now - ts < week) notifs.push({ t: 'te convidou pro jogo "' + gameName + '"', who: getDisplayName(m.userId), ts, priority: 4 });
+    });
+  });
+
+  // Sort by priority then by timestamp (newest first)
+  notifs.sort((a, b) => (b.priority || 0) - (a.priority || 0) || b.ts - a.ts);
+
+  // Build response text
+  let freshContext = 'DADOS ATUALIZADOS AGORA (' + getUserLocalTime(userId) + '):\n\n';
+  freshContext += 'SUAS CONEXOES (' + Object.keys(connectionMap).length + ' total):\n' + connectionLines.join('\n');
+
+  if (notifs.length) {
+    freshContext += '\n\nNOVIDADES (mais recentes primeiro):\n';
+    freshContext += notifs.slice(0, 25).map(n => '- ' + n.who + ': ' + n.t + ' (' + formatTsForUser(n.ts, userId) + ')').join('\n');
+  } else {
+    freshContext += '\n\nNenhuma novidade recente.';
+  }
+
+  // Stats summary
+  const totalStars = (user.stars || []).length;
+  const totalLikes = user.likesCount || 0;
+  const totalEncounters = encounters.filter(e => !e.isEvent).length;
+  freshContext += '\n\nRESUMO: ' + totalEncounters + ' encontros, ' + totalStars + ' estrelas, ' + totalLikes + ' curtidas';
+
+  res.json({ context: freshContext, ts: now });
 });
 
 // Save agent note about a connection
@@ -7983,11 +8032,18 @@ ${devCfg.openingRules}
 - Se precisar de mais, quebre em turnos
 - Quando apresentar plano, resuma em 1-2 frases e pergunte se quer detalhes
 
-═══ QUANDO USAR CADA FERRAMENTA ═══
-- Se o usuario pedir QUALQUER mudanca no app (cor, layout, feature, fix, melhoria, texto) → use comando_dev IMEDIATAMENTE. Nao precisa consultar_rede antes.
-- consultar_rede: Use quando precisar saber dados da rede (quantas pessoas, quem sao, estatisticas). OBRIGATORIO chamar ANTES de responder sobre conexoes/estrelas/curtidas/mensagens. Os dados iniciais estao CONGELADOS. NAO use antes de comando_dev.
-- Se o usuario perguntar "muda a cor", "adiciona botao", "tira isso", "coloca aquilo" → comando_dev direto, sem consultar nada antes.
-- NUNCA fique em silencio processando sem falar. Se vai chamar uma ferramenta, AVISE antes: "Vou enviar isso pro dev, espera uns 10 segundos."
+═══ REGRA MAIS IMPORTANTE — VOCE DEVE USAR AS FERRAMENTAS ═══
+VOCE TEM TOOLS. VOCE DEVE USA-LAS. SEM EXCECAO.
+- Qualquer pedido de mudanca, feature, fix, melhoria, cor, layout, botao, texto → chame comando_dev IMEDIATAMENTE
+- Qualquer pergunta sobre conexoes, pessoas, estrelas, curtidas, mensagens → chame consultar_rede PRIMEIRO
+- NUNCA responda "vou anotar", "posso fazer isso", "vou verificar" sem chamar a tool. A tool FAZ a acao.
+- Se o usuario pedir algo e voce NAO chamar uma tool, voce FALHOU. A conversa sem tools e INUTIL.
+- AVISE o usuario antes: "Vou mandar pro Claude agora, espera uns 10 segundos" e CHAME comando_dev
+- EXEMPLOS:
+  "muda a cor do botao" → comando_dev({instrucao: "Mudar cor do botao X para Y no arquivo Z"})
+  "quantas conexoes eu tenho?" → consultar_rede()
+  "adiciona um botao de logout" → comando_dev({instrucao: "Adicionar botao de logout na tela X"})
+  "quem me deu estrela?" → consultar_rede()
 
 ═══ FLUXO DE DESENVOLVIMENTO ═══
 1. ${firstName} fala algo → você ENTENDE e TRADUZ em instrução técnica (comando_dev)

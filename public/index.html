@@ -8419,7 +8419,7 @@ function updateNotifBadge(){
 }
 // ══ DEV LOG PANEL — UltimateDEV command/commit history ══
 var _devLogData=[];
-var _devLogCurrentFilter='all';
+var _devLogCurrentFilter='live';
 function toggleDevLogPanel(){
   var panel=document.getElementById('devLogPanel');
   var fab=document.getElementById('devLogFab');
@@ -8459,6 +8459,25 @@ function filterDevLog(filter,tabEl){
 function renderDevLog(){
   var body=document.getElementById('devLogBody');
   if(!body)return;
+
+  // Live tab: show real-time session logs
+  if(_devLogCurrentFilter==='live'){
+    if(_devLiveLog.length===0){body.innerHTML='<div class="dev-log-empty">Nenhuma atividade nesta sessao.<br><br>Quando voce pedir algo pro assistente,<br>as tools chamadas aparecem aqui em tempo real.</div>';return}
+    var liveHtml='';
+    _devLiveLog.forEach(function(log){
+      var ago=_devLogTimeAgo(log.ts);
+      var typeClass=log.type==='error'?'fail':log.type==='result'?'done':log.type==='tool'?'cmd':'plan';
+      var typeLabel=log.type==='error'?'Erro':log.type==='result'?'Resultado':log.type==='tool'?'Tool':log.type==='info'?'Info':'Log';
+      liveHtml+='<div class="dl-item">';
+      liveHtml+='<div class="dl-item-head"><span class="dl-item-type '+typeClass+'">'+typeLabel+'</span><span class="dl-item-time">'+ago+'</span></div>';
+      liveHtml+='<div class="dl-item-text">'+_escHtml(log.text)+'</div>';
+      if(log.detail){liveHtml+='<div class="dl-item-plan">'+_escHtml(log.detail)+'</div>'}
+      liveHtml+='</div>';
+    });
+    body.innerHTML=liveHtml;
+    return;
+  }
+
   var items=_devLogData;
   if(_devLogCurrentFilter!=='all'){
     items=items.filter(function(i){return i.type===_devLogCurrentFilter});
@@ -13589,10 +13608,10 @@ window.addEventListener('message',function(e){
     <button class="dlh-close" onclick="toggleDevLogPanel()">&times;</button>
   </div>
   <div class="dev-log-tabs">
-    <div class="dev-log-tab active" data-filter="all" onclick="filterDevLog('all',this)">Tudo</div>
+    <div class="dev-log-tab active" data-filter="live" onclick="filterDevLog('live',this)">Ao vivo</div>
     <div class="dev-log-tab" data-filter="command" onclick="filterDevLog('command',this)">Comandos</div>
+    <div class="dev-log-tab" data-filter="all" onclick="filterDevLog('all',this)">Historico</div>
     <div class="dev-log-tab" data-filter="thought" onclick="filterDevLog('thought',this)">Notas</div>
-    <div class="dev-log-tab" data-filter="escriba" onclick="filterDevLog('escriba',this)">Sessoes</div>
   </div>
   <div class="dev-log-body" id="devLogBody">
     <div class="dev-log-empty">Nenhum registro ainda</div>
@@ -13822,6 +13841,12 @@ const VA = (function(){
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
         _resetInactivityTimer();
+        // Log session start to dev panel
+        if(vaTier==='ultimatedev'){
+          _devLiveLog = []; // Clear previous session logs
+          _devAddLiveLog('info', 'Sessao UltimateDEV conectada', 'DataChannel aberto. Tools: comando_dev, aprovar_plano, consultar_rede, etc. Tier: '+vaTier);
+          _devAddLiveLog('info', 'Claude Opus 4 disponivel', 'Quando voce pedir mudancas no app, o assistente vai usar comando_dev para enviar pro Claude.');
+        }
         // CRITICO: Mutar mic ANTES da saudacao para evitar eco/feedback
         // O agente vai falar e o mic captaria a propria voz dele
         _muteMic();
@@ -13830,7 +13855,16 @@ const VA = (function(){
         const openingText = td.openingText || 'Oi! Sou a Touch, sua assistente. Vamos nos conhecer?';
         dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que ja chega contando a fofoca: "'+openingText.replace(/"/g,'\\"')+'" -- MAXIMO 2 frases. NUNCA comece com saudacao vazia tipo "E ai". Va DIRETO ao assunto.'}}));
       };
-      dc.onmessage = e => { try{handleEvent(JSON.parse(e.data))}catch(x){} };
+      dc.onmessage = e => { try{
+        var parsed=JSON.parse(e.data);
+        // Log function_call events to dev panel for debugging
+        if(vaTier==='ultimatedev' && parsed.type && parsed.type.indexOf('function_call')>=0){
+          _devAddLiveLog('info', 'Evento: '+parsed.type, parsed.name ? ('Tool: '+parsed.name) : (parsed.call_id ? 'call_id: '+parsed.call_id : ''));
+        }
+        handleEvent(parsed);
+      }catch(x){
+        if(vaTier==='ultimatedev') _devAddLiveLog('error','Erro ao parsear evento DC', x.message);
+      } };
       dc.onclose = () => { if(active) cleanup(); };
 
       // 6. SDP
@@ -13987,8 +14021,12 @@ const VA = (function(){
       case 'response.function_call_arguments.done':
         _pendingToolCall=true; // Keep mic muted through the entire tool flow
         _muteMic(); // Ensure mic stays muted
-        setOrb('connecting');setStatus('Processando ação...');
+        setOrb('connecting');setStatus('Processando acao...');
         _updateMiniStatus('thinking');
+        // Log to dev panel
+        if(vaTier==='ultimatedev'){
+          _devAddLiveLog('tool', 'Tool chamada: ' + (evt.name||'?'), 'Args: ' + (evt.arguments||'{}').slice(0,150));
+        }
         // Show detailed activity for each tool
         var _toolLabels = {
           mostrar_pessoa:'Buscando pessoa...',consultar_rede:'Consultando rede...',
@@ -14056,7 +14094,10 @@ const VA = (function(){
             console.log('[VA] salvar_arquivo:',args.caminho);
             handleSalvarArquivo(args.caminho||'',args.conteudo||'',args.mensagem||'',evt.call_id);
           }
-        }catch(e){console.error('[VA] fn parse err:',e)}
+        }catch(e){
+          console.error('[VA] fn parse err:',e);
+          if(vaTier==='ultimatedev') _devAddLiveLog('error', 'ERRO ao processar tool: ' + (evt.name||'?'), e.message);
+        }
         break;
     }
   }
@@ -14202,6 +14243,12 @@ const VA = (function(){
     if(dc&&dc.readyState==='open'){
       _pendingToolCall=false; // Tool done — next response.done can unmute
       _showVaActivity('Formulando resposta...');
+      // Log result to dev panel
+      if(vaTier==='ultimatedev'){
+        var preview = (text||'').slice(0,120);
+        var isErr = preview.toLowerCase().indexOf('erro')>=0 || preview.toLowerCase().indexOf('timeout')>=0 || preview.toLowerCase().indexOf('falhou')>=0;
+        _devAddLiveLog(isErr?'error':'result', 'Resultado da tool', preview);
+      }
       dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:text}}));
       dc.send(JSON.stringify({type:'response.create'}));
     }
@@ -14447,6 +14494,21 @@ const VA = (function(){
   let _devLogTimeline = [];
   let _devLogFilter = 'all';
   let _devLogOpen = false;
+  // Live session logs (function calls, results, errors)
+  let _devLiveLog = [];
+
+  function _devAddLiveLog(type, text, detail) {
+    _devLiveLog.unshift({ type: type, text: text, detail: detail || '', ts: Date.now() });
+    if (_devLiveLog.length > 100) _devLiveLog = _devLiveLog.slice(0, 100);
+    // Update badge
+    var badge = document.getElementById('devLogBadge');
+    if (badge) { badge.textContent = _devLiveLog.length; badge.style.display = 'flex'; }
+    // If panel is open and on "Tudo" or "Live" tab, refresh
+    var panel = document.getElementById('devLogPanel');
+    if (panel && panel.classList.contains('open') && (_devLogCurrentFilter === 'live' || _devLogCurrentFilter === 'all')) {
+      renderDevLog();
+    }
+  }
 
   function _showDevLogFab() {
     var fab = document.getElementById('devLogFab');
