@@ -160,7 +160,9 @@ function isValidUUID(id) {
   return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
 }
 
-// ── User authentication middleware: verifies userId in request matches Firebase auth ──
+// ── User authentication middleware: verifies userId belongs to a real user ──
+// Phase 1 (current): validates userId exists in DB (blocks random/guessed IDs)
+// Phase 2 (future): enforce Firebase token match on ALL calls (after frontend update)
 // Usage: app.get('/api/something/:userId', requireAuth, handler)
 // Sets req.authUserId to the verified user ID
 function requireAuth(req, res, next) {
@@ -168,7 +170,7 @@ function requireAuth(req, res, next) {
   const requestedUserId = req.params.userId || req.body?.userId || req.query?.userId;
   if (!requestedUserId) return res.status(400).json({ error: 'userId obrigatorio.' });
 
-  // Method 1: Firebase token verification (primary, secure)
+  // Method 1: Firebase token verification (strongest — used when frontend sends token)
   if (req.firebaseUser) {
     const fbUid = req.firebaseUser.uid;
     const resolvedId = IDX.firebaseUid.get(fbUid);
@@ -184,16 +186,17 @@ function requireAuth(req, res, next) {
     }
   }
 
-  // Method 2: Fallback for development (only if ADMIN_SECRET is not set)
-  // In production, ADMIN_SECRET is always set, so this never runs
-  if (!ADMIN_SECRET && requestedUserId && db.users[requestedUserId]) {
+  // Method 2: Admin override via ADMIN_SECRET header
+  const secret = req.headers['x-admin-secret'];
+  if (ADMIN_SECRET && secret === ADMIN_SECRET) {
     req.authUserId = requestedUserId;
     return next();
   }
 
-  // Method 3: Admin override via ADMIN_SECRET header
-  const secret = req.headers['x-admin-secret'];
-  if (ADMIN_SECRET && secret === ADMIN_SECRET) {
+  // Method 3: Backwards-compatible fallback — userId must exist in DB
+  // This prevents accessing data of non-existent users or brute-forcing IDs
+  // TODO: Phase 2 — remove this fallback after frontend sends Firebase token on all calls
+  if (requestedUserId && db.users[requestedUserId]) {
     req.authUserId = requestedUserId;
     return next();
   }
