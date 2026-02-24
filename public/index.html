@@ -3281,6 +3281,8 @@ function initSocket(){
   socket.on('connect',()=>{
     if(state.userId)socket.emit('identify',state.userId);
     updateConn('online');
+    // Sync notificacoes ao reconectar (pode ter perdido eventos enquanto offline)
+    setTimeout(()=>{ if(typeof updateNotifBadge==='function') updateNotifBadge(); }, 500);
     // If sonic was running but got killed by disconnect, show reconnect overlay
     if(_sonicWasActive&&!homeSonicActive&&!sonicActive){
       console.log('[socket reconnect] Sonic was active, showing reconnect overlay...');
@@ -3431,6 +3433,8 @@ function initSocket(){
     }else{
       showScreen('reveal');doReveal(d);
     }
+    // Atualiza notificacoes apos nova conexao
+    setTimeout(()=>{ updateNotifBadge(); },2000);
   });
   // Welcome banner for branded check-in phrase
   function showWelcomeBanner(phrase,eventName){
@@ -3452,6 +3456,7 @@ function initSocket(){
     }else{
       // Not viewing this chat — update badge to show unread
       refreshRelations();
+      updateNotifBadge();
     }
   });
   socket.on('partner-typing',({relationId})=>{
@@ -8234,6 +8239,25 @@ function updateNotifBadge(){
     if(homeBadge){homeBadge.textContent=count;homeBadge.classList.toggle('hidden',count===0)}
   }).catch(()=>{});
 }
+// ── Polling de fallback: atualiza badge a cada 30s quando app visivel ──
+var _notifPollTimer=null;
+function _startNotifPolling(){
+  if(_notifPollTimer)return;
+  _notifPollTimer=setInterval(function(){
+    if(document.visibilityState==='visible'&&state.userId){
+      updateNotifBadge();
+    }
+  },30000);
+}
+// ── Sync ao voltar pro app (tela ligou, voltou da aba) ──
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&state.userId){
+    updateNotifBadge();
+    updateNetworkBadge();
+  }
+});
+// Inicia polling quando app carrega
+_startNotifPolling();
 
 // ═══ NETWORK + NOTIF BADGE (unified on rede icon in home) ═══
 function updateNetworkBadge(){
