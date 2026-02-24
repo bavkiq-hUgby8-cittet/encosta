@@ -2452,6 +2452,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       </div>
       <button class="wv-status online" id="drvStatusBtn" onclick="toggleDriverStatus()">Online</button>
     </div>
+    <div class="wv-tabs">
+      <button class="wv-tab active" onclick="switchDriverTab('active',this)">Ativa</button>
+      <button class="wv-tab" onclick="switchDriverTab('history',this)">Historico</button>
+      <button class="wv-tab" onclick="switchDriverTab('earnings',this)">Ganhos</button>
+    </div>
     <div class="drv-current" id="drvContent">
       <div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Aguardando entregas...</div>
     </div>
@@ -8769,15 +8774,146 @@ async function cancelDeliveryOrder(orderId){
 }
 
 // ═══ DRIVER DASHBOARD ═══
-let _drvState={currentOrder:null,earnings:0,deliveryCount:0,status:'online'};
+let _drvState={currentOrder:null,earnings:0,deliveryCount:0,status:'online',activeTab:'active',orders:[],history:[]};
 
 function openDriverView(){
   $('driverView').style.display='';
-  loadDriverEarnings();
+  loadDriverData();
 }
 
 function closeDriverView(){
   $('driverView').style.display='none';
+}
+
+function switchDriverTab(tab,btn){
+  _drvState.activeTab=tab;
+  document.querySelectorAll('#driverView .wv-tab').forEach(t=>t.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  else{document.querySelectorAll('#driverView .wv-tab').forEach(t=>{if(t.textContent.toLowerCase().includes(tab.slice(0,3)))t.classList.add('active')})}
+  renderDriverTab();
+}
+
+async function loadDriverData(){
+  try{
+    const [earningsR,activeR]=await Promise.all([
+      fetch('/api/driver/'+state.userId+'/earnings'),
+      fetch('/api/driver/'+state.userId+'/active-orders')
+    ]);
+    const earningsD=await earningsR.json();
+    const activeD=await activeR.json();
+    _drvState.earnings=earningsD.totalEarnings||0;
+    _drvState.deliveryCount=earningsD.totalDeliveries||0;
+    _drvState.history=earningsD.deliveries||[];
+    _drvState.orders=activeD.orders||[];
+    _drvState.currentOrder=_drvState.orders.length>0?_drvState.orders[0]:null;
+    $('drvEarningsLabel').textContent='R$'+_drvState.earnings.toFixed(2).replace('.',',')+' hoje';
+    renderDriverTab();
+  }catch(e){console.error('[driver]',e)}
+}
+
+function renderDriverTab(){
+  const c=$('drvContent');
+  if(_drvState.activeTab==='active'){
+    renderDriverActive(c);
+  }else if(_drvState.activeTab==='history'){
+    renderDriverHistory(c);
+  }else if(_drvState.activeTab==='earnings'){
+    renderDriverEarnings(c);
+  }
+}
+
+function renderDriverActive(c){
+  const activeOrders=_drvState.orders.filter(o=>!['delivered','cancelled'].includes(o.status));
+  if(activeOrders.length===0){
+    c.innerHTML='<div style="text-align:center;padding:3rem 1rem">'
+      +'<div style="font-size:2rem;margin-bottom:.5rem">&#128666;</div>'
+      +'<div style="font-size:.75rem;font-weight:600;color:var(--t2);margin-bottom:.3rem">Aguardando entregas</div>'
+      +'<div style="font-size:.6rem;color:var(--t3)">Quando o operador atribuir uma entrega, ela aparece aqui.</div>'
+      +'</div>';
+    return;
+  }
+  let h='';
+  activeOrders.forEach(order=>{
+    const addr=order.deliveryAddress||{};
+    const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood].filter(Boolean).join(', ');
+    const statusLabels={pending:'Aguardando',confirmed:'Confirmado',preparing:'Preparando',ready_pickup:'Pronto p/ retirada',on_the_way:'Em entrega'};
+    const statusColors={pending:'#fbbf24',confirmed:'#3b82f6',preparing:'#8b5cf6',ready_pickup:'#22c55e',on_the_way:'#f97316'};
+    h+='<div class="drv-order-card">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">';
+    h+='<div class="drv-order-title" style="margin:0">Entrega #'+order.id.slice(0,6)+'</div>';
+    h+='<span style="font-size:.55rem;padding:.15rem .4rem;border-radius:8px;font-weight:600;background:rgba(255,255,255,.05);color:'+(statusColors[order.status]||'var(--t2)')+'">'+((statusLabels[order.status])||order.status)+'</span>';
+    h+='</div>';
+    if(order.customerName){h+='<div style="font-size:.6rem;color:var(--t2);margin-bottom:.3rem">Cliente: '+esc(order.customerName)+'</div>';}
+    if(order.customerPhone){h+='<div style="font-size:.6rem;color:var(--t3);margin-bottom:.3rem">Tel: '+esc(order.customerPhone)+'</div>';}
+    h+='<div class="drv-order-address">'+esc(addrStr||'Endereco nao informado')+'</div>';
+    h+='<div class="drv-order-items">'+(order.items||[]).map(i=>i.qty+'x '+esc(i.name)).join('<br>')+'</div>';
+    h+='<div class="drv-order-fee">Valor da corrida: R$'+(order.driverFee||order.deliveryFee||0).toFixed(2).replace('.',',')+'</div>';
+    if(order.status==='confirmed'||order.status==='preparing'||order.status==='ready_pickup'){
+      h+='<button class="drv-action-btn primary" onclick="updateDriverStatus(\''+order.id+'\',\'on_the_way\')">Saiu para entrega</button>';
+    }
+    if(order.status==='on_the_way'){
+      h+='<button class="drv-action-btn success" onclick="updateDriverStatus(\''+order.id+'\',\'delivered\')">Entrega concluida</button>';
+    }
+    h+='</div>';
+  });
+  c.innerHTML=h;
+}
+
+function renderDriverHistory(c){
+  const hist=_drvState.history;
+  if(!hist||hist.length===0){
+    c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Nenhuma entrega realizada ainda.</div>';
+    return;
+  }
+  let h='<div style="padding:.3rem 0">';
+  hist.forEach(order=>{
+    const addr=order.deliveryAddress||{};
+    const addrStr=[addr.street,addr.number,addr.neighborhood].filter(Boolean).join(', ');
+    const dt=new Date(order.deliveredAt||order.createdAt);
+    const dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    h+='<div style="padding:.6rem;margin-bottom:.4rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">';
+    h+='<span style="font-size:.65rem;font-weight:600;color:var(--t1)">#'+order.id.slice(0,6)+'</span>';
+    h+='<span style="font-size:.55rem;color:var(--t3)">'+dateStr+'</span>';
+    h+='</div>';
+    if(addrStr){h+='<div style="font-size:.55rem;color:var(--t3);margin-bottom:.2rem">'+esc(addrStr)+'</div>';}
+    h+='<div style="font-size:.6rem;color:var(--t2)">'+(order.items||[]).map(i=>i.qty+'x '+esc(i.name)).join(', ')+'</div>';
+    h+='<div style="text-align:right;margin-top:.2rem;font-size:.7rem;font-weight:700;color:#22c55e">R$'+(order.driverFee||0).toFixed(2).replace('.',',')+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+function renderDriverEarnings(c){
+  const today=new Date();
+  const todayStr=today.toDateString();
+  const todayDeliveries=_drvState.history.filter(o=>{
+    return new Date(o.deliveredAt||o.createdAt).toDateString()===todayStr;
+  });
+  const todayEarnings=todayDeliveries.reduce((s,o)=>s+(o.driverFee||0),0);
+  const weekAgo=Date.now()-7*24*60*60*1000;
+  const weekDeliveries=_drvState.history.filter(o=>(o.deliveredAt||o.createdAt)>weekAgo);
+  const weekEarnings=weekDeliveries.reduce((s,o)=>s+(o.driverFee||0),0);
+  let h='<div style="padding:1rem">';
+  h+='<div style="text-align:center;padding:1.5rem;margin-bottom:1rem;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:14px">';
+  h+='<div style="font-size:.6rem;color:var(--t3);margin-bottom:.3rem">Ganhos de hoje</div>';
+  h+='<div style="font-size:2rem;font-weight:700;color:#22c55e">R$'+todayEarnings.toFixed(2).replace('.',',')+'</div>';
+  h+='<div style="font-size:.65rem;color:var(--t2);margin-top:.3rem">'+todayDeliveries.length+' entrega'+(todayDeliveries.length!==1?'s':'')+'</div>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:.5rem;margin-bottom:1rem">';
+  h+='<div style="flex:1;text-align:center;padding:.8rem;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.12);border-radius:12px">';
+  h+='<div style="font-size:.55rem;color:var(--t3)">Semana</div>';
+  h+='<div style="font-size:1rem;font-weight:700;color:#3b82f6;margin-top:.2rem">R$'+weekEarnings.toFixed(2).replace('.',',')+'</div>';
+  h+='<div style="font-size:.55rem;color:var(--t3)">'+weekDeliveries.length+' entregas</div>';
+  h+='</div>';
+  h+='<div style="flex:1;text-align:center;padding:.8rem;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.12);border-radius:12px">';
+  h+='<div style="font-size:.55rem;color:var(--t3)">Total</div>';
+  h+='<div style="font-size:1rem;font-weight:700;color:#8b5cf6;margin-top:.2rem">R$'+_drvState.earnings.toFixed(2).replace('.',',')+'</div>';
+  h+='<div style="font-size:.55rem;color:var(--t3)">'+_drvState.deliveryCount+' entregas</div>';
+  h+='</div></div>';
+  h+='</div>';
+  c.innerHTML=h;
 }
 
 async function loadDriverEarnings(){
@@ -8785,36 +8921,19 @@ async function loadDriverEarnings(){
     const r=await fetch('/api/driver/'+state.userId+'/earnings');
     const d=await r.json();
     _drvState.earnings=d.totalEarnings||0;
-    _drvState.deliveryCount=d.deliveryCount||0;
+    _drvState.deliveryCount=d.totalDeliveries||0;
+    _drvState.history=d.deliveries||[];
     $('drvEarningsLabel').textContent='R$'+_drvState.earnings.toFixed(2).replace('.',',')+' hoje';
   }catch(e){}
 }
 
 function renderDriverOrder(order){
-  const c=$('drvContent');
-  if(!order){
-    c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Aguardando entregas...</div>';
-    return;
+  if(order){
+    _drvState.currentOrder=order;
+    if(!_drvState.orders.find(o=>o.id===order.id)){_drvState.orders.push(order)}
+    else{const idx=_drvState.orders.findIndex(o=>o.id===order.id);if(idx>=0)_drvState.orders[idx]=order}
   }
-  _drvState.currentOrder=order;
-  const addr=order.deliveryAddress||{};
-  const addrStr=[addr.street,addr.number,addr.complement,addr.neighborhood].filter(Boolean).join(', ');
-  let h='<div class="drv-order-card">';
-  h+='<div class="drv-order-title">Entrega #'+order.id.slice(0,6)+'</div>';
-  h+='<div class="drv-order-address">'+esc(addrStr||'Endereco nao informado')+'</div>';
-  h+='<div class="drv-order-items">'+(order.items||[]).map(i=>i.qty+'x '+i.name).join('<br>')+'</div>';
-  h+='<div class="drv-order-fee">Valor: R$'+(order.driverFee||order.deliveryFee||0).toFixed(2).replace('.',',')+'</div>';
-  if(order.status==='confirmed'||order.status==='preparing'||order.status==='ready_pickup'){
-    h+='<button class="drv-action-btn primary" onclick="updateDriverStatus(\''+order.id+'\',\'on_the_way\')">Saiu para entrega</button>';
-  }
-  if(order.status==='on_the_way'){
-    h+='<button class="drv-action-btn success" onclick="updateDriverStatus(\''+order.id+'\',\'delivered\')">Entrega concluida</button>';
-  }
-  h+='</div>';
-  h+='<div class="drv-earnings"><div class="drv-earnings-total">R$'+_drvState.earnings.toFixed(2).replace('.',',')+'</div>';
-  h+='<div class="drv-earnings-label">Total ganho hoje</div>';
-  h+='<div class="drv-earnings-count">'+_drvState.deliveryCount+' entrega'+((_drvState.deliveryCount!==1)?'s':'')+'</div></div>';
-  c.innerHTML=h;
+  if(_drvState.activeTab==='active')renderDriverTab();
 }
 
 async function updateDriverStatus(orderId,status){
@@ -8825,9 +8944,13 @@ async function updateDriverStatus(orderId,status){
     });
     showToast(status==='delivered'?'Entrega concluida!':'Status atualizado');
     if(status==='delivered'){
-      _drvState.currentOrder=null;
-      loadDriverEarnings();
-      renderDriverOrder(null);
+      _drvState.orders=_drvState.orders.filter(o=>o.id!==orderId);
+      _drvState.currentOrder=_drvState.orders.length>0?_drvState.orders[0]:null;
+      loadDriverData();
+    }else{
+      const o=_drvState.orders.find(o=>o.id===orderId);
+      if(o)o.status=status;
+      renderDriverTab();
     }
   }catch(e){showToast('Erro ao atualizar')}
 }
