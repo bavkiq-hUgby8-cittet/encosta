@@ -13512,7 +13512,7 @@ const VA = (function(){
   let _pendingToolCall = false;  // true between function_call and next response
   let _pendingAgentTranscript = ''; // partial agent transcript being built
   let _unmuteTimer = null;       // delayed unmute after response.done
-  const UNMUTE_DELAY_MS = 800;   // delay to let WebRTC audio drain from speaker
+  const UNMUTE_DELAY_MS = 1200;   // delay to let WebRTC audio drain from speaker (increased for mobile)
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
 
@@ -13665,9 +13665,13 @@ const VA = (function(){
         $('vaMainBtn').style.display = 'none';
         $('vaStopBtn').style.display = '';
         _resetInactivityTimer();
+        // CRITICO: Mutar mic ANTES da saudacao para evitar eco/feedback
+        // O agente vai falar e o mic captaria a propria voz dele
+        _muteMic();
+        _agentSpeaking = true;
         // Agent speaks first — use exact opening text from server
         const openingText = td.openingText || 'Oi! Sou a Touch, sua assistente. Vamos nos conhecer?';
-        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que já chega contando a fofoca: "'+openingText.replace(/"/g,'\\"')+'" — MÁXIMO 2 frases. NUNCA comece com saudação vazia tipo "E aí". Vá DIRETO ao assunto.'}}));
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que ja chega contando a fofoca: "'+openingText.replace(/"/g,'\\"')+'" -- MAXIMO 2 frases. NUNCA comece com saudacao vazia tipo "E ai". Va DIRETO ao assunto.'}}));
       };
       dc.onmessage = e => { try{handleEvent(JSON.parse(e.data))}catch(x){} };
       dc.onclose = () => { if(active) cleanup(); };
