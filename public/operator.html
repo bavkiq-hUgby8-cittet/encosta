@@ -1297,6 +1297,18 @@ function initSocket(){
   S.socket.on('staff-joined',d=>{loadStaff()});
   S.socket.on('staff-left',d=>{loadStaff()});
   S.socket.on('staff-tables-updated',d=>{loadStaff()});
+  S.socket.on('delivery-order-new',d=>{
+    if(d.order)renderDeliveryOrder(d.order);
+  });
+  S.socket.on('delivery-status-update',d=>{
+    if(d.orderId){
+      // Refresh the delivery orders panel
+      if(typeof loadDeliveryOrders==='function')loadDeliveryOrders();
+    }
+  });
+  S.socket.on('delivery-order-cancelled',d=>{
+    if(typeof loadDeliveryOrders==='function')loadDeliveryOrders();
+  });
 }
 
 // ═══ SONIC — COPIED EXACTLY FROM MAIN APP ═══
@@ -2901,13 +2913,6 @@ async function assignDriverOp(orderId){
     showToast('Motorista '+driver.name+' atribuido');
   }catch(e){showToast('Erro ao atribuir motorista')}
 }
-
-socket.on('delivery-order-new',d=>{
-  if(d.order)renderDeliveryOrder(d.order);
-});
-socket.on('delivery-status-update',d=>{
-  if(d.order)renderDeliveryOrder(d.order);
-});
 
 </script>
 </body>
