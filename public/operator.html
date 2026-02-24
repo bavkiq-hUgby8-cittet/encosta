@@ -846,6 +846,52 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <div class="rest-stats" id="restStats"></div>
       <div class="rest-top-items" id="restTopItems"></div>
     </div>
+
+    <!-- STAFF TAB -->
+    <div id="restTabStaff" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+        <div style="font-size:.8rem;font-weight:700;color:var(--t1)">Equipe Ativa</div>
+        <div style="display:flex;gap:.3rem">
+          <button class="menu-card-btn" onclick="callWaiter()" style="background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.3);color:#818cf8;padding:.5rem .8rem;font-size:.7rem">+ Chamar Garcom</button>
+          <button class="menu-card-btn" onclick="callDriver()" style="background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.3);color:#34d399;padding:.5rem .8rem;font-size:.7rem">+ Chamar Motoboy</button>
+        </div>
+      </div>
+      <div style="font-size:.6rem;color:var(--t3);margin-bottom:.6rem">Garcons e motoboys conectam via TOUCH. Ative o som e peca para a pessoa encostar o celular.</div>
+      <div id="staffList" style="display:flex;flex-direction:column;gap:.4rem"></div>
+      <div id="staffEmpty" style="text-align:center;color:var(--t3);font-size:.7rem;padding:2rem 0">Nenhum membro da equipe ativo.<br>Use os botoes acima para chamar garcons ou motoboys.</div>
+    </div>
+
+    <!-- PROFILE TAB -->
+    <div id="restTabProfile" style="display:none">
+      <div style="font-size:.8rem;font-weight:700;margin-bottom:.8rem;color:var(--t1)">Perfil do Negocio</div>
+      <div style="font-size:.6rem;color:var(--t3);margin-bottom:1rem">Estas informacoes ficam visiveis para os visitantes do seu evento.</div>
+      <div class="menu-field"><label>Nome do negocio</label><input id="bpName" placeholder="Ex: Bar do Joao"></div>
+      <div class="menu-field"><label>Tipo</label>
+        <select id="bpType">
+          <option value="">Selecione...</option>
+          <option value="restaurante">Restaurante</option>
+          <option value="bar">Bar</option>
+          <option value="cafe">Cafe</option>
+          <option value="balada">Balada</option>
+          <option value="food_truck">Food Truck</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="menu-field"><label>Endereco</label><input id="bpAddress" placeholder="Rua, numero, bairro, cidade"></div>
+      <div class="menu-field"><label>Telefone / WhatsApp</label><input id="bpPhone" placeholder="+55 11 99999-9999"></div>
+      <div class="menu-field"><label>Horario de funcionamento</label><input id="bpHours" placeholder="Seg-Sex 18h-00h / Sab-Dom 12h-02h"></div>
+      <div class="menu-field"><label>Descricao</label><textarea id="bpDescription" placeholder="Conte sobre o seu negocio..." rows="3"></textarea></div>
+      <div class="menu-field"><label>Website</label><input id="bpWebsite" placeholder="https://"></div>
+      <div class="menu-field"><label>Instagram</label><input id="bpInstagram" placeholder="@seuperfil"></div>
+      <div style="display:flex;align-items:center;gap:.6rem;padding:.6rem 0;border-top:1px solid var(--b1);border-bottom:1px solid var(--b1);margin:.6rem 0">
+        <input type="checkbox" id="bpDelivery" style="accent-color:#f97316;width:18px;height:18px;cursor:pointer">
+        <div><label for="bpDelivery" style="font-size:.75rem;font-weight:600;color:var(--t1);cursor:pointer">Aceitar pedidos delivery</label><div style="font-size:.55rem;color:var(--t3)">Usuarios que ja visitaram seu evento podem pedir de casa.</div></div>
+      </div>
+      <div class="menu-field" id="bpDeliveryFeeWrap" style="display:none"><label>Taxa de entrega (R$)</label><input id="bpDeliveryFee" type="number" placeholder="0.00" min="0" step="0.50"></div>
+      <div class="menu-field" id="bpDeliveryNoteWrap" style="display:none"><label>Nota de entrega</label><input id="bpDeliveryNote" placeholder="Entrega em 30-45 min"></div>
+      <button class="menu-save-btn" onclick="saveBusinessProfile()" style="margin-top:.5rem">Salvar Perfil</button>
+      <div id="bpStatus" style="font-size:.6rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>
+    </div>
   </div>
 
   <!-- MENU ITEM MODAL -->
@@ -2223,17 +2269,19 @@ function closeRestPanel(){$('opRestPanel').style.display='none'}
 
 function switchRestTab(tab){
   REST.activeTab=tab;
-  ['menu','orders','tables','dashboard'].forEach(t=>{
+  ['menu','orders','tables','staff','dashboard','profile'].forEach(t=>{
     const el=$('restTab'+t.charAt(0).toUpperCase()+t.slice(1));
     if(el)el.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('.op-rest-tab').forEach((b,i)=>{
-    const tabs=['menu','orders','tables','dashboard'];
+    const tabs=['menu','orders','tables','staff','dashboard','profile'];
     b.classList.toggle('active',tabs[i]===tab);
   });
   if(tab==='tables')renderTables();
   if(tab==='dashboard')renderRestDashboard();
   if(tab==='orders')renderOrders();
+  if(tab==='staff')loadStaff();
+  if(tab==='profile')loadBusinessProfile();
 }
 
 // ── Load menu from server ──
