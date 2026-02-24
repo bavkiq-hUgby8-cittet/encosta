@@ -874,6 +874,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .notif-text{font-size:.72rem;color:var(--t1);line-height:1.3}
 .notif-text strong{font-weight:600;color:var(--t1)}
 .notif-time{font-size:.58rem;color:var(--t3);margin-top:1px}
+.notif-dismiss{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.06);border:none;color:var(--t3);font-size:.65rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;opacity:0;transition:opacity .15s,background .15s;margin-left:4px}
+.notif-item:hover .notif-dismiss,.notif-item .notif-dismiss{opacity:.7}
+.notif-dismiss:hover{opacity:1!important;background:rgba(239,68,68,.15);color:#ef4444}
+.notif-clear-all{display:flex;align-items:center;justify-content:center;gap:.3rem;padding:.4rem .8rem;margin:.4rem 1rem;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);color:var(--t3);font-size:.6rem;cursor:pointer;transition:background .15s,color .15s}
+.notif-clear-all:hover{background:rgba(239,68,68,.08);color:#ef4444;border-color:rgba(239,68,68,.15)}
 .notif-empty{text-align:center;padding:3rem 1rem;color:var(--t3);font-size:.8rem}
 
 /* ENCOUNTER LOG */
@@ -1921,7 +1926,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
   <!-- Notification panel -->
   <div class="notif-panel" id="notifPanel">
-    <div class="notif-header"><button class="notif-close" onclick="toggleNotifPanel()">←</button><div class="notif-title">Atividade</div></div>
+    <div class="notif-header"><button class="notif-close" onclick="toggleNotifPanel()">←</button><div class="notif-title">Atividade</div><button class="notif-clear-all" id="notifClearAllBtn" onclick="dismissAllNotifications()" style="display:none">Limpar tudo</button></div>
     <div id="notifList"><div class="notif-empty">Carregando...</div></div>
   </div>
   <!-- Redesigned detail card v2 -->
@@ -8171,7 +8176,7 @@ async function loadNotifications(){
   try{
     const data=await(await fetch('/api/notifications/'+state.userId)).json();
     const notifs=data.notifications||[];
-    if(!notifs.length){list.innerHTML='<div class="notif-empty"><div style="font-size:1.8rem;margin-bottom:.5rem;opacity:.4">🔕</div>Nenhuma atividade ainda<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;opacity:.5">Curtas, estrelas e revelações aparecem aqui</div></div>';return}
+    if(!notifs.length){list.innerHTML='<div class="notif-empty"><div style="font-size:1.8rem;margin-bottom:.5rem;opacity:.4">🔕</div>Nenhuma atividade ainda<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;opacity:.5">Mensagens, conexoes, estrelas e mais aparecem aqui</div></div>';return}
     // Mark as seen on server
     fetch('/api/notifications/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).catch(()=>{});
     let html='';
@@ -8183,12 +8188,15 @@ async function loadNotifications(){
         ?'<div class="notif-ico" style="background:'+(n.color||'var(--ac)')+'"><img src="'+esc(photo)+'" alt=""></div>'
         :'<div class="notif-ico" style="background:none;overflow:visible;position:relative">'+ANON_AVATAR_SVG+(n.avatarAccessory&&AVATAR_ACCESSORIES[n.avatarAccessory]?'<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">'+AVATAR_ACCESSORIES[n.avatarAccessory].svg+'</div>':'')+'</div>';
       let text='',icon='';
-      if(n.type==='like'){icon='❤️';text='<strong>'+esc(name)+'</strong> curtiu você'}
+      if(n.type==='like'){icon='<svg width="13" height="13" viewBox="0 0 24 24" fill="#ef4444" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';text='<strong>'+esc(name)+'</strong> curtiu voce'}
       else if(n.type==='star'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';text='<strong>'+esc(name)+'</strong> te deu uma estrela'}
-      else if(n.type==='friend-star'){icon='✨';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
-      else if(n.type==='reveal-request'){icon='👁';text='<strong>'+esc(name)+'</strong> pediu seu ID'}
-      else if(n.type==='identity-revealed'){icon='🪪';text='<strong>'+esc(name)+'</strong> revelou o ID pra você'}
-      else if(n.type==='game-invite'){icon='🎮';text='<strong>'+esc(name)+'</strong> te convidou pra jogar '+(n.gameName?esc(n.gameName):'')}
+      else if(n.type==='friend-star'){icon='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';text='<strong>'+esc(name)+'</strong> ganhou uma estrela'}
+      else if(n.type==='reveal-request'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';text='<strong>'+esc(name)+'</strong> pediu seu ID'}
+      else if(n.type==='identity-revealed'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>';text='<strong>'+esc(name)+'</strong> revelou o ID pra voce'}
+      else if(n.type==='game-invite'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>';text='<strong>'+esc(name)+'</strong> te convidou pra jogar '+(n.gameName?esc(n.gameName):'')}
+      else if(n.type==='new-connection'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>';text='<strong>'+esc(name)+'</strong> se conectou com voce'+(n.encounterCount>1?' ('+n.encounterCount+'x)':'')}
+      else if(n.type==='unread-message'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>';text='<strong>'+esc(name)+'</strong> te enviou '+(n.unreadCount||1)+' msg'+(n.unreadCount>1?'s':'')}
+      else if(n.type==='event-checkin'){icon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';text='Check-in em <strong>'+esc(n.eventName||'evento')+'</strong>'}
       // Better timestamp formatting
       const ts=n.timestamp;
       let timeStr='';
@@ -8215,17 +8223,52 @@ async function loadNotifications(){
         }
       }
       const unseenDot=n.seen?'':'<div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0;margin-left:4px"></div>';
-      const clickAction=n.fromId?'onclick="navigateToConstNode(\''+esc(n.fromId)+'\')" style="cursor:pointer"':'';
+      var clickAction='';
+      if(n.type==='unread-message'&&n.relationId){clickAction='onclick="openChatFromNotif(\''+esc(n.relationId)+'\')" style="cursor:pointer"'}
+      else if(n.fromId){clickAction='onclick="navigateToConstNode(\''+esc(n.fromId)+'\')" style="cursor:pointer"'}
       const bg=n.seen?'':'background:rgba(59,130,246,.04);';
-      html+='<div class="notif-item" '+clickAction+' style="'+bg+'">'+icoHtml+'<div class="notif-content"><div class="notif-text">'+icon+' '+text+'</div>'+(timeStr?'<div class="notif-time">'+timeStr+'</div>':'')+'</div>'+unseenDot+'</div>';
+      var notifKey=n.type+':'+(n.fromId||'sys')+':'+(n.timestamp||0);
+      var dismissBtn='<button class="notif-dismiss" onclick="event.stopPropagation();dismissNotification(\''+notifKey+'\',this)" title="Remover">x</button>';
+      html+='<div class="notif-item" '+clickAction+' style="'+bg+'">'+icoHtml+'<div class="notif-content"><div class="notif-text">'+icon+' '+text+'</div>'+(timeStr?'<div class="notif-time">'+timeStr+'</div>':'')+'</div>'+unseenDot+dismissBtn+'</div>';
     });
     list.innerHTML=html;
+    // Show clear all button if there are notifications
+    var clearBtn=$('notifClearAllBtn');
+    if(clearBtn)clearBtn.style.display=notifs.length?'flex':'none';
     // Update badge to 0 (just seen them)
     const badge=$('constNotifBadge');
     if(badge){badge.textContent='0';badge.classList.add('hidden')}
   }catch(e){
     list.innerHTML='<div class="notif-empty">Erro ao carregar</div>';
   }
+}
+// ── Open chat from notification (by relationId) ──
+function openChatFromNotif(relationId){
+  toggleNotifPanel();
+  fetch('/api/relations/'+state.userId).then(function(r){return r.json()}).then(function(rels){
+    var rel=rels.find(function(r){return r.id===relationId&&r.expiresAt>Date.now()});
+    if(!rel){showToast('Conexao expirada');return}
+    var pid=rel.userA===state.userId?rel.userB:rel.userA;
+    var isEvt=!!(rel.isEvent||(typeof pid==='string'&&pid.startsWith('evt:')));
+    openChat({relationId:rel.id,phrase:rel.phrase,expiresAt:rel.expiresAt,partnerName:isEvt?(rel.eventName||rel.partnerName):rel.partnerName,partnerId:pid,isEvent:isEvt,eventId:rel.eventId,eventName:rel.eventName,partnerPhoto:rel.partnerPhoto||null,partnerRevealedToMe:rel.partnerRevealedToMe||false,iRevealedToPartner:rel.iRevealedToPartner||false,userA:{id:rel.userA,nickname:rel.userA===state.userId?state.userName:(rel.partnerName||'?'),realName:rel.userA===state.userId?null:rel.partnerRealName},userB:{id:rel.userB,nickname:rel.userB===state.userId?state.userName:(rel.partnerName||'?'),realName:rel.userB===state.userId?null:rel.partnerRealName}});
+  }).catch(function(){showToast('Erro ao abrir chat')});
+}
+// ── Dismiss individual notification ──
+function dismissNotification(notifKey,btnEl){
+  if(!state.userId)return;
+  // Remove visually with animation
+  var item=btnEl.closest('.notif-item');
+  if(item){item.style.transition='opacity .2s,transform .2s';item.style.opacity='0';item.style.transform='translateX(30px)';setTimeout(function(){item.remove()},220)}
+  // Persist on server
+  fetch('/api/notifications/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,notifKey:notifKey})}).catch(function(){});
+}
+// ── Dismiss all notifications ──
+function dismissAllNotifications(){
+  if(!state.userId)return;
+  fetch('/api/notifications/dismiss-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}).then(function(){
+    loadNotifications();
+    updateNotifBadge();
+  }).catch(function(){});
 }
 // Load notif count when constellation opens — only UNSEEN
 function updateNotifBadge(){

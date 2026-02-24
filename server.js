@@ -2510,9 +2510,77 @@ app.get('/api/notifications/:userId', (req, res) => {
       });
     });
   });
+  // 7. Recent connections (encounters in last 7 days)
+  const now7d = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  myEncounters.filter(e => !e.isEvent && e.timestamp > now7d && !(e.with || '').startsWith('evt:')).forEach(e => {
+    const partner = db.users[e.with];
+    if (!partner) return;
+    const ts = e.timestamp || 0;
+    notifs.push({
+      type: 'new-connection',
+      fromId: e.with,
+      nickname: partner.nickname || partner.name,
+      color: partner.color,
+      avatarAccessory: partner.avatarAccessory || null,
+      encounterCount: e.encounterCount || 1,
+      isRenewal: (e.encounterCount || 1) > 1,
+      timestamp: ts,
+      seen: ts <= seenAt
+    });
+  });
+  // 8. Unread chat messages (from active relations)
+  const nowTs = Date.now();
+  myRelIds.forEach(rid => {
+    const r = db.relations[rid];
+    if (!r || r.expiresAt < nowTs) return;
+    const msgs = db.messages[rid] || [];
+    const partnerId = r.userA === userId ? r.userB : r.userA;
+    const partner = db.users[partnerId];
+    if (!partner) return;
+    // Find user's last message
+    const myLastMsg = [...msgs].reverse().find(m => m.userId === userId);
+    const myLastTs = myLastMsg ? (myLastMsg.timestamp || 0) : 0;
+    // Count unread from partner
+    const unreadMsgs = msgs.filter(m => m.userId !== userId && (m.timestamp || 0) > myLastTs && !m.text?.startsWith('[game-invite:'));
+    if (unreadMsgs.length > 0) {
+      const lastUnread = unreadMsgs[unreadMsgs.length - 1];
+      const ts = lastUnread.timestamp || 0;
+      notifs.push({
+        type: 'unread-message',
+        fromId: partnerId,
+        nickname: partner.nickname || partner.name,
+        color: partner.color,
+        avatarAccessory: partner.avatarAccessory || null,
+        unreadCount: unreadMsgs.length,
+        lastText: (lastUnread.text || '').slice(0, 60),
+        relationId: rid,
+        timestamp: ts,
+        seen: ts <= seenAt
+      });
+    }
+  });
+  // 9. Event checkins (last 7 days)
+  myEncounters.filter(e => e.isEvent && e.timestamp > now7d).forEach(e => {
+    const ts = e.timestamp || 0;
+    notifs.push({
+      type: 'event-checkin',
+      fromId: null,
+      nickname: e.withName || 'Evento',
+      color: '#f59e0b',
+      eventId: e.with,
+      timestamp: ts,
+      seen: ts <= seenAt
+    });
+  });
+  // Filter out dismissed notifications
+  const dismissed = user.dismissedNotifs || [];
+  const filtered = notifs.filter(n => {
+    const nKey = n.type + ':' + (n.fromId || '') + ':' + n.timestamp;
+    return !dismissed.includes(nKey);
+  });
   // Sort by timestamp desc
-  notifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  const all = notifs.slice(0, 50);
+  filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const all = filtered.slice(0, 80);
   const unseenCount = all.filter(n => !n.seen).length;
   res.json({ notifications: all, unseenCount });
 });
@@ -2523,6 +2591,32 @@ app.post('/api/network/seen', (req, res) => {
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
   user.networkSeenAt = Date.now();
+  saveDB('users');
+  res.json({ ok: true });
+});
+
+// Dismiss (apagar) uma notificacao individual
+app.post('/api/notifications/dismiss', (req, res) => {
+  const { userId, notifKey } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Nao encontrado.' });
+  if (!user.dismissedNotifs) user.dismissedNotifs = [];
+  if (!user.dismissedNotifs.includes(notifKey)) {
+    user.dismissedNotifs.push(notifKey);
+    // Limita a 200 para nao crescer infinitamente
+    if (user.dismissedNotifs.length > 200) user.dismissedNotifs = user.dismissedNotifs.slice(-200);
+    saveDB('users');
+  }
+  res.json({ ok: true });
+});
+
+// Limpar todas as notificacoes
+app.post('/api/notifications/dismiss-all', (req, res) => {
+  const { userId } = req.body;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Nao encontrado.' });
+  user.notifSeenAt = Date.now();
+  // Marca todas como vistas
   saveDB('users');
   res.json({ ok: true });
 });
