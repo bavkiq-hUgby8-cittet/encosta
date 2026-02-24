@@ -4555,6 +4555,7 @@ function createSonicConnection(userIdA, userIdB) {
     const evName = evObj ? evObj.name : 'Evento';
     if (!db.encounters[visitorId]) db.encounters[visitorId] = [];
     db.encounters[visitorId].push({ with: 'evt:' + eventId, withName: evName, withColor: '#60a5fa', phrase, timestamp: now, date: new Date(now).toISOString().slice(0,10), type: 'checkin', points: 1, chatDurationH: 24, relationId, isEvent: true });
+    if (db.encounters[visitorId].length > 1000) db.encounters[visitorId] = db.encounters[visitorId].slice(-1000);
     // Award points to visitor only
     awardPoints(visitorId, null, 'checkin');
   }
@@ -8222,7 +8223,7 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
 });
 
 // ══ DEV DIAGNOSTICO — testa se Claude ta funcionando ══
-app.get('/api/dev/diagnostico', async (req, res) => {
+app.get('/api/dev/diagnostico', requireAdmin, async (req, res) => {
   // Find admin/top1 userId automatically
   const adminUser = Object.entries(db.users).find(([id, u]) => u.isAdmin || u.registrationOrder === 1);
   const adminId = adminUser ? adminUser[0] : null;
