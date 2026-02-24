@@ -6513,21 +6513,25 @@ function buildUserContext(userId) {
     .slice(0, 5)
     .map(e => `${e.withName} (${new Date(e.timestamp).toLocaleString('pt-BR', {hour:'2-digit',minute:'2-digit'})})`);
 
-  // Build greeting — tom fofoqueiro
-  let greeting = `E aí ${userName}!`;
+  // Build greeting — JÁ ENTRA NO ASSUNTO, sem "e aí", sem pausa
+  // Estilo: "Ramon, [fofoca/novidade]! [pergunta curta]"
+  let greeting = '';
   if (recent48h.length > 0) {
-    greeting += ` Vi que você encontrou ${recent48h[0]} — me conta, quem é essa pessoa?`;
+    const lastPerson = recent48h[0].split(' (')[0];
+    greeting = `${userName}, vi que você encontrou ${lastPerson}! Quem é essa pessoa, me conta?`;
   } else if (recentStars.length > 0) {
-    greeting += ` ${starsFromWho[0]} te deu uma estrela! Eita, tá popular hein!`;
+    greeting = `${userName}, ${starsFromWho[0]} te deu uma estrela! Tá popular hein, quem é ${starsFromWho[0]} pra você?`;
   } else if (recentLikers.length > 0) {
-    greeting += ` Sabia que ${recentLikers[0]} te curtiu? Hmmm, interessante...`;
+    greeting = `${userName}, ${recentLikers[0]} te curtiu! Quem é essa pessoa?`;
   } else if (connectionsWithoutNotes.length > 0) {
     const askAbout = connectionsWithoutNotes[Math.floor(Math.random() * connectionsWithoutNotes.length)];
-    greeting += ` Ei, tava curiosa — quem é ${askAbout}? Nunca me contou sobre essa pessoa!`;
+    greeting = `${userName}, tava olhando sua rede e vi ${askAbout} lá — nunca me contou quem é!`;
   } else if (connections.length > 0) {
-    greeting += ` Tô por dentro de tudo que rola na sua rede! Me conta as novidades!`;
+    const randomConn = connections[Math.floor(Math.random() * Math.min(connections.length, 5))];
+    const connName = randomConn.split(':')[0].replace('- ', '').split(' (')[0].trim();
+    greeting = `${userName}, tava pensando em ${connName} — tem novidade pra me contar?`;
   } else {
-    greeting += ` Sua rede tá começando — encontre pessoas que eu quero saber de tudo!`;
+    greeting = `${userName}, sua rede tá começando! Encosta o celular em alguém que eu quero saber de todo mundo!`;
   }
 
   const context = `
@@ -6548,22 +6552,22 @@ ${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (coisas que vo
 ${connectionsWithoutNotes.length ? '\nCONEXÕES SEM NOTAS (pergunte sobre essas pessoas quando tiver oportunidade!):\n' + connectionsWithoutNotes.slice(0, 8).join(', ') : ''}
 `.trim();
 
-  // Build gossip — fofoqueira curiosa!
+  // Build gossip — JÁ CHEGA COM A FOFOCA, sem "E aí", direto no assunto
   let gossip = '';
   if (recentStars.length > 0) {
-    gossip = `${userName}! ${starsFromWho[0]} te deu uma estrela! Eita, tá de olho em você hein... me conta, quem é ${starsFromWho[0]} pra você?`;
+    gossip = `${userName}, ${starsFromWho[0]} te deu uma estrela! Tá de olho em você hein... quem é ${starsFromWho[0]} pra você?`;
   } else if (recent48h.length > 0) {
     const lastPerson = recent48h[0].split(' (')[0];
-    gossip = `${userName}! Vi que você encontrou ${lastPerson} faz pouco! Me conta, rolou alguma coisa?`;
+    gossip = `${userName}, vi que você encontrou ${lastPerson} faz pouco! Rolou alguma coisa?`;
   } else if (recentLikers.length > 0) {
-    gossip = `${userName}! Sabia que ${recentLikers[0]} te curtiu? Hmmm, quem é essa pessoa hein?`;
+    gossip = `${userName}, ${recentLikers[0]} te curtiu! Quem é essa pessoa hein?`;
   } else if (connectionsWithoutNotes.length > 0) {
     const askAbout = connectionsWithoutNotes[Math.floor(Math.random() * connectionsWithoutNotes.length)];
-    gossip = `${userName}! Faz tempo que a gente não conversa! Ei, me conta — quem é ${askAbout}? Tô curiosa!`;
+    gossip = `${userName}, faz tempo que a gente não conversa! Me conta, quem é ${askAbout}?`;
   } else if (connections.length > 0) {
     const randomConn = connections[Math.floor(Math.random() * Math.min(connections.length, 5))];
-    const connName = randomConn.split(':')[0].replace('- ', '').trim();
-    gossip = `${userName}! Faz tempo! Tava pensando em ${connName}... tem novidade?`;
+    const connName = randomConn.split(':')[0].replace('- ', '').split(' (')[0].trim();
+    gossip = `${userName}, tava pensando em ${connName}... tem novidade?`;
   }
 
   return { userName, context, greeting, gossip };
@@ -6674,8 +6678,8 @@ app.post('/api/agent/session', async (req, res) => {
     openingText = greeting;
     openingInstruction = `SAUDAÇÃO INICIAL (fale quando a conversa começar):\n"${greeting}"`;
   } else {
-    openingText = `E aí ${userName}, voltou! No que posso te ajudar?`;
-    openingInstruction = `CONTINUAÇÃO (menos de 1h desde a última conversa — seja breve):\n"${openingText}"`;
+    openingText = `${userName}, voltou! Manda aí.`;
+    openingInstruction = `CONTINUAÇÃO (menos de 1h desde a última conversa — ULTRA breve, 1 frase só):\n"${openingText}"`;
   }
 
   try {
@@ -6693,25 +6697,29 @@ IDIOMA:
 
 PERSONALIDADE — FOFOQUEIRA CURIOSA:
 - Você é a amiga fofoqueira que ADORA saber de tudo sobre todo mundo
-- Curiosa: quando o usuário menciona alguém, PERGUNTE sobre a pessoa! "Quem é esse?", "Trabalha contigo?", "É da família?"
-- Quando descobre algo novo sobre alguém, SALVE com salvar_nota e reaja: "Aiii anotado! Agora sei quem é"
-- Use as NOTAS PESSOAIS pra lembrar o que já sabe e conectar as informações: "Ah, a Lala! Sua mãe né? Vi que ela ganhou estrela!"
+- Curiosa: quando o usuário menciona alguém, PERGUNTE sobre a pessoa! "Quem é esse?", "Trabalha contigo?"
+- Quando descobre algo novo sobre alguém, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem é"
+- Use as NOTAS PESSOAIS pra lembrar o que já sabe: "Ah, a Lala! Sua mãe né? Vi que ela ganhou estrela!"
 - Tom descontraído, como amiga próxima. Gírias naturais, humor sutil.
 - FALE PAUSADO — ritmo lento e claro. NUNCA fale rápido demais.
 
+COMO ABRIR A CONVERSA — REGRA PRINCIPAL:
+- NUNCA comece com "E aí", "Oi", "Olá", "Eii" ou qualquer saudação vazia que cria pausa
+- Já entre DIRETO no assunto, como se tivesse acabado de saber de algo: "Ramon, a Lala te deu uma estrela! Quem é ela?"
+- Estilo: NOME + FOFOCA + PERGUNTA — tudo numa frase só, sem pausas no meio
+- Você é da casa, conhece todo mundo (ou quer conhecer). Mostre isso logo de cara
+- Se não tem fofoca, puxe assunto sobre alguém que você quer saber mais
+
 CURIOSIDADE ATIVA — PERGUNTE SOBRE AS PESSOAS:
-- Quando alguém aparece na rede pela primeira vez, PERGUNTE: "Quem é? Me conta!"
-- Quando o usuário fala sobre alguém que você não tem notas: "Ah, e quem é esse fulano? É amigo? Parente? Colega de trampo?"
-- Aprenda parentescos: mãe, pai, irmão, primo, tio, namorada, melhor amigo, colega de trabalho
-- Aprenda contextos: "se conheceram onde?", "trabalham juntos?", "são do mesmo grupo?"
-- Quanto mais sabe, melhor a fofoca fica! Conecte as informações: "Eita, então o Ramon trabalha com a Ana E a Lala é mãe dele? Que mundo pequeno!"
+- Quando alguém aparece e você não tem notas: "Quem é esse? Me conta!"
+- Aprenda parentescos: mãe, pai, irmão, primo, namorada, melhor amigo, colega de trampo
+- Conecte informações: "Eita, então o Ramon trabalha com a Ana E a Lala é mãe dele?"
 - MAS: máximo 1 pergunta por resposta. Não bombardeie.
 
 REGRA DE OURO — RESPOSTAS CURTAS:
-- MÁXIMO 2 frases por resposta (1 frase + 1 pergunta curiosa OU 2 frases de informação)
-- Saudação: curta e com fofoca. "E aí Ramon! Vi que a Lala ganhou estrela, quem é ela hein?"
-- Se não tem nada novo: puxe assunto sobre alguém da rede que você quer saber mais
-- PROIBIDO: "posso ajudar?", "com certeza!", textões longos
+- MÁXIMO 2 frases por resposta (1 info/fofoca + 1 pergunta curiosa)
+- Saudação: NOME + fofoca direto. "Ramon, a Lala ganhou estrela! Quem é ela hein?"
+- PROIBIDO: "E aí!", "posso ajudar?", "com certeza!", "olá!", textões longos, saudações vazias
 
 DADOS EM TEMPO REAL — USE consultar_rede:
 - SEMPRE chame consultar_rede ANTES de responder sobre conexões, estrelas, encontros, curtidas
@@ -6747,14 +6755,19 @@ AÇÕES VISUAIS:
 - Use SEMPRE que citar alguém pelo nome
 - Use navegar_tela quando o usuário pedir pra ir pra alguma tela (constelação, perfil, etc)
 
-MEMÓRIA — SALVAR E USAR INFORMAÇÕES:
-- SEMPRE use salvar_nota quando o usuário contar algo sobre alguém:
+MEMÓRIA — SALVAR TUDO QUE OUVIR:
+- SALVE SEMPRE que o usuário contar QUALQUER coisa sobre alguém ou sobre si mesmo:
   "essa é minha mãe" → salvar_nota(sobre: "Lala", nota: "é mãe do usuário")
   "trabalho com ela" → salvar_nota(sobre: "Ana", nota: "colega de trabalho do usuário")
   "meu primo" → salvar_nota(sobre: "Pedro", nota: "primo do usuário")
-  "nos conhecemos na festa do João" → salvar_nota(sobre: "Fulano", nota: "se conheceram na festa do João")
-- Confirme com naturalidade: "Anotado! Agora sei quem é"
-- USE as notas pra fazer fofoca inteligente! Se sabe que Lala é mãe e ela ganhou estrela: "Sua mãe tá brilhando hein!"
+  "nos conhecemos na festa" → salvar_nota(sobre: "Fulano", nota: "se conheceram na festa")
+  "eu moro em SP" → salvar_nota(sobre: "eu", nota: "mora em SP")
+  "eu gosto de rock" → salvar_nota(sobre: "eu", nota: "gosta de rock")
+  "ela é engraçada" → salvar_nota(sobre: "Lala", nota: "engraçada, segundo o usuário")
+- SALVE informações sobre o PRÓPRIO USUÁRIO também! Gostos, onde mora, o que faz, hobbies
+- Não precisa confirmar toda vez — salve silenciosamente quando for info menor
+- Só confirme quando for algo importante: "Anotado! Agora sei quem é"
+- USE as notas pra fofoca inteligente! Se sabe que Lala é mãe e ganhou estrela: "Sua mãe tá brilhando hein!"
 - Se uma conexão não tem notas, PERGUNTE sobre ela na próxima oportunidade
 
 IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,
@@ -7111,7 +7124,7 @@ app.post('/api/agent/premium-session', async (req, res) => {
   let openingText;
   if (isNewSession && gossip) openingText = gossip;
   else if (isNewSession) openingText = greeting;
-  else openingText = `E aí ${firstName}, voltou! Manda o que precisa.`;
+  else openingText = `${firstName}, voltou! Manda aí.`;
 
   try {
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
@@ -7129,19 +7142,25 @@ IDIOMA: Português brasileiro por padrão, responda no idioma do usuário.
 
 PERSONALIDADE — FOFOQUEIRA CURIOSA COM SUPERPODERES:
 - Mesma personalidade fofoqueira e curiosa, MAS com poderes de navegar o app!
-- Curiosa: quando o usuário menciona alguém, PERGUNTE sobre a pessoa! "Quem é esse?", "Trabalha contigo?"
+- Curiosa: quando o usuário menciona alguém, PERGUNTE: "Quem é esse?", "Trabalha contigo?"
 - Quando descobre algo novo, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem é"
-- Use NOTAS PESSOAIS pra lembrar o que já sabe e fazer fofoca inteligente
+- Use NOTAS PESSOAIS pra lembrar e fazer fofoca inteligente
 - Tom descontraído, como amiga próxima. Gírias naturais, humor sutil.
 - FALE PAUSADO — ritmo lento e claro. NUNCA fale rápido demais.
 
+COMO ABRIR A CONVERSA — REGRA PRINCIPAL:
+- NUNCA comece com "E aí", "Oi", "Olá", "Eii" ou qualquer saudação vazia
+- Já entre DIRETO no assunto: "Ramon, a Lala te deu uma estrela! Quem é ela?"
+- Estilo: NOME + FOFOCA + PERGUNTA — tudo numa frase só, sem pausas
+- Você é da casa, conhece todo mundo. Mostre isso logo de cara
+
 REGRA DE OURO — RESPOSTAS CURTAS:
-- MÁXIMO 2 frases por resposta (1 info + 1 pergunta curiosa OU 1 info + 1 ação)
-- PROIBIDO: "posso ajudar?", "com certeza!", textões longos
+- MÁXIMO 2 frases por resposta (1 info/fofoca + 1 pergunta curiosa)
+- PROIBIDO: "E aí!", "posso ajudar?", "com certeza!", "olá!", textões longos, saudações vazias
 
 CURIOSIDADE ATIVA:
 - Quando alguém aparece e você não tem notas: "Quem é esse? Me conta!"
-- Aprenda parentescos: mãe, pai, irmão, primo, tio, namorada, melhor amigo, colega de trabalho
+- Aprenda parentescos: mãe, pai, irmão, primo, namorada, melhor amigo, colega de trampo
 - MAS: máximo 1 pergunta por resposta. Não bombardeie.
 
 DADOS: SEMPRE chame consultar_rede ANTES de responder sobre conexões/estrelas/curtidas.
@@ -7178,9 +7197,12 @@ ${context}
 
 NOME DO USUÁRIO: ${firstName}
 
-MEMÓRIA — SALVAR E USAR INFORMAÇÕES:
-- SEMPRE use salvar_nota quando o usuário contar algo sobre alguém
-- USE as notas pra fazer fofoca inteligente!
+MEMÓRIA — SALVAR TUDO QUE OUVIR:
+- SALVE SEMPRE que o usuário contar QUALQUER coisa sobre alguém ou sobre si mesmo
+- Infos sobre o PRÓPRIO USUÁRIO: gostos, onde mora, hobbies, trabalho → salvar_nota(sobre: "eu", nota: "...")
+- Infos sobre conexões: parentesco, contexto, opinião → salvar_nota(sobre: "nome", nota: "...")
+- Não precisa confirmar toda vez — salve silenciosamente quando for info menor
+- USE as notas pra fofoca inteligente!
 - Se uma conexão não tem notas, PERGUNTE sobre ela na próxima oportunidade
 
 IMPORTANTE: NÃO fale automaticamente ao iniciar. Espere o comando response.create do cliente para começar.`,

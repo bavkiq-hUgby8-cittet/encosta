@@ -1272,7 +1272,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-wave-bar:nth-child(7){height:20px;animation-delay:.12s}
 @keyframes va-wave-anim{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
 .va-status-text{font-size:.82rem;color:rgba(255,255,255,.35);font-weight:500;min-height:20px;text-align:center;letter-spacing:.03em}
-.va-transcript{font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;max-width:320px;line-height:1.6;min-height:40px;max-height:120px;overflow-y:auto;font-weight:400}
+.va-transcript{font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;max-width:320px;line-height:1.6;min-height:40px;max-height:120px;overflow-y:auto;font-weight:400;display:none}
+.va-earpiece-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .25s;margin-right:8px}
+.va-earpiece-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+.va-earpiece-btn.active{color:#8b5cf6;border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.1)}
 .va-actions{display:flex;gap:16px;margin-top:8px}
 .va-btn{padding:14px 32px;border-radius:28px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .25s;font-family:inherit;letter-spacing:.02em}
 .va-btn:hover{background:rgba(255,255,255,.08);color:#fff}
@@ -12069,6 +12072,7 @@ window.addEventListener('message',function(e){
 <!-- ═══ VOICE AGENT — Modern UI ═══ -->
 <div class="va-overlay" id="vaOverlay">
   <div class="va-header">
+    <button class="va-earpiece-btn" id="vaEarpieceBtn" onclick="VA.toggleEarpiece()" title="Alto-falante"><svg id="vaEarpieceIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
     <div class="va-title"><span>Touch</span> AI</div>
     <button class="va-close" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -12301,8 +12305,8 @@ const VA = (function(){
         $('vaStopBtn').style.display = '';
         _resetInactivityTimer();
         // Agent speaks first — use exact opening text from server
-        const openingText = td.openingText || 'E aí! Sou o Touch, seu assistente.';
-        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale EXATAMENTE isso (pode adaptar levemente o tom, mas mantenha os nomes e dados): "'+openingText.replace(/"/g,'\\"')+'" — MÁXIMO 2 frases, natural e animada.'}}));
+        const openingText = td.openingText || 'Oi! Sou a Touch, sua assistente. Vamos nos conhecer?';
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que já chega contando a fofoca: "'+openingText.replace(/"/g,'\\"')+'" — MÁXIMO 2 frases. NUNCA comece com saudação vazia tipo "E aí". Vá DIRETO ao assunto.'}}));
       };
       dc.onmessage = e => { try{handleEvent(JSON.parse(e.data))}catch(x){} };
       dc.onclose = () => { if(active) cleanup(); };
@@ -12788,6 +12792,29 @@ const VA = (function(){
     sendText(){
       const inp=$('vaTextInput');
       if(inp&&inp.value.trim()) sendText(inp.value.trim());
+    },
+    toggleEarpiece(){
+      if(!audioEl) return;
+      // Toggle between speaker (default) and earpiece
+      // On mobile, sinkId isn't widely supported, so we use a workaround:
+      // Set audio element volume + use proximity-like behavior
+      const btn=$('vaEarpieceBtn');
+      const icon=$('vaEarpieceIcon');
+      if(!btn) return;
+      const isEarpiece=btn.classList.toggle('active');
+      if(isEarpiece){
+        // Earpiece mode — lower volume, hint to user to put phone to ear
+        audioEl.volume=0.4;
+        btn.title='No ouvido';
+        // Change icon to earpiece (small speaker, no waves)
+        if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+      }else{
+        // Speaker mode — full volume
+        audioEl.volume=1.0;
+        btn.title='Alto-falante';
+        // Full speaker icon with waves
+        if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+      }
     },
     stop: cleanup
   };
