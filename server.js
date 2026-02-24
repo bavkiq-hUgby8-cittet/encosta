@@ -7993,8 +7993,6 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
         model: 'gpt-4o-realtime-preview',
         voice: devCfg.voice || 'coral',
         modalities: ['audio', 'text'],
-        input_audio_transcription: { model: 'whisper-1' },
-        turn_detection: { type: 'server_vad', threshold: devCfg.vadThreshold || 0.95, prefix_padding_ms: devCfg.prefixPadding || 500, silence_duration_ms: devCfg.silenceDuration || 1500 },
         instructions: `Voce e "Touch DEV", assistente UltimateDEV do app Touch? (Encosta) — rede social presencial.
 
 HORARIO LOCAL DO USUARIO: ${getUserLocalTime(userId)} (${getUserGreetingPeriod(userId)})
@@ -8119,10 +8117,17 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
         input_audio_transcription: { model: 'whisper-1' }
       })
     });
-    if (!r.ok) { const e = await r.text(); console.error('Ultimate session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessão UltimateDEV' }); }
+    if (!r.ok) { const e = await r.text(); console.error('[ULTIMATE] Session err:', r.status, e.slice(0, 300)); return res.status(502).json({ error: 'Erro ao criar sessao UltimateDEV: ' + r.status }); }
     const d = await r.json();
-    res.json({ client_secret: d.client_secret?.value, session_id: d.id, expires_at: d.client_secret?.expires_at, openingText, isUltimate: true, tier: 'ultimatedev' });
-  } catch (e) { console.error('Ultimate session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+    // Validacao: conferir que session tem token e tools
+    const toolCount = d.tools ? d.tools.length : 0;
+    console.log('[ULTIMATE] Session criada. ID:', d.id, 'Tools registradas:', toolCount, 'Token:', d.client_secret?.value ? 'OK' : 'AUSENTE');
+    if (!d.client_secret?.value) {
+      console.error('[ULTIMATE] ERRO: client_secret ausente na resposta:', JSON.stringify(d).slice(0, 500));
+      return res.status(502).json({ error: 'Token nao recebido da OpenAI' });
+    }
+    res.json({ client_secret: d.client_secret.value, session_id: d.id, expires_at: d.client_secret.expires_at, openingText, isUltimate: true, tier: 'ultimatedev', toolCount });
+  } catch (e) { console.error('[ULTIMATE] Session err:', e.message); res.status(500).json({ error: 'Erro interno: ' + e.message }); }
 });
 
 // ══ DEV DIAGNOSTICO — testa se Claude ta funcionando ══

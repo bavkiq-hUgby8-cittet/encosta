@@ -13844,8 +13844,9 @@ const VA = (function(){
         // Log session start to dev panel
         if(vaTier==='ultimatedev'){
           _devLiveLog = []; // Clear previous session logs
-          _devAddLiveLog('info', 'Sessao UltimateDEV conectada', 'DataChannel aberto. Tools: comando_dev, aprovar_plano, consultar_rede, etc. Tier: '+vaTier);
-          _devAddLiveLog('info', 'Claude Opus 4 disponivel', 'Quando voce pedir mudancas no app, o assistente vai usar comando_dev para enviar pro Claude.');
+          _devAddLiveLog('info', 'Sessao UltimateDEV conectada', 'DataChannel aberto. Tools no servidor: '+(td.toolCount||'?')+'. Tier: '+vaTier);
+          _devAddLiveLog('info', 'INTERCEPTOR ATIVO', 'Pedidos de mudanca serao enviados automaticamente pro Claude, mesmo se a tool nao for chamada pela OpenAI.');
+          _devAddLiveLog('info', 'Aguardando session.created da OpenAI...', 'Se nao aparecer em 5s, a sessao pode ter falhado.');
         }
         // CRITICO: Mutar mic ANTES da saudacao para evitar eco/feedback
         // O agente vai falar e o mic captaria a propria voz dele
@@ -13857,9 +13858,23 @@ const VA = (function(){
       };
       dc.onmessage = e => { try{
         var parsed=JSON.parse(e.data);
-        // Log function_call events to dev panel for debugging
-        if(vaTier==='ultimatedev' && parsed.type && parsed.type.indexOf('function_call')>=0){
-          _devAddLiveLog('info', 'Evento: '+parsed.type, parsed.name ? ('Tool: '+parsed.name) : (parsed.call_id ? 'call_id: '+parsed.call_id : ''));
+        // Log important events to dev panel for debugging
+        if(vaTier==='ultimatedev' && parsed.type){
+          var t=parsed.type;
+          // Log ALL event types except high-frequency audio deltas
+          if(t.indexOf('function_call')>=0){
+            _devAddLiveLog('tool', 'TOOL: '+t, parsed.name ? ('Tool: '+parsed.name+' | Args: '+(parsed.arguments||'').slice(0,100)) : (parsed.call_id ? 'call_id: '+parsed.call_id : ''));
+          } else if(t==='error'){
+            _devAddLiveLog('error', 'ERRO OpenAI: '+(parsed.error?.message||JSON.stringify(parsed.error||{}).slice(0,150)), parsed.error?.code||'');
+          } else if(t==='session.created'||t==='session.updated'){
+            var toolNames=(parsed.session?.tools||[]).map(function(tl){return tl.name}).join(', ');
+            _devAddLiveLog('info', t+' — '+((parsed.session?.tools||[]).length)+' tools', toolNames||'nenhuma tool!');
+          } else if(t==='response.done'){
+            var usage=parsed.response?.usage;
+            if(usage) _devAddLiveLog('info', 'Resposta completa', 'Tokens: in='+usage.input_tokens+' out='+usage.output_tokens);
+          } else if(t==='conversation.item.input_audio_transcription.completed'){
+            _devAddLiveLog('info', 'Voce disse:', (parsed.transcript||'').slice(0,100));
+          }
         }
         handleEvent(parsed);
       }catch(x){
@@ -13971,12 +13986,16 @@ const VA = (function(){
         break;
       case 'conversation.item.input_audio_transcription.completed':
         if(evt.transcript){
-          setTranscript('Você: '+evt.transcript);
+          setTranscript('Voce: '+evt.transcript);
           _addToHistory('user',evt.transcript);
           // Persist conversation for ALL tiers
           fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,tier:vaTier,role:'user',content:evt.transcript})}).catch(()=>{});
           // Legacy: also save to ultimateBank for backward compat
-          if(vaTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:evt.transcript})}).catch(()=>{});
+          if(vaTier==='ultimatedev') {
+            fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:evt.transcript})}).catch(()=>{});
+            // INTERCEPTOR DEV: detecta pedidos de mudanca e envia direto pro Claude
+            _devInterceptUserSpeech(evt.transcript);
+          }
         }
         break;
       case 'response.audio.delta':
@@ -14466,7 +14485,102 @@ const VA = (function(){
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
-  // ── ESCRIBA — Auto-documenta a sessão ──
+  // ── DEV INTERCEPTOR — Detecta pedidos de dev na fala do usuario e dispara direto ──
+  let _devInterceptCooldown = 0; // prevent double-firing
+  let _devInterceptPending = false;
+
+  function _devInterceptUserSpeech(transcript) {
+    if (!transcript || transcript.length < 10) return;
+    if (_devInterceptPending) return;
+    if (Date.now() - _devInterceptCooldown < 15000) return; // 15s cooldown between intercepts
+
+    var t = transcript.toLowerCase();
+
+    // Detect dev-related keywords in user speech
+    var devKeywords = ['muda', 'mudar', 'altera', 'alterar', 'adiciona', 'adicionar', 'coloca', 'colocar',
+      'tira', 'tirar', 'remove', 'remover', 'cria', 'criar', 'faz', 'fazer', 'bota', 'botar',
+      'arruma', 'arrumar', 'corrige', 'corrigir', 'fix', 'conserta', 'consertar',
+      'cor ', 'botao', 'botoes', 'layout', 'tela', 'texto', 'fonte', 'tamanho',
+      'feature', 'funcionalidade', 'implementa', 'implementar', 'desenvolve'];
+
+    var isDevRequest = devKeywords.some(function(kw) { return t.indexOf(kw) >= 0; });
+
+    // Also detect with common patterns
+    if (!isDevRequest) {
+      isDevRequest = /^(eu )?quer(o|ia) (que|um|uma)/.test(t) && (t.indexOf('app') >= 0 || t.indexOf('tela') >= 0 || t.indexOf('botao') >= 0);
+    }
+
+    if (!isDevRequest) return;
+
+    _devInterceptPending = true;
+    _devInterceptCooldown = Date.now();
+
+    _devAddLiveLog('info', 'INTERCEPTOR: Detectou pedido de dev', transcript.slice(0, 100));
+    _devAddLiveLog('tool', 'Enviando comando_dev automaticamente...', transcript.slice(0, 150));
+
+    // Show activity
+    _showVaActivity('Enviando pro Claude...', 'Interceptor detectou pedido de desenvolvimento');
+
+    // Call the backend directly
+    fetch('/api/dev/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: state.userId, instruction: transcript })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      _devInterceptPending = false;
+      _hideVaActivity();
+
+      if (data.plan) {
+        _devAddLiveLog('result', 'Plano gerado! ID: ' + data.id, (data.plan || '').slice(0, 200));
+
+        // Save to dev conversation
+        fetch('/api/dev/conversation', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: state.userId, role: 'assistant', content: 'Plano gerado para: ' + transcript.slice(0, 80) + '\n' + (data.plan || '').slice(0, 300) })
+        }).catch(function() {});
+
+        // Send plan back to OpenAI agent so it can speak to user
+        if (dc && dc.readyState === 'open') {
+          dc.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'user',
+              content: [{ type: 'input_text', text: '[SISTEMA - NAO LEIA ISSO LITERALMENTE] O Claude Opus gerou um plano de desenvolvimento para o pedido do usuario. Resuma o plano abaixo de forma SIMPLES em 2 frases e pergunte se ele quer aprovar.\n\nID do comando: ' + data.id + '\nPlano:\n' + (data.plan || '').slice(0, 500) + '\n\nDiga algo como: "O plano ta pronto! Basicamente [resumo]. Posso mandar executar?" Se ele disser sim, voce DEVE chamar a tool aprovar_plano com o ID ' + data.id }]
+            }
+          }));
+          dc.send(JSON.stringify({ type: 'response.create' }));
+        }
+      } else {
+        _devAddLiveLog('error', 'Erro ao gerar plano', data.error || 'desconhecido');
+        // Tell agent about the error
+        if (dc && dc.readyState === 'open') {
+          dc.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'user',
+              content: [{ type: 'input_text', text: '[SISTEMA] Erro ao gerar plano de desenvolvimento: ' + (data.error || 'desconhecido') + '. Avise o usuario que deu erro e pergunte se quer tentar de novo.' }]
+            }
+          }));
+          dc.send(JSON.stringify({ type: 'response.create' }));
+        }
+      }
+    }).catch(function(err) {
+      _devInterceptPending = false;
+      _hideVaActivity();
+      _devAddLiveLog('error', 'Erro de conexao no interceptor', err.message);
+    });
+  }
+
+  // ── DEV APPROVE INTERCEPTOR — Detecta aprovacao por voz ──
+  // Monitored from agent transcript (response.audio_transcript.done)
+  function _devInterceptApproval(agentTranscript, userTranscript) {
+    // Not used yet — approval still needs to go through tool call
+    // This is a placeholder for future improvement
+  }
+
+  // ── ESCRIBA — Auto-documenta a sessao ──
   let _escribaBuffer={decisions:[],ideas:[],commands:[]};
   function _escribaLog(type,text){
     if(vaTier!=='ultimatedev') return;
