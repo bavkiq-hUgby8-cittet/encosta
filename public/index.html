@@ -13407,6 +13407,7 @@ const VA = (function(){
   // ── Anti-echo state ──
   let _agentSpeaking = false;   // true while audio deltas are arriving
   let _pendingToolCall = false;  // true between function_call and next response
+  let _pendingAgentTranscript = ''; // partial agent transcript being built
   let _unmuteTimer = null;       // delayed unmute after response.done
   const UNMUTE_DELAY_MS = 800;   // delay to let WebRTC audio drain from speaker
   const $ = id => document.getElementById(id);
@@ -13581,6 +13582,10 @@ const VA = (function(){
 
       pc.onconnectionstatechange = () => {
         if(pc&&(pc.connectionState==='disconnected'||pc.connectionState==='failed')){
+          // Flush pending agent transcript before cleanup
+          if(_pendingAgentTranscript&&_pendingAgentTranscript.length>5){
+            fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,tier:vaTier,role:'assistant',content:_pendingAgentTranscript+' [conexao perdida]'})}).catch(function(){});
+          }
           const savedTier = vaTier;
           cleanup();
           // Oferecer reconexão
@@ -13616,7 +13621,7 @@ const VA = (function(){
     _hideVaActivity();
     _transcriptHistory = [];
     // Reset anti-echo state
-    _agentSpeaking=false;_pendingToolCall=false;
+    _agentSpeaking=false;_pendingToolCall=false;_pendingAgentTranscript='';
     if(_unmuteTimer){clearTimeout(_unmuteTimer);_unmuteTimer=null;}
     // Nullify callbacks
     if(pc){pc.ontrack=null;pc.onconnectionstatechange=null;}
@@ -13683,10 +13688,12 @@ const VA = (function(){
         _muteMic();
         break;
       case 'response.audio_transcript.delta':
+        _pendingAgentTranscript+=(evt.delta||'');
         var c=$('vaTranscript')?.textContent||'';
         setTranscript(c.startsWith('Touch: ')?c+(evt.delta||''):'Touch: '+(evt.delta||''));
         break;
       case 'response.audio_transcript.done':
+        _pendingAgentTranscript=''; // completed — clear partial
         // Salva resposta completa no historico
         if(evt.transcript) _addToHistory('agent',evt.transcript);
         // Persist conversation for ALL tiers
@@ -14280,26 +14287,32 @@ const VA = (function(){
       if(inp&&inp.value.trim()) sendText(inp.value.trim());
     },
     toggleEarpiece(){
-      if(!audioEl) return;
-      // Toggle between speaker (default) and earpiece
-      // On mobile, sinkId isn't widely supported, so we use a workaround:
-      // Set audio element volume + use proximity-like behavior
-      const btn=$('vaEarpieceBtn');
-      const icon=$('vaEarpieceIcon');
+      if(!audioEl){console.warn('[VA] audioEl nao inicializado');return}
+      var btn=$('vaEarpieceBtn');
+      var icon=$('vaEarpieceIcon');
       if(!btn) return;
-      const isEarpiece=btn.classList.toggle('active');
+      var isEarpiece=btn.classList.toggle('active');
       if(isEarpiece){
-        // Earpiece mode — lower volume, hint to user to put phone to ear
-        audioEl.volume=0.4;
+        // Earpiece mode — baixa volume
+        audioEl.volume=0.3;
         btn.title='No ouvido';
-        // Change icon to earpiece (small speaker, no waves)
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        // Tentar setSinkId para earpiece se disponivel
+        if(typeof audioEl.setSinkId==='function'){
+          navigator.mediaDevices.enumerateDevices().then(function(devs){
+            var ear=devs.find(function(d){return d.kind==='audiooutput'&&(d.label.toLowerCase().indexOf('ear')>=0||d.label.toLowerCase().indexOf('phone')>=0||d.label.toLowerCase().indexOf('receiver')>=0)});
+            if(ear){audioEl.setSinkId(ear.deviceId).catch(function(e){console.log('[VA] setSinkId earpiece:',e.message)})}
+          }).catch(function(){});
+        }
       }else{
-        // Speaker mode — full volume
+        // Speaker mode — volume maximo
         audioEl.volume=1.0;
         btn.title='Alto-falante';
-        // Full speaker icon with waves
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        // Volta pro speaker padrao
+        if(typeof audioEl.setSinkId==='function'){
+          audioEl.setSinkId('').catch(function(e){console.log('[VA] setSinkId default:',e.message)});
+        }
       }
     },
     toggleCamera(){

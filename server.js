@@ -7266,7 +7266,7 @@ app.post('/api/agent/session', async (req, res) => {
   const { userName, context, greeting, gossip } = buildUserContext(userId);
 
   // Load conversation history for continuity
-  const plusConvos = getVaConversations(userId, 'plus').slice(-20);
+  const plusConvos = getVaConversations(userId, 'plus').slice(-40);
   const convHistoryPlus = plusConvos.length
     ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com esse usuario antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${plusConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
     : '';
@@ -7328,10 +7328,15 @@ ${tierCfg.personality}
 COMO ABRIR A CONVERSA:
 ${tierCfg.openingRules}
 
-DADOS EM TEMPO REAL — USE consultar_rede:
-- SEMPRE chame consultar_rede ANTES de responder sobre conexoes, estrelas, encontros, curtidas
-- Os dados nas instrucoes iniciais podem estar DESATUALIZADOS
-- Os dados retornados sao o estado REAL do banco neste momento
+REGRA CRITICA DE DADOS EM TEMPO REAL:
+Os dados abaixo sao uma FOTO do momento em que a ligacao comecou e ficam DESATUALIZADOS rapidamente.
+VOCE DEVE chamar a ferramenta consultar_rede:
+1. ANTES de responder QUALQUER pergunta sobre conexoes, estrelas, encontros, curtidas, mensagens, jogos, revelacoes
+2. Quando o usuario perguntar "o que tem de novo?", "alguma novidade?", "o que aconteceu?"
+3. Se o usuario mencionar que acabou de fazer algo (conectou, mandou msg, deu estrela)
+4. PELO MENOS 1 vez a cada 2 minutos de conversa, mesmo se nao pedirem
+NAO confie nos dados abaixo para responder — eles sao apenas contexto inicial.
+A ferramenta consultar_rede retorna o estado REAL e ATUALIZADO do banco agora.
 
 PRIVACIDADE:
 ${tierCfg.privacyRules}
@@ -7362,7 +7367,7 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
         },{
           type: 'function',
           name: 'consultar_rede',
-          description: 'Busca dados atualizados em tempo real da rede do usuário. Use SEMPRE antes de responder perguntas sobre conexões, estrelas, encontros, curtidas ou qualquer dado que possa ter mudado. Os dados iniciais podem estar desatualizados — esta função retorna o estado real do banco de dados agora.',
+          description: 'OBRIGATORIO: Busca dados ATUALIZADOS em tempo real. Voce DEVE chamar esta funcao ANTES de responder QUALQUER pergunta sobre rede, conexoes, estrelas, encontros, curtidas, mensagens, jogos ou revelacoes. Os dados nas instrucoes estao CONGELADOS do inicio da sessao. Esta funcao retorna o estado REAL do banco AGORA. Se nao chamar, voce VAI dar informacao errada ao usuario.',
           parameters: {
             type: 'object',
             properties: {},
@@ -7725,7 +7730,7 @@ app.post('/api/agent/premium-session', async (req, res) => {
   const { userName, context, greeting, gossip } = buildUserContext(userId);
 
   // Load conversation history for continuity
-  const proConvos = getVaConversations(userId, 'pro').slice(-20);
+  const proConvos = getVaConversations(userId, 'pro').slice(-40);
   const convHistoryPro = proConvos.length
     ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com esse usuario antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${proConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
     : '';
@@ -7786,7 +7791,12 @@ COMO ABRIR A CONVERSA:
 ${openingInstruction}
 ${proCfg.openingRules}
 
-DADOS: SEMPRE chame consultar_rede ANTES de responder sobre conexoes/estrelas/curtidas.
+REGRA CRITICA DE DADOS:
+Os dados abaixo estao CONGELADOS do inicio da ligacao. Voce DEVE chamar consultar_rede:
+1. ANTES de QUALQUER resposta sobre conexoes, estrelas, encontros, curtidas, mensagens
+2. Quando perguntarem "novidades?" ou "o que tem de novo?"
+3. Se o usuario disser que acabou de fazer algo
+4. Pelo menos 1 vez a cada 2 minutos de conversa
 
 PODERES — VOCE PODE FAZER TUDO:
 Voce tem ferramentas para navegar o app pelo usuario. Use-as!
@@ -7814,7 +7824,7 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
           { type:'function', name:'iniciar_conexao', description:'Inicia o processo de conexao — vai pra tela encounter.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'dar_estrela', description:'Da uma estrela para uma conexao.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa que vai receber a estrela'}},required:['nome']} },
           { type:'function', name:'enviar_pulse', description:'Envia um pulse (cutucada) no chat ativo.', parameters:{type:'object',properties:{},required:[]} },
-          { type:'function', name:'consultar_rede', description:'Busca dados atualizados em tempo real da rede do usuario.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'consultar_rede', description:'OBRIGATORIO: Busca dados ATUALIZADOS em tempo real. DEVE chamar ANTES de responder sobre conexoes, estrelas, encontros, curtidas, mensagens. Dados iniciais estao CONGELADOS.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'mostrar_pessoa', description:'Mostra o perfil de uma conexao na constelacao.', parameters:{type:'object',properties:{nome:{type:'string',description:'Nome da pessoa'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva informacao pessoal sobre conexao.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} }
         ]
@@ -7865,7 +7875,7 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
   const profile = bank.userProfile || {};
   // Load conversation history from BOTH sources for maximum coverage
   const bankConvos = (bank.conversations || []).slice(-20);
-  const vaConvos = getVaConversations(userId, 'ultimatedev').slice(-20);
+  const vaConvos = getVaConversations(userId, 'ultimatedev').slice(-40);
   // Use whichever has more recent data
   const recentConvos = vaConvos.length >= bankConvos.length ? vaConvos : bankConvos;
   const pendingQueue = (bank.devQueue || []).filter(d => d.status === 'planned');
@@ -7950,7 +7960,7 @@ ${devCfg.openingRules}
 
 ═══ QUANDO USAR CADA FERRAMENTA ═══
 - Se o usuario pedir QUALQUER mudanca no app (cor, layout, feature, fix, melhoria, texto) → use comando_dev IMEDIATAMENTE. Nao precisa consultar_rede antes.
-- consultar_rede: SOMENTE use quando precisar saber dados da rede (quantas pessoas, quem sao, estatisticas). NAO use antes de comando_dev.
+- consultar_rede: Use quando precisar saber dados da rede (quantas pessoas, quem sao, estatisticas). OBRIGATORIO chamar ANTES de responder sobre conexoes/estrelas/curtidas/mensagens. Os dados iniciais estao CONGELADOS. NAO use antes de comando_dev.
 - Se o usuario perguntar "muda a cor", "adiciona botao", "tira isso", "coloca aquilo" → comando_dev direto, sem consultar nada antes.
 - NUNCA fique em silencio processando sem falar. Se vai chamar uma ferramenta, AVISE antes: "Vou enviar isso pro dev, espera uns 10 segundos."
 
@@ -8010,7 +8020,7 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
           { type:'function', name:'iniciar_conexao', description:'Inicia processo de conexão.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'dar_estrela', description:'Dá estrela para conexão.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
           { type:'function', name:'enviar_pulse', description:'Envia pulse no chat.', parameters:{type:'object',properties:{},required:[]} },
-          { type:'function', name:'consultar_rede', description:'Busca estatisticas e dados da rede social (pessoas, encontros, numeros). NAO use para pedidos de mudanca no app — use comando_dev para isso.', parameters:{type:'object',properties:{},required:[]} },
+          { type:'function', name:'consultar_rede', description:'OBRIGATORIO: Busca dados ATUALIZADOS em tempo real da rede. DEVE chamar ANTES de responder sobre conexoes, estrelas, encontros, curtidas, mensagens. NAO use para pedidos de mudanca no app — use comando_dev para isso.', parameters:{type:'object',properties:{},required:[]} },
           { type:'function', name:'mostrar_pessoa', description:'Mostra perfil na constelação.', parameters:{type:'object',properties:{nome:{type:'string'}},required:['nome']} },
           { type:'function', name:'salvar_nota', description:'Salva nota pessoal.', parameters:{type:'object',properties:{sobre:{type:'string'},nota:{type:'string'}},required:['sobre','nota']} },
           // ── Dev tools ──
