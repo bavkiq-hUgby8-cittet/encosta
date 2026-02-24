@@ -3818,7 +3818,7 @@ async function showEventView(eventId,eventName){
   cv.style.width=evViewW+'px';cv.style.height=evViewH+'px';
   evViewCtx=cv.getContext('2d');evViewCtx.scale(dpr,dpr);
   evNodes.length=0;evAmbientP.length=0;evBolts.length=0;evConnectedPairs.clear();
-  for(let i=0;i<80;i++)evAmbientP.push({x:Math.random()*evViewW,y:Math.random()*evViewH,vx:(Math.random()-.5)*.15,vy:(Math.random()-.5)*.15,r:Math.random()*.6+.2,a:Math.random()*.1+.02,phase:Math.random()*Math.PI*2});
+  for(let i=0;i<40;i++)evAmbientP.push({x:Math.random()*evViewW,y:Math.random()*evViewH,vx:(Math.random()-.5)*.15,vy:(Math.random()-.5)*.15,r:Math.random()*.6+.2,a:Math.random()*.1+.02,phase:Math.random()*Math.PI*2});
   try{
     const r=await fetch('/api/operator/event/'+eventId+'/attendees');const d=await r.json();
     $('evViewCount').textContent=(d.attendees||[]).length+' pessoas';
@@ -3829,6 +3829,10 @@ async function showEventView(eventId,eventName){
   }catch(e){console.error('[eventView] load error:',e)}
   loadEventMenu(eventId);
   if(socket){
+    socket.off('event-attendee-joined');
+    socket.off('event-attendee-left');
+    socket.off('event-ended');
+    socket.off('event-match');
     socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' pessoas'}});
     socket.on('event-attendee-left',d=>{if(d.eventId===evViewEventId){if(d.userId===state.userId){showToast('Voce foi removido do evento.');hideFloatingEventBtn();closeEventView();return}const idx=evNodes.findIndex(n=>n.userId===d.userId);if(idx>=0)evNodes.splice(idx,1);$('evViewCount').textContent=evNodes.length+' pessoas'}});
     socket.on('event-ended',d=>{if(d.eventId===evViewEventId){showToast('Evento encerrado: '+(d.name||''));closeEventView();refreshRelations()}});
@@ -3852,7 +3856,7 @@ function addEvNode(d,instant){
     topTag:d.topTag||null,score:d.score||0,timestamp:d.timestamp||now,
     photoImg:null,photoLoaded:false,paidPresencial:d.paidPresencial||false
   };
-  if(n.revealed&&n.profilePhoto){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{n.photoImg=img;n.photoLoaded=true};img.src=n.profilePhoto}
+  if(n.revealed&&n.profilePhoto){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{n.photoImg=img;n.photoLoaded=true};img.onerror=()=>{n.profilePhoto=null};img.src=n.profilePhoto}
   evNodes.push(n);
 }
 
@@ -3860,6 +3864,7 @@ function spawnEvBolt(userIdA,userIdB){evBolts.push({userA:userIdA,userB:userIdB,
 function makeEvLightning(ax,ay,bx,by,segments){const pts=[{x:ax,y:ay}];const dx=bx-ax,dy=by-ay;const segs=segments||8;for(let i=1;i<segs;i++){const frac=i/segs;const jitter=12+Math.random()*18;const angle=Math.random()*Math.PI*2;pts.push({x:ax+dx*frac+Math.cos(angle)*jitter,y:ay+dy*frac+Math.sin(angle)*jitter})}pts.push({x:bx,y:by});return pts}
 
 function renderEvCanvas(){
+  if(document.hidden){evViewAnim=requestAnimationFrame(renderEvCanvas);return}
   if(!evViewCtx)return;
   const c=evViewCtx;c.clearRect(0,0,evViewW,evViewH);
   const t=Date.now()/1000;const now=Date.now();
@@ -7109,6 +7114,7 @@ function initConstCanvas(){
   let fpBlend=0; // 0=normal, 1=full FP
 
   function draw(){
+    if(document.hidden){constState.animFrame=requestAnimationFrame(draw);return}
     constState.animFrame=requestAnimationFrame(draw);
     ctx.clearRect(0,0,W,H);
     const t=Date.now()/1000;
@@ -12560,6 +12566,8 @@ document.addEventListener('visibilitychange',()=>{
     }
   }
 });
+// Memory pressure: pause animations when system is low on memory
+if('onmemorywarning' in window)window.addEventListener('memorywarning',()=>{console.log('[perf] Memory warning - pausing animations');if(constState.animFrame){cancelAnimationFrame(constState.animFrame);constState.animFrame=null}if(evViewAnim){cancelAnimationFrame(evViewAnim);evViewAnim=null}});
 // Also cleanup on page close/navigate away
 window.addEventListener('beforeunload',()=>releaseAllMedia());
 window.addEventListener('pagehide',()=>releaseAllMedia());
