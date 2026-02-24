@@ -150,11 +150,6 @@ function sanitizeStr(s, maxLen = 500) {
 function isValidEmail(e) {
   return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 254;
 }
-function isValidCPF(cpf) {
-  if (typeof cpf !== 'string') return false;
-  const clean = cpf.replace(/\D/g, '');
-  return clean.length === 11;
-}
 function isValidUUID(id) {
   return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
 }
@@ -3747,12 +3742,6 @@ app.post('/api/face/verify', (req, res) => {
   if (!faceRecord) return res.status(404).json({ error: 'Face ID não cadastrado para este usuário.', enrolled: false });
 
   // Euclidean distance between two 128-d vectors
-  function euclideanDist(a, b) {
-    let sum = 0;
-    for (let i = 0; i < 128; i++) sum += (a[i] - b[i]) ** 2;
-    return Math.sqrt(sum);
-  }
-
   // Compare against all stored descriptors and average
   const distances = faceRecord.descriptors.map(d => euclideanDist(liveDescriptor, d));
   const avgDist = euclideanDist(liveDescriptor, faceRecord.averageDescriptor);
@@ -7156,9 +7145,17 @@ function getUserLocalNow(userId) {
   const user = db.users[userId];
   const tz = (user && user.timezone) ? user.timezone : 'America/Sao_Paulo';
   try {
-    // Create date string in user's timezone, then parse back
-    const nowStr = new Date().toLocaleString('en-US', { timeZone: tz });
-    return new Date(nowStr);
+    // Use Intl.DateTimeFormat to get reliable timezone offset
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    const get = (type) => parts.find(p => p.type === type)?.value || '00';
+    return new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`);
   } catch (e) {
     return new Date();
   }
