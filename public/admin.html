@@ -135,6 +135,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .toast.vis{transform:translateY(0);opacity:1}
 .toast-ok{background:rgba(0,220,130,.15);border:1px solid rgba(0,220,130,.3);color:var(--green)}
 .toast-err{background:rgba(255,61,113,.15);border:1px solid rgba(255,61,113,.3);color:var(--red)}
+/* VA TABS */
+.va-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.va-tab{padding:8px 14px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--t3);font-size:.68rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.va-tab:hover{color:var(--t2);background:rgba(255,255,255,.04)}
+.va-tab.on{background:rgba(255,107,53,.12);border-color:rgba(255,107,53,.3);color:var(--ac)}
+/* VA PANEL */
+.va-panel{display:none}
+.va-panel.on{display:block}
+.va-section{margin-bottom:20px}
+.va-section h4{font-size:.7rem;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.va-textarea{width:100%;min-height:100px;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:10px;color:var(--t1);font-size:.78rem;font-family:'Courier New',monospace;transition:border-color .2s;resize:vertical}
+.va-textarea:focus{outline:none;border-color:var(--ac)}
 /* RESPONSIVE */
 @media(max-width:768px){
   .cg{grid-template-columns:repeat(2,1fr)}
@@ -184,6 +196,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button data-t="events">Eventos</button>
     <button data-t="fin">Financeiro</button>
     <button data-t="sys">Sistema</button>
+    <button data-t="va">Prompts IA</button>
   </nav>
   <main>
     <!-- DASHBOARD -->
@@ -210,6 +223,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </section>
     <!-- STARS -->
     <section id="sStars">
+      <div class="tbl-wrap" style="margin-bottom:20px">
+        <div class="tbl-head"><h3>Aquario de Usuarios</h3><span class="tbl-info" id="aqInfo">0 usuarios</span></div>
+        <div style="position:relative;height:320px;background:rgba(2,2,8,1);border-radius:0 0 14px 14px;overflow:hidden">
+          <canvas id="aqCanvas" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
         <div>
           <div class="tbl-wrap"><div class="tbl-head"><h3>Config do Algoritmo</h3></div><div style="padding:16px" id="starCfg"></div></div>
@@ -263,6 +282,195 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div class="code-out" id="sysOut">Aguardando acao...</div>
     </section>
+    <!-- PROMPTS IA -->
+    <section id="sVa">
+      <div class="tbl-wrap">
+        <div class="tbl-head"><h3>Configuracao dos Assistentes de Voz</h3></div>
+        <div style="padding:16px">
+          <div class="va-tabs" id="vaTabs">
+            <button class="va-tab on" data-t="plus" onclick="switchVaTier('plus')">Plus</button>
+            <button class="va-tab" data-t="pro" onclick="switchVaTier('pro')">Pro</button>
+            <button class="va-tab" data-t="ultimatedev" onclick="switchVaTier('ultimatedev')">UltimateDEV</button>
+          </div>
+          <div id="vaPanels">
+            <!-- PLUS Panel -->
+            <div class="va-panel on" id="va-plus">
+              <div class="va-section">
+                <h4>Configuracao de Voz</h4>
+                <div class="fg">
+                  <label>Voz</label>
+                  <select id="va-plus-voice">
+                    <option value="coral">Coral (feminino)</option>
+                    <option value="alloy">Alloy (neutro)</option>
+                    <option value="echo">Echo (masculino)</option>
+                    <option value="fable">Fable (narrativo)</option>
+                    <option value="onyx">Onyx (grave)</option>
+                    <option value="nova">Nova (jovem)</option>
+                    <option value="shimmer">Shimmer (suave)</option>
+                  </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>VAD Threshold</label><input type="number" id="va-plus-vadThreshold" min="0.5" max="1" step="0.05" value="0.95"></div>
+                  <div class="fg"><label>Max Frases</label><input type="number" id="va-plus-maxPhrases" min="1" max="10" value="2"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>Prefix Padding (ms)</label><input type="number" id="va-plus-prefixPadding" min="100" max="2000" step="100" value="500"></div>
+                  <div class="fg"><label>Silence Duration (ms)</label><input type="number" id="va-plus-silenceDuration" min="500" max="5000" step="100" value="1500"></div>
+                </div>
+              </div>
+              <div class="va-section">
+                <h4>Personalidade</h4>
+                <div class="fg"><textarea id="va-plus-personality" class="va-textarea" placeholder="Ex: Voce e uma amiga fofoqueira, curiosa e divertida..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Abertura</h4>
+                <div class="fg"><textarea id="va-plus-openingRules" class="va-textarea" placeholder="Ex: NUNCA comece com 'E ai'. Ja entre DIRETO no assunto..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Memoria</h4>
+                <div class="fg"><textarea id="va-plus-memoryRules" class="va-textarea" placeholder="Ex: SALVE SEMPRE que o usuario contar algo sobre alguem..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Privacidade</h4>
+                <div class="fg"><textarea id="va-plus-privacyRules" class="va-textarea" placeholder="Ex: ESTRELAS DO USUARIO: pode dizer quem deu. ESTRELAS DE AMIGOS: nunca dizer quem deu..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Instrucoes Extras</h4>
+                <div class="fg"><textarea id="va-plus-extraInstructions" class="va-textarea" placeholder="Qualquer instrucao adicional..."></textarea></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-ac" onclick="saveVa('plus')">Salvar Plus</button>
+                <button class="btn btn-ghost" onclick="toggleVaTest('plus')">Testar Prompt</button>
+                <button class="btn btn-red" onclick="resetVa('plus')">Resetar Padrao</button>
+              </div>
+              <div id="va-test-plus" style="display:none;margin-top:16px;background:rgba(255,107,53,.05);border:1px solid rgba(255,107,53,.15);border-radius:10px;padding:12px">
+                <div style="display:flex;gap:8px;margin-bottom:10px">
+                  <input type="text" id="va-test-input-plus" class="sf-input" style="flex:1" placeholder="Digite algo pra testar...">
+                  <button class="btn btn-ac" onclick="testVa('plus')">Enviar</button>
+                </div>
+                <div id="va-test-response-plus" style="background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.15);border-radius:8px;padding:10px;font-size:.75rem;min-height:40px;color:var(--t2)">Resposta aparecera aqui...</div>
+              </div>
+            </div>
+            <!-- PRO Panel -->
+            <div class="va-panel" id="va-pro">
+              <div class="va-section">
+                <h4>Configuracao de Voz</h4>
+                <div class="fg">
+                  <label>Voz</label>
+                  <select id="va-pro-voice">
+                    <option value="coral">Coral (feminino)</option>
+                    <option value="alloy">Alloy (neutro)</option>
+                    <option value="echo">Echo (masculino)</option>
+                    <option value="fable">Fable (narrativo)</option>
+                    <option value="onyx">Onyx (grave)</option>
+                    <option value="nova">Nova (jovem)</option>
+                    <option value="shimmer">Shimmer (suave)</option>
+                  </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>VAD Threshold</label><input type="number" id="va-pro-vadThreshold" min="0.5" max="1" step="0.05" value="0.95"></div>
+                  <div class="fg"><label>Max Frases</label><input type="number" id="va-pro-maxPhrases" min="1" max="10" value="2"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>Prefix Padding (ms)</label><input type="number" id="va-pro-prefixPadding" min="100" max="2000" step="100" value="500"></div>
+                  <div class="fg"><label>Silence Duration (ms)</label><input type="number" id="va-pro-silenceDuration" min="500" max="5000" step="100" value="1500"></div>
+                </div>
+              </div>
+              <div class="va-section">
+                <h4>Personalidade</h4>
+                <div class="fg"><textarea id="va-pro-personality" class="va-textarea" placeholder="Ex: Mesma personalidade fofoqueira, MAS com poderes de navegar o app..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Abertura</h4>
+                <div class="fg"><textarea id="va-pro-openingRules" class="va-textarea" placeholder="Regras de abertura..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Memoria</h4>
+                <div class="fg"><textarea id="va-pro-memoryRules" class="va-textarea" placeholder="Regras de memoria..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Privacidade</h4>
+                <div class="fg"><textarea id="va-pro-privacyRules" class="va-textarea" placeholder="Regras de privacidade..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Instrucoes Extras</h4>
+                <div class="fg"><textarea id="va-pro-extraInstructions" class="va-textarea" placeholder="Instrucoes adicionais..."></textarea></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-ac" onclick="saveVa('pro')">Salvar Pro</button>
+                <button class="btn btn-ghost" onclick="toggleVaTest('pro')">Testar Prompt</button>
+                <button class="btn btn-red" onclick="resetVa('pro')">Resetar Padrao</button>
+              </div>
+              <div id="va-test-pro" style="display:none;margin-top:16px;background:rgba(255,107,53,.05);border:1px solid rgba(255,107,53,.15);border-radius:10px;padding:12px">
+                <div style="display:flex;gap:8px;margin-bottom:10px">
+                  <input type="text" id="va-test-input-pro" class="sf-input" style="flex:1" placeholder="Digite algo pra testar...">
+                  <button class="btn btn-ac" onclick="testVa('pro')">Enviar</button>
+                </div>
+                <div id="va-test-response-pro" style="background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.15);border-radius:8px;padding:10px;font-size:.75rem;min-height:40px;color:var(--t2)">Resposta aparecera aqui...</div>
+              </div>
+            </div>
+            <!-- ULTIMATEDEV Panel -->
+            <div class="va-panel" id="va-ultimatedev">
+              <div class="va-section">
+                <h4>Configuracao de Voz</h4>
+                <div class="fg">
+                  <label>Voz</label>
+                  <select id="va-ultimatedev-voice">
+                    <option value="coral">Coral (feminino)</option>
+                    <option value="alloy">Alloy (neutro)</option>
+                    <option value="echo">Echo (masculino)</option>
+                    <option value="fable">Fable (narrativo)</option>
+                    <option value="onyx">Onyx (grave)</option>
+                    <option value="nova">Nova (jovem)</option>
+                    <option value="shimmer">Shimmer (suave)</option>
+                  </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>VAD Threshold</label><input type="number" id="va-ultimatedev-vadThreshold" min="0.5" max="1" step="0.05" value="0.95"></div>
+                  <div class="fg"><label>Max Frases</label><input type="number" id="va-ultimatedev-maxPhrases" min="1" max="10" value="3"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>Prefix Padding (ms)</label><input type="number" id="va-ultimatedev-prefixPadding" min="100" max="2000" step="100" value="500"></div>
+                  <div class="fg"><label>Silence Duration (ms)</label><input type="number" id="va-ultimatedev-silenceDuration" min="500" max="5000" step="100" value="1500"></div>
+                </div>
+              </div>
+              <div class="va-section">
+                <h4>Personalidade</h4>
+                <div class="fg"><textarea id="va-ultimatedev-personality" class="va-textarea" placeholder="Ex: Developer partner + fofoqueira. Traduz pedidos em instrucoes tecnicas..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Abertura</h4>
+                <div class="fg"><textarea id="va-ultimatedev-openingRules" class="va-textarea" placeholder="Regras de abertura..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Memoria</h4>
+                <div class="fg"><textarea id="va-ultimatedev-memoryRules" class="va-textarea" placeholder="Regras de memoria..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Regras de Privacidade</h4>
+                <div class="fg"><textarea id="va-ultimatedev-privacyRules" class="va-textarea" placeholder="Regras de privacidade..."></textarea></div>
+              </div>
+              <div class="va-section">
+                <h4>Instrucoes Extras</h4>
+                <div class="fg"><textarea id="va-ultimatedev-extraInstructions" class="va-textarea" placeholder="Instrucoes adicionais (dev-specific)..."></textarea></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-ac" onclick="saveVa('ultimatedev')">Salvar UltimateDEV</button>
+                <button class="btn btn-ghost" onclick="toggleVaTest('ultimatedev')">Testar Prompt</button>
+                <button class="btn btn-red" onclick="resetVa('ultimatedev')">Resetar Padrao</button>
+              </div>
+              <div id="va-test-ultimatedev" style="display:none;margin-top:16px;background:rgba(255,107,53,.05);border:1px solid rgba(255,107,53,.15);border-radius:10px;padding:12px">
+                <div style="display:flex;gap:8px;margin-bottom:10px">
+                  <input type="text" id="va-test-input-ultimatedev" class="sf-input" style="flex:1" placeholder="Digite algo pra testar...">
+                  <button class="btn btn-ac" onclick="testVa('ultimatedev')">Enviar</button>
+                </div>
+                <div id="va-test-response-ultimatedev" style="background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.15);border-radius:8px;padding:10px;font-size:.75rem;min-height:40px;color:var(--t2)">Resposta aparecera aqui...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -315,7 +523,7 @@ function showLoginErr(m){const e=$('loginErr');e.textContent=m;e.classList.add('
 function doLogout(){_secret='';sessionStorage.removeItem('as');if(_dashIv)clearInterval(_dashIv);location.reload()}
 
 // ═══════ NAV ═══════
-const TABS={dash:'sDash',users:'sUsers',stars:'sStars',events:'sEvents',fin:'sFin',sys:'sSys'};
+const TABS={dash:'sDash',users:'sUsers',stars:'sStars',events:'sEvents',fin:'sFin',sys:'sSys',va:'sVa'};
 let _curTab='dash';
 function initNav(){
   document.querySelectorAll('#navTabs button').forEach(b=>{
@@ -330,6 +538,7 @@ function initNav(){
       else if(_curTab==='stars')loadStars();
       else if(_curTab==='events')loadEvents();
       else if(_curTab==='fin')loadFin();
+      else if(_curTab==='va')loadVa();
     }
   })
 }
@@ -445,6 +654,8 @@ async function loadStars(){
       const avI=u.photoURL?'<img src="'+esc(u.photoURL)+'" onerror="this.parentElement.textContent=\''+(u.nickname?u.nickname[0].toUpperCase():'?')+'\'">':esc(u.nickname?u.nickname[0].toUpperCase():'?');
       return '<tr><td style="font-weight:700;color:var(--ac)">'+(i+1)+'</td><td><div class="av">'+avI+'</div></td><td>'+esc(u.nickname)+'</td><td style="font-weight:700;color:var(--yellow)">'+u.stars+'</td><td style="font-size:.68rem;color:var(--t3)">'+esc(u.topTag||'-')+'</td><td>'+u.points+'</td></tr>';
     }).join('');
+    // Init aquarium
+    initAquarium();
   }catch(e){console.error(e)}
 }
 async function saveCfg(k,v){
@@ -525,6 +736,158 @@ function confirmDanger(act,msg){
   }
 }
 function closeModal(){$('modalBg').classList.remove('vis');_pendingDanger=null}
+
+// ═══════ AQUARIUM ═══════
+let aqNodes=[],aqParticles=[],aqCtx=null,aqW=0,aqH=0,aqAnim=null;
+function aqColor(s){let h=0;for(let i=0;i<s.length;i++){h=s.charCodeAt(i)+((h<<5)-h)}return 'hsl('+Math.abs(h%360)+',70%,60%)'}
+async function initAquarium(){
+  const cv=$('aqCanvas');if(!cv)return;
+  aqCtx=cv.getContext('2d');
+  const rect=cv.parentElement.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  aqW=rect.width*dpr;aqH=rect.height*dpr;
+  cv.width=aqW;cv.height=aqH;
+  aqNodes=[];aqParticles=[];
+  for(let i=0;i<60;i++){
+    aqParticles.push({x:Math.random()*aqW,y:Math.random()*aqH,vx:(Math.random()-0.5)*0.2,vy:(Math.random()-0.5)*0.2,r:Math.random()*1.5+0.5});
+  }
+  try{
+    const d=await api('GET','/api/admin/users?limit=999');
+    const us=d.users||[];
+    us.forEach(u=>{
+      const maxStars=_starCfg.maxStarsPerPersonToPerson||5;
+      const stars=Math.min(u.stars||0,maxStars);
+      const radius=12+((stars||0)/maxStars)*6;
+      aqNodes.push({
+        x:Math.random()*aqW,y:Math.random()*aqH,
+        vx:(Math.random()-0.5)*0.6,vy:(Math.random()-0.5)*0.6,
+        r:radius,
+        color:aqColor(u.nickname||'?'),
+        name:u.nickname?u.nickname[0].toUpperCase():'?',
+        verified:u.verified,
+        premium:u.isSubscriber,
+        pulse:0
+      });
+    });
+    $('aqInfo').textContent=us.length+' usuarios';
+  }catch(e){console.error(e)}
+  if(aqAnim)cancelAnimationFrame(aqAnim);
+  renderAquarium();
+}
+function renderAquarium(){
+  if(!aqCtx||document.hidden){aqAnim=requestAnimationFrame(renderAquarium);return}
+  aqCtx.fillStyle='rgba(2,2,8,1)';
+  aqCtx.fillRect(0,0,aqW,aqH);
+  aqParticles.forEach(p=>{
+    p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>aqW)p.vx*=-1;
+    if(p.y<0||p.y>aqH)p.vy*=-1;
+    p.x=Math.max(0,Math.min(aqW,p.x));
+    p.y=Math.max(0,Math.min(aqH,p.y));
+    aqCtx.fillStyle='rgba(255,255,255,0.3)';
+    aqCtx.beginPath();aqCtx.arc(p.x,p.y,p.r,0,Math.PI*2);aqCtx.fill();
+  });
+  aqNodes.forEach(node=>{
+    node.x+=node.vx;node.y+=node.vy;
+    node.x=Math.max(node.r,Math.min(aqW-node.r,node.x));
+    node.y=Math.max(node.r,Math.min(aqH-node.r,node.y));
+    if(node.x-node.r<=0||node.x+node.r>=aqW)node.vx*=-1;
+    if(node.y-node.r<=0||node.y+node.r>=aqH)node.vy*=-1;
+    node.pulse=(node.pulse+0.03)%(Math.PI*2);
+    const pulseR=Math.sin(node.pulse)*0.3+0.7;
+    const grd=aqCtx.createRadialGradient(node.x,node.y,node.r*0.3,node.x,node.y,node.r*pulseR);
+    grd.addColorStop(0,node.color);
+    grd.addColorStop(1,'rgba('+parseInt(node.color.match(/\d+/)[0]),parseInt(node.color.match(/\d+/g)[1]),parseInt(node.color.match(/\d+/g)[2]),0.3)');
+    aqCtx.fillStyle=grd;
+    aqCtx.beginPath();aqCtx.arc(node.x,node.y,node.r,0,Math.PI*2);aqCtx.fill();
+    if(node.verified){
+      aqCtx.strokeStyle='rgba(0,220,130,0.6)';
+      aqCtx.lineWidth=2;
+      aqCtx.beginPath();aqCtx.arc(node.x,node.y,node.r+2,0,Math.PI*2);aqCtx.stroke();
+    }
+    if(node.premium){
+      aqCtx.strokeStyle='rgba(251,191,36,0.6)';
+      aqCtx.lineWidth=2;
+      aqCtx.beginPath();aqCtx.arc(node.x,node.y,node.r+4,0,Math.PI*2);aqCtx.stroke();
+    }
+    aqCtx.fillStyle='#fff';
+    aqCtx.font='bold '+(node.r*0.8)+'px Arial';
+    aqCtx.textAlign='center';aqCtx.textBaseline='middle';
+    aqCtx.fillText(node.name,node.x,node.y);
+  });
+  aqAnim=requestAnimationFrame(renderAquarium);
+}
+
+// ═══════ VOICE AGENT ═══════
+let _vaTier='plus';
+const VA_FIELDS=['voice','vadThreshold','prefixPadding','silenceDuration','maxPhrases','personality','openingRules','memoryRules','privacyRules','extraInstructions'];
+async function loadVa(){
+  try{
+    const d=await api('GET','/api/va-config?userId=admin');
+    if(d.tiers){
+      ['plus','pro','ultimatedev'].forEach(tier=>{if(d.tiers[tier])vaPopulate(tier,d.tiers[tier])});
+    }
+    toast('Config VA carregada',true);
+  }catch(e){toast('Erro ao carregar VA config',false)}
+}
+function switchVaTier(tier){
+  _vaTier=tier;
+  document.querySelectorAll('.va-tab').forEach(t=>t.classList.remove('on'));
+  document.querySelector('[data-t="'+tier+'"]').classList.add('on');
+  document.querySelectorAll('.va-panel').forEach(p=>p.classList.remove('on'));
+  $('va-'+tier).classList.add('on');
+}
+function vaPopulate(tier,data){
+  VA_FIELDS.forEach(f=>{
+    const el=$('va-'+tier+'-'+f);
+    if(el&&data[f]!==undefined)el.value=data[f];
+  });
+}
+function vaCollect(tier){
+  const s={};
+  VA_FIELDS.forEach(f=>{
+    const el=$('va-'+tier+'-'+f);
+    if(!el)return;
+    if(el.type==='number')s[f]=parseFloat(el.value);
+    else s[f]=el.value;
+  });
+  return s;
+}
+async function saveVa(tier){
+  const settings=vaCollect(tier);
+  try{
+    const r=await api('POST','/api/va-config',{userId:'admin',tier,settings});
+    toast('VA '+tier.toUpperCase()+' salvo!',true);
+  }catch(e){toast('Erro ao salvar: '+e.message,false)}
+}
+function resetVa(tier){
+  if(!confirm('Resetar config do '+tier.toUpperCase()+'?'))return;
+  VA_FIELDS.forEach(f=>{
+    const el=$('va-'+tier+'-'+f);
+    if(!el)return;
+    if(f==='voice')el.value='coral';
+    else if(f==='vadThreshold')el.value='0.95';
+    else if(f==='prefixPadding')el.value='500';
+    else if(f==='silenceDuration')el.value='1500';
+    else if(f==='maxPhrases')el.value=tier==='ultimatedev'?'3':'2';
+    else el.value='';
+  });
+  toast('Campos resetados',true);
+}
+function toggleVaTest(tier){
+  const el=$('va-test-'+tier);
+  if(el)el.style.display=el.style.display==='none'?'':'none';
+}
+async function testVa(tier){
+  const input=$('va-test-input-'+tier);
+  const response=$('va-test-response-'+tier);
+  if(!input.value.trim())return;
+  response.textContent='Processando...';
+  try{
+    const r=await api('POST','/api/va-config/test-prompt',{userId:'admin',tier,prompt:input.value.trim()});
+    response.textContent=r.response||r.error||'Sem resposta';
+  }catch(e){response.textContent='Erro: '+e.message}
+}
 
 // ═══════ INIT ═══════
 $('secretIn').addEventListener('keypress',e=>{if(e.key==='Enter')doLogin()});
