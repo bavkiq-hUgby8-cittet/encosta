@@ -7837,7 +7837,7 @@ app.get('/api/dev/diagnostico', async (req, res) => {
     anthropic_key_configurada: !!ANTHROPIC_API_KEY,
     anthropic_key_prefixo: ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.slice(0, 8) + '...' : 'NAO CONFIGURADA',
     openai_key_configurada: !!OPENAI_API_KEY,
-    engine_ativo: ANTHROPIC_API_KEY ? 'claude-sonnet-4' : 'gpt-4o-fallback',
+    engine_ativo: ANTHROPIC_API_KEY ? 'claude-opus-4' : 'gpt-4o-fallback',
     teste_claude: null,
     tempo_ms: 0
   };
@@ -7853,7 +7853,7 @@ app.get('/api/dev/diagnostico', async (req, res) => {
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-opus-4-20250514',
           max_tokens: 50,
           messages: [{ role: 'user', content: 'Responda apenas: OK' }]
         })
@@ -7949,7 +7949,7 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-opus-4-20250514',
           max_tokens: 2000,
           messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}\n\nPrimeiras 200 linhas do server.js:\n${serverCode.split('\n').slice(0, 200).join('\n')}\n\nPrimeiras 200 linhas do index.html:\n${indexCode.split('\n').slice(0, 200).join('\n')}` }],
           system: systemPrompt
@@ -8108,7 +8108,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-opus-4-20250514',
           max_tokens: 16000,
           system: editSystemPrompt,
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
