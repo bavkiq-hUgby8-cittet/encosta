@@ -11,20 +11,26 @@
 :root{--bg:#050508;--s1:#12121a;--s2:#1a1a24;--t1:#f5f5f7;--t2:#a0a0b8;--t3:#666680;--ac:#6366f1;--ac2:#818cf8;--ok:#34d399;--fire:#ff6b35;--pk:#ff3d71;--gw:rgba(255,107,53,.2);--gw2:rgba(255,107,53,.3);--b1:rgba(255,255,255,.06)}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;overflow:hidden;-webkit-user-select:none;user-select:none}
 
-/* Login */
-.op-login{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:100;background:var(--bg)}
-.op-login h1{font-size:2.2rem;font-weight:800;letter-spacing:.06em}.op-login h1 span{color:var(--ac)}
-.op-login-sub{font-size:.75rem;color:var(--t3);max-width:300px;text-align:center;line-height:1.6}
-.op-login-btn{padding:.8rem 2rem;background:var(--ac);border:none;border-radius:14px;color:#fff;font-size:.85rem;font-weight:600;font-family:inherit;cursor:pointer;transition:transform .2s}
-.op-login-btn:active{transform:scale(.95)}
-.op-login-divider{display:flex;align-items:center;gap:.8rem;width:260px;color:var(--t3);font-size:.7rem}
+/* Login — Modernized */
+.op-login{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;z-index:100;background:var(--bg);padding:1rem;overflow-y:auto}
+.op-login::before{content:'';position:absolute;top:0;left:0;right:0;height:200px;background:linear-gradient(135deg,rgba(255,107,53,.08) 0%,transparent 100%);pointer-events:none}
+.op-login-container{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:2rem;max-width:380px}
+.op-login-branding{display:flex;flex-direction:column;align-items:center;gap:.5rem;text-align:center}
+.op-login h1{font-size:2.8rem;font-weight:800;letter-spacing:.04em;color:var(--t1)}.op-login h1 span{color:var(--fire)}
+.op-login-sub{font-size:.8rem;color:var(--t3);line-height:1.6;max-width:320px}
+.op-login-form{display:flex;flex-direction:column;gap:.8rem;width:100%;max-width:360px}
+.op-login-btn{padding:.85rem 1.5rem;background:linear-gradient(135deg,var(--fire),#ff8555);border:none;border-radius:12px;color:#fff;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(255,107,53,.25);width:100%}
+.op-login-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(255,107,53,.35)}
+.op-login-btn:active{transform:translateY(0)}
+.op-login-divider{display:flex;align-items:center;gap:.8rem;width:100%;color:var(--t3);font-size:.7rem}
 .op-login-divider::before,.op-login-divider::after{content:'';flex:1;height:1px;background:var(--b1)}
-.op-login-field{display:flex;flex-direction:column;gap:.3rem;width:260px}
+.op-login-field{display:flex;flex-direction:column;gap:.3rem}
 .op-login-label{font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
-.op-login-input{padding:.6rem .8rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:border .2s}
-.op-login-input:focus{border-color:var(--ac)}
+.op-login-input{padding:.75rem 1rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:all .2s}
+.op-login-input:focus{border-color:var(--fire);box-shadow:0 0 0 3px rgba(255,107,53,.1)}
 .op-login-err{font-size:.65rem;color:var(--pk);min-height:1em;text-align:center}
-.op-login-toggle{font-size:.7rem;color:var(--ac2);cursor:pointer;text-decoration:underline}
+.op-login-toggle{font-size:.7rem;color:var(--ac2);cursor:pointer;text-decoration:underline;transition:color .2s}
+.op-login-toggle:hover{color:var(--ac)}
 
 /* Events screen */
 .op-events{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;z-index:98;background:var(--bg);display:none;padding:2rem 1rem;overflow-y:auto}
@@ -417,21 +423,29 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 <body>
 
 <div class="op-login" id="opLogin">
-  <h1>Touch<span>?</span></h1>
-  <div class="op-login-sub">Painel Operacional<br>Check-in em tempo real para eventos e estabelecimentos</div>
-  <button class="op-login-btn" onclick="opDoLogin()">Entrar com Google</button>
-  <div class="op-login-divider">ou</div>
-  <div class="op-login-field">
-    <label class="op-login-label">Email</label>
-    <input class="op-login-input" id="opLoginEmail" type="email" placeholder="seu@email.com">
+  <div class="op-login-container">
+    <div class="op-login-branding">
+      <h1 class="op-login-title">Touch<span>?</span></h1>
+      <div class="op-login-sub">Painel Operacional para check-in em tempo real. Conecte seu evento ou estabelecimento.</div>
+    </div>
+    <div class="op-login-form">
+      <button class="op-login-btn" onclick="opDoLogin()">Entrar com Google</button>
+      <div class="op-login-divider">ou</div>
+      <div class="op-login-field">
+        <label class="op-login-label">Email</label>
+        <input class="op-login-input" id="opLoginEmail" type="email" placeholder="seu@email.com">
+      </div>
+      <div class="op-login-field">
+        <label class="op-login-label">Senha</label>
+        <input class="op-login-input" id="opLoginPass" type="password" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="op-login-err" id="opLoginErr"></div>
+      <button class="op-login-btn" id="opLoginEmailBtn" onclick="opDoEmailLogin()">Entrar</button>
+      <div style="text-align:center">
+        <div class="op-login-toggle" id="opLoginToggle" onclick="opToggleCreateAccount()">Não tem conta? Criar conta</div>
+      </div>
+    </div>
   </div>
-  <div class="op-login-field">
-    <label class="op-login-label">Senha</label>
-    <input class="op-login-input" id="opLoginPass" type="password" placeholder="Mínimo 6 caracteres">
-  </div>
-  <div class="op-login-err" id="opLoginErr"></div>
-  <button class="op-login-btn" id="opLoginEmailBtn" onclick="opDoEmailLogin()">Entrar</button>
-  <div class="op-login-toggle" id="opLoginToggle" onclick="opToggleCreateAccount()">Não tem conta? Criar conta</div>
 </div>
 
 <div class="op-events" id="opEvents">
@@ -742,6 +756,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// Event type selector helper for new modernized UI
+function selectEventType(elem){
+  document.querySelectorAll('.op-event-type-card').forEach(el=>el.classList.remove('selected'));
+  if(elem)elem.classList.add('selected');
+}
+
 // ═══ STATE ═══
 const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false,showRealNames:true,hidePhotos:false,currentEventId:null,currentEventName:null};
 let opIsCreateAccount=false;
