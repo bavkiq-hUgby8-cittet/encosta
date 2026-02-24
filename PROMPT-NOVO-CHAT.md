@@ -28,9 +28,11 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
 ## ESTRUTURA DO PROJETO (atualizado 24/02/2026)
 
 Arquivos principais:
-- `server.js` (~9073 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
-- `public/index.html` (~13431 linhas) -- Frontend SPA completo (23+ telas)
-- `public/va-admin.html` (~492 linhas) -- Painel admin dos 3 assistentes de voz
+- `server.js` (~9400 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `public/index.html` (~13445 linhas) -- Frontend SPA completo (23+ telas)
+- `public/va-test.html` (~825 linhas) -- Pagina de ligacao telefonica pros 3 assistentes + Dev Log
+- `public/va-admin.html` (~501 linhas) -- Painel admin dos 3 assistentes de voz
+- `public/admin.html` (~535 linhas) -- Painel administrativo geral
 - `public/games/index.html` (1909 linhas) -- TouchGames lobby (microservico iframe)
 - `public/games/*.html` -- 11 jogos individuais
 - `public/operator.html` -- Painel do operador de eventos
@@ -39,7 +41,7 @@ Arquivos principais:
 - `public/termos.html` -- Termos de uso
 - `simulador-estrelas.html` -- Simulador da economia de estrelas
 - `package.json` -- Dependencias (express, socket.io, firebase-admin, mercadopago, helmet, uuid, express-rate-limit)
-- `docs/` -- Documentacao tecnica
+- `docs/` -- Documentacao tecnica (inclui docs/ULTIMATEDEV.md)
 - `CHANGELOG-sessao-*.md` -- Changelogs por sessao
 - `.claude/CLAUDE.md` -- Instrucoes globais pro agente
 
@@ -70,7 +72,8 @@ Dominio: touch-irl.com (Cloudflare DNS -> Render)
 Render: encosta.onrender.com redireciona 301 para touch-irl.com
 Firebase: Realtime Database para persistencia
 MercadoPago: Pagamentos (Pix, cartao, checkout)
-OpenAI: Voice Agent (Realtime API via WebRTC)
+OpenAI: Voice Agent (Realtime API via WebRTC) -- voz dos 3 assistentes
+Anthropic: Claude Sonnet 4 -- cerebro de dev do UltimateDEV
 
 ## FUNCIONALIDADES IMPLEMENTADAS
 
@@ -108,30 +111,39 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Voz: coral, VAD threshold 0.95
 
 ### ULTIMATEDEV (apenas admin / Top 1)
-- Custo: $0.25/sessao
+- Custo: $0.25/sessao (voz) + ~$0.01-0.05/comando (Claude)
 - 18+ tools: as 9 do Pro + comando_dev, ver_fila_dev, aprovar_plano, rejeitar_plano,
   aprender_usuario, escrever_pensamento, fazer_backup, salvar_arquivo
-- Visual: Matrix green neon, animacao de scan lines
-- Tem consciencia TOTAL da arquitetura do app (server.js, index.html, Firebase, WebRTC, Render, GitHub)
+- CEREBRO: Claude Sonnet 4 (Anthropic) para planejamento e geracao de codigo
+  - Voz continua OpenAI (unico com Realtime API via WebRTC)
+  - Claude recebe codigo COMPLETO dos arquivos (nao mais 3000 chars)
+  - Suporta TODOS os arquivos do projeto (nao so server.js e index.html)
+  - Fallback para GPT-4o se ANTHROPIC_API_KEY nao configurada
+- Tem consciencia TOTAL da arquitetura do app
 - Personalidade: assertivo, critico, bom gosto, faz perguntas
-- Funciona como PONTE entre o dono do app (Ramon, nao sabe programar) e o desenvolvedor (Claude/GPT-4o)
-- Sistema Escriba: documenta automaticamente tudo (decisoes, ideias, comandos) a cada 2 minutos
+- Funciona como PONTE entre o dono do app (Ramon, nao sabe programar) e o desenvolvedor (Claude)
+- Sistema Escriba: documenta automaticamente tudo a cada 2 minutos
 - Camera e tela: video via WebRTC a 2fps para OpenAI Realtime API vision
 - Persistencia de conversas entre sessoes (ultimas 20 msgs)
+- Dev Log: painel visual na tela de ligacao mostrando historico de commits em tempo real
 
 ### FLUXO DO ULTIMATEDEV (dev commands):
 1. Usuario fala instrucao por voz
 2. Agente chama tool `comando_dev` -> POST /api/dev/command
-3. GPT-4o gera plano com estimativa de tempo (~5-10s)
-4. Agente mostra plano, pergunta se aprova
-5. Se aprovado -> POST /api/dev/approve/:commandId -> GPT-4o gera edits JSON -> aplica no codigo -> git commit+push
+3. Claude Sonnet 4 gera plano com mapa de endpoints (~5-10s)
+4. Agente resume plano por voz, pergunta se aprova
+5. Se aprovado -> POST /api/dev/approve/:commandId -> Claude gera edits JSON com contexto completo -> valida -> aplica -> backup -> git commit+push
 6. Se rejeitado -> POST /api/dev/reject/:commandId
+7. Dev Log mostra status em tempo real na tela de ligacao
 
 ### VA ADMIN PANEL
 - URL: https://touch-irl.com/va-admin.html?userId=USER_ID
 - Permite ajustar voz, VAD, personalidade, regras de privacidade/memoria de cada tier
 - Salva no Firebase (colecao vaConfig)
-- PENDENTE: os prompts das sessoes ainda nao LEEM do vaConfig (estao hardcoded)
+- Endpoints de sessao LEEM do vaConfig via getTierConfig(tier)
+
+### DOCUMENTACAO COMPLETA DO ULTIMATEDEV
+- Ver docs/ULTIMATEDEV.md para detalhes de todas as tools, fluxos e exemplos
 
 ### ANTI-ECHO SYSTEM
 - Flags: _agentSpeaking, _pendingToolCall, _unmuteTimer
@@ -139,7 +151,7 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Server VAD: threshold 0.95, prefix_padding_ms 500, silence_duration_ms 1500
 
 =================================================================
-## MAPA DO SERVER.JS (~9073 linhas)
+## MAPA DO SERVER.JS (~9400 linhas)
 =================================================================
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET)
@@ -149,22 +161,26 @@ Linha ~780-1050: Auth (Firebase verify, link accounts, unificacao de contas)
 Linha ~1050-1250: MercadoPago config, phrases bank, zodiac system
 Linha ~1400-1800: Sonic matching, session create/join, streak system, NFC/QR links
 Linha ~1800-4400: REST APIs (user, relations, messages, constellation, stars, gifts, reveals, likes, profile, notifications, events, selfie, horoscope)
-Linha ~4400-4600: Admin endpoints (reset, backup, rollback, recover)
+Linha ~4400-4600: Admin endpoints (reset, backup, rollback, recover, dashboard-stats, users, toggle-admin, events, financial)
 Linha ~4600-4900: Socket.IO (identify, messages, typing, sonic, game lobby, game events)
 Linha ~4900-5850: MercadoPago (prestador, tips, pix, checkout, saved card, one-tap, subscription)
 Linha ~5850-6080: Assinaturas (Plus + Selo)
 Linha ~6080-6440: Voice Agent base (OpenAI Realtime sessions, notas, acesso)
-Linha ~6440-6810: Operator/Events/Restaurant (checkins, settings, events, menu, orders)
-Linha ~6810-7063: TouchGames REST API (manifest, sessions, invite-message, find-relation, temp-chat, results, leaderboard)
-Linha ~7063-7300: VA tier system (canUseProVA, canUseUltimateVA, /api/agent/access)
-Linha ~7300-7600: VA Premium session (Pro tier)
-Linha ~7600-8200: VA UltimateDEV session (prompt gigante com arquitetura, 18 tools)
-Linha ~8200-8600: Dev command endpoints (command, queue, approve, reject, learn, conversation)
-Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
-Linha ~8800-9073: VA Config system (GET/POST /api/va-config, test-prompt)
+Linha ~6440-6550: Operator/Events/Restaurant (checkins, settings, events, menu, orders)
+Linha ~6550-6560: API Keys (OPENAI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY)
+Linha ~6560-6880: Timezone helpers, buildUserContext (dados completos do usuario), VA cost tracking
+Linha ~6880-7100: VA tier system (canUseProVA, canUseUltimateVA, /api/agent/access)
+Linha ~7100-7400: VA Plus/Pro sessions (OpenAI Realtime)
+Linha ~7400-7700: VA UltimateDEV session (OpenAI Realtime voz + prompt com arquitetura + 18 tools)
+Linha ~7700-7860: Dev command endpoints -- planejamento com Claude Sonnet 4 (Anthropic)
+Linha ~7860-8100: Dev approve endpoint -- geracao de codigo com Claude, backup, rollback, multi-arquivo
+Linha ~8100-8400: Dev reject, learn, conversation endpoints
+Linha ~8400-8600: Dev new tools (thought, backup, save-file, escriba)
+Linha ~8600-8800: VA conversation persistence (vaConversations)
+Linha ~8800-9400: VA Config system (GET/POST /api/va-config, test-prompt, getTierConfig)
 
 ### DB COLLECTIONS (Firebase):
-users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig
+users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations
 
 =================================================================
 ## MAPA DO INDEX.HTML (~13431 linhas)
@@ -198,15 +214,15 @@ Linha ~12500-13431: Event handlers, game socket events, iframe communication
 =================================================================
 
 ### ALTA PRIORIDADE:
-1. VA Config NAO integrado aos prompts -- o painel admin salva no Firebase mas os endpoints de sessao (/api/agent/session, /api/agent/premium-session, /api/agent/ultimate-session) ainda usam prompts HARDCODED. Precisa: ler vaConfig no inicio de cada sessao e substituir os campos dinamicos (personality, memoryRules, etc.)
+1. [RESOLVIDO] VA Config integrado aos prompts -- endpoints de sessao agora LEEM do vaConfig via getTierConfig(tier)
 
 2. TouchGames fluxo completo -- nunca foi testado end-to-end. Ready-check modal pode ter problemas de timing.
 
-3. Camera/Screen no UltimateDEV -- implementado mas NAO testado. Depende do suporte real do OpenAI Realtime API a video tracks via WebRTC (pesquisa indicou que funciona com image snapshots a baixo FPS).
+3. Camera/Screen no UltimateDEV -- implementado mas NAO testado. Depende do suporte real do OpenAI Realtime API a video tracks via WebRTC.
 
 ### MEDIA PRIORIDADE:
 4. Escriba system -- implementado, auto-flush a cada 2min, mas nao testado em sessao real.
-5. Dev command flow -- implementado (comando -> plano -> aprovacao -> edits -> git push) mas NAO testado end-to-end.
+5. [RESOLVIDO] Dev command flow -- cerebro trocado para Claude Sonnet 4 (Anthropic), contexto completo, multi-arquivo, backup+rollback. Precisa teste end-to-end.
 6. Stripe Express Checkout -- preparado mas desativado (precisa STRIPE_SECRET_KEY e STRIPE_PUBLIC_KEY no .env)
 
 ### BAIXA PRIORIDADE:
@@ -217,16 +233,16 @@ Linha ~12500-13431: Event handlers, game socket events, iframe communication
 ## GIT LOG RECENTE (24/02/2026)
 =================================================================
 
+5104ef3 feat: painel Dev Log na tela de chamada UltimateDEV
+d38f441 feat: trocar cerebro de dev do UltimateDEV para Claude (Anthropic)
+81a2ec1 feat: redesign completo do painel admin com UI premium
+487634f feat: VAs agora tem acesso completo aos dados do usuario
+5a72a55 feat: timezone awareness - detecta e usa horario local do usuario
+3906c9a feat: adicionar endpoints admin (dashboard-stats, users, toggle-admin, events, financial)
+3a5ef8a refactor: redesign va-test.html com UI moderna e polida
+564bb29 feat: integrar vaConfig nos endpoints dos 3 agentes VA
+6effd47 feat: redesenhar va-test como tela de ligacao telefonica real
 e163b66 feat: UltimateDEV consciousness + escriba + camera/screen vision
-d07a15f feat: VA admin panel — painel de controle dos 3 assistentes
-540d994 fix: security + cleanup for UltimateDEV
-ca25ac5 feat: filtros LED, busca com animacao, evento ao vivo, redesign visual
-210c733 feat: 3-tier VA system (Plus/Pro/UltimateDEV) + dev command executor
-1ccd782 feat: tom direto sem saudacao + modo ligacao (earpiece + sem legenda)
-08c1d93 feat: search overlay reposicionado + endpoint de eventos ativos
-eafef7d fix: anti-echo system + prompt upgrade (estrelas + privacidade)
-fb2ecc7 refactor: limpar e reorganizar onboarding — dual-mode (live/prerecorded)
-4443869 feat: onboarding dual-mode — live AI agent (WebRTC) + prerecorded TTS
 
 ## ROLLBACK RAPIDO
 
@@ -245,7 +261,8 @@ Apos rollback: git push --force origin main (CUIDADO: sobrescreve GitHub)
 - MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_PUBLIC_KEY
 - MP_REDIRECT_URI=https://touch-irl.com/mp/callback
 - APP_URL=https://touch-irl.com
-- OPENAI_API_KEY (para o voice agent)
+- OPENAI_API_KEY (para voz em tempo real dos 3 assistentes)
+- ANTHROPIC_API_KEY (cerebro de dev do UltimateDEV -- Claude Sonnet 4)
 - ADMIN_SECRET (protege endpoints admin)
 - ALLOWED_ORIGINS (CORS)
 - STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY (quando ativar Apple Pay)
