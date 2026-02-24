@@ -13352,7 +13352,7 @@ async function openVA() {
       window._vaCanUltimate = !!data.ultimate;
       VA.open(data.tier || (data.premium ? 'pro' : 'plus'));
     } else if (data.reason === 'daily_limit') {
-      showVAUpgradeModal('limit');
+      showVAUpgradeModal('limit', {used: data.used || (data.usage && data.usage.count) || '?', limit: data.limit || data.plusDailyLimit || '?'});
     } else {
       showVAUpgradeModal('plus');
     }
@@ -13361,19 +13361,22 @@ async function openVA() {
   }
 }
 
-function showVAUpgradeModal(mode) {
+function showVAUpgradeModal(mode, usageInfo) {
   const existing = document.getElementById('vaUpgradeModal');
   if (existing) existing.remove();
   const isLimit = mode === 'limit';
+  const used = usageInfo && usageInfo.used ? usageInfo.used : '?';
+  const limit = usageInfo && usageInfo.limit ? usageInfo.limit : '?';
   const modal = document.createElement('div');
   modal.id = 'vaUpgradeModal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:1.2rem';
   modal.innerHTML = `<div style="background:linear-gradient(160deg,#131320,#1a1030);border:1px solid rgba(139,92,246,.2);border-radius:24px;padding:2rem 1.5rem;max-width:340px;width:100%;text-align:center">
-    <div style="font-size:2.5rem;margin-bottom:.6rem">${isLimit ? '⏳' : '✦'}</div>
-    <div style="font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:.4rem">${isLimit ? 'Limite diário atingido' : 'Touch? AI'}</div>
+    <div style="font-size:2.5rem;margin-bottom:.6rem">${isLimit ? '' : ''}</div>
+    <div style="font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:.4rem">${isLimit ? 'Limite diario atingido' : 'Touch? AI'}</div>
+    ${isLimit ? '<div style="font-size:1.8rem;font-weight:900;color:#a78bfa;margin-bottom:.5rem">'+used+'/'+limit+'</div>' : ''}
     <div style="font-size:.8rem;color:rgba(255,255,255,.5);margin-bottom:1.2rem;line-height:1.5">${isLimit
-      ? 'Você já usou o assistente AI o máximo de hoje. Volte amanhã!'
-      : 'O assistente de voz AI é exclusivo para assinantes do <span style="color:#a78bfa;font-weight:700">Touch? Plus</span>.'
+      ? 'Voce usou todas as suas <strong style="color:#a78bfa">'+limit+' chamadas</strong> de hoje. Seu limite renova a meia-noite!'
+      : 'O assistente de voz AI e exclusivo para assinantes do <span style="color:#a78bfa;font-weight:700">Touch? Plus</span>.'
     }</div>
     ${isLimit ? '' : `
     <div style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.15);border-radius:16px;padding:1rem;margin-bottom:1rem;text-align:left">
@@ -13526,7 +13529,7 @@ const VA = (function(){
         }
         if(tr.status===403 && errData.reason==='daily_limit'){
           busy=false; setOrb(); cleanup();
-          showVAUpgradeModal('limit'); return;
+          showVAUpgradeModal('limit', {used:errData.used, limit:errData.limit}); return;
         }
         throw new Error(errData.error||'Servidor indisponível');
       }
