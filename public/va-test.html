@@ -2,191 +2,292 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Touch? — Voice Agent Test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Touch? — Ligar</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0a0a0f; color:#e0e0e0; min-height:100vh; }
-.container { max-width:800px; margin:0 auto; padding:20px; }
-h1 { text-align:center; font-size:1.5rem; margin-bottom:8px; color:#fff; }
-.subtitle { text-align:center; color:#888; font-size:0.85rem; margin-bottom:24px; }
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#fff}
 
-/* Auth */
-.auth-box { background:#1a1a2e; border-radius:12px; padding:24px; margin-bottom:20px; }
-.auth-box label { display:block; font-size:0.85rem; color:#aaa; margin-bottom:6px; }
-.auth-box input { width:100%; padding:10px 14px; background:#0d0d1a; border:1px solid #333; border-radius:8px; color:#fff; font-size:1rem; margin-bottom:12px; }
-.auth-box input:focus { outline:none; border-color:#6c5ce7; }
+/* -- Tela inicial: escolher assistente -- */
+.screen{display:none;height:100vh;width:100vw;position:fixed;top:0;left:0;flex-direction:column;align-items:center;justify-content:center}
+.screen.active{display:flex}
 
-/* Tier selector */
-.tier-selector { display:flex; gap:10px; margin-bottom:20px; justify-content:center; }
-.tier-btn { padding:12px 24px; border-radius:10px; border:2px solid #333; background:#1a1a2e; color:#aaa; cursor:pointer; font-size:0.9rem; font-weight:600; transition:all .2s; }
-.tier-btn:hover { border-color:#555; color:#fff; }
-.tier-btn.active-plus { border-color:#6c5ce7; color:#6c5ce7; background:#1a1a3e; }
-.tier-btn.active-pro { border-color:#f39c12; color:#f39c12; background:#2a1a0e; }
-.tier-btn.active-ultimatedev { border-color:#00ff41; color:#00ff41; background:#0a1a0e; }
+/* Tela de selecao */
+#selectScreen{background:linear-gradient(180deg,#0a0a1a 0%,#111128 100%)}
+#selectScreen h2{font-size:1.3rem;color:#888;margin-bottom:32px;font-weight:400}
 
-/* Status */
-.status-bar { text-align:center; padding:16px; margin-bottom:20px; border-radius:10px; background:#1a1a2e; }
-.status-bar .status-text { font-size:0.9rem; color:#888; }
-.status-bar .status-text.connected { color:#00ff41; }
-.status-bar .status-text.error { color:#e74c3c; }
+.contact-list{width:100%;max-width:380px;padding:0 20px}
+.contact-card{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:16px;background:rgba(255,255,255,.04);margin-bottom:12px;cursor:pointer;transition:all .2s;border:1px solid transparent}
+.contact-card:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.1)}
+.contact-card:active{transform:scale(0.97)}
 
-/* Orb */
-.orb-container { display:flex; justify-content:center; margin-bottom:20px; }
-.orb { width:100px; height:100px; border-radius:50%; background:radial-gradient(circle,#6c5ce7 0%,#0a0a0f 70%); transition:all .3s; cursor:pointer; position:relative; }
-.orb.pro { background:radial-gradient(circle,#f39c12 0%,#0a0a0f 70%); }
-.orb.ultimatedev { background:radial-gradient(circle,#00ff41 0%,#0a0a0f 70%); }
-.orb.speaking { animation:pulse 0.8s ease-in-out infinite; }
-.orb.connecting { animation:spin 1.5s linear infinite; opacity:0.6; }
-@keyframes pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.15);opacity:0.8;} }
-@keyframes spin { 0%{transform:rotate(0deg);} 100%{transform:rotate(360deg);} }
+.contact-avatar{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
+.avatar-plus{background:linear-gradient(135deg,#6c5ce7,#a855f7)}
+.avatar-pro{background:linear-gradient(135deg,#f39c12,#e67e22)}
+.avatar-dev{background:linear-gradient(135deg,#00ff41,#00cc33)}
 
-/* Buttons */
-.controls { display:flex; gap:10px; justify-content:center; margin-bottom:20px; }
-.btn { padding:12px 28px; border-radius:10px; border:none; font-size:1rem; font-weight:600; cursor:pointer; transition:all .2s; }
-.btn-connect { background:#6c5ce7; color:#fff; }
-.btn-connect.pro { background:#f39c12; }
-.btn-connect.ultimatedev { background:#00ff41; color:#000; }
-.btn-connect:hover { opacity:0.85; transform:scale(1.02); }
-.btn-disconnect { background:#e74c3c; color:#fff; }
-.btn-disconnect:hover { opacity:0.85; }
-.btn:disabled { opacity:0.4; cursor:not-allowed; }
+.contact-info{flex:1}
+.contact-name{font-size:1.05rem;font-weight:600;margin-bottom:2px}
+.contact-desc{font-size:0.8rem;color:#666}
 
-/* Transcript */
-.transcript-box { background:#1a1a2e; border-radius:12px; padding:16px; min-height:200px; max-height:400px; overflow-y:auto; margin-bottom:20px; }
-.transcript-box .msg { padding:6px 0; border-bottom:1px solid #222; font-size:0.9rem; line-height:1.4; }
-.transcript-box .msg.user { color:#6c5ce7; }
-.transcript-box .msg.agent { color:#f0f0f0; }
-.transcript-box .msg .time { color:#555; font-size:0.75rem; margin-right:8px; }
-.transcript-box .live { color:#888; font-style:italic; padding:8px 0; }
+.contact-call{width:44px;height:44px;border-radius:50%;background:#2ecc71;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s}
+.contact-call:hover{transform:scale(1.1)}
+.contact-call svg{width:20px;height:20px;color:#fff}
 
-/* History */
-.history-section { margin-top:20px; }
-.history-section h3 { font-size:0.9rem; color:#888; margin-bottom:10px; cursor:pointer; }
-.history-section h3:hover { color:#fff; }
-.history-list { background:#111; border-radius:8px; padding:12px; max-height:300px; overflow-y:auto; }
-.history-list .h-msg { padding:4px 0; font-size:0.8rem; color:#777; border-bottom:1px solid #1a1a1a; }
-.history-list .h-msg.h-user { color:#6c5ce7; }
-.history-list .h-msg.h-agent { color:#aaa; }
+/* Preferencia viva-voz */
+.pref-bar{margin-top:28px;display:flex;align-items:center;gap:12px;color:#555;font-size:0.85rem}
+.pref-bar label{cursor:pointer;display:flex;align-items:center;gap:8px}
+.toggle-switch{position:relative;width:44px;height:24px;background:#333;border-radius:12px;cursor:pointer;transition:background .3s}
+.toggle-switch.on{background:#6c5ce7}
+.toggle-switch .toggle-knob{position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .3s}
+.toggle-switch.on .toggle-knob{left:22px}
+
+/* userId input discreto */
+.uid-bar{position:absolute;top:16px;left:16px;right:16px;display:flex;gap:8px;align-items:center}
+.uid-bar input{flex:1;padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid #222;border-radius:8px;color:#888;font-size:0.8rem}
+.uid-bar input:focus{outline:none;border-color:#6c5ce7;color:#fff}
+
+/* -- Tela de ligacao ativa -- */
+#callScreen{background:linear-gradient(180deg,#0d0d20 0%,#0a0a14 100%)}
+
+.call-header{position:absolute;top:0;left:0;right:0;padding:48px 20px 20px;text-align:center}
+.call-tier{font-size:0.75rem;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+.call-name{font-size:1.8rem;font-weight:700;margin-bottom:4px}
+.call-status{font-size:0.9rem;color:#888}
+.call-status.active{color:#2ecc71}
+.call-timer{font-size:0.85rem;color:#555;margin-top:4px;font-variant-numeric:tabular-nums}
+
+/* Avatar central grande */
+.call-avatar{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;margin-bottom:20px;position:relative}
+.call-avatar.speaking{animation:avatar-pulse 1s ease-in-out infinite}
+@keyframes avatar-pulse{0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.4)}50%{box-shadow:0 0 0 20px rgba(108,92,231,0)}}
+.call-avatar.speaking.pro{animation-name:avatar-pulse-pro}
+@keyframes avatar-pulse-pro{0%,100%{box-shadow:0 0 0 0 rgba(243,156,18,.4)}50%{box-shadow:0 0 0 20px rgba(243,156,18,0)}}
+.call-avatar.speaking.dev{animation-name:avatar-pulse-dev}
+@keyframes avatar-pulse-dev{0%,100%{box-shadow:0 0 0 0 rgba(0,255,65,.4)}50%{box-shadow:0 0 0 20px rgba(0,255,65,0)}}
+
+/* Transcricao ao vivo */
+.call-transcript{position:absolute;top:50%;left:20px;right:20px;transform:translateY(40px);text-align:center;font-size:0.9rem;color:rgba(255,255,255,.5);max-height:120px;overflow:hidden}
+.call-transcript .t-line{margin-bottom:6px;opacity:0;animation:fadeIn .3s forwards}
+@keyframes fadeIn{to{opacity:1}}
+.t-user{color:rgba(255,255,255,.4)}
+.t-agent{color:rgba(255,255,255,.7)}
+
+/* Barra de controles inferior */
+.call-controls{position:absolute;bottom:0;left:0;right:0;padding:20px 20px 48px;display:flex;justify-content:center;gap:24px;align-items:center}
+.call-btn{width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;position:relative}
+.call-btn svg{width:24px;height:24px}
+.call-btn:active{transform:scale(0.9)}
+
+.btn-mute{background:rgba(255,255,255,.1);color:#fff}
+.btn-mute.muted{background:rgba(231,76,60,.2);color:#e74c3c}
+.btn-speaker{background:rgba(255,255,255,.1);color:#fff}
+.btn-speaker.on{background:rgba(108,92,231,.2);color:#6c5ce7}
+.btn-hangup{width:70px;height:70px;background:#e74c3c;color:#fff}
+.btn-hangup:hover{background:#c0392b}
+.btn-hangup svg{width:28px;height:28px;transform:rotate(135deg)}
+
+.btn-label{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:0.65rem;color:#555;white-space:nowrap}
+
+/* -- Tela de chamando (ring) -- */
+#ringScreen{background:linear-gradient(180deg,#0d0d20 0%,#0a0a14 100%)}
+.ring-avatar{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin-bottom:20px;animation:ring-glow 2s ease-in-out infinite}
+@keyframes ring-glow{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.3)}50%{box-shadow:0 0 0 30px rgba(46,204,113,0)}}
+.ring-text{font-size:1.2rem;font-weight:600;margin-bottom:4px}
+.ring-sub{font-size:0.85rem;color:#888;margin-bottom:40px}
+.ring-cancel{padding:14px 40px;border-radius:30px;background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:0.95rem;cursor:pointer;transition:all .2s}
+.ring-cancel:hover{background:rgba(231,76,60,.25)}
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>Touch? Voice Agent Test</h1>
-  <p class="subtitle">Pagina de teste dos 3 assistentes de voz</p>
 
-  <!-- Auth -->
-  <div class="auth-box">
-    <label>User ID (do Firebase)</label>
-    <input type="text" id="userIdInput" placeholder="Cole seu userId aqui..." />
+<!-- TELA 1: Selecionar assistente -->
+<div class="screen active" id="selectScreen">
+  <div class="uid-bar">
+    <input type="text" id="userIdInput" placeholder="userId" />
   </div>
 
-  <!-- Tier Selector -->
-  <div class="tier-selector">
-    <button class="tier-btn active-plus" id="btnPlus" onclick="selectTier('plus')">Plus</button>
-    <button class="tier-btn" id="btnPro" onclick="selectTier('pro')">Pro</button>
-    <button class="tier-btn" id="btnUltimate" onclick="selectTier('ultimatedev')">UltimateDEV</button>
+  <h2>Ligar para</h2>
+
+  <div class="contact-list">
+    <!-- Plus -->
+    <div class="contact-card" onclick="startCall('plus')">
+      <div class="contact-avatar avatar-plus">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:28px;height:28px"><path d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM2 21a10 10 0 0 1 20 0"/></svg>
+      </div>
+      <div class="contact-info">
+        <div class="contact-name">Touch</div>
+        <div class="contact-desc">Sua amiga fofoqueira</div>
+      </div>
+      <div class="contact-call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+    </div>
+
+    <!-- Pro -->
+    <div class="contact-card" onclick="startCall('pro')">
+      <div class="contact-avatar avatar-pro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:28px;height:28px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </div>
+      <div class="contact-info">
+        <div class="contact-name">Touch Pro</div>
+        <div class="contact-desc">Fofoqueira com superpoderes</div>
+      </div>
+      <div class="contact-call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+    </div>
+
+    <!-- UltimateDEV -->
+    <div class="contact-card" onclick="startCall('ultimatedev')">
+      <div class="contact-avatar avatar-dev">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:28px;height:28px"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="contact-info">
+        <div class="contact-name">Touch DEV</div>
+        <div class="contact-desc">Modo desenvolvedor</div>
+      </div>
+      <div class="contact-call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+    </div>
   </div>
 
-  <!-- Status -->
-  <div class="status-bar">
-    <span class="status-text" id="statusText">Selecione tier e clique Conectar</span>
+  <!-- Toggle viva-voz -->
+  <div class="pref-bar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    <label>
+      <span>Abrir no viva-voz</span>
+      <div class="toggle-switch on" id="speakerToggle" onclick="toggleSpeakerPref()">
+        <div class="toggle-knob"></div>
+      </div>
+    </label>
+  </div>
+</div>
+
+<!-- TELA 2: Chamando... -->
+<div class="screen" id="ringScreen">
+  <div class="ring-avatar avatar-plus" id="ringAvatar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:40px;height:40px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+  </div>
+  <div class="ring-text" id="ringName">Ligando para Touch...</div>
+  <div class="ring-sub">Conectando</div>
+  <button class="ring-cancel" onclick="cancelCall()">Cancelar</button>
+</div>
+
+<!-- TELA 3: Em ligacao -->
+<div class="screen" id="callScreen">
+  <div class="call-header">
+    <div class="call-tier" id="callTier">PLUS</div>
+    <div class="call-name" id="callName">Touch</div>
+    <div class="call-status" id="callStatus">Conectando...</div>
+    <div class="call-timer" id="callTimer">00:00</div>
   </div>
 
-  <!-- Orb -->
-  <div class="orb-container">
-    <div class="orb" id="orb"></div>
+  <div class="call-avatar avatar-plus" id="callAvatar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="width:48px;height:48px"><path d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM2 21a10 10 0 0 1 20 0"/></svg>
   </div>
 
-  <!-- Controls -->
-  <div class="controls">
-    <button class="btn btn-connect" id="btnConnect" onclick="doConnect()">Conectar</button>
-    <button class="btn btn-disconnect" id="btnDisconnect" onclick="doDisconnect()" disabled>Desconectar</button>
-  </div>
+  <div class="call-transcript" id="callTranscript"></div>
 
-  <!-- Live Transcript -->
-  <div class="transcript-box" id="transcriptBox">
-    <div class="live" id="liveTranscript">Aguardando conexao...</div>
-  </div>
+  <div class="call-controls">
+    <button class="call-btn btn-mute" id="btnMute" onclick="toggleMute()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      <span class="btn-label">Mudo</span>
+    </button>
 
-  <!-- History -->
-  <div class="history-section">
-    <h3 onclick="loadHistory()">Historico de conversas anteriores (clique para carregar)</h3>
-    <div class="history-list" id="historyList" style="display:none"></div>
+    <button class="call-btn btn-hangup" id="btnHangup" onclick="hangUp()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <span class="btn-label">Desligar</span>
+    </button>
+
+    <button class="call-btn btn-speaker on" id="btnSpeaker" onclick="toggleSpeaker()">
+      <svg id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      <span class="btn-label" id="speakerLabel">Viva-voz</span>
+    </button>
   </div>
 </div>
 
 <script>
+// ── State ──
 let currentTier = 'plus';
 let pc = null;
 let dc = null;
 let audioEl = null;
-let active = false;
-let agentSpeaking = false;
 let localStream = null;
+let active = false;
+let muted = false;
+let speakerOn = true;
+let agentSpeaking = false;
+let callStartTime = null;
+let timerInterval = null;
 
 function $(id){ return document.getElementById(id); }
 
-function selectTier(tier){
-  if(active) doDisconnect();
-  currentTier = tier;
-  // Update buttons
-  ['btnPlus','btnPro','btnUltimate'].forEach(id => {
-    $(id).className = 'tier-btn';
-  });
-  if(tier==='plus') $('btnPlus').className='tier-btn active-plus';
-  else if(tier==='pro') $('btnPro').className='tier-btn active-pro';
-  else $('btnUltimate').className='tier-btn active-ultimatedev';
-  // Update orb
-  $('orb').className = 'orb' + (tier!=='plus'?' '+tier:'');
-  // Update connect btn
-  $('btnConnect').className = 'btn btn-connect' + (tier!=='plus'?' '+tier:'');
-  setStatus('Tier: ' + tier.toUpperCase() + ' — pronto pra conectar');
+// ── Speaker preference ──
+const SPEAKER_PREF_KEY = 'va_speaker_pref';
+function loadSpeakerPref(){
+  const v = localStorage.getItem(SPEAKER_PREF_KEY);
+  speakerOn = v !== 'false'; // default true
+  const tog = $('speakerToggle');
+  if(speakerOn) tog.classList.add('on'); else tog.classList.remove('on');
+}
+function toggleSpeakerPref(){
+  speakerOn = !speakerOn;
+  localStorage.setItem(SPEAKER_PREF_KEY, speakerOn.toString());
+  const tog = $('speakerToggle');
+  if(speakerOn) tog.classList.add('on'); else tog.classList.remove('on');
+}
+loadSpeakerPref();
+
+// ── Screens ──
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
 }
 
-function setStatus(msg, type){
-  const el = $('statusText');
-  el.textContent = msg;
-  el.className = 'status-text' + (type?' '+type:'');
-}
+// ── Tier config ──
+const TIERS = {
+  plus: { name:'Touch', desc:'Sua amiga fofoqueira', avatarClass:'avatar-plus', tierLabel:'PLUS' },
+  pro: { name:'Touch Pro', desc:'Fofoqueira com superpoderes', avatarClass:'avatar-pro', tierLabel:'PRO' },
+  ultimatedev: { name:'Touch DEV', desc:'Modo desenvolvedor', avatarClass:'avatar-dev', tierLabel:'ULTIMATEDEV' }
+};
 
-function addTranscript(role, text){
-  const box = $('transcriptBox');
-  const live = $('liveTranscript');
-  if(live) live.remove();
-  const div = document.createElement('div');
-  div.className = 'msg ' + role;
-  const time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  div.innerHTML = `<span class="time">${time}</span>${role==='user'?'Voce':'Touch'}: ${text}`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-function setLiveTranscript(text){
-  let live = $('liveTranscript');
-  if(!live){
-    live = document.createElement('div');
-    live.className = 'live';
-    live.id = 'liveTranscript';
-    $('transcriptBox').appendChild(live);
-  }
-  live.textContent = text;
-  $('transcriptBox').scrollTop = $('transcriptBox').scrollHeight;
-}
-
-async function doConnect(){
+// ── Start call ──
+function startCall(tier){
   const userId = $('userIdInput').value.trim();
-  if(!userId){ setStatus('Informe o userId!','error'); return; }
+  if(!userId){
+    $('userIdInput').style.borderColor='#e74c3c';
+    $('userIdInput').focus();
+    setTimeout(()=>$('userIdInput').style.borderColor='',2000);
+    return;
+  }
+  currentTier = tier;
+  const t = TIERS[tier];
 
-  setStatus('Conectando...'); $('orb').classList.add('connecting');
-  $('btnConnect').disabled = true;
+  // Ring screen
+  $('ringAvatar').className = 'ring-avatar ' + t.avatarClass;
+  $('ringName').textContent = 'Ligando para ' + t.name + '...';
+  showScreen('ringScreen');
 
+  // Start connection
+  doConnect(userId, tier);
+}
+
+function cancelCall(){
+  cleanup();
+  showScreen('selectScreen');
+}
+
+// ── Connect ──
+async function doConnect(userId, tier){
   try {
-    const sessionUrl = currentTier==='ultimatedev' ? '/api/agent/ultimate-session'
-      : currentTier==='pro' ? '/api/agent/premium-session'
+    const sessionUrl = tier==='ultimatedev' ? '/api/agent/ultimate-session'
+      : tier==='pro' ? '/api/agent/premium-session'
       : '/api/agent/session';
 
-    const lastInt = parseInt(localStorage.getItem('va_test_last_'+currentTier)||'0');
+    const lastInt = parseInt(localStorage.getItem('va_last_'+tier)||'0');
 
     const tr = await fetch(sessionUrl, {
       method:'POST',
@@ -202,8 +303,7 @@ async function doConnect(){
     const td = await tr.json();
     if(!td.client_secret) throw new Error('Token nao recebido');
 
-    // Save last interaction
-    localStorage.setItem('va_test_last_'+currentTier, Date.now().toString());
+    localStorage.setItem('va_last_'+tier, Date.now().toString());
 
     // PeerConnection
     pc = new RTCPeerConnection();
@@ -211,6 +311,7 @@ async function doConnect(){
     // Audio output
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
+    audioEl.volume = speakerOn ? 1.0 : 0.4;
     pc.ontrack = e => { audioEl.srcObject = e.streams[0]; };
 
     // Mic input
@@ -221,15 +322,15 @@ async function doConnect(){
     dc = pc.createDataChannel('oai-events');
     dc.onopen = () => {
       active = true;
-      setStatus('Conectado — ' + currentTier.toUpperCase(), 'connected');
-      $('orb').classList.remove('connecting');
-      $('btnConnect').disabled = true;
-      $('btnDisconnect').disabled = false;
-      setLiveTranscript('Conectado! Fale algo...');
-      // Trigger first response
+      enterCallScreen(tier);
       dc.send(JSON.stringify({type:'response.create'}));
     };
-    dc.onmessage = e => handleEvent(JSON.parse(e.data));
+    dc.onmessage = e => {
+      try{ handleEvent(JSON.parse(e.data)); }catch(ex){}
+    };
+    dc.onclose = () => {
+      if(active) handleDisconnect();
+    };
 
     // SDP
     const offer = await pc.createOffer();
@@ -248,109 +349,200 @@ async function doConnect(){
     await pc.setRemoteDescription(answer);
 
   } catch(err){
-    setStatus('Erro: ' + err.message, 'error');
-    $('orb').classList.remove('connecting');
-    $('btnConnect').disabled = false;
+    alert('Erro ao conectar: ' + err.message);
     cleanup();
+    showScreen('selectScreen');
   }
 }
 
+// ── Enter call screen ──
+function enterCallScreen(tier){
+  const t = TIERS[tier];
+  $('callTier').textContent = t.tierLabel;
+  $('callName').textContent = t.name;
+  $('callStatus').textContent = 'Em ligacao';
+  $('callStatus').classList.add('active');
+  $('callAvatar').className = 'call-avatar ' + t.avatarClass;
+  $('callTranscript').innerHTML = '';
+
+  // Speaker state from preference
+  updateSpeakerUI();
+
+  // Timer
+  callStartTime = Date.now();
+  timerInterval = setInterval(updateTimer, 1000);
+  updateTimer();
+
+  showScreen('callScreen');
+}
+
+function updateTimer(){
+  if(!callStartTime) return;
+  const diff = Math.floor((Date.now()-callStartTime)/1000);
+  const m = String(Math.floor(diff/60)).padStart(2,'0');
+  const s = String(diff%60).padStart(2,'0');
+  $('callTimer').textContent = m+':'+s;
+}
+
+// ── Handle events ──
 function handleEvent(evt){
   const userId = $('userIdInput').value.trim();
 
   switch(evt.type){
     case 'conversation.item.input_audio_transcription.completed':
       if(evt.transcript){
-        addTranscript('user', evt.transcript);
-        // Persist to server
+        addCallTranscript('user', evt.transcript);
         fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,tier:currentTier,role:'user',content:evt.transcript})}).catch(()=>{});
+        if(currentTier==='ultimatedev') fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,role:'user',content:evt.transcript})}).catch(()=>{});
       }
       break;
     case 'response.audio.delta':
       agentSpeaking = true;
-      $('orb').classList.add('speaking');
+      $('callAvatar').classList.add('speaking');
+      $('callStatus').textContent = 'Falando...';
       break;
     case 'response.audio_transcript.delta':
-      setLiveTranscript('Touch: ' + (evt.delta||''));
+      updateLiveAgent(evt.delta||'');
       break;
     case 'response.audio_transcript.done':
       if(evt.transcript){
-        addTranscript('agent', evt.transcript);
-        // Persist to server
+        finalizeLiveAgent(evt.transcript);
         fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,tier:currentTier,role:'assistant',content:evt.transcript})}).catch(()=>{});
+        if(currentTier==='ultimatedev'&&evt.transcript) fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,role:'assistant',content:evt.transcript})}).catch(()=>{});
       }
       agentSpeaking = false;
-      $('orb').classList.remove('speaking');
+      $('callAvatar').classList.remove('speaking');
+      $('callStatus').textContent = 'Ouvindo...';
       break;
     case 'response.done':
       agentSpeaking = false;
-      $('orb').classList.remove('speaking');
-      setLiveTranscript('Ouvindo...');
+      $('callAvatar').classList.remove('speaking');
+      $('callStatus').textContent = 'Ouvindo...';
       break;
     case 'error':
-      setStatus('Erro: ' + (evt.error?.message||'desconhecido'), 'error');
+      $('callStatus').textContent = 'Erro: '+(evt.error?.message||'');
+      $('callStatus').classList.remove('active');
       break;
     case 'response.function_call_arguments.done':
-      setLiveTranscript('[Tool: ' + (evt.name||'?') + ']');
-      // Auto-respond to tool calls with empty result so agent continues
-      if(evt.call_id){
-        dc.send(JSON.stringify({
-          type:'conversation.item.create',
-          item:{type:'function_call_output',call_id:evt.call_id,output:JSON.stringify({success:true,note:'Tool executada no app principal. Teste apenas de voz.'})}
-        }));
+      addCallTranscript('system', '['+( evt.name||'tool' )+']');
+      if(evt.call_id&&dc){
+        dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:evt.call_id,output:JSON.stringify({success:true,note:'Tool executada no modo ligacao.'})}}));
         dc.send(JSON.stringify({type:'response.create'}));
       }
       break;
   }
 }
 
-function doDisconnect(){
+// ── Transcript in call ──
+let _liveAgentText = '';
+function addCallTranscript(role, text){
+  const box = $('callTranscript');
+  // Remove live line
+  const live = box.querySelector('.t-live');
+  if(live) live.remove();
+  const div = document.createElement('div');
+  div.className = 't-line ' + (role==='user'?'t-user':role==='system'?'t-system':'t-agent');
+  div.textContent = role==='user' ? 'Voce: '+text : role==='system' ? text : 'Touch: '+text;
+  box.appendChild(div);
+  // Keep max 6 lines visible
+  while(box.children.length > 6) box.removeChild(box.firstChild);
+  _liveAgentText = '';
+}
+
+function updateLiveAgent(delta){
+  _liveAgentText += delta;
+  const box = $('callTranscript');
+  let live = box.querySelector('.t-live');
+  if(!live){
+    live = document.createElement('div');
+    live.className = 't-line t-agent t-live';
+    box.appendChild(live);
+  }
+  live.textContent = 'Touch: ' + _liveAgentText;
+}
+
+function finalizeLiveAgent(full){
+  const box = $('callTranscript');
+  const live = box.querySelector('.t-live');
+  if(live) live.remove();
+  addCallTranscript('agent', full);
+}
+
+// ── Controls ──
+function toggleMute(){
+  if(!localStream) return;
+  muted = !muted;
+  localStream.getAudioTracks().forEach(t => t.enabled = !muted);
+  const btn = $('btnMute');
+  if(muted){
+    btn.classList.add('muted');
+    btn.querySelector('svg').innerHTML = '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .41-.04.81-.1 1.2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>';
+  } else {
+    btn.classList.remove('muted');
+    btn.querySelector('svg').innerHTML = '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>';
+  }
+}
+
+function toggleSpeaker(){
+  if(!audioEl) return;
+  speakerOn = !speakerOn;
+  audioEl.volume = speakerOn ? 1.0 : 0.4;
+  updateSpeakerUI();
+}
+
+function updateSpeakerUI(){
+  const btn = $('btnSpeaker');
+  const icon = $('speakerIcon');
+  const label = $('speakerLabel');
+  if(speakerOn){
+    btn.classList.add('on');
+    icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+    label.textContent = 'Viva-voz';
+  } else {
+    btn.classList.remove('on');
+    icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+    label.textContent = 'Ouvido';
+  }
+}
+
+function hangUp(){
   cleanup();
-  setStatus('Desconectado');
-  $('orb').classList.remove('speaking','connecting');
-  $('btnConnect').disabled = false;
-  $('btnDisconnect').disabled = true;
+  clearInterval(timerInterval);
+  callStartTime = null;
+  showScreen('selectScreen');
+}
+
+function handleDisconnect(){
+  active = false;
+  $('callStatus').textContent = 'Ligacao encerrada';
+  $('callStatus').classList.remove('active');
+  $('callAvatar').classList.remove('speaking');
+  clearInterval(timerInterval);
+  setTimeout(()=>{
+    cleanup();
+    showScreen('selectScreen');
+  }, 2000);
 }
 
 function cleanup(){
   active = false;
+  muted = false;
   if(dc){ try{dc.close();}catch(e){} dc=null; }
   if(pc){ try{pc.close();}catch(e){} pc=null; }
   if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
   if(audioEl){ audioEl.srcObject=null; audioEl=null; }
 }
 
-async function loadHistory(){
-  const userId = $('userIdInput').value.trim();
-  if(!userId){ setStatus('Informe o userId primeiro!','error'); return; }
-
-  const list = $('historyList');
-  list.style.display = 'block';
-  list.innerHTML = '<div style="color:#555">Carregando...</div>';
-
-  try {
-    const resp = await fetch(`/api/va/conversation/${userId}/${currentTier}?limit=50`);
-    const data = await resp.json();
-
-    if(!data.conversations || !data.conversations.length){
-      list.innerHTML = '<div style="color:#555">Nenhuma conversa anterior nesse tier.</div>';
-      return;
-    }
-
-    list.innerHTML = data.conversations.map(c => {
-      const d = new Date(c.ts);
-      const time = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      return `<div class="h-msg h-${c.role==='user'?'user':'agent'}"><span style="color:#555;font-size:0.7rem">${time}</span> ${c.role==='user'?'Voce':'Touch'}: ${c.content}</div>`;
-    }).join('');
-  } catch(e){
-    list.innerHTML = '<div style="color:#e74c3c">Erro ao carregar historico</div>';
-  }
-}
-
-// Auto-load userId from URL param
+// ── URL params ──
 const params = new URLSearchParams(location.search);
 if(params.get('userId')) $('userIdInput').value = params.get('userId');
-if(params.get('tier')) selectTier(params.get('tier'));
+if(params.get('tier')){
+  // Auto-call
+  const tier = params.get('tier');
+  if(TIERS[tier] && params.get('userId')){
+    setTimeout(()=> startCall(tier), 500);
+  }
+}
 </script>
 </body>
 </html>
