@@ -9368,9 +9368,24 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
         await execFileAsync('git', ['-C', __dirname, 'config', 'user.email', 'ultimatedev@touch-irl.com'], { timeout: 5000 });
         await execFileAsync('git', ['-C', __dirname, 'config', 'user.name', 'UltimateDEV'], { timeout: 5000 });
       } catch (cfgErr) { console.warn('[DEV] Git config warning:', cfgErr.message); }
+      // Configurar remote origin com GitHub token se disponivel
+      const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      if (ghToken) {
+        try {
+          const remoteUrl = `https://${ghToken}@github.com/ramonveloso/touch-irl.git`;
+          await execFileAsync('git', ['-C', __dirname, 'remote', 'set-url', 'origin', remoteUrl], { timeout: 5000 });
+        } catch (remoteErr) {
+          console.warn('[DEV] Git remote config warning:', remoteErr.message);
+          // Se set-url falhar, tentar adicionar
+          try {
+            const remoteUrl = `https://${ghToken}@github.com/ramonveloso/touch-irl.git`;
+            await execFileAsync('git', ['-C', __dirname, 'remote', 'add', 'origin', remoteUrl], { timeout: 5000 });
+          } catch (addErr) { console.warn('[DEV] Git remote add warning:', addErr.message); }
+        }
+      }
       await execFileAsync('git', ['-C', __dirname, 'add', '-A'], { timeout: GIT_TIMEOUT });
       await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg], { timeout: GIT_TIMEOUT });
-      await execFileAsync('git', ['-C', __dirname, 'push'], { timeout: GIT_TIMEOUT });
+      await execFileAsync('git', ['-C', __dirname, 'push', 'origin', 'main'], { timeout: GIT_TIMEOUT });
       cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
       cmd.status = 'done';
       gitResult = 'done';
