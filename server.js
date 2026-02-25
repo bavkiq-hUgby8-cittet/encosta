@@ -9106,9 +9106,9 @@ REGRAS DE SEGURANCA (INVIOLAVEIS):
 
 ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
-    // Limitar contexto a ~30k tokens max para nao estourar limites da API
-    const MAX_LINES_PER_FILE = 600; // ~600 linhas por arquivo = ~15k tokens
-    const CONTEXT_RADIUS = 15; // 15 linhas antes/depois de cada match
+    // Limitar contexto para nao estourar limites da API (~80k tokens max)
+    const MAX_LINES_PER_FILE = 1500; // ~1500 linhas por arquivo
+    const CONTEXT_RADIUS = 40; // 40 linhas antes/depois de cada match para old_string preciso
     const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
       const lines = content.split('\n');
       if (lines.length <= MAX_LINES_PER_FILE) {
