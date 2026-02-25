@@ -3705,6 +3705,26 @@ function initSocket(){
   // Listen for partner profile updates (nickname, photo changes)
   socket.on('partner-profile-updated',d=>{
     if(!d||!d.userId)return;
+    // Update reveal screen if currently showing this partner
+    var rvNameEl=$('rvNameThem');
+    if(rvNameEl&&state.currentRelation){
+      var cr=state.currentRelation;
+      var meIsA=cr.userA&&cr.userA.id===state.userId;
+      var themInCr=meIsA?cr.userB:cr.userA;
+      if(themInCr&&themInCr.id===d.userId){
+        themInCr.name=d.nickname;
+        var theyRevealed=!!(state.revealedIds&&state.revealedIds[d.userId]);
+        rvNameEl.textContent=theyRevealed?(themInCr.realName||d.nickname||'?'):(d.nickname||'?');
+      }
+    }
+    // Update chat screen if currently chatting with this partner
+    if(state.currentPartnerId===d.userId){
+      var chatNameEl=$('chatPartner');
+      if(chatNameEl){
+        var isRevealed=!!(state.revealedIds&&state.revealedIds[d.userId]);
+        if(!isRevealed)chatNameEl.textContent=d.nickname;
+      }
+    }
     // Refresh relations and constellation data to show updated names
     if(typeof refreshRelations==='function')refreshRelations();
   });
@@ -12533,7 +12553,9 @@ function expressCheckout(type, planId) {
 
 // Stripe Payment Element — full card + Link + wallets in one form
 async function showStripePaymentElement(containerId, amount, currency, onSuccess, metadata) {
-  if (!_stripePublicKey || !window.Stripe) { showToast('Stripe nao configurado.'); return null; }
+  // Ensure Stripe JS is loaded before checking
+  await loadStripeJS();
+  if (!_stripePublicKey || !window.Stripe) { showToast('Stripe nao configurado. Verifique as variaveis de ambiente.'); return null; }
   const stripe = window._stripeInstance || Stripe(_stripePublicKey);
   window._stripeInstance = stripe;
 
