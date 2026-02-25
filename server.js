@@ -8800,6 +8800,37 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
   } catch (e) { console.error('[ULTIMATE] Session err:', e.message); res.status(500).json({ error: 'Erro interno: ' + e.message }); }
 });
 
+// ══ ANTHROPIC FETCH COM RETRY — retry automatico em 429/529 ══
+async function anthropicFetch(body, timeoutMs = 30000, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (resp.status === 529 || resp.status === 429) {
+        const waitMs = Math.min(5000 * attempt, 15000); // 5s, 10s, 15s
+        console.log(`[ANTHROPIC] ${resp.status} attempt ${attempt}/${maxRetries}, retry in ${waitMs}ms...`);
+        if (attempt < maxRetries) { await new Promise(r => setTimeout(r, waitMs)); continue; }
+      }
+      return resp;
+    } catch (e) {
+      clearTimeout(timer);
+      if (attempt < maxRetries && e.name !== 'AbortError') {
+        console.log(`[ANTHROPIC] Fetch error attempt ${attempt}/${maxRetries}:`, e.message);
+        await new Promise(r => setTimeout(r, 3000 * attempt));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 // ══ DEV PING — teste rapido de conexao com Claude (nao precisa admin) ══
 app.post('/api/dev/ping', vaLimiter, async (req, res) => {
   const { userId } = req.body;
@@ -8816,11 +8847,7 @@ app.post('/api/dev/ping', vaLimiter, async (req, res) => {
   try {
     if (ANTHROPIC_API_KEY) {
       const start = Date.now();
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: 'Diga apenas: OK' }] })
-      });
+      const resp = await anthropicFetch({ model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: 'Diga apenas: OK' }] }, 30000, 3);
       result.tempo_ms = Date.now() - start;
       if (resp.ok) {
         const data = await resp.json();
@@ -8984,20 +9011,12 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
     if (ANTHROPIC_API_KEY) {
       console.log('[DEV] Chamando Claude Opus para planejamento... instrucao:', instruction.slice(0, 80));
       const planStart = Date.now();
-      const planAbort = new AbortController();
-      const planTimer = setTimeout(() => planAbort.abort(), 300000); // 5min safety timeout
-      const planResp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-opus-4-20250514',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}` }],
-          system: systemPrompt
-        }),
-        signal: planAbort.signal
-      });
-      clearTimeout(planTimer);
+      const planResp = await anthropicFetch({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}` }],
+        system: systemPrompt
+      }, 300000, 3);
       const planTime = Date.now() - planStart;
       if (planResp.ok) {
         const planData = await planResp.json();
@@ -9195,23 +9214,15 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     }
 
     if (ANTHROPIC_API_KEY) {
-      // Use Claude Opus 4 for code generation (mais inteligente, contexto otimizado)
+      // Use Claude Opus 4 for code generation (com retry automatico em 429/529)
       console.log('[DEV] Chamando Claude Opus para geracao de codigo... arquivos:', relevantFiles.join(', '));
       const editStart = Date.now();
-      const editResp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-20250514',
-          max_tokens: 8000,
-          system: editSystemPrompt,
-          messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
-        })
-      }, 300000); // 5min safety timeout (async, no HTTP constraint)
+      const editResp = await anthropicFetch({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 8000,
+        system: editSystemPrompt,
+        messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
+      }, 300000, 3);
       const editTime = Date.now() - editStart;
 
       if (!editResp.ok) {
