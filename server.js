@@ -9106,26 +9106,43 @@ REGRAS DE SEGURANCA (INVIOLAVEIS):
 
 ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
+    // Limitar contexto a ~30k tokens max para nao estourar limites da API
+    const MAX_LINES_PER_FILE = 600; // ~600 linhas por arquivo = ~15k tokens
+    const CONTEXT_RADIUS = 15; // 15 linhas antes/depois de cada match
     const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
-      // For very large files, send strategic sections
       const lines = content.split('\n');
-      if (lines.length > 3000) {
-        // Send first 500 + last 500 + search for relevant sections
-        const keywords = cmd.instruction.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        const relevantLines = [];
-        for (let i = 0; i < lines.length; i++) {
-          const ln = lines[i].toLowerCase();
-          if (keywords.some(kw => ln.includes(kw))) {
-            const start = Math.max(0, i - 10);
-            const end = Math.min(lines.length, i + 10);
-            relevantLines.push(`... [linhas ${start+1}-${end+1}] ...`);
-            for (let j = start; j < end; j++) relevantLines.push(`${j+1}: ${lines[j]}`);
+      if (lines.length <= MAX_LINES_PER_FILE) {
+        // Arquivo pequeno: enviar tudo
+        return `=== ${f} (${lines.length} linhas) ===\n${lines.map((l, i) => `${i+1}: ${l}`).join('\n')}`;
+      }
+      // Arquivo grande: enviar apenas trechos relevantes baseados no plano + instrucao
+      const keywords = (cmd.instruction + ' ' + (cmd.plan || '')).toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      const includedRanges = new Set();
+      // Sempre incluir primeiras 30 e ultimas 50 linhas (imports + app.listen)
+      for (let i = 0; i < Math.min(30, lines.length); i++) includedRanges.add(i);
+      for (let i = Math.max(0, lines.length - 50); i < lines.length; i++) includedRanges.add(i);
+      // Buscar trechos relevantes por keywords
+      for (let i = 0; i < lines.length; i++) {
+        const ln = lines[i].toLowerCase();
+        if (keywords.some(kw => ln.includes(kw))) {
+          for (let j = Math.max(0, i - CONTEXT_RADIUS); j < Math.min(lines.length, i + CONTEXT_RADIUS + 1); j++) {
+            includedRanges.add(j);
           }
         }
-        return `=== ${f} (${lines.length} linhas) ===\n[PRIMEIRAS 500 LINHAS]\n${lines.slice(0, 500).map((l, i) => `${i+1}: ${l}`).join('\n')}\n\n[ULTIMAS 500 LINHAS]\n${lines.slice(-500).map((l, i) => `${lines.length - 500 + i + 1}: ${l}`).join('\n')}\n\n[TRECHOS RELEVANTES]\n${relevantLines.join('\n')}`;
       }
-      return `=== ${f} (${lines.length} linhas) ===\n${lines.map((l, i) => `${i+1}: ${l}`).join('\n')}`;
+      // Converter ranges para blocos contiguos e limitar total
+      const sortedLines = Array.from(includedRanges).sort((a, b) => a - b);
+      if (sortedLines.length > MAX_LINES_PER_FILE) sortedLines.length = MAX_LINES_PER_FILE;
+      const chunks = [];
+      let prevIdx = -2;
+      for (const idx of sortedLines) {
+        if (idx !== prevIdx + 1) chunks.push(`\n... [pulo para linha ${idx + 1}] ...\n`);
+        chunks.push(`${idx + 1}: ${lines[idx]}`);
+        prevIdx = idx;
+      }
+      return `=== ${f} (${lines.length} linhas, mostrando ${sortedLines.length} relevantes) ===\n${chunks.join('\n')}`;
     }).join('\n\n');
+    console.log('[DEV] Contexto gerado:', fileContextStr.length, 'chars (~', Math.round(fileContextStr.length / 4), 'tokens)');
 
     let editsRaw;
 
