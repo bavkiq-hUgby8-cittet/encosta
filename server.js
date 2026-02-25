@@ -9154,8 +9154,8 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     }
 
     if (ANTHROPIC_API_KEY) {
-      // Use Claude Opus 4 for code generation — full context
-      console.log('[DEV] Chamando Claude para geracao de codigo... arquivos:', relevantFiles.join(', '));
+      // Use Claude Sonnet 4 for code generation (rapido + preciso para edits JSON)
+      console.log('[DEV] Chamando Claude Sonnet para geracao de codigo... arquivos:', relevantFiles.join(', '));
       const editStart = Date.now();
       const editResp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -9165,7 +9165,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-opus-4-20250514',
+          model: 'claude-sonnet-4-20250514',
           max_tokens: 16000,
           system: editSystemPrompt,
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
