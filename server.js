@@ -153,6 +153,11 @@ function sanitizeStr(s, maxLen = 500) {
   if (typeof s !== 'string') return '';
   return s.replace(/[<>]/g, '').trim().slice(0, maxLen);
 }
+// Resolve current nickname from db.users (avoids stale snapshots in encounters)
+function currentNick(userId, fallback) {
+  const u = db.users[userId];
+  return u ? (u.nickname || u.name || fallback || '?') : (fallback || '?');
+}
 function isValidEmail(e) {
   return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 254;
 }
@@ -2260,7 +2265,7 @@ app.get('/api/constellation/:userId', (req, res) => {
   list.forEach(e => {
     // Skip event encounters — handled separately as event nodes
     if (e.isEvent || (typeof e.with === 'string' && e.with.startsWith('evt:'))) return;
-    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: e.withName || '?', color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0, lastSelfie: null, serviceEncounters: 0, personalEncounters: 0 };
+    if (!byPerson[e.with]) byPerson[e.with] = { id: e.with, nickname: currentNick(e.with, e.withName), color: e.withColor || null, encounters: 0, firstDate: e.timestamp, lastDate: e.timestamp, tipsGiven: 0, tipsTotal: 0, lastSelfie: null, serviceEncounters: 0, personalEncounters: 0 };
     byPerson[e.with].encounters++;
     // Track encounter type: service vs personal
     if (e.type === 'service') byPerson[e.with].serviceEncounters++;
@@ -3051,10 +3056,21 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
     const existingId = IDX.nickname.get(newNick.toLowerCase());
     if (existingId && existingId !== userId) return res.status(400).json({ error: 'Esse nickname já existe.' });
     // Update index
-    if (user.nickname) IDX.nickname.delete(user.nickname.toLowerCase());
+    const oldNick = user.nickname;
+    if (oldNick) IDX.nickname.delete(oldNick.toLowerCase());
     IDX.nickname.set(newNick.toLowerCase(), userId);
     user.nickname = newNick;
-    user.name = user.name === user.nickname ? newNick : user.name;
+    user.name = user.name === oldNick ? newNick : user.name;
+    // Broadcast nickname change to all connected partners via socket
+    const myRelIds = IDX.relationsByUser.get(userId);
+    if (myRelIds) {
+      myRelIds.forEach(rid => {
+        const rel = db.relations[rid];
+        if (!rel) return;
+        const partnerId = rel.userA === userId ? rel.userB : rel.userA;
+        io.to(partnerId).emit('partner-profile-updated', { userId, nickname: newNick, color: user.color });
+      });
+    }
   }
   if (realName !== undefined && realName.trim()) {
     if (realName.trim().toLowerCase() === (user.nickname || '').toLowerCase()) {
@@ -3086,9 +3102,10 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
   if (profession !== undefined) user.profession = sanitizeStr(profession, 100);
   if (sports !== undefined) user.sports = Array.isArray(sports) ? sports.slice(0, 2) : [];
   if (hobbies !== undefined) user.hobbies = Array.isArray(hobbies) ? hobbies.slice(0, 2) : [];
-  if (profilePhoto !== undefined) {
-    if (profilePhoto && profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });
-    if (profilePhoto && profilePhoto.startsWith('data:image')) {
+  if (profilePhoto !== undefined && profilePhoto) {
+    // Only update profilePhoto if a real value is provided (ignore empty string to avoid clearing)
+    if (profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });
+    if (profilePhoto.startsWith('data:image')) {
       // Upload to Firebase Storage instead of storing base64
       const photoUrl = await uploadBase64ToStorage(profilePhoto, `photos/profile/${userId}_${Date.now()}.jpg`);
       user.profilePhoto = photoUrl || profilePhoto; // fallback to base64 if upload fails
@@ -3133,7 +3150,7 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
 
   // Propagate photo update to all canSee entries (permanent + event-scoped)
-  if (profilePhoto !== undefined && user.revealedTo && user.revealedTo.length > 0) {
+  if (profilePhoto && user.revealedTo && user.revealedTo.length > 0) {
     const freshPhoto = user.profilePhoto || user.photoURL || null;
     user.revealedTo.forEach(targetId => {
       const target = db.users[targetId];
@@ -3146,6 +3163,20 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
         });
       }
     });
+  }
+
+  // Broadcast photo change to partners if photo was updated
+  if (profilePhoto !== undefined && profilePhoto) {
+    const myRelIds = IDX.relationsByUser.get(userId);
+    if (myRelIds) {
+      const freshPhoto = user.profilePhoto || user.photoURL || null;
+      myRelIds.forEach(rid => {
+        const rel = db.relations[rid];
+        if (!rel) return;
+        const partnerId = rel.userA === userId ? rel.userB : rel.userA;
+        io.to(partnerId).emit('partner-profile-updated', { userId, profilePhoto: freshPhoto });
+      });
+    }
   }
 
   saveDB('users');
@@ -6053,7 +6084,7 @@ app.get('/api/user/:userId/transactions', requireAuth, (req, res) => {
       direction: null,
       amount: 0,
       status: 'ok',
-      otherName: e.withName || '?',
+      otherName: e.isEvent ? (e.withName || '?') : currentNick(e.with, e.withName),
       otherColor: e.withColor || '#888',
       phrase: e.phrase || null,
       eventName: e.isEvent ? e.withName : null,
@@ -6926,7 +6957,7 @@ function buildUserContext(userId) {
   // Unique connections (people, not events)
   const connectionMap = {};
   encounters.filter(e => !e.isEvent && !(e.with||'').startsWith('evt:')).forEach(e => {
-    if (!connectionMap[e.with]) connectionMap[e.with] = { name: e.withName, count: 0, lastDate: '', lastPhrase: '' };
+    if (!connectionMap[e.with]) connectionMap[e.with] = { name: currentNick(e.with, e.withName), count: 0, lastDate: '', lastPhrase: '' };
     connectionMap[e.with].count++;
     if (e.timestamp > (connectionMap[e.with].ts || 0)) {
       connectionMap[e.with].lastDate = e.date;
@@ -6990,7 +7021,7 @@ function buildUserContext(userId) {
   const recent48h = encounters.filter(e => now - e.timestamp < 2 * h24 && !e.isEvent)
     .sort((a,b) => b.timestamp - a.timestamp)
     .slice(0, 5)
-    .map(e => `${e.withName} (${formatTsForUser(e.timestamp, userId)})`);
+    .map(e => `${currentNick(e.with, e.withName)} (${formatTsForUser(e.timestamp, userId)})`);
 
   // Build greeting — JÁ ENTRA NO ASSUNTO, sem "e aí", sem pausa
   // Estilo: "Ramon, [fofoca/novidade]! [pergunta curta]"
@@ -7771,7 +7802,7 @@ app.get('/api/agent/context/:userId', (req, res) => {
   const encounters = db.encounters[userId] || [];
   const connectionMap = {};
   encounters.filter(e => !e.isEvent && !(e.with||'').startsWith('evt:')).forEach(e => {
-    if (!connectionMap[e.with]) connectionMap[e.with] = { name: e.withName, count: 0, ts: 0 };
+    if (!connectionMap[e.with]) connectionMap[e.with] = { name: currentNick(e.with, e.withName), count: 0, ts: 0 };
     connectionMap[e.with].count++;
     if (e.timestamp > connectionMap[e.with].ts) {
       connectionMap[e.with].ts = e.timestamp;
@@ -9186,7 +9217,7 @@ app.get('/api/operator/checkins/:userId', (req, res) => {
   const checkins = list.filter(e => e.type === 'checkin').map(e => {
     const revEntry = isRevealedTo(e.with, opUser, e.eventId || null);
     return {
-      with: e.with, withName: e.withName, withColor: e.withColor,
+      with: e.with, withName: currentNick(e.with, e.withName), withColor: e.withColor,
       timestamp: e.timestamp, date: e.date, relationId: e.relationId || null,
       revealed: !!revEntry,
       revealData: revEntry || null

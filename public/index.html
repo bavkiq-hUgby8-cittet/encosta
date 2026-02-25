@@ -3448,6 +3448,12 @@ function initSocket(){
     }
   });
 
+  // Listen for partner profile updates (nickname, photo changes)
+  socket.on('partner-profile-updated',d=>{
+    if(!d||!d.userId)return;
+    // Refresh relations and constellation data to show updated names
+    if(typeof refreshRelations==='function')refreshRelations();
+  });
   socket.on('relation-created',d=>{
     if(homeSonicActive)stopHomeSonic();
     if(sonicActive)stopSonicMode();
@@ -9719,7 +9725,7 @@ async function saveCompleteProfile(){
     instagram:$('cpInstagram').value.trim(),
     tiktok:$('cpTiktok').value.trim(),
     twitter:$('cpTwitter').value.trim(),
-    profilePhoto:cpPhotoData||'',
+    profilePhoto:cpPhotoData||undefined,
     avatarAccessory:state._selectedAccessory||null,
     privacy:{
       instagram:privBtn('Instagram')?privBtn('Instagram').classList.contains('priv-on'):true,
@@ -9732,7 +9738,7 @@ async function saveCompleteProfile(){
     const r=await apiFetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    if(data.profilePhoto){state.userPhoto=data.profilePhoto;localStorage.setItem('touch_userPhoto',data.profilePhoto);constState._myImgLoaded=false}
+    if(d.user&&(d.user.profilePhoto||d.user.photoURL)){state.userPhoto=d.user.profilePhoto||d.user.photoURL;localStorage.setItem('touch_userPhoto',state.userPhoto);constState._myImgLoaded=false}
     if(nicknameVal){state.userNickname=nicknameVal;state.userName=nicknameVal;localStorage.setItem('touch_userName',nicknameVal)}
     state.userAccessory=state._selectedAccessory||null;
     if(state.userAccessory)localStorage.setItem('touch_userAccessory',state.userAccessory);else localStorage.removeItem('touch_userAccessory');
