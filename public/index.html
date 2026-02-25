@@ -8517,6 +8517,31 @@ function loadDevLog(){
     if(body)body.innerHTML='<div class="dev-log-empty">Erro ao carregar</div>';
   });
 }
+function devPingClaude(){
+  var body=document.getElementById('devLogBody');
+  if(body) body.innerHTML='<div class="dev-log-empty">Testando conexao com Claude...</div>';
+  var uid=typeof state!=='undefined'?state.userId:null;
+  console.log('[DEV-PING] Testando Claude... userId:', uid);
+  fetch('/api/dev/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:uid})})
+  .then(function(r){
+    console.log('[DEV-PING] HTTP', r.status);
+    return r.json();
+  })
+  .then(function(d){
+    console.log('[DEV-PING] Resultado:', JSON.stringify(d));
+    var html='<div class="dl-item"><div class="dl-item-head"><span class="dl-item-type '+(d.ok?'done':'fail')+'">'+(d.ok?'OK':'FALHOU')+'</span></div>';
+    html+='<div class="dl-item-text">'+(d.teste||'Sem resposta')+'</div>';
+    html+='<div class="dl-item-plan">Engine: '+(d.engine||'?')+' | Tempo: '+(d.tempo_ms||0)+'ms | API Key: '+(d.anthropic_key?'SIM':'NAO')+'</div></div>';
+    if(body) body.innerHTML=html;
+    // Tambem adiciona ao live log
+    window._devLiveLog = window._devLiveLog || [];
+    window._devLiveLog.unshift({type:d.ok?'result':'error', text:'PING: '+(d.teste||'?'), detail:'Engine: '+(d.engine||'?')+' | '+d.tempo_ms+'ms', ts:Date.now()});
+  })
+  .catch(function(err){
+    console.error('[DEV-PING] Erro:', err.message);
+    if(body) body.innerHTML='<div class="dl-item"><div class="dl-item-head"><span class="dl-item-type fail">ERRO</span></div><div class="dl-item-text">'+err.message+'</div><div class="dl-item-plan">Servidor pode estar offline ou userId invalido</div></div>';
+  });
+}
 function filterDevLog(filter,tabEl){
   _devLogCurrentFilter=filter;
   var tabs=document.querySelectorAll('.dev-log-tab');
@@ -13694,6 +13719,7 @@ window.addEventListener('message',function(e){
   <div class="dev-log-header">
     <svg viewBox="0 0 24 24" fill="none" stroke="#00ff41" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
     <div class="dlh-title">Dev Log</div>
+    <button class="dlh-refresh" onclick="devPingClaude()" title="Testar conexao com Claude" style="font-size:.55rem;padding:4px 8px;width:auto;border-radius:4px">PING</button>
     <button class="dlh-refresh" onclick="loadDevLog()" title="Atualizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
     <button class="dlh-close" onclick="toggleDevLogPanel()">&times;</button>
   </div>
