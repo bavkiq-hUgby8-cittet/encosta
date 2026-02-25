@@ -17,6 +17,90 @@
   try{if(window.caches){caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})}).catch(function(){})}}catch(e){}
 })();
 </script>
+<script>
+// ═══ i18n SYSTEM ═══
+window._i18n = {};
+window._currentLang = 'pt-br';
+
+// Available languages with metadata
+const I18N_LANGUAGES = {
+  'en': { name: 'English', flag: 'US', emoji: '🇺🇸', dir: 'ltr' },
+  'pt-br': { name: 'Português', flag: 'BR', emoji: '🇧🇷', dir: 'ltr' },
+  'es': { name: 'Español', flag: 'MX', emoji: '🇲🇽', dir: 'ltr' },
+  'ja': { name: '日本語', flag: 'JP', emoji: '🇯🇵', dir: 'ltr' },
+  'ru': { name: 'Русский', flag: 'RU', emoji: '🇷🇺', dir: 'ltr' }
+};
+
+// Country flags for profile display (ISO 3166-1)
+const COUNTRY_FLAGS = {
+  'US': '🇺🇸', 'BR': '🇧🇷', 'MX': '🇲🇽', 'AR': '🇦🇷', 'CO': '🇨🇴',
+  'JP': '🇯🇵', 'RU': '🇷🇺', 'GB': '🇬🇧', 'FR': '🇫🇷', 'DE': '🇩🇪',
+  'ES': '🇪🇸', 'IT': '🇮🇹', 'PT': '🇵🇹', 'CA': '🇨🇦', 'AU': '🇦🇺',
+  'KR': '🇰🇷', 'CN': '🇨🇳', 'IN': '🇮🇳', 'CL': '🇨🇱', 'PE': '🇵🇪',
+  'UY': '🇺🇾', 'PY': '🇵🇾', 'BO': '🇧🇴', 'EC': '🇪🇨', 'VE': '🇻🇪',
+  'CR': '🇨🇷', 'PA': '🇵🇦', 'DO': '🇩🇴', 'CU': '🇨🇺', 'PR': '🇵🇷',
+  'NZ': '🇳🇿', 'ZA': '🇿🇦', 'IL': '🇮🇱', 'AE': '🇦🇪', 'SA': '🇸🇦',
+  'TH': '🇹🇭', 'PH': '🇵🇭', 'VN': '🇻🇳', 'ID': '🇮🇩', 'MY': '🇲🇾',
+  'SG': '🇸🇬', 'TW': '🇹🇼', 'HK': '🇭🇰', 'NL': '🇳🇱', 'BE': '🇧🇪',
+  'SE': '🇸🇪', 'NO': '🇳🇴', 'DK': '🇩🇰', 'FI': '🇫🇮', 'PL': '🇵🇱',
+  'CZ': '🇨🇿', 'AT': '🇦🇹', 'CH': '🇨🇭', 'IE': '🇮🇪', 'RO': '🇷🇴',
+  'GR': '🇬🇷', 'TR': '🇹🇷', 'UA': '🇺🇦', 'NG': '🇳🇬', 'EG': '🇪🇬',
+  'KE': '🇰🇪', 'GH': '🇬🇭', 'MA': '🇲🇦'
+};
+
+async function loadLanguage(lang) {
+  if (!I18N_LANGUAGES[lang]) lang = 'en';
+  try {
+    const resp = await fetch('/i18n/' + lang + '.json');
+    if (!resp.ok) throw new Error('Failed to load language: ' + lang);
+    window._i18n = await resp.json();
+    window._currentLang = lang;
+    document.documentElement.lang = lang === 'pt-br' ? 'pt-BR' : lang;
+    localStorage.setItem('touch_lang', lang);
+    if (window.socket && state.userId) {
+      socket.emit('updateLang', { userId: state.userId, lang: lang });
+    }
+  } catch (e) {
+    console.warn('i18n: failed to load ' + lang + ', falling back to pt-br');
+    if (lang !== 'pt-br') return loadLanguage('pt-br');
+  }
+}
+
+function t(key, params) {
+  const parts = key.split('.');
+  let val = window._i18n;
+  for (let i = 0; i < parts.length; i++) {
+    if (val && typeof val === 'object' && parts[i] in val) {
+      val = val[parts[i]];
+    } else {
+      return key;
+    }
+  }
+  if (typeof val !== 'string') return key;
+  if (params) {
+    Object.keys(params).forEach(function(k) {
+      val = val.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
+    });
+  }
+  return val;
+}
+
+function detectLanguage() {
+  const saved = localStorage.getItem('touch_lang');
+  if (saved && I18N_LANGUAGES[saved]) return saved;
+  const nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+  if (nav.startsWith('pt')) return 'pt-br';
+  if (nav.startsWith('es')) return 'es';
+  if (nav.startsWith('ja')) return 'ja';
+  if (nav.startsWith('ru')) return 'ru';
+  return 'en';
+}
+
+(function() {
+  const lang = detectLanguage();
+  loadLanguage(lang);
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -2802,7 +2886,7 @@ function lsGet(k){
   return raw;
 }
 function lsRemove(k){localStorage.removeItem(k)}
-let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null};
+let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null,userCountry:null,userCity:'',userShowCountry:false,userLang:'pt-br'};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ AUTH FETCH HELPER: automaticamente inclui Firebase token em todas as chamadas API ═══
@@ -10858,6 +10942,8 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>Assinaturas'+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>Serviços</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showLanguageSelector()"><span class="my-pf-ico" style="font-style:normal">'+((I18N_LANGUAGES[window._currentLang]||{}).emoji||'🌐')+'</span>'+(I18N_LANGUAGES[window._currentLang]||{}).name+' <span style="font-size:.5rem;color:var(--t3);margin-left:.3rem">Language</span></button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showCountrySelector()"><span class="my-pf-ico" style="font-style:normal">'+(state.userCountry?COUNTRY_FLAGS[state.userCountry]||'🌍':'🌍')+'</span>'+(state.userCountry?(COUNTRY_FLAGS[state.userCountry]||'🌍')+' '+(state.userCity||''):'Bandeira e cidade')+'</button>'
     +'<div class="my-pf-divider"></div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">i</span>Sobre o Touch</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/termos\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">§</span>Termos de Uso</button>'
@@ -10877,6 +10963,115 @@ function showMyProfileSheet(){
     if(_pfDelta>100){sheet.style.transform='translateY(100%)';sheet.style.opacity='0';setTimeout(()=>overlay.remove(),250)}
     else{sheet.style.transform='';sheet.style.opacity=''}
   },{passive:true});
+}
+
+// ═══ LANGUAGE SELECTOR ═══
+function showLanguageSelector() {
+  const overlay = document.createElement('div');
+  overlay.className = 'more-menu-overlay';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  let btns = '';
+  Object.keys(I18N_LANGUAGES).forEach(function(code) {
+    const lang = I18N_LANGUAGES[code];
+    const isActive = window._currentLang === code;
+    btns += '<button onclick="changeLanguage(\'' + code + '\');this.closest(\'.more-menu-overlay\').remove()" style="display:flex;align-items:center;gap:.8rem;width:100%;padding:.75rem 1rem;border-radius:12px;border:1px solid ' + (isActive ? 'rgba(255,107,53,.3)' : 'rgba(255,255,255,.06)') + ';background:' + (isActive ? 'rgba(255,107,53,.08)' : 'rgba(255,255,255,.03)') + ';cursor:pointer;font-family:inherit;transition:all .2s;margin-bottom:.4rem">'
+      + '<span style="font-size:1.5rem">' + lang.emoji + '</span>'
+      + '<div style="flex:1;text-align:left"><div style="font-size:.85rem;font-weight:600;color:' + (isActive ? 'var(--ac)' : 'var(--t1)') + '">' + lang.name + '</div></div>'
+      + (isActive ? '<span style="color:var(--ac);font-size:.75rem;font-weight:700">&#x2713;</span>' : '')
+      + '</button>';
+  });
+  overlay.innerHTML = '<div class="more-menu-sheet" style="padding:1.4rem">'
+    + '<div class="more-menu-handle"></div>'
+    + '<div style="font-size:.9rem;font-weight:700;margin-bottom:1rem;text-align:center">Language</div>'
+    + btns
+    + '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function changeLanguage(lang) {
+  await loadLanguage(lang);
+  showToast((I18N_LANGUAGES[lang] || {}).emoji + ' ' + (I18N_LANGUAGES[lang] || {}).name);
+  if (state.userId) {
+    try {
+      await fetch('/api/user/' + state.userId + '/lang', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang: lang })
+      });
+    } catch (e) { }
+  }
+}
+
+function showCountrySelector() {
+  const overlay = document.createElement('div');
+  overlay.className = 'more-menu-overlay';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+  const regions = {
+    'Americas': ['US','CA','BR','MX','AR','CO','CL','PE','UY','PY','BO','EC','VE','CR','PA','DO','CU','PR'],
+    'Europe': ['GB','FR','DE','ES','IT','PT','NL','BE','SE','NO','DK','FI','PL','CZ','AT','CH','IE','RO','GR','UA'],
+    'Asia': ['JP','KR','CN','IN','TH','PH','VN','ID','MY','SG','TW','HK','AE','SA','IL','TR'],
+    'Africa/Oceania': ['AU','NZ','ZA','NG','EG','KE','GH','MA','RU']
+  };
+
+  let html = '<div class="more-menu-sheet" style="padding:1.4rem;max-height:75vh;overflow-y:auto">'
+    + '<div class="more-menu-handle"></div>'
+    + '<div style="font-size:.9rem;font-weight:700;margin-bottom:.4rem;text-align:center">Bandeira e Cidade</div>'
+    + '<div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:1rem">Escolha sua localizacao (privado, opcao de mostrar)</div>';
+
+  html += '<div style="margin-bottom:1rem"><input type="text" id="countryCity" placeholder="Cidade" value="' + (state.userCity || '') + '" style="width:100%;padding:.6rem .8rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t1);font-size:.78rem;font-family:inherit;outline:none" maxlength="30"></div>';
+
+  html += '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;padding:.5rem .8rem;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.06)">'
+    + '<span style="font-size:.72rem;color:var(--t2);flex:1">Mostrar bandeira no perfil</span>'
+    + '<label style="position:relative;width:36px;height:20px;cursor:pointer"><input type="checkbox" id="showFlagToggle" ' + (state.userShowCountry ? 'checked' : '') + ' style="opacity:0;width:0;height:0"><span style="position:absolute;inset:0;background:' + (state.userShowCountry ? 'var(--ac)' : 'rgba(255,255,255,.1)') + ';border-radius:10px;transition:.2s"></span><span style="position:absolute;top:2px;left:' + (state.userShowCountry ? '18px' : '2px') + ';width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s"></span></label>'
+    + '</div>';
+
+  Object.keys(regions).forEach(function(region) {
+    html += '<div style="font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin:.6rem 0 .3rem;font-weight:600">' + region + '</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:.3rem">';
+    regions[region].forEach(function(code) {
+      const isActive = state.userCountry === code;
+      html += '<button onclick="selectCountry(\'' + code + '\')" style="width:42px;height:36px;border-radius:8px;border:1px solid ' + (isActive ? 'var(--ac)' : 'rgba(255,255,255,.06)') + ';background:' + (isActive ? 'rgba(255,107,53,.1)' : 'rgba(255,255,255,.03)') + ';cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;transition:all .15s" title="' + code + '">' + (COUNTRY_FLAGS[code] || code) + '</button>';
+    });
+    html += '</div>';
+  });
+
+  html += '<button onclick="saveCountrySelection();this.closest(\'.more-menu-overlay\').remove()" style="width:100%;margin-top:1rem;padding:.7rem;border-radius:14px;border:none;background:var(--ac);color:#fff;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit">Salvar</button>';
+  html += '</div>';
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function selectCountry(code) {
+  state.userCountry = code;
+  const btns = document.querySelectorAll('.more-menu-overlay button[title]');
+  btns.forEach(function(b) {
+    if (b.title === code) {
+      b.style.borderColor = 'var(--ac)';
+      b.style.background = 'rgba(255,107,53,.1)';
+    } else {
+      b.style.borderColor = 'rgba(255,255,255,.06)';
+      b.style.background = 'rgba(255,255,255,.03)';
+    }
+  });
+}
+
+async function saveCountrySelection() {
+  const city = (document.getElementById('countryCity') || {}).value || '';
+  const show = (document.getElementById('showFlagToggle') || {}).checked || false;
+  state.userCity = city;
+  state.userShowCountry = show;
+  if (state.userId) {
+    try {
+      await fetch('/api/user/' + state.userId + '/country', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ country: state.userCountry, city: city, showCountry: show })
+      });
+      showToast((COUNTRY_FLAGS[state.userCountry] || '') + ' ' + (city || state.userCountry));
+    } catch (e) { showToast('Erro ao salvar.'); }
+  }
 }
 
 // ═══ SUBSCRIPTION ═══
