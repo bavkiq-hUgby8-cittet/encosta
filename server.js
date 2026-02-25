@@ -10707,8 +10707,10 @@ app.post('/api/stripe/create-payment-intent', paymentLimiter, async (req, res) =
   const { amount, currency, payerId, receiverId, type, eventId } = req.body;
   if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
 
-  const amountCents = Math.round(amount * 100);
   const curr = (currency || 'brl').toLowerCase();
+  // Zero-decimal currencies (JPY, KRW, etc.) use whole units
+  const ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
+  const amountCents = ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
 
   try {
     const intentData = {
@@ -10812,7 +10814,7 @@ app.post('/api/stripe/confirm-payment', async (req, res) => {
 // Create Stripe Checkout Session for subscriptions
 app.post('/api/stripe/create-subscription', paymentLimiter, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
-  const { userId, planId, email } = req.body;
+  const { userId, planId, email, currency: reqCurrency } = req.body;
   if (!userId || !planId) return res.status(400).json({ error: 'Dados incompletos.' });
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
@@ -10823,6 +10825,14 @@ app.post('/api/stripe/create-subscription', paymentLimiter, async (req, res) => 
   if (!payerEmail || payerEmail.includes('@touch.app')) {
     return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
   }
+
+  // Multi-currency: convert BRL amounts to requested currency
+  const CURRENCY_RATES = { brl: 1, usd: 0.18, eur: 0.17, gbp: 0.14, jpy: 27, mxn: 3.5, ars: 180, clp: 170, cop: 720, pen: 0.67, uyu: 7.2 };
+  const targetCurrency = (reqCurrency || plan.currency || 'brl').toLowerCase();
+  const rate = CURRENCY_RATES[targetCurrency] || CURRENCY_RATES.brl;
+  const convertedAmount = targetCurrency === 'brl' ? plan.amount : Math.round(plan.amount * rate * 100) / 100;
+  // JPY has no decimal (smallest unit = 1 yen)
+  const unitAmount = targetCurrency === 'jpy' ? Math.round(convertedAmount) : Math.round(convertedAmount * 100);
 
   const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
   const subId = uuidv4();
@@ -10847,9 +10857,9 @@ app.post('/api/stripe/create-subscription', paymentLimiter, async (req, res) => 
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
-          currency: plan.currency.toLowerCase(),
+          currency: targetCurrency,
           product_data: { name: plan.description, metadata: { planId: plan.id } },
-          unit_amount: Math.round(plan.amount * 100),
+          unit_amount: unitAmount,
           recurring: { interval: 'month', interval_count: plan.frequency || 1 }
         },
         quantity: 1
