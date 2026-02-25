@@ -102,7 +102,26 @@ function applyI18n() {
     const translated = t(key);
     if (translated !== key) el.title = translated;
   });
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+    const key = el.getAttribute('data-i18n-html');
+    const translated = t(key);
+    if (translated !== key) el.innerHTML = translated;
+  });
   document.title = t('app.name') + ' — ' + t('app.tagline');
+  // Refresh dynamic elements on home screen
+  var brand = document.getElementById('homeBrand');
+  if (brand) brand.textContent = t('app.name');
+  var btnText = document.getElementById('mainBtnText');
+  if (btnText && !window.homeSonicActive) btnText.textContent = t('home.touch_label');
+  var homeGreeting = document.getElementById('homeGreeting');
+  if (homeGreeting && window.state && window.state.userName) {
+    homeGreeting.innerHTML = t('home.greeting') + ', <span class="hg-nick">' + esc(window.state.userName) + '</span>';
+  }
+  var homeMotivation = document.getElementById('homeMotivation');
+  if (homeMotivation) homeMotivation.innerHTML = t('home.motivation');
+  // Close any open profile overlay when language changes (will re-render with new language)
+  var pfOverlay = document.querySelector('.my-profile-overlay');
+  if (pfOverlay) pfOverlay.remove();
 }
 
 function detectLanguage() {
@@ -3001,6 +3020,10 @@ async function linkFirebaseToEncosta(user){
       // ── Guided onboarding — show every login unless user checked "don't show" ──
       if(!localStorage.getItem('touch_onb_no_show')){
         setTimeout(()=> showOnbInvite(), 1000);
+      }
+      // First login: prompt to confirm language
+      if (!localStorage.getItem('touch_lang_confirmed')) {
+        setTimeout(function() { showLanguagePrompt(); }, 1800);
       }
       const _ha=$('homeAvatar');
       if(_ha&&state.userName){
@@ -10958,7 +10981,7 @@ function showMyProfileSheet(){
     +'<div style="width:1px;min-height:70px;background:linear-gradient(to bottom,transparent,rgba(255,255,255,.08),transparent);align-self:center;flex-shrink:0"></div>'
     // Right: Anonymous identity (silhouette + nickname)
     +'<div style="display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;min-width:0">'
-    +'<div style="font-size:.4rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem;opacity:.6">anônimo</div>'
+    +'<div style="font-size:.4rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem;opacity:.6">'+t('reveal.anonymous_btn')+'</div>'
     +makeAvatar(state.userName||'??',color,56,null,false,state.userAccessory||null)
     +'<div style="font-size:.78rem;font-weight:800;color:var(--t2);margin-top:.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">@'+esc(state.userName||'??')+'</div>'
     +(state.userAccessory&&AVATAR_ACCESSORIES[state.userAccessory]?'<div style="font-size:.4rem;color:var(--t3);margin-top:.15rem;opacity:.5">'+AVATAR_ACCESSORIES[state.userAccessory].name+'</div>':'<div style="font-size:.4rem;color:var(--t3);margin-top:.15rem;opacity:.5;cursor:pointer" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()">escolher acessório</div>')
@@ -10983,16 +11006,16 @@ function showMyProfileSheet(){
     // Menu buttons — clean
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>ID</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>Cadastro'+cadastroTag+'</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>Assinaturas'+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>Serviços</button>'
-    +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verificações</button>':'')
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>'+t('profile.edit_profile_btn')+cadastroTag+'</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>'+t('subscription.touch_plus_title')+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>'+t('home.service_mode_toggle')+'</button>'
+    +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>Verified</button>':'')
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showLanguageSelector()"><span class="my-pf-ico" style="font-style:normal">'+((I18N_LANGUAGES[window._currentLang]||{}).emoji||'🌐')+'</span>'+(I18N_LANGUAGES[window._currentLang]||{}).name+' <span style="font-size:.5rem;color:var(--t3);margin-left:.3rem">Language</span></button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showCountrySelector()"><span class="my-pf-ico" style="font-style:normal">'+(state.userCountry?COUNTRY_FLAGS[state.userCountry]||'🌍':'🌍')+'</span>'+(state.userCountry?(COUNTRY_FLAGS[state.userCountry]||'🌍')+' '+(state.userCity||''):'Bandeira e cidade')+'</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showCountrySelector()"><span class="my-pf-ico" style="font-style:normal">'+(state.userCountry?COUNTRY_FLAGS[state.userCountry]||'🌍':'🌍')+'</span>'+(state.userCountry?(COUNTRY_FLAGS[state.userCountry]||'🌍')+' '+(state.userCity||''):t('profile.country_flag'))+'</button>'
     +'<div class="my-pf-divider"></div>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">i</span>Sobre o Touch</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/termos\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">§</span>Termos de Uso</button>'
-    +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">x</span>Sair</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">i</span>'+t('common.about')+' Touch</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/termos\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">§</span>'+t('common.terms')+'</button>'
+    +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">x</span>'+t('profile.logout_btn')+'</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
   // Swipe-down to dismiss
@@ -11008,6 +11031,37 @@ function showMyProfileSheet(){
     if(_pfDelta>100){sheet.style.transform='translateY(100%)';sheet.style.opacity='0';setTimeout(()=>overlay.remove(),250)}
     else{sheet.style.transform='';sheet.style.opacity=''}
   },{passive:true});
+}
+
+// ═══ FIRST LOGIN LANGUAGE PROMPT ═══
+function showLanguagePrompt() {
+  if (localStorage.getItem('touch_lang_confirmed')) return;
+  var detected = window._currentLang || 'en';
+  var langInfo = I18N_LANGUAGES[detected] || I18N_LANGUAGES['en'];
+  var overlay = document.createElement('div');
+  overlay.className = 'more-menu-overlay';
+  overlay.style.zIndex = '99999';
+  overlay.onclick = function(e) { if (e.target === overlay) { localStorage.setItem('touch_lang_confirmed', '1'); overlay.remove(); } };
+
+  var btns = '';
+  Object.keys(I18N_LANGUAGES).forEach(function(code) {
+    var lang = I18N_LANGUAGES[code];
+    var isActive = detected === code;
+    btns += '<button onclick="changeLanguage(\'' + code + '\');localStorage.setItem(\'touch_lang_confirmed\',\'1\');this.closest(\'.more-menu-overlay\').remove()" style="display:flex;align-items:center;gap:.8rem;width:100%;padding:.7rem 1rem;border-radius:12px;border:1px solid ' + (isActive ? 'rgba(255,107,53,.4)' : 'rgba(255,255,255,.06)') + ';background:' + (isActive ? 'rgba(255,107,53,.12)' : 'rgba(255,255,255,.03)') + ';cursor:pointer;font-family:inherit;margin-bottom:.35rem">'
+      + '<span style="font-size:1.4rem">' + lang.emoji + '</span>'
+      + '<div style="flex:1;text-align:left"><div style="font-size:.82rem;font-weight:600;color:' + (isActive ? 'var(--ac)' : 'var(--t1)') + '">' + lang.name + '</div></div>'
+      + (isActive ? '<span style="color:var(--ac);font-size:.75rem;font-weight:700">&#x2713;</span>' : '')
+      + '</button>';
+  });
+
+  overlay.innerHTML = '<div class="more-menu-sheet" style="padding:1.4rem">'
+    + '<div class="more-menu-handle"></div>'
+    + '<div style="font-size:1.2rem;text-align:center;margin-bottom:.3rem">' + langInfo.emoji + '</div>'
+    + '<div style="font-size:.9rem;font-weight:700;margin-bottom:.2rem;text-align:center">' + t('profile.language_label') + '</div>'
+    + '<div style="font-size:.65rem;color:var(--t3);text-align:center;margin-bottom:1rem">Choose your preferred language</div>'
+    + btns
+    + '</div>';
+  document.body.appendChild(overlay);
 }
 
 // ═══ LANGUAGE SELECTOR ═══
@@ -11036,6 +11090,8 @@ function showLanguageSelector() {
 async function changeLanguage(lang) {
   await loadLanguage(lang);
   showToast((I18N_LANGUAGES[lang] || {}).emoji + ' ' + (I18N_LANGUAGES[lang] || {}).name);
+  // Close any open overlays so they re-render in the new language
+  document.querySelectorAll('.more-menu-overlay').forEach(function(el) { el.remove(); });
   if (state.userId) {
     try {
       await fetch('/api/user/' + state.userId + '/lang', {
@@ -11061,8 +11117,8 @@ function showCountrySelector() {
 
   let html = '<div class="more-menu-sheet" style="padding:1.4rem;max-height:75vh;overflow-y:auto">'
     + '<div class="more-menu-handle"></div>'
-    + '<div style="font-size:.9rem;font-weight:700;margin-bottom:.4rem;text-align:center">Bandeira e Cidade</div>'
-    + '<div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:1rem">Escolha sua localizacao (privado, opcao de mostrar)</div>';
+    + '<div style="font-size:.9rem;font-weight:700;margin-bottom:.4rem;text-align:center">'+t('profile.country_flag')+'</div>'
+    + '<div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:1rem">'+t('profile.flag_privacy_note')+'</div>';
 
   html += '<div style="margin-bottom:1rem"><input type="text" id="countryCity" placeholder="Cidade" value="' + (state.userCity || '') + '" style="width:100%;padding:.6rem .8rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t1);font-size:.78rem;font-family:inherit;outline:none" maxlength="30"></div>';
 
@@ -11991,130 +12047,7 @@ async function encostaFromLocation(targetId){
   }catch(e){showToast('Erro ao conectar.')}
 }
 
-// ═══ i18n (unified - uses t() from JSON files) ═══
-// Old inline LANG system removed. All translations now in /public/i18n/*.json
-// Use t('section.key') for translations. See applyI18n() at top of file.
-const DEPRECATED_LANG={
-pt:{
-  loc_btn:'Localização',ticket_btn:'Meu Bilhete',loc_title:'Explorar ao redor',
-  create_event_btn:'+ Evento',loc_activate:'Ative sua localização para descobrir pessoas e eventos.',
-  loc_searching:'Buscando localização...',loc_active:'Localização ativa',
-  loc_denied:'Localização negada. Permita no navegador.',tab_nearby:'Pessoas',tab_events:'Eventos',
-  loc_loading:'Carregando...',loc_no_people:'Ninguém por perto no momento.',
-  loc_no_events:'Nenhum evento por perto.',loc_encosta:'Touch',loc_need_gps:'Ative o GPS primeiro.',
-  create_event_title:'Criar um evento',evt_name:'Nome',evt_name_ph:'Ex: Café no centro',
-  evt_desc:'Descrição',evt_desc_ph:'Opcional...',evt_radius:'Raio',evt_create:'Criar',evt_cancel:'Cancelar',
-  evt_name_err:'Nome precisa ter pelo menos 3 caracteres.',evt_created:'Evento criado!',
-  evt_join:'Entrar neste evento',evt_joined:'Você está aqui',evt_joined_msg:'Você entrou no evento!',
-  evt_participants:'Participantes',evt_you:'você',evt_nobody:'Ninguém ainda. Seja o primeiro!',
-  evt_people:'pessoas',evt_encosta_ok:'Touch! Nova conexão criada.',
-  // Home
-  brand_name:'Touch?',brand_tag:'tudo nasce no gesto',
-  home_greeting:'Olá',home_motto:'Nada acontece<br>à distância.',home_btn:'TOUCH',
-  home_footer:'Tocar cria algo. Não tocar faz sumir.',
-  sonic_searching:'Emitindo som ultrassônico...',sonic_approach:'Aproxime os celulares...',sonic_fallback:'Aproxime os celulares ou use código',
-  // Register
-  reg_title:'Touch?',reg_sub:'crie sua presença',reg_nick_hint:'escolha um apelido criativo',
-  reg_nick:'Nickname',reg_birth:'Data de nascimento',
-  reg_terms:'Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.',
-  reg_btn:'ENTRAR',
-  // Encounter
-  enc_how:'Como vão se encontrar?',enc_create:'Criar encontro',enc_join:'Entrar com código',
-  enc_share:'Compartilhe esse código:',enc_waiting:'Esperando alguém conectar...',
-  enc_code_ph:'CÓDIGO',enc_join_btn:'TOUCH',
-  // Reveal
-  rev_phrase:'Uma frase para começar:',
-  // Chat
-  chat_msg_ph:'Diga algo que valha 24h...',chat_expired:'Esta conexão expirou.',
-  // Profile
-  pf_decl:'Declarações',pf_gifts:'Presentes recebidos',pf_empty_decl:'Nenhuma declaração ainda.',
-  pf_empty_gift:'Nenhum presente ainda.',
-  // Gift
-  gift_title:'Escolha um presente',gift_msg_ph:'Mensagem (opcional)',gift_send:'Enviar presente',
-  gift_needs_addr:'Requer endereço (pediremos permissão)',gift_sent:'Presente enviado!',
-  // Decl
-  decl_title:'Declaração',decl_sub:'Escreva algo para ficar no perfil dessa pessoa. Todos que se conectarem a ela poderão ler.',
-  decl_ph:'Escreva sua declaração...',decl_publish:'Publicar',decl_min:'Escreva pelo menos 3 caracteres.',
-  decl_ok:'Declaração publicada!',
-  // Boarding
-  bp_title:'Touch? Pass',bp_encounters:'encontros',bp_since:'desde',bp_save:'Salvar Imagem',
-  // History
-  hist_title:'Minha Rede',hist_empty:'Nenhum encontro ainda.',hist_save:'Salvar',hist_share:'Compartilhar'
-},
-en:{
-  loc_btn:'Location',ticket_btn:'My Ticket',loc_title:'Explore nearby',
-  create_event_btn:'+ Event',loc_activate:'Enable your location to discover people and events.',
-  loc_searching:'Searching location...',loc_active:'Location active',
-  loc_denied:'Location denied. Allow in browser.',tab_nearby:'People',tab_events:'Events',
-  loc_loading:'Loading...',loc_no_people:'Nobody nearby right now.',
-  loc_no_events:'No events nearby.',loc_encosta:'Touch',loc_need_gps:'Enable GPS first.',
-  create_event_title:'Create an event',evt_name:'Name',evt_name_ph:'E.g.: Coffee downtown',
-  evt_desc:'Description',evt_desc_ph:'Optional...',evt_radius:'Radius',evt_create:'Create',evt_cancel:'Cancel',
-  evt_name_err:'Name must be at least 3 characters.',evt_created:'Event created!',
-  evt_join:'Join this event',evt_joined:'You are here',evt_joined_msg:'You joined the event!',
-  evt_participants:'Participants',evt_you:'you',evt_nobody:'Nobody yet. Be the first!',
-  evt_people:'people',evt_encosta_ok:'Touched! New connection created.',
-  brand_name:'Touch?',brand_tag:'it all starts with a gesture',
-  home_greeting:'Hello',home_motto:'Nothing happens<br>from a distance.',home_btn:'TOUCH',
-  home_footer:'Touching creates something. Not touching makes it vanish.',
-  sonic_searching:'Emitting ultrasonic sound...',sonic_approach:'Bring phones closer...',sonic_fallback:'Bring phones closer or use code',
-  reg_title:'Touch?',reg_sub:'create your presence',reg_nick_hint:'choose a creative alias',
-  reg_nick:'Nickname',reg_birth:'Date of birth',
-  reg_terms:'I understand and accept that <strong>all relationships here are temporary</strong>. Nothing persists without encounter.',
-  reg_btn:'ENTER',
-  enc_how:'How will you meet?',enc_create:'Create encounter',enc_join:'Join with code',
-  enc_share:'Share this code:',enc_waiting:'Waiting for someone to connect...',
-  enc_code_ph:'CODE',enc_join_btn:'TOUCH',
-  rev_phrase:'A phrase to begin:',
-  chat_msg_ph:'Say something worth 24h...',chat_expired:'This connection has expired.',
-  pf_decl:'Declarations',pf_gifts:'Gifts received',pf_empty_decl:'No declarations yet.',
-  pf_empty_gift:'No gifts yet.',
-  gift_title:'Choose a gift',gift_msg_ph:'Message (optional)',gift_send:'Send gift',
-  gift_needs_addr:'Requires address (we\'ll ask permission)',gift_sent:'Gift sent!',
-  decl_title:'Declaration',decl_sub:'Write something for this person\'s profile. Everyone who connects with them can read it.',
-  decl_ph:'Write your declaration...',decl_publish:'Publish',decl_min:'Write at least 3 characters.',
-  decl_ok:'Declaration published!',
-  bp_title:'Touch? Ticket',bp_encounters:'encounters',bp_since:'since',bp_save:'Save Image',
-  hist_title:'My Network',hist_empty:'No encounters yet.',hist_save:'Save',hist_share:'Share'
-},
-es:{
-  loc_btn:'Ubicación',ticket_btn:'Mi Boleto',loc_title:'Explorar alrededor',
-  create_event_btn:'+ Evento',loc_activate:'Activa tu ubicación para descubrir personas y eventos.',
-  loc_searching:'Buscando ubicación...',loc_active:'Ubicación activa',
-  loc_denied:'Ubicación denegada. Permite en el navegador.',tab_nearby:'Personas',tab_events:'Eventos',
-  loc_loading:'Cargando...',loc_no_people:'Nadie cerca por ahora.',
-  loc_no_events:'No hay eventos cerca.',loc_encosta:'Tocar',loc_need_gps:'Activa el GPS primero.',
-  create_event_title:'Crear un evento',evt_name:'Nombre',evt_name_ph:'Ej: Café en el centro',
-  evt_desc:'Descripción',evt_desc_ph:'Opcional...',evt_radius:'Radio',evt_create:'Crear',evt_cancel:'Cancelar',
-  evt_name_err:'El nombre debe tener al menos 3 caracteres.',evt_created:'¡Evento creado!',
-  evt_join:'Unirse a este evento',evt_joined:'Estás aquí',evt_joined_msg:'¡Te uniste al evento!',
-  evt_participants:'Participantes',evt_you:'tú',evt_nobody:'Nadie aún. ¡Sé el primero!',
-  evt_people:'personas',evt_encosta_ok:'¡Tocó! Nueva conexión creada.',
-  brand_name:'Touch?',brand_tag:'todo nace en el gesto',
-  home_greeting:'Hola',home_motto:'Nada pasa<br>a distancia.',home_btn:'TOCAR',
-  home_footer:'Tocar crea algo. No tocar lo hace desaparecer.',
-  sonic_searching:'Emitiendo sonido ultrasónico...',sonic_approach:'Acerquen los celulares...',sonic_fallback:'Acerquen los celulares o usen código',
-  reg_title:'Touch?',reg_sub:'crea tu presencia',reg_nick_hint:'elige un apodo creativo',
-  reg_nick:'Nickname',reg_birth:'Fecha de nacimiento',
-  reg_terms:'Entiendo y acepto que <strong>todas las relaciones aquí son temporales</strong>. Nada persiste sin encuentro.',
-  reg_btn:'ENTRAR',
-  enc_how:'¿Cómo se van a encontrar?',enc_create:'Crear encuentro',enc_join:'Entrar con código',
-  enc_share:'Comparte este código:',enc_waiting:'Esperando que alguien conecte...',
-  enc_code_ph:'CÓDIGO',enc_join_btn:'TOCAR',
-  rev_phrase:'Una frase para empezar:',
-  chat_msg_ph:'Di algo que valga 24h...',chat_expired:'Esta conexión expiró.',
-  pf_decl:'Declaraciones',pf_gifts:'Regalos recibidos',pf_empty_decl:'Sin declaraciones aún.',
-  pf_empty_gift:'Sin regalos aún.',
-  gift_title:'Elige un regalo',gift_msg_ph:'Mensaje (opcional)',gift_send:'Enviar regalo',
-  gift_needs_addr:'Requiere dirección (pediremos permiso)',gift_sent:'¡Regalo enviado!',
-  decl_title:'Declaración',decl_sub:'Escribe algo para el perfil de esta persona. Todos los que se conecten con ella podrán leerlo.',
-  decl_ph:'Escribe tu declaración...',decl_publish:'Publicar',decl_min:'Escribe al menos 3 caracteres.',
-  decl_ok:'¡Declaración publicada!',
-  bp_title:'Touch? Pass',bp_encounters:'encuentros',bp_since:'desde',bp_save:'Guardar Imagen',
-  hist_title:'Mi Red',hist_empty:'Sin encuentros aún.',hist_save:'Guardar',hist_share:'Compartir'
-}
-};
-// All deprecated i18n functions removed. Use loadLanguage() and t() from new i18n system above.
+// ═══ i18n is now fully in /public/i18n/*.json — use t('key') ═══
 
 // ═══ GORJETA / TIP ═══
 let tipState = { receiverId: null, amount: 0, method: 'pix' };
