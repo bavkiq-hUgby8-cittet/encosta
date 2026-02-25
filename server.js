@@ -4002,6 +4002,12 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   if (!userId || !text) return res.status(400).json({ error: 'Campos obrigatorios.' });
   const user = db.users[userId];
   if (!user) return res.status(400).json({ error: 'Usuario invalido.' });
+  // Check ban
+  const banKey = 'ban:' + channelKey;
+  if (db.muralFlags[banKey]) {
+    const ban = db.muralFlags[banKey].find(b => b.userId === userId && b.expiresAt > Date.now());
+    if (ban) return res.status(403).json({ error: 'Voce esta banido deste canal. Aguarde 24h.' });
+  }
   const priv = getMuralPrivileges(user);
   // Check cooldown
   const allPosts = db.muralPosts[channelKey] || [];
@@ -4026,7 +4032,9 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
     nick: user.nickname || '??',
     color: user.color || '#888',
     stars: (user.stars || []).length,
+    accessory: user.avatarAccessory || null,
     text: cleanText,
+    likes: [],
     createdAt: Date.now(),
     expiresAt: Date.now() + 48 * 3600000, // 48h visibility
     hidden: false,
@@ -4139,6 +4147,86 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
   io.to('mural:' + channelKey).emit('mural-new-post', { post: narratorPost });
   res.json({ ok: true, post: narratorPost });
 });
+
+// POST /api/mural/:postId/like — +1 a post (upvote to pin to top)
+app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
+  const { postId } = req.params;
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  let foundPost = null, foundChannel = null;
+  for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    const p = posts.find(pp => pp.id === postId);
+    if (p) { foundPost = p; foundChannel = ch; break; }
+  }
+  if (!foundPost) return res.status(404).json({ error: 'Post nao encontrado.' });
+  if (!foundPost.likes) foundPost.likes = [];
+  if (foundPost.likes.includes(userId)) {
+    // Unlike
+    foundPost.likes = foundPost.likes.filter(id => id !== userId);
+  } else {
+    foundPost.likes.push(userId);
+  }
+  saveDB('muralPosts');
+  io.to('mural:' + foundChannel).emit('mural-post-liked', { postId, likes: foundPost.likes });
+  res.json({ ok: true, likes: foundPost.likes });
+});
+
+// POST /api/mural/:channelKey/ban — moderator bans user from channel
+app.post('/api/mural/:channelKey/ban', requireAuth, (req, res) => {
+  const { channelKey } = req.params;
+  const { moderatorId, targetUserId, reason } = req.body;
+  const modUserId = moderatorId;
+  if (!modUserId || !db.users[modUserId]) return res.status(400).json({ error: 'Moderador invalido.' });
+  if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const mod = db.users[modUserId];
+  const modPriv = getMuralPrivileges(mod);
+  if (!modPriv.isMod && !mod.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem banir.' });
+  // Store ban in muralFlags under special key
+  const banKey = 'ban:' + channelKey;
+  if (!db.muralFlags[banKey]) db.muralFlags[banKey] = [];
+  const existing = db.muralFlags[banKey].find(b => b.userId === targetUserId);
+  if (existing) return res.status(400).json({ error: 'Usuario ja esta banido neste canal.' });
+  db.muralFlags[banKey].push({
+    userId: targetUserId,
+    bannedBy: modUserId,
+    reason: (reason || '').slice(0, 120),
+    at: Date.now(),
+    expiresAt: Date.now() + 24 * 3600000 // 24h ban
+  });
+  saveDB('muralFlags');
+  // Notify the banned user
+  io.to('mural:' + channelKey).emit('mural-user-banned', { targetUserId, channelKey });
+  res.json({ ok: true });
+});
+
+// GET /api/mural/:channelKey/online — get count of users in channel room
+app.get('/api/mural/:channelKey/online', (req, res) => {
+  const room = 'mural:' + req.params.channelKey;
+  const sockets = io.sockets.adapter.rooms.get(room);
+  const count = sockets ? sockets.size : 0;
+  // Get user IDs from sockets in room
+  const users = [];
+  if (sockets) {
+    for (const sid of sockets) {
+      const s = io.sockets.sockets.get(sid);
+      if (s && s.touchUserId && db.users[s.touchUserId]) {
+        const u = db.users[s.touchUserId];
+        users.push({
+          id: s.touchUserId,
+          nick: u.nickname || '??',
+          color: u.color || '#888',
+          stars: (u.stars || []).length,
+          accessory: u.avatarAccessory || null
+        });
+      }
+    }
+  }
+  res.json({ count, users });
+});
+
+// Check ban before posting (update post endpoint)
+// We need to update the existing post endpoint to check bans
+// This is handled by adding ban check to the existing POST /api/mural/:channelKey/post
 
 // ═══ DOC ID — DOCUMENT VERIFICATION ═══
 if (!db.docVerifications) db.docVerifications = {};
@@ -5679,10 +5767,17 @@ io.on('connection', (socket) => {
   socket.on('join-mural', (channelKey) => {
     if (!channelKey || typeof channelKey !== 'string') return;
     socket.join('mural:' + channelKey);
+    // Broadcast updated online count
+    const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
+    io.to('mural:' + channelKey).emit('mural-online', { channelKey, count: room ? room.size : 0 });
   });
   socket.on('leave-mural', (channelKey) => {
     if (!channelKey || typeof channelKey !== 'string') return;
     socket.leave('mural:' + channelKey);
+    setTimeout(() => {
+      const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
+      io.to('mural:' + channelKey).emit('mural-online', { channelKey, count: room ? room.size : 0 });
+    }, 100);
   });
 
   socket.on('send-message', ({ relationId, userId, text }) => {
