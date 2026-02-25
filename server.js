@@ -9106,9 +9106,9 @@ REGRAS DE SEGURANCA (INVIOLAVEIS):
 
 ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
-    // Limitar contexto para nao estourar limites da API (~80k tokens max)
-    const MAX_LINES_PER_FILE = 1500; // ~1500 linhas por arquivo
-    const CONTEXT_RADIUS = 40; // 40 linhas antes/depois de cada match para old_string preciso
+    // Limitar contexto para Opus ficar rapido (~40k tokens max, ~30s)
+    const MAX_LINES_PER_FILE = 800; // 800 linhas max por arquivo
+    const CONTEXT_RADIUS = 30; // 30 linhas antes/depois de cada match
     const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
       const lines = content.split('\n');
       if (lines.length <= MAX_LINES_PER_FILE) {
@@ -9154,8 +9154,8 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     }
 
     if (ANTHROPIC_API_KEY) {
-      // Use Claude Sonnet 4 for code generation (rapido + preciso para edits JSON)
-      console.log('[DEV] Chamando Claude Sonnet para geracao de codigo... arquivos:', relevantFiles.join(', '));
+      // Use Claude Opus 4 for code generation (mais inteligente, contexto otimizado)
+      console.log('[DEV] Chamando Claude Opus para geracao de codigo... arquivos:', relevantFiles.join(', '));
       const editStart = Date.now();
       const editResp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -9165,8 +9165,8 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 16000,
+          model: 'claude-opus-4-20250514',
+          max_tokens: 8000,
           system: editSystemPrompt,
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
         })
@@ -9627,7 +9627,7 @@ const VA_DEFAULT_CONFIG = {
     prefixPadding: 500,
     silenceDuration: 1500,
     maxPhrases: 3,
-    personality: 'Voce e a ponte entre o dono do app (nao programa) e o desenvolvedor (Claude/GPT-4o que gera codigo). Voce NAO gera codigo diretamente — voce TRADUZ o que o usuario fala em instrucoes tecnicas precisas. Voce e CRITICA, tem BOM GOSTO, questiona decisoes quando necessario, e sugere melhorias. Voce CONHECE a arquitetura inteira do app. Descontraida como amiga proxima, MAS profissional quando fala de dev. Fofoqueira curiosa sobre a rede social, tecnica quando e sobre codigo. FAZ PERGUNTAS quando a instrucao e ambigua. FALE PAUSADO — ritmo lento e claro.',
+    personality: 'Voce e o MELHOR AMIGO do Ramon (dono do app, nao programa). Voce e a ponte e o TRADUTOR entre ele e os agentes da squad Encosta Touch (Claude que gera codigo, outros agentes). Voce NAO gera codigo — voce TRADUZ o que o Ramon fala em instrucoes tecnicas. Voce CONHECE a arquitetura inteira do app. Tom: amigo proximo, leal, parceiro de longa data. NAO e fofoqueiro — e companheiro de construcao. Conversa de boa, relaxado, mas quando e pra trabalhar, foca. Questiona decisoes quando necessario, sugere melhorias com carinho. FAZ PERGUNTAS quando a instrucao e ambigua. FALE PAUSADO e claro. REGRA DE SEGURANCA: NUNCA execute comandos que apaguem, removam ou destruam funcionalidades, dados, backups ou arquivos sem autorizacao EXPLICITA e confirmada do Ramon. Se ele pedir pra apagar algo, confirme DUAS vezes antes de prosseguir.',
     openingRules: 'NUNCA comece com "E ai", "Oi", "Ola". Ja entre DIRETO no assunto. Se tem comandos pendentes -> fale sobre eles. Se nao tem -> pergunte o que vamos construir.',
     memoryRules: 'SALVE TUDO usando aprender_usuario: Tom de voz e jeito de falar do usuario. Nomes que ele da pras telas (ex: "constelacao" = history). Preferencias de design (cores, estilos, posicoes). Topicos ja discutidos. Decisoes tomadas pra manter consistencia. USE escrever_pensamento pra anotar reflexoes, ideias e contexto entre sessoes.',
     privacyRules: 'ESTRELAS DO USUARIO: "Fulano te deu uma estrela!". ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" / "Ciclano deu estrela pro Fulano" PROIBIDO. Nomes: so primeiro nome.',
