@@ -94,6 +94,12 @@ const adminLimiter = rateLimit({
   message: { error: 'Rate limit atingido nos endpoints admin.' }
 });
 
+const muralLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  message: { error: 'Muitas requisicoes ao mural. Aguarde.' }
+});
+
 const vaLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 min
   max: 10, // 10 VA/dev calls per 5 min per IP
@@ -282,7 +288,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -3784,6 +3790,230 @@ app.get('/api/declarations/:userId', requireAuth, (req, res) => {
   res.json({ declarations: decls, count: decls.length });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// ═══ MURAL DA CIDADE — Muro publico digital por canal ═══════
+// ═══════════════════════════════════════════════════════════════
+
+// Mural star-based privileges
+function getMuralPrivileges(user) {
+  const stars = (user.stars || []).length;
+  if (stars >= 10) return { maxWords: 80, cooldownMs: 60000, isMod: true };
+  if (stars >= 6)  return { maxWords: 80, cooldownMs: 120000, isMod: false };
+  if (stars >= 3)  return { maxWords: 65, cooldownMs: 180000, isMod: false };
+  return { maxWords: 50, cooldownMs: 300000, isMod: false };
+}
+
+// Normalize channel key (lowercase, trim, no special chars except dash/space)
+function normalizeChannel(raw) {
+  return (raw || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 80);
+}
+
+// Reverse geocode lat/lng to city, state, country, region
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=pt`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    const d = await resp.json();
+    return {
+      city: d.city || d.locality || '',
+      state: d.principalSubdivision || '',
+      country: d.countryName || '',
+      countryCode: d.countryCode || '',
+      continent: d.continent || ''
+    };
+  } catch (e) {
+    console.error('[mural] reverseGeocode error:', e.message);
+    return null;
+  }
+}
+
+// GET /api/mural/geocode/:userId — detect user city from stored location
+app.get('/api/mural/geocode/:userId', requireAuth, async (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(400).json({ error: 'Usuario invalido.' });
+  const loc = db.checkins[userId];
+  if (!loc || !loc.lat || !loc.lng) return res.status(400).json({ error: 'Localizacao nao disponivel. Ative o GPS.' });
+  const geo = await reverseGeocode(loc.lat, loc.lng);
+  if (!geo || !geo.city) return res.status(500).json({ error: 'Nao foi possivel detectar a cidade.' });
+  // Cache on user object
+  user.muralGeo = { ...geo, updatedAt: Date.now() };
+  saveDB('users');
+  // Build channels list (city, state, country, continent)
+  const channels = [];
+  if (geo.city) channels.push({ type: 'city', name: geo.city, key: normalizeChannel(geo.city + '-' + geo.countryCode) });
+  if (geo.state) channels.push({ type: 'state', name: geo.state, key: normalizeChannel(geo.state + '-' + geo.countryCode) });
+  if (geo.country) channels.push({ type: 'country', name: geo.country, key: normalizeChannel(geo.country) });
+  if (geo.continent) channels.push({ type: 'region', name: geo.continent, key: normalizeChannel(geo.continent) });
+  res.json({ ok: true, geo, channels });
+});
+
+// GET /api/mural/:channelKey — list posts (paginated, newest last for wall effect)
+app.get('/api/mural/:channelKey', requireAuth, (req, res) => {
+  const channelKey = req.params.channelKey;
+  const before = parseInt(req.query.before) || Date.now() + 1;
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 30));
+  const now = Date.now();
+  let posts = (db.muralPosts[channelKey] || [])
+    .filter(p => !p.hidden && p.createdAt < before && (!p.expiresAt || p.expiresAt > now));
+  // Sort oldest first (wall: newest at bottom)
+  posts.sort((a, b) => a.createdAt - b.createdAt);
+  // Take last N (most recent)
+  const total = posts.length;
+  posts = posts.slice(-limit);
+  res.json({ posts, total, channelKey });
+});
+
+// POST /api/mural/:channelKey/post — write on the wall
+app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) => {
+  const channelKey = req.params.channelKey;
+  const { userId, text, channelName, channelType } = req.body;
+  if (!userId || !text) return res.status(400).json({ error: 'Campos obrigatorios.' });
+  const user = db.users[userId];
+  if (!user) return res.status(400).json({ error: 'Usuario invalido.' });
+  const priv = getMuralPrivileges(user);
+  // Check cooldown
+  const allPosts = db.muralPosts[channelKey] || [];
+  const lastPost = [...allPosts].reverse().find(p => p.userId === userId && !p.isNarrator);
+  if (lastPost && (Date.now() - lastPost.createdAt) < priv.cooldownMs) {
+    const wait = Math.ceil((priv.cooldownMs - (Date.now() - lastPost.createdAt)) / 1000);
+    return res.status(429).json({ error: 'Aguarde ' + wait + 's para escrever novamente.' });
+  }
+  // Validate word count
+  const cleanText = text.trim();
+  const wordCount = cleanText.split(/\s+/).length;
+  if (wordCount > priv.maxWords) return res.status(400).json({ error: 'Maximo de ' + priv.maxWords + ' palavras.' });
+  if (cleanText.length < 2) return res.status(400).json({ error: 'Minimo 2 caracteres.' });
+  if (cleanText.length > 500) return res.status(400).json({ error: 'Texto muito longo.' });
+  // Create post
+  const post = {
+    id: 'mrl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    channelKey,
+    channelName: channelName || channelKey,
+    channelType: channelType || 'city',
+    userId,
+    nick: user.nickname || '??',
+    color: user.color || '#888',
+    stars: (user.stars || []).length,
+    text: cleanText,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 48 * 3600000, // 48h visibility
+    hidden: false,
+    isNarrator: false
+  };
+  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  db.muralPosts[channelKey].push(post);
+  // Cap at 500 posts per channel
+  if (db.muralPosts[channelKey].length > 500) db.muralPosts[channelKey] = db.muralPosts[channelKey].slice(-500);
+  saveDB('muralPosts');
+  // Broadcast to all users in the channel room
+  io.to('mural:' + channelKey).emit('mural-new-post', { post });
+  res.json({ ok: true, post });
+});
+
+// POST /api/mural/:postId/flag — report a post
+app.post('/api/mural/:postId/flag', requireAuth, (req, res) => {
+  const { postId } = req.params;
+  const { userId, reason } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  // Find post across all channels
+  let foundPost = null, foundChannel = null;
+  for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    const p = posts.find(pp => pp.id === postId);
+    if (p) { foundPost = p; foundChannel = ch; break; }
+  }
+  if (!foundPost) return res.status(404).json({ error: 'Post nao encontrado.' });
+  // Store flag
+  if (!db.muralFlags[postId]) db.muralFlags[postId] = [];
+  const alreadyFlagged = db.muralFlags[postId].find(f => f.userId === userId);
+  if (alreadyFlagged) return res.status(400).json({ error: 'Voce ja reportou este post.' });
+  db.muralFlags[postId].push({ userId, reason: (reason || '').slice(0, 120), at: Date.now() });
+  saveDB('muralFlags');
+  // Auto-hide if 3+ flags
+  if (db.muralFlags[postId].length >= 3 && !foundPost.hidden) {
+    foundPost.hidden = true;
+    foundPost.hiddenReason = 'auto-flag';
+    saveDB('muralPosts');
+    io.to('mural:' + foundChannel).emit('mural-post-hidden', { postId });
+  }
+  res.json({ ok: true, flagCount: db.muralFlags[postId].length });
+});
+
+// POST /api/mural/:postId/hide — moderator hides a post
+app.post('/api/mural/:postId/hide', requireAuth, (req, res) => {
+  const { postId } = req.params;
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const user = db.users[userId];
+  const priv = getMuralPrivileges(user);
+  if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem ocultar posts.' });
+  let foundPost = null, foundChannel = null;
+  for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    const p = posts.find(pp => pp.id === postId);
+    if (p) { foundPost = p; foundChannel = ch; break; }
+  }
+  if (!foundPost) return res.status(404).json({ error: 'Post nao encontrado.' });
+  foundPost.hidden = true;
+  foundPost.hiddenBy = userId;
+  foundPost.hiddenReason = 'mod';
+  saveDB('muralPosts');
+  io.to('mural:' + foundChannel).emit('mural-post-hidden', { postId });
+  res.json({ ok: true });
+});
+
+// POST /api/mural/:channelKey/narrate — narrator agent summarizes recent activity
+app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
+  const channelKey = req.params.channelKey;
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const user = db.users[userId];
+  const priv = getMuralPrivileges(user);
+  if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem acionar o narrador.' });
+  const posts = (db.muralPosts[channelKey] || []).filter(p => !p.hidden && !p.isNarrator);
+  if (posts.length < 5) return res.status(400).json({ error: 'Poucas mensagens para narrar.' });
+  // Get last 20 non-narrator posts
+  const recent = posts.slice(-20);
+  const textsForContext = recent.map(p => p.nick + ': ' + p.text).join('\n');
+  // Generate narration using simple heuristic (no LLM dependency for MVP)
+  const postCount = recent.length;
+  const uniqueAuthors = new Set(recent.map(p => p.userId)).size;
+  const lastMinutes = Math.round((Date.now() - recent[0].createdAt) / 60000);
+  let narration = '';
+  if (postCount >= 15 && lastMinutes <= 10) {
+    narration = 'Muitas vozes falando ao mesmo tempo. O mural acelera. ' + uniqueAuthors + ' pessoas escrevendo nos ultimos ' + lastMinutes + ' minutos.';
+  } else if (postCount >= 10) {
+    narration = 'O mural se movimenta. ' + uniqueAuthors + ' vozes diferentes nas ultimas mensagens. A cidade parece inquieta hoje.';
+  } else {
+    narration = uniqueAuthors + ' pessoas passaram pelo mural recentemente. Ha um ritmo calmo, mas presente.';
+  }
+  // Post as narrator
+  const narratorPost = {
+    id: 'mrl_nar_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    channelKey,
+    channelName: channelKey,
+    channelType: 'narrator',
+    userId: 'narrator',
+    nick: 'Narrador',
+    color: '#a78bfa',
+    stars: 0,
+    text: narration,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 24 * 3600000,
+    hidden: false,
+    isNarrator: true
+  };
+  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  db.muralPosts[channelKey].push(narratorPost);
+  saveDB('muralPosts');
+  io.to('mural:' + channelKey).emit('mural-new-post', { post: narratorPost });
+  res.json({ ok: true, post: narratorPost });
+});
+
 // ═══ DOC ID — DOCUMENT VERIFICATION ═══
 if (!db.docVerifications) db.docVerifications = {};
 
@@ -5306,6 +5536,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join-session', (sessionId) => { socket.join(`session:${sessionId}`); });
+
+  // Mural rooms
+  socket.on('join-mural', (channelKey) => {
+    if (!channelKey || typeof channelKey !== 'string') return;
+    socket.join('mural:' + channelKey);
+  });
+  socket.on('leave-mural', (channelKey) => {
+    if (!channelKey || typeof channelKey !== 'string') return;
+    socket.leave('mural:' + channelKey);
+  });
 
   socket.on('send-message', ({ relationId, userId, text }) => {
     if (!dbLoaded) return; // Guard: DB not ready
