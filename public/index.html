@@ -57,6 +57,7 @@ async function loadLanguage(lang) {
     window._currentLang = lang;
     document.documentElement.lang = lang === 'pt-br' ? 'pt-BR' : lang;
     localStorage.setItem('touch_lang', lang);
+    applyI18n();
     if (window.socket && state.userId) {
       socket.emit('updateLang', { userId: state.userId, lang: lang });
     }
@@ -83,6 +84,25 @@ function t(key, params) {
     });
   }
   return val;
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    const key = el.getAttribute('data-i18n');
+    const translated = t(key);
+    if (translated !== key) el.textContent = translated;
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const translated = t(key);
+    if (translated !== key) el.placeholder = translated;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+    const key = el.getAttribute('data-i18n-title');
+    const translated = t(key);
+    if (translated !== key) el.title = translated;
+  });
+  document.title = t('app.name') + ' — ' + t('app.tagline');
 }
 
 function detectLanguage() {
@@ -1637,93 +1657,93 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <svg width="0" height="0" style="position:absolute"><defs><linearGradient id="verifiedGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#06b6d4"/><stop offset="50%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs></svg>
 <div id="splash" class="screen active">
   <div class="logo">Touch?</div>
-  <div class="tag">tudo nasce no gesto</div>
-  <div style="position:absolute;bottom:max(env(safe-area-inset-bottom),2rem);font-size:.55rem;color:var(--t3);letter-spacing:.15em;opacity:.4">touchirl v3.0</div>
+  <div class="tag" data-i18n="app.tagline">tudo nasce no gesto</div>
+  <div style="position:absolute;bottom:max(env(safe-area-inset-bottom),2rem);font-size:.55rem;color:var(--t3);letter-spacing:.15em;opacity:.4" data-i18n="app.version">touchirl v3.0</div>
 </div>
 
 <div id="onboarding" class="screen">
   <div class="onb-slides" id="onbSlides">
     <div class="onb-slide">
       <div class="onb-icon">&#x2726;</div>
-      <div class="onb-title">Tudo nasce no gesto</div>
-      <div class="onb-desc">Touch? transforma encontros em momentos conscientes. Conexões só existem quando duas pessoas decidem estar presentes.</div>
+      <div class="onb-title" data-i18n="onboarding.slide1_title">Tudo nasce no gesto</div>
+      <div class="onb-desc" data-i18n="onboarding.slide1_desc">Touch? transforma encontros em momentos conscientes. Conexões só existem quando duas pessoas decidem estar presentes.</div>
     </div>
     <div class="onb-slide">
       <div class="onb-icon">&#x1F91D;</div>
-      <div class="onb-title">Toque para conectar</div>
-      <div class="onb-desc">Encoste os celulares, mostre o QR ou use código. Vocês se conectam por 24 horas.</div>
+      <div class="onb-title" data-i18n="onboarding.slide2_title">Toque para conectar</div>
+      <div class="onb-desc" data-i18n="onboarding.slide2_desc">Encoste os celulares, mostre o QR ou use código. Vocês se conectam por 24 horas.</div>
     </div>
     <div class="onb-slide">
       <div class="onb-icon">&#x23F3;</div>
-      <div class="onb-title">24 horas, depois se dissolve</div>
-      <div class="onb-desc">Cada conexão dura 24h. Conversem, presenteiem, declarem. Se quiserem mais tempo, encostem de novo.</div>
+      <div class="onb-title" data-i18n="onboarding.slide3_title">24 horas, depois se dissolve</div>
+      <div class="onb-desc" data-i18n="onboarding.slide3_desc">Cada conexão dura 24h. Conversem, presenteiem, declarem. Se quiserem mais tempo, encostem de novo.</div>
     </div>
     <div class="onb-slide">
       <div class="onb-icon">&#x1F525;</div>
-      <div class="onb-title">Streaks e estrelas</div>
-      <div class="onb-desc">Encontros seguidos criam streaks com conquistas. Relações especiais geram estrelas que ficam para sempre no seu perfil.</div>
+      <div class="onb-title" data-i18n="onboarding.slide4_title">Streaks e estrelas</div>
+      <div class="onb-desc" data-i18n="onboarding.slide4_desc">Encontros seguidos criam streaks com conquistas. Relações especiais geram estrelas que ficam para sempre no seu perfil.</div>
     </div>
     <div class="onb-slide">
       <div class="onb-icon">&#x2648;</div>
-      <div class="onb-title">Signos e compatibilidade</div>
-      <div class="onb-desc">A cada encontro, os astros falam. Uma frase única baseada nos signos dos dois revela a energia da conexão.</div>
+      <div class="onb-title" data-i18n="onboarding.slide5_title">Signos e compatibilidade</div>
+      <div class="onb-desc" data-i18n="onboarding.slide5_desc">A cada encontro, os astros falam. Uma frase única baseada nos signos dos dois revela a energia da conexão.</div>
     </div>
   </div>
   <div class="onb-nav">
-    <button class="onb-skip" onclick="skipOnboarding()">Pular</button>
-    <button class="onb-next" id="onbNextBtn" onclick="nextOnbSlide()">Próximo</button>
+    <button class="onb-skip" onclick="skipOnboarding()" data-i18n="onboarding.skip">Pular</button>
+    <button class="onb-next" id="onbNextBtn" onclick="nextOnbSlide()" data-i18n="onboarding.next">Próximo</button>
   </div>
   <div class="onb-dots" id="onbDots"></div>
 </div>
 
 <div id="login" class="screen">
   <div class="login-logo">Touch?</div>
-  <div class="login-sub">encontros reais, conexões efêmeras</div>
+  <div class="login-sub" data-i18n="auth.subtitle">encontros reais, conexões efêmeras</div>
 
   <!-- TAB SELECTOR -->
   <div class="auth-tabs" id="authTabs">
-    <button class="auth-tab active" id="tabEntrar" onclick="switchAuthTab('login')">Entrar</button>
-    <button class="auth-tab" id="tabCriar" onclick="switchAuthTab('register')">Criar conta</button>
+    <button class="auth-tab active" id="tabEntrar" onclick="switchAuthTab('login')" data-i18n="auth.tab_login">Entrar</button>
+    <button class="auth-tab" id="tabCriar" onclick="switchAuthTab('register')" data-i18n="auth.tab_register">Criar conta</button>
   </div>
 
   <!-- LOGIN FORM -->
   <div class="login-form" id="loginForm">
-    <input type="email" class="login-input" id="loginEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)">
-    <input type="password" class="login-input" id="loginPass" placeholder="Senha" autocomplete="current-password">
-    <button class="bp" id="loginBtn" onclick="loginWithEmail()">ENTRAR</button>
+    <input type="email" class="login-input" id="loginEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)" data-i18n-placeholder="auth.email_placeholder">
+    <input type="password" class="login-input" id="loginPass" placeholder="Senha" autocomplete="current-password" data-i18n-placeholder="auth.password_placeholder">
+    <button class="bp" id="loginBtn" onclick="loginWithEmail()" data-i18n="auth.login_btn">ENTRAR</button>
     <div class="login-err" id="loginErr"></div>
-    <div onclick="forgotPassword()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.2rem">Esqueci minha senha</div>
+    <div onclick="forgotPassword()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.2rem" data-i18n="auth.forgot_password">Esqueci minha senha</div>
   </div>
 
   <!-- REGISTER FORM -->
   <div class="login-form hidden" id="registerForm">
-    <input type="text" class="login-input" id="loginNick" placeholder="Nickname (seu nome anônimo)" maxlength="20" autocomplete="off" oninput="checkNickLogin(this.value)">
+    <input type="text" class="login-input" id="loginNick" placeholder="Nickname (seu nome anônimo)" maxlength="20" autocomplete="off" oninput="checkNickLogin(this.value)" data-i18n-placeholder="auth.nickname_placeholder">
     <div class="nick-feedback" id="nickFeedbackLogin"></div>
-    <div class="login-nick-explain" id="loginNickExplain">⚠️ Não coloque seu nome real! O nick é sua máscara — só você decide quando revelar.</div>
-    <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)">
-    <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password">
-    <div class="tc" id="loginTermsUso" style="margin:.2rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
-    <button class="bp" id="regBtn" onclick="registerWithEmail()">CRIAR CONTA</button>
+    <div class="login-nick-explain" id="loginNickExplain" data-i18n="auth.nickname_warning">⚠️ Não coloque seu nome real! O nick é sua máscara — só você decide quando revelar.</div>
+    <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)" data-i18n-placeholder="auth.email_placeholder">
+    <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password" data-i18n-placeholder="auth.password_hint">
+    <div class="tc" id="loginTermsUso" style="margin:.2rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem" data-i18n="auth.tos_required">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
+    <button class="bp" id="regBtn" onclick="registerWithEmail()" data-i18n="auth.register_btn">CRIAR CONTA</button>
     <div class="login-err" id="regErr"></div>
   </div>
 
   <!-- MAGIC LINK -->
   <div class="login-form hidden" id="magicLoginWrap">
-    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.3rem;text-align:center">Receba um link de acesso no seu email:</div>
-    <input type="email" class="login-input" id="magicEmail" placeholder="seu@email.com" autocomplete="email">
-    <button class="bp" onclick="sendMagicLink()">Enviar link de acesso</button>
+    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.3rem;text-align:center" data-i18n="auth.magic_link">Receba um link de acesso no seu email:</div>
+    <input type="email" class="login-input" id="magicEmail" placeholder="seu@email.com" autocomplete="email" data-i18n-placeholder="auth.email_placeholder">
+    <button class="bp" onclick="sendMagicLink()" data-i18n="auth.magic_link">Enviar link de acesso</button>
     <div class="login-err" id="magicErr"></div>
     <div onclick="hideMagicLogin()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.2rem">← Voltar</div>
   </div>
 
   <!-- DIVIDER -->
-  <div class="login-divider" id="authDivider">ou</div>
+  <div class="login-divider" id="authDivider" data-i18n="common.or">ou</div>
 
   <!-- SOCIAL LOGINS -->
   <div class="social-btns" id="socialBtns">
     <button class="login-social login-google" onclick="loginWithGoogle()">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
-      Continuar com Google
+      <span data-i18n="auth.google_auth">Continuar com Google</span>
     </button>
     <!-- Apple Sign-In desativado (requer conta Apple Developer $99/ano) -->
     <!-- <button class="login-social login-apple" onclick="loginWithApple()">
@@ -1732,13 +1752,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </button> -->
     <button class="login-social login-phone" onclick="showPhoneAuth()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-      Continuar com Telefone (SMS)
+      <span data-i18n="auth.phone_auth">Continuar com Telefone (SMS)</span>
     </button>
   </div>
 
   <!-- PHONE AUTH FORM -->
   <div class="phone-auth-wrap" id="phoneAuthWrap">
-    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.5rem;text-align:center">Digite seu número para receber um SMS:</div>
+    <div style="font-size:.78rem;color:var(--t2);margin-bottom:.5rem;text-align:center" data-i18n="auth.phone_hint">Digite seu número para receber um SMS:</div>
     <div class="phone-row">
       <select id="phoneCountry">
         <option value="+55">🇧🇷 +55</option>
@@ -1747,38 +1767,38 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <option value="+34">🇪🇸 +34</option>
         <option value="+44">🇬🇧 +44</option>
       </select>
-      <input type="tel" class="login-input" id="phoneNumber" placeholder="(11) 99999-9999" autocomplete="tel" style="margin:0">
+      <input type="tel" class="login-input" id="phoneNumber" placeholder="(11) 99999-9999" autocomplete="tel" style="margin:0" data-i18n-placeholder="auth.phone_placeholder">
     </div>
     <div id="recaptchaBox"></div>
-    <button class="bp" id="phoneSendBtn" onclick="sendSmsCode()" style="margin-top:.3rem">Enviar código SMS</button>
+    <button class="bp" id="phoneSendBtn" onclick="sendSmsCode()" style="margin-top:.3rem" data-i18n="auth.send_sms">Enviar código SMS</button>
     <div class="login-err" id="phoneErr"></div>
     <!-- SMS Code Input -->
     <div class="sms-code-wrap" id="smsCodeWrap">
-      <div style="font-size:.78rem;color:var(--ok);margin-bottom:.4rem">✅ Código enviado!</div>
-      <input type="text" class="login-input" id="smsCode" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
-      <button class="bp" onclick="verifySmsCode()" style="margin-top:.4rem">Verificar código</button>
+      <div style="font-size:.78rem;color:var(--ok);margin-bottom:.4rem" data-i18n="auth.sms_sent">✅ Código enviado!</div>
+      <input type="text" class="login-input" id="smsCode" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-i18n-placeholder="auth.sms_code_placeholder">
+      <button class="bp" onclick="verifySmsCode()" style="margin-top:.4rem" data-i18n="common.confirm">Verificar código</button>
       <div onclick="sendSmsCode()" style="color:var(--t3);cursor:pointer;font-size:.68rem;margin-top:.3rem">Reenviar código</div>
     </div>
     <div onclick="hidePhoneAuth()" style="color:var(--t3);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.4rem">← Voltar</div>
   </div>
 
   <!-- MAGIC LINK SHORTCUT -->
-  <div id="authMagicLink" onclick="showMagicLogin()" style="color:var(--ac);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.6rem">Entrar sem senha (link por email)</div>
+  <div id="authMagicLink" onclick="showMagicLogin()" style="color:var(--ac);cursor:pointer;font-size:.72rem;text-align:center;margin-top:.6rem" data-i18n="auth.magic_link">Entrar sem senha (link por email)</div>
 </div>
 
 <div id="register" class="screen">
-  <div class="rh"><h1>Touch?</h1><p>complete sua presença</p></div>
+  <div class="rh"><h1>Touch?</h1><p data-i18n="auth.register_complete">complete sua presença</p></div>
   <div class="avs">
     <div class="avp" id="avatarPreview" style="background:var(--s2)">?</div>
-    <div class="nick-hint" id="nickHint">escolha um apelido criativo</div>
+    <div class="nick-hint" id="nickHint" data-i18n="auth.nickname_hint_register">escolha um apelido criativo</div>
   </div>
-  <div class="fg"><label>Nickname</label><input type="text" id="regNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" oninput="checkNick(this.value)"></div>
+  <div class="fg"><label data-i18n="profile.nickname_label">Nickname</label><input type="text" id="regNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" oninput="checkNick(this.value)" data-i18n-placeholder="auth.nickname_placeholder"></div>
   <div class="nick-feedback" id="nickFeedback"></div>
-  <div class="reg-nick-info">⚠️ Não coloque seu nome real! O nick protege sua identidade — só você decide quando revelar quem é. Seja criativo!</div>
-  <div class="fg"><label>Data de nascimento</label><input type="date" id="regBirth"></div>
-  <div class="tc"><input type="checkbox" id="regTerms"><span>Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.</span></div>
-  <div class="tc"><input type="checkbox" id="regTermsUso"><span>Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
-  <button class="bp" onclick="doRegister()">ENTRAR</button>
+  <div class="reg-nick-info" data-i18n="auth.nickname_warning">⚠️ Não coloque seu nome real! O nick protege sua identidade — só você decide quando revelar quem é. Seja criativo!</div>
+  <div class="fg"><label data-i18n="auth.birth_date_label">Data de nascimento</label><input type="date" id="regBirth"></div>
+  <div class="tc"><input type="checkbox" id="regTerms"><span data-i18n="auth.terms_temporary">Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.</span></div>
+  <div class="tc"><input type="checkbox" id="regTermsUso"><span data-i18n="auth.tos_required">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
+  <button class="bp" onclick="doRegister()" data-i18n="common.done">ENTRAR</button>
 </div>
 
 <div id="home" class="screen">
@@ -1832,7 +1852,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <div class="verified-badge hidden" id="homeVerifiedBadge"><svg viewBox="0 0 24 24"><path fill="url(#verifiedGrad)" d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg></div>
       </div>
       <div class="home-user-info">
-        <div class="hg" id="homeGreeting">Olá</div>
+        <div class="hg" id="homeGreeting" data-i18n="home.greeting">Olá</div>
         <div class="home-realname" id="homeRealName"></div>
         <div class="home-verified-row">
           <div class="cd" id="connDot"></div>
@@ -1847,28 +1867,28 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   </div>
   <!-- CENTER: botão TOUCH grande -->
   <div class="hc">
-    <div class="service-toggle hidden" id="serviceToggle" onclick="toggleServiceMode()"><span id="serviceToggleIcon" style="display:inline-flex;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg></span> <span id="serviceToggleLabel">Modo Serviço</span></div>
-    <div class="hm" id="homeMotivation">Nada acontece<br>à distância.</div>
+    <div class="service-toggle hidden" id="serviceToggle" onclick="toggleServiceMode()"><span id="serviceToggleIcon" style="display:inline-flex;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg></span> <span id="serviceToggleLabel" data-i18n="home.service_mode_toggle">Modo Serviço</span></div>
+    <div class="hm" id="homeMotivation" data-i18n="home.motivation">Nada acontece<br>à distância.</div>
     <div style="position:relative;display:flex;align-items:center;justify-content:center">
       <div class="sonic-bars left" id="sonicBarsL"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
       <button class="be" id="mainBtn" onclick="handleMainButton()">
         <span class="be-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><!-- Phone 1 --><rect x="8" y="10" width="14" height="24" rx="3" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/><circle cx="15" cy="30" r="1.2" fill="rgba(255,255,255,.3)"/><!-- Phone 2 --><rect x="26" y="14" width="14" height="24" rx="3" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.45)" stroke-width="1.2"/><circle cx="33" cy="34" r="1.2" fill="rgba(255,255,255,.3)"/><!-- Connection waves --><path d="M22 22 Q24 20 26 22" stroke="rgba(255,107,53,.6)" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M21 19 Q24 16 27 19" stroke="rgba(255,107,53,.4)" stroke-width="1" fill="none" stroke-linecap="round"/><path d="M20 16 Q24 12 28 16" stroke="rgba(255,107,53,.25)" stroke-width=".8" fill="none" stroke-linecap="round"/></svg></span>
-        <span class="be-text" id="mainBtnText">TOUCH</span>
+        <span class="be-text" id="mainBtnText" data-i18n="home.touch_label">TOUCH</span>
       </button>
       <div class="sonic-bars right" id="sonicBarsR"><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div><div class="sonic-bar"></div></div>
     </div>
     <div class="sonic-status" id="sonicHomeStatus"></div>
     <div class="sonic-fallback" id="sonicFallback">
-      <button class="bs" onclick="startEncounter()" style="font-size:.72rem;display:inline-flex;align-items:center;gap:.3rem"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Conectar por codigo</button>
+      <button class="bs" onclick="startEncounter()" style="font-size:.72rem;display:inline-flex;align-items:center;gap:.3rem" data-i18n="home.use_code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Conectar por codigo</button>
     </div>
-    <div class="daily-counter hidden" id="dailyCounter" onclick="showEncounterLog()"><strong id="dailyNum">0</strong> <span id="dailyLabel">Toques em 24h</span> <span class="dc-arrow">›</span></div>
+    <div class="daily-counter hidden" id="dailyCounter" onclick="showEncounterLog()"><strong id="dailyNum">0</strong> <span id="dailyLabel" data-i18n="home.daily_touches">Toques em 24h</span> <span class="dc-arrow">›</span></div>
   </div>
   <!-- BOTTOM: minimal — only location + tutorial -->
   <div class="home-bottom">
     <div class="home-nav">
-      <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="hn-lbl" data-i18n="loc_btn">Local</span></button>
+      <button class="hn-btn" onclick="openLocationScreen()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="hn-lbl" data-i18n="common.location">Local</span></button>
       <button class="hn-btn" onclick="openVA()" style="color:#a78bfa"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="#a78bfa" stroke="none"><path d="M12 2l2 5.5L19.5 9l-5.5 2L12 16.5 10 11 4.5 9l5.5-2L12 2z"/><path d="M19 13l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" opacity=".6"/><path d="M5 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z" opacity=".4"/></svg></span><span class="hn-lbl" style="color:#a78bfa">AI</span></button>
-      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="hn-lbl">Tutorial</span></button>
+      <button class="hn-btn" onclick="showTutorial()"><span class="hn-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="hn-lbl" data-i18n="common.help">Tutorial</span></button>
     </div>
     <div class="home-brand-row">
       <span class="home-brand" id="homeBrand">Touch?</span>
@@ -1878,30 +1898,30 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 <div id="encounter" class="screen">
   <div class="ep active" id="phaseChoose">
-    <div class="et">Como vão se encontrar?</div>
-    <button class="bp" style="max-width:280px" onclick="createSession()">GERAR CÓDIGO</button>
-    <div class="od">ou</div>
-    <div class="cir"><input type="text" id="joinCodeInput" placeholder="ENC-000" maxlength="7" autocomplete="off"><button onclick="joinSession()">&#x2192;</button></div>
-    <div class="od">ou</div>
-    <button class="bp" style="max-width:280px;background:linear-gradient(135deg,#ff6b35,#e05520)" onclick="startSonicMode()">📲 TOUCH — encostar celulares</button>
-    <button class="bs" style="margin-top:1.5rem" onclick="goHome()">&#x2190; Voltar</button>
+    <div class="et" data-i18n="encounter.how_connect">Como vão se encontrar?</div>
+    <button class="bp" style="max-width:280px" onclick="createSession()" data-i18n="encounter.gen_code">GERAR CÓDIGO</button>
+    <div class="od" data-i18n="common.or">ou</div>
+    <div class="cir"><input type="text" id="joinCodeInput" placeholder="ENC-000" maxlength="7" autocomplete="off" data-i18n-placeholder="encounter.code_placeholder"><button onclick="joinSession()">&#x2192;</button></div>
+    <div class="od" data-i18n="common.or">ou</div>
+    <button class="bp" style="max-width:280px;background:linear-gradient(135deg,#ff6b35,#e05520)" onclick="startSonicMode()" data-i18n="encounter.touch_phones">📲 TOUCH — encostar celulares</button>
+    <button class="bs" style="margin-top:1.5rem" onclick="goHome()" data-i18n="common.back">&#x2190; Voltar</button>
   </div>
   <div class="ep" id="phaseBump">
-    <div class="et">Encoste seu celular no da outra pessoa</div>
+    <div class="et" data-i18n="encounter.touch_instruction">Encoste seu celular no da outra pessoa</div>
     <div class="bump-circle" id="bumpCircle">
       <span style="font-size:2rem">📳</span>
-      <span style="font-size:.7rem;font-weight:600;letter-spacing:.1em;color:rgba(255,255,255,.85)" id="bumpLabel">PREPARANDO...</span>
+      <span style="font-size:.7rem;font-weight:600;letter-spacing:.1em;color:rgba(255,255,255,.85)" id="bumpLabel" data-i18n="encounter.preparing">PREPARANDO...</span>
     </div>
-    <div style="font-size:.75rem;color:var(--t3);max-width:240px;text-align:center;line-height:1.6" id="bumpStatus">Ativando sensores...</div>
-    <button class="bs" onclick="stopSonicMode();showPhase('phaseChoose')">&#x2190; Cancelar</button>
+    <div style="font-size:.75rem;color:var(--t3);max-width:240px;text-align:center;line-height:1.6" id="bumpStatus" data-i18n="encounter.activating">Ativando sensores...</div>
+    <button class="bs" onclick="stopSonicMode();showPhase('phaseChoose')" data-i18n="common.cancel">&#x2190; Cancelar</button>
   </div>
   <div class="ep" id="phaseCode">
-    <div class="et">Peça para a outra pessoa digitar:</div>
+    <div class="et" data-i18n="encounter.ask_code">Peça para a outra pessoa digitar:</div>
     <div class="cdsp" id="sessionCode">ENC-000</div>
     <div class="qb"><canvas id="qrCanvas"></canvas></div>
-    <div style="font-size:.75rem;color:var(--t3)">Esperando alguém conectar...</div>
+    <div style="font-size:.75rem;color:var(--t3)" data-i18n="encounter.waiting">Esperando alguém conectar...</div>
     <div class="wd"><span>&#x25CF;</span><span>&#x25CF;</span><span>&#x25CF;</span></div>
-    <button class="bs" onclick="goHome()">Cancelar</button>
+    <button class="bs" onclick="goHome()" data-i18n="common.cancel">Cancelar</button>
   </div>
 </div>
 
@@ -1912,9 +1932,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="rv-birth-orb" id="rvOrbR"></div>
   <div class="rv-wrap">
     <div class="rv-center">
-      <div class="rv-moment" id="revealMoment">algo nasceu entre vocês</div>
+      <div class="rv-moment" id="revealMoment" data-i18n="reveal.birth_moment">algo nasceu entre vocês</div>
       <div class="rv-phrase" id="revealPhrase"></div>
-      <div class="rv-sub">essa é a marca desse encontro</div>
+      <div class="rv-sub" data-i18n="reveal.encounter_mark">essa é a marca desse encontro</div>
       <div class="rv-avatars" id="revealAvatars">
         <div class="rv-avatar-wrap" id="rvAvatarMe">
           <div class="rv-avatar-inner" id="rvAvatarMeInner"></div>
@@ -1928,7 +1948,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
           <div class="rv-avatar-name" id="rvNameThem"></div>
         </div>
       </div>
-      <div class="rv-renewed hidden" id="revealRenewed">vocês se encontraram de novo</div>
+      <div class="rv-renewed hidden" id="revealRenewed" data-i18n="reveal.renewed">vocês se encontraram de novo</div>
       <div class="rv-last hidden" id="revealLast"></div>
       <div id="zodiacArea" class="zodiac-area hidden"></div>
     </div>
@@ -1939,8 +1959,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="selfie-modal">
         <div class="selfie-border"></div>
         <div class="selfie-header">
-          <h3 id="sfTitle">Registrem esse momento!</h3>
-          <div class="selfie-phrase" id="sfPhrase">Vocês se encontraram... agora sorriam!</div>
+          <h3 id="sfTitle" data-i18n="reveal.selfie_register">Registrem esse momento!</h3>
+          <div class="selfie-phrase" id="sfPhrase" data-i18n="reveal.selfie_phrase">Vocês se encontraram... agora sorriam!</div>
         </div>
         <div class="selfie-emojis" id="sfEmojis" style="display:none"></div>
         <div class="selfie-camera-area" id="sfCameraArea">
@@ -1949,17 +1969,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
           <img id="sfCapturedImg" class="sf-captured" style="display:none">
         </div>
         <div class="selfie-actions" id="sfActions">
-          <button class="sf-btn sf-btn-close" onclick="closeSelfieModal()">Fechar</button>
-          <button class="sf-btn sf-btn-capture" id="sfCaptureBtn" onclick="selfieCapture()">Tirar Selfie</button>
+          <button class="sf-btn sf-btn-close" onclick="closeSelfieModal()" data-i18n="common.close">Fechar</button>
+          <button class="sf-btn sf-btn-capture" id="sfCaptureBtn" onclick="selfieCapture()" data-i18n="reveal.take_selfie">Tirar Selfie</button>
         </div>
       </div>
     </div>
     <div class="rv-actions" id="revealActions">
       <div class="rv-btn-row" id="rvIconRow">
-        <button type="button" class="rv-icon-btn primary" id="revealEnterBtn" onclick="enterChat()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span><span>Chat</span></button>
-        <button type="button" class="rv-icon-btn" id="selfieCapBtn" onclick="revealCaptureSelfie()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span>Selfie</span></button>
-        <button type="button" class="rv-icon-btn tip hidden" id="revealTipBtn" onclick="openTipFromReveal()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span><span id="revealTipLabel">Gorjeta</span></button>
-        <button type="button" class="rv-icon-btn skip" id="revealSkipBtn" onclick="goHome()"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span><span>Pular</span></button>
+        <button type="button" class="rv-icon-btn primary" id="revealEnterBtn" onclick="enterChat()" data-i18n="reveal.chat_btn"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span><span>Chat</span></button>
+        <button type="button" class="rv-icon-btn" id="selfieCapBtn" onclick="revealCaptureSelfie()" data-i18n="reveal.selfie_btn"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span>Selfie</span></button>
+        <button type="button" class="rv-icon-btn tip hidden" id="revealTipBtn" onclick="openTipFromReveal()" data-i18n="reveal.tip_btn"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span><span id="revealTipLabel">Gorjeta</span></button>
+        <button type="button" class="rv-icon-btn skip" id="revealSkipBtn" onclick="goHome()" data-i18n="onboarding.skip"><span class="rv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span><span>Pular</span></button>
       </div>
       <div class="rv-sec-row" id="rvSecRow"></div>
     </div>
