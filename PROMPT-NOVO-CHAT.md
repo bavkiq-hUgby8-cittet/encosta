@@ -25,14 +25,14 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
    -> Email: ramonnvc@hotmail.com
    -> Nome: Ramon
 
-## ESTRUTURA DO PROJETO (atualizado 25/02/2026 -- sessao 3)
+## ESTRUTURA DO PROJETO (atualizado 25/02/2026 -- sessao 4)
 
 Arquivos principais:
-- `server.js` (~11000+ linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
-- `public/index.html` (~15200 linhas) -- Frontend SPA completo (23+ telas)
-- `public/va-test.html` (~825 linhas) -- Pagina de ligacao telefonica pros 3 assistentes + Dev Log
+- `server.js` (~11444 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `public/index.html` (~16197 linhas) -- Frontend SPA completo (23+ telas)
+- `public/va-test.html` (~1260 linhas) -- Pagina de ligacao telefonica pros 3 assistentes + Dev Log
 - `public/va-admin.html` (~501 linhas) -- Painel admin dos 3 assistentes de voz
-- `public/admin.html` (~535 linhas) -- Painel administrativo geral
+- `public/admin.html` (~989 linhas) -- Painel administrativo geral (com aba DEV Monitor)
 - `public/games/index.html` (1909 linhas) -- TouchGames lobby (microservico iframe)
 - `public/games/*.html` -- 11 jogos individuais
 - `public/operator.html` -- Painel do operador de eventos
@@ -118,9 +118,11 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - CEREBRO: Claude Opus 4 (Anthropic) para planejamento e geracao de codigo
   - Voz continua OpenAI (unico com Realtime API via WebRTC)
   - Claude recebe codigo INTELIGENTE dos arquivos (contexto reduzido por keywords)
-    * MAX_LINES_PER_FILE = 800 linhas (sempre inclui primeiro 30 + ultimas 50)
-    * CONTEXT_RADIUS = 30 linhas ao redor de cada match de keyword
+    * MAX_LINES_PER_FILE = 400 linhas (sempre inclui primeiro 20 + ultimas 30)
+    * CONTEXT_RADIUS = 12 linhas ao redor de cada match de keyword
+    * STOP_WORDS: filtra palavras comuns em PT-BR para melhor keyword extraction
     * Evita estouro de tokens (antigo problema de 203k tokens)
+    * IMPORTANTE: NAO filtrar CSS de arquivos HTML (quebra edicao de estilos pelo agente)
   - Suporta TODOS os arquivos do projeto (nao so server.js e index.html)
   - Fallback para GPT-4o se ANTHROPIC_API_KEY nao configurada
   - ARQUITETURA ASYNC: /api/dev/command retorna imediato, Claude processa em background
@@ -146,6 +148,10 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Camera e tela: video via WebRTC a 2fps para OpenAI Realtime API vision
 - Persistencia de conversas entre sessoes (ultimas 20 msgs)
 - Dev Log: painel visual na tela de ligacao mostrando historico de commits em tempo real
+- TEMA VISUAL: branco/clean (fundo #f8f9fa, texto #212529, destaques azul #60a5fa)
+  - Antigo tema verde matrix (#00ff41) foi removido completamente
+  - Zero instancias de #00ff41 ou rgba(0,255,65,...) restantes
+- COOLDOWN: 60 segundos entre comandos DEV (evita spam)
 
 ### FLUXO DO ULTIMATEDEV (dev commands):
 1. Usuario fala instrucao por voz
@@ -162,6 +168,13 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Salva no Firebase (colecao vaConfig)
 - Endpoints de sessao LEEM do vaConfig via getTierConfig(tier)
 
+### ADMIN PANEL (admin.html) -- ABAS:
+- Dashboard, Users, Stars, Events, Financial, System, VA Config, DEV Monitor
+- DEV Monitor: mostra total de comandos, done/pending/failed, uptime, status das API keys
+  - Endpoint: GET /api/dev/monitor
+  - Auto-refresh de 5s (toggle)
+  - Cards por usuario com badges coloridos por status
+
 ### DOCUMENTACAO COMPLETA DO ULTIMATEDEV
 - Ver docs/ULTIMATEDEV.md para detalhes de todas as tools, fluxos e exemplos
 
@@ -171,7 +184,7 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Server VAD: threshold 0.95, prefix_padding_ms 500, silence_duration_ms 1500
 
 =================================================================
-## MAPA DO SERVER.JS (~10900 linhas)
+## MAPA DO SERVER.JS (~11444 linhas)
 =================================================================
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET, vaLimiter)
@@ -198,9 +211,10 @@ Linha ~8100-8300: Dev command endpoints -- planejamento ASYNC com Claude Opus 4 
 Linha ~8300-8400: Dev ping endpoint (POST /api/dev/ping -- teste rapido de conexao)
 Linha ~8400-8600: _processDevPlan() e _processDevApproval() -- funcoes async em background
   - anthropicFetch(): retry 3x com backoff progressivo (5s/10s/15s) em 429/529
-  - Contexto inteligente: MAX_LINES_PER_FILE=800, CONTEXT_RADIUS=30, keyword extraction
+  - Contexto inteligente: MAX_LINES_PER_FILE=400, CONTEXT_RADIUS=12, STOP_WORDS PT-BR
   - Git auto-push: remote origin criado dinamicamente com GITHUB_TOKEN
   - Regras de seguranca no system prompt (anti-destruicao)
+Linha ~9100-9200: GET /api/dev/monitor -- stats de todos os usuarios (total, done, pending, failed, uptime, keys)
 Linha ~8600-8700: GET /api/dev/status/:commandId -- polling endpoint
 Linha ~8700-8900: Dev diagnostico, approve (async), reject, learn, conversation endpoints
 Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
@@ -212,11 +226,11 @@ Linha ~9200-11000+: VA Config system, fetchWithTimeout, security audit fixes
 users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations
 
 =================================================================
-## MAPA DO INDEX.HTML (~15200 linhas)
+## MAPA DO INDEX.HTML (~16197 linhas)
 =================================================================
 
 Linha ~1-400: CSS completo (variaveis CSS, telas, componentes, animacoes)
-Linha ~400-1460: CSS Dev Log panel (terminal/matrix theme verde #00ff41)
+Linha ~400-1460: CSS Dev Log panel (tema branco/clean, azul #60a5fa para destaques)
 Linha ~1460-2800: HTML das 23+ telas (auth, home, constellation, chat, profile, events, stars, gifts, boarding-pass, reveal, operator, games, agent)
 Linha ~2800-5600: JavaScript principal (state, socket handlers, API calls, renderizacao)
 Linha ~5600-8000: Funcoes de tela (chat, constellation, profile, events, stars)
@@ -250,30 +264,31 @@ Linha ~14700-15200: Escriba, cleanup, init
 =================================================================
 
 ### ALTA PRIORIDADE:
-1. [QUASE 100%] UltimateDEV -> Claude: integracao com Dev Interceptor + Dev Log
-   - TESTADO VIA CHROME (25/02/2026 sessao 3):
-     * PING: OK (1.3s, Claude Opus 4 respondendo)
-     * COMANDO -> PLANO: OK (plano gerado em ~20-27s)
-     * APROVACAO -> CODIGO: OK (1/1 edicoes aplicadas com sucesso)
-     * GIT COMMIT: OK (git config user.email/name automatico no Render)
-     * GIT PUSH: CORRIGIDO (remote origin criado dinamicamente com GITHUB_TOKEN)
-   - FALTA TESTAR: push apos ultimo fix (commit fb755d8)
-     * O codigo agora cria remote origin se nao existe no Render
-     * Usa GITHUB_TOKEN env var + GITHUB_REPO (ou fallback hardcoded)
-   - Fixes aplicados nesta sessao:
-     * anthropicFetch() com retry 3x e backoff (429/529) -- commit cc30292
-     * Personalidade "amigo tradutor" (nao mais fofoqueira) -- commit 0626f72
-     * Contexto inteligente (800 linhas, raio 30) -- commits a7497f5, 95f52ac, 0626f72
-     * Git config automatico no Render -- commit 56ed8ff
-     * Regras de seguranca anti-destruicao -- commit 56ed8ff
-     * Remote origin dinamico com token -- commits b3106e3, c826dfa, fb755d8
-   - PROBLEMA CONHECIDO: devQueue esta em RAM, perde comandos quando Render faz redeploy
-     * Workaround: esperar 90-120s entre push e teste
+1. REVISAO DOS 3 ASSISTENTES DE VOZ (Plus, Pro, UltimateDEV)
+   - Revisar instrucoes, personalidade, tools de cada tier
+   - Testar fluxo completo de cada um
+   - Verificar se prompts estao alinhados com a visao do produto
+   - UltimateDEV: primeiro teste real pelo usuario PENDENTE
+
+2. UltimateDEV -> Claude: integracao FUNCIONAL mas com ressalvas
+   - TESTADO VIA CHROME (sessao 3):
+     * PING: OK | COMANDO -> PLANO: OK | APROVACAO -> CODIGO: OK | GIT COMMIT: OK
+     * GIT PUSH: CORRIGIDO (remote origin dinamico com GITHUB_TOKEN)
+   - OTIMIZACOES (sessao 4):
+     * Contexto reduzido: MAX_LINES 800->400, RADIUS 30->12, STOP_WORDS PT-BR
+     * ATENCAO: nao filtrar CSS de HTML (testado e revertido -- quebra edicao de estilos)
+   - TEMA VISUAL: mudado de verde matrix para branco/clean (sessao 4)
+   - PROBLEMA CONHECIDO: devQueue em RAM, perde comandos no redeploy do Render
      * Solucao futura: persistir fila no Firebase
+   - RESTRICOES DO AGENTE (para o usuario saber):
+     * Contexto limitado (400 linhas/arquivo, raio 12)
+     * Nao cria arquivos novos do zero (apenas edita existentes)
+     * Mudancas muito grandes ou multi-arquivo sao mais arriscadas
+     * Pode falhar silenciosamente se old_string nao matcheia exatamente
 
-2. TouchGames fluxo completo -- nunca foi testado end-to-end.
+3. TouchGames fluxo completo -- nunca foi testado end-to-end.
 
-3. Camera/Screen no UltimateDEV -- implementado mas NAO testado.
+4. Camera/Screen no UltimateDEV -- implementado mas NAO testado.
 
 ### MEDIA PRIORIDADE:
 4. Escriba system -- implementado, auto-flush a cada 2min, nao testado em sessao real.
@@ -287,23 +302,27 @@ Linha ~14700-15200: Escriba, cleanup, init
 ## GIT LOG RECENTE (25/02/2026)
 =================================================================
 
+4e9100c fix: tema UltimateDEV de verde matrix para branco clean + reverter filtro CSS
+25fb5c6 feat: painel DEV Monitor no admin + otimizacao de contexto do UltimateDEV
+703fc78 fix: corrigir crash bank.conversations undefined (bug de migracao)
+7ea05ad fix: logging robusto v3 + fallback URL no handleComandoDev e handleAprovarPlano
+cb22764 feat: suporte Apple Pay com rota .well-known para verificacao de dominio
+5dd78d9 fix: trocar _fetchWithTimeout por fetch puro em todas funcoes DEV (Safari iOS)
+aca07e7 feat: integracao Stripe completa com deteccao de regiao e multi-moeda
+09741ae docs: roadmap de lancamento EUA + status da LLC no PROMPT
+918add3 docs: plano de empresa USA + prompt do agente fiscal/contabil
+0ba074f docs: atualizar PROMPT-NOVO-CHAT.md com todas as mudancas da sessao 3
 fb755d8 fix: criar remote origin no Render quando nao existe
 c826dfa fix: pegar URL do remote automaticamente em vez de hardcoded
 b3106e3 fix: configurar git remote origin com GITHUB_TOKEN para push no Render
 cc30292 feat: retry automatico com backoff em 429/529 da Anthropic API
 0626f72 fix: voltar Opus na geracao + personalidade amigo tradutor + contexto otimizado
-aea4495 perf: trocar Claude Opus por Sonnet 4 na geracao de codigo (revertido em 0626f72)
-95f52ac fix: aumentar contexto para geracao de codigo (600->1500 linhas, raio 15->40)
-a7497f5 fix: reduzir contexto do prompt de geracao de codigo (203k tokens -> ~30k max)
-56ed8ff fix: git config no Render + regras de seguranca anti-destruicao no UltimateDEV
-c5d8302 docs: atualizar PROMPT-NOVO-CHAT.md com status atual do UltimateDEV
-648b509 fix: evitar comando duplicado e erro conversation_already_has_active_response
-4a43b2d Add Spanish (LATAM), Japanese, and Russian UI translation files
-beb8e63 fix: adicionar Ramon como admin do UltimateDEV via UUID
 
 ## ROLLBACK RAPIDO
 
 Se algo quebrar, voltar para commits estaveis:
+- ANTES do DEV Monitor + otimizacao contexto: git reset --hard 703fc78
+- ANTES do tema branco UltimateDEV: git reset --hard 25fb5c6
 - ANTES do UltimateDEV consciousness: git reset --hard d07a15f
 - ANTES do VA admin panel: git reset --hard 540d994
 - ANTES do 3-tier VA: git reset --hard ca25ac5
