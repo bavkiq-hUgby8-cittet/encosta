@@ -9370,22 +9370,23 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       } catch (cfgErr) { console.warn('[DEV] Git config warning:', cfgErr.message); }
       // Configurar remote origin com GitHub token se disponivel
       const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      const ghRepo = process.env.GITHUB_REPO; // ex: "user/repo" ou "user/repo.git"
       if (ghToken) {
         try {
-          // Pegar URL atual do remote e injetar token
-          const { stdout: currentUrl } = await execFileAsync('git', ['-C', __dirname, 'remote', 'get-url', 'origin'], { timeout: 5000 });
-          const cleanUrl = currentUrl.trim();
-          let authedUrl = cleanUrl;
-          if (cleanUrl.startsWith('https://') && !cleanUrl.includes('@')) {
-            // https://github.com/user/repo.git -> https://TOKEN@github.com/user/repo.git
-            authedUrl = cleanUrl.replace('https://', `https://${ghToken}@`);
-          } else if (cleanUrl.includes('@') && !cleanUrl.includes(ghToken)) {
-            // Ja tem credencial antiga, substituir
-            authedUrl = cleanUrl.replace(/https:\/\/[^@]+@/, `https://${ghToken}@`);
-          }
-          if (authedUrl !== cleanUrl) {
+          let hasOrigin = false;
+          try {
+            await execFileAsync('git', ['-C', __dirname, 'remote', 'get-url', 'origin'], { timeout: 5000 });
+            hasOrigin = true;
+          } catch (e) { /* sem remote origin */ }
+          const repoSlug = ghRepo || 'bavkiq-hUgby8-cittet/encosta';
+          const repoUrl = repoSlug.endsWith('.git') ? repoSlug : repoSlug + '.git';
+          const authedUrl = `https://${ghToken}@github.com/${repoUrl}`;
+          if (hasOrigin) {
             await execFileAsync('git', ['-C', __dirname, 'remote', 'set-url', 'origin', authedUrl], { timeout: 5000 });
+          } else {
+            await execFileAsync('git', ['-C', __dirname, 'remote', 'add', 'origin', authedUrl], { timeout: 5000 });
           }
+          console.log('[DEV] Git remote origin configurado com token');
         } catch (remoteErr) {
           console.warn('[DEV] Git remote config warning:', remoteErr.message);
         }
