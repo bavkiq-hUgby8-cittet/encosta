@@ -9228,17 +9228,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     // Palavras comuns a ignorar na busca por keywords
     const STOP_WORDS = new Set(['para','como','onde','quando','esse','essa','este','esta','isso','isto','fazer','deve','pode','todo','toda','todos','todas','mais','menos','muito','tambem','voce','apenas','nada','algo','cada','outro','outra','qual','quem','tipo','aqui','agora','ainda','pelo','pela','sobre','entre','apos','antes','depois','mesmo','desde','sera','sido','sido','have','with','that','this','from','what','which','where','when','your','their','them','have','been','would','could','should','about','there','these','those','other','some','only','also','just','than','then','into','over','such','more','most','after','before']);
     const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
-      let lines = content.split('\n');
-      // Para HTML: pular bloco <style>...</style> inteiro (CSS nao ajuda na geracao de codigo)
-      if (f.endsWith('.html')) {
-        let inStyle = false;
-        lines = lines.filter(l => {
-          const lt = l.trim().toLowerCase();
-          if (lt === '<style>' || lt.startsWith('<style>')) { inStyle = true; return false; }
-          if (inStyle && (lt === '</style>' || lt.includes('</style>'))) { inStyle = false; return false; }
-          return !inStyle;
-        });
-      }
+      const lines = content.split('\n');
       if (lines.length <= MAX_LINES_PER_FILE) {
         return `=== ${f} (${lines.length} linhas) ===\n${lines.map((l, i) => `${i+1}: ${l}`).join('\n')}`;
       }
