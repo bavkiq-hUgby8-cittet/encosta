@@ -142,6 +142,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+// Serve .well-known for Apple Pay domain verification (dotfiles need explicit route)
+app.use('/.well-known', express.static(path.join(__dirname, 'public', '.well-known'), { dotfiles: 'allow' }));
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: 0,
   etag: false,
