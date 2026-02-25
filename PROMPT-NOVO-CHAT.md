@@ -335,6 +335,59 @@ Todas configuradas e verificadas em 25/02/2026:
 4. ESTRELAS: Compradas com pontos de jogo (sem dinheiro real)
 5. PRESENTES: Comprados com pontos (sem dinheiro real)
 
+=================================================================
+## EMPRESA NOS EUA -- EXPANSAO INTERNACIONAL (atualizado 25/02/2026)
+=================================================================
+
+### STATUS DA LLC:
+- Empresa: touch irl, LLC
+- Estado: Delaware (via Stripe Atlas)
+- Status: INCORPORACAO EM ANDAMENTO (esperado 27 Fev - 3 Mar 2026)
+- EIN (Tax ID): Pendente (3-6 semanas apos incorporacao)
+- Conta bancaria: Mercury (sera aberta apos incorporacao)
+- Stripe US: Sera ativado apos incorporacao
+- Custo: US$500 (pago)
+
+### PROXIMOS PASSOS APOS INCORPORACAO:
+1. Abrir conta Mercury (banco digital US) -- desbloqueia apos incorporacao
+2. Ativar Stripe payments -- desbloqueia apos incorporacao
+3. Configurar lembretes fiscais -- DISPONIVEL AGORA no Atlas
+4. Registrar no FinCEN como MSB -- ate 180 dias apos abertura (Form 107, gratuito)
+5. Implementar Stripe Connect no server.js (agente financeiro)
+6. Traduzir app para ingles (agente tradutor)
+
+### PRAZOS FISCAIS (a partir da abertura):
+- FinCEN MSB Registration: ate ~agosto 2026 (180 dias)
+- Delaware Annual Tax: US$300, prazo 1 junho 2027
+- Delaware Annual Report: prazo 1 junho 2027
+- Form 5472 + Form 1120 pro-forma (IRS): 15 abril 2027
+- IRPF Brasil (declarar LLC no exterior): abril 2027
+
+### ESTRUTURA FISCAL:
+- Tipo: Single-Member LLC (foreign-owned disregarded entity)
+- Tributacao: Pass-through (lucro passa direto pro dono)
+- Stripe Connect cobre licenca MTL (Money Transmitter License)
+- Precisa de CPA (contador US) para: classificacao ECI, tratado bitributacao BR-US, Form 5472
+
+### MERCADOS-ALVO (ordem de lancamento):
+1. EUA (English US) -- PRIORIDADE #1
+2. Brasil (PT-BR) -- ja operando
+3. America Latina (Espanhol LATAM) -- segundo mercado
+4. Japao (Japanese) -- terceiro mercado
+
+### AGENTES PREPARADOS PARA EXPANSAO:
+- PROMPT-TRADUTOR.md -- Arquiteto de linguagens (i18n para 4 idiomas)
+- PROMPT-FINANCEIRO.md -- Integracoes financeiras (Stripe Connect)
+- PROMPT-FISCAL.md -- Fiscal, contabil e conciliacao (compliance US+BR)
+- PLANO-EMPRESA-USA.docx -- Guia completo da abertura da LLC
+
+### DOCUMENTOS DE REFERENCIA:
+- AUDITORIA-TOUCH-2026.docx -- Auditoria de seguranca e performance (30+ fixes)
+- PLANO-EMPRESA-USA.docx -- Plano de abertura de empresa nos EUA
+- PROMPT-FINANCEIRO.md -- Prompt para agente de integracoes financeiras
+- PROMPT-TRADUTOR.md -- Prompt para agente de i18n
+- PROMPT-FISCAL.md -- Prompt para agente fiscal/contabil
+
 Quando estiver pronto, me avisa que a gente comeca.
 ```
 
