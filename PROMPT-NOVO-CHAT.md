@@ -73,7 +73,7 @@ Render: encosta.onrender.com redireciona 301 para touch-irl.com
 Firebase: Realtime Database para persistencia
 MercadoPago: Pagamentos (Pix, cartao, checkout)
 OpenAI: Voice Agent (Realtime API via WebRTC) -- voz dos 3 assistentes
-Anthropic: Claude Sonnet 4 -- cerebro de dev do UltimateDEV
+Anthropic: Claude Opus 4 -- cerebro de dev do UltimateDEV
 
 ## FUNCIONALIDADES IMPLEMENTADAS
 
@@ -114,11 +114,15 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Custo: $0.25/sessao (voz) + ~$0.01-0.05/comando (Claude)
 - 18+ tools: as 9 do Pro + comando_dev, ver_fila_dev, aprovar_plano, rejeitar_plano,
   aprender_usuario, escrever_pensamento, fazer_backup, salvar_arquivo
-- CEREBRO: Claude Sonnet 4 (Anthropic) para planejamento e geracao de codigo
+- CEREBRO: Claude Opus 4 (Anthropic) para planejamento e geracao de codigo
   - Voz continua OpenAI (unico com Realtime API via WebRTC)
   - Claude recebe codigo COMPLETO dos arquivos (nao mais 3000 chars)
   - Suporta TODOS os arquivos do projeto (nao so server.js e index.html)
   - Fallback para GPT-4o se ANTHROPIC_API_KEY nao configurada
+  - ARQUITETURA ASYNC: /api/dev/command retorna imediato, Claude processa em background
+  - Frontend faz polling via GET /api/dev/status/:commandId a cada 3s
+  - Fila de injecao no DataChannel com response.cancel antes de injetar
+  - Prevencao de comando duplicado (interceptor bloqueado quando tool fires)
 - Tem consciencia TOTAL da arquitetura do app
 - Personalidade: assertivo, critico, bom gosto, faz perguntas
 - Funciona como PONTE entre o dono do app (Ramon, nao sabe programar) e o desenvolvedor (Claude)
@@ -130,7 +134,7 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 ### FLUXO DO ULTIMATEDEV (dev commands):
 1. Usuario fala instrucao por voz
 2. Agente chama tool `comando_dev` -> POST /api/dev/command
-3. Claude Sonnet 4 gera plano com mapa de endpoints (~5-10s)
+3. Claude Opus 4 gera plano com mapa de endpoints (async, sem timeout)
 4. Agente resume plano por voz, pergunta se aprova
 5. Se aprovado -> POST /api/dev/approve/:commandId -> Claude gera edits JSON com contexto completo -> valida -> aplica -> backup -> git commit+push
 6. Se rejeitado -> POST /api/dev/reject/:commandId
@@ -173,9 +177,12 @@ Linha ~6880-7100: VA tier system (canUseProVA, canUseUltimateVA, /api/agent/acce
 Linha ~7100-7400: VA Plus/Pro sessions (OpenAI Realtime)
 Linha ~7400-7700: VA context endpoint (/api/agent/context/:userId -- dados frescos com nomes reais)
 Linha ~7700-8100: VA UltimateDEV session (OpenAI Realtime voz + prompt + 18 tools + interceptor)
-Linha ~8100-8300: Dev command endpoints -- planejamento com Claude Opus 4 (Anthropic) + fallback GPT-4o
+Linha ~7751: ULTIMATE_ADMIN_IDS (hardcoded UUIDs) + canUseUltimateVA()
+Linha ~8100-8300: Dev command endpoints -- planejamento ASYNC com Claude Opus 4 (Anthropic) + fallback GPT-4o
 Linha ~8300-8400: Dev ping endpoint (POST /api/dev/ping -- teste rapido de conexao)
-Linha ~8400-8600: Dev diagnostico, approve, reject, learn, conversation endpoints
+Linha ~8400-8600: _processDevPlan() e _processDevApproval() -- funcoes async em background
+Linha ~8600-8700: GET /api/dev/status/:commandId -- polling endpoint
+Linha ~8700-8900: Dev diagnostico, approve (async), reject, learn, conversation endpoints
 Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
 Linha ~8800-9000: Dev history endpoint (GET /api/dev/history/:userId)
 Linha ~9000-9200: VA conversation persistence (vaConversations)
@@ -223,18 +230,23 @@ Linha ~14700-15200: Escriba, cleanup, init
 =================================================================
 
 ### ALTA PRIORIDADE:
-1. [EM ANDAMENTO] UltimateDEV -> Claude: integracao com Dev Interceptor + Dev Log
+1. [QUASE PRONTO] UltimateDEV -> Claude: integracao com Dev Interceptor + Dev Log
    - Bug de escopo do Dev Log CORRIGIDO (commit 361dca9)
    - Interceptor reescrito com timeouts e logs (commit cf1ccd3)
    - Botao PING para testar conexao (commit 205dba8)
-   - ARQUITETURA ASYNC com polling (commit 2c0d70b):
+   - ARQUITETURA ASYNC com polling (commit d5f7ca8):
      * /api/dev/command retorna IMEDIATO, Claude Opus 4 processa em background
      * Novo endpoint GET /api/dev/status/:commandId para polling
      * Frontend faz polling a cada 3s com feedback de progresso por voz
      * Mesmo padrao para /api/dev/approve (execucao async)
      * Zero timeout possivel - Claude pode demorar o quanto precisar
-   - PRECISA TESTAR: verificar se ANTHROPIC_API_KEY esta no Render
-   - PRECISA TESTAR: falar comando de dev e ver se interceptor dispara + poll funciona
+   - Admin access: Ramon adicionado via ULTIMATE_ADMIN_IDS (commit beb8e63)
+   - Comando duplicado corrigido: interceptor bloqueado quando tool fires (commit 648b509)
+   - Injecao DC: response.cancel + fila com delays (commit 648b509)
+   - PING TESTADO E FUNCIONANDO: ok:true, Claude OK, tempo_ms:1328
+   - FLUXO TESTADO: voz -> interceptor -> Claude planeja -> plano retorna -> OpenAI auto-aprova
+   - ULTIMO BLOQUEIO: 429 rate_limit da Anthropic na geracao de codigo (pode ser temporario)
+   - PRECISA RETESTAR: fluxo completo apos rate limit resolver
 
 2. TouchGames fluxo completo -- nunca foi testado end-to-end.
 
@@ -252,18 +264,18 @@ Linha ~14700-15200: Escriba, cleanup, init
 ## GIT LOG RECENTE (25/02/2026)
 =================================================================
 
-2c0d70b refactor: arquitetura async com polling para UltimateDEV
+648b509 fix: evitar comando duplicado e erro conversation_already_has_active_response
+4a43b2d Add Spanish (LATAM), Japanese, and Russian UI translation files
+61c7f88 feat: add i18n API endpoints and integrate translated phrases
+13e5859 feat: add i18n system with language selector and country flag support
+beb8e63 fix: adicionar Ramon como admin do UltimateDEV via UUID
+d5f7ca8 refactor: arquitetura async com polling para UltimateDEV (corrigido)
 e79a5ac fix: trocar Claude Opus por Sonnet 4 para resolver timeout de 65s
 205dba8 feat: botao PING no Dev Log + endpoint /api/dev/ping para testar Claude
 d3f21f5 perf: 6 optimizations for 100k scale
 cf1ccd3 Update DEV INTERCEPTOR: enhance timeout handling and error reporting
 c2ded14 fix: nickname propagation + Google photo overwrite bugs
 361dca9 fix: bug critico de escopo no Dev Log - _devLiveLog inacessivel
-b321969 fix: auditoria final - socket auth, sanitizacao, memory leaks
-f4f9470 fix: tips index, race conditions, caching, CORS, intervals cleanup
-b6f6569 Replace fetch with apiFetch for protected API endpoints
-3baa280 fix: requireAuth retrocompativel + debounce recalcAllTopTags
-92ce701 fix: add memory caps to unbounded arrays
 
 ## ROLLBACK RAPIDO
 
@@ -283,7 +295,7 @@ Apos rollback: git push --force origin main (CUIDADO: sobrescreve GitHub)
 - MP_REDIRECT_URI=https://touch-irl.com/mp/callback
 - APP_URL=https://touch-irl.com
 - OPENAI_API_KEY (para voz em tempo real dos 3 assistentes)
-- ANTHROPIC_API_KEY (cerebro de dev do UltimateDEV -- Claude Sonnet 4)
+- ANTHROPIC_API_KEY (cerebro de dev do UltimateDEV -- Claude Opus 4)
 - ADMIN_SECRET (protege endpoints admin)
 - ALLOWED_ORIGINS (CORS)
 - STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY (quando ativar Apple Pay)
