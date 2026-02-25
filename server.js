@@ -8592,7 +8592,12 @@ function getUltimateBank(userId) {
     };
     saveDB('ultimateBank');
   }
-  return db.ultimateBank[userId];
+  // Migracao: garantir que propriedades existem em bancos antigos
+  const bank = db.ultimateBank[userId];
+  if (!Array.isArray(bank.conversations)) bank.conversations = [];
+  if (!Array.isArray(bank.devQueue)) bank.devQueue = [];
+  if (!bank.userProfile) bank.userProfile = { tone: '', preferences: [], vocabulary: [], screenNames: {}, lastTopics: [] };
+  return bank;
 }
 
 // ══ ULTIMATEDEV VA SESSION — dev mode (top 01 only) ══
