@@ -499,6 +499,10 @@ const IDX = {
   cpf: new Map(),            // cpf (digits only) → userId
   tipsByPayer: new Map(),     // payerId -> [tipIds]
   tipsByReceiver: new Map(),  // receiverId -> [tipIds]
+  likedBy: new Map(),         // targetUserId -> Set of likerUserIds
+  revealByTo: new Map(),      // toUserId -> Set of revealRequestIds (pending)
+  revealByFrom: new Map(),    // fromUserId -> Set of revealRequestIds (pending)
+  revealByPair: new Map(),    // "from_to" -> revealRequestId (pending)
 };
 
 function rebuildIndexes() {
@@ -508,6 +512,7 @@ function rebuildIndexes() {
   IDX.operatorByCreator.clear();
   IDX.email.clear(); IDX.phone.clear(); IDX.cpf.clear();
   IDX.tipsByPayer.clear(); IDX.tipsByReceiver.clear();
+  IDX.likedBy.clear(); IDX.revealByTo.clear(); IDX.revealByFrom.clear(); IDX.revealByPair.clear();
   for (const [uid, u] of Object.entries(db.users)) {
     if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, uid);
     if (u.touchCode) IDX.touchCode.set(u.touchCode, uid);
@@ -558,6 +563,25 @@ function rebuildIndexes() {
     if (u.stars && !Array.isArray(u.stars)) u.stars = Object.values(u.stars);
     if (u.likedBy && !Array.isArray(u.likedBy)) u.likedBy = Object.values(u.likedBy);
     if (u.revealedTo && !Array.isArray(u.revealedTo)) u.revealedTo = Object.values(u.revealedTo);
+    // Build likedBy index
+    if (u.likedBy && u.likedBy.length > 0) {
+      IDX.likedBy.set(u.id, new Set(u.likedBy));
+    }
+  }
+  // Build revealRequests indexes (only pending)
+  for (const [rrid, rr] of Object.entries(db.revealRequests || {})) {
+    if (rr.status !== 'pending') continue;
+    if (rr.toUserId) {
+      if (!IDX.revealByTo.has(rr.toUserId)) IDX.revealByTo.set(rr.toUserId, new Set());
+      IDX.revealByTo.get(rr.toUserId).add(rrid);
+    }
+    if (rr.fromUserId) {
+      if (!IDX.revealByFrom.has(rr.fromUserId)) IDX.revealByFrom.set(rr.fromUserId, new Set());
+      IDX.revealByFrom.get(rr.fromUserId).add(rrid);
+    }
+    if (rr.fromUserId && rr.toUserId) {
+      IDX.revealByPair.set(rr.fromUserId + '_' + rr.toUserId, rrid);
+    }
   }
   for (const [tid, t] of Object.entries(db.tips || {})) {
     if (t.payerId) {
@@ -2339,12 +2363,12 @@ app.get('/api/constellation/:userId', (req, res) => {
       starsCount: (other && other.stars) ? other.stars.length : 0,
       score: other ? calcScore(p.id) : 0,
       uniqueConnections: other ? getUniqueConnections(p.id) : 0,
-      likedByMe: !!(other && other.likedBy && other.likedBy.includes(req.params.userId)),
+      likedByMe: !!(IDX.likedBy.get(p.id)?.has(req.params.userId)),
       isPrestador: !!(other && other.isPrestador),
       serviceLabel: (other && other.serviceLabel) || null,
       verified: !!(other && other.verified),
       pendingReveal: (() => {
-        const pr = Object.values(db.revealRequests).find(rr => rr.status === 'pending' && ((rr.fromUserId === req.params.userId && rr.toUserId === p.id) || (rr.fromUserId === p.id && rr.toUserId === req.params.userId)));
+        const pr = db.revealRequests[IDX.revealByPair.get(req.params.userId + '_' + p.id)] || db.revealRequests[IDX.revealByPair.get(p.id + '_' + req.params.userId)] || null;
         if (!pr) return null;
         return pr.fromUserId === req.params.userId ? 'sent' : 'received';
       })(),
@@ -2441,6 +2465,41 @@ app.get('/api/partner-score/:relationId/:userId', (req, res) => {
   const myEnc = db.encounters[userId] || [];
   const mutualCount = myEnc.filter(e => e.with === partnerId).length;
   res.json({ score: calcScore(partnerId), stars: (partner.stars || []).length, name: partner.name, uniquePeople, totalEncounters: partnerEnc.length, mutualEncounters: mutualCount });
+});
+
+// Batch: chat init data (messages + partner score + streak) in 1 request
+app.get('/api/chat-init/:relationId/:userId', (req, res) => {
+  const rel = db.relations[req.params.relationId];
+  const userId = req.params.userId;
+  if (!rel) return res.status(404).json({ error: 'Relacao nao encontrada.' });
+  if (rel.userA !== userId && rel.userB !== userId) return res.status(403).json({ error: 'Sem permissao.' });
+  const partnerId = rel.userA === userId ? rel.userB : rel.userA;
+  const partner = db.users[partnerId];
+  // Messages
+  const messages = db.messages[req.params.relationId] || [];
+  // Partner score
+  let partnerScore = null;
+  if (partner && Date.now() <= rel.expiresAt) {
+    const partnerEnc = db.encounters[partnerId] || [];
+    const myEnc = db.encounters[userId] || [];
+    partnerScore = {
+      score: calcScore(partnerId), stars: (partner.stars || []).length,
+      name: partner.name,
+      uniquePeople: [...new Set(partnerEnc.map(e => e.with))].length,
+      totalEncounters: partnerEnc.length,
+      mutualEncounters: myEnc.filter(e => e.with === partnerId).length
+    };
+  }
+  // Streak
+  const streakKey = [userId, partnerId].sort().join('_');
+  const s = db.streaks?.[streakKey];
+  let streak = { currentStreak: 0, bestStreak: 0, starsEarned: 0, daysToNextStar: 5, progress: 0 };
+  if (s) {
+    const starsEarned = s._starsAwarded || Math.floor(s.currentStreak / 5);
+    const daysInCycle = s.currentStreak % 5;
+    streak = { currentStreak: s.currentStreak, bestStreak: s.bestStreak, lastDate: s.lastDate, starsEarned, daysToNextStar: 5 - daysInCycle, progress: Math.round((daysInCycle / 5) * 100) };
+  }
+  res.json({ messages, partnerScore, streak });
 });
 
 // Stars detail
@@ -3261,16 +3320,22 @@ app.post('/api/identity/request-reveal', (req, res) => {
     if (!enc) return res.status(400).json({ error: 'Sem conexão com essa pessoa.' });
   }
   const relId = rel ? getRelId(rel) : [userId, targetUserId].sort().join('_');
-  // Check for existing pending request
-  const existing = Object.values(db.revealRequests).find(rr =>
-    rr.fromUserId === userId && rr.toUserId === targetUserId && rr.status === 'pending'
-  );
-  if (existing) return res.status(400).json({ error: 'Pedido já enviado. Aguardando resposta.' });
+  // Check for existing pending request via IDX (O(1) instead of O(n))
+  const existingRRId = IDX.revealByPair.get(userId + '_' + targetUserId);
+  if (existingRRId && db.revealRequests[existingRRId]?.status === 'pending') {
+    return res.status(400).json({ error: 'Pedido já enviado. Aguardando resposta.' });
+  }
   const reqId = uuidv4();
   db.revealRequests[reqId] = {
     id: reqId, fromUserId: userId, toUserId: targetUserId,
     relationId: relId, status: 'pending', type: 'request-reveal', createdAt: Date.now()
   };
+  // Update IDX
+  if (!IDX.revealByTo.has(targetUserId)) IDX.revealByTo.set(targetUserId, new Set());
+  IDX.revealByTo.get(targetUserId).add(reqId);
+  if (!IDX.revealByFrom.has(userId)) IDX.revealByFrom.set(userId, new Set());
+  IDX.revealByFrom.get(userId).add(reqId);
+  IDX.revealByPair.set(userId + '_' + targetUserId, reqId);
   const chatMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-request',
     revealRequestId: reqId,
@@ -3302,6 +3367,10 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
   if (!requester || !revealer) return res ? res.status(400).json({ error: 'Usuário não encontrado.' }) : null;
   if (!revealer.realName && !revealer.profilePhoto && !revealer.photoURL) return res ? res.status(400).json({ error: 'Complete seu perfil antes de se revelar.' }) : null;
   rr.status = 'accepted'; rr.respondedAt = Date.now();
+  // Remove from IDX (no longer pending)
+  const _rrTo = IDX.revealByTo.get(rr.toUserId); if (_rrTo) { _rrTo.delete(requestId); if (_rrTo.size === 0) IDX.revealByTo.delete(rr.toUserId); }
+  const _rrFrom = IDX.revealByFrom.get(rr.fromUserId); if (_rrFrom) { _rrFrom.delete(requestId); if (_rrFrom.size === 0) IDX.revealByFrom.delete(rr.fromUserId); }
+  IDX.revealByPair.delete(rr.fromUserId + '_' + rr.toUserId);
   const revealerPhoto = revealer.profilePhoto || revealer.photoURL || null;
   // O requester (fromUser) agora pode VER o revealer (toUser)
   if (!requester.canSee) requester.canSee = {};
@@ -3339,10 +3408,9 @@ app.post('/api/identity/reveal-accept', (req, res) => {
   const { revealRequestId, userId, fromUserId } = req.body;
   let reqId = revealRequestId;
   if (!reqId && fromUserId && userId) {
-    const found = Object.values(db.revealRequests).find(rr =>
-      rr.fromUserId === fromUserId && rr.toUserId === userId && rr.status === 'pending'
-    );
-    if (found) reqId = found.id;
+    // Use IDX instead of scanning all revealRequests
+    const foundId = IDX.revealByPair.get(fromUserId + '_' + userId);
+    if (foundId) reqId = foundId;
   }
   if (!reqId) return res.status(400).json({ error: 'Pedido não encontrado.' });
   acceptRevealInternal(reqId, userId, res);
@@ -3352,10 +3420,16 @@ app.post('/api/identity/reveal-decline', (req, res) => {
   const { revealRequestId, userId, fromUserId } = req.body;
   let rr = revealRequestId ? db.revealRequests[revealRequestId] : null;
   if (!rr && fromUserId && userId) {
-    rr = Object.values(db.revealRequests).find(r => r.fromUserId === fromUserId && r.toUserId === userId && r.status === 'pending');
+    // Use IDX instead of scanning all revealRequests
+    const pairId = IDX.revealByPair.get(fromUserId + '_' + userId);
+    if (pairId) rr = db.revealRequests[pairId];
   }
   if (!rr) return res.status(400).json({ error: 'Pedido não encontrado.' });
   rr.status = 'declined'; rr.respondedAt = Date.now();
+  // Remove from IDX (no longer pending)
+  const _dTo = IDX.revealByTo.get(rr.toUserId); if (_dTo) { _dTo.delete(rr.id); if (_dTo.size === 0) IDX.revealByTo.delete(rr.toUserId); }
+  const _dFrom = IDX.revealByFrom.get(rr.fromUserId); if (_dFrom) { _dFrom.delete(rr.id); if (_dFrom.size === 0) IDX.revealByFrom.delete(rr.fromUserId); }
+  IDX.revealByPair.delete(rr.fromUserId + '_' + rr.toUserId);
   const declineMsg = {
     id: uuidv4(), userId: 'system', type: 'reveal-declined', timestamp: Date.now(),
     revealRequestId: rr.id, declinedBy: userId
@@ -3374,13 +3448,23 @@ app.post('/api/identity/reveal-decline', (req, res) => {
 
 app.get('/api/identity/pending/:userId', (req, res) => {
   const uid = req.params.userId;
-  const pending = Object.values(db.revealRequests).filter(rr =>
-    (rr.fromUserId === uid || rr.toUserId === uid) && rr.status === 'pending'
-  ).map(rr => ({
-    id: rr.id, fromUserId: rr.fromUserId, toUserId: rr.toUserId,
-    relationId: rr.relationId, status: rr.status, createdAt: rr.createdAt,
-    direction: rr.fromUserId === uid ? 'sent' : 'received'
-  }));
+  // Use IDX for O(1) lookup instead of scanning all revealRequests
+  const ids = new Set();
+  const fromSet = IDX.revealByFrom.get(uid);
+  if (fromSet) fromSet.forEach(id => ids.add(id));
+  const toSet = IDX.revealByTo.get(uid);
+  if (toSet) toSet.forEach(id => ids.add(id));
+  const pending = [];
+  ids.forEach(rrid => {
+    const rr = db.revealRequests[rrid];
+    if (rr && rr.status === 'pending') {
+      pending.push({
+        id: rr.id, fromUserId: rr.fromUserId, toUserId: rr.toUserId,
+        relationId: rr.relationId, status: rr.status, createdAt: rr.createdAt,
+        direction: rr.fromUserId === uid ? 'sent' : 'received'
+      });
+    }
+  });
   res.json(pending);
 });
 
@@ -3391,15 +3475,19 @@ app.post('/api/like/toggle', (req, res) => {
   if (!targetUserId || !db.users[targetUserId]) return res.status(400).json({ error: 'Alvo inválido.' });
   if (userId === targetUserId) return res.status(400).json({ error: 'Não pode curtir a si mesmo.' });
   const target = db.users[targetUserId];
-  // Check if already liked
-  const existing = Object.values(db.likes).find(l => l.fromUserId === userId && l.toUserId === targetUserId);
+  // Check if already liked via IDX (O(1) instead of O(n) scan of db.likes)
+  const likedSet = IDX.likedBy.get(targetUserId);
+  const alreadyLiked = likedSet && likedSet.has(userId);
   let liked;
-  if (existing) {
-    // Unlike
-    delete db.likes[existing.id];
+  if (alreadyLiked) {
+    // Unlike — find and remove from db.likes
+    const existingId = Object.keys(db.likes).find(k => db.likes[k].fromUserId === userId && db.likes[k].toUserId === targetUserId);
+    if (existingId) delete db.likes[existingId];
     if (!target.likedBy) target.likedBy = [];
     target.likedBy = target.likedBy.filter(id => id !== userId);
     target.likesCount = Math.max(0, (target.likesCount || 0) - 1);
+    // Update IDX
+    if (likedSet) { likedSet.delete(userId); if (likedSet.size === 0) IDX.likedBy.delete(targetUserId); }
     liked = false;
   } else {
     // Like
@@ -3408,6 +3496,9 @@ app.post('/api/like/toggle', (req, res) => {
     if (!target.likedBy) target.likedBy = [];
     if (!target.likedBy.includes(userId)) target.likedBy.push(userId);
     target.likesCount = (target.likesCount || 0) + 1;
+    // Update IDX
+    if (!IDX.likedBy.has(targetUserId)) IDX.likedBy.set(targetUserId, new Set());
+    IDX.likedBy.get(targetUserId).add(userId);
     liked = true;
   }
   saveDB('users', 'likes');
@@ -8329,6 +8420,61 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
     }
     res.json({ client_secret: d.client_secret.value, session_id: d.id, expires_at: d.client_secret.expires_at, openingText, isUltimate: true, tier: 'ultimatedev', toolCount });
   } catch (e) { console.error('[ULTIMATE] Session err:', e.message); res.status(500).json({ error: 'Erro interno: ' + e.message }); }
+});
+
+// ══ DEV PING — teste rapido de conexao com Claude (nao precisa admin) ══
+app.post('/api/dev/ping', vaLimiter, async (req, res) => {
+  const { userId } = req.body;
+  if (!canUseUltimateVA(userId)) return res.status(403).json({ ok: false, error: 'Acesso negado' });
+
+  const result = {
+    ok: false,
+    anthropic_key: !!ANTHROPIC_API_KEY,
+    engine: ANTHROPIC_API_KEY ? 'claude-opus-4' : (OPENAI_API_KEY ? 'gpt-4o-fallback' : 'nenhum'),
+    teste: null,
+    tempo_ms: 0
+  };
+
+  try {
+    if (ANTHROPIC_API_KEY) {
+      const start = Date.now();
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: 'Diga apenas: OK' }] })
+      });
+      result.tempo_ms = Date.now() - start;
+      if (resp.ok) {
+        const data = await resp.json();
+        result.ok = true;
+        result.teste = 'Claude OK: ' + (data.content?.[0]?.text || 'sem texto');
+      } else {
+        result.teste = 'Claude ERRO HTTP ' + resp.status + ': ' + (await resp.text()).slice(0, 150);
+      }
+    } else if (OPENAI_API_KEY) {
+      const start = Date.now();
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + OPENAI_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'Diga apenas: OK' }], max_tokens: 20 })
+      });
+      result.tempo_ms = Date.now() - start;
+      if (resp.ok) {
+        const data = await resp.json();
+        result.ok = true;
+        result.teste = 'GPT-4o OK: ' + (data.choices?.[0]?.message?.content || 'sem texto');
+      } else {
+        result.teste = 'GPT-4o ERRO HTTP ' + resp.status;
+      }
+    } else {
+      result.teste = 'Nenhuma API key configurada!';
+    }
+  } catch (e) {
+    result.teste = 'Excecao: ' + e.message;
+  }
+
+  console.log('[DEV] Ping:', result.teste, result.tempo_ms + 'ms');
+  res.json(result);
 });
 
 // ══ DEV DIAGNOSTICO — testa se Claude ta funcionando ══
