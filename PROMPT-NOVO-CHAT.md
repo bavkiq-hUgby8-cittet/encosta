@@ -227,8 +227,14 @@ Linha ~14700-15200: Escriba, cleanup, init
    - Bug de escopo do Dev Log CORRIGIDO (commit 361dca9)
    - Interceptor reescrito com timeouts e logs (commit cf1ccd3)
    - Botao PING para testar conexao (commit 205dba8)
+   - ARQUITETURA ASYNC com polling (commit 2c0d70b):
+     * /api/dev/command retorna IMEDIATO, Claude Opus 4 processa em background
+     * Novo endpoint GET /api/dev/status/:commandId para polling
+     * Frontend faz polling a cada 3s com feedback de progresso por voz
+     * Mesmo padrao para /api/dev/approve (execucao async)
+     * Zero timeout possivel - Claude pode demorar o quanto precisar
    - PRECISA TESTAR: verificar se ANTHROPIC_API_KEY esta no Render
-   - PRECISA TESTAR: falar comando de dev e ver se interceptor dispara
+   - PRECISA TESTAR: falar comando de dev e ver se interceptor dispara + poll funciona
 
 2. TouchGames fluxo completo -- nunca foi testado end-to-end.
 
@@ -246,6 +252,8 @@ Linha ~14700-15200: Escriba, cleanup, init
 ## GIT LOG RECENTE (25/02/2026)
 =================================================================
 
+2c0d70b refactor: arquitetura async com polling para UltimateDEV
+e79a5ac fix: trocar Claude Opus por Sonnet 4 para resolver timeout de 65s
 205dba8 feat: botao PING no Dev Log + endpoint /api/dev/ping para testar Claude
 d3f21f5 perf: 6 optimizations for 100k scale
 cf1ccd3 Update DEV INTERCEPTOR: enhance timeout handling and error reporting
