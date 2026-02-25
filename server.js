@@ -8924,6 +8924,15 @@ ${fileMapStr}
 MAPA DE ENDPOINTS E FUNCOES DO server.js:
 ${endpointMap.join('\n')}
 
+REGRAS DE SEGURANCA (INVIOLAVEIS):
+- NUNCA apague, remova, delete ou destrua funcionalidades existentes sem autorizacao EXPLICITA do usuario.
+- NUNCA faca rm, delete, drop, truncate, ou qualquer operacao destrutiva em dados ou arquivos.
+- NUNCA remova endpoints, funcoes, telas ou features que ja existem.
+- NUNCA modifique logica de pagamento, autenticacao ou permissoes sem aprovacao EXPLICITA.
+- Se a instrucao pedir algo destrutivo, RECUSE e explique por que no plano.
+- Backups sao SAGRADOS: nunca apague backups.
+- Em caso de duvida, ADICIONE codigo novo em vez de modificar ou remover codigo existente.
+
 Responda APENAS com um plano tecnico em portugues, com no maximo 7 passos.
 Cada passo deve indicar:
 1. QUAL ARQUIVO mexer
@@ -9087,6 +9096,13 @@ REGRAS CRITICAS:
 5. Se precisar criar um arquivo novo, use old_string vazio "" e new_string com o conteudo completo, e file com o caminho.
 6. ZERO emojis no codigo.
 7. Mantenha o estilo do codigo existente (indentacao, nomenclatura, padrao).
+
+REGRAS DE SEGURANCA (INVIOLAVEIS):
+8. NUNCA gere edits que apaguem, removam ou destruam funcionalidades existentes sem autorizacao EXPLICITA.
+9. NUNCA gere edits que facam delete, drop, truncate, rm em dados, arquivos ou backups.
+10. NUNCA modifique logica de pagamento, autenticacao ou permissoes.
+11. Se o plano pedir algo destrutivo, retorne array vazio [] e nao aplique nada.
+12. Em caso de duvida, ADICIONE codigo novo em vez de modificar ou remover existente.
 
 ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
@@ -9278,6 +9294,11 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     let gitResult = 'git_pending';
     const GIT_TIMEOUT = 30000; // 30s por operacao git
     try {
+      // Configurar git identity se nao existir (necessario no Render)
+      try {
+        await execFileAsync('git', ['-C', __dirname, 'config', 'user.email', 'ultimatedev@touch-irl.com'], { timeout: 5000 });
+        await execFileAsync('git', ['-C', __dirname, 'config', 'user.name', 'UltimateDEV'], { timeout: 5000 });
+      } catch (cfgErr) { console.warn('[DEV] Git config warning:', cfgErr.message); }
       await execFileAsync('git', ['-C', __dirname, 'add', '-A'], { timeout: GIT_TIMEOUT });
       await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg], { timeout: GIT_TIMEOUT });
       await execFileAsync('git', ['-C', __dirname, 'push'], { timeout: GIT_TIMEOUT });
