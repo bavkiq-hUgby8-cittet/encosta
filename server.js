@@ -171,6 +171,34 @@ function isValidUUID(id) {
   return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
 }
 
+// ═══ i18n: Load translated phrases ═══
+function loadI18nPhrases() {
+  const i18nDir = path.join(__dirname, 'i18n');
+  const langs = ['pt-br', 'en', 'es', 'ja', 'ru'];
+  const phrasesI18n = {};
+  const zodiacI18n = {};
+
+  langs.forEach(lang => {
+    try {
+      const pFile = path.join(i18nDir, 'phrases-' + lang + '.json');
+      if (fs.existsSync(pFile)) {
+        phrasesI18n[lang] = JSON.parse(fs.readFileSync(pFile, 'utf8'));
+      }
+    } catch (e) { console.warn('i18n: failed to load phrases-' + lang + '.json'); }
+
+    try {
+      const zFile = path.join(i18nDir, 'zodiac-' + lang + '.json');
+      if (fs.existsSync(zFile)) {
+        zodiacI18n[lang] = JSON.parse(fs.readFileSync(zFile, 'utf8'));
+      }
+    } catch (e) { console.warn('i18n: failed to load zodiac-' + lang + '.json'); }
+  });
+
+  return { phrasesI18n, zodiacI18n };
+}
+
+const { phrasesI18n, zodiacI18n } = loadI18nPhrases();
+
 // ── User authentication middleware: verifies userId belongs to a real user ──
 // Phase 1 (current): validates userId exists in DB (blocks random/guessed IDs)
 // Phase 2 (future): enforce Firebase token match on ALL calls (after frontend update)
@@ -1408,6 +1436,22 @@ function smartPhrase(userAId, userBId) {
   if (Math.random() < 0.2) pool = [...pool, ...PHRASES.geral];
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+function getPhrase(category, lang) {
+  lang = lang || 'pt-br';
+  // Try translated version first
+  if (phrasesI18n[lang] && phrasesI18n[lang][category] && phrasesI18n[lang][category].length > 0) {
+    const phrases = phrasesI18n[lang][category];
+    return phrases[Math.floor(Math.random() * phrases.length)];
+  }
+  // Fallback to hardcoded Portuguese (PHRASES)
+  if (PHRASES && PHRASES[category]) {
+    const phrases = PHRASES[category];
+    return phrases[Math.floor(Math.random() * phrases.length)];
+  }
+  return '';
+}
+
 function generateCode() { return `ENC-${Math.floor(100 + Math.random() * 900)}`; }
 
 // ── ZODIAC SYSTEM ──
@@ -2052,6 +2096,41 @@ app.post('/api/user/timezone', (req, res) => {
   user.timezone = timezone;
   saveDB('users');
   res.json({ ok: true, timezone });
+});
+
+// ═══ i18n: Language & Country ═══
+app.post('/api/user/:userId/lang', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { lang } = req.body;
+    const validLangs = ['en', 'pt-br', 'es', 'ja', 'ru'];
+    if (!validLangs.includes(lang)) return res.status(400).json({ error: 'Invalid language.' });
+    const u = db.users[userId];
+    if (!u) return res.status(404).json({ error: 'User not found.' });
+    u.lang = lang;
+    u.updatedAt = Date.now();
+    saveDB('users');
+    res.json({ ok: true, lang });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to save language.' });
+  }
+});
+
+app.post('/api/user/:userId/country', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { country, city, showCountry } = req.body;
+    const u = db.users[userId];
+    if (!u) return res.status(404).json({ error: 'User not found.' });
+    if (country) u.country = String(country).substring(0, 3).toUpperCase();
+    if (typeof city === 'string') u.city = city.substring(0, 30);
+    if (typeof showCountry === 'boolean') u.showCountry = showCountry;
+    u.updatedAt = Date.now();
+    saveDB('users');
+    res.json({ ok: true, country: u.country, city: u.city, showCountry: u.showCountry });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to save country.' });
+  }
 });
 
 app.post('/api/session/create', (req, res) => {
@@ -3055,6 +3134,9 @@ app.get('/api/profile/:userId', (req, res) => {
     memberSince: user.createdAt,
     isSubscriber: !!user.isSubscriber,
     isPrestador: !!user.isPrestador,
+    lang: user.lang || 'pt-br',
+    country: (user.showCountry && user.country) ? user.country : null,
+    city: (user.showCountry && user.city) ? user.city : null,
     declarations: decls.slice(-30),
     gifts: gifts.slice(-30)
   });
@@ -3093,6 +3175,9 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     canInteract: true,
     isSubscriber: !!user.isSubscriber,
     isPrestador: !!user.isPrestador,
+    lang: user.lang || 'pt-br',
+    country: (user.showCountry && user.country) ? user.country : null,
+    city: (user.showCountry && user.city) ? user.city : null,
     // Real identity if revealed (respecting privacy flags)
     realName: isRevealed ? (user.realName || null) : null,
     profilePhoto: isRevealed ? (user.profilePhoto || user.photoURL || null) : null,
@@ -5533,6 +5618,16 @@ io.on('connection', (socket) => {
     currentUserId = userId;
     socket.touchUserId = userId;
     socket.join(`user:${userId}`);
+  });
+
+  socket.on('updateLang', (data) => {
+    if (data && data.userId && data.lang) {
+      const u = db.users[data.userId];
+      if (u) {
+        u.lang = data.lang;
+        saveDB('users');
+      }
+    }
   });
 
   socket.on('join-session', (sessionId) => { socket.join(`session:${sessionId}`); });
