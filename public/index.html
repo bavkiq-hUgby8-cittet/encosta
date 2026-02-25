@@ -2211,12 +2211,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="locationScreen" class="screen">
-  <div class="loc-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2 data-i18n="loc_title">Explorar ao redor</h2><button class="bs" style="font-size:.7rem;padding:.3rem .8rem" onclick="showCreateEvent()" data-i18n="create_event_btn">+ Evento</button></div>
+  <div class="loc-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2 data-i18n="location.title">Explorar ao redor</h2><button class="bs" style="font-size:.7rem;padding:.3rem .8rem" onclick="showCreateEvent()" data-i18n="location.create_event">+ Evento</button></div>
   <div class="loc-scroll" id="locScroll">
-    <div class="loc-status" id="locStatus" data-i18n="loc_activate">Ative sua localização para descobrir pessoas e eventos.</div>
+    <div class="loc-status" id="locStatus" data-i18n="location.activate">Ative sua localização para descobrir pessoas e eventos.</div>
     <div class="loc-tabs">
-      <div class="loc-tab active" id="tabNearby" onclick="switchLocTab('nearby')" data-i18n="tab_nearby">Pessoas</div>
-      <div class="loc-tab" id="tabEvents" onclick="switchLocTab('events')" data-i18n="tab_events">Eventos</div>
+      <div class="loc-tab active" id="tabNearby" onclick="switchLocTab('nearby')" data-i18n="location.tab_people">Pessoas</div>
+      <div class="loc-tab" id="tabEvents" onclick="switchLocTab('events')" data-i18n="location.tab_events">Eventos</div>
     </div>
     <div id="locContent"></div>
   </div>
@@ -2992,7 +2992,7 @@ async function linkFirebaseToEncosta(user){
       }
       initSocket();requestAccelPermission();
       showScreen('home');
-      $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
+      $('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
       state.userAccessory=d.user.avatarAccessory||null;
       if(state.userAccessory)localStorage.setItem('touch_userAccessory',state.userAccessory);else localStorage.removeItem('touch_userAccessory');
       state.userProfession=d.user.profession||null;
@@ -4853,7 +4853,7 @@ async function doRegister(){
         try{await linkFirebaseToEncosta(fbUser)}catch(e){}
       }
       initSocket();requestAccelPermission();showScreen('home');
-      $('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
+      $('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(nick)+'</span>';
       state.userAccessory=d.user.avatarAccessory||null;
       if(state.userAccessory)localStorage.setItem('touch_userAccessory',state.userAccessory);else localStorage.removeItem('touch_userAccessory');
       state.userProfession=d.user.profession||null;
@@ -11758,7 +11758,7 @@ let locWatchId=null,myLat=null,myLng=null,locTab='nearby';
 function openLocationScreen(){
   showScreen('locationScreen');
   $('locStatus').className='loc-status';
-  $('locStatus').innerHTML='&#x1F50D; '+i18n('loc_searching');
+  $('locStatus').innerHTML='&#x1F50D; '+t('location.searching');
   $('locContent').innerHTML='';
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -11784,7 +11784,7 @@ function fetchApproxLocation(){
 }
 function onLocationReady(mode){
   $('locStatus').className='loc-status active';
-  $('locStatus').innerHTML=mode==='gps'?'&#x1F4CD; '+i18n('loc_active'):'&#x1F4CD; Localização aproximada (via rede)';
+  $('locStatus').innerHTML=mode==='gps'?'&#x1F4CD; '+t('location.active'):'&#x1F4CD; '+t('location.approx_location');
   updateLocationOnServer();
   loadLocTab();
 }
@@ -11810,12 +11810,12 @@ function switchLocTab(tab){
 function loadLocTab(){if(locTab==='nearby')loadNearbyPeople();else loadNearbyEvents()}
 async function loadNearbyPeople(){
   const c=$('locContent');
-  if(!myLat){c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3)">'+i18n('loc_activate')+'</div>';return}
-  c.innerHTML='<div style="text-align:center;padding:1rem;color:var(--t3)">'+i18n('loc_loading')+'</div>';
+  if(!myLat){c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3)">'+t('location.activate')+'</div>';return}
+  c.innerHTML='<div style="text-align:center;padding:1rem;color:var(--t3)">'+t('common.loading')+'</div>';
   try{
     const r=await fetch('/api/nearby/'+state.userId+'?radius=1000');
     const people=await r.json();
-    if(!people.length){c.innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x1F465;</div>'+i18n('loc_no_people')+'</div>';return}
+    if(!people.length){c.innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x1F465;</div>'+t('location.no_people')+'</div>';return}
     let html='';
     people.forEach(p=>{
       const color=p.color||nickColor(p.nickname||p.name||'??');
@@ -11826,7 +11826,7 @@ async function loadNearbyPeople(){
       html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+'</div><div class="loc-person-dist">'+dist+'</div>';
       if(p.score||p.stars)html+='<div class="loc-person-pts">'+(p.score?'&#x26A1;'+p.score:'')+(p.stars?' <svg width="9" height="9" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'+p.stars:'')+'</div>';
       html+='</div>';
-      html+='<button class="loc-encosta-btn" onclick="encostaFromLocation(\''+p.id+'\')">'+i18n('loc_encosta')+'</button>';
+      html+='<button class="loc-encosta-btn" onclick="encostaFromLocation(\''+p.id+'\')">'+t('location.touch_btn')+'</button>';
       html+='</div>';
     });
     c.innerHTML=html;
@@ -11834,18 +11834,18 @@ async function loadNearbyPeople(){
 }
 async function loadNearbyEvents(){
   const c=$('locContent');
-  if(!myLat){c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3)">'+i18n('loc_activate')+'</div>';return}
-  c.innerHTML='<div style="text-align:center;padding:1rem;color:var(--t3)">'+i18n('loc_loading')+'</div>';
+  if(!myLat){c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3)">'+t('location.activate')+'</div>';return}
+  c.innerHTML='<div style="text-align:center;padding:1rem;color:var(--t3)">'+t('common.loading')+'</div>';
   try{
     const r=await fetch('/api/events/nearby?lat='+myLat+'&lng='+myLng+'&radius=5000');
     const events=await r.json();
-    if(!events.length){c.innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x1F389;</div>'+i18n('loc_no_events')+'<br><span style="font-size:.72rem;color:var(--ac);cursor:pointer" onclick="showCreateEvent()">'+i18n('create_event_btn')+'</span></div>';return}
+    if(!events.length){c.innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x1F389;</div>'+t('location.no_events')+'<br><span style="font-size:.72rem;color:var(--ac);cursor:pointer" onclick="showCreateEvent()">'+t('location.create_event')+'</span></div>';return}
     let html='';
     events.forEach(ev=>{
       const dist=ev.distance<1000?Math.round(ev.distance)+'m':((ev.distance/1000).toFixed(1))+'km';
       html+='<div class="evt-card" onclick="openEventDetail(\''+ev.id+'\')">';
       html+='<div class="evt-card-name">'+esc(ev.name)+'</div>';
-      html+='<div class="evt-card-meta"><span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'+dist+'</span><span>'+esc(ev.participantCount||0)+' '+i18n('evt_people')+'</span></div>';
+      html+='<div class="evt-card-meta"><span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'+dist+'</span><span>'+esc(ev.participantCount||0)+' '+t('location.event_people')+'</span></div>';
       if(ev.description)html+='<div class="evt-card-desc">'+esc(ev.description)+'</div>';
       html+='</div>';
     });
@@ -11866,26 +11866,26 @@ function _renderEventForm(){
     },()=>{},{enableHighAccuracy:true,timeout:5000});
   }
   let html='<div class="loc-create-form">';
-  html+='<div class="form-title">&#x1F4CD; '+i18n('create_event_title')+'</div>';
+  html+='<div class="form-title">&#x1F4CD; '+t('location.create_event_title')+'</div>';
   html+='<div class="form-sub">Crie um ponto de encontro digital em um local físico. Quem estiver por perto poderá entrar e se conectar.</div>';
   if(myLat){
     html+='<div style="font-size:.65rem;color:var(--ok);margin-bottom:.6rem;display:flex;align-items:center;gap:.25rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Localização detectada ('+myLat.toFixed(4)+', '+myLng.toFixed(4)+')</div>';
   }else{
     html+='<div style="font-size:.65rem;color:var(--ac2);margin-bottom:.6rem;display:flex;align-items:center;gap:.25rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Sem GPS — insira as coordenadas manualmente</div>';
   }
-  html+='<div class="loc-fg"><label>'+i18n('evt_name')+'</label><input type="text" id="evtName" maxlength="60" placeholder="'+i18n('evt_name_ph')+'"></div>';
-  html+='<div class="loc-fg"><label>'+i18n('evt_desc')+'</label><textarea id="evtDesc" maxlength="200" placeholder="'+i18n('evt_desc_ph')+'"></textarea></div>';
+  html+='<div class="loc-fg"><label>'+t('location.event_name')+'</label><input type="text" id="evtName" maxlength="60" placeholder="'+t('location.event_name_placeholder')+'"></div>';
+  html+='<div class="loc-fg"><label>'+t('location.event_desc')+'</label><textarea id="evtDesc" maxlength="200" placeholder="'+t('location.event_desc_placeholder')+'"></textarea></div>';
   html+='<div class="loc-fg"><label>Latitude</label><input type="text" id="evtLat" value="'+(myLat||'')+'" placeholder="-23.550520"></div>';
   html+='<div class="loc-fg"><label>Longitude</label><input type="text" id="evtLng" value="'+(myLng||'')+'" placeholder="-46.633308"></div>';
   html+='<div style="font-size:.62rem;color:var(--t3);margin:-.4rem 0 .6rem;line-height:1.4">Dica: busque no Google Maps, clique no local e copie as coordenadas. Se o GPS estiver ativo, as coordenadas são preenchidas automaticamente.</div>';
-  html+='<div class="loc-fg"><label>&#x1F4E1; '+i18n('evt_radius')+'</label>';
+  html+='<div class="loc-fg"><label>&#x1F4E1; '+t('location.event_radius')+'</label>';
   html+='<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.3rem">';
   ['50','100','200','500','1000'].forEach(r=>{
     const sel=r==='200'?'background:var(--ac);color:#fff;border-color:var(--ac)':'';
     html+='<button type="button" class="bs radius-opt" style="font-size:.68rem;padding:.3rem .6rem;'+sel+'" onclick="selectRadius(this,'+r+')">'+r+'m</button>';
   });
   html+='</div><input type="hidden" id="evtRadius" value="200"></div>';
-  html+='<div style="display:flex;gap:.6rem;margin-top:.3rem"><button type="button" class="bp" style="flex:1" onclick="createEvent()">'+i18n('evt_create')+'</button><button type="button" class="bs" style="flex:1" onclick="loadLocTab()">'+i18n('evt_cancel')+'</button></div>';
+  html+='<div style="display:flex;gap:.6rem;margin-top:.3rem"><button type="button" class="bp" style="flex:1" onclick="createEvent()">'+t('location.event_create')+'</button><button type="button" class="bs" style="flex:1" onclick="loadLocTab()">'+t('common.cancel')+'</button></div>';
   html+='</div>';
   $('locContent').innerHTML=html;
   setTimeout(()=>{const n=$('evtName');if(n)n.focus()},100);
@@ -11899,7 +11899,7 @@ async function createEvent(){
   const name=$('evtName')?$('evtName').value.trim():'';
   const desc=$('evtDesc')?$('evtDesc').value.trim():'';
   const radius=parseInt($('evtRadius')?$('evtRadius').value:'200')||200;
-  if(!name||name.length<3)return showToast(i18n('evt_name_err'));
+  if(!name||name.length<3)return showToast(t('location.event_name_error'));
   // Use GPS coords or manual input
   let lat=myLat,lng=myLng;
   if($('evtLat')){lat=parseFloat($('evtLat').value);lng=parseFloat($('evtLng').value)}
@@ -11908,7 +11908,7 @@ async function createEvent(){
     const r=await fetch('/api/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,name,description:desc,lat,lng,radius})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    showToast(i18n('evt_created'));haptic([50,30,50]);
+    showToast(t('location.event_created'));haptic([50,30,50]);
     const evtId=d.event?d.event.id:d.id;
     const evtName=name;
     // Mark this user as the event OPERATOR so sonic-start sends isCheckin
@@ -11921,7 +11921,7 @@ async function createEvent(){
 }
 async function openEventDetail(eventId){
   showScreen('eventDetail');
-  $('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x23F3;</div>'+i18n('loc_loading')+'</div>';
+  $('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x23F3;</div>'+t('common.loading')+'</div>';
   try{
     const r=await fetch('/api/event/'+eventId);
     const ev=await r.json();
@@ -11935,15 +11935,15 @@ async function openEventDetail(eventId){
     if(ev.description)html+='<div class="evt-detail-desc">"'+esc(ev.description)+'"</div>';
     html+='<div style="display:flex;gap:.6rem;align-items:center;font-size:.68rem;color:var(--t3);margin-bottom:.8rem">';
     html+='<span>&#x1F4E1; '+ev.radius+'m</span>';
-    html+='<span>&#x1F465; '+pCount+' '+i18n('evt_people')+'</span>';
+    html+='<span>&#x1F465; '+pCount+' '+t('location.event_people')+'</span>';
     html+='</div>';
     if(!alreadyIn){
-      html+='<button class="bp" style="font-size:.82rem" onclick="joinEvent(\''+eventId+'\')">&#x1F91D; '+i18n('evt_join')+'</button>';
+      html+='<button class="bp" style="font-size:.82rem" onclick="joinEvent(\''+eventId+'\')">&#x1F91D; '+t('location.event_join')+'</button>';
     }else{
-      html+='<div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--ok);padding:.5rem .7rem;background:rgba(52,211,153,.06);border-radius:10px;border:1px solid rgba(52,211,153,.15)">&#x2714; '+i18n('evt_joined')+'</div>';
+      html+='<div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--ok);padding:.5rem .7rem;background:rgba(52,211,153,.06);border-radius:10px;border:1px solid rgba(52,211,153,.15)">&#x2714; '+t('location.event_joined')+'</div>';
     }
     html+='</div>';
-    html+='<div class="evt-ppl-title">'+i18n('evt_participants')+' ('+pCount+')</div>';
+    html+='<div class="evt-ppl-title">'+t('location.event_participants')+' ('+pCount+')</div>';
     if(pCount>0){
       parts.forEach(p=>{
         const color=p.color||nickColor(p.nickname||p.name||'??');
@@ -11951,20 +11951,20 @@ async function openEventDetail(eventId){
         const isMe=p.id===state.userId;
         html+='<div class="loc-person">';
         html+=makeAvatar(nick,color,34,p.profilePhoto||null);
-        html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+(isMe?' <span style="font-size:.62rem;color:var(--ok)">('+i18n('evt_you')+')</span>':'')+'</div></div>';
-        if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+p.id+'\')">'+i18n('loc_encosta')+'</button>';
+        html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+(isMe?' <span style="font-size:.62rem;color:var(--ok)">('+t('location.event_you')+')</span>':'')+'</div></div>';
+        if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+p.id+'\')">'+t('location.touch_btn')+'</button>';
         html+='</div>';
       });
-    }else html+='<div class="loc-empty"><div class="loc-empty-icon">&#x1F3C3;</div>'+i18n('evt_nobody')+'</div>';
+    }else html+='<div class="loc-empty"><div class="loc-empty-icon">&#x1F3C3;</div>'+t('location.event_nobody')+'</div>';
     $('evtDetailScroll').innerHTML=html;
-  }catch(e){$('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x26A0;</div>Erro ao carregar evento.</div>'}
+  }catch(e){$('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x26A0;</div>'+t('errors.generic_error')+'</div>'}
 }
 async function joinEvent(eventId){
   try{
     const r=await fetch('/api/event/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId,userId:state.userId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    showToast(i18n('evt_joined_msg'));haptic([50,30,50]);
+    showToast(t('location.event_joined_msg'));haptic([50,30,50]);
     openEventDetail(eventId);
   }catch(e){showToast('Erro.')}
 }
@@ -11986,13 +11986,15 @@ async function encostaFromLocation(targetId){
     const r2=await fetch('/api/session/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:d.code,userId:targetId})});
     const d2=await r2.json();
     if(d2.error)return showToast(d2.error);
-    showToast(i18n('evt_encosta_ok'));haptic([80,40,80,40,80]);
+    showToast(t('location.touch_ok'));haptic([80,40,80,40,80]);
     goHome();refreshHome();
   }catch(e){showToast('Erro ao conectar.')}
 }
 
-// ═══ i18n ═══
-const LANG={
+// ═══ i18n (unified - uses t() from JSON files) ═══
+// Old inline LANG system removed. All translations now in /public/i18n/*.json
+// Use t('section.key') for translations. See applyI18n() at top of file.
+const DEPRECATED_LANG={
 pt:{
   loc_btn:'Localização',ticket_btn:'Meu Bilhete',loc_title:'Explorar ao redor',
   create_event_btn:'+ Evento',loc_activate:'Ative sua localização para descobrir pessoas e eventos.',
@@ -12112,24 +12114,7 @@ es:{
   hist_title:'Mi Red',hist_empty:'Sin encuentros aún.',hist_save:'Guardar',hist_share:'Compartir'
 }
 };
-let currentLang=localStorage.getItem('touch_lang')||'pt';
-function i18n(key){return (LANG[currentLang]&&LANG[currentLang][key])||LANG.pt[key]||key}
-function setLang(lang){
-  currentLang=lang;
-  localStorage.setItem('touch_lang',lang);
-  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim().toLowerCase()===lang));
-  applyLang();
-}
-function applyLang(){
-  document.querySelectorAll('[data-i18n]').forEach(el=>{
-    const key=el.getAttribute('data-i18n');
-    const val=i18n(key);
-    if(val)el.innerHTML=val;
-  });
-  // Update dynamic elements
-  const brand=$('homeBrand');if(brand)brand.textContent=i18n('brand_name');
-  const btnText=$('mainBtnText');if(btnText&&!homeSonicActive)btnText.textContent=i18n('home_btn');
-}
+// All deprecated i18n functions removed. Use loadLanguage() and t() from new i18n system above.
 
 // ═══ GORJETA / TIP ═══
 let tipState = { receiverId: null, amount: 0, method: 'pix' };
@@ -13769,7 +13754,7 @@ async function _tryFirebaseRelink(){
   }catch(e){console.error('[relink] Error:',e.message);return false}
 }
 window.addEventListener('load',()=>{
-  applyLang();
+  applyI18n();
   const qr=new URLSearchParams(location.search).get('code');
   setTimeout(async()=>{
     if(state.userId){
@@ -13779,8 +13764,8 @@ window.addEventListener('load',()=>{
         // Set home avatar
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
 
-        if(qr){showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
-        else{showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
+        if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
+        else{showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
         refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
       }else if(state.userId){
         // validateUser failed but userId still exists (network error, server restarting)
@@ -13789,7 +13774,7 @@ window.addEventListener('load',()=>{
         initSocket();requestAccelPermission();
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
 
-        showScreen('home');$('homeGreeting').innerHTML=i18n('home_greeting')+', <span class="hg-nick">'+esc(state.userName||'')+'</span>';
+        showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName||'')+'</span>';
         showToast('Reconectando ao servidor...');
         refreshHome();restoreFloatingEvent();
       }else{
