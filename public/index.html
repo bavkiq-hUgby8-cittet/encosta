@@ -2725,7 +2725,20 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let socket=null,state={userId:localStorage.getItem('touch_userId'),userName:localStorage.getItem('touch_userName'),userColor:localStorage.getItem('touch_userColor')||'',userPhoto:localStorage.getItem('touch_userPhoto')||null,email:localStorage.getItem('touch_email')||null,userAccessory:localStorage.getItem('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null};
+// Secure localStorage wrapper — obfuscates sensitive keys to prevent casual snooping
+const _LS_SALT='t0uch_2025_';
+const _LS_SENSITIVE=new Set(['touch_userId','touch_email','touch_userPhoto','touch_savedCard','touch_userName']);
+function lsSet(k,v){
+  if(_LS_SENSITIVE.has(k)){try{localStorage.setItem(k,btoa(_LS_SALT+v))}catch(e){localStorage.setItem(k,v)}}
+  else localStorage.setItem(k,v);
+}
+function lsGet(k){
+  const raw=localStorage.getItem(k);if(!raw)return raw;
+  if(_LS_SENSITIVE.has(k)){try{const dec=atob(raw);return dec.startsWith(_LS_SALT)?dec.slice(_LS_SALT.length):raw}catch(e){return raw}}
+  return raw;
+}
+function lsRemove(k){localStorage.removeItem(k)}
+let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ AUTH FETCH HELPER: automaticamente inclui Firebase token em todas as chamadas API ═══
@@ -2793,11 +2806,11 @@ async function linkFirebaseToEncosta(user){
       state.email=d.user.email||null;
       state.emailVerified=user.emailVerified||false;
       state.userCpf=d.user.cpf||null;
-      localStorage.setItem('touch_userId',d.userId);
-      localStorage.setItem('touch_userName',state.userName);
+      lsSet('touch_userId',d.userId);
+      lsSet('touch_userName',state.userName);
       localStorage.setItem('touch_userColor',state.userColor);
-      if(state.email)localStorage.setItem('touch_email',state.email);
-      if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
+      if(state.email)lsSet('touch_email',state.email);
+      if(state.userPhoto)lsSet('touch_userPhoto',state.userPhoto);
       // Send user timezone to server (auto-detect from browser)
       try{
         var userTz=Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -4339,7 +4352,7 @@ async function refreshHome(){
     try{
       const mp=await fetch('/api/myprofile/'+state.userId).then(r=>r.json());
       const _mpPhoto=mp.profilePhoto||mp.photoURL||null;
-      if(_mpPhoto){state.userPhoto=_mpPhoto;localStorage.setItem('touch_userPhoto',_mpPhoto)}
+      if(_mpPhoto){state.userPhoto=_mpPhoto;lsSet('touch_userPhoto',_mpPhoto)}
       state.userRealName=mp.realName||null;
       // Load canSee into revealedIds (only permanent reveals, not event-scoped)
       if(mp.canSee){
@@ -4663,8 +4676,8 @@ async function doRegister(){
     if(d.userId){
       state.userId=d.userId;state.userName=nick;state.userColor=d.user.color;
       state.userPhoto=d.user.profilePhoto||d.user.photoURL||null;
-      localStorage.setItem('touch_userId',d.userId);localStorage.setItem('touch_userName',nick);localStorage.setItem('touch_userColor',d.user.color||'');
-      if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
+      lsSet('touch_userId',d.userId);lsSet('touch_userName',nick);localStorage.setItem('touch_userColor',d.user.color||'');
+      if(state.userPhoto)lsSet('touch_userPhoto',state.userPhoto);
       // Link with Firebase if signed in
       if(fbUser&&firebaseAuthInstance){
         try{await linkFirebaseToEncosta(fbUser)}catch(e){}
@@ -5910,7 +5923,7 @@ function showEntryCardForm(eventId,eventName,price,operatorId){
 }
 
 function loadEntrySavedCard(eventId,eventName,price){
-  var saved=localStorage.getItem('touch_savedCard');
+  var saved=lsGet('touch_savedCard');
   if(!saved)return;
   try{var c=JSON.parse(saved);if(!c.lastFour)return}catch(e){return}
   var sec=$('entrySavedCardSection');if(!sec)return;
@@ -5958,7 +5971,7 @@ async function payEntryQuick(eventId,eventName,price){
   var btn=$('entryQuickPayBtn');
   if(btn){btn.disabled=true;btn.textContent='Processando...'}
   try{
-    var saved=JSON.parse(localStorage.getItem('touch_savedCard')||'{}');
+    var saved=JSON.parse(lsGet('touch_savedCard')||'{}');
     var resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({userId:state.userId,useSavedCard:true,cvv:cvv,payerEmail:state.email,payerCPF:saved.cpf||'',deviceId:getMpDeviceId()})
@@ -6370,16 +6383,20 @@ async function openChat(rel){
   closePlusMenu();hideTyping();
   const mc=$('chatMessages'),ti=$('typingIndicator');mc.innerHTML='';mc.appendChild(ti);
   loadQuickPhrases();
-  try{(await(await fetch('/api/messages/'+rel.relationId)).json()).forEach(m=>{
-    if(m.type==='ephemeral')appendEphemeral(m,true);
-    else if(m.type==='photo')appendPhoto(m);
-    else if(m.type==='reveal-request'||m.type==='reveal-accepted'||m.type==='reveal-declined')appendRevealChatCard(m);
-    else appendMessage(m);
-  })}catch(e){}
-  // Load partner score + stars into subtitle
+  // Batch: load messages + partner score + streak in 1 request
   try{
-    const ps=await fetch('/api/partner-score/'+rel.relationId+'/'+state.userId).then(r=>r.json());
-    if(ps.score!=null){
+    const chatData=await(await fetch('/api/chat-init/'+rel.relationId+'/'+state.userId)).json();
+    // Render messages with DocumentFragment for DOM batching
+    const frag=document.createDocumentFragment();
+    (chatData.messages||[]).forEach(m=>{
+      if(m.type==='ephemeral')appendEphemeral(m,true);
+      else if(m.type==='photo')appendPhoto(m);
+      else if(m.type==='reveal-request'||m.type==='reveal-accepted'||m.type==='reveal-declined')appendRevealChatCard(m);
+      else appendMessage(m);
+    });
+    // Partner score
+    const ps=chatData.partnerScore;
+    if(ps&&ps.score!=null){
       $('partnerPtsNum').textContent=ps.score;
       const sub=$('chatSub');
       const extra=(ps.stars>0?' · '+ps.stars+' estrelas':'')+(ps.score>0?' · '+ps.score+'pts':'');
@@ -6389,9 +6406,18 @@ async function openChat(rel){
         sub.innerHTML='nickname'+extra;
       }
     }
-  }catch(e){}
-  // Load streak
-  loadStreak();
+    // Streak
+    const s=chatData.streak;
+    if(s&&s.currentStreak>0){
+      const el=$('chatStreak');el.classList.remove('hidden');
+      const starsSvg='<svg width="11" height="11" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+      let starsHtml='';for(let i=0;i<s.starsEarned;i++)starsHtml+=starsSvg;
+      $('chatStreakText').innerHTML=starsHtml+(starsHtml?' · ':'')+s.currentStreak+' dia'+(s.currentStreak>1?'s':'')+' seguidos';
+      $('chatStreakBar').style.width=(s.progress||0)+'%';
+      if(s.daysToNextStar>0)$('chatStreakNext').textContent='Proxima estrela em '+s.daysToNextStar+' dia'+(s.daysToNextStar>1?'s':'');
+      else $('chatStreakNext').textContent='Nova estrela desbloqueada';
+    }else{const el=$('chatStreak');if(el)el.classList.add('hidden')}
+  }catch(e){console.warn('[chat-init]',e.message||e)}
   startChatTimer(rel.expiresAt);showScreen('chat');
   // Mark as read and refresh badge count
   localStorage.setItem('lastRead_'+rel.relationId,Date.now().toString());
@@ -7116,9 +7142,10 @@ function initConstCanvas(){
       if(Math.abs(e.clientX-pointerStart.x)<tapThresh&&Math.abs(e.clientY-pointerStart.y)<tapThresh)
         handleConstTap(e.clientX-canvas.getBoundingClientRect().left,e.clientY-canvas.getBoundingClientRect().top,W,H);
     }
-    constState.dragging=false;constState.lastTouch=null;pointerStart=null;
+    constState.dragging=false;constState.lastTouch=null;pointerStart=null;constState._touching=false;
   };
   canvas.ontouchstart=e=>{
+    constState._touching=true;
     if(e.touches.length===2){
       pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
       pinchZoom=constState.cam.zoom;
@@ -7183,9 +7210,15 @@ function initConstCanvas(){
   // FP mode transition smoothing
   let fpBlend=0; // 0=normal, 1=full FP
 
+  let _constLastDraw=0;
   function draw(){
     if(document.hidden){constState.animFrame=requestAnimationFrame(draw);return}
     constState.animFrame=requestAnimationFrame(draw);
+    // Throttle: 60fps during animations, ~24fps when idle (saves CPU/battery)
+    const _now=performance.now();
+    const isAnimating=(constState._entryAnim&&constState._entryAnim.active)||(constState._searchAnim&&constState._searchAnim.active)||(constState._touching)||Math.abs((constState.fpMode?1:0)-fpBlend)>0.01;
+    if(!isAnimating&&_now-_constLastDraw<41){return} // 41ms = ~24fps
+    _constLastDraw=_now;
     ctx.clearRect(0,0,W,H);
     const t=Date.now()/1000;
     // ── Entry animation — zoom from far to normal ──
@@ -9738,8 +9771,8 @@ async function saveCompleteProfile(){
     const r=await apiFetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    if(d.user&&(d.user.profilePhoto||d.user.photoURL)){state.userPhoto=d.user.profilePhoto||d.user.photoURL;localStorage.setItem('touch_userPhoto',state.userPhoto);constState._myImgLoaded=false}
-    if(nicknameVal){state.userNickname=nicknameVal;state.userName=nicknameVal;localStorage.setItem('touch_userName',nicknameVal)}
+    if(d.user&&(d.user.profilePhoto||d.user.photoURL)){state.userPhoto=d.user.profilePhoto||d.user.photoURL;lsSet('touch_userPhoto',state.userPhoto);constState._myImgLoaded=false}
+    if(nicknameVal){state.userNickname=nicknameVal;state.userName=nicknameVal;lsSet('touch_userName',nicknameVal)}
     state.userAccessory=state._selectedAccessory||null;
     if(state.userAccessory)localStorage.setItem('touch_userAccessory',state.userAccessory);else localStorage.removeItem('touch_userAccessory');
     // Update home avatar with new accessory
@@ -10817,7 +10850,27 @@ function setHomeMotivation(){
 }
 
 // ═══ UTILS ═══
-function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('hidden');t.style.animation='none';t.offsetHeight;t.style.animation='toast-in .35s cubic-bezier(.22,1,.36,1) forwards';clearTimeout(t._t);t._t=setTimeout(()=>{t.style.animation='toast-out .3s ease forwards';setTimeout(()=>t.classList.add('hidden'),300)},2500)}
+// Toast queue — FIFO, shows messages one by one instead of overriding
+const _toastQueue=[];
+let _toastShowing=false;
+function showToast(msg){
+  _toastQueue.push(msg);
+  if(!_toastShowing)_processToast();
+}
+function _processToast(){
+  if(_toastQueue.length===0){_toastShowing=false;return}
+  _toastShowing=true;
+  const msg=_toastQueue.shift();
+  const t=$('toast');
+  t.textContent=msg;t.classList.remove('hidden');
+  t.style.animation='none';t.offsetHeight;
+  t.style.animation='toast-in .35s cubic-bezier(.22,1,.36,1) forwards';
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>{
+    t.style.animation='toast-out .3s ease forwards';
+    setTimeout(()=>{t.classList.add('hidden');_processToast()},350);
+  },2200);
+}
 function esc(text){const d=document.createElement('div');d.textContent=text;return d.innerHTML}
 function pad(n){return n.toString().padStart(2,'0')}
 function updateSendBtn(){$('sendBtn').classList.toggle('active',$('chatInput').value.trim().length>0)}
@@ -12645,8 +12698,8 @@ async function registerPrestador() {
     state.userId = data.userId;
     state.userName = data.user.nickname;
     state.userColor = data.user.color;
-    localStorage.setItem('touch_userId', data.userId);
-    localStorage.setItem('touch_userName', data.user.nickname);
+    lsSet('touch_userId', data.userId);
+    lsSet('touch_userName', data.user.nickname);
     localStorage.setItem('touch_userColor', data.user.color);
     localStorage.setItem('touch_isPrestador', '1');
     showToast(existingId ? 'Conta atualizada! Agora você é prestador.' : 'Conta criada!');
@@ -12866,11 +12919,11 @@ async function _tryFirebaseRelink(){
     state.userProfession=d.user.profession||null;
     state.userSports=d.user.sports||[];
     state.userHobbies=d.user.hobbies||[];
-    localStorage.setItem('touch_userId',d.userId);
-    localStorage.setItem('touch_userName',state.userName);
+    lsSet('touch_userId',d.userId);
+    lsSet('touch_userName',state.userName);
     localStorage.setItem('touch_userColor',state.userColor);
-    if(state.email)localStorage.setItem('touch_email',state.email);
-    if(state.userPhoto)localStorage.setItem('touch_userPhoto',state.userPhoto);
+    if(state.email)lsSet('touch_email',state.email);
+    if(state.userPhoto)lsSet('touch_userPhoto',state.userPhoto);
     console.log('[relink] Success! Recovered user:',d.userId,'matched by:',d.matchedBy);
     return true;
   }catch(e){console.error('[relink] Error:',e.message);return false}
@@ -14524,99 +14577,83 @@ const VA = (function(){
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
-  // ── DEV INTERCEPTOR — Detecta pedidos de dev na fala do usuario e dispara direto ──
-  let _devInterceptCooldown = 0; // prevent double-firing
+  // ── DEV INTERCEPTOR — Detecta pedidos de dev na fala e dispara pro Claude ──
+  let _devInterceptCooldown = 0;
   let _devInterceptPending = false;
+  let _devInterceptTimeout = null;
 
   function _devInterceptUserSpeech(transcript) {
-    if (!transcript || transcript.length < 10) return;
-    if (_devInterceptPending) return;
-    if (Date.now() - _devInterceptCooldown < 15000) return; // 15s cooldown between intercepts
+    if (!transcript || transcript.length < 8) return;
+    if (_devInterceptPending) { console.log('[INTERCEPTOR] Bloqueado: pendente'); return; }
+    if (Date.now() - _devInterceptCooldown < 10000) { console.log('[INTERCEPTOR] Cooldown 10s'); return; }
 
     var t = transcript.toLowerCase();
-
-    // Detect dev-related keywords in user speech
-    var devKeywords = ['muda', 'mudar', 'altera', 'alterar', 'adiciona', 'adicionar', 'coloca', 'colocar',
-      'tira', 'tirar', 'remove', 'remover', 'cria', 'criar', 'faz', 'fazer', 'bota', 'botar',
-      'arruma', 'arrumar', 'corrige', 'corrigir', 'fix', 'conserta', 'consertar',
-      'cor ', 'botao', 'botoes', 'layout', 'tela', 'texto', 'fonte', 'tamanho',
-      'feature', 'funcionalidade', 'implementa', 'implementar', 'desenvolve'];
-
-    var isDevRequest = devKeywords.some(function(kw) { return t.indexOf(kw) >= 0; });
-
-    // Also detect with common patterns
-    if (!isDevRequest) {
-      isDevRequest = /^(eu )?quer(o|ia) (que|um|uma)/.test(t) && (t.indexOf('app') >= 0 || t.indexOf('tela') >= 0 || t.indexOf('botao') >= 0);
-    }
-
-    if (!isDevRequest) return;
+    var devKw = ['muda','mudar','altera','alterar','adiciona','adicionar','coloca','colocar',
+      'tira','tirar','remove','remover','cria','criar','faz','fazer','bota','botar',
+      'arruma','arrumar','corrige','corrigir','fix','conserta','consertar',
+      'cor ','botao','botoes','layout','tela','texto','fonte','tamanho',
+      'feature','funcionalidade','implementa','implementar','desenvolve',
+      'quero','preciso','pode','deveria','devia'];
+    var isDev = devKw.some(function(k){ return t.indexOf(k)>=0; });
+    if (!isDev) isDev = /^(eu )?quer(o|ia) /.test(t);
+    if (!isDev) { console.log('[INTERCEPTOR] Sem keyword:', t.slice(0,50)); return; }
 
     _devInterceptPending = true;
     _devInterceptCooldown = Date.now();
+    console.log('[INTERCEPTOR] DETECTOU! Enviando pro Claude:', transcript.slice(0,80));
+    _devAddLiveLog('info', 'INTERCEPTOR: Detectou pedido dev', transcript.slice(0,100));
+    _devAddLiveLog('tool', 'Enviando pro Claude Opus...', 'Aguarde ~10-30s');
+    _showVaActivity('Enviando pro Claude...', 'Interceptor ativo');
 
-    _devAddLiveLog('info', 'INTERCEPTOR: Detectou pedido de dev', transcript.slice(0, 100));
-    _devAddLiveLog('tool', 'Enviando comando_dev automaticamente...', transcript.slice(0, 150));
-
-    // Show activity
-    _showVaActivity('Enviando pro Claude...', 'Interceptor detectou pedido de desenvolvimento');
-
-    // Call the backend directly
-    fetch('/api/dev/command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: state.userId, instruction: transcript })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      _devInterceptPending = false;
-      _hideVaActivity();
-
-      if (data.plan) {
-        _devAddLiveLog('result', 'Plano gerado! ID: ' + data.id, (data.plan || '').slice(0, 200));
-
-        // Save to dev conversation
-        fetch('/api/dev/conversation', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: state.userId, role: 'assistant', content: 'Plano gerado para: ' + transcript.slice(0, 80) + '\n' + (data.plan || '').slice(0, 300) })
-        }).catch(function() {});
-
-        // Send plan back to OpenAI agent so it can speak to user
-        if (dc && dc.readyState === 'open') {
-          dc.send(JSON.stringify({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'user',
-              content: [{ type: 'input_text', text: '[SISTEMA - NAO LEIA ISSO LITERALMENTE] O Claude Opus gerou um plano de desenvolvimento para o pedido do usuario. Resuma o plano abaixo de forma SIMPLES em 2 frases e pergunte se ele quer aprovar.\n\nID do comando: ' + data.id + '\nPlano:\n' + (data.plan || '').slice(0, 500) + '\n\nDiga algo como: "O plano ta pronto! Basicamente [resumo]. Posso mandar executar?" Se ele disser sim, voce DEVE chamar a tool aprovar_plano com o ID ' + data.id }]
-            }
-          }));
-          dc.send(JSON.stringify({ type: 'response.create' }));
-        }
-      } else {
-        _devAddLiveLog('error', 'Erro ao gerar plano', data.error || 'desconhecido');
-        // Tell agent about the error
-        if (dc && dc.readyState === 'open') {
-          dc.send(JSON.stringify({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'user',
-              content: [{ type: 'input_text', text: '[SISTEMA] Erro ao gerar plano de desenvolvimento: ' + (data.error || 'desconhecido') + '. Avise o usuario que deu erro e pergunte se quer tentar de novo.' }]
-            }
-          }));
-          dc.send(JSON.stringify({ type: 'response.create' }));
-        }
+    // Safety: libera interceptor se travar
+    if (_devInterceptTimeout) clearTimeout(_devInterceptTimeout);
+    _devInterceptTimeout = setTimeout(function(){
+      if(_devInterceptPending){
+        console.error('[INTERCEPTOR] TIMEOUT 70s');
+        _devInterceptPending = false; _hideVaActivity();
+        _devAddLiveLog('error', 'Timeout 70s', 'Claude demorou demais');
       }
-    }).catch(function(err) {
-      _devInterceptPending = false;
-      _hideVaActivity();
-      _devAddLiveLog('error', 'Erro de conexao no interceptor', err.message);
+    }, 70000);
+
+    _fetchWithTimeout('/api/dev/command', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: state.userId, instruction: transcript })
+    }, 65000).then(function(r){
+      console.log('[INTERCEPTOR] HTTP', r.status);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    }).then(function(data){
+      clearTimeout(_devInterceptTimeout);
+      _devInterceptPending = false; _hideVaActivity();
+      console.log('[INTERCEPTOR] Resposta:', JSON.stringify(data).slice(0,200));
+      if(data.plan){
+        _devAddLiveLog('result', 'Plano OK! ID: '+data.id, (data.plan||'').slice(0,200));
+        fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+(data.plan||'').slice(0,300)})}).catch(function(){});
+        _devInjectMsg('[SISTEMA] Claude gerou plano. Resuma em 2 frases e pergunte se quer aprovar.\nID: '+data.id+'\nPlano:\n'+(data.plan||'').slice(0,500)+'\nSe aprovar, chame aprovar_plano com ID '+data.id);
+      } else {
+        _devAddLiveLog('error', 'Plano falhou', data.error||'?');
+        _devInjectMsg('[SISTEMA] Erro ao gerar plano: '+(data.error||'?')+'. Avise o usuario.');
+      }
+    }).catch(function(err){
+      clearTimeout(_devInterceptTimeout);
+      _devInterceptPending = false; _hideVaActivity();
+      console.error('[INTERCEPTOR] ERRO:', err.message);
+      _devAddLiveLog('error', err.message, 'Verifique F12 e ANTHROPIC_API_KEY no Render');
+      _devInjectMsg('[SISTEMA] Erro: '+err.message+'. Avise o usuario.');
     });
   }
 
-  // ── DEV APPROVE INTERCEPTOR — Detecta aprovacao por voz ──
-  // Monitored from agent transcript (response.audio_transcript.done)
-  function _devInterceptApproval(agentTranscript, userTranscript) {
-    // Not used yet — approval still needs to go through tool call
-    // This is a placeholder for future improvement
+  // Helper: injeta mensagem no DataChannel e pede resposta do agente
+  function _devInjectMsg(text){
+    if(dc && dc.readyState==='open'){
+      console.log('[INTERCEPTOR] Injetando no DC...');
+      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}}));
+      dc.send(JSON.stringify({type:'response.create'}));
+    } else {
+      console.error('[INTERCEPTOR] DC fechado:', dc?dc.readyState:'null');
+      _devAddLiveLog('error', 'DataChannel fechado', 'Agente nao recebeu resultado');
+    }
   }
 
   // ── ESCRIBA — Auto-documenta a sessao ──
