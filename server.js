@@ -8430,7 +8430,7 @@ app.post('/api/dev/ping', vaLimiter, async (req, res) => {
   const result = {
     ok: false,
     anthropic_key: !!ANTHROPIC_API_KEY,
-    engine: ANTHROPIC_API_KEY ? 'claude-opus-4' : (OPENAI_API_KEY ? 'gpt-4o-fallback' : 'nenhum'),
+    engine: ANTHROPIC_API_KEY ? 'claude-sonnet-4' : (OPENAI_API_KEY ? 'gpt-4o-fallback' : 'nenhum'),
     teste: null,
     tempo_ms: 0
   };
@@ -8504,7 +8504,7 @@ app.get('/api/dev/diagnostico', requireAdmin, async (req, res) => {
     anthropic_key_configurada: !!ANTHROPIC_API_KEY,
     anthropic_key_prefixo: ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.slice(0, 8) + '...' : 'NAO CONFIGURADA',
     openai_key_configurada: !!OPENAI_API_KEY,
-    engine_ativo: ANTHROPIC_API_KEY ? 'claude-opus-4' : 'gpt-4o-fallback',
+    engine_ativo: ANTHROPIC_API_KEY ? 'claude-sonnet-4' : 'gpt-4o-fallback',
     teste_claude: null,
     tempo_ms: 0
   };
@@ -8610,7 +8610,7 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
       const planStart = Date.now();
       // fetch com timeout via AbortController
       const planAbort = new AbortController();
-      const planTimer = setTimeout(() => planAbort.abort(), 60000); // 60s timeout
+      const planTimer = setTimeout(() => planAbort.abort(), 90000); // 90s timeout
       const planResp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -8619,9 +8619,9 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-opus-4-20250514',
+          model: 'claude-sonnet-4-20250514',
           max_tokens: 2000,
-          messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}\n\nPrimeiras 200 linhas do server.js:\n${serverCode.split('\n').slice(0, 200).join('\n')}\n\nPrimeiras 200 linhas do index.html:\n${indexCode.split('\n').slice(0, 200).join('\n')}` }],
+          messages: [{ role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}` }],
           system: systemPrompt
         }),
         signal: planAbort.signal
@@ -8797,7 +8797,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           'content-type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-opus-4-20250514',
+          model: 'claude-sonnet-4-20250514',
           max_tokens: 16000,
           system: editSystemPrompt,
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]

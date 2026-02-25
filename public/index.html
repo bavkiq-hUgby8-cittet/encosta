@@ -14519,9 +14519,9 @@ const VA = (function(){
 
   // ── ULTIMATEDEV TOOL HANDLERS ──
   async function handleComandoDev(instrucao,callId){
-    _showVaActivity('Gerando plano...','Claude Opus esta analisando o pedido');
+    _showVaActivity('Gerando plano...','Claude Sonnet esta analisando o pedido');
     try{
-      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 60000);
+      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 95000);
       const data=await r.json();
       _hideVaActivity();
       if(data.plan){
@@ -14546,7 +14546,7 @@ const VA = (function(){
   }
 
   async function handleAprovarPlano(id,callId){
-    _showVaActivity('Executando codigo...','Claude Opus gerando + aplicando edicoes');
+    _showVaActivity('Executando codigo...','Claude Sonnet gerando + aplicando edicoes');
     try{
       const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 120000);
       _hideVaActivity();
@@ -14628,23 +14628,23 @@ const VA = (function(){
     _devInterceptCooldown = Date.now();
     console.log('[INTERCEPTOR] DETECTOU! Enviando pro Claude:', transcript.slice(0,80));
     _devAddLiveLog('info', 'INTERCEPTOR: Detectou pedido dev', transcript.slice(0,100));
-    _devAddLiveLog('tool', 'Enviando pro Claude Opus...', 'Aguarde ~10-30s');
+    _devAddLiveLog('tool', 'Enviando pro Claude Sonnet...', 'Aguarde ~5-15s');
     _showVaActivity('Enviando pro Claude...', 'Interceptor ativo');
 
     // Safety: libera interceptor se travar
     if (_devInterceptTimeout) clearTimeout(_devInterceptTimeout);
     _devInterceptTimeout = setTimeout(function(){
       if(_devInterceptPending){
-        console.error('[INTERCEPTOR] TIMEOUT 70s');
+        console.error('[INTERCEPTOR] TIMEOUT 100s');
         _devInterceptPending = false; _hideVaActivity();
-        _devAddLiveLog('error', 'Timeout 70s', 'Claude demorou demais');
+        _devAddLiveLog('error', 'Timeout 100s', 'Claude demorou demais');
       }
-    }, 70000);
+    }, 100000);
 
     _fetchWithTimeout('/api/dev/command', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ userId: state.userId, instruction: transcript })
-    }, 65000).then(function(r){
+    }, 95000).then(function(r){
       console.log('[INTERCEPTOR] HTTP', r.status);
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
