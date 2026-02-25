@@ -15372,12 +15372,18 @@ const VA = (function(){
   async function handleComandoDev(instrucao,callId){
     _showVaActivity('Enviando comando...','Claude Opus esta analisando');
     try{
-      console.log('[CMD-DEV] Enviando:', instrucao&&instrucao.slice(0,80), 'userId:', state.userId);
-      var cmdUrl = (window.location.origin||'') + '/api/dev/command';
+      console.log('[CMD-DEV] v3 Enviando:', instrucao&&instrucao.slice(0,80), 'userId:', state.userId);
+      _devAddLiveLog('info', 'CMD-DEV v3', 'Iniciando fetch...');
+      var baseUrl = '';
+      try { baseUrl = window.location.origin || ''; } catch(ue){ baseUrl = 'https://touch-irl.com'; }
+      if(!baseUrl || baseUrl==='null') baseUrl = 'https://touch-irl.com';
+      var cmdUrl = baseUrl + '/api/dev/command';
       var cmdBody = JSON.stringify({userId:state.userId,instruction:instrucao});
-      console.log('[CMD-DEV] URL:', cmdUrl, 'Body len:', cmdBody.length);
+      console.log('[CMD-DEV] URL:', cmdUrl, 'Body len:', cmdBody.length, 'origin:', baseUrl);
+      _devAddLiveLog('info', 'Fetch', cmdUrl + ' body:' + cmdBody.length);
       var r = await fetch(cmdUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:cmdBody});
       console.log('[CMD-DEV] HTTP:', r.status);
+      _devAddLiveLog('info', 'HTTP resposta', 'Status: ' + r.status);
       var data=await r.json();
       if(data.id && data.status === 'planning'){
         _devAddLiveLog('info', 'Comando enviado', 'ID: '+data.id+' - aguardando Claude Opus...');
@@ -15414,7 +15420,12 @@ const VA = (function(){
         _hideVaActivity();
         _sendToolResult(callId,'Erro ao criar comando: '+(data.error||'desconhecido'));
       }
-    }catch(e){_hideVaActivity();_sendToolResult(callId,'Erro de conexao: '+e.message);}
+    }catch(e){
+      console.error('[CMD-DEV] CATCH:', e.name, e.message, e.stack&&e.stack.slice(0,200));
+      _devAddLiveLog('error', 'CMD-DEV catch', e.name+': '+e.message);
+      _hideVaActivity();
+      _sendToolResult(callId,'Erro CMD-DEV ['+e.name+']: '+e.message);
+    }
   }
 
   async function handleVerFilaDev(callId){
@@ -15465,7 +15476,12 @@ const VA = (function(){
         _hideVaActivity();
         _sendToolResult(callId,'Erro ao aprovar: '+(data.error||'desconhecido'));
       }
-    }catch(e){_hideVaActivity();_sendToolResult(callId,'Erro de conexao: '+e.message);}
+    }catch(e){
+      console.error('[APPROVE] CATCH:', e.name, e.message);
+      _devAddLiveLog('error', 'APPROVE catch', e.name+': '+e.message);
+      _hideVaActivity();
+      _sendToolResult(callId,'Erro aprovar ['+e.name+']: '+e.message);
+    }
   }
 
   async function handleRejeitarPlano(id,motivo,callId){
