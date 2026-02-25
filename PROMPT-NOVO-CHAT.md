@@ -25,10 +25,10 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
    -> Email: ramonnvc@hotmail.com
    -> Nome: Ramon
 
-## ESTRUTURA DO PROJETO (atualizado 25/02/2026)
+## ESTRUTURA DO PROJETO (atualizado 25/02/2026 -- sessao 3)
 
 Arquivos principais:
-- `server.js` (~10900 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `server.js` (~11000+ linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
 - `public/index.html` (~15200 linhas) -- Frontend SPA completo (23+ telas)
 - `public/va-test.html` (~825 linhas) -- Pagina de ligacao telefonica pros 3 assistentes + Dev Log
 - `public/va-admin.html` (~501 linhas) -- Painel admin dos 3 assistentes de voz
@@ -73,7 +73,8 @@ Render: encosta.onrender.com redireciona 301 para touch-irl.com
 Firebase: Realtime Database para persistencia
 MercadoPago: Pagamentos (Pix, cartao, checkout)
 OpenAI: Voice Agent (Realtime API via WebRTC) -- voz dos 3 assistentes
-Anthropic: Claude Opus 4 -- cerebro de dev do UltimateDEV
+Anthropic: Claude Opus 4 -- cerebro de dev do UltimateDEV (planejamento + geracao de codigo)
+GitHub Token: GITHUB_TOKEN no Render -- permite UltimateDEV fazer git push automatico
 
 ## FUNCIONALIDADES IMPLEMENTADAS
 
@@ -116,15 +117,30 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
   aprender_usuario, escrever_pensamento, fazer_backup, salvar_arquivo
 - CEREBRO: Claude Opus 4 (Anthropic) para planejamento e geracao de codigo
   - Voz continua OpenAI (unico com Realtime API via WebRTC)
-  - Claude recebe codigo COMPLETO dos arquivos (nao mais 3000 chars)
+  - Claude recebe codigo INTELIGENTE dos arquivos (contexto reduzido por keywords)
+    * MAX_LINES_PER_FILE = 800 linhas (sempre inclui primeiro 30 + ultimas 50)
+    * CONTEXT_RADIUS = 30 linhas ao redor de cada match de keyword
+    * Evita estouro de tokens (antigo problema de 203k tokens)
   - Suporta TODOS os arquivos do projeto (nao so server.js e index.html)
   - Fallback para GPT-4o se ANTHROPIC_API_KEY nao configurada
   - ARQUITETURA ASYNC: /api/dev/command retorna imediato, Claude processa em background
   - Frontend faz polling via GET /api/dev/status/:commandId a cada 3s
   - Fila de injecao no DataChannel com response.cancel antes de injetar
   - Prevencao de comando duplicado (interceptor bloqueado quando tool fires)
+  - RETRY AUTOMATICO: anthropicFetch() com 3 tentativas e backoff progressivo (5s/10s/15s)
+    * Lida com 429 (rate limit) e 529 (overloaded) automaticamente
+  - GIT AUTO-PUSH: Configura remote origin com GITHUB_TOKEN no Render
+    * Cria remote se nao existe, atualiza URL se existe
+    * Usa GITHUB_REPO env var ou fallback hardcoded
+  - REGRAS DE SEGURANCA no planning E code generation:
+    * NUNCA apagar funcionalidades sem autorizacao explicita
+    * NUNCA fazer rm/delete/drop/truncate em dados
+    * NUNCA modificar pagamento/auth/permissoes sem aprovacao
+    * Confirmar 2x antes de qualquer acao destrutiva
 - Tem consciencia TOTAL da arquitetura do app
-- Personalidade: assertivo, critico, bom gosto, faz perguntas
+- Personalidade: MELHOR AMIGO do Ramon, ponte e TRADUTOR entre ele e os agentes da squad
+  - NAO e fofoqueiro -- e companheiro de construcao
+  - Fala pausado e claro, questiona decisoes quando necessario
 - Funciona como PONTE entre o dono do app (Ramon, nao sabe programar) e o desenvolvedor (Claude)
 - Sistema Escriba: documenta automaticamente tudo a cada 2 minutos
 - Camera e tela: video via WebRTC a 2fps para OpenAI Realtime API vision
@@ -181,12 +197,16 @@ Linha ~7751: ULTIMATE_ADMIN_IDS (hardcoded UUIDs) + canUseUltimateVA()
 Linha ~8100-8300: Dev command endpoints -- planejamento ASYNC com Claude Opus 4 (Anthropic) + fallback GPT-4o
 Linha ~8300-8400: Dev ping endpoint (POST /api/dev/ping -- teste rapido de conexao)
 Linha ~8400-8600: _processDevPlan() e _processDevApproval() -- funcoes async em background
+  - anthropicFetch(): retry 3x com backoff progressivo (5s/10s/15s) em 429/529
+  - Contexto inteligente: MAX_LINES_PER_FILE=800, CONTEXT_RADIUS=30, keyword extraction
+  - Git auto-push: remote origin criado dinamicamente com GITHUB_TOKEN
+  - Regras de seguranca no system prompt (anti-destruicao)
 Linha ~8600-8700: GET /api/dev/status/:commandId -- polling endpoint
 Linha ~8700-8900: Dev diagnostico, approve (async), reject, learn, conversation endpoints
 Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
 Linha ~8800-9000: Dev history endpoint (GET /api/dev/history/:userId)
 Linha ~9000-9200: VA conversation persistence (vaConversations)
-Linha ~9200-10900: VA Config system, fetchWithTimeout, security audit fixes
+Linha ~9200-11000+: VA Config system, fetchWithTimeout, security audit fixes
 
 ### DB COLLECTIONS (Firebase):
 users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations
@@ -230,23 +250,26 @@ Linha ~14700-15200: Escriba, cleanup, init
 =================================================================
 
 ### ALTA PRIORIDADE:
-1. [QUASE PRONTO] UltimateDEV -> Claude: integracao com Dev Interceptor + Dev Log
-   - Bug de escopo do Dev Log CORRIGIDO (commit 361dca9)
-   - Interceptor reescrito com timeouts e logs (commit cf1ccd3)
-   - Botao PING para testar conexao (commit 205dba8)
-   - ARQUITETURA ASYNC com polling (commit d5f7ca8):
-     * /api/dev/command retorna IMEDIATO, Claude Opus 4 processa em background
-     * Novo endpoint GET /api/dev/status/:commandId para polling
-     * Frontend faz polling a cada 3s com feedback de progresso por voz
-     * Mesmo padrao para /api/dev/approve (execucao async)
-     * Zero timeout possivel - Claude pode demorar o quanto precisar
-   - Admin access: Ramon adicionado via ULTIMATE_ADMIN_IDS (commit beb8e63)
-   - Comando duplicado corrigido: interceptor bloqueado quando tool fires (commit 648b509)
-   - Injecao DC: response.cancel + fila com delays (commit 648b509)
-   - PING TESTADO E FUNCIONANDO: ok:true, Claude OK, tempo_ms:1328
-   - FLUXO TESTADO: voz -> interceptor -> Claude planeja -> plano retorna -> OpenAI auto-aprova
-   - ULTIMO BLOQUEIO: 429 rate_limit da Anthropic na geracao de codigo (pode ser temporario)
-   - PRECISA RETESTAR: fluxo completo apos rate limit resolver
+1. [QUASE 100%] UltimateDEV -> Claude: integracao com Dev Interceptor + Dev Log
+   - TESTADO VIA CHROME (25/02/2026 sessao 3):
+     * PING: OK (1.3s, Claude Opus 4 respondendo)
+     * COMANDO -> PLANO: OK (plano gerado em ~20-27s)
+     * APROVACAO -> CODIGO: OK (1/1 edicoes aplicadas com sucesso)
+     * GIT COMMIT: OK (git config user.email/name automatico no Render)
+     * GIT PUSH: CORRIGIDO (remote origin criado dinamicamente com GITHUB_TOKEN)
+   - FALTA TESTAR: push apos ultimo fix (commit fb755d8)
+     * O codigo agora cria remote origin se nao existe no Render
+     * Usa GITHUB_TOKEN env var + GITHUB_REPO (ou fallback hardcoded)
+   - Fixes aplicados nesta sessao:
+     * anthropicFetch() com retry 3x e backoff (429/529) -- commit cc30292
+     * Personalidade "amigo tradutor" (nao mais fofoqueira) -- commit 0626f72
+     * Contexto inteligente (800 linhas, raio 30) -- commits a7497f5, 95f52ac, 0626f72
+     * Git config automatico no Render -- commit 56ed8ff
+     * Regras de seguranca anti-destruicao -- commit 56ed8ff
+     * Remote origin dinamico com token -- commits b3106e3, c826dfa, fb755d8
+   - PROBLEMA CONHECIDO: devQueue esta em RAM, perde comandos quando Render faz redeploy
+     * Workaround: esperar 90-120s entre push e teste
+     * Solucao futura: persistir fila no Firebase
 
 2. TouchGames fluxo completo -- nunca foi testado end-to-end.
 
@@ -264,18 +287,19 @@ Linha ~14700-15200: Escriba, cleanup, init
 ## GIT LOG RECENTE (25/02/2026)
 =================================================================
 
+fb755d8 fix: criar remote origin no Render quando nao existe
+c826dfa fix: pegar URL do remote automaticamente em vez de hardcoded
+b3106e3 fix: configurar git remote origin com GITHUB_TOKEN para push no Render
+cc30292 feat: retry automatico com backoff em 429/529 da Anthropic API
+0626f72 fix: voltar Opus na geracao + personalidade amigo tradutor + contexto otimizado
+aea4495 perf: trocar Claude Opus por Sonnet 4 na geracao de codigo (revertido em 0626f72)
+95f52ac fix: aumentar contexto para geracao de codigo (600->1500 linhas, raio 15->40)
+a7497f5 fix: reduzir contexto do prompt de geracao de codigo (203k tokens -> ~30k max)
+56ed8ff fix: git config no Render + regras de seguranca anti-destruicao no UltimateDEV
+c5d8302 docs: atualizar PROMPT-NOVO-CHAT.md com status atual do UltimateDEV
 648b509 fix: evitar comando duplicado e erro conversation_already_has_active_response
 4a43b2d Add Spanish (LATAM), Japanese, and Russian UI translation files
-61c7f88 feat: add i18n API endpoints and integrate translated phrases
-13e5859 feat: add i18n system with language selector and country flag support
 beb8e63 fix: adicionar Ramon como admin do UltimateDEV via UUID
-d5f7ca8 refactor: arquitetura async com polling para UltimateDEV (corrigido)
-e79a5ac fix: trocar Claude Opus por Sonnet 4 para resolver timeout de 65s
-205dba8 feat: botao PING no Dev Log + endpoint /api/dev/ping para testar Claude
-d3f21f5 perf: 6 optimizations for 100k scale
-cf1ccd3 Update DEV INTERCEPTOR: enhance timeout handling and error reporting
-c2ded14 fix: nickname propagation + Google photo overwrite bugs
-361dca9 fix: bug critico de escopo no Dev Log - _devLiveLog inacessivel
 
 ## ROLLBACK RAPIDO
 
@@ -288,17 +312,20 @@ Se algo quebrar, voltar para commits estaveis:
 
 Apos rollback: git push --force origin main (CUIDADO: sobrescreve GitHub)
 
-## VARIAVEIS DE AMBIENTE (.env)
+## VARIAVEIS DE AMBIENTE (Render Dashboard)
 
-- FIREBASE_* (config do Firebase Admin SDK)
-- MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_PUBLIC_KEY
-- MP_REDIRECT_URI=https://touch-irl.com/mp/callback
-- APP_URL=https://touch-irl.com
-- OPENAI_API_KEY (para voz em tempo real dos 3 assistentes)
-- ANTHROPIC_API_KEY (cerebro de dev do UltimateDEV -- Claude Opus 4)
+Todas configuradas e verificadas em 25/02/2026:
 - ADMIN_SECRET (protege endpoints admin)
-- ALLOWED_ORIGINS (CORS)
-- STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY (quando ativar Apple Pay)
+- ANTHROPIC_API_KEY (cerebro de dev do UltimateDEV -- Claude Opus 4)
+- APP_URL=https://touch-irl.com
+- FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_AUTH_DOMAIN
+- FIREBASE_MESSAGING_SENDER_ID, FIREBASE_PROJECT_ID
+- FIREBASE_SERVICE_ACCOUNT, FIREBASE_STORAGE_BUCKET
+- GITHUB_REPO (repo do projeto no GitHub -- bavkiq-hUgby8-cittet/encosta)
+- GITHUB_TOKEN (Personal Access Token classic, permissao repo, sem expiracao)
+- MP_ACCESS_TOKEN, MP_APP_ID, MP_CLIENT_SECRET, MP_PUBLIC_KEY
+- MP_REDIRECT_URI, MP_WEBHOOK_SECRET
+- OPENAI_API_KEY (para voz em tempo real dos 3 assistentes)
 
 ## FLUXOS DE PAGAMENTO
 
