@@ -197,6 +197,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button data-t="fin">Financeiro</button>
     <button data-t="sys">Sistema</button>
     <button data-t="va">Prompts IA</button>
+    <button data-t="dev">DEV Monitor</button>
   </nav>
   <main>
     <!-- DASHBOARD -->
@@ -471,6 +472,36 @@ tr:hover td{background:rgba(255,255,255,.02)}
         </div>
       </div>
     </section>
+
+    <!-- DEV MONITOR -->
+    <section id="sDev">
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:10px;padding:12px 16px;flex:1;min-width:120px">
+          <div style="font-size:.7rem;color:rgba(255,255,255,.5)">Total Comandos</div>
+          <div id="dm-total" style="font-size:1.5rem;font-weight:700;color:#34d399">0</div>
+        </div>
+        <div style="background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);border-radius:10px;padding:12px 16px;flex:1;min-width:120px">
+          <div style="font-size:.7rem;color:rgba(255,255,255,.5)">Concluidos</div>
+          <div id="dm-done" style="font-size:1.5rem;font-weight:700;color:#60a5fa">0</div>
+        </div>
+        <div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:12px 16px;flex:1;min-width:120px">
+          <div style="font-size:.7rem;color:rgba(255,255,255,.5)">Pendentes</div>
+          <div id="dm-pending" style="font-size:1.5rem;font-weight:700;color:#fbbf24">0</div>
+        </div>
+        <div style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:12px 16px;flex:1;min-width:120px">
+          <div style="font-size:.7rem;color:rgba(255,255,255,.5)">Falhas</div>
+          <div id="dm-failed" style="font-size:1.5rem;font-weight:700;color:#f87171">0</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+        <div style="font-size:.7rem;color:rgba(255,255,255,.4)">Uptime: <span id="dm-uptime">-</span> | Anthropic: <span id="dm-anthropic">-</span> | GitHub: <span id="dm-github">-</span></div>
+        <button class="btn btn-ghost" style="margin-left:auto;font-size:.7rem;padding:4px 12px" onclick="loadDevMonitor()">Atualizar</button>
+        <label style="font-size:.7rem;color:rgba(255,255,255,.4);display:flex;align-items:center;gap:4px">
+          <input type="checkbox" id="dm-autorefresh" onchange="toggleDevAutoRefresh()"> Auto (5s)
+        </label>
+      </div>
+      <div id="dm-commands" style="max-height:600px;overflow-y:auto"></div>
+    </section>
   </main>
 </div>
 
@@ -524,7 +555,7 @@ function showLoginErr(m){const e=$('loginErr');e.textContent=m;e.classList.add('
 function doLogout(){_secret='';sessionStorage.removeItem('as');if(_dashIv)clearInterval(_dashIv);location.reload()}
 
 // ═══════ NAV ═══════
-const TABS={dash:'sDash',users:'sUsers',stars:'sStars',events:'sEvents',fin:'sFin',sys:'sSys',va:'sVa'};
+const TABS={dash:'sDash',users:'sUsers',stars:'sStars',events:'sEvents',fin:'sFin',sys:'sSys',va:'sVa',dev:'sDev'};
 let _curTab='dash';
 function initNav(){
   document.querySelectorAll('#navTabs button').forEach(b=>{
@@ -540,6 +571,7 @@ function initNav(){
       else if(_curTab==='events')loadEvents();
       else if(_curTab==='fin')loadFin();
       else if(_curTab==='va')loadVa();
+      else if(_curTab==='dev')loadDevMonitor();
     }
   })
 }
@@ -888,6 +920,64 @@ async function testVa(tier){
     const r=await api('POST','/api/va-config/test-prompt',{userId:'admin',tier,prompt:input.value.trim()});
     response.textContent=r.response||r.error||'Sem resposta';
   }catch(e){response.textContent='Erro: '+e.message}
+}
+
+// ═══════ DEV MONITOR ═══════
+let _dmInterval=null;
+async function loadDevMonitor(){
+  try{
+    const r=await fetch('/api/dev/monitor');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    $('dm-total').textContent=d.totalCommands||0;
+    $('dm-done').textContent=d.totalDone||0;
+    $('dm-pending').textContent=d.totalPlanned||0;
+    $('dm-failed').textContent=d.totalFailed||0;
+    $('dm-uptime').textContent=d.serverUptime?fmtUptime(parseInt(d.serverUptime)):'-';
+    $('dm-anthropic').textContent=d.anthropicKey?'OK':'MISSING';
+    $('dm-anthropic').style.color=d.anthropicKey?'#34d399':'#f87171';
+    $('dm-github').textContent=d.githubToken?'OK':'MISSING';
+    $('dm-github').style.color=d.githubToken?'#34d399':'#f87171';
+    renderDevCommands(d.users||[]);
+  }catch(e){
+    $('dm-commands').innerHTML='<div style="color:#f87171;padding:16px;text-align:center;font-size:.8rem">Erro ao carregar: '+esc(e.message)+'</div>';
+  }
+}
+function renderDevCommands(users){
+  const wrap=$('dm-commands');
+  if(!users.length){wrap.innerHTML='<div style="color:rgba(255,255,255,.4);padding:24px;text-align:center;font-size:.8rem">Nenhum comando dev registrado ainda.</div>';return}
+  let html='';
+  users.forEach(u=>{
+    html+='<div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden">';
+    html+='<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">';
+    html+='<div style="font-size:.8rem;font-weight:700;color:var(--t1)">'+esc(u.userName)+' <span style="color:var(--t3);font-weight:400;font-size:.65rem">'+esc(u.userId)+'</span></div>';
+    html+='<div style="font-size:.65rem;color:var(--t3)">'+u.total+' comando'+(u.total!==1?'s':'')+'</div>';
+    html+='</div>';
+    (u.commands||[]).forEach(c=>{
+      const statusColors={planned:'#fbbf24',approved:'#60a5fa',generating:'#a78bfa',done:'#34d399',plan_failed:'#f87171',error:'#f87171',rejected:'#6b7280'};
+      const color=statusColors[c.status]||'#6b7280';
+      html+='<div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.03)">';
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+      html+='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0"></span>';
+      html+='<span style="font-size:.72rem;font-weight:600;color:'+color+';text-transform:uppercase">'+esc(c.status)+'</span>';
+      html+='<span style="font-size:.6rem;color:var(--t3);margin-left:auto">'+esc(c.elapsed)+' atras</span>';
+      html+='</div>';
+      html+='<div style="font-size:.75rem;color:var(--t2);margin-bottom:4px">'+esc(c.instruction||'-')+'</div>';
+      if(c.plan)html+='<div style="font-size:.65rem;color:var(--t3);background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px;margin-top:4px;white-space:pre-wrap;max-height:100px;overflow-y:auto">Plano: '+esc(c.plan)+'</div>';
+      if(c.result)html+='<div style="font-size:.65rem;color:'+(c.status==='done'?'#34d399':'#f87171')+';background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px;margin-top:4px;white-space:pre-wrap;max-height:100px;overflow-y:auto">Resultado: '+esc(c.result)+'</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  wrap.innerHTML=html;
+}
+function toggleDevAutoRefresh(){
+  if($('dm-autorefresh').checked){
+    loadDevMonitor();
+    _dmInterval=setInterval(loadDevMonitor,5000);
+  }else{
+    if(_dmInterval){clearInterval(_dmInterval);_dmInterval=null}
+  }
 }
 
 // ═══════ INIT ═══════

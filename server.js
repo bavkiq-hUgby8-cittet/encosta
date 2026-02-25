@@ -8721,24 +8721,43 @@ VOCE TEM TOOLS. VOCE DEVE USA-LAS. SEM EXCECAO.
   "quem me deu estrela?" → consultar_rede()
 
 ═══ FLUXO DE DESENVOLVIMENTO ═══
-1. ${firstName} fala algo → você ENTENDE e TRADUZ em instrução técnica (comando_dev)
-2. Servidor gera plano via GPT-4o automaticamente (~5-10 segundos)
-3. Você RESUME o plano de forma simples e pergunta se aprova
-4. ${firstName} aprova por voz → você chama aprovar_plano
-5. Código é gerado, aplicado, commitado e pushado automaticamente (~15-30 segundos)
-6. Você confirma o resultado
+1. ${firstName} fala algo → voce ENTENDE e TRADUZ em instrucao tecnica (comando_dev)
+2. Claude Opus gera plano automaticamente (~10-20 segundos)
+3. Voce RESUME o plano de forma simples e pergunta se aprova
+4. ${firstName} aprova por voz → voce chama aprovar_plano
+5. Codigo e gerado, aplicado, commitado e pushado automaticamente (~30-90 segundos)
+6. Voce confirma o resultado e explica o que foi feito
 
-IMPORTANTE SOBRE TIMING:
-- comando_dev: demora ~5-10 segundos pra gerar o plano
-- aprovar_plano: demora ~15-30 segundos pra gerar código + aplicar + git push
-- Avise ${firstName} sobre esses tempos: "vai levar uns 10 segundos" / "tá processando, uns 20 segundos"
+═══ REGRA CRITICA: UM COMANDO POR VEZ ═══
+- NUNCA mande mais de UM comando_dev por vez. Espere o anterior TERMINAR completamente antes de enviar outro.
+- O limite da API e 30.000 tokens por minuto. Se voce mandar 2 comandos seguidos, VAI dar erro 429 (rate limit).
+- TEMPO MINIMO entre comandos: 60 SEGUNDOS. Sem excecao.
+- Se o usuario pedir varias mudancas de uma vez, agrupe TUDO em UMA UNICA instrucao bem detalhada.
+- Exemplo CORRETO: "Mudar fundo verde pra branco E mudar cor do texto pra preto" (1 comando so)
+- Exemplo ERRADO: mandar "mudar fundo" e depois "mudar texto" separado (2 comandos = erro)
+- Se voce receber um [SISTEMA] dizendo que esta processando, NAO mande outro comando. ESPERE.
 
-═══ COMUNICAÇÃO COM O DESENVOLVEDOR ═══
-Quando criar comando_dev, escreva instruções CLARAS e COMPLETAS:
-- ONDE mudar (arquivo, seção, função)
+═══ PACIENCIA E EXPECTATIVAS ═══
+- Claude Opus demora pra pensar. Isso e NORMAL. Nao se desespere.
+- Plano: 10-20 segundos. Diga: "O Claude ta pensando, espera uns 15 segundos."
+- Geracao de codigo: 30-90 segundos. Diga: "Ta gerando o codigo, pode levar ate 1 minuto."
+- Se demorar mais de 2 minutos, AI sim diga que algo pode ter dado errado.
+- NUNCA diga "deu erro" so porque demorou. Demora e NORMAL.
+
+═══ FEEDBACK DE RESULTADO ═══
+- Quando voce receber uma mensagem [SISTEMA] dizendo "Codigo aplicado, commitado e pushado", diga pro usuario: "Deu certo! O codigo ja foi pro GitHub. Depois do deploy (uns 90 segundos) voce pode ver a mudanca."
+- Quando receber [SISTEMA] com erro, explique CLARAMENTE o que aconteceu e sugira tentar de novo.
+- Se receber "rate_limit", diga: "A gente mandou comandos rapido demais. Espera 1 minuto e tenta de novo."
+- NUNCA invente que algo deu certo ou errado. Espere a mensagem do [SISTEMA] e repasse FIELMENTE.
+- Se nao recebeu nenhum [SISTEMA] ainda, diga "Ainda ta processando, vamos aguardar."
+
+═══ COMUNICACAO COM O DESENVOLVEDOR ═══
+Quando criar comando_dev, escreva instrucoes CLARAS e COMPLETAS:
+- ONDE mudar (arquivo, secao, funcao)
 - O QUE mudar (comportamento atual vs desejado)
-- COMO deve ficar (visual, lógica, UX)
-- Contexto relevante (por que essa mudança)
+- COMO deve ficar (visual, logica, UX)
+- Contexto relevante (por que essa mudanca)
+- Se o usuario pediu varias coisas, AGRUPE TUDO em uma instrucao so
 
 ═══ VISÃO — CÂMERA E TELA ═══
 Se o usuário ativar câmera ou compartilhar tela, você PODE VER o que ele vê.
@@ -9108,6 +9127,36 @@ app.get('/api/dev/queue/:userId', (req, res) => {
   res.json({ queue: bank.devQueue.slice(-20).reverse() });
 });
 
+// ── DEV MONITOR — painel admin em tempo real ──
+app.get('/api/dev/monitor', (req, res) => {
+  // Retorna estado de TODOS os users com devQueue (admin only - sem auth por enquanto pra simplificar)
+  const result = { users: [], totalCommands: 0, totalPlanned: 0, totalDone: 0, totalFailed: 0 };
+  for (const uid of Object.keys(db.ultimateBank || {})) {
+    const bank = db.ultimateBank[uid];
+    if (!bank || !bank.devQueue || !bank.devQueue.length) continue;
+    const user = db.users[uid];
+    const userName = user ? (user.name || user.nickname || uid.slice(0,8)) : uid.slice(0,8);
+    const commands = (bank.devQueue || []).slice(-30).map(c => ({
+      id: c.id, status: c.status, instruction: (c.instruction || '').slice(0, 150),
+      plan: c.plan ? (c.plan).slice(0, 300) : null,
+      result: c.result ? (c.result).slice(0, 300) : null,
+      ts: c.ts, approvedAt: c.approvedAt,
+      elapsed: c.ts ? Math.round((Date.now() - c.ts) / 1000) + 's' : '?'
+    }));
+    result.users.push({ userId: uid.slice(0,8), userName, commands, total: commands.length });
+    commands.forEach(c => {
+      result.totalCommands++;
+      if (c.status === 'planned') result.totalPlanned++;
+      if (c.status === 'done') result.totalDone++;
+      if (c.status === 'plan_failed' || c.status === 'error') result.totalFailed++;
+    });
+  }
+  result.serverUptime = Math.round(process.uptime()) + 's';
+  result.anthropicKey = !!process.env.ANTHROPIC_API_KEY;
+  result.githubToken = !!process.env.GITHUB_TOKEN;
+  res.json(result);
+});
+
 // Background async function - processes code generation without blocking HTTP
 async function _processDevApproval(userId, commandId) {
   console.log('[DEV] Background approval started for', commandId);
@@ -9173,22 +9222,33 @@ REGRAS DE SEGURANCA (INVIOLAVEIS):
 
 ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
-    // Limitar contexto para Opus ficar rapido (~40k tokens max, ~30s)
-    const MAX_LINES_PER_FILE = 800; // 800 linhas max por arquivo
-    const CONTEXT_RADIUS = 30; // 30 linhas antes/depois de cada match
+    // Limitar contexto para Opus ficar rapido (~20k tokens max, ~20s)
+    const MAX_LINES_PER_FILE = 400;
+    const CONTEXT_RADIUS = 12;
+    // Palavras comuns a ignorar na busca por keywords
+    const STOP_WORDS = new Set(['para','como','onde','quando','esse','essa','este','esta','isso','isto','fazer','deve','pode','todo','toda','todos','todas','mais','menos','muito','tambem','voce','apenas','nada','algo','cada','outro','outra','qual','quem','tipo','aqui','agora','ainda','pelo','pela','sobre','entre','apos','antes','depois','mesmo','desde','sera','sido','sido','have','with','that','this','from','what','which','where','when','your','their','them','have','been','would','could','should','about','there','these','those','other','some','only','also','just','than','then','into','over','such','more','most','after','before']);
     const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
-      const lines = content.split('\n');
+      let lines = content.split('\n');
+      // Para HTML: pular bloco <style>...</style> inteiro (CSS nao ajuda na geracao de codigo)
+      if (f.endsWith('.html')) {
+        let inStyle = false;
+        lines = lines.filter(l => {
+          const lt = l.trim().toLowerCase();
+          if (lt === '<style>' || lt.startsWith('<style>')) { inStyle = true; return false; }
+          if (inStyle && (lt === '</style>' || lt.includes('</style>'))) { inStyle = false; return false; }
+          return !inStyle;
+        });
+      }
       if (lines.length <= MAX_LINES_PER_FILE) {
-        // Arquivo pequeno: enviar tudo
         return `=== ${f} (${lines.length} linhas) ===\n${lines.map((l, i) => `${i+1}: ${l}`).join('\n')}`;
       }
-      // Arquivo grande: enviar apenas trechos relevantes baseados no plano + instrucao
-      const keywords = (cmd.instruction + ' ' + (cmd.plan || '')).toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      // Arquivo grande: trechos relevantes baseados no plano + instrucao
+      const rawWords = (cmd.instruction + ' ' + (cmd.plan || '')).toLowerCase().split(/\s+/);
+      const keywords = rawWords.filter(w => w.length > 3 && !STOP_WORDS.has(w));
       const includedRanges = new Set();
-      // Sempre incluir primeiras 30 e ultimas 50 linhas (imports + app.listen)
-      for (let i = 0; i < Math.min(30, lines.length); i++) includedRanges.add(i);
-      for (let i = Math.max(0, lines.length - 50); i < lines.length; i++) includedRanges.add(i);
-      // Buscar trechos relevantes por keywords
+      // Primeiras 20 linhas (imports) + ultimas 30 linhas (app.listen, init)
+      for (let i = 0; i < Math.min(20, lines.length); i++) includedRanges.add(i);
+      for (let i = Math.max(0, lines.length - 30); i < lines.length; i++) includedRanges.add(i);
       for (let i = 0; i < lines.length; i++) {
         const ln = lines[i].toLowerCase();
         if (keywords.some(kw => ln.includes(kw))) {
@@ -9197,7 +9257,6 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           }
         }
       }
-      // Converter ranges para blocos contiguos e limitar total
       const sortedLines = Array.from(includedRanges).sort((a, b) => a - b);
       if (sortedLines.length > MAX_LINES_PER_FILE) sortedLines.length = MAX_LINES_PER_FILE;
       const chunks = [];
@@ -9207,7 +9266,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
         chunks.push(`${idx + 1}: ${lines[idx]}`);
         prevIdx = idx;
       }
-      return `=== ${f} (${lines.length} linhas, mostrando ${sortedLines.length} relevantes) ===\n${chunks.join('\n')}`;
+      return `=== ${f} (${content.split('\n').length} linhas total, mostrando ${sortedLines.length} relevantes) ===\n${chunks.join('\n')}`;
     }).join('\n\n');
     console.log('[DEV] Contexto gerado:', fileContextStr.length, 'chars (~', Math.round(fileContextStr.length / 4), 'tokens)');
 

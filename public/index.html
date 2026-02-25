@@ -15369,7 +15369,19 @@ const VA = (function(){
   }
 
   // ── ULTIMATEDEV TOOL HANDLERS ──
+  var _lastDevCommandTime = 0;
+  var _devCommandCooldown = 60000; // 60 segundos entre comandos
   async function handleComandoDev(instrucao,callId){
+    // Rate limit: 1 comando por minuto
+    var now = Date.now();
+    var elapsed = now - _lastDevCommandTime;
+    if(elapsed < _devCommandCooldown && _lastDevCommandTime > 0){
+      var wait = Math.ceil((_devCommandCooldown - elapsed) / 1000);
+      _devAddLiveLog('warn', 'COOLDOWN', 'Aguarde ' + wait + 's antes do proximo comando');
+      _sendToolResult(callId, 'AGUARDE! Voce precisa esperar ' + wait + ' segundos antes de enviar outro comando. O limite e 1 comando por minuto pra nao estourar o rate limit da API. Diga pro usuario esperar.');
+      return;
+    }
+    _lastDevCommandTime = now;
     _showVaActivity('Enviando comando...','Claude Opus esta analisando');
     try{
       console.log('[CMD-DEV] v3 Enviando:', instrucao&&instrucao.slice(0,80), 'userId:', state.userId);
