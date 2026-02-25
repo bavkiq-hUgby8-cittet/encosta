@@ -7748,7 +7748,9 @@ function canUsePremiumVA(userId) {
 const canUseProVA = canUsePremiumVA; // alias — same logic
 
 // Check if user can use UltimateDEV VA (top 01 / admin only)
+const ULTIMATE_ADMIN_IDS = ['72a10d64-05f2-4790-a67a-bdd98f43f0b0']; // Ramon (owner)
 function canUseUltimateVA(userId) {
+  if (ULTIMATE_ADMIN_IDS.includes(userId)) return true;
   const user = db.users[userId];
   if (!user) return false;
   if (user.isAdmin) return true;
