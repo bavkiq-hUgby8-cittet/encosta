@@ -1422,19 +1422,32 @@ const ALL_PHRASES = [...PHRASES.primeiro, ...PHRASES.geral, ...PHRASES.evento, .
 
 function randomPhrase() { return FIRST_PHRASES[Math.floor(Math.random() * FIRST_PHRASES.length)]; }
 
-// Smart phrase selection based on encounter count
-function smartPhrase(userAId, userBId) {
+// Helper: get user's language preference
+function getUserLang(userId) {
+  if (!userId) return 'pt-br';
+  const user = db.users[userId];
+  return (user && user.lang) ? user.lang : 'pt-br';
+}
+
+// Helper: get smart category name (primeiro, reencontro2, reencontro3a5, etc.)
+function getSmartPhraseCategory(userAId, userBId) {
   const encounters = (db.encounters[userAId] || []).filter(e => e.with === userBId);
   const count = encounters.length; // how many times they've met BEFORE this one
-  let pool;
-  if (count === 0) pool = PHRASES.primeiro;
-  else if (count === 1) pool = PHRASES.reencontro2;
-  else if (count <= 4) pool = PHRASES.reencontro3a5;
-  else if (count <= 9) pool = PHRASES.reencontro6a10;
-  else pool = PHRASES.reencontro11;
-  // Mix in some general phrases (20% chance)
-  if (Math.random() < 0.2) pool = [...pool, ...PHRASES.geral];
-  return pool[Math.floor(Math.random() * pool.length)];
+  if (count === 0) return 'primeiro';
+  else if (count === 1) return 'reencontro2';
+  else if (count <= 4) return 'reencontro3a5';
+  else if (count <= 9) return 'reencontro6a10';
+  else return 'reencontro11';
+}
+
+// Smart phrase selection based on encounter count (uses i18n)
+function smartPhrase(userAId, userBId, lang) {
+  lang = lang || getUserLang(userAId);
+  const category = getSmartPhraseCategory(userAId, userBId);
+  const phrase = getPhrase(category, lang);
+  // If no phrase found, try geral (general) category
+  if (!phrase) return getPhrase('geral', lang);
+  return phrase;
 }
 
 function getPhrase(category, lang) {
@@ -1573,17 +1586,40 @@ const ZODIAC_PHRASES = {
   ]
 };
 
-function getZodiacPhrase(signA, signB) {
+function getZodiacPhrase(signA, signB, lang) {
   if (!signA || !signB) return null;
+  lang = lang || 'pt-br';
   const infoA = ZODIAC_INFO[signA];
   const infoB = ZODIAC_INFO[signB];
   if (!infoA || !infoB) return null;
-  // Build element key (sorted to match)
+
+  // Try i18n zodiac first
+  if (zodiacI18n[lang] && zodiacI18n[lang].combinations) {
+    // Build element key (sorted, with underscores for i18n files)
+    const elems = [infoA.element, infoB.element].sort();
+    const elemNames = elems.map(e => {
+      if (e === 'fogo') return 'fire';
+      if (e === 'terra') return 'earth';
+      if (e === 'ar') return 'air';
+      if (e === 'agua') return 'water';
+      return e;
+    });
+    const keyI18n = elemNames[0] + '_' + elemNames[1];
+    const phrasesI18n = zodiacI18n[lang].combinations[keyI18n];
+    if (phrasesI18n && phrasesI18n.length > 0) {
+      return phrasesI18n[Math.floor(Math.random() * phrasesI18n.length)];
+    }
+  }
+
+  // Fallback to hardcoded Portuguese (ZODIAC_PHRASES)
   const elems = [infoA.element, infoB.element].sort();
   const key = elems[0] + '+' + elems[1];
   const phrases = ZODIAC_PHRASES[key];
-  if (!phrases || !phrases.length) return null;
-  return phrases[Math.floor(Math.random() * phrases.length)];
+  if (phrases && phrases.length > 0) {
+    return phrases[Math.floor(Math.random() * phrases.length)];
+  }
+
+  return null;
 }
 
 // Helper: record encounter trace (v2 — uses classifyEncounter for smart points)
@@ -1908,7 +1944,8 @@ app.post('/api/touch-link/connect', (req, res) => {
   if (visitor.id === owner.id) return res.status(400).json({ error: 'Não pode dar touch em si mesmo.' });
   // Create relation
   const now = Date.now();
-  const phrase = smartPhrase(owner.id, visitor.id);
+  const ownerLang = getUserLang(owner.id);
+  const phrase = smartPhrase(owner.id, visitor.id, ownerLang);
   const relationId = uuidv4();
   // Check existing (O(1) via index)
   const existing = findActiveRelation(owner.id, visitor.id);
@@ -1931,7 +1968,7 @@ app.post('/api/touch-link/connect', (req, res) => {
   // Notify owner
   const signOwner = getZodiacSign(owner.birthdate);
   const signVisitor = getZodiacSign(visitor.birthdate);
-  const zodiacPhrase = getZodiacPhrase(signOwner, signVisitor);
+  const zodiacPhrase = getZodiacPhrase(signOwner, signVisitor, ownerLang);
   const pairEncAll = (db.encounters[owner.id] || []).filter(e => e.with === visitor.id);
   const pairEncounters = pairEncAll.length;
   const now24h = Date.now() - 86400000;
@@ -2181,20 +2218,22 @@ app.post('/api/session/join', (req, res) => {
   const existing = findActiveRelation(relA, relB);
 
   let relationId, phrase, expiresAt;
-  const getPhrase = () => {
-    if (isSessionCheckin) return PHRASES.evento[Math.floor(Math.random() * PHRASES.evento.length)];
-    if (session.isServiceTouch) return PHRASES.servico[Math.floor(Math.random() * PHRASES.servico.length)];
-    return smartPhrase(session.userA, session.userB);
+  // Get language for userA (who initiated the session)
+  const userALang = getUserLang(session.userA);
+  const getPhraseForSession = () => {
+    if (isSessionCheckin) return getPhrase('evento', userALang);
+    if (session.isServiceTouch) return getPhrase('servico', userALang);
+    return smartPhrase(session.userA, session.userB, userALang);
   };
 
   if (existing) {
     existing.expiresAt = now + 86400000;
-    existing.phrase = getPhrase();
+    existing.phrase = getPhraseForSession();
     existing.renewed = (existing.renewed || 0) + 1;
     existing.provocations = {};
     relationId = existing.id; phrase = existing.phrase; expiresAt = existing.expiresAt;
   } else {
-    phrase = getPhrase();
+    phrase = getPhraseForSession();
     relationId = uuidv4();
     db.relations[relationId] = { id: relationId, userA: relA, userB: relB, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, eventId: sessionEventId, isEventCheckin: isSessionCheckin && !!sessionEventId };
     idxAddRelation(relationId, relA, relB);
@@ -2227,7 +2266,7 @@ app.post('/api/session/join', (req, res) => {
 
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
-  const zodiacPhrase = (isSessionCheckin || session.isServiceTouch) ? null : getZodiacPhrase(signA, signB);
+  const zodiacPhrase = (isSessionCheckin || session.isServiceTouch) ? null : getZodiacPhrase(signA, signB, userALang);
   const zodiacInfoA = signA ? ZODIAC_INFO[signA] : null;
   const zodiacInfoB = signB ? ZODIAC_INFO[signB] : null;
 
@@ -4852,11 +4891,12 @@ app.get('/api/horoscope/:relationId/:userId', (req, res) => {
   const userA = db.users[rel.userA];
   const userB = db.users[rel.userB];
   if (!userA || !userB) return res.json({ error: 'Usuários não encontrados.' });
+  const requestingUserLang = getUserLang(req.params.userId);
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
   const infoA = signA ? ZODIAC_INFO[signA] : null;
   const infoB = signB ? ZODIAC_INFO[signB] : null;
-  const phrase = getZodiacPhrase(signA, signB);
+  const phrase = getZodiacPhrase(signA, signB, requestingUserLang);
   if (!phrase) return res.json({ error: 'Signos não disponíveis.' });
   const nameA = userA.nickname || userA.name;
   const nameB = userB.nickname || userB.name;
@@ -4943,7 +4983,8 @@ function createSonicConnection(userIdA, userIdB) {
   const eventId = operatorEntry ? operatorEntry.eventId : null;
   const serviceProviderId = isServiceTouch ? (entryA && entryA.isServiceTouch ? userIdA : (entryB && entryB.isServiceTouch ? userIdB : (userA.isPrestador ? userIdA : userIdB))) : null;
 
-  const phrase = isCheckin ? PHRASES.evento[Math.floor(Math.random() * PHRASES.evento.length)] : (isServiceTouch ? PHRASES.servico[Math.floor(Math.random() * PHRASES.servico.length)] : smartPhrase(userIdA, userIdB));
+  const userALang = getUserLang(userIdA);
+  const phrase = isCheckin ? getPhrase('evento', userALang) : (isServiceTouch ? getPhrase('servico', userALang) : smartPhrase(userIdA, userIdB, userALang));
   const encounterType = isCheckin ? 'checkin' : (isServiceTouch ? 'service' : 'physical');
 
   // For check-ins: relation is between VISITOR and EVENT (not operator personally)
@@ -5078,7 +5119,7 @@ function createSonicConnection(userIdA, userIdB) {
   saveDB('relations', 'messages', 'encounters');
   const signA = getZodiacSign(userA.birthdate);
   const signB = getZodiacSign(userB.birthdate);
-  const zodiacPhrase = (isCheckin || isServiceTouch) ? null : getZodiacPhrase(signA, signB);
+  const zodiacPhrase = (isCheckin || isServiceTouch) ? null : getZodiacPhrase(signA, signB, userALang);
   const operatorUser = operatorId ? db.users[operatorId] : null;
   // Check if operator requires reveal
   const opRequireReveal = operatorUser && operatorUser.operatorSettings && operatorUser.operatorSettings.requireReveal;
