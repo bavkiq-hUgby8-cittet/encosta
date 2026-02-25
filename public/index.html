@@ -14517,22 +14517,70 @@ const VA = (function(){
     _sendToolResult(callId,'Pulse enviado no chat ativo! A outra pessoa vai sentir a vibração.');
   }
 
+  // ── POLLING HELPER — para monitorar status de dev commands ──
+  function _devPollStatus(commandId, onProgress, onDone, onError) {
+    var startTime = Date.now();
+    var interval = setInterval(function() {
+      fetch('/api/dev/status/' + commandId + '?userId=' + state.userId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var elapsed = Math.round((Date.now() - startTime) / 1000);
+          if (data.status === 'planning' || data.status === 'executing') {
+            onProgress(data.status, elapsed);
+          } else {
+            clearInterval(interval);
+            if (data.status === 'planned' || data.status === 'done') {
+              onDone(data);
+            } else {
+              onError(data.error || 'Status: ' + data.status);
+            }
+          }
+        })
+        .catch(function(err) {
+          clearInterval(interval);
+          onError(err.message);
+        });
+    }, 3000);
+    return interval;
+  }
+
   // ── ULTIMATEDEV TOOL HANDLERS ──
   async function handleComandoDev(instrucao,callId){
-    _showVaActivity('Gerando plano...','Claude Sonnet esta analisando o pedido');
+    _showVaActivity('Enviando comando...','Claude esta analisando o pedido');
     try{
-      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 95000);
+      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 10000);
       const data=await r.json();
-      _hideVaActivity();
-      if(data.plan){
-        // Save conversation
-        fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Comando: '+instrucao})});
-        fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+data.plan})});
-        _sendToolResult(callId,'Comando criado! ID: '+data.id+'\n\nPlano gerado:\n'+data.plan+'\n\nPergunta pro usuario se ele quer aprovar este plano. Se sim, use aprovar_plano com ID '+data.id);
+      if(data.id && data.status === 'planning'){
+        // Start polling for the plan
+        var pollCount = 0;
+        var planInterval = _devPollStatus(data.id,
+          function(status, elapsed){
+            console.log('[DEV] Polling... status=' + status + ', elapsed=' + elapsed + 's');
+            pollCount++;
+            if(pollCount % 5 === 0) {
+              _devInjectMsg('[SISTEMA] Claude esta processando seu pedido... ' + elapsed + 's');
+            }
+          },
+          function(result){
+            _hideVaActivity();
+            if(result.plan){
+              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Comando: '+instrucao})});
+              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+result.plan})});
+              _sendToolResult(callId,'Comando criado! ID: '+result.id+'\n\nPlano gerado:\n'+result.plan+'\n\nPergunta pro usuario se ele quer aprovar este plano. Se sim, use aprovar_plano com ID '+result.id);
+            }else{
+              _sendToolResult(callId,'Erro ao gerar plano: '+(result.error||'desconhecido')+'. Explique ao usuario.');
+            }
+          },
+          function(err){
+            _hideVaActivity();
+            _sendToolResult(callId,'Erro: '+err+'. Tente de novo.');
+          }
+        );
       }else{
-        _sendToolResult(callId,'Erro ao gerar plano: '+(data.error||'desconhecido')+'. Explique o erro ao usuario.');
+        _hideVaActivity();
+        _sendToolResult(callId,'Erro ao criar comando: '+(data.error||'desconhecido'));
       }
-    }catch(e){_hideVaActivity();_sendToolResult(callId,'Erro de conexao: '+e.message+'. O servidor pode estar lento. Diga pro usuario tentar de novo.');}
+    }catch(e){_hideVaActivity();_sendToolResult(callId,'Erro de conexao: '+e.message);}
   }
 
   async function handleVerFilaDev(callId){
@@ -14546,20 +14594,41 @@ const VA = (function(){
   }
 
   async function handleAprovarPlano(id,callId){
-    _showVaActivity('Executando codigo...','Claude Sonnet gerando + aplicando edicoes');
+    _showVaActivity('Aprovando plano...','Enviando para Claude gerar codigo');
     try{
-      const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 120000);
-      _hideVaActivity();
+      const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 10000);
       const data=await r.json();
-      if(data.success){
-        fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Aprovei plano '+id})});
-        var editOk=data.edits?data.edits.filter(function(e){return e.ok}).length:0;
-        var gitStatus=data.status==='done'?' Git commit e push OK!':data.status==='git_failed'?' AVISO: edicoes aplicadas mas git falhou.':' Processando git...';
-        _sendToolResult(callId,'Plano '+id+' executado com sucesso! '+editOk+' edicoes aplicadas.'+gitStatus+' Motor: '+(data.engine||'?')+'. Avise o usuario que ta feito e pergunte se quer testar!');
+      if(data.status === 'executing'){
+        // Start polling for completion
+        var pollCount = 0;
+        var execInterval = _devPollStatus(id,
+          function(status, elapsed){
+            console.log('[DEV] Exec polling... status=' + status + ', elapsed=' + elapsed + 's');
+            pollCount++;
+            if(pollCount % 5 === 0) {
+              _devInjectMsg('[SISTEMA] Claude esta gerando codigo e aplicando... ' + elapsed + 's');
+            }
+          },
+          function(result){
+            _hideVaActivity();
+            if(result.status === 'done' || result.status === 'partial'){
+              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Aprovei plano '+id})});
+              var msg = result.status === 'done' ? 'Sucesso! Codigo foi aplicado, commitado e pushado no GitHub.' : 'Codigo foi aplicado mas git falhou. Tente fazer push manualmente.';
+              _sendToolResult(callId,'Plano '+id+' executado! '+msg+' Avise o usuario que esta feito e pergunte se quer testar!');
+            }else{
+              _sendToolResult(callId,'Erro: '+(result.error||'desconhecido')+'. Explique ao usuario.');
+            }
+          },
+          function(err){
+            _hideVaActivity();
+            _sendToolResult(callId,'Erro: '+err+'. Tente de novo.');
+          }
+        );
       }else{
-        _sendToolResult(callId,'Erro na execucao: '+(data.error||'desconhecido')+'. Explique o erro pro usuario e pergunte se quer tentar de novo.');
+        _hideVaActivity();
+        _sendToolResult(callId,'Erro ao aprovar: '+(data.error||'desconhecido'));
       }
-    }catch(e){_hideVaActivity();_sendToolResult(callId,'Timeout ou erro: '+e.message+'. A operacao pode ter sido muito longa. Diga pro usuario aguardar e tentar de novo.');}
+    }catch(e){_hideVaActivity();_sendToolResult(callId,'Erro de conexao: '+e.message);}
   }
 
   async function handleRejeitarPlano(id,motivo,callId){
@@ -14628,7 +14697,7 @@ const VA = (function(){
     _devInterceptCooldown = Date.now();
     console.log('[INTERCEPTOR] DETECTOU! Enviando pro Claude:', transcript.slice(0,80));
     _devAddLiveLog('info', 'INTERCEPTOR: Detectou pedido dev', transcript.slice(0,100));
-    _devAddLiveLog('tool', 'Enviando pro Claude Sonnet...', 'Aguarde ~5-15s');
+    _devAddLiveLog('tool', 'Enviando pro Claude Opus 4...', 'Aguarde ~10-120s');
     _showVaActivity('Enviando pro Claude...', 'Interceptor ativo');
 
     // Safety: libera interceptor se travar
@@ -14644,28 +14713,51 @@ const VA = (function(){
     _fetchWithTimeout('/api/dev/command', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ userId: state.userId, instruction: transcript })
-    }, 95000).then(function(r){
+    }, 10000).then(function(r){
       console.log('[INTERCEPTOR] HTTP', r.status);
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
     }).then(function(data){
-      clearTimeout(_devInterceptTimeout);
-      _devInterceptPending = false; _hideVaActivity();
-      console.log('[INTERCEPTOR] Resposta:', JSON.stringify(data).slice(0,200));
-      if(data.plan){
-        _devAddLiveLog('result', 'Plano OK! ID: '+data.id, (data.plan||'').slice(0,200));
-        fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+(data.plan||'').slice(0,300)})}).catch(function(){});
-        _devInjectMsg('[SISTEMA] Claude gerou plano. Resuma em 2 frases e pergunte se quer aprovar.\nID: '+data.id+'\nPlano:\n'+(data.plan||'').slice(0,500)+'\nSe aprovar, chame aprovar_plano com ID '+data.id);
+      if(data.id && data.status === 'planning'){
+        _devAddLiveLog('info', 'Comando criado', 'ID: '+data.id+' - aguardando plano');
+        console.log('[INTERCEPTOR] Command created, starting poll...');
+        var pollCount = 0;
+        var pollInterval = _devPollStatus(data.id,
+          function(status, elapsed){
+            console.log('[INTERCEPTOR] Polling... status=' + status + ', elapsed=' + elapsed + 's');
+            if(pollCount % 5 === 0) {
+              _devAddLiveLog('info', 'Processando', 'Claude analisando... ' + elapsed + 's');
+            }
+            pollCount++;
+          },
+          function(result){
+            clearTimeout(_devInterceptTimeout);
+            _devInterceptPending = false; _hideVaActivity();
+            _devAddLiveLog('result', 'Plano OK! ID: '+result.id, (result.plan||'').slice(0,200));
+            fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+(result.plan||'').slice(0,300)})}).catch(function(){});
+            _devInjectMsg('[SISTEMA] Claude gerou plano. Resuma em 2 frases e pergunte se quer aprovar.\nID: '+result.id+'\nPlano:\n'+(result.plan||'').slice(0,500)+'\nSe aprovar, chame aprovar_plano com ID '+result.id);
+          },
+          function(err){
+            clearTimeout(_devInterceptTimeout);
+            _devInterceptPending = false; _hideVaActivity();
+            console.error('[INTERCEPTOR] ERRO:', err);
+            _devAddLiveLog('error', 'Erro ao gerar plano', err);
+            _devInjectMsg('[SISTEMA] Erro: '+err+'. Avise o usuario.');
+          }
+        );
       } else {
-        _devAddLiveLog('error', 'Plano falhou', data.error||'?');
-        _devInjectMsg('[SISTEMA] Erro ao gerar plano: '+(data.error||'?')+'. Avise o usuario.');
+        clearTimeout(_devInterceptTimeout);
+        _devInterceptPending = false; _hideVaActivity();
+        console.error('[INTERCEPTOR] Bad response:', JSON.stringify(data).slice(0,200));
+        _devAddLiveLog('error', 'Resposta invalida', data.error||'?');
+        _devInjectMsg('[SISTEMA] Erro: '+(data.error||'desconhecido')+'. Avise o usuario.');
       }
     }).catch(function(err){
       clearTimeout(_devInterceptTimeout);
       _devInterceptPending = false; _hideVaActivity();
       console.error('[INTERCEPTOR] ERRO:', err.message);
-      _devAddLiveLog('error', err.message, 'Verifique F12 e ANTHROPIC_API_KEY no Render');
+      _devAddLiveLog('error', err.message, 'Verifique F12 e ANTHROPIC_API_KEY');
       _devInjectMsg('[SISTEMA] Erro: '+err.message+'. Avise o usuario.');
     });
   }
