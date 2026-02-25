@@ -9372,15 +9372,22 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
       if (ghToken) {
         try {
-          const remoteUrl = `https://${ghToken}@github.com/ramonveloso/touch-irl.git`;
-          await execFileAsync('git', ['-C', __dirname, 'remote', 'set-url', 'origin', remoteUrl], { timeout: 5000 });
+          // Pegar URL atual do remote e injetar token
+          const { stdout: currentUrl } = await execFileAsync('git', ['-C', __dirname, 'remote', 'get-url', 'origin'], { timeout: 5000 });
+          const cleanUrl = currentUrl.trim();
+          let authedUrl = cleanUrl;
+          if (cleanUrl.startsWith('https://') && !cleanUrl.includes('@')) {
+            // https://github.com/user/repo.git -> https://TOKEN@github.com/user/repo.git
+            authedUrl = cleanUrl.replace('https://', `https://${ghToken}@`);
+          } else if (cleanUrl.includes('@') && !cleanUrl.includes(ghToken)) {
+            // Ja tem credencial antiga, substituir
+            authedUrl = cleanUrl.replace(/https:\/\/[^@]+@/, `https://${ghToken}@`);
+          }
+          if (authedUrl !== cleanUrl) {
+            await execFileAsync('git', ['-C', __dirname, 'remote', 'set-url', 'origin', authedUrl], { timeout: 5000 });
+          }
         } catch (remoteErr) {
           console.warn('[DEV] Git remote config warning:', remoteErr.message);
-          // Se set-url falhar, tentar adicionar
-          try {
-            const remoteUrl = `https://${ghToken}@github.com/ramonveloso/touch-irl.git`;
-            await execFileAsync('git', ['-C', __dirname, 'remote', 'add', 'origin', remoteUrl], { timeout: 5000 });
-          } catch (addErr) { console.warn('[DEV] Git remote add warning:', addErr.message); }
         }
       }
       await execFileAsync('git', ['-C', __dirname, 'add', '-A'], { timeout: GIT_TIMEOUT });
