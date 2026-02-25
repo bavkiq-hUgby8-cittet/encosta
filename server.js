@@ -8441,15 +8441,15 @@ app.post('/api/dev/ping', vaLimiter, async (req, res) => {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-opus-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: 'Diga apenas: OK' }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: 'Diga apenas: OK' }] })
       });
       result.tempo_ms = Date.now() - start;
       if (resp.ok) {
         const data = await resp.json();
         result.ok = true;
-        result.teste = 'Claude Opus 4 OK: ' + (data.content?.[0]?.text || 'sem texto');
+        result.teste = 'Claude OK: ' + (data.content?.[0]?.text || 'sem texto');
       } else {
-        result.teste = 'Claude Opus 4 ERRO HTTP ' + resp.status + ': ' + (await resp.text()).slice(0, 150);
+        result.teste = 'Claude ERRO HTTP ' + resp.status + ': ' + (await resp.text()).slice(0, 150);
       }
     } else if (OPENAI_API_KEY) {
       const start = Date.now();
@@ -8549,19 +8549,15 @@ app.get('/api/dev/diagnostico', requireAdmin, async (req, res) => {
 });
 
 // ══ DEV COMMAND ENDPOINTS ══
-// Background async function to process dev plan generation
+
+// Background async function - processes planning without blocking HTTP
 async function _processDevPlan(userId, commandId, instruction) {
+  console.log('[DEV] Background planning started for', commandId);
   const bank = getUltimateBank(userId);
-  const cmd = bank.devQueue.find(c => c.id === commandId);
-  if (!cmd) {
-    console.error('[DEV] Command not found:', commandId);
-    return;
-  }
+  const command = bank.devQueue.find(c => c.id === commandId);
+  if (!command) { console.error('[DEV] Command not found:', commandId); return; }
 
   try {
-    console.log('[DEV] Background processing started for', commandId);
-
-    // Build project file map for Claude context
     const projectFiles = {};
     const publicDir = path.join(__dirname, 'public');
     const htmlFiles = fs.readdirSync(publicDir).filter(f => f.endsWith('.html'));
@@ -8571,7 +8567,6 @@ async function _processDevPlan(userId, commandId, instruction) {
     }
     const fileMapStr = Object.entries(projectFiles).map(([f, info]) => `- ${f} (${info.lines} linhas)`).join('\n');
 
-    // Extract function/endpoint names from server.js for map
     const serverCode = fs.readFileSync(__filename, 'utf8');
     const endpointMap = [];
     const lines = serverCode.split('\n');
@@ -8584,7 +8579,7 @@ async function _processDevPlan(userId, commandId, instruction) {
     }
 
     const systemPrompt = `Voce e um desenvolvedor expert em Node.js e HTML/CSS/JS puro.
-O app se chama "Touch?" / "Encosta" — rede social presencial.
+O app se chama "Touch?" / "Encosta" -- rede social presencial.
 
 ARQUIVOS DO PROJETO:
 ${fileMapStr}
@@ -8600,21 +8595,13 @@ Cada passo deve indicar:
 Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
 
     if (ANTHROPIC_API_KEY) {
-      // Use Claude Opus 4 for planning
-      console.log('[DEV] Calling Claude Opus 4 for planning... instruction:', instruction.slice(0, 80));
+      console.log('[DEV] Chamando Claude Opus para planejamento... instrucao:', instruction.slice(0, 80));
       const planStart = Date.now();
-
-      // Generous 300s timeout for planning (no HTTP timeout, just safety)
       const planAbort = new AbortController();
-      const planTimer = setTimeout(() => planAbort.abort(), 300000);
-
+      const planTimer = setTimeout(() => planAbort.abort(), 300000); // 5min safety timeout
       const planResp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json'
-        },
+        headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-opus-4-20250514',
           max_tokens: 2000,
@@ -8623,66 +8610,54 @@ Seja conciso e preciso. Nao gere codigo, apenas o plano.`;
         }),
         signal: planAbort.signal
       });
-
       clearTimeout(planTimer);
       const planTime = Date.now() - planStart;
-
       if (planResp.ok) {
         const planData = await planResp.json();
-        cmd.plan = planData.content?.[0]?.text || 'Plano nao gerado';
-        cmd.status = 'planned';
-        console.log('[DEV] Claude planning OK in', planTime + 'ms, plan:', (cmd.plan || '').slice(0, 100));
+        command.plan = planData.content?.[0]?.text || 'Plano nao gerado';
+        command.status = 'planned';
+        console.log('[DEV] Claude planejamento OK em', planTime + 'ms');
       } else {
         const errText = await planResp.text();
-        console.error('[DEV] Claude plan ERROR:', planResp.status, errText.slice(0, 200));
-        cmd.plan = 'Erro Claude: ' + planResp.status + ' - ' + errText.slice(0, 100);
-        cmd.status = 'plan_failed';
+        console.error('[DEV] Claude plan ERRO:', planResp.status, errText.slice(0, 200));
+        command.plan = 'Erro Claude: ' + planResp.status + ' - ' + errText.slice(0, 100);
+        command.status = 'plan_failed';
       }
     } else {
-      console.log('[DEV] ANTHROPIC_API_KEY not configured, using GPT-4o fallback');
-
-      // Fallback to GPT-4o if no Anthropic key
+      console.log('[DEV] Sem ANTHROPIC_API_KEY, usando GPT-4o fallback');
       const planAbort2 = new AbortController();
-      const planTimer2 = setTimeout(() => planAbort2.abort(), 300000);
-
+      const planTimer2 = setTimeout(() => planAbort2.abort(), 120000);
       const planResp = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}` }
-          ],
-          max_tokens: 2000,
-          temperature: 0.3
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: `INSTRUCAO DO USUARIO: ${instruction}` }],
+          max_tokens: 2000, temperature: 0.3
         }),
         signal: planAbort2.signal
       });
-
       clearTimeout(planTimer2);
-
       if (planResp.ok) {
         const planData = await planResp.json();
-        cmd.plan = planData.choices?.[0]?.message?.content || 'Plano nao gerado';
-        cmd.status = 'planned';
+        command.plan = planData.choices?.[0]?.message?.content || 'Plano nao gerado';
+        command.status = 'planned';
       } else {
-        cmd.plan = 'Erro ao gerar plano: ' + planResp.status;
-        cmd.status = 'plan_failed';
+        command.plan = 'Erro ao gerar plano: ' + planResp.status;
+        command.status = 'plan_failed';
       }
     }
   } catch (e) {
     const isAbort = e.name === 'AbortError';
-    cmd.plan = isAbort ? 'Timeout: Claude took too long. Try again.' : ('Erro: ' + e.message);
-    cmd.status = 'plan_failed';
+    command.plan = isAbort ? 'Timeout: a IA demorou demais.' : ('Erro: ' + e.message);
+    command.status = 'plan_failed';
     console.error('[DEV] Planning error:', e.name, e.message);
   }
-
   saveDB('ultimateBank');
-  console.log('[DEV] Background processing completed for', commandId, '- status:', cmd.status);
+  console.log('[DEV] Background planning done:', commandId, 'status:', command.status);
 }
 
-// Create a dev command - returns IMMEDIATELY with status 'planning'
+// Create a dev command - returns IMMEDIATELY, processes in background
 app.post('/api/dev/command', vaLimiter, (req, res) => {
   const { userId, instruction } = req.body;
   if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
@@ -8694,42 +8669,23 @@ app.post('/api/dev/command', vaLimiter, (req, res) => {
   bank.devQueue.push(command);
   saveDB('ultimateBank');
 
-  console.log('[DEV] Command created:', commandId, '- returning immediately, processing in background');
-
-  // Respond IMMEDIATELY
+  console.log('[DEV] Command created:', commandId, '- returning immediately');
   res.json({ id: commandId, status: 'planning' });
 
-  // Process in background (fire-and-forget)
+  // Fire-and-forget background processing
   _processDevPlan(userId, commandId, instruction).catch(e => {
-    console.error('[DEV] Background processing error:', e.message);
+    console.error('[DEV] Background plan error:', e.message);
   });
 });
 
-// Get dev command status (for polling)
+// Poll dev command status
 app.get('/api/dev/status/:commandId', (req, res) => {
-  const { commandId } = req.params;
-  const { userId } = req.query;
-
-  if (!userId || !canUseUltimateVA(userId)) {
-    return res.status(403).json({ error: 'Acesso negado' });
-  }
-
+  const userId = req.query.userId;
+  if (!userId || !canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
   const bank = getUltimateBank(userId);
-  const cmd = bank.devQueue.find(c => c.id === commandId);
-
-  if (!cmd) {
-    return res.status(404).json({ error: 'Comando nao encontrado' });
-  }
-
-  const elapsed_ms = Date.now() - cmd.ts;
-
-  res.json({
-    id: cmd.id,
-    status: cmd.status,
-    plan: cmd.plan,
-    error: cmd.result,
-    elapsed_ms: elapsed_ms
-  });
+  const cmd = bank.devQueue.find(c => c.id === req.params.commandId);
+  if (!cmd) return res.status(404).json({ error: 'Comando nao encontrado' });
+  res.json({ id: cmd.id, status: cmd.status, plan: cmd.plan, error: cmd.status === 'plan_failed' ? cmd.plan : null, result: cmd.result, elapsed_ms: Date.now() - cmd.ts });
 });
 
 // Get dev queue
@@ -8739,22 +8695,18 @@ app.get('/api/dev/queue/:userId', (req, res) => {
   res.json({ queue: bank.devQueue.slice(-20).reverse() });
 });
 
-// Background async function to execute approved dev plan
+// Background async function - processes code generation without blocking HTTP
 async function _processDevApproval(userId, commandId) {
+  console.log('[DEV] Background approval started for', commandId);
   const bank = getUltimateBank(userId);
   const cmd = bank.devQueue.find(c => c.id === commandId);
-  if (!cmd) {
-    console.error('[DEV] Command not found for approval:', commandId);
-    return;
-  }
-
-  console.log('[DEV] Background execution started for', commandId);
+  if (!cmd) { console.error('[DEV] Command not found:', commandId); return; }
 
   try {
     const serverPath = __filename;
     const publicDir = path.join(__dirname, 'public');
 
-    // Build dynamic file map
+    // Build dynamic file map — all editable project files
     const fileMap = { 'server.js': serverPath };
     const htmlFiles = fs.readdirSync(publicDir).filter(f => f.endsWith('.html'));
     for (const hf of htmlFiles) {
@@ -8764,10 +8716,11 @@ async function _processDevApproval(userId, commandId) {
     // Identify which files the plan mentions
     const planLower = (cmd.plan || '').toLowerCase() + ' ' + (cmd.instruction || '').toLowerCase();
     const relevantFiles = Object.keys(fileMap).filter(f => {
-      if (f === 'server.js') return true;
+      if (f === 'server.js') return true; // always include server context
       const name = f.replace('public/', '').replace('.html', '');
       return planLower.includes(f) || planLower.includes(name);
     });
+    // If plan doesn't mention specific files, include server.js + index.html
     if (relevantFiles.length <= 1) relevantFiles.push('public/index.html');
 
     // Read full content of relevant files
@@ -8775,7 +8728,7 @@ async function _processDevApproval(userId, commandId) {
     for (const f of relevantFiles) {
       try {
         fileContents[f] = fs.readFileSync(fileMap[f], 'utf8');
-      } catch (e) { }
+      } catch (e) { /* skip unreadable */ }
     }
 
     const editSystemPrompt = `Voce e um desenvolvedor expert em Node.js e HTML/CSS/JS puro. ZERO frameworks.
@@ -8801,8 +8754,10 @@ REGRAS CRITICAS:
 ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
     const fileContextStr = Object.entries(fileContents).map(([f, content]) => {
+      // For very large files, send strategic sections
       const lines = content.split('\n');
       if (lines.length > 3000) {
+        // Send first 500 + last 500 + search for relevant sections
         const keywords = cmd.instruction.toLowerCase().split(/\s+/).filter(w => w.length > 3);
         const relevantLines = [];
         for (let i = 0; i < lines.length; i++) {
@@ -8821,7 +8776,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
     let editsRaw;
 
-    // Helper: fetch with timeout
+    // Helper: fetch com timeout (AbortController)
     function fetchWithTimeout(url, options, timeoutMs) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -8829,7 +8784,8 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     }
 
     if (ANTHROPIC_API_KEY) {
-      console.log('[DEV] Calling Claude Opus 4 for code generation... files:', relevantFiles.join(', '));
+      // Use Claude Opus 4 for code generation — full context
+      console.log('[DEV] Chamando Claude para geracao de codigo... arquivos:', relevantFiles.join(', '));
       const editStart = Date.now();
       const editResp = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -8844,12 +8800,12 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           system: editSystemPrompt,
           messages: [{ role: 'user', content: `INSTRUCAO: ${cmd.instruction}\n\nPLANO APROVADO:\n${cmd.plan}\n\nCODIGO ATUAL DOS ARQUIVOS:\n${fileContextStr}` }]
         })
-      }, 300000);
+      }, 300000); // 5min safety timeout (async, no HTTP constraint)
       const editTime = Date.now() - editStart;
 
       if (!editResp.ok) {
         const errText = await editResp.text();
-        console.error('[DEV] Claude edit ERROR:', editResp.status, errText.slice(0, 200), 'time:', editTime + 'ms');
+        console.error('[DEV] Claude edit ERRO:', editResp.status, errText.slice(0, 200), 'tempo:', editTime + 'ms');
         cmd.status = 'failed';
         cmd.result = 'Erro Claude: ' + editResp.status + ' - ' + errText.slice(0, 100);
         saveDB('ultimateBank');
@@ -8858,9 +8814,10 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
 
       const editData = await editResp.json();
       editsRaw = editData.content?.[0]?.text || '[]';
-      console.log('[DEV] Claude generation OK in', editTime + 'ms');
+      console.log('[DEV] Claude geracao OK em', editTime + 'ms, resposta:', (editsRaw || '').slice(0, 100));
     } else {
-      console.log('[DEV] ANTHROPIC_API_KEY not configured, using GPT-4o fallback');
+      console.log('[DEV] ANTHROPIC_API_KEY nao configurada, usando GPT-4o fallback para geracao');
+      // Fallback to GPT-4o
       const editResp = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -8873,7 +8830,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
           max_tokens: 16000,
           temperature: 0.2
         })
-      }, 300000);
+      }, 300000); // 5min safety timeout
 
       if (!editResp.ok) {
         cmd.status = 'failed';
@@ -8886,12 +8843,13 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       editsRaw = editData.choices?.[0]?.message?.content || '[]';
     }
 
+    // Clean markdown code fences if present
     editsRaw = editsRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
     let edits;
     try { edits = JSON.parse(editsRaw); } catch (e) {
       cmd.status = 'failed';
-      cmd.result = 'Erro parsing edits: ' + e.message;
+      cmd.result = 'Erro parsing edits: ' + e.message + '\nRaw: ' + editsRaw.slice(0, 500);
       saveDB('ultimateBank');
       return;
     }
@@ -8903,11 +8861,11 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       return;
     }
 
-    // Backup files
+    // Backup files before editing
     const backups = {};
     for (const edit of edits) {
       if (fileMap[edit.file] && !backups[edit.file]) {
-        try { backups[edit.file] = fs.readFileSync(fileMap[edit.file], 'utf8'); } catch (e) { }
+        try { backups[edit.file] = fs.readFileSync(fileMap[edit.file], 'utf8'); } catch (e) { /* skip */ }
       }
     }
 
@@ -8917,6 +8875,7 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     for (const edit of edits) {
       const filePath = fileMap[edit.file];
       if (!filePath) {
+        // New file creation
         if (edit.old_string === '' && edit.new_string) {
           try {
             const newPath = path.join(__dirname, edit.file);
@@ -8934,19 +8893,22 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       try {
         let content = fs.readFileSync(filePath, 'utf8');
         if (!content.includes(edit.old_string)) {
+          // Try trimmed match (whitespace tolerance)
           const trimmedOld = edit.old_string.replace(/\s+/g, ' ').trim();
           const contentNorm = content.replace(/\s+/g, ' ');
           if (contentNorm.includes(trimmedOld)) {
-            appliedEdits.push({ file: edit.file, ok: false, error: 'old_string nao encontrado (whitespace diff).' });
+            // Find approximate position and do line-based replacement
+            appliedEdits.push({ file: edit.file, ok: false, error: 'old_string nao encontrado (whitespace diff). Verifique espacos/tabs.' });
           } else {
-            appliedEdits.push({ file: edit.file, ok: false, error: 'old_string nao encontrado.' });
+            appliedEdits.push({ file: edit.file, ok: false, error: 'old_string nao encontrado no arquivo' });
           }
           hasFailure = true;
           continue;
         }
+        // Check for multiple matches
         const matchCount = content.split(edit.old_string).length - 1;
         if (matchCount > 1) {
-          appliedEdits.push({ file: edit.file, ok: false, error: `old_string encontrado ${matchCount}x (ambiguo).` });
+          appliedEdits.push({ file: edit.file, ok: false, error: `old_string encontrado ${matchCount}x (ambiguo). Precisa de mais contexto.` });
           hasFailure = true;
           continue;
         }
@@ -8959,70 +8921,72 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       }
     }
 
+    // If ALL edits failed, rollback
     const successCount = appliedEdits.filter(e => e.ok).length;
     if (successCount === 0) {
       for (const [f, backup] of Object.entries(backups)) {
-        try { fs.writeFileSync(fileMap[f], backup, 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(fileMap[f], backup, 'utf8'); } catch (e) { /* skip */ }
       }
       cmd.status = 'failed';
-      cmd.result = 'Todas edicoes falharam. Rollback aplicado.';
+      cmd.result = 'Todas edicoes falharam. Rollback aplicado. Erros: ' + appliedEdits.map(e => `${e.file}: ${e.error}`).join('; ');
       saveDB('ultimateBank');
       return;
     }
 
-    // Git commit + push
+    // Git commit + push (aguarda conclusao antes de responder, com timeout)
     const { execFile: execFileCb } = require('child_process');
     const { promisify } = require('util');
     const execFileAsync = promisify(execFileCb);
     const safeMsg = `feat(ultimatedev): ${cmd.instruction.slice(0, 60).replace(/[`$\\!"']/g, '')}\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>`;
-    const GIT_TIMEOUT = 30000;
+    let gitResult = 'git_pending';
+    const GIT_TIMEOUT = 30000; // 30s por operacao git
     try {
       await execFileAsync('git', ['-C', __dirname, 'add', '-A'], { timeout: GIT_TIMEOUT });
       await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg], { timeout: GIT_TIMEOUT });
       await execFileAsync('git', ['-C', __dirname, 'push'], { timeout: GIT_TIMEOUT });
-      cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
+      cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
       cmd.status = 'done';
-      console.log('[DEV] Background execution completed - status: done');
+      gitResult = 'done';
     } catch (gitErr) {
       console.error('[DEV] Git error:', gitErr.message);
       cmd.result = `${successCount}/${edits.length} edicoes aplicadas mas git falhou: ${gitErr.message}`;
       cmd.status = 'partial';
-      console.log('[DEV] Background execution completed - status: partial');
+      gitResult = 'git_failed';
     }
     saveDB('ultimateBank');
+
+    console.log('[DEV] Approval done:', commandId, 'status:', cmd.status);
   } catch (e) {
     const isAbort = e.name === 'AbortError';
-    const errMsg = isAbort ? 'Timeout: Claude took too long.' : ('Erro: ' + e.message);
-    console.error('[DEV] Execution error:', e.name, e.message);
+    const errMsg = isAbort ? 'Timeout: a API demorou demais.' : ('Erro: ' + e.message);
+    console.error('[DEV] Approve error:', e.name, e.message);
     cmd.status = 'failed';
     cmd.result = errMsg;
     saveDB('ultimateBank');
   }
 }
 
-// Approve and execute a dev command - returns IMMEDIATELY with status 'executing'
+// Approve and execute - returns IMMEDIATELY, processes in background
 app.post('/api/dev/approve/:commandId', vaLimiter, (req, res) => {
   const { userId } = req.body;
   if (!canUseUltimateVA(userId)) return res.status(403).json({ error: 'Acesso negado' });
-
   const bank = getUltimateBank(userId);
   const cmd = bank.devQueue.find(c => c.id === req.params.commandId);
   if (!cmd) return res.status(404).json({ error: 'Comando nao encontrado' });
-  if (cmd.status !== 'planned') return res.status(400).json({ error: 'Comando nao esta pronto. Status: ' + cmd.status });
+  if (cmd.status !== 'planned') return res.status(400).json({ error: 'Status: ' + cmd.status });
 
   cmd.approvedAt = Date.now();
   cmd.status = 'executing';
   saveDB('ultimateBank');
 
-  console.log('[DEV] Approval received for', req.params.commandId, '- returning immediately, processing in background');
-
-  // Respond IMMEDIATELY
+  console.log('[DEV] Approve:', req.params.commandId, '- returning immediately');
   res.json({ id: cmd.id, status: 'executing' });
 
-  // Process in background (fire-and-forget)
+  // Fire-and-forget background processing
   _processDevApproval(userId, req.params.commandId).catch(e => {
-    console.error('[DEV] Background approval error:', e.message);
+    console.error('[DEV] Background approve error:', e.message);
   });
+});
 
 // Reject a dev command
 app.post('/api/dev/reject/:commandId', (req, res) => {

@@ -14517,10 +14517,10 @@ const VA = (function(){
     _sendToolResult(callId,'Pulse enviado no chat ativo! A outra pessoa vai sentir a vibração.');
   }
 
-  // ── POLLING HELPER — para monitorar status de dev commands ──
+  // ── POLLING HELPER ──
   function _devPollStatus(commandId, onProgress, onDone, onError) {
     var startTime = Date.now();
-    var interval = setInterval(function() {
+    var pollInterval = setInterval(function() {
       fetch('/api/dev/status/' + commandId + '?userId=' + state.userId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -14528,52 +14528,57 @@ const VA = (function(){
           if (data.status === 'planning' || data.status === 'executing') {
             onProgress(data.status, elapsed);
           } else {
-            clearInterval(interval);
-            if (data.status === 'planned' || data.status === 'done') {
+            clearInterval(pollInterval);
+            if (data.status === 'planned' || data.status === 'done' || data.status === 'partial') {
               onDone(data);
             } else {
-              onError(data.error || 'Status: ' + data.status);
+              onError(data.error || data.result || 'Status: ' + data.status);
             }
           }
         })
         .catch(function(err) {
-          clearInterval(interval);
+          clearInterval(pollInterval);
           onError(err.message);
         });
     }, 3000);
-    return interval;
+    return pollInterval;
   }
 
   // ── ULTIMATEDEV TOOL HANDLERS ──
   async function handleComandoDev(instrucao,callId){
-    _showVaActivity('Enviando comando...','Claude esta analisando o pedido');
+    _showVaActivity('Enviando comando...','Claude Opus esta analisando');
     try{
-      const r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 10000);
-      const data=await r.json();
+      var r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 15000);
+      var data=await r.json();
       if(data.id && data.status === 'planning'){
-        // Start polling for the plan
+        _devAddLiveLog('info', 'Comando enviado', 'ID: '+data.id+' - aguardando Claude Opus...');
+        _sendToolResult(callId,'Comando enviado! ID: '+data.id+'. Claude Opus esta gerando o plano agora. Diga pro usuario que esta processando e que voce vai avisar quando terminar.');
         var pollCount = 0;
-        var planInterval = _devPollStatus(data.id,
+        _devPollStatus(data.id,
           function(status, elapsed){
-            console.log('[DEV] Polling... status=' + status + ', elapsed=' + elapsed + 's');
             pollCount++;
+            _showVaActivity('Claude pensando...', elapsed+'s');
             if(pollCount % 5 === 0) {
-              _devInjectMsg('[SISTEMA] Claude esta processando seu pedido... ' + elapsed + 's');
+              _devAddLiveLog('info', 'Processando...', elapsed+'s');
+              _devInjectMsg('[SISTEMA] Claude ainda esta processando... '+elapsed+'s. Diga pro usuario aguardar.');
             }
           },
           function(result){
             _hideVaActivity();
             if(result.plan){
-              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Comando: '+instrucao})});
-              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+result.plan})});
-              _sendToolResult(callId,'Comando criado! ID: '+result.id+'\n\nPlano gerado:\n'+result.plan+'\n\nPergunta pro usuario se ele quer aprovar este plano. Se sim, use aprovar_plano com ID '+result.id);
+              _devAddLiveLog('result', 'Plano pronto!', (result.plan||'').slice(0,200));
+              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Comando: '+instrucao})}).catch(function(){});
+              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+result.plan})}).catch(function(){});
+              _devInjectMsg('[SISTEMA] Claude terminou! Resuma o plano em 2 frases e pergunte se quer aprovar.\nID: '+result.id+'\nPlano:\n'+(result.plan||'').slice(0,500)+'\nSe aprovar, chame aprovar_plano com ID '+result.id);
             }else{
-              _sendToolResult(callId,'Erro ao gerar plano: '+(result.error||'desconhecido')+'. Explique ao usuario.');
+              _devAddLiveLog('error', 'Plano falhou', result.error||'?');
+              _devInjectMsg('[SISTEMA] Erro ao gerar plano: '+(result.error||'?')+'. Avise o usuario.');
             }
           },
           function(err){
             _hideVaActivity();
-            _sendToolResult(callId,'Erro: '+err+'. Tente de novo.');
+            _devAddLiveLog('error', 'Erro polling', err);
+            _devInjectMsg('[SISTEMA] Erro: '+err+'. Avise o usuario.');
           }
         );
       }else{
@@ -14585,43 +14590,43 @@ const VA = (function(){
 
   async function handleVerFilaDev(callId){
     try{
-      const r=await _fetchWithTimeout('/api/dev/queue/'+state.userId, {}, 10000);
-      const data=await r.json();
+      var r=await _fetchWithTimeout('/api/dev/queue/'+state.userId, {}, 10000);
+      var data=await r.json();
       if(!data.queue||data.queue.length===0){_sendToolResult(callId,'Fila de desenvolvimento esta vazia. Nenhum comando pendente.');return;}
-      const summary=data.queue.slice(0,5).map(c=>`[${c.id}] ${c.status}: ${c.instruction.slice(0,80)}`).join('\n');
-      _sendToolResult(callId,`Fila de desenvolvimento (ultimos ${Math.min(5,data.queue.length)}):\n${summary}`);
+      var summary=data.queue.slice(0,5).map(function(c){return '['+c.id+'] '+c.status+': '+c.instruction.slice(0,80);}).join('\n');
+      _sendToolResult(callId,'Fila de desenvolvimento (ultimos '+Math.min(5,data.queue.length)+'):\n'+summary);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleAprovarPlano(id,callId){
-    _showVaActivity('Aprovando plano...','Enviando para Claude gerar codigo');
+    _showVaActivity('Aprovando plano...','Claude Opus gerando codigo');
     try{
-      const r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 10000);
-      const data=await r.json();
+      var r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 15000);
+      var data=await r.json();
       if(data.status === 'executing'){
-        // Start polling for completion
+        _devAddLiveLog('info', 'Aprovado!', 'ID: '+id+' - gerando codigo...');
+        _sendToolResult(callId,'Plano aprovado! Claude Opus esta gerando o codigo agora. Diga pro usuario que esta processando.');
         var pollCount = 0;
-        var execInterval = _devPollStatus(id,
+        _devPollStatus(id,
           function(status, elapsed){
-            console.log('[DEV] Exec polling... status=' + status + ', elapsed=' + elapsed + 's');
             pollCount++;
+            _showVaActivity('Gerando codigo...', elapsed+'s');
             if(pollCount % 5 === 0) {
-              _devInjectMsg('[SISTEMA] Claude esta gerando codigo e aplicando... ' + elapsed + 's');
+              _devAddLiveLog('info', 'Gerando...', elapsed+'s');
+              _devInjectMsg('[SISTEMA] Claude gerando codigo... '+elapsed+'s. Diga pro usuario aguardar.');
             }
           },
           function(result){
             _hideVaActivity();
-            if(result.status === 'done' || result.status === 'partial'){
-              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Aprovei plano '+id})});
-              var msg = result.status === 'done' ? 'Sucesso! Codigo foi aplicado, commitado e pushado no GitHub.' : 'Codigo foi aplicado mas git falhou. Tente fazer push manualmente.';
-              _sendToolResult(callId,'Plano '+id+' executado! '+msg+' Avise o usuario que esta feito e pergunte se quer testar!');
-            }else{
-              _sendToolResult(callId,'Erro: '+(result.error||'desconhecido')+'. Explique ao usuario.');
-            }
+            var msg = result.status === 'done' ? 'Codigo aplicado, commitado e pushado no GitHub!' : 'Codigo aplicado mas git pode ter falhado.';
+            _devAddLiveLog('result', msg, (result.result||'').slice(0,200));
+            fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'user',content:'Aprovei plano '+id})}).catch(function(){});
+            _devInjectMsg('[SISTEMA] '+msg+' Avise o usuario e pergunte se quer testar!');
           },
           function(err){
             _hideVaActivity();
-            _sendToolResult(callId,'Erro: '+err+'. Tente de novo.');
+            _devAddLiveLog('error', 'Erro execucao', err);
+            _devInjectMsg('[SISTEMA] Erro na execucao: '+err+'. Avise o usuario.');
           }
         );
       }else{
@@ -14697,67 +14702,61 @@ const VA = (function(){
     _devInterceptCooldown = Date.now();
     console.log('[INTERCEPTOR] DETECTOU! Enviando pro Claude:', transcript.slice(0,80));
     _devAddLiveLog('info', 'INTERCEPTOR: Detectou pedido dev', transcript.slice(0,100));
-    _devAddLiveLog('tool', 'Enviando pro Claude Opus 4...', 'Aguarde ~10-120s');
+    _devAddLiveLog('tool', 'Enviando pro Claude Opus...', 'Aguarde, pode levar 30-120s');
     _showVaActivity('Enviando pro Claude...', 'Interceptor ativo');
-
-    // Safety: libera interceptor se travar
-    if (_devInterceptTimeout) clearTimeout(_devInterceptTimeout);
-    _devInterceptTimeout = setTimeout(function(){
-      if(_devInterceptPending){
-        console.error('[INTERCEPTOR] TIMEOUT 100s');
-        _devInterceptPending = false; _hideVaActivity();
-        _devAddLiveLog('error', 'Timeout 100s', 'Claude demorou demais');
-      }
-    }, 100000);
 
     _fetchWithTimeout('/api/dev/command', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ userId: state.userId, instruction: transcript })
-    }, 10000).then(function(r){
+    }, 15000).then(function(r){
       console.log('[INTERCEPTOR] HTTP', r.status);
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
     }).then(function(data){
       if(data.id && data.status === 'planning'){
-        _devAddLiveLog('info', 'Comando criado', 'ID: '+data.id+' - aguardando plano');
-        console.log('[INTERCEPTOR] Command created, starting poll...');
+        _devAddLiveLog('info', 'Comando criado', 'ID: '+data.id+' - Claude Opus processando...');
+        _devInjectMsg('[SISTEMA] Comando enviado pro Claude Opus. Diga pro usuario que esta processando e que pode levar ate 2 minutos.');
+        console.log('[INTERCEPTOR] Polling started for', data.id);
         var pollCount = 0;
-        var pollInterval = _devPollStatus(data.id,
+        _devPollStatus(data.id,
           function(status, elapsed){
-            console.log('[INTERCEPTOR] Polling... status=' + status + ', elapsed=' + elapsed + 's');
-            if(pollCount % 5 === 0) {
-              _devAddLiveLog('info', 'Processando', 'Claude analisando... ' + elapsed + 's');
-            }
             pollCount++;
+            _showVaActivity('Claude pensando...', elapsed+'s');
+            if(pollCount % 5 === 0) {
+              _devAddLiveLog('info', 'Processando...', elapsed+'s');
+            }
+            if(pollCount % 10 === 0) {
+              _devInjectMsg('[SISTEMA] Claude ainda processando... '+elapsed+'s. Diga pro usuario que esta trabalhando.');
+            }
           },
           function(result){
-            clearTimeout(_devInterceptTimeout);
             _devInterceptPending = false; _hideVaActivity();
-            _devAddLiveLog('result', 'Plano OK! ID: '+result.id, (result.plan||'').slice(0,200));
-            fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+(result.plan||'').slice(0,300)})}).catch(function(){});
-            _devInjectMsg('[SISTEMA] Claude gerou plano. Resuma em 2 frases e pergunte se quer aprovar.\nID: '+result.id+'\nPlano:\n'+(result.plan||'').slice(0,500)+'\nSe aprovar, chame aprovar_plano com ID '+result.id);
+            if(result.plan){
+              _devAddLiveLog('result', 'Plano pronto!', (result.plan||'').slice(0,200));
+              fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({userId:state.userId,role:'assistant',content:'Plano: '+(result.plan||'').slice(0,300)})}).catch(function(){});
+              _devInjectMsg('[SISTEMA] Claude terminou o plano! Resuma em 2 frases e pergunte se quer aprovar.\nID: '+result.id+'\nPlano:\n'+(result.plan||'').slice(0,500)+'\nSe aprovar, chame aprovar_plano com ID '+result.id);
+            } else {
+              _devAddLiveLog('error', 'Plano falhou', result.error||'?');
+              _devInjectMsg('[SISTEMA] Erro ao gerar plano: '+(result.error||'?')+'. Avise o usuario.');
+            }
           },
           function(err){
-            clearTimeout(_devInterceptTimeout);
             _devInterceptPending = false; _hideVaActivity();
-            console.error('[INTERCEPTOR] ERRO:', err);
-            _devAddLiveLog('error', 'Erro ao gerar plano', err);
+            console.error('[INTERCEPTOR] Poll error:', err);
+            _devAddLiveLog('error', 'Erro', err);
             _devInjectMsg('[SISTEMA] Erro: '+err+'. Avise o usuario.');
           }
         );
       } else {
-        clearTimeout(_devInterceptTimeout);
         _devInterceptPending = false; _hideVaActivity();
-        console.error('[INTERCEPTOR] Bad response:', JSON.stringify(data).slice(0,200));
         _devAddLiveLog('error', 'Resposta invalida', data.error||'?');
         _devInjectMsg('[SISTEMA] Erro: '+(data.error||'desconhecido')+'. Avise o usuario.');
       }
     }).catch(function(err){
-      clearTimeout(_devInterceptTimeout);
       _devInterceptPending = false; _hideVaActivity();
       console.error('[INTERCEPTOR] ERRO:', err.message);
-      _devAddLiveLog('error', err.message, 'Verifique F12 e ANTHROPIC_API_KEY');
+      _devAddLiveLog('error', err.message, 'Verifique ANTHROPIC_API_KEY no Render');
       _devInjectMsg('[SISTEMA] Erro: '+err.message+'. Avise o usuario.');
     });
   }
