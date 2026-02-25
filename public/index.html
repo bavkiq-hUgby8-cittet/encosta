@@ -15345,7 +15345,7 @@ const VA = (function(){
   function _devPollStatus(commandId, onProgress, onDone, onError) {
     var startTime = Date.now();
     var pollInterval = setInterval(function() {
-      fetch('/api/dev/status/' + commandId + '?userId=' + state.userId)
+      fetch((window.location.origin||'') + '/api/dev/status/' + commandId + '?userId=' + state.userId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var elapsed = Math.round((Date.now() - startTime) / 1000);
@@ -15372,7 +15372,12 @@ const VA = (function(){
   async function handleComandoDev(instrucao,callId){
     _showVaActivity('Enviando comando...','Claude Opus esta analisando');
     try{
-      var r=await _fetchWithTimeout('/api/dev/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,instruction:instrucao})}, 15000);
+      console.log('[CMD-DEV] Enviando:', instrucao&&instrucao.slice(0,80), 'userId:', state.userId);
+      var cmdUrl = (window.location.origin||'') + '/api/dev/command';
+      var cmdBody = JSON.stringify({userId:state.userId,instruction:instrucao});
+      console.log('[CMD-DEV] URL:', cmdUrl, 'Body len:', cmdBody.length);
+      var r = await fetch(cmdUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:cmdBody});
+      console.log('[CMD-DEV] HTTP:', r.status);
       var data=await r.json();
       if(data.id && data.status === 'planning'){
         _devAddLiveLog('info', 'Comando enviado', 'ID: '+data.id+' - aguardando Claude Opus...');
@@ -15414,7 +15419,7 @@ const VA = (function(){
 
   async function handleVerFilaDev(callId){
     try{
-      var r=await _fetchWithTimeout('/api/dev/queue/'+state.userId, {}, 10000);
+      var r=await fetch((window.location.origin||'') + '/api/dev/queue/'+state.userId);
       var data=await r.json();
       if(!data.queue||data.queue.length===0){_sendToolResult(callId,'Fila de desenvolvimento esta vazia. Nenhum comando pendente.');return;}
       var summary=data.queue.slice(0,5).map(function(c){return '['+c.id+'] '+c.status+': '+c.instruction.slice(0,80);}).join('\n');
@@ -15425,7 +15430,10 @@ const VA = (function(){
   async function handleAprovarPlano(id,callId){
     _showVaActivity('Aprovando plano...','Claude Opus gerando codigo');
     try{
-      var r=await _fetchWithTimeout('/api/dev/approve/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})}, 15000);
+      var approveUrl = (window.location.origin||'') + '/api/dev/approve/'+id;
+      console.log('[APPROVE] URL:', approveUrl);
+      var r=await fetch(approveUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})});
+      console.log('[APPROVE] HTTP:', r.status);
       var data=await r.json();
       if(data.status === 'executing'){
         _devAddLiveLog('info', 'Aprovado!', 'ID: '+id+' - gerando codigo...');
@@ -15462,28 +15470,28 @@ const VA = (function(){
 
   async function handleRejeitarPlano(id,motivo,callId){
     try{
-      await _fetchWithTimeout('/api/dev/reject/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,motivo})}, 10000);
+      await fetch((window.location.origin||'') + '/api/dev/reject/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,motivo})});
       _sendToolResult(callId,`Plano ${id} rejeitado. Motivo: ${motivo||'nao especificado'}. Pergunte pro usuario o que ele quer mudar.`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleAprenderUsuario(categoria,info,callId){
     try{
-      await _fetchWithTimeout('/api/dev/learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,categoria,info})}, 10000);
+      await fetch((window.location.origin||'') + '/api/dev/learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,categoria,info})});
       _sendToolResult(callId,`Anotado! Salvei: ${categoria} = "${info}". Vou lembrar disso nas proximas conversas.`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleEscreverPensamento(pensamento,callId){
     try{
-      await _fetchWithTimeout('/api/dev/thought',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,pensamento})}, 10000);
+      await fetch((window.location.origin||'') + '/api/dev/thought',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,pensamento})});
       _sendToolResult(callId,'Pensamento anotado e salvo no banco! Vou lembrar disso na proxima sessao.');
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
   }
 
   async function handleFazerBackup(descricao,callId){
     try{
-      const r=await _fetchWithTimeout('/api/dev/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,descricao})}, 10000);
+      const r=await fetch((window.location.origin||'') + '/api/dev/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,descricao})});
       const data=await r.json();
       _sendToolResult(callId,`Backup salvo! "${descricao}" -- snapshot do estado atual registrado.`);
     }catch(e){_sendToolResult(callId,'Erro: '+e.message);}
@@ -15491,7 +15499,7 @@ const VA = (function(){
 
   async function handleSalvarArquivo(caminho,conteudo,mensagem,callId){
     try{
-      const r=await _fetchWithTimeout('/api/dev/save-file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,caminho,conteudo,mensagem})}, 30000);
+      const r=await fetch((window.location.origin||'') + '/api/dev/save-file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,caminho,conteudo,mensagem})});
       const data=await r.json();
       if(data.success){
         _sendToolResult(callId,`Arquivo salvo em ${caminho}!${data.git?' Commitado e pushado no GitHub.':' Salvo localmente (git pode ter falhado).'}`);
@@ -15529,10 +15537,10 @@ const VA = (function(){
     _devAddLiveLog('tool', 'Enviando pro Claude Opus...', 'Aguarde, pode levar 30-120s');
     _showVaActivity('Enviando pro Claude...', 'Interceptor ativo');
 
-    _fetchWithTimeout('/api/dev/command', {
+    fetch((window.location.origin||'') + '/api/dev/command', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ userId: state.userId, instruction: transcript })
-    }, 15000).then(function(r){
+    }).then(function(r){
       console.log('[INTERCEPTOR] HTTP', r.status);
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
