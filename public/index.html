@@ -6167,7 +6167,7 @@ function showEntryNewCardForm(eventId,eventName,price){
 
 async function payEntryStripe(eventId,eventName,price){
   var container=$('entryStripeContainer');
-  if(!container)return showToast('Erro interno.');
+  if(!container)return showToast(t('errors.internal_error'));
   container.style.display='';
   await showStripePaymentElement('entryStripeContainer', price, _userCurrency || 'brl',
     function(tipId){
@@ -6968,7 +6968,7 @@ async function showRelations(){
       list.appendChild(card);
     })}
     showScreen('relations');
-  }catch(e){showToast('Erro ao carregar.')}
+  }catch(e){showToast(t('errors.load_error'))}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -7618,7 +7618,7 @@ async function showHistory(){
     localStorage.setItem('touch_const_count',String(data.total));
     // Init mural FAB after constellation loads
     initMuralFab();
-  }catch(e){const ld=$('constLoader');if(ld){ld.classList.add('fade-out');setTimeout(()=>ld.classList.add('hidden'),500)}showToast('Erro ao carregar.')}
+  }catch(e){const ld=$('constLoader');if(ld){ld.classList.add('fade-out');setTimeout(()=>ld.classList.add('hidden'),500)}showToast(t('errors.load_error'))}
 }
 
 function initConstCanvas(){
@@ -8645,7 +8645,7 @@ async function sendDeclaration(){
     showToast('Declaração enviada!');
     haptic([25,15,25]);
     loadDeclarations(targetId);
-  }catch(e){showToast('Erro ao enviar')}
+  }catch(e){showToast(t('errors.send_error'))}
 }
 function timeAgo(date){
   const s=Math.floor((Date.now()-date.getTime())/1000);
@@ -10328,7 +10328,7 @@ async function saveCompleteProfile(){
     const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory);_ha.style.background='none';_ha.style.overflow='visible'}
     showToast('Salvo!');haptic([40,20,40]);
     goHome();
-  }catch(e){showToast('Erro ao salvar.')}
+  }catch(e){showToast(t('errors.save_error'))}
 }
 
 // ═══ REVELAR ID — DUAS AÇÕES ═══
@@ -11171,7 +11171,7 @@ async function saveCountrySelection() {
         body: JSON.stringify({ country: state.userCountry, city: city, showCountry: show })
       });
       showToast((COUNTRY_FLAGS[state.userCountry] || '') + ' ' + (city || state.userCountry));
-    } catch (e) { showToast('Erro ao salvar.'); }
+    } catch (e) { showToast(t('errors.save_error')); }
   }
 }
 
@@ -11220,7 +11220,7 @@ async function toggleGrantVA(targetId) {
       btn.textContent = isRevoking ? '✦ AI liberado — revogar' : '✦ Liberar meu AI';
     }
   } catch(e) {
-    showToast('Erro de conexão');
+    showToast(t('errors.connection_lost'));
     btn.textContent = isRevoking ? '✦ AI liberado — revogar' : '✦ Liberar meu AI';
   }
   btn.disabled = false;
@@ -11391,7 +11391,7 @@ async function confirmSendGift(giftId){
     if(d.error)return showToast(d.error);
     showToast('Presente enviado!');haptic([50,30,50,30,50]);
     $('giftModal').classList.add('hidden');$('giftModal').innerHTML='';
-  }catch(e){showToast('Erro ao enviar.')}
+  }catch(e){showToast(t('errors.send_error'))}
 }
 
 // ═══ DECLARATION MODAL ═══
@@ -11443,7 +11443,7 @@ async function respondAddress(giftId,accepted){
     await fetch('/api/gift/address-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({giftId,userId:state.userId,accepted,address:accepted?address:null})});
     const el=$('addrReq-'+giftId);if(el)el.remove();
     showToast(accepted?'Endereço enviado! Presente a caminho.':'Presente recusado.');haptic([50]);
-  }catch(e){showToast('Erro.')}
+  }catch(e){showToast(t('errors.generic'))}
 }
 
 // ═══ HISTORY CARD SAVE/SHARE ═══
@@ -11747,7 +11747,7 @@ async function requestContact(type){
   try{
     await fetch('/api/request-contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({relationId:state.currentRelation.relationId,fromUserId:state.userId,contactType:type})});
     showToast('Pedido enviado!');haptic([50]);
-  }catch(e){showToast('Erro.')}
+  }catch(e){showToast(t('errors.generic'))}
 }
 function showContactRequest(data){
   const area=$('contactRequestArea');
@@ -11772,7 +11772,7 @@ async function respondContact(reqId,relationId,contactType,accepted){
     await fetch('/api/respond-contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({relationId,toUserId:state.userId,contactType,accepted,value:accepted?value:null})});
     const el=$('contactReq-'+reqId);if(el)el.remove();
     showToast(accepted?'Compartilhado!':'Recusado.');
-  }catch(e){showToast('Erro.')}
+  }catch(e){showToast(t('errors.generic'))}
 }
 
 // ═══ ENCOSTA REQUEST (digital - needs acceptance) ═══
@@ -11806,7 +11806,7 @@ async function acceptEncostaReq(reqId,eventId,fromUserId,accepted){
     state.currentPartnerId=partner.id;
     showScreen('encounter');showPhase('phaseReveal');
     doReveal(d);
-  }catch(e){showToast('Erro ao conectar.')}
+  }catch(e){showToast(t('errors.connect_error'))}
 }
 
 // ═══ LOCATION / EVENTS ═══
@@ -12022,15 +12022,15 @@ async function joinEvent(eventId){
     if(d.error)return showToast(d.error);
     showToast(t('location.event_joined_msg'));haptic([50,30,50]);
     openEventDetail(eventId);
-  }catch(e){showToast('Erro.')}
+  }catch(e){showToast(t('errors.generic'))}
 }
 async function encostaAtEvent(eventId,partnerId){
   try{
     const r=await fetch('/api/event/encosta-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId,userId:state.userId,targetId:partnerId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
-    showToast('Pedido enviado! Aguardando aceite...');haptic([50,30,50]);
-  }catch(e){showToast('Erro ao conectar.')}
+    showToast(t('common.request_sent'));haptic([50,30,50]);
+  }catch(e){showToast(t('errors.connect_error'))}
 }
 async function encostaFromLocation(targetId){
   // Start encounter via proximity - create a session and auto-match
@@ -12044,7 +12044,7 @@ async function encostaFromLocation(targetId){
     if(d2.error)return showToast(d2.error);
     showToast(t('location.touch_ok'));haptic([80,40,80,40,80]);
     goHome();refreshHome();
-  }catch(e){showToast('Erro ao conectar.')}
+  }catch(e){showToast(t('errors.connect_error'))}
 }
 
 // ═══ i18n is now fully in /public/i18n/*.json — use t('key') ═══
@@ -12273,7 +12273,7 @@ function expressCheckout(type, planId) {
     }).then(r => r.json()).then(d => {
       if (d.ok) { ev.complete('success'); showTipResult('OK', 'Pago!'); haptic([40, 20, 40]) }
       else { ev.complete('fail'); showToast(d.error || 'Erro no pagamento') }
-    }).catch(() => { ev.complete('fail'); showToast('Erro de conexao') });
+    }).catch(() => { ev.complete('fail'); showToast(t('errors.connection_lost')) });
   });
 }
 
@@ -12368,7 +12368,7 @@ function payWithMercadoPago() {
   }).then(r => r.json()).then(d => {
     if (d.initPoint) window.location.href = d.initPoint;
     else { showToast('Erro ao abrir Mercado Pago'); btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
-  }).catch(() => { showToast('Erro de conexão'); btn.style.opacity = '1'; btn.style.pointerEvents = ''; });
+  }).catch(() => { showToast(t('errors.connection_lost')); btn.style.opacity = '1'; btn.style.pointerEvents = ''; });
 }
 // Subscription payment methods
 function validateSubCVV() {
@@ -14065,7 +14065,7 @@ async function saveDocId(){
     $('docEnrolledInfo').classList.remove('hidden');
     $('docSaveBtn').classList.add('hidden');
   }catch(e){
-    showToast('Erro ao enviar');
+    showToast(t('errors.send_error'));
     $('docSaveBtn').disabled=false;
   }
 }
