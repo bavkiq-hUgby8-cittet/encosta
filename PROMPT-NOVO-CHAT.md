@@ -25,11 +25,11 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
    -> Email: ramonnvc@hotmail.com
    -> Nome: Ramon
 
-## ESTRUTURA DO PROJETO (atualizado 24/02/2026)
+## ESTRUTURA DO PROJETO (atualizado 25/02/2026)
 
 Arquivos principais:
-- `server.js` (~9400 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
-- `public/index.html` (~13445 linhas) -- Frontend SPA completo (23+ telas)
+- `server.js` (~10900 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `public/index.html` (~15200 linhas) -- Frontend SPA completo (23+ telas)
 - `public/va-test.html` (~825 linhas) -- Pagina de ligacao telefonica pros 3 assistentes + Dev Log
 - `public/va-admin.html` (~501 linhas) -- Painel admin dos 3 assistentes de voz
 - `public/admin.html` (~535 linhas) -- Painel administrativo geral
@@ -151,10 +151,10 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Server VAD: threshold 0.95, prefix_padding_ms 500, silence_duration_ms 1500
 
 =================================================================
-## MAPA DO SERVER.JS (~9400 linhas)
+## MAPA DO SERVER.JS (~10900 linhas)
 =================================================================
 
-Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET)
+Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET, vaLimiter)
 Linha ~180-600: Firebase Admin, DB in-memory com dirty tracking, indexes (IDX), top tag calc
 Linha ~600-760: Dirty tracking (saveDB), backup/rollback system
 Linha ~780-1050: Auth (Firebase verify, link accounts, unificacao de contas)
@@ -171,31 +171,40 @@ Linha ~6550-6560: API Keys (OPENAI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY)
 Linha ~6560-6880: Timezone helpers, buildUserContext (dados completos do usuario), VA cost tracking
 Linha ~6880-7100: VA tier system (canUseProVA, canUseUltimateVA, /api/agent/access)
 Linha ~7100-7400: VA Plus/Pro sessions (OpenAI Realtime)
-Linha ~7400-7700: VA UltimateDEV session (OpenAI Realtime voz + prompt com arquitetura + 18 tools)
-Linha ~7700-7860: Dev command endpoints -- planejamento com Claude Sonnet 4 (Anthropic)
-Linha ~7860-8100: Dev approve endpoint -- geracao de codigo com Claude, backup, rollback, multi-arquivo
-Linha ~8100-8400: Dev reject, learn, conversation endpoints
-Linha ~8400-8600: Dev new tools (thought, backup, save-file, escriba)
-Linha ~8600-8800: VA conversation persistence (vaConversations)
-Linha ~8800-9400: VA Config system (GET/POST /api/va-config, test-prompt, getTierConfig)
+Linha ~7400-7700: VA context endpoint (/api/agent/context/:userId -- dados frescos com nomes reais)
+Linha ~7700-8100: VA UltimateDEV session (OpenAI Realtime voz + prompt + 18 tools + interceptor)
+Linha ~8100-8300: Dev command endpoints -- planejamento com Claude Opus 4 (Anthropic) + fallback GPT-4o
+Linha ~8300-8400: Dev ping endpoint (POST /api/dev/ping -- teste rapido de conexao)
+Linha ~8400-8600: Dev diagnostico, approve, reject, learn, conversation endpoints
+Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
+Linha ~8800-9000: Dev history endpoint (GET /api/dev/history/:userId)
+Linha ~9000-9200: VA conversation persistence (vaConversations)
+Linha ~9200-10900: VA Config system, fetchWithTimeout, security audit fixes
 
 ### DB COLLECTIONS (Firebase):
 users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations
 
 =================================================================
-## MAPA DO INDEX.HTML (~13431 linhas)
+## MAPA DO INDEX.HTML (~15200 linhas)
 =================================================================
 
 Linha ~1-400: CSS completo (variaveis CSS, telas, componentes, animacoes)
-Linha ~400-2800: HTML das 23+ telas (auth, home, constellation, chat, profile, events, stars, gifts, boarding-pass, reveal, operator, games, agent)
+Linha ~400-1460: CSS Dev Log panel (terminal/matrix theme verde #00ff41)
+Linha ~1460-2800: HTML das 23+ telas (auth, home, constellation, chat, profile, events, stars, gifts, boarding-pass, reveal, operator, games, agent)
 Linha ~2800-5600: JavaScript principal (state, socket handlers, API calls, renderizacao)
 Linha ~5600-8000: Funcoes de tela (chat, constellation, profile, events, stars)
-Linha ~8000-9500: Sonic system, swipe-back, notifications, boarding pass
+Linha ~8000-8450: Sonic system, swipe-back, notifications, boarding pass
+Linha ~8450-8600: Dev Log global functions (toggleDevLogPanel, devPingClaude, filterDevLog, renderDevLog)
+Linha ~8600-9500: Mais funcoes de tela
 Linha ~9500-11000: Voice Agent (WebRTC, audio pipeline, anti-echo, fofoca automatica)
 Linha ~11000-11500: VA Tier system (tier selector, switchTier, tier chips CSS)
 Linha ~11500-12000: VA UltimateDEV (dev tool handlers, escriba, camera/screen, dev tools bar)
 Linha ~12000-12500: TouchGames integration (launcher, invite handlers, ready-check modal)
-Linha ~12500-13431: Event handlers, game socket events, iframe communication
+Linha ~12500-13700: Event handlers, game socket events, iframe communication, Dev Log HTML
+Linha ~13700-14200: VA connect(), DataChannel, SDP exchange, handleEvent()
+Linha ~14200-14600: VA tool handlers (comandoDev, aprovarPlano, etc) + Dev Interceptor
+Linha ~14600-14700: Dev Log IIFE (_devAddLiveLog, _showDevLogFab, _devInjectMsg)
+Linha ~14700-15200: Escriba, cleanup, init
 
 ### VOICE AGENT FRONTEND (detalhes):
 - Variavel principal: vaTier ('plus' | 'pro' | 'ultimatedev')
@@ -214,35 +223,39 @@ Linha ~12500-13431: Event handlers, game socket events, iframe communication
 =================================================================
 
 ### ALTA PRIORIDADE:
-1. [RESOLVIDO] VA Config integrado aos prompts -- endpoints de sessao agora LEEM do vaConfig via getTierConfig(tier)
+1. [EM ANDAMENTO] UltimateDEV -> Claude: integracao com Dev Interceptor + Dev Log
+   - Bug de escopo do Dev Log CORRIGIDO (commit 361dca9)
+   - Interceptor reescrito com timeouts e logs (commit cf1ccd3)
+   - Botao PING para testar conexao (commit 205dba8)
+   - PRECISA TESTAR: verificar se ANTHROPIC_API_KEY esta no Render
+   - PRECISA TESTAR: falar comando de dev e ver se interceptor dispara
 
-2. TouchGames fluxo completo -- nunca foi testado end-to-end. Ready-check modal pode ter problemas de timing.
+2. TouchGames fluxo completo -- nunca foi testado end-to-end.
 
-3. Camera/Screen no UltimateDEV -- implementado mas NAO testado. Depende do suporte real do OpenAI Realtime API a video tracks via WebRTC.
+3. Camera/Screen no UltimateDEV -- implementado mas NAO testado.
 
 ### MEDIA PRIORIDADE:
-4. Escriba system -- implementado, auto-flush a cada 2min, mas nao testado em sessao real.
-5. [RESOLVIDO] Dev command flow -- cerebro trocado para Claude Sonnet 4 (Anthropic), contexto completo, multi-arquivo, backup+rollback. Precisa teste end-to-end.
-6. Stripe Express Checkout -- preparado mas desativado (precisa STRIPE_SECRET_KEY e STRIPE_PUBLIC_KEY no .env)
+4. Escriba system -- implementado, auto-flush a cada 2min, nao testado em sessao real.
+5. Stripe Express Checkout -- preparado mas desativado.
 
 ### BAIXA PRIORIDADE:
-7. Convite via sonic touch no lobby (encosta em alguem = convite de jogo)
-8. Atualizar checkout das assinaturas com novo design (PIX primeiro + Express Checkout)
+6. Convite via sonic touch no lobby (encosta em alguem = convite de jogo)
+7. Atualizar checkout das assinaturas com novo design
 
 =================================================================
-## GIT LOG RECENTE (24/02/2026)
+## GIT LOG RECENTE (25/02/2026)
 =================================================================
 
-5104ef3 feat: painel Dev Log na tela de chamada UltimateDEV
-d38f441 feat: trocar cerebro de dev do UltimateDEV para Claude (Anthropic)
-81a2ec1 feat: redesign completo do painel admin com UI premium
-487634f feat: VAs agora tem acesso completo aos dados do usuario
-5a72a55 feat: timezone awareness - detecta e usa horario local do usuario
-3906c9a feat: adicionar endpoints admin (dashboard-stats, users, toggle-admin, events, financial)
-3a5ef8a refactor: redesign va-test.html com UI moderna e polida
-564bb29 feat: integrar vaConfig nos endpoints dos 3 agentes VA
-6effd47 feat: redesenhar va-test como tela de ligacao telefonica real
-e163b66 feat: UltimateDEV consciousness + escriba + camera/screen vision
+205dba8 feat: botao PING no Dev Log + endpoint /api/dev/ping para testar Claude
+d3f21f5 perf: 6 optimizations for 100k scale
+cf1ccd3 Update DEV INTERCEPTOR: enhance timeout handling and error reporting
+c2ded14 fix: nickname propagation + Google photo overwrite bugs
+361dca9 fix: bug critico de escopo no Dev Log - _devLiveLog inacessivel
+b321969 fix: auditoria final - socket auth, sanitizacao, memory leaks
+f4f9470 fix: tips index, race conditions, caching, CORS, intervals cleanup
+b6f6569 Replace fetch with apiFetch for protected API endpoints
+3baa280 fix: requireAuth retrocompativel + debounce recalcAllTopTags
+92ce701 fix: add memory caps to unbounded arrays
 
 ## ROLLBACK RAPIDO
 
