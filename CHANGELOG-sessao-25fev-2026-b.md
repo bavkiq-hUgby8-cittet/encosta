@@ -103,10 +103,27 @@ O endpoint `/api/dev/diagnostico` existia mas exigia `requireAdmin`.
 
 ---
 
+### e79a5ac - fix: trocar Claude Opus por Sonnet 4 para resolver timeout de 65s
+**Problema:** O endpoint `/api/dev/command` usava `claude-opus-4-20250514` que demorava
+>65s para responder (confirmado no screenshot do Dev Log: "Timeout: servidor demorou mais de 65s").
+Alem disso, enviava 200 linhas de server.js E index.html como contexto (desnecessario,
+ja tinha o mapa de endpoints extraido automaticamente).
+
+**Correcao:**
+- Trocou modelo de `claude-opus-4-20250514` para `claude-sonnet-4-20250514` (3-5x mais rapido)
+- Removeu envio de 200 linhas de codigo no prompt do planning (ja tem endpoint map no system prompt)
+- Aumentou timeout do servidor de 60s para 90s
+- Aumentou timeout do frontend fetch de 65s para 95s
+- Aumentou safety timeout do interceptor de 70s para 100s
+- Atualizou mensagens de UI de "Opus" para "Sonnet"
+- Trocou modelo de execucao de codigo (endpoint approve) tambem para Sonnet 4
+
+---
+
 ## Proximos passos recomendados
 
-1. **TESTAR o PING** — Se der erro, provavelmente falta `ANTHROPIC_API_KEY` no Render
-2. **Verificar Render env vars** — Garantir que `ANTHROPIC_API_KEY` esta configurada
-3. **Testar com voz** — Falar "muda a cor do botao" e ver se interceptor funciona
-4. **Se funcionar** — Testar fluxo completo: comando -> plano -> aprovacao -> execucao
-5. **Se nao funcionar** — Copiar logs do F12 console e do Dev Log "Ao vivo" pra debug
+1. **TESTAR AGORA** — Fazer deploy no Render e testar com voz: "muda a cor do botao pra vermelho"
+2. **Verificar ANTHROPIC_API_KEY no Render** — Garantir que esta configurada e com creditos
+3. **Se Sonnet funcionar** — Testar fluxo completo: comando -> plano -> aprovacao -> execucao
+4. **Se der timeout de novo** — Verificar rate limits da Anthropic API e conexao Render -> Anthropic
+5. **PING** — Usar botao PING no Dev Log pra testar conexao direta (usa Sonnet)
