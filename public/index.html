@@ -8447,6 +8447,7 @@ function updateNotifBadge(){
 }
 // ══ DEV LOG PANEL — UltimateDEV command/commit history ══
 var _devLogData=[];
+var _devLiveLog=[];
 var _devLogCurrentFilter='live';
 function toggleDevLogPanel(){
   var panel=document.getElementById('devLogPanel');
@@ -8487,6 +8488,8 @@ function filterDevLog(filter,tabEl){
 function renderDevLog(){
   var body=document.getElementById('devLogBody');
   if(!body)return;
+  // Protecao: garantir que _devLiveLog existe
+  if(!window._devLiveLog) window._devLiveLog=[];
 
   // Live tab: show real-time session logs
   if(_devLogCurrentFilter==='live'){
@@ -13838,6 +13841,7 @@ const VA = (function(){
         throw new Error(errData.error||'Servidor indisponível');
       }
       const td = await tr.json();
+      console.log('[VA] Session response:', {tier: vaTier, secret: td.client_secret?'OK':'MISSING', toolCount: td.toolCount, isUltimate: td.isUltimate, sessionId: td.session_id});
       if(!td.client_secret) throw new Error('Token não recebido');
 
       // 2. PeerConnection
@@ -13863,6 +13867,7 @@ const VA = (function(){
       // 5. Data channel
       dc = pc.createDataChannel('oai-events');
       dc.onopen = () => {
+        console.log('[VA] DataChannel OPEN! Tier:', vaTier);
         active = true; busy = false;
         setOrb('speaking'); setStatus('');
         _updateMiniStatus('speaking');
@@ -13871,7 +13876,7 @@ const VA = (function(){
         _resetInactivityTimer();
         // Log session start to dev panel
         if(vaTier==='ultimatedev'){
-          _devLiveLog = []; // Clear previous session logs
+          window._devLiveLog = []; // Clear previous session logs (global)
           _devAddLiveLog('info', 'Sessao UltimateDEV conectada', 'DataChannel aberto. Tools no servidor: '+(td.toolCount||'?')+'. Tier: '+vaTier);
           _devAddLiveLog('info', 'INTERCEPTOR ATIVO', 'Pedidos de mudanca serao enviados automaticamente pro Claude, mesmo se a tool nao for chamada pela OpenAI.');
           _devAddLiveLog('info', 'Aguardando session.created da OpenAI...', 'Se nao aparecer em 5s, a sessao pode ter falhado.');
@@ -14636,15 +14641,16 @@ const VA = (function(){
   let _devLogTimeline = [];
   let _devLogFilter = 'all';
   let _devLogOpen = false;
-  // Live session logs (function calls, results, errors)
-  let _devLiveLog = [];
+  // Live session logs - usa variavel GLOBAL _devLiveLog (declarada junto com _devLogData)
+  // para que renderDevLog() (tambem global) consiga ler os logs
 
   function _devAddLiveLog(type, text, detail) {
-    _devLiveLog.unshift({ type: type, text: text, detail: detail || '', ts: Date.now() });
-    if (_devLiveLog.length > 100) _devLiveLog = _devLiveLog.slice(0, 100);
+    console.log('[DEV-LOG]', type, text, (detail||'').slice(0,80));
+    window._devLiveLog.unshift({ type: type, text: text, detail: detail || '', ts: Date.now() });
+    if (window._devLiveLog.length > 100) window._devLiveLog = window._devLiveLog.slice(0, 100);
     // Update badge
     var badge = document.getElementById('devLogBadge');
-    if (badge) { badge.textContent = _devLiveLog.length; badge.style.display = 'flex'; }
+    if (badge) { badge.textContent = window._devLiveLog.length; badge.style.display = 'flex'; }
     // If panel is open and on "Tudo" or "Live" tab, refresh
     var panel = document.getElementById('devLogPanel');
     if (panel && panel.classList.contains('open') && (_devLogCurrentFilter === 'live' || _devLogCurrentFilter === 'all')) {
