@@ -14888,6 +14888,7 @@ const VA = (function(){
             handleEnviarPulse(evt.call_id);
           }else if(evt.name==='comando_dev'){
             console.log('[VA] comando_dev:',args.instrucao);
+            _devInterceptPending = true; // bloqueia interceptor pra nao duplicar
             handleComandoDev(args.instrucao||'',evt.call_id);
           }else if(evt.name==='ver_fila_dev'){
             console.log('[VA] ver_fila_dev');
@@ -15442,15 +15443,34 @@ const VA = (function(){
   }
 
   // Helper: injeta mensagem no DataChannel e pede resposta do agente
+  // Cancela resposta ativa antes de injetar pra evitar erro "conversation_already_has_active_response"
+  var _devInjectQueue = [];
+  var _devInjecting = false;
   function _devInjectMsg(text){
-    if(dc && dc.readyState==='open'){
-      console.log('[INTERCEPTOR] Injetando no DC...');
-      dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}}));
-      dc.send(JSON.stringify({type:'response.create'}));
-    } else {
+    if(!dc || dc.readyState!=='open'){
       console.error('[INTERCEPTOR] DC fechado:', dc?dc.readyState:'null');
       _devAddLiveLog('error', 'DataChannel fechado', 'Agente nao recebeu resultado');
+      return;
     }
+    _devInjectQueue.push(text);
+    if(!_devInjecting) _devProcessQueue();
+  }
+  function _devProcessQueue(){
+    if(_devInjectQueue.length === 0){ _devInjecting = false; return; }
+    _devInjecting = true;
+    var text = _devInjectQueue.shift();
+    console.log('[INTERCEPTOR] Injetando no DC...');
+    // Cancel any active response first
+    try { dc.send(JSON.stringify({type:'response.cancel'})); } catch(e){}
+    // Small delay to let cancel propagate
+    setTimeout(function(){
+      try {
+        dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}}));
+        dc.send(JSON.stringify({type:'response.create'}));
+      } catch(e){ console.error('[INTERCEPTOR] Inject error:', e.message); }
+      // Process next item after a delay
+      setTimeout(function(){ _devProcessQueue(); }, 2000);
+    }, 500);
   }
 
   // ── ESCRIBA — Auto-documenta a sessao ──
