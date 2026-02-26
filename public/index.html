@@ -983,7 +983,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-fab .mural-fab-dot{width:10px;height:10px;border-radius:50%;background:#00ff41;box-shadow:0 0 8px rgba(0,255,65,.5),0 0 3px rgba(0,255,65,.8);animation:muralPulse 3s ease-in-out infinite}
 .mural-fab .mural-fab-label{font-size:.62rem;color:rgba(0,255,65,.65);font-weight:600;letter-spacing:.06em;text-transform:uppercase;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace}
 @keyframes muralPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
-#muralScreen{background:#0a0a0a;font-family:'Courier New',monospace;display:flex;flex-direction:column;position:relative;overflow:hidden}
+#muralScreen{background:#0a0a0a;font-family:'Courier New',monospace;overflow:hidden}
 #muralScreen *{font-family:'Courier New',monospace}
 .mural-matrix-bg{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.07}
 .mural-header{display:flex;align-items:center;gap:.5rem;padding:.55rem .8rem;padding-top:max(env(safe-area-inset-top),.55rem);position:relative;z-index:3;border-bottom:1px solid rgba(0,255,65,.1);background:rgba(0,0,0,.6)}
@@ -998,7 +998,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-ch-pill::before{content:'#';opacity:.4;margin-right:.15rem}
 .mural-ch-pill.active{color:#00ff41;background:rgba(0,255,65,.08);border-color:rgba(0,255,65,.2);text-shadow:0 0 8px rgba(0,255,65,.3)}
 .mural-ch-pill .mural-ch-type{font-size:.4rem;opacity:.35;margin-left:.2rem}
-.mural-body{flex:1;display:flex;overflow:hidden;position:relative;z-index:1}
+.mural-body{flex:1;display:flex;overflow:hidden;position:relative;z-index:1;min-height:0}
 .mural-feed{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:.5rem .6rem .5rem;display:flex;flex-direction:column;gap:0;overscroll-behavior:contain}
 .mural-users-panel{width:0;overflow:hidden;transition:width .3s ease;border-left:1px solid rgba(0,255,65,.08);background:rgba(0,5,0,.5);flex-shrink:0}
 .mural-users-panel.open{width:120px;overflow-y:auto}
@@ -7127,23 +7127,29 @@ function _showMuralFab() {
 
 function openMural() {
   try {
-    console.log('[mural] openMural called, channels:', _muralState.channels.length);
+    if (_muralState._opening) return; // prevent double open
+    _muralState._opening = true;
+    setTimeout(function() { _muralState._opening = false; }, 2000);
     if (!_muralState.channels || !_muralState.channels.length) {
       showToast(t('mural.requires_gps') || 'Ative o GPS para acessar o mural');
       return;
     }
     showScreen('muralScreen');
-    console.log('[mural] showScreen(muralScreen) done');
     haptic([20]);
     _startMatrixRain();
     renderMuralChannels();
+    // Show empty state immediately so user sees something
+    var empty = $('muralEmpty');
+    var feed = $('muralFeed');
+    if (empty) empty.classList.remove('hidden');
+    if (feed) { feed.classList.add('hidden'); feed.innerHTML = ''; }
     if (_muralState.channels.length > 0) {
       switchMuralChannel(_muralState.channels[0].key);
     }
     _checkMuralMod();
   } catch (err) {
     console.error('[mural] openMural error:', err);
-    showToast('Erro ao abrir mural: ' + (err.message || err));
+    showToast('Erro ao abrir mural');
   }
 }
 
@@ -7159,31 +7165,45 @@ function closeMural() {
   showScreen('history');
 }
 
-// Matrix rain background animation
+// Matrix rain background animation (lightweight for mobile)
 function _startMatrixRain() {
+  _stopMatrixRain(); // stop existing if any
   var canvas = $('muralMatrixCanvas');
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  var cols = Math.floor(canvas.width / 14);
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+  canvas.width = w;
+  canvas.height = h;
+  var fontSize = 16;
+  var cols = Math.floor(w / fontSize);
+  // Limit columns for performance on mobile
+  if (cols > 30) cols = 30;
   var drops = [];
-  for (var i = 0; i < cols; i++) drops[i] = Math.random() * -100;
-  var chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789';
+  for (var i = 0; i < cols; i++) drops[i] = Math.floor(Math.random() * -20);
+  var chars = '01アウカサタナハマヤラワ';
+  var frameSkip = 0;
   function draw() {
-    ctx.fillStyle = 'rgba(10,10,10,.06)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(0,255,65,.12)';
-    ctx.font = '12px monospace';
-    for (var i = 0; i < drops.length; i++) {
+    frameSkip++;
+    // Only draw every 3rd frame for performance
+    if (frameSkip % 3 !== 0) {
+      _muralState.matrixAnim = requestAnimationFrame(draw);
+      return;
+    }
+    ctx.fillStyle = 'rgba(10,10,10,.08)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(0,255,65,.15)';
+    ctx.font = fontSize + 'px monospace';
+    for (var i = 0; i < cols; i++) {
       var ch = chars[Math.floor(Math.random() * chars.length)];
-      ctx.fillText(ch, i * 14, drops[i] * 14);
-      if (drops[i] * 14 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      var x = i * (w / cols);
+      ctx.fillText(ch, x, drops[i] * fontSize);
+      if (drops[i] * fontSize > h && Math.random() > 0.95) drops[i] = 0;
       drops[i]++;
     }
     _muralState.matrixAnim = requestAnimationFrame(draw);
   }
-  draw();
+  _muralState.matrixAnim = requestAnimationFrame(draw);
 }
 
 function _stopMatrixRain() {
