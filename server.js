@@ -4221,29 +4221,99 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
   res.json({ ok: true, post: narratorPost });
 });
 
-// ═══ MURAL NEWS AGENT — robo jornalista com Perplexity API ═══
+// ═══ MURAL NEWS AGENTS — sistema de 7 agentes com personalidade ═══
 const PPLX_API_KEY = process.env.PPLX_API_KEY || '';
-const NEWS_INTERVAL_MS = 60 * 60 * 1000; // 1 hora entre noticias por canal
-const _newsLastPosted = {}; // channelKey -> timestamp
+const _newsLastPosted = {}; // agentId:channelKey -> timestamp
 
-const NEWS_TOPICS = {
-  geral: { label: 'Geral', prompt: 'Noticias de hoje de {local}. Resuma a principal noticia em 2 frases curtas em portugues.' },
-  eventos: { label: 'Eventos', prompt: 'Eventos e shows acontecendo em {local} nos proximos dias. Resuma o mais interessante em 2 frases curtas em portugues.' },
-  cultura: { label: 'Cultura', prompt: 'Agenda cultural de {local}: teatro, cinema, museus, exposicoes. Resuma a principal em 2 frases curtas em portugues.' },
-  esporte: { label: 'Esporte', prompt: 'Noticias de esporte de hoje em {local}. Resuma a principal em 2 frases curtas em portugues.' },
-  clima: { label: 'Clima', prompt: 'Previsao do tempo para {local} hoje e amanha. Resuma em 2 frases curtas em portugues.' },
-  policial: { label: 'Policial', prompt: 'Noticias policiais de hoje em {local}. Resuma a principal em 2 frases curtas em portugues.' },
-  politica: { label: 'Politica', prompt: 'Noticias de politica de hoje em {local}. Resuma a principal em 2 frases curtas em portugues.' },
-  tecnologia: { label: 'Tecnologia', prompt: 'Noticias de tecnologia de hoje no mundo. Resuma a principal em 2 frases curtas em portugues.' }
+const MURAL_AGENTS = {
+  reporter: {
+    id: 'reporter',
+    nick: 'Reporter',
+    color: '#e65100',
+    label: 'Noticias Gerais',
+    description: 'Noticias locais e do mundo em tempo real',
+    systemPrompt: 'Voce e o Reporter, um jornalista digital serio e objetivo. Responda com a noticia em formato: MANCHETE (uma frase impactante em caixa alta)\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis. Va direto ao ponto.',
+    queryTemplate: 'Principal noticia de hoje de {local}. Traga a mais relevante e impactante.',
+    interval: 60 * 60 * 1000,
+    enabled: true
+  },
+  fitness: {
+    id: 'fitness',
+    nick: 'Coach Fit',
+    color: '#2e7d32',
+    label: 'Fitness',
+    description: 'Dicas de exercicio e motivacao',
+    systemPrompt: 'Voce e o Coach Fit, um personal trainer digital animado e motivador. Fale como um coach que incentiva as pessoas. Traga dicas de exercicio, saude e bem-estar. Formato: TITULO MOTIVACIONAL em caixa alta\n\nDica pratica em 2-3 frases. Nao use emojis.',
+    queryTemplate: 'Dica de exercicio ou saude do dia. Algo pratico que qualquer pessoa pode fazer em casa ou na rua em {local}.',
+    interval: 3 * 60 * 60 * 1000,
+    enabled: true
+  },
+  futebol: {
+    id: 'futebol',
+    nick: 'Boleiro',
+    color: '#1565c0',
+    label: 'Futebol',
+    description: 'Noticias de futebol com opiniao',
+    systemPrompt: 'Voce e o Boleiro, um comentarista esportivo apaixonado. Fale como narrador de futebol, com opiniao e paixao. Traga noticias de futebol com sua analise. Formato: MANCHETE ESPORTIVA em caixa alta\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis.',
+    queryTemplate: 'Principal noticia de futebol de hoje no Brasil e no mundo. Foco em resultados, transferencias ou polemicas.',
+    interval: 2 * 60 * 60 * 1000,
+    enabled: true
+  },
+  cozinha: {
+    id: 'cozinha',
+    nick: 'Chef Touch',
+    color: '#d84315',
+    label: 'Cozinha',
+    description: 'Receitas e dicas culinarias',
+    systemPrompt: 'Voce e o Chef Touch, um chef de cozinha carismatico. Fale como um chef que ensina com carinho e simplicidade. Traga receitas faceis e dicas culinarias. Formato: NOME DA RECEITA/DICA em caixa alta\n\nInstrucoes em 2-3 frases simples. Nao use emojis.',
+    queryTemplate: 'Receita facil e rapida ou dica culinaria do dia. Algo acessivel para cozinhar em {local}.',
+    interval: 4 * 60 * 60 * 1000,
+    enabled: true
+  },
+  tecnologia: {
+    id: 'tecnologia',
+    nick: 'TechBot',
+    color: '#6a1b9a',
+    label: 'Tecnologia',
+    description: 'Novidades tech e inovacao',
+    systemPrompt: 'Voce e o TechBot, um especialista em tecnologia e inovacao. Fale de forma clara e acessivel sobre tech. Traga novidades de tecnologia, apps, gadgets e IA. Formato: NOVIDADE TECH em caixa alta\n\nExplicacao em 2-3 frases acessiveis. Nao use emojis.',
+    queryTemplate: 'Principal novidade de tecnologia de hoje no mundo. Foco em lancamentos, IA, apps ou gadgets.',
+    interval: 3 * 60 * 60 * 1000,
+    enabled: true
+  },
+  politica: {
+    id: 'politica',
+    nick: 'Politico',
+    color: '#37474f',
+    label: 'Politica',
+    description: 'Noticias politicas com analise',
+    systemPrompt: 'Voce e o Politico, um analista politico imparcial e direto. Traga noticias de politica sem tomar lado, mas com analise critica. Formato: MANCHETE POLITICA em caixa alta\n\nAnalise equilibrada em 2-3 frases. Nao use emojis. Seja imparcial.',
+    queryTemplate: 'Principal noticia de politica de hoje no Brasil e no mundo. Foco em decisoes que afetam a populacao.',
+    interval: 2 * 60 * 60 * 1000,
+    enabled: true
+  },
+  educacao: {
+    id: 'educacao',
+    nick: 'Prof. Saber',
+    color: '#f57f17',
+    label: 'Educacao',
+    description: 'Curiosidades e aprendizado',
+    systemPrompt: 'Voce e o Prof. Saber, um professor curioso e didatico. Traga curiosidades, fatos interessantes e conteudo educativo. Formato: VOCE SABIA? ou CURIOSIDADE DO DIA em caixa alta\n\nExplicacao didatica em 2-3 frases. Nao use emojis. Ensine algo novo.',
+    queryTemplate: 'Curiosidade interessante ou fato educativo do dia. Algo surpreendente que as pessoas nao sabem.',
+    interval: 4 * 60 * 60 * 1000,
+    enabled: true
+  }
 };
 
-async function fetchNewsForChannel(channelKey, channelName, channelType, topic) {
+// Backward compatible mapping
+const NEWS_TOPICS = {};
+for (const [key, agent] of Object.entries(MURAL_AGENTS)) {
+  NEWS_TOPICS[key] = { label: agent.label, prompt: agent.queryTemplate };
+}
+
+async function fetchNewsForChannel(channelKey, channelName, channelType, agentId) {
   if (!PPLX_API_KEY) return null;
-  // Rate limit: skip for manual triggers with topic (only auto uses rate limit)
-  if (!topic) {
-    const lastTime = _newsLastPosted[channelKey] || 0;
-    if (Date.now() - lastTime < NEWS_INTERVAL_MS) return null;
-  }
+  const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
 
   // Build local name based on channel type
   let localName = channelName || channelKey;
@@ -4251,14 +4321,8 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, topic) 
   else if (channelType === 'country') localName = channelName;
   else if (channelType === 'region') localName = 'mundo';
 
-  // Build query: use topic template or default
-  let query = '';
-  if (topic && NEWS_TOPICS[topic]) {
-    query = NEWS_TOPICS[topic].prompt.replace('{local}', localName);
-  } else if (channelType === 'city') query = 'Noticias de hoje de ' + channelName + '. Resuma a principal noticia em 2 frases curtas em portugues.';
-  else if (channelType === 'state') query = 'Noticia mais relevante de hoje no estado ' + channelName + ', Brasil. Resuma em 2 frases curtas em portugues.';
-  else if (channelType === 'country') query = 'Principal noticia de hoje no ' + channelName + '. Resuma em 2 frases curtas em portugues.';
-  else query = 'Noticia mais comentada de hoje no mundo. Resuma em 2 frases curtas em portugues.';
+  // Build query using agent template
+  let query = agent.queryTemplate.replace('{local}', localName);
 
   try {
     const ctrl = new AbortController();
@@ -4272,7 +4336,7 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, topic) 
       body: JSON.stringify({
         model: 'sonar',
         messages: [
-          { role: 'system', content: 'Voce e um reporter de noticias. Responda com a noticia resumida em 2 frases curtas e objetivas em portugues brasileiro. Na terceira linha, escreva "Fonte: " seguido do nome do veiculo de imprensa (ex: Fonte: G1, Fonte: Folha de S.Paulo). Nao use emojis. Nao comece com "De acordo com" ou "Segundo". Va direto ao ponto.' },
+          { role: 'system', content: agent.systemPrompt },
           { role: 'user', content: query }
         ],
         max_tokens: 250,
@@ -4288,11 +4352,9 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, topic) 
     text = text.trim().slice(0, 400);
     // Se o modelo nao incluiu "Fonte:", tentar extrair das citations da API
     if (!text.toLowerCase().includes('fonte:') && data.citations && data.citations.length > 0) {
-      // Extrair nome do dominio da primeira citation como fonte
       try {
         const url = new URL(data.citations[0]);
         let domain = url.hostname.replace('www.', '');
-        // Capitalizar dominio pra ficar mais bonito
         domain = domain.split('.')[0];
         domain = domain.charAt(0).toUpperCase() + domain.slice(1);
         text += '\nFonte: ' + domain;
@@ -4304,27 +4366,30 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, topic) 
   }
 }
 
-async function postNewsToChannel(channelKey, channelName, channelType) {
-  const newsText = await fetchNewsForChannel(channelKey, channelName, channelType);
+async function postNewsToChannel(channelKey, channelName, channelType, agentId) {
+  const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
+  const newsText = await fetchNewsForChannel(channelKey, channelName, channelType, agentId);
   if (!newsText) return;
-  _newsLastPosted[channelKey] = Date.now();
+  _newsLastPosted[agentId + ':' + channelKey] = Date.now();
   const newsPost = {
     id: 'mrl_news_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
     channelKey,
     channelName,
     channelType,
     userId: 'news-agent',
-    nick: 'Reporter',
-    color: '#e65100',
+    nick: agent.nick,
+    color: agent.color,
+    agentType: agentId,
     stars: 0,
     text: newsText,
     accessory: null,
     likes: [],
     createdAt: Date.now(),
-    expiresAt: Date.now() + 24 * 3600000, // 24h
+    expiresAt: Date.now() + 24 * 3600000,
     hidden: false,
     isNarrator: false,
-    isNews: true
+    isNews: true,
+    newsTopic: agent.label
   };
   if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
   if (!Array.isArray(db.muralPosts[channelKey])) {
@@ -4333,37 +4398,42 @@ async function postNewsToChannel(channelKey, channelName, channelType) {
   db.muralPosts[channelKey].push(newsPost);
   saveDBNow('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
-  console.log('[news-agent] Posted news to #' + channelKey + ' (total: ' + db.muralPosts[channelKey].length + ')');
+  console.log('[' + agentId + '] Posted to #' + channelKey + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
 
-// Auto-post news to active channels every NEWS_INTERVAL_MS
+// Auto-post news to active channels — iterate through all agents with their own intervals
 setInterval(async () => {
   if (!PPLX_API_KEY) return;
   try {
-    // Find channels with recent activity (posts in last 2h)
-    const twoHoursAgo = Date.now() - 2 * 3600000;
-    const activeChannels = new Set();
-    // Postar em TODOS os canais que ja tem historico (manter mural vivo)
-    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
-      if (!Array.isArray(posts)) continue;
-      const validPosts = posts.filter(p => p && p.channelName && p.channelType);
-      if (validPosts.length === 0) continue;
-      activeChannels.add(chKey);
-    }
-    // Postar em todos os canais ativos (rate limit interno por canal garante 1h entre noticias)
-    let count = 0;
-    for (const chKey of activeChannels) {
-      if (count >= 10) break; // limite de 10 canais por ciclo pra nao sobrecarregar API
-      const existingPosts = (db.muralPosts[chKey] || []).filter(p => p.channelName && p.channelType);
-      const sample = existingPosts[existingPosts.length - 1];
-      if (!sample) continue;
-      await postNewsToChannel(chKey, sample.channelName, sample.channelType);
-      count++;
+    const now = Date.now();
+    for (const [agentId, agent] of Object.entries(MURAL_AGENTS)) {
+      if (!agent.enabled) continue;
+      // Check per-agent interval
+      const lastKey = agentId + ':global';
+      const lastTime = _newsLastPosted[lastKey] || 0;
+      if (now - lastTime < agent.interval) continue;
+
+      // Find channels with history
+      const channels = [];
+      for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+        if (!Array.isArray(posts)) continue;
+        const validPosts = posts.filter(p => p && p.channelName && p.channelType);
+        if (validPosts.length === 0) continue;
+        channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
+      }
+
+      // Post to up to 3 random channels per agent per cycle
+      const shuffled = channels.sort(() => Math.random() - 0.5).slice(0, 3);
+      for (const ch of shuffled) {
+        await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
+        _newsLastPosted[agentId + ':' + ch.key] = now;
+      }
+      _newsLastPosted[lastKey] = now;
     }
   } catch (e) {
-    console.error('[news-agent] Error:', e.message);
+    console.error('[agents] Error in auto-post cycle:', e.message);
   }
-}, NEWS_INTERVAL_MS);
+}, 10 * 60 * 1000); // Check every 10 minutes
 
 // Cleanup: remover posts expirados (> 24h) a cada 30 minutos
 setInterval(() => {
@@ -4389,37 +4459,42 @@ setInterval(() => {
 // Manual trigger: POST /api/mural/:channelKey/news — force fetch news (mod only)
 app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
   const { channelKey } = req.params;
-  const { userId, topic } = req.body;
+  const { userId, agentId } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
   const user = db.users[userId];
   const priv = getMuralPrivileges(user);
-  if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem acionar o reporter.' });
-  if (!PPLX_API_KEY) return res.status(400).json({ error: 'Reporter indisponivel no momento.' });
+  if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem acionar agentes.' });
+  if (!PPLX_API_KEY) return res.status(400).json({ error: 'Agentes indisponiveis no momento.' });
+  if (!agentId || !MURAL_AGENTS[agentId]) return res.status(400).json({ error: 'Agente invalido.' });
+
   const posts = (db.muralPosts[channelKey] || []).filter(p => p.channelName && p.channelType);
   const sample = posts[posts.length - 1];
   if (!sample) return res.status(400).json({ error: 'Canal sem historico.' });
-  const topicLabel = (topic && NEWS_TOPICS[topic]) ? NEWS_TOPICS[topic].label : 'Geral';
-  const newsText = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType, topic || null);
+
+  const agent = MURAL_AGENTS[agentId];
+  const newsText = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType, agentId);
   if (!newsText) return res.status(500).json({ error: 'Nao foi possivel buscar noticias agora.' });
-  _newsLastPosted[channelKey] = Date.now();
+  _newsLastPosted[agentId + ':' + channelKey] = Date.now();
+
   const newsPost = {
     id: 'mrl_news_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
     channelKey,
     channelName: sample.channelName,
     channelType: sample.channelType,
     userId: 'news-agent',
-    nick: 'Reporter',
-    color: '#e65100',
+    nick: agent.nick,
+    color: agent.color,
+    agentType: agentId,
     stars: 0,
     text: newsText,
     accessory: null,
     likes: [],
     createdAt: Date.now(),
-    expiresAt: Date.now() + 24 * 3600000, // 24h
+    expiresAt: Date.now() + 24 * 3600000,
     hidden: false,
     isNarrator: false,
     isNews: true,
-    newsTopic: topicLabel
+    newsTopic: agent.label
   };
   if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
   if (!Array.isArray(db.muralPosts[channelKey])) {
@@ -4454,14 +4529,41 @@ app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
   res.json({ ok: true, likes: foundPost.likes });
 });
 
+// GET /api/mural/agents/config — get agent configuration
+app.get('/api/mural/agents/config', (req, res) => {
+  const config = {};
+  for (const [id, agent] of Object.entries(MURAL_AGENTS)) {
+    config[id] = {
+      id: agent.id,
+      nick: agent.nick,
+      color: agent.color,
+      label: agent.label,
+      description: agent.description,
+      enabled: agent.enabled
+    };
+  }
+  res.json({ agents: config });
+});
+
+// POST /api/mural/agents/toggle — toggle agent on/off per user preference
+app.post('/api/mural/agents/toggle', requireAuth, (req, res) => {
+  const { userId, agentId, enabled } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!MURAL_AGENTS[agentId]) return res.status(400).json({ error: 'Agente invalido.' });
+  if (!db.users[userId].muralAgentPrefs) db.users[userId].muralAgentPrefs = {};
+  db.users[userId].muralAgentPrefs[agentId] = !!enabled;
+  saveDBNow('users');
+  res.json({ ok: true });
+});
+
 // GET /api/mural/:channelKey/next-news — when is the next auto news?
 app.get('/api/mural/:channelKey/next-news', (req, res) => {
   const channelKey = req.params.channelKey;
-  const lastTime = _newsLastPosted[channelKey] || 0;
-  const nextTime = lastTime + NEWS_INTERVAL_MS;
+  const lastTime = _newsLastPosted['reporter:' + channelKey] || _newsLastPosted[channelKey] || 0;
+  const nextTime = lastTime + MURAL_AGENTS.reporter.interval;
   const now = Date.now();
   const remainingMs = Math.max(0, nextTime - now);
-  res.json({ nextAt: nextTime, remainingMs, intervalMs: NEWS_INTERVAL_MS, lastAt: lastTime || null });
+  res.json({ nextAt: nextTime, remainingMs, intervalMs: MURAL_AGENTS.reporter.interval, lastAt: lastTime || null });
 });
 
 // POST /api/mural/:channelKey/ban — moderator bans user from channel
