@@ -4043,6 +4043,7 @@ app.get('/api/mural/:channelKey', requireAuth, (req, res) => {
   // Take last N (most recent)
   const total = posts.length;
   posts = posts.slice(-limit);
+  console.log('[mural] GET #' + channelKey + ' — ' + raw.length + ' raw, ' + total + ' visible, returning ' + posts.length);
   res.json({ posts, total, channelKey });
 });
 

@@ -7225,7 +7225,7 @@ function openMural() {
 // Sync silencioso do servidor (nao mostra loading, merge com posts existentes)
 async function _muralSyncFromServer(channelKey) {
   try {
-    var r = await apiFetch('/api/mural/' + channelKey);
+    var r = await apiFetch('/api/mural/' + channelKey + '?userId=' + encodeURIComponent(state.userId || ''));
     var d = await r.json();
     var serverPosts = d.posts || [];
     if (serverPosts.length === 0) return;
@@ -7361,13 +7361,15 @@ async function loadMuralPosts(channelKey) {
   }
   _muralState.loading = true;
   try {
-    var r = await apiFetch('/api/mural/' + channelKey);
+    var r = await apiFetch('/api/mural/' + channelKey + '?userId=' + encodeURIComponent(state.userId || ''));
     var d = await r.json();
+    if (d.error) console.warn('[mural] loadPosts error:', d.error);
     var posts = d.posts || [];
     _muralPostsCache[channelKey] = posts;
     _muralState.posts = posts;
     renderMuralFeed(true); // full rebuild ao carregar do servidor
   } catch (e) {
+    console.warn('[mural] loadPosts exception:', e);
     // Se falhar e tem cache, manter cache
     if (!_muralPostsCache[channelKey] || _muralPostsCache[channelKey].length === 0) {
       _muralState.posts = [];
