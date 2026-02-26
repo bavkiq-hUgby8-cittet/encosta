@@ -879,8 +879,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes constSearchIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 .const-copy{position:absolute;top:0;left:0;right:0;text-align:center;padding-top:calc(max(env(safe-area-inset-top),.8rem) + 3rem);z-index:5;pointer-events:none}
 .const-copy p{font-size:.65rem;color:rgba(255,255,255,.2);font-weight:300;font-style:italic;line-height:1.7;letter-spacing:.05em}
-.const-canvas-wrap{position:absolute;inset:0;z-index:1;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,1) 0%,rgba(2,2,5,1) 70%);touch-action:none;-webkit-user-select:none;user-select:none}
-.const-canvas-wrap canvas{width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none}
+.const-canvas-wrap{position:absolute;inset:0;z-index:1;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,1) 0%,rgba(2,2,5,1) 70%)}
+.const-canvas-wrap canvas{width:100%;height:100%;touch-action:none}
 .const-loader{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,.97) 0%,rgba(2,2,5,.98) 70%);transition:opacity .5s ease}
 .const-loader.fade-out{opacity:0;pointer-events:none}
 .const-loader-inner{display:flex;flex-direction:column;align-items:center;gap:1rem}
@@ -2097,7 +2097,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="rll" id="relationsList"></div>
 </div>
 
-<div id="history" class="screen" style="touch-action:none;-webkit-user-select:none">
+<div id="history" class="screen">
   <div class="const-header">
     <button class="chb" onclick="goHome()">&#x2190;</button>
     <h2 data-i18n="home.constellation_title">Minha Rede</h2>
@@ -2118,9 +2118,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="mural-fab hidden" id="muralFab"><div class="mural-fab-dot"></div><span class="mural-fab-label" id="muralFabLabel">Mural</span></div>
     <button id="constSearchFloat" onclick="toggleConstSearch()" style="position:absolute;bottom:58px;right:12px;z-index:6;width:32px;height:32px;border-radius:50%;background:rgba(10,10,25,.7);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     <div id="constFilters" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:.25rem;padding:.3rem .4rem;background:rgba(10,10,25,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:16px;border:1px solid rgba(255,255,255,.08);z-index:5">
-      <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span><span data-i18n="home.revealed_filter">Revelados</span></button>
-      <button class="elog-filter active" id="cfAnon" onclick="toggleConstFilter('anon',this)"><span class="fdot" style="background:#ff4466"></span><span data-i18n="home.anon_filter">Anonimos</span></button>
-      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)" style="position:relative"><span class="fdot" style="background:#60a5fa"></span><span data-i18n="home.events_filter">Eventos</span><span id="cfEventsLive" class="hidden" style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:#60a5fa;color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;pointer-events:none;animation:pulse 2s infinite">0</span></button>
+      <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span>Revelados</button>
+      <button class="elog-filter active" id="cfAnon" onclick="toggleConstFilter('anon',this)"><span class="fdot" style="background:#ff4466"></span>Anonimos</button>
+      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)" style="position:relative"><span class="fdot" style="background:#60a5fa"></span>Eventos<span id="cfEventsLive" class="hidden" style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:#60a5fa;color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;pointer-events:none;animation:pulse 2s infinite">0</span></button>
     </div>
     <div id="constLoader" class="const-loader hidden">
       <div class="const-loader-inner">
@@ -7641,9 +7641,9 @@ function updateConstFilterBadges(){
     btn.insertBefore(document.createTextNode(label+' '+count),live||null);
     if(dot)btn.prepend(dot);
   }
-  setBtnCount($('cfRevealed'),'Revelados',revealed.length);
-  setBtnCount($('cfAnon'),'Anônimos',anon);
-  setBtnCount($('cfEvents'),'Eventos',events);
+  setBtnCount($('cfRevealed'),t('home.revealed_filter')||'Revelados',revealed.length);
+  setBtnCount($('cfAnon'),t('home.anon_filter')||'Anonimos',anon);
+  setBtnCount($('cfEvents'),t('home.events_filter')||'Eventos',events);
   const liveBadge=$('cfEventsLive');
   if(liveBadge){liveBadge.textContent=activeEvents;liveBadge.classList.toggle('hidden',activeEvents===0)}
 }
@@ -7843,9 +7843,6 @@ async function showHistory(){
   const loader=$('constLoader');
   if(loader){loader.classList.remove('hidden','fade-out')}
   showScreen('history');
-  // Pre-focus canvas immediately so first touch is not eaten by browser activation
-  var _preCanvas=$('constCanvas');
-  if(_preCanvas){_preCanvas.setAttribute('tabindex','0');_preCanvas.style.outline='none';_preCanvas.focus({preventScroll:true})}
   // Initialize canvas IMMEDIATELY so touch/zoom works while data loads
   constState.nodes=[];
   constState.cam={x:0,y:0,zoom:0.15};
@@ -7967,13 +7964,6 @@ function initConstCanvas(){
   ctx.scale(dpr,dpr);
   const W=wrap.clientWidth,H=wrap.clientHeight;
 
-  // Pre-activate canvas for touch: focus + tabIndex ensure first touch is not eaten by browser
-  canvas.setAttribute('tabindex','0');
-  canvas.style.outline='none';
-  canvas.focus({preventScroll:true});
-  // Force layout recalc to ensure canvas is ready for events immediately
-  void canvas.offsetHeight;
-
   // ── 3D Perspective parameters ──
   const FOV=300; // field of view — higher = less extreme perspective
 
@@ -8003,16 +7993,9 @@ function initConstCanvas(){
   };
   canvas.onpointerup=e=>{
     if(constState.dragging&&pointerStart){
-      const tapThresh=25;
-      // Allow taps even during entry animation — skip entry anim block
-      if(Math.abs(e.clientX-pointerStart.x)<tapThresh&&Math.abs(e.clientY-pointerStart.y)<tapThresh){
-        // If entry animation is active, skip it to let user interact immediately
-        if(constState._entryAnim&&constState._entryAnim.active){
-          constState._entryAnim.active=false;
-          constState.cam.zoom=1;
-        }
+      const tapThresh=20;
+      if(Math.abs(e.clientX-pointerStart.x)<tapThresh&&Math.abs(e.clientY-pointerStart.y)<tapThresh&&!(constState._entryAnim&&constState._entryAnim.active))
         handleConstTap(e.clientX-canvas.getBoundingClientRect().left,e.clientY-canvas.getBoundingClientRect().top,W,H);
-      }
     }
     constState.dragging=false;constState.lastTouch=null;pointerStart=null;constState._touching=false;
   };
@@ -10400,8 +10383,10 @@ async function showEncounterLog(){
       fetch('/api/encounters/'+state.userId),
       apiFetch('/api/tips/'+state.userId)
     ]);
-    const encounters=await encRes.json()||[];
-    const tips=await tipsRes.json()||[];
+    const encData=await encRes.json();
+    const encounters=Array.isArray(encData)?encData:(encData.encounters||encData.data||[]);
+    const tipsData=await tipsRes.json();
+    const tips=Array.isArray(tipsData)?tipsData:[];
     // Merge tips into encounter-like items
     const tipItems=tips.map(t=>({
       timestamp:t.createdAt,
