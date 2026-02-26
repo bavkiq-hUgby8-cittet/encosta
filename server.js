@@ -3983,7 +3983,7 @@ app.get('/api/mural/geocode/:userId', requireAuth, async (req, res) => {
 app.get('/api/mural/:channelKey', requireAuth, (req, res) => {
   const channelKey = req.params.channelKey;
   const before = parseInt(req.query.before) || Date.now() + 1;
-  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 30));
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
   const now = Date.now();
   // Firebase pode converter arrays em objetos — garantir que e array
   let raw = db.muralPosts[channelKey] || [];
@@ -3992,7 +3992,7 @@ app.get('/api/mural/:channelKey', requireAuth, (req, res) => {
     db.muralPosts[channelKey] = raw; // fix in memory
   }
   let posts = raw
-    .filter(p => !p.hidden && p.createdAt < before && (!p.expiresAt || p.expiresAt > now));
+    .filter(p => !p.hidden && p.createdAt < before);
   // Sort oldest first (wall: newest at bottom)
   posts.sort((a, b) => a.createdAt - b.createdAt);
   // Take last N (most recent)
@@ -4042,7 +4042,6 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
     text: cleanText,
     likes: [],
     createdAt: Date.now(),
-    expiresAt: Date.now() + 48 * 3600000, // 48h visibility
     hidden: false,
     isNarrator: false
   };
@@ -4053,37 +4052,38 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   // Cap at 500 posts per channel
   if (db.muralPosts[channelKey].length > 500) db.muralPosts[channelKey] = db.muralPosts[channelKey].slice(-500);
   saveDB('muralPosts');
-  // Broadcast to all users in the channel room
+  // Broadcast to ALL users in channel room
+  const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
+  const roomSize = room ? room.size : 0;
+  console.log('[mural] Post em #' + channelKey + ' por ' + (user.nickname || userId) + ' — ' + roomSize + ' sockets no room');
   io.to('mural:' + channelKey).emit('mural-new-post', { post });
   res.json({ ok: true, post });
 });
 
-// POST /api/mural/:postId/flag — report a post
+// POST /api/mural/:postId/flag — report a post (MOD ONLY)
 app.post('/api/mural/:postId/flag', requireAuth, (req, res) => {
   const { postId } = req.params;
   const { userId, reason } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  // So moderadores podem reportar
+  const user = db.users[userId];
+  const priv = getMuralPrivileges(user);
+  if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem reportar.' });
   // Find post across all channels
   let foundPost = null, foundChannel = null;
   for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    if (!Array.isArray(posts)) continue;
     const p = posts.find(pp => pp.id === postId);
     if (p) { foundPost = p; foundChannel = ch; break; }
   }
   if (!foundPost) return res.status(404).json({ error: 'Post nao encontrado.' });
-  // Store flag
-  if (!db.muralFlags[postId]) db.muralFlags[postId] = [];
-  const alreadyFlagged = db.muralFlags[postId].find(f => f.userId === userId);
-  if (alreadyFlagged) return res.status(400).json({ error: 'Voce ja reportou este post.' });
-  db.muralFlags[postId].push({ userId, reason: (reason || '').slice(0, 120), at: Date.now() });
-  saveDB('muralFlags');
-  // Auto-hide if 3+ flags
-  if (db.muralFlags[postId].length >= 3 && !foundPost.hidden) {
-    foundPost.hidden = true;
-    foundPost.hiddenReason = 'auto-flag';
-    saveDB('muralPosts');
-    io.to('mural:' + foundChannel).emit('mural-post-hidden', { postId });
-  }
-  res.json({ ok: true, flagCount: db.muralFlags[postId].length });
+  // Mod report = hide imediato
+  foundPost.hidden = true;
+  foundPost.hiddenReason = 'mod-flag';
+  foundPost.hiddenBy = userId;
+  saveDB('muralPosts');
+  io.to('mural:' + foundChannel).emit('mural-post-hidden', { postId });
+  res.json({ ok: true });
 });
 
 // POST /api/mural/:postId/hide — moderator hides a post
@@ -5950,6 +5950,13 @@ io.on('connection', (socket) => {
     currentUserId = userId;
     socket.touchUserId = userId;
     socket.join(`user:${userId}`);
+    // Auto-join mural rooms para todos os canais que o usuario ja postou
+    // Isso garante sincronia mesmo sem abrir o mural
+    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+      if (Array.isArray(posts) && posts.some(p => p.userId === userId)) {
+        socket.join('mural:' + chKey);
+      }
+    }
   });
 
   socket.on('updateLang', (data) => {

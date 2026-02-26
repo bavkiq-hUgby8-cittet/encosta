@@ -7413,10 +7413,7 @@ function _renderMuralOnline() {
 function _buildMuralMsgHtml(p) {
   var now = Date.now();
   var age = now - p.createdAt;
-  var fadeStyle = '';
-  if (age > 40 * 3600000) fadeStyle = ' style="opacity:.15"';
-  else if (age > 30 * 3600000) fadeStyle = ' style="opacity:.25"';
-  else if (age > 24 * 3600000) fadeStyle = ' style="opacity:.4"';
+  var fadeStyle = ''; // mural fixo: posts nao desbotam
   var isNews = p.isNews || false;
   var typeClass = p.isNarrator ? ' narrator' : (isNews ? ' news' : '');
   var likeCount = (p.likes || []).length;
@@ -7439,13 +7436,12 @@ function _buildMuralMsgHtml(p) {
   var heartIcon = iLiked ? '&#9829;' : '&#9825;';
   var likeBtn = '<button class="mural-msg-like' + likedClass + '" onclick="likeMuralPost(\'' + p.id + '\')">'
     + heartIcon + (likeCount > 0 ? ' <span class="like-count">' + likeCount + '</span>' : '') + '</button>';
+  // So ops podem apagar/reportar/banir
   var flagBtn = '';
-  if (!p.isNarrator && !isNews && p.userId !== state.userId) {
-    flagBtn = '<button class="mural-msg-flag" onclick="flagMuralPost(\'' + p.id + '\')">reportar</button>';
-  }
   var banBtn = '';
   var hideBtn = '';
   if (_muralState.isMod && !p.isNarrator && !isNews && p.userId !== state.userId) {
+    flagBtn = '<button class="mural-msg-flag" onclick="flagMuralPost(\'' + p.id + '\')">reportar</button>';
     banBtn = '<button class="mural-msg-ban" onclick="banMuralUser(\'' + esc(p.userId) + '\',\'' + esc(p.nick) + '\')">ban</button>';
     hideBtn = '<button class="mural-msg-hide" onclick="hideMuralPost(\'' + p.id + '\')">ocultar</button>';
   }
