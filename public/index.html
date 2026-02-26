@@ -3644,13 +3644,10 @@ function initSocket(){
     updateConn('online');
     // Init mural socket listeners
     if(typeof _initMuralSocket==='function') _initMuralSocket();
-    // Rejoin mural room ao reconectar (pode ter perdido o room durante disconnect)
-    if(typeof _muralState!=='undefined' && _muralState._lastChannel){
-      socket.emit('join-mural', _muralState._lastChannel);
-      // Se tava com mural aberto, recarregar posts pra pegar msgs perdidas
-      if(_muralState.activeChannel){
-        setTimeout(function(){ if(typeof loadMuralPosts==='function') loadMuralPosts(_muralState.activeChannel); }, 500);
-      }
+    // Rejoin mural room APENAS se o mural esta aberto (activeChannel != null)
+    if(typeof _muralState!=='undefined' && _muralState.activeChannel){
+      socket.emit('join-mural', _muralState.activeChannel);
+      setTimeout(function(){ if(typeof loadMuralPosts==='function') loadMuralPosts(_muralState.activeChannel); }, 500);
     }
     // Sync notificacoes ao reconectar (pode ter perdido eventos enquanto offline)
     setTimeout(()=>{ if(typeof updateNotifBadge==='function') updateNotifBadge(); }, 500);
@@ -7257,9 +7254,9 @@ function closeMural() {
     if (_muralState.posts && _muralState.posts.length > 0) {
       _muralPostsCache[_muralState.activeChannel] = _muralState.posts.slice();
     }
+    // Leave-mural: sai da lista de online deste canal
+    if (socket) socket.emit('leave-mural', _muralState.activeChannel);
   }
-  // NAO fazer leave-mural: manter no room pra continuar recebendo msgs em background
-  // O leave acontece automaticamente quando o socket desconecta
   _muralState.activeChannel = null;
   _muralState.onlineUsers = [];
   _muralState.onlineCount = 0;
@@ -7333,7 +7330,10 @@ async function switchMuralChannel(channelKey) {
   if (_muralState.activeChannel && _muralState.posts && _muralState.posts.length > 0) {
     _muralPostsCache[_muralState.activeChannel] = _muralState.posts.slice();
   }
-  // NAO fazer leave-mural: manter em TODOS os rooms pra receber tudo
+  // Leave do canal anterior (remove da lista online do canal antigo)
+  if (_muralState.activeChannel && _muralState.activeChannel !== channelKey && socket) {
+    socket.emit('leave-mural', _muralState.activeChannel);
+  }
   _muralState.activeChannel = channelKey;
   _muralState._lastChannel = channelKey;
   _muralState.onlineUsers = [];
@@ -7343,6 +7343,7 @@ async function switchMuralChannel(channelKey) {
   var ch = _muralState.channels.find(function(c) { return c.key === channelKey; });
   var cityLabel = $('muralCityLabel');
   if (cityLabel && ch) cityLabel.textContent = ch.name;
+  // Join no novo canal (entra na lista online + recebe posts)
   if (socket) socket.emit('join-mural', channelKey);
   await loadMuralPosts(channelKey);
   _loadMuralOnline(channelKey);
@@ -7877,10 +7878,17 @@ function _initMuralSocket() {
     if (!data) return;
     if (data.channelKey === _muralState.activeChannel) {
       _muralState.onlineCount = data.count || 0;
+      // Se o servidor enviou a lista de users, usar direto (sem precisar de outro fetch)
+      if (data.users && Array.isArray(data.users)) {
+        _muralState.onlineUsers = data.users;
+        _muralState.onlineCount = data.users.length;
+        _renderMuralOnline();
+      } else {
+        // Fallback: buscar lista de users via API
+        if (_muralState.activeChannel) _loadMuralOnline(_muralState.activeChannel);
+      }
       var countEl = $('muralOnlineCount');
       if (countEl) countEl.textContent = _muralState.onlineCount + ' online';
-      // Refresh full user list
-      if (_muralState.activeChannel) _loadMuralOnline(_muralState.activeChannel);
     }
   });
   socket.on('mural-post-liked', function(data) {
@@ -9798,17 +9806,14 @@ document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'&&state.userId){
     updateNotifBadge();
     updateNetworkBadge();
-    // Mural: rejoin room e recarregar posts ao voltar do background
-    if(typeof _muralState!=='undefined' && _muralState._lastChannel && socket){
+    // Mural: rejoin room APENAS se o mural esta aberto
+    if(typeof _muralState!=='undefined' && _muralState.activeChannel && socket){
       if(!socket.connected) socket.connect();
-      socket.emit('join-mural', _muralState._lastChannel);
-      // Se o mural esta aberto, recarregar posts
-      if(_muralState.activeChannel){
-        setTimeout(function(){
-          loadMuralPosts(_muralState.activeChannel);
-          _loadMuralOnline(_muralState.activeChannel);
-        }, 300);
-      }
+      socket.emit('join-mural', _muralState.activeChannel);
+      setTimeout(function(){
+        loadMuralPosts(_muralState.activeChannel);
+        _loadMuralOnline(_muralState.activeChannel);
+      }, 300);
     }
   }
 });

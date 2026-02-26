@@ -4037,7 +4037,7 @@ app.get('/api/mural/:channelKey', requireAuth, (req, res) => {
     db.muralPosts[channelKey] = raw; // fix in memory
   }
   let posts = raw
-    .filter(p => !p.hidden && p.createdAt < before);
+    .filter(p => !p.hidden && p.createdAt < before && (!p.expiresAt || p.expiresAt > now));
   // Sort oldest first (wall: newest at bottom)
   posts.sort((a, b) => a.createdAt - b.createdAt);
   // Take last N (most recent)
@@ -4077,9 +4077,10 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   if (wordCount > priv.maxWords) return res.status(400).json({ error: 'Maximo de ' + priv.maxWords + ' palavras.' });
   if (cleanText.length < 2) return res.status(400).json({ error: 'Minimo 2 caracteres.' });
   if (cleanText.length > 500) return res.status(400).json({ error: 'Texto muito longo.' });
-  // Create post
+  // Create post (dura 24h — so ops podem apagar antes)
+  const now = Date.now();
   const post = {
-    id: 'mrl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    id: 'mrl_' + now + '_' + Math.random().toString(36).slice(2, 6),
     channelKey,
     channelName: channelName || channelKey,
     channelType: channelType || 'city',
@@ -4090,7 +4091,8 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
     accessory: user.avatarAccessory || null,
     text: cleanText,
     likes: [],
-    createdAt: Date.now(),
+    createdAt: now,
+    expiresAt: now + 24 * 3600000, // 24h
     hidden: false,
     isNarrator: false
   };
@@ -4101,18 +4103,21 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   // Cap at 500 posts per channel
   if (db.muralPosts[channelKey].length > 500) db.muralPosts[channelKey] = db.muralPosts[channelKey].slice(-500);
   saveDBNow('muralPosts');
-  // Auto-join: garantir que o remetente esta no room
-  const userRoom = 'mural:' + channelKey;
+  // Broadcast para todos que estao vendo OU recebendo posts deste canal
+  const broadcastRoom = 'mural:' + channelKey;
+  const viewRoom = 'mural-view:' + channelKey;
+  // Garantir que remetente esta no room de broadcast
   for (const [sid, s] of io.sockets.sockets) {
-    if (s.touchUserId === userId && !s.rooms.has(userRoom)) {
-      s.join(userRoom);
+    if (s.touchUserId === userId && !s.rooms.has(broadcastRoom)) {
+      s.join(broadcastRoom);
     }
   }
-  // Broadcast to ALL users in channel room
-  const room = io.sockets.adapter.rooms.get(userRoom);
+  const room = io.sockets.adapter.rooms.get(broadcastRoom);
   const roomSize = room ? room.size : 0;
-  console.log('[mural] Post em #' + channelKey + ' por ' + (user.nickname || userId) + ' — ' + roomSize + ' sockets no room');
-  io.to(userRoom).emit('mural-new-post', { post });
+  const viewRoomObj = io.sockets.adapter.rooms.get(viewRoom);
+  const viewSize = viewRoomObj ? viewRoomObj.size : 0;
+  console.log('[mural] Post em #' + channelKey + ' por ' + (user.nickname || userId) + ' — ' + roomSize + ' broadcast, ' + viewSize + ' viewers');
+  io.to(broadcastRoom).emit('mural-new-post', { post });
   res.json({ ok: true, post });
 });
 
@@ -4201,6 +4206,7 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
     stars: 0,
     text: narration,
     createdAt: Date.now(),
+    expiresAt: Date.now() + 24 * 3600000, // 24h
     hidden: false,
     isNarrator: true
   };
@@ -4314,6 +4320,7 @@ async function postNewsToChannel(channelKey, channelName, channelType) {
     accessory: null,
     likes: [],
     createdAt: Date.now(),
+    expiresAt: Date.now() + 24 * 3600000, // 24h
     hidden: false,
     isNarrator: false,
     isNews: true
@@ -4357,6 +4364,27 @@ setInterval(async () => {
   }
 }, NEWS_INTERVAL_MS);
 
+// Cleanup: remover posts expirados (> 24h) a cada 30 minutos
+setInterval(() => {
+  const now = Date.now();
+  let totalRemoved = 0;
+  for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+    if (!Array.isArray(posts)) continue;
+    const before = posts.length;
+    db.muralPosts[chKey] = posts.filter(p => {
+      if (!p || !p.id) return false; // limpar nulos
+      if (p.hidden) return false; // remover ocultos
+      if (p.expiresAt && p.expiresAt <= now) return false; // remover expirados
+      return true;
+    });
+    totalRemoved += before - db.muralPosts[chKey].length;
+  }
+  if (totalRemoved > 0) {
+    console.log('[mural-cleanup] Removidos ' + totalRemoved + ' posts expirados/ocultos');
+    saveDBNow('muralPosts');
+  }
+}, 30 * 60 * 1000); // cada 30min
+
 // Manual trigger: POST /api/mural/:channelKey/news — force fetch news (mod only)
 app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
   const { channelKey } = req.params;
@@ -4386,6 +4414,7 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     accessory: null,
     likes: [],
     createdAt: Date.now(),
+    expiresAt: Date.now() + 24 * 3600000, // 24h
     hidden: false,
     isNarrator: false,
     isNews: true,
@@ -4462,29 +4491,46 @@ app.post('/api/mural/:channelKey/ban', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/mural/:channelKey/online — get count of users in channel room
-app.get('/api/mural/:channelKey/online', (req, res) => {
-  const room = 'mural:' + req.params.channelKey;
-  const sockets = io.sockets.adapter.rooms.get(room);
-  const count = sockets ? sockets.size : 0;
-  // Get user IDs from sockets in room
+// Helper: obter usuarios unicos VENDO um canal (deduplica por userId)
+function _getMuralViewers(channelKey) {
+  const viewRoom = 'mural-view:' + channelKey;
+  const sockets = io.sockets.adapter.rooms.get(viewRoom);
+  if (!sockets) return [];
+  const seen = new Set();
   const users = [];
-  if (sockets) {
-    for (const sid of sockets) {
-      const s = io.sockets.sockets.get(sid);
-      if (s && s.touchUserId && db.users[s.touchUserId]) {
-        const u = db.users[s.touchUserId];
-        users.push({
-          id: s.touchUserId,
-          nick: u.nickname || '??',
-          color: u.color || '#888',
-          stars: (u.stars || []).length,
-          accessory: u.avatarAccessory || null
-        });
-      }
+  for (const sid of sockets) {
+    const s = io.sockets.sockets.get(sid);
+    if (s && s.touchUserId && db.users[s.touchUserId] && !seen.has(s.touchUserId)) {
+      seen.add(s.touchUserId);
+      const u = db.users[s.touchUserId];
+      users.push({
+        id: s.touchUserId,
+        nick: u.nickname || '??',
+        color: u.color || '#888',
+        stars: (u.stars || []).length,
+        accessory: u.avatarAccessory || null,
+        photo: u.photo || null,
+        verified: !!u.verified
+      });
     }
   }
-  res.json({ count, users });
+  return users;
+}
+
+// Helper: broadcast online count/users para quem esta vendo o canal
+function _broadcastMuralOnline(channelKey) {
+  const users = _getMuralViewers(channelKey);
+  io.to('mural-view:' + channelKey).emit('mural-online', {
+    channelKey,
+    count: users.length,
+    users: users
+  });
+}
+
+// GET /api/mural/:channelKey/online — usuarios VENDO este canal (deduplica por userId)
+app.get('/api/mural/:channelKey/online', (req, res) => {
+  const users = _getMuralViewers(req.params.channelKey);
+  res.json({ count: users.length, users });
 });
 
 // Check ban before posting (update post endpoint)
@@ -6012,11 +6058,8 @@ io.on('connection', (socket) => {
     currentUserId = userId;
     socket.touchUserId = userId;
     socket.join(`user:${userId}`);
-    // Auto-join mural rooms para TODOS os canais que existem no mural
-    // Isso garante que todo usuario receba posts em tempo real de qualquer canal
-    for (const chKey of Object.keys(db.muralPosts || {})) {
-      socket.join('mural:' + chKey);
-    }
+    // NAO auto-join em rooms do mural aqui
+    // O join acontece via join-mural quando o usuario ABRE o mural
   });
 
   socket.on('updateLang', (data) => {
@@ -6032,20 +6075,26 @@ io.on('connection', (socket) => {
   socket.on('join-session', (sessionId) => { socket.join(`session:${sessionId}`); });
 
   // Mural rooms
+  // Mural: join = usuario esta VENDO este canal agora
+  // Entra em 2 rooms: mural:X (broadcast de posts) e mural-view:X (presenca/online)
   socket.on('join-mural', (channelKey) => {
     if (!channelKey || typeof channelKey !== 'string') return;
-    socket.join('mural:' + channelKey);
-    // Broadcast updated online count
-    const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
-    io.to('mural:' + channelKey).emit('mural-online', { channelKey, count: room ? room.size : 0 });
+    // Sair de TODOS os rooms mural-view:* anteriores (so pode ver 1 canal por vez)
+    for (const room of socket.rooms) {
+      if (room.startsWith('mural-view:')) {
+        socket.leave(room);
+      }
+    }
+    socket.join('mural:' + channelKey);      // broadcast (receber posts)
+    socket.join('mural-view:' + channelKey); // presenca (aparecer online)
+    // Notificar contagem online atualizada (usando room de view)
+    _broadcastMuralOnline(channelKey);
   });
   socket.on('leave-mural', (channelKey) => {
     if (!channelKey || typeof channelKey !== 'string') return;
-    socket.leave('mural:' + channelKey);
-    setTimeout(() => {
-      const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
-      io.to('mural:' + channelKey).emit('mural-online', { channelKey, count: room ? room.size : 0 });
-    }, 100);
+    socket.leave('mural-view:' + channelKey); // sai da presenca
+    // NAO sai do mural:X (continua recebendo posts em background)
+    setTimeout(() => _broadcastMuralOnline(channelKey), 100);
   });
 
   socket.on('send-message', ({ relationId, userId, text }) => {
@@ -6398,6 +6447,13 @@ io.on('connection', (socket) => {
       if (sonicQueue[key].socketId === socket.id) {
         console.log('[Sonic] Limpando entrada orfa do sonicQueue:', key, 'socket:', socket.id);
         delete sonicQueue[key];
+      }
+    }
+    // Atualizar contagem online dos canais do mural que este socket estava vendo
+    for (const room of socket.rooms) {
+      if (room.startsWith('mural-view:')) {
+        const chKey = room.replace('mural-view:', '');
+        setTimeout(() => _broadcastMuralOnline(chKey), 200);
       }
     }
   });
