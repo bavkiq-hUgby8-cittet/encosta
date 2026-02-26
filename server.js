@@ -4148,6 +4148,159 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
   res.json({ ok: true, post: narratorPost });
 });
 
+// ═══ MURAL NEWS AGENT — robo jornalista com Perplexity API ═══
+const PPLX_API_KEY = process.env.PPLX_API_KEY || '';
+const NEWS_INTERVAL_MS = 45 * 60 * 1000; // 45 min entre noticias por canal
+const _newsLastPosted = {}; // channelKey -> timestamp
+
+async function fetchNewsForChannel(channelKey, channelName, channelType) {
+  if (!PPLX_API_KEY) return null;
+  // Rate limit: 1 news per channel per interval
+  const lastTime = _newsLastPosted[channelKey] || 0;
+  if (Date.now() - lastTime < NEWS_INTERVAL_MS) return null;
+
+  // Build query based on channel type and name
+  let query = '';
+  if (channelType === 'city') query = 'Noticias de hoje de ' + channelName + '. Resuma a principal noticia em 2 frases curtas em portugues.';
+  else if (channelType === 'state') query = 'Noticia mais relevante de hoje no estado ' + channelName + ', Brasil. Resuma em 2 frases curtas em portugues.';
+  else if (channelType === 'country') query = 'Principal noticia de hoje no ' + channelName + '. Resuma em 2 frases curtas em portugues.';
+  else query = 'Noticia mais comentada de hoje no mundo. Resuma em 2 frases curtas em portugues.';
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + PPLX_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          { role: 'system', content: 'Voce e um reporter de noticias. Responda apenas com a noticia resumida em 2 frases curtas e objetivas em portugues brasileiro. Nao use emojis. Nao comece com "De acordo com" ou "Segundo". Va direto ao ponto.' },
+          { role: 'user', content: query }
+        ],
+        max_tokens: 200,
+        temperature: 0.3
+      }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    if (!text || text.length < 20) return null;
+    return text.trim().slice(0, 300);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function postNewsToChannel(channelKey, channelName, channelType) {
+  const newsText = await fetchNewsForChannel(channelKey, channelName, channelType);
+  if (!newsText) return;
+  _newsLastPosted[channelKey] = Date.now();
+  const newsPost = {
+    id: 'mrl_news_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    channelKey,
+    channelName,
+    channelType,
+    userId: 'news-agent',
+    nick: 'Reporter',
+    color: '#e65100',
+    stars: 0,
+    text: newsText,
+    accessory: null,
+    likes: [],
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 12 * 3600000, // 12h expiry for news
+    hidden: false,
+    isNarrator: false,
+    isNews: true
+  };
+  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  db.muralPosts[channelKey].push(newsPost);
+  saveDB('muralPosts');
+  io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
+  console.log('[news-agent] Posted news to #' + channelKey);
+}
+
+// Auto-post news to active channels every NEWS_INTERVAL_MS
+setInterval(async () => {
+  if (!PPLX_API_KEY) return;
+  try {
+    // Find channels with recent activity (posts in last 2h)
+    const twoHoursAgo = Date.now() - 2 * 3600000;
+    const activeChannels = new Set();
+    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+      const recentPosts = posts.filter(p => !p.hidden && !p.isNews && p.createdAt > twoHoursAgo);
+      if (recentPosts.length >= 2) activeChannels.add(chKey);
+    }
+    // Also check channels with users online
+    for (const [room] of io.sockets.adapter.rooms) {
+      if (room.startsWith('mural:')) {
+        const chKey = room.replace('mural:', '');
+        const sockets = io.sockets.adapter.rooms.get(room);
+        if (sockets && sockets.size >= 1) activeChannels.add(chKey);
+      }
+    }
+    // Post news to up to 3 active channels per cycle
+    let count = 0;
+    for (const chKey of activeChannels) {
+      if (count >= 3) break;
+      // Determine channel name and type from existing posts
+      const existingPosts = (db.muralPosts[chKey] || []).filter(p => p.channelName && p.channelType);
+      const sample = existingPosts[existingPosts.length - 1];
+      if (!sample) continue;
+      await postNewsToChannel(chKey, sample.channelName, sample.channelType);
+      count++;
+    }
+  } catch (e) {
+    console.error('[news-agent] Error:', e.message);
+  }
+}, NEWS_INTERVAL_MS);
+
+// Manual trigger: POST /api/mural/:channelKey/news — force fetch news (mod only)
+app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
+  const { channelKey } = req.params;
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const user = db.users[userId];
+  const priv = getMuralPrivileges(user);
+  if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem acionar o reporter.' });
+  if (!PPLX_API_KEY) return res.status(400).json({ error: 'Reporter indisponivel no momento.' });
+  const posts = (db.muralPosts[channelKey] || []).filter(p => p.channelName && p.channelType);
+  const sample = posts[posts.length - 1];
+  if (!sample) return res.status(400).json({ error: 'Canal sem historico.' });
+  const newsText = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType);
+  if (!newsText) return res.status(500).json({ error: 'Nao foi possivel buscar noticias agora.' });
+  _newsLastPosted[channelKey] = Date.now();
+  const newsPost = {
+    id: 'mrl_news_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    channelKey,
+    channelName: sample.channelName,
+    channelType: sample.channelType,
+    userId: 'news-agent',
+    nick: 'Reporter',
+    color: '#e65100',
+    stars: 0,
+    text: newsText,
+    accessory: null,
+    likes: [],
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 12 * 3600000,
+    hidden: false,
+    isNarrator: false,
+    isNews: true
+  };
+  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  db.muralPosts[channelKey].push(newsPost);
+  saveDB('muralPosts');
+  io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
+  res.json({ ok: true, post: newsPost });
+});
+
 // POST /api/mural/:postId/like — +1 a post (upvote to pin to top)
 app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
   const { postId } = req.params;
