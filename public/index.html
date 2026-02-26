@@ -992,6 +992,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-header .mural-mod-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:10px;color:rgba(255,255,255,.7);font-size:.65rem;cursor:pointer;padding:.3rem .45rem;transition:all .2s}
 .mural-header .mural-mod-btn:active{background:rgba(255,255,255,.3);color:#fff}
 .mural-channels{display:flex;gap:.3rem;padding:.4rem .8rem;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;z-index:2;background:#fff;border-bottom:1px solid rgba(0,0,0,.06);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.mural-next-news{display:flex;align-items:center;justify-content:center;gap:.35rem;padding:.25rem .8rem;background:linear-gradient(135deg,#fff3e0,#fce4ec);font-size:.58rem;color:#bf360c;border-bottom:1px solid rgba(255,152,0,.1)}
+.mural-next-news svg{width:12px;height:12px;stroke:#e65100;flex-shrink:0}
+.mural-next-news-time{font-weight:700;color:#e65100}
 .mural-channels::-webkit-scrollbar{display:none}
 .mural-ch-pill{padding:.3rem .6rem;border-radius:14px;font-size:.58rem;font-weight:600;color:#78909c;background:#f5f5f5;border:1px solid #e0e0e0;cursor:pointer;white-space:nowrap;transition:all .2s;letter-spacing:.02em;font-family:inherit}
 .mural-ch-pill::before{content:'#';opacity:.4;margin-right:.15rem}
@@ -2538,6 +2541,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </button>
   </div>
   <div class="mural-channels" id="muralChannels"></div>
+  <div class="mural-next-news hidden" id="muralNextNews"></div>
   <div class="mural-body">
     <div class="mural-empty hidden" id="muralEmpty">
       <svg class="mural-empty-icon" width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="4" y="8" width="40" height="32" rx="3" stroke="#b0bec5" stroke-width="1.2" fill="none"/><line x1="10" y1="18" x2="28" y2="18" stroke="#cfd8dc" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="24" x2="38" y2="24" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="30" x2="22" y2="30" stroke="#eceff1" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -3626,6 +3630,14 @@ function initSocket(){
     updateConn('online');
     // Init mural socket listeners
     if(typeof _initMuralSocket==='function') _initMuralSocket();
+    // Rejoin mural room ao reconectar (pode ter perdido o room durante disconnect)
+    if(typeof _muralState!=='undefined' && _muralState._lastChannel){
+      socket.emit('join-mural', _muralState._lastChannel);
+      // Se tava com mural aberto, recarregar posts pra pegar msgs perdidas
+      if(_muralState.activeChannel){
+        setTimeout(function(){ if(typeof loadMuralPosts==='function') loadMuralPosts(_muralState.activeChannel); }, 500);
+      }
+    }
     // Sync notificacoes ao reconectar (pode ter perdido eventos enquanto offline)
     setTimeout(()=>{ if(typeof updateNotifBadge==='function') updateNotifBadge(); }, 500);
     // If sonic was running but got killed by disconnect, show reconnect overlay
@@ -7153,24 +7165,37 @@ function _showMuralFab() {
 
 function openMural() {
   try {
-    if (_muralState._opening) return; // prevent double open
+    if (_muralState._opening) return;
     _muralState._opening = true;
     setTimeout(function() { _muralState._opening = false; }, 2000);
     if (!_muralState.channels || !_muralState.channels.length) {
       showToast(t('mural.requires_gps') || 'Ative o GPS para acessar o mural');
+      _muralState._opening = false;
       return;
     }
     showScreen('muralScreen');
     haptic([20]);
     renderMuralChannels();
-    // Show empty state immediately so user sees something
-    var empty = $('muralEmpty');
-    var feed = $('muralFeed');
-    if (empty) empty.classList.remove('hidden');
-    if (feed) { feed.classList.add('hidden'); feed.innerHTML = ''; }
-    if (_muralState.channels.length > 0) {
-      switchMuralChannel(_muralState.channels[0].key);
+    // Restaurar ultimo canal ou usar o primeiro
+    var lastCh = _muralState._lastChannel || _muralState.channels[0].key;
+    // Verificar se o ultimo canal ainda existe na lista
+    var validCh = _muralState.channels.find(function(c) { return c.key === lastCh; });
+    if (!validCh) lastCh = _muralState.channels[0].key;
+    // Se tem cache, mostrar imediatamente (sem limpar feed)
+    if (_muralPostsCache[lastCh] && _muralPostsCache[lastCh].length > 0) {
+      _muralState.posts = _muralPostsCache[lastCh];
+      var feed = $('muralFeed');
+      var empty = $('muralEmpty');
+      if (feed) { feed.classList.remove('hidden'); }
+      if (empty) empty.classList.add('hidden');
+      renderMuralFeed();
+    } else {
+      var empty = $('muralEmpty');
+      var feed = $('muralFeed');
+      if (empty) empty.classList.remove('hidden');
+      if (feed) feed.classList.add('hidden');
     }
+    switchMuralChannel(lastCh);
     _checkMuralMod();
   } catch (err) {
     console.error('[mural] openMural error:', err);
@@ -7179,13 +7204,21 @@ function openMural() {
 }
 
 function closeMural() {
-  if (_muralState.activeChannel && socket) {
-    socket.emit('leave-mural', _muralState.activeChannel);
+  // Salvar ultimo canal pra restaurar quando voltar
+  if (_muralState.activeChannel) {
+    _muralState._lastChannel = _muralState.activeChannel;
+    // Salvar posts atuais no cache antes de sair
+    if (_muralState.posts && _muralState.posts.length > 0) {
+      _muralPostsCache[_muralState.activeChannel] = _muralState.posts.slice();
+    }
   }
+  // NAO fazer leave-mural: manter no room pra continuar recebendo msgs em background
+  // O leave acontece automaticamente quando o socket desconecta
   _muralState.activeChannel = null;
   _muralState.onlineUsers = [];
   _muralState.onlineCount = 0;
   if (_muralState.cooldownTimer) { clearInterval(_muralState.cooldownTimer); _muralState.cooldownTimer = null; }
+  if (_newsCountdownTimer) { clearInterval(_newsCountdownTimer); _newsCountdownTimer = null; }
   showScreen('history');
 }
 
@@ -7263,6 +7296,7 @@ async function switchMuralChannel(channelKey) {
   if (socket) socket.emit('join-mural', channelKey);
   await loadMuralPosts(channelKey);
   _loadMuralOnline(channelKey);
+  _loadNextNewsTimer(channelKey);
 }
 
 async function loadMuralPosts(channelKey) {
@@ -7668,6 +7702,38 @@ async function _sendMuralNews(topic) {
   } catch (e) { showToast('Erro ao buscar noticia.'); }
 }
 
+// Contador de proxima noticia
+var _newsCountdownTimer = null;
+async function _loadNextNewsTimer(channelKey) {
+  if (_newsCountdownTimer) { clearInterval(_newsCountdownTimer); _newsCountdownTimer = null; }
+  var el = $('muralNextNews');
+  if (!el) return;
+  try {
+    var r = await apiFetch('/api/mural/' + channelKey + '/next-news');
+    var d = await r.json();
+    if (!d || !d.nextAt) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    function updateCountdown() {
+      var remaining = Math.max(0, d.nextAt - Date.now());
+      if (remaining <= 0) {
+        el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
+          + '<span>Proxima noticia a qualquer momento...</span>';
+        if (_newsCountdownTimer) { clearInterval(_newsCountdownTimer); _newsCountdownTimer = null; }
+        return;
+      }
+      var mins = Math.floor(remaining / 60000);
+      var secs = Math.floor((remaining % 60000) / 1000);
+      var timeStr = mins > 0 ? (mins + 'min ' + (secs < 10 ? '0' : '') + secs + 's') : (secs + 's');
+      el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
+        + '<span>Proxima noticia em <span class="mural-next-news-time">' + timeStr + '</span></span>';
+    }
+    updateCountdown();
+    _newsCountdownTimer = setInterval(updateCountdown, 1000);
+  } catch (e) {
+    el.classList.add('hidden');
+  }
+}
+
 async function _checkMuralMod() {
   try {
     var r = await apiFetch('/api/user/' + state.userId);
@@ -7695,16 +7761,20 @@ function _initMuralSocket() {
   socket.on('mural-new-post', function(data) {
     if (!data || !data.post) return;
     var chKey = data.post.channelKey;
-    // Atualizar cache mesmo se nao for canal ativo
-    if (chKey && _muralPostsCache[chKey]) {
+    // Atualizar cache sempre (criar se nao existir)
+    if (chKey) {
+      if (!_muralPostsCache[chKey]) _muralPostsCache[chKey] = [];
       if (!_muralPostsCache[chKey].find(function(p) { return p.id === data.post.id; })) {
         _muralPostsCache[chKey].push(data.post);
       }
     }
-    if (chKey !== _muralState.activeChannel) return;
-    if (_muralState.posts.find(function(p) { return p.id === data.post.id; })) return;
-    _muralState.posts.push(data.post);
-    renderMuralFeed();
+    // Se o mural ta aberto nesse canal, atualizar feed
+    if (chKey === _muralState.activeChannel) {
+      if (!_muralState.posts.find(function(p) { return p.id === data.post.id; })) {
+        _muralState.posts.push(data.post);
+        renderMuralFeed();
+      }
+    }
   });
   socket.on('mural-post-hidden', function(data) {
     if (!data || !data.postId) return;

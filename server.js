@@ -4158,7 +4158,7 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
 
 // ═══ MURAL NEWS AGENT — robo jornalista com Perplexity API ═══
 const PPLX_API_KEY = process.env.PPLX_API_KEY || '';
-const NEWS_INTERVAL_MS = 5 * 60 * 1000; // 5 min entre noticias por canal
+const NEWS_INTERVAL_MS = 60 * 60 * 1000; // 1 hora entre noticias por canal
 const _newsLastPosted = {}; // channelKey -> timestamp
 
 const NEWS_TOPICS = {
@@ -4275,23 +4275,17 @@ setInterval(async () => {
     // Find channels with recent activity (posts in last 2h)
     const twoHoursAgo = Date.now() - 2 * 3600000;
     const activeChannels = new Set();
+    // Postar em TODOS os canais que ja tem historico (manter mural vivo)
     for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
-      const recentPosts = posts.filter(p => !p.hidden && !p.isNews && p.createdAt > twoHoursAgo);
-      if (recentPosts.length >= 2) activeChannels.add(chKey);
+      if (!Array.isArray(posts)) continue;
+      const validPosts = posts.filter(p => p && p.channelName && p.channelType);
+      if (validPosts.length === 0) continue;
+      activeChannels.add(chKey);
     }
-    // Also check channels with users online
-    for (const [room] of io.sockets.adapter.rooms) {
-      if (room.startsWith('mural:')) {
-        const chKey = room.replace('mural:', '');
-        const sockets = io.sockets.adapter.rooms.get(room);
-        if (sockets && sockets.size >= 1) activeChannels.add(chKey);
-      }
-    }
-    // Post news to up to 3 active channels per cycle
+    // Postar em todos os canais ativos (rate limit interno por canal garante 1h entre noticias)
     let count = 0;
     for (const chKey of activeChannels) {
-      if (count >= 3) break;
-      // Determine channel name and type from existing posts
+      if (count >= 10) break; // limite de 10 canais por ciclo pra nao sobrecarregar API
       const existingPosts = (db.muralPosts[chKey] || []).filter(p => p.channelName && p.channelType);
       const sample = existingPosts[existingPosts.length - 1];
       if (!sample) continue;
@@ -4366,6 +4360,16 @@ app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
   saveDB('muralPosts');
   io.to('mural:' + foundChannel).emit('mural-post-liked', { postId, likes: foundPost.likes });
   res.json({ ok: true, likes: foundPost.likes });
+});
+
+// GET /api/mural/:channelKey/next-news — when is the next auto news?
+app.get('/api/mural/:channelKey/next-news', (req, res) => {
+  const channelKey = req.params.channelKey;
+  const lastTime = _newsLastPosted[channelKey] || 0;
+  const nextTime = lastTime + NEWS_INTERVAL_MS;
+  const now = Date.now();
+  const remainingMs = Math.max(0, nextTime - now);
+  res.json({ nextAt: nextTime, remainingMs, intervalMs: NEWS_INTERVAL_MS, lastAt: lastTime || null });
 });
 
 // POST /api/mural/:channelKey/ban — moderator bans user from channel
