@@ -9569,10 +9569,36 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
       }
       await execFileAsync('git', ['-C', __dirname, 'add', '-A'], { timeout: GIT_TIMEOUT });
       await execFileAsync('git', ['-C', __dirname, 'commit', '-m', safeMsg], { timeout: GIT_TIMEOUT });
+      // Pull --rebase antes do push para incorporar commits remotos (evita conflito)
+      try {
+        await execFileAsync('git', ['-C', __dirname, 'pull', '--rebase', 'origin', 'main'], { timeout: GIT_TIMEOUT });
+        console.log('[DEV] Git pull --rebase OK');
+      } catch (pullErr) {
+        console.warn('[DEV] Git pull --rebase falhou:', pullErr.message);
+        // Tentar abort rebase se ficou travado
+        try { await execFileAsync('git', ['-C', __dirname, 'rebase', '--abort'], { timeout: 5000 }); } catch (e) { /* ok */ }
+      }
       await execFileAsync('git', ['-C', __dirname, 'push', 'origin', 'main'], { timeout: GIT_TIMEOUT });
-      cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas.${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
-      cmd.status = 'done';
-      gitResult = 'done';
+      // Verificar que o push realmente chegou no remote
+      let pushVerified = false;
+      try {
+        const { stdout: localHash } = await execFileAsync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { timeout: 5000 });
+        const { stdout: remoteHash } = await execFileAsync('git', ['-C', __dirname, 'ls-remote', 'origin', 'refs/heads/main'], { timeout: 10000 });
+        pushVerified = remoteHash.trim().startsWith(localHash.trim());
+        console.log('[DEV] Push verified:', pushVerified, 'local:', localHash.trim().slice(0, 7), 'remote:', remoteHash.trim().slice(0, 7));
+      } catch (verifyErr) {
+        console.warn('[DEV] Push verify warning:', verifyErr.message);
+      }
+      if (pushVerified) {
+        cmd.result = `Sucesso! ${successCount}/${edits.length} edicoes aplicadas, commitadas e pushadas (verificado).${hasFailure ? ' Falhas: ' + appliedEdits.filter(e => !e.ok).map(e => e.file + ': ' + e.error).join('; ') : ''}`;
+        cmd.status = 'done';
+        gitResult = 'done';
+      } else {
+        cmd.result = `ATENCAO: ${successCount}/${edits.length} edicoes aplicadas e commitadas, mas a verificacao do push falhou. O codigo pode nao ter chegado no GitHub.`;
+        cmd.status = 'partial';
+        gitResult = 'push_unverified';
+        console.error('[DEV] Push unverified! Commit local pode nao estar no remote.');
+      }
     } catch (gitErr) {
       console.error('[DEV] Git error:', gitErr.message);
       cmd.result = `${successCount}/${edits.length} edicoes aplicadas mas git falhou: ${gitErr.message}`;
