@@ -4119,6 +4119,29 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   const viewSize = viewRoomObj ? viewRoomObj.size : 0;
   console.log('[mural] Post em #' + channelKey + ' por ' + (user.nickname || userId) + ' — ' + roomSize + ' broadcast, ' + viewSize + ' viewers');
   io.to(broadcastRoom).emit('mural-new-post', { post });
+  // Process @mentions and send notifications
+  const mentions = cleanText.match(/@(\w+)/g);
+  if (mentions && mentions.length > 0) {
+    const mentionedNicks = mentions.map(m => m.slice(1).toLowerCase());
+    const notifiedIds = new Set();
+    for (const [uid, u] of Object.entries(db.users)) {
+      if (uid === userId) continue;
+      if (u.nickname && mentionedNicks.includes(u.nickname.toLowerCase()) && !notifiedIds.has(uid)) {
+        notifiedIds.add(uid);
+        io.to('user:' + uid).emit('notification', {
+          type: 'mural-mention',
+          fromNick: user.nickname || '??',
+          fromColor: user.color || '#888',
+          channelKey,
+          channelName: channelName || channelKey,
+          text: cleanText.slice(0, 80),
+          postId: post.id,
+          createdAt: now
+        });
+      }
+    }
+    if (notifiedIds.size > 0) console.log('[mural] @mentions notified: ' + notifiedIds.size + ' users');
+  }
   res.json({ ok: true, post });
 });
 

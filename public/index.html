@@ -1063,9 +1063,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-talk-ai-btn{font-size:.58rem;color:#1565c0;background:rgba(21,101,192,.08);border:1px solid rgba(21,101,192,.15);border-radius:8px;padding:.2rem .5rem;cursor:pointer;font-weight:600;margin-top:.15rem;font-family:inherit}
 .mural-talk-ai-btn:active{background:rgba(21,101,192,.15)}
 .mural-mention{color:#1976d2;font-weight:600;cursor:pointer}
-.mural-mention-dropdown{position:absolute;bottom:100%;background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:300}
-.mural-mention-item{padding:.4rem .6rem;font-size:.68rem;color:#37474f;cursor:pointer;border-bottom:1px solid #f5f5f5}
-.mural-mention-item:active{background:#e3f2fd}
+.mural-mention-dropdown{position:absolute;bottom:100%;left:.5rem;right:.5rem;background:#fff;border-radius:12px 12px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.15);max-height:160px;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:300;margin-bottom:.25rem}
+.mural-mention-item{display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;font-size:.7rem;color:#37474f;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s}
+.mural-mention-item:active,.mural-mention-item.selected{background:#e3f2fd}
+.mural-mention-item-nick{font-weight:600}
+.mural-mention-item-stars{font-size:.5rem;color:#ffa726}
 .mural-separator{height:0;border:0}
 /* Menu de temas do reporter */
 .mural-topics-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:flex;align-items:flex-end;justify-content:center;animation:muralFadeIn .2s ease}
@@ -2575,10 +2577,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
   </div>
   <div class="mural-input-area">
+    <div class="mural-mention-dropdown hidden" id="muralMentionDropdown"></div>
     <div class="mural-word-count hidden" id="muralWordCount"></div>
     <div class="mural-cooldown hidden" id="muralCooldown"></div>
     <div class="mural-input-wrap">
-      <textarea class="mural-input" id="muralInput" placeholder="Digite aqui..." rows="1" maxlength="500" oninput="onMuralInput()"></textarea>
+      <textarea class="mural-input" id="muralInput" placeholder="Digite aqui... (@mencionar)" rows="1" maxlength="500" oninput="onMuralInput()" onkeydown="onMuralInputKey(event)"></textarea>
       <button class="mural-send-btn" id="muralSendBtn" onclick="postToMural()" disabled>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
@@ -7615,7 +7618,7 @@ function _buildMuralMsgHtml(p) {
     + likesInline
     + '</div>'
     + newsTag
-    + '<div class="mural-msg-text">' + esc(txt) + sourceHtml + '</div>'
+    + '<div class="mural-msg-text">' + _formatMuralText(txt) + sourceHtml + '</div>'
     + '<div class="mural-msg-actions">' + likeBtn + flagBtn + hideBtn + banBtn + '</div>'
     + '</div>'
     + '</div>';
@@ -7685,6 +7688,8 @@ function _muralTimeAgo(ts) {
   return d + 'd';
 }
 
+var _mentionState = { active: false, query: '', startPos: 0, selectedIdx: 0, results: [] };
+
 function onMuralInput() {
   var input = $('muralInput');
   var btn = $('muralSendBtn');
@@ -7698,6 +7703,140 @@ function onMuralInput() {
   if (wc) {
     if (words > 0) { wc.textContent = words + ' palavras'; wc.classList.remove('hidden'); }
     else { wc.classList.add('hidden'); }
+  }
+  _checkMuralMention(input);
+}
+
+function _checkMuralMention(input) {
+  var val = input.value;
+  var cursor = input.selectionStart || val.length;
+  // Find @ before cursor
+  var before = val.slice(0, cursor);
+  var atIdx = before.lastIndexOf('@');
+  if (atIdx === -1 || (atIdx > 0 && before[atIdx - 1] !== ' ' && before[atIdx - 1] !== '\n')) {
+    _hideMentionDropdown();
+    return;
+  }
+  var query = before.slice(atIdx + 1);
+  // If there's a space in the query, mention is complete
+  if (query.indexOf(' ') !== -1) {
+    _hideMentionDropdown();
+    return;
+  }
+  _mentionState.active = true;
+  _mentionState.query = query.toLowerCase();
+  _mentionState.startPos = atIdx;
+  _showMentionAutocomplete();
+}
+
+function _showMentionAutocomplete() {
+  var dd = $('muralMentionDropdown');
+  if (!dd) return;
+  var users = (_muralState.onlineUsers || []).slice();
+  // Also add users from recent posts if not already in online list
+  var seenIds = {};
+  users.forEach(function(u) { seenIds[u.id] = true; });
+  (_muralState.posts || []).forEach(function(p) {
+    if (p.userId && !seenIds[p.userId] && p.nick && p.userId !== 'news-agent' && p.userId !== 'narrator' && p.userId !== state.userId) {
+      users.push({ id: p.userId, nick: p.nick, color: p.color || '#888', stars: p.stars || 0 });
+      seenIds[p.userId] = true;
+    }
+  });
+  // Remove self
+  users = users.filter(function(u) { return u.id !== state.userId; });
+  // Filter by query
+  var q = _mentionState.query;
+  if (q) {
+    users = users.filter(function(u) { return (u.nick || '').toLowerCase().indexOf(q) !== -1; });
+  }
+  users = users.slice(0, 8);
+  _mentionState.results = users;
+  if (users.length === 0) {
+    dd.classList.add('hidden');
+    dd.innerHTML = '';
+    return;
+  }
+  _mentionState.selectedIdx = Math.min(_mentionState.selectedIdx, users.length - 1);
+  var html = '';
+  for (var i = 0; i < users.length; i++) {
+    var u = users[i];
+    var sel = i === _mentionState.selectedIdx ? ' selected' : '';
+    var starDots = '';
+    for (var s = 0; s < Math.min(u.stars || 0, 5); s++) starDots += '*';
+    html += '<div class="mural-mention-item' + sel + '" onclick="_insertMention(' + i + ')">'
+      + '<span class="mural-mention-item-nick" style="color:' + esc(u.color || '#888') + '">' + esc(u.nick) + '</span>'
+      + (starDots ? '<span class="mural-mention-item-stars">' + starDots + '</span>' : '')
+      + '</div>';
+  }
+  dd.innerHTML = html;
+  dd.classList.remove('hidden');
+}
+
+function _hideMentionDropdown() {
+  _mentionState.active = false;
+  _mentionState.results = [];
+  _mentionState.selectedIdx = 0;
+  var dd = $('muralMentionDropdown');
+  if (dd) { dd.classList.add('hidden'); dd.innerHTML = ''; }
+}
+
+function _insertMention(idx) {
+  var user = _mentionState.results[idx];
+  if (!user) return;
+  var input = $('muralInput');
+  if (!input) return;
+  var val = input.value;
+  var before = val.slice(0, _mentionState.startPos);
+  var after = val.slice(input.selectionStart || val.length);
+  input.value = before + '@' + user.nick + ' ' + after;
+  input.focus();
+  var newPos = before.length + 1 + user.nick.length + 1;
+  input.setSelectionRange(newPos, newPos);
+  _hideMentionDropdown();
+  onMuralInput();
+}
+
+function onMuralInputKey(e) {
+  if (!_mentionState.active || _mentionState.results.length === 0) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _mentionState.selectedIdx = (_mentionState.selectedIdx + 1) % _mentionState.results.length;
+    _showMentionAutocomplete();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _mentionState.selectedIdx = (_mentionState.selectedIdx - 1 + _mentionState.results.length) % _mentionState.results.length;
+    _showMentionAutocomplete();
+  } else if (e.key === 'Enter' && _mentionState.active) {
+    e.preventDefault();
+    _insertMention(_mentionState.selectedIdx);
+  } else if (e.key === 'Escape') {
+    _hideMentionDropdown();
+  }
+}
+
+function _formatMuralText(text) {
+  // Escape HTML first
+  var t = esc(text);
+  // Highlight @mentions
+  t = t.replace(/@(\w+)/g, '<span class="mural-mention" onclick="_openMentionProfile(\'$1\')">@$1</span>');
+  return t;
+}
+
+function _openMentionProfile(nick) {
+  // Find user by nick in online users or recent posts
+  var found = null;
+  (_muralState.onlineUsers || []).forEach(function(u) {
+    if ((u.nick || '').toLowerCase() === nick.toLowerCase()) found = u;
+  });
+  if (!found) {
+    (_muralState.posts || []).forEach(function(p) {
+      if ((p.nick || '').toLowerCase() === nick.toLowerCase() && p.userId) {
+        found = { id: p.userId, nick: p.nick };
+      }
+    });
+  }
+  if (found && found.id && typeof showProfile === 'function') {
+    showProfile(found.id);
   }
 }
 
