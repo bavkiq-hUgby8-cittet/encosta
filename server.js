@@ -9427,12 +9427,29 @@ ARQUIVOS DISPONIVEIS: ${Object.keys(fileMap).join(', ')}`;
     // Clean markdown code fences if present
     editsRaw = editsRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
+    // Extract JSON array even if Claude added text before it
+    // Common pattern: "Baseado no plano aprovado, vou gerar... [{...}]"
     let edits;
     try { edits = JSON.parse(editsRaw); } catch (e) {
-      cmd.status = 'failed';
-      cmd.result = 'Erro parsing edits: ' + e.message + '\nRaw: ' + editsRaw.slice(0, 500);
-      saveDB('ultimateBank');
-      return;
+      // Try to find JSON array in the response
+      const jsonStart = editsRaw.indexOf('[');
+      const jsonEnd = editsRaw.lastIndexOf(']');
+      if (jsonStart !== -1 && jsonEnd > jsonStart) {
+        try {
+          edits = JSON.parse(editsRaw.slice(jsonStart, jsonEnd + 1));
+          console.log('[DEV] JSON extracted from position', jsonStart, 'to', jsonEnd);
+        } catch (e2) {
+          cmd.status = 'failed';
+          cmd.result = 'Erro parsing edits: ' + e2.message + '\nRaw: ' + editsRaw.slice(0, 500);
+          saveDB('ultimateBank');
+          return;
+        }
+      } else {
+        cmd.status = 'failed';
+        cmd.result = 'Erro parsing edits: ' + e.message + '\nRaw: ' + editsRaw.slice(0, 500);
+        saveDB('ultimateBank');
+        return;
+      }
     }
 
     if (!Array.isArray(edits) || edits.length === 0) {
