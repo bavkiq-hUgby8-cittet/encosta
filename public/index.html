@@ -7101,6 +7101,7 @@ async function showRelations(){
 // ═══════════════════════════════════════════════════════════
 
 var _muralPostsCache = {}; // channelKey -> posts array (cache local)
+var _muralPollTimer = null; // polling de backup pra sincronia
 var _muralState = {
   channels: [],
   activeChannel: null,
@@ -7211,10 +7212,41 @@ function openMural() {
     }
     switchMuralChannel(lastCh);
     _checkMuralMod();
+    // Polling de backup: recarregar posts a cada 30s pra garantir sincronia
+    if (_muralPollTimer) clearInterval(_muralPollTimer);
+    _muralPollTimer = setInterval(function() {
+      if (_muralState.activeChannel && !_muralState.loading) {
+        _muralSyncFromServer(_muralState.activeChannel);
+      }
+    }, 30000);
   } catch (err) {
     console.error('[mural] openMural error:', err);
     showToast('Erro ao abrir mural');
   }
+}
+
+// Sync silencioso do servidor (nao mostra loading, merge com posts existentes)
+async function _muralSyncFromServer(channelKey) {
+  try {
+    var r = await apiFetch('/api/mural/' + channelKey);
+    var d = await r.json();
+    var serverPosts = d.posts || [];
+    if (serverPosts.length === 0) return;
+    // Merge: manter posts locais que nao estao no servidor (recem-enviados)
+    var serverIds = {};
+    for (var i = 0; i < serverPosts.length; i++) serverIds[serverPosts[i].id] = true;
+    // Posts locais que o servidor ainda nao tem (enviados ha poucos segundos)
+    var localOnly = _muralState.posts.filter(function(p) { return !serverIds[p.id] && (Date.now() - p.createdAt) < 10000; });
+    var merged = serverPosts.concat(localOnly);
+    // Atualizar se tem diferenca
+    if (merged.length !== _muralState.posts.length || serverPosts.length !== _muralState.posts.length) {
+      _muralPostsCache[channelKey] = merged;
+      if (_muralState.activeChannel === channelKey) {
+        _muralState.posts = merged;
+        renderMuralFeed(true);
+      }
+    }
+  } catch (e) { /* silent */ }
 }
 
 function closeMural() {
@@ -7233,6 +7265,7 @@ function closeMural() {
   _muralState.onlineCount = 0;
   if (_muralState.cooldownTimer) { clearInterval(_muralState.cooldownTimer); _muralState.cooldownTimer = null; }
   if (_newsCountdownTimer) { clearInterval(_newsCountdownTimer); _newsCountdownTimer = null; }
+  if (_muralPollTimer) { clearInterval(_muralPollTimer); _muralPollTimer = null; }
   showScreen('history');
 }
 
@@ -7296,10 +7329,13 @@ function renderMuralChannels() {
 }
 
 async function switchMuralChannel(channelKey) {
-  if (_muralState.activeChannel && socket) {
-    socket.emit('leave-mural', _muralState.activeChannel);
+  // Salvar cache do canal anterior
+  if (_muralState.activeChannel && _muralState.posts && _muralState.posts.length > 0) {
+    _muralPostsCache[_muralState.activeChannel] = _muralState.posts.slice();
   }
+  // NAO fazer leave-mural: manter em TODOS os rooms pra receber tudo
   _muralState.activeChannel = channelKey;
+  _muralState._lastChannel = channelKey;
   _muralState.onlineUsers = [];
   document.querySelectorAll('.mural-ch-pill').forEach(function(pill) {
     pill.classList.toggle('active', pill.getAttribute('data-key') === channelKey);
@@ -7807,19 +7843,28 @@ function _initMuralSocket() {
   _muralSocketInit = true;
   socket.on('mural-new-post', function(data) {
     if (!data || !data.post) return;
-    var chKey = data.post.channelKey;
+    var p = data.post;
+    var chKey = p.channelKey;
     // Atualizar cache sempre (criar se nao existir)
     if (chKey) {
       if (!_muralPostsCache[chKey]) _muralPostsCache[chKey] = [];
-      if (!_muralPostsCache[chKey].find(function(p) { return p.id === data.post.id; })) {
-        _muralPostsCache[chKey].push(data.post);
+      if (!_muralPostsCache[chKey].find(function(x) { return x.id === p.id; })) {
+        _muralPostsCache[chKey].push(p);
       }
     }
     // Se o mural ta aberto nesse canal, atualizar feed
     if (chKey === _muralState.activeChannel) {
-      if (!_muralState.posts.find(function(p) { return p.id === data.post.id; })) {
-        _muralState.posts.push(data.post);
+      if (!_muralState.posts.find(function(x) { return x.id === p.id; })) {
+        _muralState.posts.push(p);
         renderMuralFeed();
+        // Auto-scroll se usuario ta perto do fim
+        var feed = $('muralFeed');
+        if (feed) {
+          var nearBottom = (feed.scrollHeight - feed.scrollTop - feed.clientHeight) < 120;
+          if (nearBottom) {
+            requestAnimationFrame(function() { feed.scrollTop = feed.scrollHeight; });
+          }
+        }
       }
     }
   });

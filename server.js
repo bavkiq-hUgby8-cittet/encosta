@@ -967,7 +967,7 @@ async function restoreBackup(backupId) {
 function saveDB(...collections) {
   // CRITICAL: Never save before DB is loaded — would overwrite real data with empty objects
   if (!dbLoaded) {
-    console.warn('⚠️ saveDB() called before dbLoaded — IGNORING to prevent data loss. Collections:', collections.join(','));
+    console.warn('saveDB() called before dbLoaded — IGNORING to prevent data loss. Collections:', collections.join(','));
     return;
   }
   if (collections.length === 0) {
@@ -979,6 +979,19 @@ function saveDB(...collections) {
   if (!saveTimer) {
     saveTimer = setTimeout(flushToRTDB, 2000);
   }
+}
+
+// saveDBNow — flush imediato sem debounce (para dados criticos como posts do mural)
+function saveDBNow(...collections) {
+  if (!dbLoaded) return;
+  if (collections.length === 0) {
+    DB_COLLECTIONS.forEach(c => _dirtyCollections.add(c));
+  } else {
+    collections.forEach(c => _dirtyCollections.add(c));
+  }
+  // Cancelar timer pendente e fazer flush agora
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  flushToRTDB();
 }
 
 // ── Firebase Auth middleware (optional, verifies token if present) ──
@@ -4047,8 +4060,12 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
     if (ban) return res.status(403).json({ error: 'Voce esta banido deste canal. Aguarde 24h.' });
   }
   const priv = getMuralPrivileges(user);
-  // Check cooldown
-  const allPosts = db.muralPosts[channelKey] || [];
+  // Check cooldown — garantir que e array
+  let allPosts = db.muralPosts[channelKey] || [];
+  if (!Array.isArray(allPosts)) {
+    allPosts = Object.values(allPosts).filter(p => p && p.id);
+    db.muralPosts[channelKey] = allPosts;
+  }
   const lastPost = [...allPosts].reverse().find(p => p.userId === userId && !p.isNarrator);
   if (lastPost && (Date.now() - lastPost.createdAt) < priv.cooldownMs) {
     const wait = Math.ceil((priv.cooldownMs - (Date.now() - lastPost.createdAt)) / 1000);
@@ -4083,12 +4100,19 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   db.muralPosts[channelKey].push(post);
   // Cap at 500 posts per channel
   if (db.muralPosts[channelKey].length > 500) db.muralPosts[channelKey] = db.muralPosts[channelKey].slice(-500);
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
+  // Auto-join: garantir que o remetente esta no room
+  const userRoom = 'mural:' + channelKey;
+  for (const [sid, s] of io.sockets.sockets) {
+    if (s.touchUserId === userId && !s.rooms.has(userRoom)) {
+      s.join(userRoom);
+    }
+  }
   // Broadcast to ALL users in channel room
-  const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
+  const room = io.sockets.adapter.rooms.get(userRoom);
   const roomSize = room ? room.size : 0;
   console.log('[mural] Post em #' + channelKey + ' por ' + (user.nickname || userId) + ' — ' + roomSize + ' sockets no room');
-  io.to('mural:' + channelKey).emit('mural-new-post', { post });
+  io.to(userRoom).emit('mural-new-post', { post });
   res.json({ ok: true, post });
 });
 
@@ -4113,7 +4137,7 @@ app.post('/api/mural/:postId/flag', requireAuth, (req, res) => {
   foundPost.hidden = true;
   foundPost.hiddenReason = 'mod-flag';
   foundPost.hiddenBy = userId;
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
   io.to('mural:' + foundChannel).emit('mural-post-hidden', { postId });
   res.json({ ok: true });
 });
@@ -4135,7 +4159,7 @@ app.post('/api/mural/:postId/hide', requireAuth, (req, res) => {
   foundPost.hidden = true;
   foundPost.hiddenBy = userId;
   foundPost.hiddenReason = 'mod';
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
   io.to('mural:' + foundChannel).emit('mural-post-hidden', { postId });
   res.json({ ok: true });
 });
@@ -4185,7 +4209,7 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
     db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
   }
   db.muralPosts[channelKey].push(narratorPost);
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: narratorPost });
   res.json({ ok: true, post: narratorPost });
 });
@@ -4299,7 +4323,7 @@ async function postNewsToChannel(channelKey, channelName, channelType) {
     db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
   }
   db.muralPosts[channelKey].push(newsPost);
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
   console.log('[news-agent] Posted news to #' + channelKey + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
@@ -4372,7 +4396,7 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
   }
   db.muralPosts[channelKey].push(newsPost);
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
   res.json({ ok: true, post: newsPost });
 });
@@ -4395,7 +4419,7 @@ app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
   } else {
     foundPost.likes.push(userId);
   }
-  saveDB('muralPosts');
+  saveDBNow('muralPosts');
   io.to('mural:' + foundChannel).emit('mural-post-liked', { postId, likes: foundPost.likes });
   res.json({ ok: true, likes: foundPost.likes });
 });
@@ -5988,12 +6012,10 @@ io.on('connection', (socket) => {
     currentUserId = userId;
     socket.touchUserId = userId;
     socket.join(`user:${userId}`);
-    // Auto-join mural rooms para todos os canais que o usuario ja postou
-    // Isso garante sincronia mesmo sem abrir o mural
-    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
-      if (Array.isArray(posts) && posts.some(p => p.userId === userId)) {
-        socket.join('mural:' + chKey);
-      }
+    // Auto-join mural rooms para TODOS os canais que existem no mural
+    // Isso garante que todo usuario receba posts em tempo real de qualquer canal
+    for (const chKey of Object.keys(db.muralPosts || {})) {
+      socket.join('mural:' + chKey);
     }
   });
 
