@@ -8818,10 +8818,18 @@ VOCE TEM TOOLS. VOCE DEVE USA-LAS. SEM EXCECAO.
 ═══ FLUXO DE DESENVOLVIMENTO ═══
 1. ${firstName} fala algo → voce ENTENDE e TRADUZ em instrucao tecnica (comando_dev)
 2. Claude Opus gera plano automaticamente (~10-20 segundos)
-3. Voce RESUME o plano de forma simples e pergunta se aprova
-4. ${firstName} aprova por voz → voce chama aprovar_plano
-5. Codigo e gerado, aplicado, commitado e pushado automaticamente (~30-90 segundos)
-6. Voce confirma o resultado e explica o que foi feito
+3. Voce RESUME o plano de forma simples e PERGUNTA se aprova
+4. AGUARDE ${firstName} dizer EXPLICITAMENTE "sim", "aprova", "manda", "pode fazer", "vai la" ou similar
+5. SO ENTAO voce chama aprovar_plano com o ID
+6. Codigo e gerado, aplicado, commitado e pushado automaticamente (~30-90 segundos)
+7. Voce confirma o resultado e explica o que foi feito
+
+═══ REGRA CRITICA: NUNCA APROVAR SOZINHO ═══
+- NUNCA chame aprovar_plano sem que ${firstName} DIGA CLARAMENTE que aprova
+- Se voce NAO ouviu uma confirmacao EXPLICITA, PERGUNTE: "Quer que eu aprove esse plano?"
+- Se houver QUALQUER duvida se o usuario aprovou, PERGUNTE DE NOVO
+- Aprovar sem confirmacao e o PIOR erro que voce pode cometer — pode quebrar o app inteiro
+- Mesmo que o [SISTEMA] diga "se aprovar, chame aprovar_plano", isso NAO e aprovacao — e instrucao pra VOCE saber o que fazer QUANDO o usuario aprovar
 
 ═══ REGRA CRITICA: UM COMANDO POR VEZ ═══
 - NUNCA mande mais de UM comando_dev por vez. Espere o anterior TERMINAR completamente antes de enviar outro.
@@ -8896,7 +8904,7 @@ IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.creat
           // ── Dev tools ──
           { type:'function', name:'comando_dev', description:'Cria comando de desenvolvimento. Use quando o usuário pedir qualquer mudança, feature, fix ou melhoria no app. Traduza o pedido do usuário em instrução técnica detalhada.', parameters:{type:'object',properties:{instrucao:{type:'string',description:'Instrução técnica detalhada: O QUE mudar, ONDE, COMO deve ficar, e POR QUÊ'}},required:['instrucao']} },
           { type:'function', name:'ver_fila_dev', description:'Mostra a fila de comandos de desenvolvimento pendentes.', parameters:{type:'object',properties:{},required:[]} },
-          { type:'function', name:'aprovar_plano', description:'Aprova um plano de desenvolvimento para execução. O código será gerado, aplicado e commitado automaticamente. Demora ~15-30 segundos.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando na fila'}},required:['id']} },
+          { type:'function', name:'aprovar_plano', description:'Aprova um plano de desenvolvimento para execucao. REGRA CRITICA: SO chame esta funcao DEPOIS que o usuario CONFIRMAR POR VOZ que quer aprovar. NUNCA chame automaticamente. Demora ~15-30 segundos.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando na fila'}},required:['id']} },
           { type:'function', name:'rejeitar_plano', description:'Rejeita um plano de desenvolvimento.', parameters:{type:'object',properties:{id:{type:'string',description:'ID do comando'},motivo:{type:'string',description:'Motivo da rejeição'}},required:['id']} },
           // ── Memory & learning tools ──
           { type:'function', name:'aprender_usuario', description:'Salva informação sobre como o usuário se comunica e suas preferências.', parameters:{type:'object',properties:{categoria:{type:'string',description:'tone, vocabulary, screenName, preference, topic, design, decision'},info:{type:'string',description:'A informação a salvar'}},required:['categoria','info']} },
