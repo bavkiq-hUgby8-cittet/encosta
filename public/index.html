@@ -3008,18 +3008,32 @@ let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userNa
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ AUTH FETCH HELPER: automaticamente inclui Firebase token em todas as chamadas API ═══
+var _cachedFirebaseToken = null;
+var _cachedFirebaseTokenExp = 0;
+async function _getFirebaseToken() {
+  // Cache token por 50 minutos (tokens Firebase duram 60min)
+  var now = Date.now();
+  if (_cachedFirebaseToken && now < _cachedFirebaseTokenExp) return _cachedFirebaseToken;
+  try {
+    if (firebaseAuthInstance && firebaseAuthInstance.currentUser) {
+      var token = await firebaseAuthInstance.currentUser.getIdToken();
+      if (token) {
+        _cachedFirebaseToken = token;
+        _cachedFirebaseTokenExp = now + 50 * 60 * 1000; // 50 min
+        return token;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
 async function apiFetch(url, opts = {}) {
   const headers = opts.headers ? { ...opts.headers } : {};
   if (!headers['Content-Type'] && opts.body && typeof opts.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
-  // Attach Firebase token if available
-  try {
-    if (firebaseAuthInstance && firebaseAuthInstance.currentUser) {
-      const token = await firebaseAuthInstance.currentUser.getIdToken();
-      if (token) headers['Authorization'] = 'Bearer ' + token;
-    }
-  } catch (e) { /* token fetch failed, continue without */ }
+  // Usar token cacheado (evita getIdToken() lento a cada request)
+  var token = await _getFirebaseToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
   return fetch(url, { ...opts, headers });
 }
 
@@ -7313,9 +7327,9 @@ async function loadMuralPosts(channelKey) {
     var r = await apiFetch('/api/mural/' + channelKey);
     var d = await r.json();
     var posts = d.posts || [];
-    _muralPostsCache[channelKey] = posts; // salvar no cache
+    _muralPostsCache[channelKey] = posts;
     _muralState.posts = posts;
-    renderMuralFeed();
+    renderMuralFeed(true); // full rebuild ao carregar do servidor
   } catch (e) {
     // Se falhar e tem cache, manter cache
     if (!_muralPostsCache[channelKey] || _muralPostsCache[channelKey].length === 0) {
@@ -7396,7 +7410,71 @@ function _renderMuralOnline() {
   listEl.innerHTML = html;
 }
 
-function renderMuralFeed() {
+function _buildMuralMsgHtml(p) {
+  var now = Date.now();
+  var age = now - p.createdAt;
+  var fadeStyle = '';
+  if (age > 40 * 3600000) fadeStyle = ' style="opacity:.15"';
+  else if (age > 30 * 3600000) fadeStyle = ' style="opacity:.25"';
+  else if (age > 24 * 3600000) fadeStyle = ' style="opacity:.4"';
+  var isNews = p.isNews || false;
+  var typeClass = p.isNarrator ? ' narrator' : (isNews ? ' news' : '');
+  var likeCount = (p.likes || []).length;
+  var isPinned = likeCount >= 3;
+  var pinnedClass = isPinned ? ' pinned' : '';
+  var iLiked = (p.likes || []).indexOf(state.userId) !== -1;
+  var likedClass = iLiked ? ' liked' : '';
+  var isMod = (p.stars || 0) >= 10;
+  var modClass = isMod ? ' mod' : '';
+  var starsHtml = '';
+  if (p.stars > 0 && !p.isNarrator && !isNews) {
+    var starDots = '';
+    for (var si = 0; si < Math.min(p.stars, 10); si++) starDots += '*';
+    starsHtml = '<span class="mural-msg-stars">' + starDots + '</span>';
+  }
+  var nickC = p.color || nickColor(p.nick || 'anon');
+  var avatarHtml = makeAvatar(p.nick || 'anon', nickC, 28, null, false, p.accessory || null);
+  var topicLabel = (isNews && p.newsTopic) ? p.newsTopic : 'Noticia';
+  var newsTag = isNews ? '<span class="mural-news-tag">' + esc(topicLabel) + '</span> ' : '';
+  var heartIcon = iLiked ? '&#9829;' : '&#9825;';
+  var likeBtn = '<button class="mural-msg-like' + likedClass + '" onclick="likeMuralPost(\'' + p.id + '\')">'
+    + heartIcon + (likeCount > 0 ? ' <span class="like-count">' + likeCount + '</span>' : '') + '</button>';
+  var flagBtn = '';
+  if (!p.isNarrator && !isNews && p.userId !== state.userId) {
+    flagBtn = '<button class="mural-msg-flag" onclick="flagMuralPost(\'' + p.id + '\')">reportar</button>';
+  }
+  var banBtn = '';
+  var hideBtn = '';
+  if (_muralState.isMod && !p.isNarrator && !isNews && p.userId !== state.userId) {
+    banBtn = '<button class="mural-msg-ban" onclick="banMuralUser(\'' + esc(p.userId) + '\',\'' + esc(p.nick) + '\')">ban</button>';
+    hideBtn = '<button class="mural-msg-hide" onclick="hideMuralPost(\'' + p.id + '\')">ocultar</button>';
+  }
+  var txt = p.text || '';
+  var sourceHtml = '';
+  if (isNews) {
+    var sourceMatch = txt.match(/\n?\s*[Ff]onte:\s*(.+)$/);
+    if (sourceMatch) {
+      txt = txt.replace(sourceMatch[0], '').trim();
+      sourceHtml = '<span class="mural-news-source">Fonte: ' + esc(sourceMatch[1].trim()) + '</span>';
+    }
+  }
+  return '<div class="mural-msg' + typeClass + pinnedClass + '" id="mp_' + p.id + '"' + fadeStyle + '>'
+    + '<div class="mural-msg-avatar">' + avatarHtml + '</div>'
+    + '<div class="mural-msg-body">'
+    + '<div class="mural-msg-head">'
+    + '<span class="mural-msg-nick' + modClass + '" style="color:' + esc(nickC) + '">' + esc(p.nick) + '</span>'
+    + starsHtml
+    + '<span class="mural-msg-time">' + _muralTimeAgo(p.createdAt) + '</span>'
+    + '</div>'
+    + newsTag
+    + '<div class="mural-msg-text">' + esc(txt) + sourceHtml + '</div>'
+    + '<div class="mural-msg-actions">' + likeBtn + flagBtn + hideBtn + banBtn + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+var _muralRenderedIds = {}; // track rendered post IDs
+function renderMuralFeed(forceFullRebuild) {
   var feed = $('muralFeed');
   var empty = $('muralEmpty');
   if (!feed || !empty) return;
@@ -7404,91 +7482,46 @@ function renderMuralFeed() {
     feed.classList.add('hidden');
     feed.innerHTML = '';
     empty.classList.remove('hidden');
+    _muralRenderedIds = {};
     return;
   }
   empty.classList.add('hidden');
   feed.classList.remove('hidden');
-  // Sort: pinned (most likes) first, then by time
+  // Sort: pinned first, then by time
   var sorted = _muralState.posts.slice().sort(function(a, b) {
     var aLikes = (a.likes || []).length;
     var bLikes = (b.likes || []).length;
-    // Posts with 3+ likes are pinned to top
     var aPinned = aLikes >= 3 ? 1 : 0;
     var bPinned = bLikes >= 3 ? 1 : 0;
     if (aPinned !== bPinned) return bPinned - aPinned;
     if (aPinned && bPinned) return bLikes - aLikes;
     return a.createdAt - b.createdAt;
   });
-  var now = Date.now();
+  // Incremental append: se so tem posts novos no final, append sem recriar
+  var newPosts = [];
+  if (!forceFullRebuild) {
+    for (var i = 0; i < sorted.length; i++) {
+      if (!_muralRenderedIds[sorted[i].id]) newPosts.push(sorted[i]);
+    }
+  }
+  // Se so precisa adicionar posts novos (e nao tem reordenacao de pinned)
+  if (!forceFullRebuild && newPosts.length > 0 && newPosts.length <= 3 && Object.keys(_muralRenderedIds).length > 0) {
+    var fragment = '';
+    for (var j = 0; j < newPosts.length; j++) {
+      fragment += _buildMuralMsgHtml(newPosts[j]);
+      _muralRenderedIds[newPosts[j].id] = true;
+    }
+    feed.insertAdjacentHTML('beforeend', fragment);
+    requestAnimationFrame(function() { feed.scrollTop = feed.scrollHeight; });
+    return;
+  }
+  // Full rebuild
   var html = '';
-  sorted.forEach(function(p) {
-    var age = now - p.createdAt;
-    var fadeStyle = '';
-    if (age > 40 * 3600000) fadeStyle = ' style="opacity:.15"';
-    else if (age > 30 * 3600000) fadeStyle = ' style="opacity:.25"';
-    else if (age > 24 * 3600000) fadeStyle = ' style="opacity:.4"';
-    var isNews = p.isNews || false;
-    var typeClass = p.isNarrator ? ' narrator' : (isNews ? ' news' : '');
-    var likeCount = (p.likes || []).length;
-    var isPinned = likeCount >= 3;
-    var pinnedClass = isPinned ? ' pinned' : '';
-    var iLiked = (p.likes || []).indexOf(state.userId) !== -1;
-    var likedClass = iLiked ? ' liked' : '';
-    var isMod = (p.stars || 0) >= 10;
-    var modClass = isMod ? ' mod' : '';
-    // Stars display
-    var starsHtml = '';
-    if (p.stars > 0 && !p.isNarrator && !isNews) {
-      var starDots = '';
-      for (var si = 0; si < Math.min(p.stars, 10); si++) starDots += '*';
-      starsHtml = '<span class="mural-msg-stars">' + starDots + '</span>';
-    }
-    // Avatar
-    var nickC = p.color || nickColor(p.nick || 'anon');
-    var avatarHtml = makeAvatar(p.nick || 'anon', nickC, 28, null, false, p.accessory || null);
-    // News tag
-    var topicLabel = (isNews && p.newsTopic) ? p.newsTopic : 'Noticia';
-    var newsTag = isNews ? '<span class="mural-news-tag">' + esc(topicLabel) + '</span> ' : '';
-    // Actions (heart for like)
-    var heartIcon = iLiked ? '&#9829;' : '&#9825;';
-    var likeBtn = '<button class="mural-msg-like' + likedClass + '" onclick="likeMuralPost(\'' + p.id + '\')">'
-      + heartIcon + (likeCount > 0 ? ' <span class="like-count">' + likeCount + '</span>' : '') + '</button>';
-    var flagBtn = '';
-    if (!p.isNarrator && !isNews && p.userId !== state.userId) {
-      flagBtn = '<button class="mural-msg-flag" onclick="flagMuralPost(\'' + p.id + '\')">reportar</button>';
-    }
-    var banBtn = '';
-    var hideBtn = '';
-    if (_muralState.isMod && !p.isNarrator && !isNews && p.userId !== state.userId) {
-      banBtn = '<button class="mural-msg-ban" onclick="banMuralUser(\'' + esc(p.userId) + '\',\'' + esc(p.nick) + '\')">ban</button>';
-      hideBtn = '<button class="mural-msg-hide" onclick="hideMuralPost(\'' + p.id + '\')">ocultar</button>';
-    }
-    html += '<div class="mural-msg' + typeClass + pinnedClass + '" id="mp_' + p.id + '"' + fadeStyle + '>'
-      + '<div class="mural-msg-avatar">' + avatarHtml + '</div>'
-      + '<div class="mural-msg-body">'
-      + '<div class="mural-msg-head">'
-      + '<span class="mural-msg-nick' + modClass + '" style="color:' + esc(nickC) + '">' + esc(p.nick) + '</span>'
-      + starsHtml
-      + '<span class="mural-msg-time">' + _muralTimeAgo(p.createdAt) + '</span>'
-      + '</div>'
-      + newsTag
-      + (function() {
-        var txt = p.text || '';
-        var sourceHtml = '';
-        if (isNews) {
-          // Separar "Fonte: ..." do texto principal
-          var sourceMatch = txt.match(/\n?\s*[Ff]onte:\s*(.+)$/);
-          if (sourceMatch) {
-            txt = txt.replace(sourceMatch[0], '').trim();
-            sourceHtml = '<span class="mural-news-source">Fonte: ' + esc(sourceMatch[1].trim()) + '</span>';
-          }
-        }
-        return '<div class="mural-msg-text">' + esc(txt) + sourceHtml + '</div>';
-      })()
-      + '<div class="mural-msg-actions">' + likeBtn + flagBtn + hideBtn + banBtn + '</div>'
-      + '</div>'
-      + '</div>';
-  });
+  _muralRenderedIds = {};
+  for (var k = 0; k < sorted.length; k++) {
+    html += _buildMuralMsgHtml(sorted[k]);
+    _muralRenderedIds[sorted[k].id] = true;
+  }
   feed.innerHTML = html;
   requestAnimationFrame(function() { feed.scrollTop = feed.scrollHeight; });
 }
@@ -7527,26 +7560,44 @@ async function postToMural() {
   if (!text || !_muralState.activeChannel) return;
   btn.disabled = true;
   var ch = _muralState.channels.find(function(c) { return c.key === _muralState.activeChannel; });
+  // Limpar input e salvar texto (feedback instantaneo)
+  var savedText = text;
+  input.value = '';
+  input.style.height = '';
+  var wc = $('muralWordCount');
+  if (wc) wc.classList.add('hidden');
   try {
     var r = await apiFetch('/api/mural/' + _muralState.activeChannel + '/post', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId: state.userId,
-        text: text,
+        text: savedText,
         channelName: ch ? ch.name : '',
         channelType: ch ? ch.type : 'city'
       })
     });
     var d = await r.json();
-    if (d.error) { btn.disabled = false; return showToast(d.error); }
-    input.value = '';
-    input.style.height = '';
-    var wc = $('muralWordCount');
-    if (wc) wc.classList.add('hidden');
+    if (d.error) {
+      input.value = savedText; // restaurar texto se erro
+      btn.disabled = false;
+      return showToast(d.error);
+    }
     haptic([15, 10]);
-    // Post sera adicionado via socket (mural-new-post), nao duplicar aqui
+    // Adicionar post localmente (feedback instantaneo pro remetente)
+    // Socket dedup evita mostrar 2x quando o evento chegar
+    if (d.post && !_muralState.posts.find(function(p) { return p.id === d.post.id; })) {
+      _muralState.posts.push(d.post);
+      var ck = d.post.channelKey || _muralState.activeChannel;
+      if (!_muralPostsCache[ck]) _muralPostsCache[ck] = [];
+      if (!_muralPostsCache[ck].find(function(p) { return p.id === d.post.id; })) {
+        _muralPostsCache[ck].push(d.post);
+      }
+      renderMuralFeed();
+    }
+    btn.disabled = false;
   } catch (e) {
+    input.value = savedText;
     btn.disabled = false;
     showToast('Erro ao postar.');
   }
@@ -7796,7 +7847,7 @@ function _initMuralSocket() {
     var post = _muralState.posts.find(function(p) { return p.id === data.postId; });
     if (post) {
       post.likes = data.likes || post.likes;
-      renderMuralFeed();
+      renderMuralFeed(true); // force rebuild (likes mudam ordem dos pinned)
     }
   });
   socket.on('mural-user-banned', function(data) {
@@ -9706,6 +9757,18 @@ document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'&&state.userId){
     updateNotifBadge();
     updateNetworkBadge();
+    // Mural: rejoin room e recarregar posts ao voltar do background
+    if(typeof _muralState!=='undefined' && _muralState._lastChannel && socket){
+      if(!socket.connected) socket.connect();
+      socket.emit('join-mural', _muralState._lastChannel);
+      // Se o mural esta aberto, recarregar posts
+      if(_muralState.activeChannel){
+        setTimeout(function(){
+          loadMuralPosts(_muralState.activeChannel);
+          _loadMuralOnline(_muralState.activeChannel);
+        }, 300);
+      }
+    }
   }
 });
 // Inicia polling quando app carrega
