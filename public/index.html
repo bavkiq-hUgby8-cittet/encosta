@@ -976,10 +976,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cd-selfie-zoom .cd-zoom-delete{position:absolute;bottom:max(env(safe-area-inset-bottom),1.5rem);left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;border-radius:12px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.12);color:#ef4444;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;opacity:0;transition:opacity .3s}
 .cd-selfie-zoom.hold-active .cd-zoom-delete{opacity:1}
 /* ═══ MURAL DA CIDADE — Matrix/IRC modern theme ═══ */
-.mural-fab{position:absolute;bottom:98px;left:12px;z-index:7;display:flex;align-items:center;gap:.4rem;padding:.4rem .75rem .4rem .5rem;border-radius:22px;background:rgba(0,10,0,.88);border:1px solid rgba(0,255,65,.2);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);cursor:pointer;transition:all .25s cubic-bezier(.22,1,.36,1);box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 10px rgba(0,255,65,.06)}
+.mural-fab{position:absolute;bottom:98px;left:28px;z-index:7;display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem .55rem .65rem;border-radius:22px;background:rgba(0,10,0,.88);border:1px solid rgba(0,255,65,.25);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);cursor:pointer;transition:all .25s cubic-bezier(.22,1,.36,1);box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 10px rgba(0,255,65,.06);min-height:40px;min-width:44px}
 .mural-fab:active{transform:scale(.92)}
-.mural-fab .mural-fab-dot{width:9px;height:9px;border-radius:50%;background:#00ff41;box-shadow:0 0 8px rgba(0,255,65,.5),0 0 3px rgba(0,255,65,.8);animation:muralPulse 3s ease-in-out infinite}
-.mural-fab .mural-fab-label{font-size:.58rem;color:rgba(0,255,65,.6);font-weight:600;letter-spacing:.06em;text-transform:uppercase;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace}
+.mural-fab .mural-fab-dot{width:10px;height:10px;border-radius:50%;background:#00ff41;box-shadow:0 0 8px rgba(0,255,65,.5),0 0 3px rgba(0,255,65,.8);animation:muralPulse 3s ease-in-out infinite}
+.mural-fab .mural-fab-label{font-size:.62rem;color:rgba(0,255,65,.65);font-weight:600;letter-spacing:.06em;text-transform:uppercase;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace}
 @keyframes muralPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
 #muralScreen{background:#0a0a0a;font-family:'Courier New',monospace;display:flex;flex-direction:column;position:relative;overflow:hidden}
 #muralScreen *{font-family:'Courier New',monospace}
@@ -2112,7 +2112,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-feedback" id="constFeedback"></div>
   <div class="notif-btn" id="constNotifBtn" onclick="toggleNotifPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-badge hidden" id="constNotifBadge">0</span></div>
   <div class="const-canvas-wrap"><canvas id="constCanvas"></canvas>
-    <div class="mural-fab hidden" id="muralFab" onclick="openMural()"><div class="mural-fab-dot"></div><span class="mural-fab-label" id="muralFabLabel">Mural</span></div>
+    <div class="mural-fab hidden" id="muralFab"><div class="mural-fab-dot"></div><span class="mural-fab-label" id="muralFabLabel">Mural</span></div>
     <button id="constSearchFloat" onclick="toggleConstSearch()" style="position:absolute;bottom:58px;right:12px;z-index:6;width:32px;height:32px;border-radius:50%;background:rgba(10,10,25,.7);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     <div id="constFilters" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:.25rem;padding:.3rem .4rem;background:rgba(10,10,25,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:16px;border:1px solid rgba(255,255,255,.08);z-index:5">
       <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span><span data-i18n="home.revealed_filter">Revelados</span></button>
@@ -7102,21 +7102,44 @@ function _showMuralFab() {
   if (!fab || !_muralState.geo) return;
   label.textContent = _muralState.geo.city || 'Mural';
   fab.classList.remove('hidden');
+  // Attach click via addEventListener for reliability (avoids inline onclick issues)
+  if (!fab._muralBound) {
+    fab._muralBound = true;
+    var _muralFabLast = 0;
+    function _onMuralFabTap(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      // Debounce: prevent double-fire from touch+click
+      var now = Date.now();
+      if (now - _muralFabLast < 400) return;
+      _muralFabLast = now;
+      openMural();
+    }
+    fab.addEventListener('click', _onMuralFabTap);
+    fab.addEventListener('touchend', _onMuralFabTap, { passive: false });
+  }
 }
 
 function openMural() {
-  if (!_muralState.channels.length) {
-    showToast(t('mural.requires_gps'));
-    return;
+  try {
+    console.log('[mural] openMural called, channels:', _muralState.channels.length);
+    if (!_muralState.channels || !_muralState.channels.length) {
+      showToast(t('mural.requires_gps') || 'Ative o GPS para acessar o mural');
+      return;
+    }
+    showScreen('muralScreen');
+    console.log('[mural] showScreen(muralScreen) done');
+    haptic([20]);
+    _startMatrixRain();
+    renderMuralChannels();
+    if (_muralState.channels.length > 0) {
+      switchMuralChannel(_muralState.channels[0].key);
+    }
+    _checkMuralMod();
+  } catch (err) {
+    console.error('[mural] openMural error:', err);
+    showToast('Erro ao abrir mural: ' + (err.message || err));
   }
-  showScreen('muralScreen');
-  haptic([20]);
-  _startMatrixRain();
-  renderMuralChannels();
-  if (_muralState.channels.length > 0) {
-    switchMuralChannel(_muralState.channels[0].key);
-  }
-  _checkMuralMod();
 }
 
 function closeMural() {
