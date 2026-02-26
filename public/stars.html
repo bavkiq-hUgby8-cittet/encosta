@@ -315,6 +315,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   </div>
 </section>
 
+<!-- COMING SOON -->
+<section class="section" data-guide="7">
+  <div class="container" style="text-align:center">
+    <div class="section-label">Em breve</div>
+    <div class="section-title">Mais formas de ganhar</div>
+    <div class="section-desc" style="margin:0 auto 1.5rem">A economia de estrelas vai crescer. Alem das conexoes presenciais, novas formas de ganhar score e estrelas estao sendo planejadas.</div>
+    <div id="futureSources" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"></div>
+  </div>
+</section>
+
 <!-- FOOTER -->
 <footer class="footer">
   <p style="color:var(--t1);font-weight:700;margin-bottom:.2rem">touch</p>
@@ -451,6 +461,26 @@ function initTop1() {
   document.getElementById('top1Stars').innerHTML = html;
 }
 
+function initFutureSources() {
+  const sources = [
+    {icon: 'M', label: 'Missoes', desc: 'Desafios semanais'},
+    {icon: 'R', label: 'Indicacoes', desc: 'Convide amigos'},
+    {icon: 'S', label: 'Streaks', desc: 'Dias consecutivos'},
+    {icon: 'L', label: 'Checkin', desc: 'Locais parceiros'},
+    {icon: 'T', label: 'Conquistas', desc: 'Marcos especiais'},
+    {icon: 'P', label: 'Parcerias', desc: 'Apps e marcas'}
+  ];
+  const container = document.getElementById('futureSources');
+  container.innerHTML = sources.map(s =>
+    '<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;min-width:130px;opacity:.65">' +
+    '<div style="font-size:1.3rem;font-weight:900;color:var(--purple);margin-bottom:4px">' + s.icon + '</div>' +
+    '<div style="font-size:.8rem;font-weight:700;color:var(--t1)">' + s.label + '</div>' +
+    '<div style="font-size:.65rem;color:var(--t3);margin-top:2px">' + s.desc + '</div>' +
+    '<div style="font-size:.55rem;color:var(--purple);margin-top:6px;text-transform:uppercase;letter-spacing:.08em">Em breve</div>' +
+    '</div>'
+  ).join('');
+}
+
 function initTicker() {
   const items = [
     'Estrelas distribuidas hoje: 127',
@@ -482,20 +512,146 @@ function resizeAq() {
   canvas.style.height = r.height + 'px';
 }
 
+// Accessory types for avatars
+const ACCESSORIES = [
+  'none','hat','cap','headphones','glasses','sunglasses','earring','crown','bowtie','bandana'
+];
+const SKIN_TONES = ['#c8a882','#e0c8a0','#a07858','#785838','#6a4e35','#d4b08c','#f0d8b0'];
+
+function drawSilhouette(c, x, y, r, acc, skin, hasStar, stars) {
+  // Circular clip
+  c.save();
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+  // Background
+  if (hasStar) {
+    c.fillStyle = 'rgba(255,215,0,.15)';
+  } else {
+    c.fillStyle = 'rgba(80,70,120,.25)';
+  }
+  c.fill();
+  // Head
+  const headR = r * .36;
+  const headY = y - r * .15;
+  c.fillStyle = skin;
+  c.beginPath(); c.arc(x, headY, headR, 0, Math.PI * 2); c.fill();
+  // Body (shoulders)
+  c.beginPath();
+  c.ellipse(x, y + r * .55, r * .6, r * .45, 0, Math.PI, 0, true);
+  c.fill();
+  // Accessory drawing
+  drawAccessory(c, x, headY, headR, r, acc, hasStar);
+  c.restore();
+  // Border glow
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
+  if (hasStar) {
+    c.strokeStyle = 'rgba(255,215,0,' + (.25 + stars * .05) + ')';
+    c.lineWidth = .8;
+    c.stroke();
+  } else {
+    c.strokeStyle = 'rgba(255,255,255,.06)';
+    c.lineWidth = .4;
+    c.stroke();
+  }
+}
+
+function drawAccessory(c, x, hy, hr, r, acc, hasStar) {
+  const col = hasStar ? '#ffd700' : '#a0a0b8';
+  const col2 = hasStar ? '#e6c200' : '#888';
+  switch(acc) {
+    case 'hat':
+      c.fillStyle = col;
+      c.fillRect(x - hr * .8, hy - hr - hr * .15, hr * 1.6, hr * .25);
+      c.fillRect(x - hr * .45, hy - hr - hr * .7, hr * .9, hr * .6);
+      break;
+    case 'cap':
+      c.fillStyle = col;
+      c.beginPath();
+      c.ellipse(x, hy - hr * .85, hr * .7, hr * .25, 0, Math.PI, 0, true);
+      c.fill();
+      c.fillRect(x - hr * .1, hy - hr * 1.1, hr * 1.0, hr * .15);
+      break;
+    case 'headphones':
+      c.strokeStyle = col; c.lineWidth = hr * .15;
+      c.beginPath(); c.arc(x, hy - hr * .2, hr * .95, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+      c.fillStyle = col2;
+      c.fillRect(x - hr * 1.05, hy - hr * .15, hr * .25, hr * .4);
+      c.fillRect(x + hr * .8, hy - hr * .15, hr * .25, hr * .4);
+      break;
+    case 'glasses':
+      c.strokeStyle = col; c.lineWidth = hr * .08;
+      c.beginPath(); c.arc(x - hr * .35, hy + hr * .05, hr * .25, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.arc(x + hr * .35, hy + hr * .05, hr * .25, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.moveTo(x - hr * .1, hy + hr * .05); c.lineTo(x + hr * .1, hy + hr * .05); c.stroke();
+      break;
+    case 'sunglasses':
+      c.fillStyle = 'rgba(0,0,0,.6)';
+      c.fillRect(x - hr * .65, hy - hr * .08, hr * .55, hr * .3);
+      c.fillRect(x + hr * .1, hy - hr * .08, hr * .55, hr * .3);
+      c.strokeStyle = col; c.lineWidth = hr * .06;
+      c.strokeRect(x - hr * .65, hy - hr * .08, hr * .55, hr * .3);
+      c.strokeRect(x + hr * .1, hy - hr * .08, hr * .55, hr * .3);
+      c.beginPath(); c.moveTo(x - hr * .1, hy + hr * .05); c.lineTo(x + hr * .1, hy + hr * .05); c.stroke();
+      break;
+    case 'earring':
+      c.fillStyle = col;
+      c.beginPath(); c.arc(x - hr * .85, hy + hr * .35, hr * .1, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + hr * .85, hy + hr * .35, hr * .1, 0, Math.PI * 2); c.fill();
+      break;
+    case 'crown':
+      c.fillStyle = col;
+      const cy = hy - hr * .9;
+      c.beginPath();
+      c.moveTo(x - hr * .55, cy + hr * .35);
+      c.lineTo(x - hr * .55, cy);
+      c.lineTo(x - hr * .25, cy + hr * .2);
+      c.lineTo(x, cy - hr * .1);
+      c.lineTo(x + hr * .25, cy + hr * .2);
+      c.lineTo(x + hr * .55, cy);
+      c.lineTo(x + hr * .55, cy + hr * .35);
+      c.closePath(); c.fill();
+      break;
+    case 'bowtie':
+      c.fillStyle = col;
+      const by = hy + hr * .85;
+      c.beginPath();
+      c.moveTo(x, by);
+      c.lineTo(x - hr * .4, by - hr * .2);
+      c.lineTo(x - hr * .4, by + hr * .2);
+      c.closePath(); c.fill();
+      c.beginPath();
+      c.moveTo(x, by);
+      c.lineTo(x + hr * .4, by - hr * .2);
+      c.lineTo(x + hr * .4, by + hr * .2);
+      c.closePath(); c.fill();
+      break;
+    case 'bandana':
+      c.fillStyle = col;
+      c.beginPath();
+      c.arc(x, hy, hr * 1.02, Math.PI * 1.1, Math.PI * 1.9);
+      c.lineWidth = hr * .18; c.strokeStyle = col; c.stroke();
+      c.fillStyle = col2;
+      c.beginPath(); c.arc(x + hr * .75, hy - hr * .5, hr * .12, 0, Math.PI * 2); c.fill();
+      break;
+    default: break;
+  }
+}
+
 class Bubble {
   constructor() {
     const w = AW / devicePixelRatio, h = AH / devicePixelRatio;
     this.x = Math.random() * w;
     this.y = Math.random() * h;
-    this.vx = (Math.random() - .5) * .35;
-    this.vy = (Math.random() - .5) * .35;
-    this.r = 2 + Math.random() * 5;
+    this.vx = (Math.random() - .5) * .3;
+    this.vy = (Math.random() - .5) * .3;
+    this.r = 5 + Math.random() * 10;
     this.alpha = 0;
-    this.ta = .15 + Math.random() * .45;
+    this.ta = .2 + Math.random() * .5;
     this.p = Math.random() * Math.PI * 2;
     this.hasStar = Math.random() > .6;
     this.stars = this.hasStar ? Math.ceil(Math.random() * 10) : 0;
     this.hue = this.hasStar ? 45 : 210 + Math.random() * 50;
+    this.acc = ACCESSORIES[Math.floor(Math.random() * ACCESSORIES.length)];
+    this.skin = SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)];
   }
   update(w, h) {
     this.p += .012;
@@ -503,23 +659,27 @@ class Bubble {
     this.x += this.vx; this.y += this.vy;
     if (this.x < this.r || this.x > w - this.r) this.vx *= -.8;
     if (this.y < this.r || this.y > h - this.r) this.vy *= -.8;
-    this.vx += (Math.random() - .5) * .008;
-    this.vy += (Math.random() - .5) * .008;
+    this.vx += (Math.random() - .5) * .006;
+    this.vy += (Math.random() - .5) * .006;
   }
   draw(c) {
     const g = .85 + .15 * Math.sin(this.p);
     c.globalAlpha = this.alpha * g;
     if (this.hasStar) {
-      const gr = c.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 2);
-      gr.addColorStop(0, 'rgba(255,215,0,.2)');
+      const gr = c.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 1.8);
+      gr.addColorStop(0, 'rgba(255,215,0,.15)');
       gr.addColorStop(1, 'rgba(255,215,0,0)');
       c.fillStyle = gr;
-      c.beginPath(); c.arc(this.x, this.y, this.r * 2, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#ffd700';
-    } else {
-      c.fillStyle = 'hsl(' + this.hue + ',50%,60%)';
+      c.beginPath(); c.arc(this.x, this.y, this.r * 1.8, 0, Math.PI * 2); c.fill();
     }
-    c.beginPath(); c.arc(this.x, this.y, this.r, 0, Math.PI * 2); c.fill();
+    drawSilhouette(c, this.x, this.y, this.r, this.acc, this.skin, this.hasStar, this.stars);
+    // Mini stars indicator for users with stars
+    if (this.hasStar && this.r > 7) {
+      c.fillStyle = '#ffd700';
+      c.font = 'bold ' + Math.max(5, this.r * .35) + 'px Inter,sans-serif';
+      c.textAlign = 'center';
+      c.fillText(this.stars + ' *', this.x, this.y + this.r + Math.max(5, this.r * .35) + 2);
+    }
     c.globalAlpha = 1;
   }
 }
@@ -543,7 +703,7 @@ function aqAnimate() {
   }
   ctx.globalAlpha = 1;
   bubbles.forEach(b => { b.update(w, h); b.draw(ctx); });
-  if (bubbles.length < 300) bubbles.push(new Bubble());
+  if (bubbles.length < 120) bubbles.push(new Bubble());
   requestAnimationFrame(aqAnimate);
 }
 
@@ -554,7 +714,7 @@ const GUIDE_STEPS = [
   {
     target: '[data-guide="0"]',
     title: 'O Aquario Global',
-    text: 'Bem-vindo! Esse aquario mostra <span class="highlight">todas as pessoas no Touch em tempo real</span>. Cada bolha e um usuario. As douradas sao quem ja tem estrelas. Quanto mais brilhante, mais estrelas essa pessoa carrega.'
+    text: 'Bem-vindo! Esse aquario mostra <span class="highlight">todas as pessoas no Touch em tempo real</span>. Cada avatar e um usuario, com silhueta e acessorios unicos. Os dourados ja tem estrelas. Quanto mais brilhante o contorno, mais estrelas essa pessoa carrega.'
   },
   {
     target: '[data-guide="1"]',
@@ -590,6 +750,11 @@ const GUIDE_STEPS = [
     target: '[data-guide="6"]',
     title: 'O Top 1',
     text: 'A pessoa com mais estrelas do mundo inteiro tem <span class="highlight">50 estrelas fixas</span>. Nao e so status -- o Top 1 pode gerar e distribuir estrelas temporarias. E um papel de lideranca na comunidade.'
+  },
+  {
+    target: '[data-guide="7"]',
+    title: 'O Futuro',
+    text: 'A economia de estrelas vai crescer. Estamos planejando <span class="highlight">missoes, indicacoes, streaks, checkins em locais parceiros</span> e mais. Cada nova fonte de score e estrelas sera adicionada com equilibrio -- escassez e o principio fundamental.'
   },
 ];
 
@@ -651,6 +816,7 @@ initBonus();
 initRarity();
 initStats();
 initTop1();
+initFutureSources();
 initTicker();
 aqAnimate();
 </script>
