@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch? -- Modelo de Estrelas v3 (Completo)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#07060f;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.06);--gold:#ffd700;--wg:#e8e0c8;--purple:#6c5ce7;--green:#00dc82;--red:#ff4466;--blue:#60a5fa}
+body{background:var(--bg);color:#fff;font-family:'Inter',system-ui,sans-serif;padding:24px 16px;max-width:1200px;margin:0 auto}
+
+h1{font-size:24px;font-weight:900;text-align:center;margin-bottom:4px}
+h1 span{color:var(--gold)}
+.subtitle{text-align:center;font-size:11px;color:rgba(255,255,255,.3);margin-bottom:32px;letter-spacing:.06em}
+
+.section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden}
+.section::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,.08),transparent)}
+.section h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.25);margin-bottom:16px;font-weight:700}
+.section h2 .num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(108,92,231,.2);color:var(--purple);font-size:10px;margin-right:8px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* Tables */
+.t{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.t th{text-align:left;color:rgba(255,255,255,.25);font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:8px;border-bottom:1px solid var(--border);font-weight:600}
+.t td{padding:8px;color:rgba(255,255,255,.55);border-bottom:1px solid rgba(255,255,255,.02)}
+.t .gold{color:var(--gold);font-weight:700}
+.t .wg{color:var(--wg);font-weight:700}
+.t .green{color:var(--green);font-weight:700}
+.t .purple{color:var(--purple);font-weight:700}
+.t .red{color:var(--red);font-weight:700}
+.t .blue{color:var(--blue);font-weight:700}
+.t .dim{color:rgba(255,255,255,.25)}
+
+/* Info boxes */
+.info{background:rgba(108,92,231,.06);border:1px solid rgba(108,92,231,.15);border-radius:10px;padding:14px 16px;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;margin-top:12px}
+.info b{color:rgba(255,255,255,.7)}
+.info.gold-box{background:rgba(255,215,0,.04);border-color:rgba(255,215,0,.12)}
+.info.red-box{background:rgba(255,68,102,.04);border-color:rgba(255,68,102,.12)}
+.info.green-box{background:rgba(0,220,130,.04);border-color:rgba(0,220,130,.12)}
+
+/* Star visual */
+.star-row{display:flex;gap:6px;align-items:center;justify-content:center;margin:16px 0;flex-wrap:wrap}
+.star-icon{width:32px;height:32px}
+.star-icon svg{width:32px;height:32px}
+.star-icon.sm{width:20px;height:20px}
+.star-icon.sm svg{width:20px;height:20px}
+
+/* Scenario cards */
+.scenario{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+.scenario .persona{font-size:13px;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:8px}
+.scenario .detail{font-size:10px;color:rgba(255,255,255,.3);line-height:1.6}
+.scenario .result{margin-top:10px;font-size:14px;font-weight:800;font-family:'JetBrains Mono',monospace}
+
+/* Slider controls */
+.sim-panel{background:rgba(108,92,231,.04);border:1px solid rgba(108,92,231,.1);border-radius:12px;padding:16px;margin-top:12px}
+.sim-row{margin-bottom:10px}
+.sim-row:last-child{margin-bottom:0}
+.sim-row label{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.4);margin-bottom:4px}
+.sim-row label b{color:#fff}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.06);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid rgba(255,255,255,.1)}
+
+/* Result card */
+.result-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.result-card{text-align:center;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:10px 6px}
+.result-card .rv{font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace}
+.result-card .rl{font-size:8px;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+@media(max-width:700px){.result-grid{grid-template-columns:1fr 1fr}}
+
+/* Choice highlight */
+.choice{display:flex;gap:12px;margin-top:12px}
+.choice-opt{flex:1;background:rgba(255,255,255,.02);border:2px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;text-align:center}
+.choice-opt:hover,.choice-opt.selected{border-color:var(--gold);background:rgba(255,215,0,.04)}
+.choice-opt h4{font-size:13px;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:6px}
+.choice-opt p{font-size:10px;color:rgba(255,255,255,.35);line-height:1.5}
+.choice-opt .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;margin-bottom:8px}
+.tag.rec{background:rgba(0,220,130,.15);color:var(--green)}
+.tag.alt{background:rgba(96,165,250,.15);color:var(--blue)}
+
+/* Flow diagram */
+.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0}
+.flow-step{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:10px;color:rgba(255,255,255,.5);text-align:center;min-width:80px}
+.flow-step b{display:block;color:rgba(255,255,255,.7);font-size:11px}
+.flow-arrow{color:rgba(255,255,255,.15);font-size:16px}
+.flow-step.highlight{border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.04)}
+.flow-step.highlight b{color:var(--gold)}
+</style>
+</head>
+<body>
+
+<h1>Touch<span>?</span> -- Modelo de Estrelas v3</h1>
+<div class="subtitle">Documento completo para aprovacao -- todos os numeros, regras e formulas</div>
+
+<!-- ============================== -->
+<!-- 1. VISAO GERAL -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">1</span>Visao geral -- as 10 estrelas</h2>
+
+  <div class="star-row" id="showcaseStars"></div>
+
+  <table class="t">
+    <thead><tr><th>Categoria</th><th>Max</th><th>Como conseguir</th><th>Duracao</th><th>Cor</th></tr></thead>
+    <tbody>
+      <tr><td>Conquista</td><td>2</td><td>100 conexoes (1a) e 500 conexoes (2a)</td><td>Permanente</td><td class="gold">Dourada</td></tr>
+      <tr><td>Permanente</td><td>1</td><td>1.000 conexoes</td><td>Para sempre</td><td class="gold">Dourada</td></tr>
+      <tr><td>Temporaria</td><td>5</td><td>Compra com score / evento / doacao / 5 encontros</td><td>30 dias</td><td class="gold">Dourada</td></tr>
+      <tr><td>Reconhecimento Prof.</td><td>2</td><td>Passadas entre profissionais</td><td>A definir</td><td class="wg">Ouro branco</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info gold-box">
+    <b>Top 1:</b> 50 estrelas fixas douradas. Pode gerar e distribuir estrelas para outros usuarios. E o unico que ultrapassa o limite de 10.
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- 2. SCORE POR CONEXAO -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">2</span>Score por conexao -- como se ganha moeda</h2>
+
+  <p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.7;margin-bottom:16px">
+    Cada vez que dois celulares se conectam via ultrassom, ambos ganham score.
+    O valor depende de quantas vezes ja se conectaram com aquela pessoa.
+  </p>
+
+  <div class="choice" id="scoreModelChoice">
+    <div class="choice-opt selected" onclick="selectScoreModel('conservative')">
+      <div class="tag rec">Recomendado</div>
+      <h4>Modelo Conservador</h4>
+      <p>Mais escassez. Uma estrela temporaria leva ~3 semanas pra comprar. Cria valor real.</p>
+    </div>
+    <div class="choice-opt" onclick="selectScoreModel('moderate')">
+      <div class="tag alt">Alternativa</div>
+      <h4>Modelo Moderado</h4>
+      <p>Menos escassez. Uma estrela em ~10 dias. Mais acessivel, menos exclusivo.</p>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div>
+      <h3 style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px">TABELA DE SCORE POR CONEXAO</h3>
+      <table class="t" id="scoreTable">
+        <thead><tr><th>Encontro com pessoa X</th><th id="thConservative" class="gold">Conservador</th><th id="thModerate">Moderado</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div>
+      <h3 style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px">REGRAS ANTI-FARMING</h3>
+      <div class="info">
+        <b>Cooldown 24h:</b> So pontua 1 conexao por dupla a cada 24 horas.<br><br>
+        <b>Limite diario:</b> Maximo de <span id="dailyCapText">15</span> conexoes que dao score por dia (apos isso, ainda conecta mas nao ganha score).<br><br>
+        <b>Sem auto-conexao:</b> Nao pontua se conectar com o mesmo dispositivo.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- 3. CENARIOS REAIS -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">3</span>Cenarios reais -- quanto tempo pra cada estrela?</h2>
+
+  <div class="grid3" id="scenarioCards"></div>
+
+  <div class="sim-panel">
+    <h3 style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Simulador personalizado</h3>
+    <div class="sim-row">
+      <label>Conexoes novas por semana <b id="vNewConn">5</b></label>
+      <input type="range" id="slNewConn" min="0" max="30" value="5" step="1" oninput="recalcSim()">
+    </div>
+    <div class="sim-row">
+      <label>Reencontros por semana (mesma pessoa) <b id="vReConn">3</b></label>
+      <input type="range" id="slReConn" min="0" max="20" value="3" step="1" oninput="recalcSim()">
+    </div>
+    <div class="sim-row">
+      <label>Eventos por mes <b id="vEvents">2</b></label>
+      <input type="range" id="slEvents" min="0" max="8" value="2" step="1" oninput="recalcSim()">
+    </div>
+    <div class="sim-row">
+      <label>Conexoes por evento <b id="vPerEvent">8</b></label>
+      <input type="range" id="slPerEvent" min="0" max="30" value="8" step="1" oninput="recalcSim()">
+    </div>
+    <div class="result-grid" id="simResults"></div>
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- 4. PRECO DAS TEMPORARIAS -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">4</span>Preco progressivo das estrelas temporarias</h2>
+
+  <div class="choice" id="formulaChoice">
+    <div class="choice-opt selected" onclick="selectFormula('B')">
+      <div class="tag rec">Recomendado</div>
+      <h4>Acelerada (+30%)</h4>
+      <p>100, 130, 170, 220, 290<br>Total: 910 score pra 5 estrelas</p>
+    </div>
+    <div class="choice-opt" onclick="selectFormula('A')">
+      <div class="tag alt">Alternativa 1</div>
+      <h4>Linear (+20)</h4>
+      <p>100, 120, 140, 160, 180<br>Total: 700 score pra 5 estrelas</p>
+    </div>
+    <div class="choice-opt" onclick="selectFormula('C')">
+      <div class="tag alt">Alternativa 2</div>
+      <h4>Exponencial (x1.5)</h4>
+      <p>100, 150, 225, 340, 500<br>Total: 1.315 score pra 5 estrelas</p>
+    </div>
+  </div>
+
+  <table class="t" style="margin-top:16px" id="priceDetailTable">
+    <thead><tr><th>#</th><th>Custo</th><th>Acumulado</th><th>Tempo estimado*</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div style="font-size:9px;color:rgba(255,255,255,.2);margin-top:6px">* Baseado no modelo de score selecionado, usuario ativo (~5 score/dia)</div>
+</div>
+
+<!-- ============================== -->
+<!-- 5. ESTRELA DE 5 ENCONTROS -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">5</span>Estrela de 5 encontros -- geracao organica</h2>
+
+  <div class="flow">
+    <div class="flow-step"><b>1o encontro</b>Conexao via ultrassom</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><b>2o encontro</b>+24h depois</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><b>3o encontro</b>+24h depois</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><b>4o encontro</b>+24h depois</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><b>5o encontro</b>+24h depois</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step highlight"><b>Estrela gerada!</b>Temporaria (30d)</div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div>
+      <h3 style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px">REGRAS</h3>
+      <table class="t">
+        <tbody>
+          <tr><td>Tipo da estrela</td><td class="gold">Temporaria (30 dias)</td></tr>
+          <tr><td>Pode ficar com ela?</td><td class="red">NAO -- obrigatorio doar</td></tr>
+          <tr><td>Prazo pra doar</td><td>7 dias (apos isso, estrela expira)</td></tr>
+          <tr><td>Doar pra quem?</td><td class="green">Qualquer usuario (livre escolha)</td></tr>
+          <tr><td>Contador reseta?</td><td class="green">SIM -- 6o encontro inicia novo ciclo</td></tr>
+          <tr><td>Limite de geracao</td><td>1 estrela por dupla a cada 5 encontros</td></tr>
+          <tr><td>Cooldown entre encontros</td><td>Minimo 24h entre cada um (nao vale 5 no mesmo dia)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3 style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px">POR QUE ISSO E GENIAL</h3>
+      <div class="info green-box">
+        <b>Ciclo social forcado:</b> Precisa encontrar alguem 5 vezes pra gerar 1 estrela.<br><br>
+        <b>Generosidade obrigatoria:</b> Voce gera mas nao fica -- tem que dar pra outro.<br><br>
+        <b>Injeta estrelas organicamente:</b> Quanto mais pessoas se encontram, mais estrelas entram no sistema.<br><br>
+        <b>7 dias pra decidir:</b> Sem pressao de dar na hora, mas sem acumular infinito. Se nao doar em 7 dias, a estrela some.
+      </div>
+    </div>
+  </div>
+
+  <div class="info" style="margin-top:12px">
+    <b>Exemplo pratico:</b> Ana e Pedro se encontram toda segunda no mesmo cafe. Depois de 5 semanas,
+    uma estrela e gerada. Ana recebe a notificacao: "Voce gerou uma estrela com Pedro! Escolha alguem pra presentear nos proximos 7 dias."
+    Ana pode dar pra Pedro, pra outra amiga, ou pra qualquer usuario do Touch.
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- 6. DOACOES E EVENTOS -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">6</span>Doacoes, eventos e Top 1</h2>
+
+  <div class="grid2">
+    <div>
+      <h3 style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px">DOACAO ENTRE USUARIOS</h3>
+      <table class="t">
+        <tbody>
+          <tr><td>Tipo</td><td>Transferencia (soma zero)</td></tr>
+          <tr><td>Quem doa perde?</td><td class="red">SIM -- sai do perfil de quem doou</td></tr>
+          <tr><td>Timer reseta?</td><td class="green">SIM -- quem recebe ganha 30 dias novos</td></tr>
+          <tr><td>Limite de doacoes</td><td>Sem limite (pode doar quando quiser)</td></tr>
+          <tr><td>Recipiente lotado?</td><td>Se ja tem 5 temp., recusa a doacao</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3 style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px">EVENTOS (B2B)</h3>
+      <table class="t">
+        <tbody>
+          <tr><td>Quem compra?</td><td>Organizador do evento</td></tr>
+          <tr><td>Onde?</td><td>Painel do evento no site Touch</td></tr>
+          <tr><td>Paga pra quem?</td><td class="gold">Touch IRL LLC</td></tr>
+          <tr><td>Preco por estrela</td><td>A definir (sugestao: $1-5 USD)</td></tr>
+          <tr><td>Distribuicao</td><td>Sorteio ou doacao direta</td></tr>
+          <tr><td>Tipo da estrela</td><td>Temporaria (30 dias)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="info gold-box" style="margin-top:16px">
+    <b>Top 1 -- regras especiais:</b><br>
+    -- 50 estrelas fixas douradas (nao expiram, nao contam no limite de 10)<br>
+    -- Pode GERAR estrelas temporarias e distribuir pra outros usuarios<br>
+    -- As estrelas que distribui NAO saem das 50 dele (ele gera novas)<br>
+    -- Limite de geracao do Top 1: a definir (sugestao: 5 por semana?)
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- 7. RESUMO VISUAL DE FLUXO -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">7</span>De onde vem cada estrela -- fluxo completo</h2>
+
+  <table class="t">
+    <thead><tr><th>Fonte</th><th>Tipo</th><th>Quem paga/gera</th><th>Quantidade</th><th>Escassez</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Compra com score</td>
+        <td class="gold">Temporaria</td>
+        <td>O proprio usuario (gasta score)</td>
+        <td>Ate 5 (preco progressivo)</td>
+        <td class="purple">Alta (score e escasso)</td>
+      </tr>
+      <tr>
+        <td>5 encontros</td>
+        <td class="gold">Temporaria</td>
+        <td>Gerada pela dupla, doada pra terceiro</td>
+        <td>1 por ciclo de 5</td>
+        <td class="purple">Alta (5 encontros fisicos)</td>
+      </tr>
+      <tr>
+        <td>Evento/sorteio</td>
+        <td class="gold">Temporaria</td>
+        <td>Evento compra da Touch LLC</td>
+        <td>Depende do evento</td>
+        <td class="blue">Media (custo real $)</td>
+      </tr>
+      <tr>
+        <td>Doacao de usuario</td>
+        <td class="gold">Temporaria</td>
+        <td>Outro usuario transfere</td>
+        <td>Soma zero</td>
+        <td class="green">Neutra (redistribui)</td>
+      </tr>
+      <tr>
+        <td>Top 1</td>
+        <td class="gold">Temporaria</td>
+        <td>Top 1 gera novas</td>
+        <td>Limitado/semana</td>
+        <td class="blue">Media (controlado)</td>
+      </tr>
+      <tr>
+        <td>100 conexoes</td>
+        <td class="gold">Conquista</td>
+        <td>Automatica</td>
+        <td>1 (unica)</td>
+        <td class="red">Muito alta</td>
+      </tr>
+      <tr>
+        <td>500 conexoes</td>
+        <td class="gold">Conquista</td>
+        <td>Automatica</td>
+        <td>1 (unica)</td>
+        <td class="red">Extrema</td>
+      </tr>
+      <tr>
+        <td>1.000 conexoes</td>
+        <td class="gold">Permanente</td>
+        <td>Automatica</td>
+        <td>1 (unica)</td>
+        <td class="red">Lendaria</td>
+      </tr>
+      <tr>
+        <td>Reconhecimento prof.</td>
+        <td class="wg">Ouro branco</td>
+        <td>Entre profissionais</td>
+        <td>Ate 2</td>
+        <td class="dim">A definir</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================== -->
+<!-- 8. PENDENCIAS -->
+<!-- ============================== -->
+<div class="section">
+  <h2><span class="num">8</span>Pendencias -- o que falta definir</h2>
+  <table class="t">
+    <thead><tr><th>#</th><th>Questao</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Modelo de score por conexao (conservador vs moderado)</td><td class="red">Escolher</td></tr>
+      <tr><td>2</td><td>Formula de preco das temporarias (linear, acelerada ou exponencial)</td><td class="red">Escolher</td></tr>
+      <tr><td>3</td><td>Preco em USD que eventos pagam pra Touch por estrela</td><td class="red">Definir</td></tr>
+      <tr><td>4</td><td>Limite semanal de estrelas que o Top 1 pode gerar</td><td class="red">Definir</td></tr>
+      <tr><td>5</td><td>Estrelas de reconhecimento profissional -- como funcionam, quem pode dar, expiram?</td><td class="red">Definir</td></tr>
+      <tr><td>6</td><td>Estrela permanente -- pode comprar com muito score, ou so via 1000 conexoes?</td><td class="red">Definir</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+// SVGs
+const STAR_GOLD = `<svg viewBox="0 0 24 24"><path fill="#ffd700" stroke="#b8960f" stroke-width=".5" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>`;
+const STAR_WG = `<svg viewBox="0 0 24 24"><path fill="#e8e0c8" stroke="#b0a890" stroke-width=".5" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>`;
+const STAR_EMPTY = `<svg viewBox="0 0 24 24"><path fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.08)" stroke-width=".5" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>`;
+
+// Score models
+const SCORE_MODELS = {
+  conservative: {
+    first: 5, second: 3, repeat: 1, dailyCap: 15,
+    label: 'Conservador'
+  },
+  moderate: {
+    first: 10, second: 5, repeat: 2, dailyCap: 20,
+    label: 'Moderado'
+  }
+};
+let currentScoreModel = 'conservative';
+
+// Formulas
+const FORMULAS = {
+  A: [100, 120, 140, 160, 180],
+  B: [100, 130, 170, 220, 290],
+  C: [100, 150, 225, 340, 500]
+};
+let currentFormula = 'B';
+
+function selectScoreModel(key) {
+  currentScoreModel = key;
+  document.querySelectorAll('#scoreModelChoice .choice-opt').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  renderScoreTable();
+  recalcSim();
+  renderPriceTable();
+  renderScenarios();
+}
+
+function selectFormula(key) {
+  currentFormula = key;
+  document.querySelectorAll('#formulaChoice .choice-opt').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  renderPriceTable();
+  recalcSim();
+}
+
+function renderShowcase() {
+  const container = document.getElementById('showcaseStars');
+  const labels = ['Conq.1','Conq.2','Perm.','Temp.1','Temp.2','Temp.3','Temp.4','Temp.5','Prof.1','Prof.2'];
+  container.innerHTML = labels.map((l, i) => {
+    const svg = i >= 8 ? STAR_WG : STAR_GOLD;
+    return `<div class="star-icon">${svg}</div>`;
+  }).join('') + '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-left:8px">= 10 estrelas max</div>';
+}
+
+function renderScoreTable() {
+  const m = SCORE_MODELS;
+  const tbody = document.querySelector('#scoreTable tbody');
+  const rows = [
+    ['1o encontro (nova pessoa)', m.conservative.first, m.moderate.first],
+    ['2o encontro', m.conservative.second, m.moderate.second],
+    ['3o encontro em diante', m.conservative.repeat, m.moderate.repeat],
+    ['Limite diario', m.conservative.dailyCap + ' conex.', m.moderate.dailyCap + ' conex.'],
+    ['Cooldown por dupla', '24 horas', '24 horas'],
+  ];
+
+  const selIdx = currentScoreModel === 'conservative' ? 1 : 2;
+  document.getElementById('thConservative').className = currentScoreModel === 'conservative' ? 'gold' : '';
+  document.getElementById('thModerate').className = currentScoreModel === 'moderate' ? 'gold' : '';
+  document.getElementById('dailyCapText').textContent = SCORE_MODELS[currentScoreModel].dailyCap;
+
+  tbody.innerHTML = rows.map(r => {
+    return `<tr>
+      <td>${r[0]}</td>
+      <td class="${selIdx === 1 ? 'gold' : ''}">${r[1]} sc</td>
+      <td class="${selIdx === 2 ? 'gold' : ''}">${r[2]} sc</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderScenarios() {
+  const m = SCORE_MODELS[currentScoreModel];
+  const prices = FORMULAS[currentFormula];
+
+  const scenarios = [
+    {
+      name: 'Casual',
+      desc: '1-2 conexoes por semana, 1 evento por mes',
+      newPerWeek: 1, rePerWeek: 1, eventsMonth: 1, perEvent: 5,
+      color: 'var(--blue)'
+    },
+    {
+      name: 'Ativo',
+      desc: '5 conexoes por semana, 2 eventos por mes',
+      newPerWeek: 3, rePerWeek: 2, eventsMonth: 2, perEvent: 8,
+      color: 'var(--green)'
+    },
+    {
+      name: 'Social Butterfly',
+      desc: '15 conexoes por semana, 4 eventos por mes',
+      newPerWeek: 8, rePerWeek: 7, eventsMonth: 4, perEvent: 15,
+      color: 'var(--gold)'
+    },
+  ];
+
+  const container = document.getElementById('scenarioCards');
+  container.innerHTML = scenarios.map(s => {
+    const weeklyScore = (s.newPerWeek * m.first) + (s.rePerWeek * m.second);
+    const eventScore = (s.eventsMonth * s.perEvent * m.first) / 4; // weekly average from events
+    const totalWeekly = weeklyScore + eventScore;
+    const monthlyScore = Math.round(totalWeekly * 4.3);
+    const daysFor1st = Math.ceil(prices[0] / (totalWeekly / 7));
+
+    return `<div class="scenario">
+      <div class="persona" style="color:${s.color}">${s.name}</div>
+      <div class="detail">${s.desc}</div>
+      <div class="result" style="color:${s.color}">${monthlyScore} sc/mes</div>
+      <div class="detail" style="margin-top:6px">1a estrela em <b style="color:#fff">~${daysFor1st} dias</b></div>
+    </div>`;
+  }).join('');
+}
+
+function renderPriceTable() {
+  const prices = FORMULAS[currentFormula];
+  const m = SCORE_MODELS[currentScoreModel];
+
+  // Estimate daily score for "active" user
+  const dailyScore = (3 * m.first + 2 * m.second) / 7 + (2 * 8 * m.first) / 30;
+
+  const tbody = document.querySelector('#priceDetailTable tbody');
+  let acum = 0;
+  tbody.innerHTML = prices.map((p, i) => {
+    acum += p;
+    const days = Math.ceil(acum / dailyScore);
+    const weeks = (days / 7).toFixed(1);
+    return `<tr>
+      <td>${i + 1}a estrela</td>
+      <td class="gold">${p} score</td>
+      <td>${acum} score</td>
+      <td>~${days} dias (~${weeks} semanas)</td>
+    </tr>`;
+  }).join('');
+}
+
+function recalcSim() {
+  const newConn = +document.getElementById('slNewConn').value;
+  const reConn = +document.getElementById('slReConn').value;
+  const events = +document.getElementById('slEvents').value;
+  const perEvent = +document.getElementById('slPerEvent').value;
+
+  document.getElementById('vNewConn').textContent = newConn;
+  document.getElementById('vReConn').textContent = reConn;
+  document.getElementById('vEvents').textContent = events;
+  document.getElementById('vPerEvent').textContent = perEvent;
+
+  const m = SCORE_MODELS[currentScoreModel];
+  const prices = FORMULAS[currentFormula];
+
+  const weeklyFromNew = newConn * m.first;
+  const weeklyFromRe = reConn * m.second;
+  const monthlyFromEvents = events * perEvent * m.first;
+  const weeklyTotal = weeklyFromNew + weeklyFromRe + (monthlyFromEvents / 4.3);
+  const monthlyTotal = Math.round(weeklyTotal * 4.3);
+  const dailyAvg = (weeklyTotal / 7).toFixed(1);
+
+  // Time to each star
+  let acum = 0;
+  const starTimes = prices.map(p => {
+    acum += p;
+    return Math.ceil(acum / (weeklyTotal / 7));
+  });
+
+  // 5-encounter stars generated per month
+  const fiveEncounterPerMonth = Math.floor(reConn * 4.3 / 5); // rough estimate
+
+  const container = document.getElementById('simResults');
+  container.innerHTML = `
+    <div class="result-card"><div class="rv" style="color:var(--gold)">${monthlyTotal}</div><div class="rl">Score/mes</div></div>
+    <div class="result-card"><div class="rv" style="color:var(--green)">${dailyAvg}</div><div class="rl">Score/dia</div></div>
+    <div class="result-card"><div class="rv" style="color:var(--purple)">~${starTimes[0]}d</div><div class="rl">1a estrela</div></div>
+    <div class="result-card"><div class="rv" style="color:var(--blue)">${fiveEncounterPerMonth}</div><div class="rl">Estrelas de 5 encontros/mes</div></div>
+  `;
+}
+
+// INIT
+renderShowcase();
+renderScoreTable();
+renderScenarios();
+renderPriceTable();
+recalcSim();
+</script>
+</body>
+</html>

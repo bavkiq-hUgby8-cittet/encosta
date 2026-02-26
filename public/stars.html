@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Touch? -- Star Economy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#07060f;--card:#0e0d1a;--border:rgba(255,255,255,.06);--gold:#ffd700;--gold-dim:rgba(255,215,0,.12);--wg:#e8e0c8;--purple:#818cf8;--green:#34d399;--red:#ff4466;--blue:#60a5fa;--pink:#f472b6;--t1:#f0f0f5;--t2:#a0a0b8;--t3:#606078}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(7,6,15,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-weight:800;font-size:1rem;letter-spacing:-.02em;color:var(--t1)}
+.nav-logo span{color:var(--purple)}
+.nav-links{display:flex;gap:1.2rem;font-size:.75rem;font-weight:500}
+.nav-links a{color:var(--t2);text-decoration:none;transition:.2s}
+.nav-links a:hover{color:var(--t1)}
+
+/* HERO */
+.hero-stars{min-height:50vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6rem 1.5rem 3rem;position:relative}
+.hero-stars h1{font-size:clamp(2rem,5vw,3rem);font-weight:900;letter-spacing:-.03em}
+.hero-stars h1 .gold{color:var(--gold)}
+.hero-stars p{font-size:.95rem;color:var(--t2);max-width:560px;margin-top:.8rem;font-weight:300;line-height:1.8}
+.btn-tour{margin-top:1.5rem;padding:.7rem 2rem;border-radius:14px;border:2px solid var(--gold-dim);background:rgba(255,215,0,.06);color:var(--gold);font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;display:inline-flex;align-items:center;gap:8px}
+.btn-tour:hover{background:rgba(255,215,0,.12);border-color:rgba(255,215,0,.25)}
+.btn-tour svg{width:18px;height:18px}
+
+/* TICKER */
+.ticker{background:rgba(255,215,0,.03);border-top:1px solid var(--gold-dim);border-bottom:1px solid var(--gold-dim);padding:7px 0;overflow:hidden}
+.ticker-track{display:flex;gap:48px;animation:scroll 35s linear infinite;white-space:nowrap}
+.ticker-item{font-size:.7rem;color:var(--t3);font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:6px}
+.ticker-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* SECTIONS */
+.section{padding:4rem 1.5rem;position:relative}
+.section .container{max-width:1100px;margin:0 auto}
+.section-label{font-size:.6rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--purple);margin-bottom:.5rem}
+.section-title{font-size:clamp(1.5rem,3.5vw,2.2rem);font-weight:800;letter-spacing:-.02em;margin-bottom:.6rem}
+.section-desc{font-size:.88rem;color:var(--t2);max-width:600px;font-weight:300;line-height:1.8}
+
+/* AQUARIUM */
+.aquarium-section{position:relative;min-height:480px;padding:0}
+.aquarium-section canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.aq-overlay{position:relative;z-index:2;padding:3rem 1.5rem}
+.aq-stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:1.5rem}
+.aq-chip{background:rgba(7,6,15,.8);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:12px;padding:8px 14px}
+.aq-chip .label{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+.aq-chip .val{font-size:1.1rem;font-weight:800;margin-top:2px;font-family:'JetBrains Mono',monospace}
+.aq-chip.gold .val{color:var(--gold)}
+.aq-chip.green .val{color:var(--green)}
+.aq-chip.purple .val{color:var(--purple)}
+
+/* STAR SHOWCASE */
+.star-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:2rem 0}
+.s-slot{width:52px;height:68px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.s-slot svg{width:36px;height:36px;filter:drop-shadow(0 0 6px rgba(255,215,0,.3))}
+.s-slot.wg svg{filter:drop-shadow(0 0 4px rgba(232,224,200,.25))}
+.s-slot .s-name{font-size:.55rem;color:var(--t3);text-align:center;line-height:1.2}
+
+/* DISTRIBUTION BARS */
+.dist-bars{margin-top:1.5rem}
+.dist-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dist-label{width:80px;text-align:right;font-size:.72rem;color:var(--t2);flex-shrink:0}
+.dist-track{flex:1;height:22px;background:rgba(255,255,255,.02);border-radius:6px;overflow:hidden;position:relative}
+.dist-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;transition:width 1.5s ease}
+.dist-fill span{font-size:.6rem;font-weight:700;color:rgba(0,0,0,.5)}
+.dist-count{width:60px;font-size:.75rem;font-weight:700;color:var(--t2);font-family:'JetBrains Mono',monospace}
+
+/* PRICING TABLE */
+.price-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:1.5rem}
+.price-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem .8rem;text-align:center;transition:.2s}
+.price-card:hover{border-color:var(--gold-dim);transform:translateY(-2px)}
+.price-card .pc-num{font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+.price-card .pc-cost{font-size:1.3rem;font-weight:900;color:var(--gold);margin:6px 0;font-family:'JetBrains Mono',monospace}
+.price-card .pc-time{font-size:.65rem;color:var(--t3)}
+@media(max-width:600px){.price-cards{grid-template-columns:repeat(3,1fr)}}
+
+/* FLOW */
+.flow-visual{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;margin:1.5rem 0}
+.flow-step{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;text-align:center;min-width:90px;font-size:.7rem;color:var(--t2)}
+.flow-step b{display:block;font-size:.8rem;color:var(--t1);margin-bottom:2px}
+.flow-step.gold-step{border-color:var(--gold-dim);background:rgba(255,215,0,.04)}
+.flow-step.gold-step b{color:var(--gold)}
+.flow-arrow{color:var(--t3);font-size:1rem}
+
+/* RARITY CARDS */
+.rarity-row{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:1.5rem}
+.rarity-card{text-align:center;min-width:120px;padding:16px 12px;background:var(--card);border:1px solid var(--border);border-radius:14px}
+.rarity-card .rc-count{font-size:1.8rem;font-weight:900;font-family:'JetBrains Mono',monospace}
+.rarity-card .rc-pct{font-size:.65rem;color:var(--t3);margin-top:2px}
+.rarity-card .rc-label{font-size:.75rem;font-weight:700;margin-top:6px}
+.rarity-card .rc-tier{font-size:.6rem;color:var(--t3)}
+
+/* GUIDE ASSISTANT */
+.guide-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;pointer-events:none;opacity:0;transition:opacity .4s}
+.guide-overlay.active{opacity:1;pointer-events:auto}
+.guide-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7)}
+.guide-highlight{position:absolute;border:2px solid var(--gold);border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,.65);transition:all .5s ease;pointer-events:none}
+.guide-box{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:min(520px,90vw);background:rgba(14,13,26,.96);backdrop-filter:blur(20px);border:1px solid var(--gold-dim);border-radius:20px;padding:20px 24px;z-index:1001;pointer-events:auto}
+.guide-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;float:left;margin-right:12px;flex-shrink:0}
+.guide-name{font-size:.7rem;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.guide-text{font-size:.85rem;color:var(--t1);line-height:1.7;min-height:40px}
+.guide-text .highlight{color:var(--gold);font-weight:700}
+.guide-actions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+.guide-btn{padding:6px 18px;border-radius:10px;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:.2s}
+.guide-btn.next{background:var(--gold);color:#0a0a0f}
+.guide-btn.next:hover{background:#ffe033}
+.guide-btn.skip{background:rgba(255,255,255,.06);color:var(--t2);border:1px solid var(--border)}
+.guide-btn.skip:hover{background:rgba(255,255,255,.1)}
+.guide-progress{display:flex;gap:4px;margin-top:10px;justify-content:center}
+.guide-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.1)}
+.guide-dot.active{background:var(--gold)}
+.guide-dot.done{background:rgba(255,215,0,.3)}
+
+/* FOOTER */
+.footer{text-align:center;padding:3rem 1.5rem;border-top:1px solid var(--border);font-size:.7rem;color:var(--t3)}
+
+/* SCROLL SECTIONS HIGHLIGHT (for guide) */
+[data-guide]{scroll-margin-top:80px}
+
+@media(max-width:600px){
+  .aq-stats{flex-direction:column}
+  .rarity-row{flex-direction:column;align-items:center}
+  .flow-visual{flex-direction:column}
+  .flow-arrow{transform:rotate(90deg)}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo"><span>touch</span> star economy</div>
+  <div class="nav-links">
+    <a href="/site.html">Voltar ao site</a>
+    <a href="#aquario">Aquario</a>
+    <a href="#estrelas">Estrelas</a>
+    <a href="#precos">Score</a>
+    <a href="#5encontros">5 Encontros</a>
+    <a href="#ranking">Ranking</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero-stars">
+  <h1>A economia das <span class="gold">estrelas</span></h1>
+  <p>Cada estrela no Touch representa algo que aconteceu de verdade. Aqui voce acompanha em tempo real quantas existem, quem tem, e como conquistar as suas.</p>
+  <button class="btn-tour" id="startTour" onclick="startGuide()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>
+    Acesso guiado
+  </button>
+</section>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-track" id="ticker"></div>
+</div>
+
+<!-- AQUARIUM -->
+<section class="aquarium-section" id="aquario" data-guide="0">
+  <canvas id="aqCanvas"></canvas>
+  <div class="aq-overlay">
+    <div class="container">
+      <div class="section-label">Ao vivo</div>
+      <div class="section-title">O aquario global</div>
+      <div class="section-desc">Cada bolha e uma pessoa real no Touch. As douradas tem estrelas. Quanto mais brilhante, mais estrelas carrega.</div>
+      <div class="aq-stats">
+        <div class="aq-chip green"><div class="label">Pessoas no Touch</div><div class="val" id="aqPeople">0</div></div>
+        <div class="aq-chip gold"><div class="label">Estrelas no mundo</div><div class="val" id="aqStars">0</div></div>
+        <div class="aq-chip purple"><div class="label">Media por pessoa</div><div class="val" id="aqAvg">0</div></div>
+        <div class="aq-chip"><div class="label">Eventos este mes</div><div class="val" id="aqEvents">0</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 STARS SHOWCASE -->
+<section class="section" id="estrelas" data-guide="1">
+  <div class="container">
+    <div class="section-label">As 10 estrelas</div>
+    <div class="section-title">Seu perfil pode ter ate 10 estrelas</div>
+    <div class="section-desc">Cada uma conquistada de um jeito diferente. 8 douradas e 2 de ouro branco.</div>
+
+    <div class="star-grid" id="starShowcase"></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:1.5rem">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Conquista (2)</div>
+        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Automaticas. 100 conexoes = 1a. 500 conexoes = 2a. Ninguem tira de voce.</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Permanente (1)</div>
+        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">1.000 conexoes. Fica no perfil pra sempre. Pouquissimas pessoas no mundo tem.</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Temporarias (5)</div>
+        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Compra com score, ganha em evento, recebe de amigo. Duram 30 dias e somem.</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--wg)">Reconhecimento (2)</div>
+        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Ouro branco. Passadas entre profissionais. A mais rara do ecossistema.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DISTRIBUTION -->
+<section class="section" id="distribuicao" data-guide="2" style="background:rgba(255,215,0,.01)">
+  <div class="container">
+    <div class="section-label">Distribuicao global</div>
+    <div class="section-title">Quantas pessoas tem cada quantidade</div>
+    <div class="section-desc">A maioria tem 0. Poucos tem 5+. Quase ninguem tem 10.</div>
+    <div class="dist-bars" id="distBars"></div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="section" id="precos" data-guide="3">
+  <div class="container">
+    <div class="section-label">Score</div>
+    <div class="section-title">Cada estrela custa mais que a anterior</div>
+    <div class="section-desc">O preco sobe a cada compra. A 1a custa 100 score. A 5a custa quase 3x mais. Isso garante que 5 estrelas temporarias e pra quem realmente vive o Touch.</div>
+
+    <div class="price-cards" id="priceCards"></div>
+
+    <div style="margin-top:2rem;padding:1.2rem;background:var(--card);border:1px solid var(--border);border-radius:14px">
+      <div style="font-size:.8rem;font-weight:700;margin-bottom:.5rem">Como se ganha score?</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;font-size:.75rem;color:var(--t2);line-height:1.7">
+        <div><span style="color:var(--green);font-weight:700">+5</span> primeira conexao com alguem novo</div>
+        <div><span style="color:var(--blue);font-weight:700">+3</span> reencontro (dia diferente)</div>
+        <div><span style="color:var(--t3);font-weight:700">+1</span> 3o encontro em diante</div>
+        <div><span style="color:var(--red);font-weight:700">Max 15</span> conexoes com score por dia</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ENCONTROS -->
+<section class="section" id="5encontros" data-guide="4" style="background:rgba(255,215,0,.01)">
+  <div class="container">
+    <div class="section-label">Geracao organica</div>
+    <div class="section-title">5 encontros = 1 estrela pra doar</div>
+    <div class="section-desc">Encontrou a mesma pessoa 5 vezes em dias diferentes? Uma estrela e gerada. Mas voce nao fica com ela -- tem 7 dias pra dar pra quem quiser.</div>
+
+    <div class="flow-visual">
+      <div class="flow-step"><b>1o</b>encontro</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><b>2o</b>+24h</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><b>3o</b>+24h</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><b>4o</b>+24h</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><b>5o</b>+24h</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step gold-step"><b>Estrela!</b>30 dias</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><b>Doar</b>em 7 dias</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:1.5rem">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--green);margin-bottom:.3rem">Por que e genial</div>
+        <div style="font-size:.72rem;color:var(--t2);line-height:1.8">Incentiva encontros repetidos. Gera estrelas naturalmente. Obriga generosidade -- voce cria valor pro outro, nao pra si.</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--gold);margin-bottom:.3rem">Exemplo</div>
+        <div style="font-size:.72rem;color:var(--t2);line-height:1.8">Ana e Pedro se encontram toda segunda no cafe. Depois de 5 semanas, uma estrela aparece. Ana escolhe dar pra Julia, sua colega de trabalho.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RARITY / RANKING -->
+<section class="section" id="ranking" data-guide="5">
+  <div class="container">
+    <div class="section-label">Raridade</div>
+    <div class="section-title">Quantas pessoas no mundo em cada nivel</div>
+    <div class="section-desc">Esses numeros atualizam em tempo real conforme o ecossistema cresce.</div>
+    <div class="rarity-row" id="rarityCards"></div>
+  </div>
+</section>
+
+<!-- TOP 1 -->
+<section class="section" data-guide="6" style="background:linear-gradient(180deg,transparent,rgba(255,215,0,.02),transparent)">
+  <div class="container" style="text-align:center">
+    <div class="section-label">O topo</div>
+    <div class="section-title" style="color:var(--gold)">Top 1 -- 50 estrelas</div>
+    <div class="section-desc" style="margin:0 auto .5rem">A pessoa com mais estrelas do mundo inteiro. 50 estrelas fixas douradas. Pode gerar e distribuir estrelas temporarias pra qualquer usuario.</div>
+    <div id="top1Stars" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:1rem;max-width:400px;margin-left:auto;margin-right:auto"></div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p style="color:var(--t1);font-weight:700;margin-bottom:.2rem">touch</p>
+  <p>A camada fisica da sua vida digital.</p>
+  <p style="margin-top:.6rem"><a href="/site.html" style="color:var(--purple);text-decoration:none">Voltar ao site principal</a></p>
+</footer>
+
+<!-- GUIDE OVERLAY -->
+<div class="guide-overlay" id="guideOverlay">
+  <div class="guide-backdrop" onclick="endGuide()"></div>
+  <div class="guide-highlight" id="guideHL"></div>
+  <div class="guide-box" id="guideBox">
+    <div class="guide-avatar">T</div>
+    <div class="guide-name" id="guideName">Assistente Touch</div>
+    <div class="guide-text" id="guideText"></div>
+    <div class="guide-progress" id="guideDots"></div>
+    <div class="guide-actions">
+      <button class="guide-btn skip" onclick="endGuide()">Fechar</button>
+      <button class="guide-btn next" id="guideNext" onclick="nextStep()">Proximo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SVGs
+// ============================================================
+const SGOLD = '<svg viewBox="0 0 24 24"><path fill="#ffd700" stroke="#b8960f" stroke-width=".5" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>';
+const SWG = '<svg viewBox="0 0 24 24"><path fill="#e8e0c8" stroke="#b0a890" stroke-width=".5" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>';
+const SMINI = '<svg viewBox="0 0 24 24" style="width:12px;height:12px"><path fill="#ffd700" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>';
+
+// ============================================================
+// SIMULATED DATA (would come from API in production)
+// ============================================================
+const SIM_PEOPLE = 4823;
+const SIM_EVENTS = 14;
+const SIM_DIST = [2890, 987, 412, 231, 148, 82, 39, 19, 10, 4, 1]; // 0..10 stars
+
+function fmt(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K';
+  return n.toLocaleString('pt-BR');
+}
+
+// ============================================================
+// INIT SECTIONS
+// ============================================================
+function initShowcase() {
+  const slots = [
+    { svg: SGOLD, name: 'Conquista 1' },
+    { svg: SGOLD, name: 'Conquista 2' },
+    { svg: SGOLD, name: 'Permanente' },
+    { svg: SGOLD, name: 'Temp. 1' },
+    { svg: SGOLD, name: 'Temp. 2' },
+    { svg: SGOLD, name: 'Temp. 3' },
+    { svg: SGOLD, name: 'Temp. 4' },
+    { svg: SGOLD, name: 'Temp. 5' },
+    { svg: SWG, name: 'Profissional 1', cls: 'wg' },
+    { svg: SWG, name: 'Profissional 2', cls: 'wg' },
+  ];
+  document.getElementById('starShowcase').innerHTML = slots.map(s =>
+    '<div class="s-slot ' + (s.cls || '') + '">' + s.svg + '<div class="s-name">' + s.name + '</div></div>'
+  ).join('');
+}
+
+function initDistribution() {
+  const maxVal = Math.max(...SIM_DIST);
+  const colors = ['rgba(255,255,255,.06)','#334155','#475569','#6c5ce7','#818cf8','#a29bfe','#60a5fa','#22d3ee','#34d399','#fbbf24','#ffd700'];
+  document.getElementById('distBars').innerHTML = SIM_DIST.map((count, stars) => {
+    const pct = (count / maxVal * 100).toFixed(0);
+    const pctTotal = (count / SIM_PEOPLE * 100).toFixed(1);
+    return '<div class="dist-row"><div class="dist-label">' + stars + ' estrela' + (stars !== 1 ? 's' : '') +
+      '</div><div class="dist-track"><div class="dist-fill" style="width:' + pct + '%;background:' + colors[stars] +
+      '"><span>' + pctTotal + '%</span></div></div><div class="dist-count">' + fmt(count) + '</div></div>';
+  }).join('');
+}
+
+function initPricing() {
+  const prices = [100, 130, 170, 220, 290];
+  const dailyScore = 5; // rough average active user
+  document.getElementById('priceCards').innerHTML = prices.map((p, i) => {
+    const days = Math.ceil(p / dailyScore);
+    return '<div class="price-card"><div class="pc-num">' + (i + 1) + 'a estrela</div>' +
+      '<div class="pc-cost">' + p + '</div>' +
+      '<div class="pc-time">~' + days + ' dias</div></div>';
+  }).join('');
+}
+
+function initRarity() {
+  const levels = [
+    { min: 10, label: '10/10', tier: 'Lendario', color: '#ffd700' },
+    { min: 8, label: '8+', tier: 'Elite', color: '#22d3ee' },
+    { min: 5, label: '5+', tier: 'Veterano', color: '#a29bfe' },
+    { min: 3, label: '3+', tier: 'Ativo', color: '#60a5fa' },
+    { min: 1, label: '1+', tier: 'Iniciante', color: '#34d399' },
+  ];
+  document.getElementById('rarityCards').innerHTML = levels.map(lv => {
+    let count = 0;
+    for (let s = lv.min; s <= 10; s++) count += (SIM_DIST[s] || 0);
+    const pct = (count / SIM_PEOPLE * 100).toFixed(2);
+    return '<div class="rarity-card"><div class="rc-count" style="color:' + lv.color + '">' + fmt(count) +
+      '</div><div class="rc-pct">' + pct + '% dos usuarios</div><div class="rc-label" style="color:' + lv.color + '">' +
+      lv.label + ' estrelas</div><div class="rc-tier">' + lv.tier + '</div></div>';
+  }).join('');
+}
+
+function initStats() {
+  let totalStars = 0;
+  SIM_DIST.forEach((c, s) => totalStars += c * s);
+  document.getElementById('aqPeople').textContent = fmt(SIM_PEOPLE);
+  document.getElementById('aqStars').textContent = fmt(totalStars);
+  document.getElementById('aqAvg').textContent = (totalStars / SIM_PEOPLE).toFixed(1);
+  document.getElementById('aqEvents').textContent = SIM_EVENTS;
+}
+
+function initTop1() {
+  let html = '';
+  for (let i = 0; i < 50; i++) html += SMINI;
+  document.getElementById('top1Stars').innerHTML = html;
+}
+
+function initTicker() {
+  const items = [
+    'Estrelas distribuidas hoje: 127',
+    'Novos usuarios: +58',
+    'Eventos ativos: ' + SIM_EVENTS,
+    'Doacoes hoje: 34 estrelas',
+    'Usuarios com 10/10: ' + SIM_DIST[10] + ' no mundo',
+    'Usuarios com 5+: ' + (SIM_DIST.slice(5).reduce((a, b) => a + b, 0)),
+    'Score total circulando: 847K',
+  ];
+  const html = items.map(t => '<div class="ticker-item"><div class="ticker-dot"></div>' + t + '</div>').join('');
+  document.getElementById('ticker').innerHTML = html + html;
+}
+
+// ============================================================
+// AQUARIUM CANVAS
+// ============================================================
+const canvas = document.getElementById('aqCanvas');
+const ctx = canvas.getContext('2d');
+let bubbles = [];
+let AW = 0, AH = 0;
+
+function resizeAq() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  AW = canvas.width = r.width * devicePixelRatio;
+  AH = canvas.height = r.height * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  canvas.style.width = r.width + 'px';
+  canvas.style.height = r.height + 'px';
+}
+
+class Bubble {
+  constructor() {
+    const w = AW / devicePixelRatio, h = AH / devicePixelRatio;
+    this.x = Math.random() * w;
+    this.y = Math.random() * h;
+    this.vx = (Math.random() - .5) * .35;
+    this.vy = (Math.random() - .5) * .35;
+    this.r = 2 + Math.random() * 5;
+    this.alpha = 0;
+    this.ta = .15 + Math.random() * .45;
+    this.p = Math.random() * Math.PI * 2;
+    this.hasStar = Math.random() > .6;
+    this.stars = this.hasStar ? Math.ceil(Math.random() * 10) : 0;
+    this.hue = this.hasStar ? 45 : 210 + Math.random() * 50;
+  }
+  update(w, h) {
+    this.p += .012;
+    this.alpha += (this.ta - this.alpha) * .03;
+    this.x += this.vx; this.y += this.vy;
+    if (this.x < this.r || this.x > w - this.r) this.vx *= -.8;
+    if (this.y < this.r || this.y > h - this.r) this.vy *= -.8;
+    this.vx += (Math.random() - .5) * .008;
+    this.vy += (Math.random() - .5) * .008;
+  }
+  draw(c) {
+    const g = .85 + .15 * Math.sin(this.p);
+    c.globalAlpha = this.alpha * g;
+    if (this.hasStar) {
+      const gr = c.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 2);
+      gr.addColorStop(0, 'rgba(255,215,0,.2)');
+      gr.addColorStop(1, 'rgba(255,215,0,0)');
+      c.fillStyle = gr;
+      c.beginPath(); c.arc(this.x, this.y, this.r * 2, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffd700';
+    } else {
+      c.fillStyle = 'hsl(' + this.hue + ',50%,60%)';
+    }
+    c.beginPath(); c.arc(this.x, this.y, this.r, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+  }
+}
+
+function aqAnimate() {
+  const w = AW / devicePixelRatio, h = AH / devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  // BG
+  const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * .6);
+  g.addColorStop(0, 'rgba(20,15,40,.2)'); g.addColorStop(1, 'rgba(5,5,12,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // Lines
+  ctx.strokeStyle = 'rgba(255,255,255,.01)'; ctx.lineWidth = .5;
+  for (let i = 0; i < Math.min(bubbles.length, 120); i++) {
+    for (let j = i + 1; j < Math.min(bubbles.length, 120); j++) {
+      const dx = bubbles[i].x - bubbles[j].x, dy = bubbles[i].y - bubbles[j].y;
+      if (Math.abs(dx) > 50 || Math.abs(dy) > 50) continue;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 50) { ctx.globalAlpha = (1 - d / 50) * .06; ctx.beginPath(); ctx.moveTo(bubbles[i].x, bubbles[i].y); ctx.lineTo(bubbles[j].x, bubbles[j].y); ctx.stroke(); }
+    }
+  }
+  ctx.globalAlpha = 1;
+  bubbles.forEach(b => { b.update(w, h); b.draw(ctx); });
+  if (bubbles.length < 300) bubbles.push(new Bubble());
+  requestAnimationFrame(aqAnimate);
+}
+
+// ============================================================
+// GUIDED TOUR
+// ============================================================
+const GUIDE_STEPS = [
+  {
+    target: '[data-guide="0"]',
+    title: 'O Aquario Global',
+    text: 'Bem-vindo! Esse aquario mostra <span class="highlight">todas as pessoas no Touch em tempo real</span>. Cada bolha e um usuario. As douradas sao quem ja tem estrelas. Quanto mais brilhante, mais estrelas essa pessoa carrega.'
+  },
+  {
+    target: '[data-guide="1"]',
+    title: 'As 10 Estrelas',
+    text: 'Cada pessoa pode ter <span class="highlight">ate 10 estrelas</span> no perfil. Sao 4 categorias: 2 de conquista (100 e 500 conexoes), 1 permanente (1.000 conexoes), ate 5 temporarias (compra, evento ou doacao), e 2 de <span class="highlight">ouro branco</span> (reconhecimento profissional).'
+  },
+  {
+    target: '[data-guide="2"]',
+    title: 'Distribuicao Global',
+    text: 'Esse grafico mostra <span class="highlight">quantas pessoas tem cada quantidade de estrelas</span>. Repare: a maioria tem zero. Ter 5+ e raro. Ter 10 e praticamente lendario. Isso e proposital -- estrelas sao escassas por design.'
+  },
+  {
+    target: '[data-guide="3"]',
+    title: 'O Preco Sobe',
+    text: 'Pra comprar estrelas temporarias com score, <span class="highlight">o preco aumenta a cada compra</span>: 100, 130, 170, 220, 290. A 5a custa quase 3x a 1a. E score nao e facil de juntar -- 5 pontos por conexao nova, 3 por reencontro, maximo 15 por dia.'
+  },
+  {
+    target: '[data-guide="4"]',
+    title: '5 Encontros = 1 Estrela',
+    text: 'Essa e a parte mais bonita do sistema. <span class="highlight">Se voce encontra a mesma pessoa 5 vezes</span> (em dias diferentes), uma estrela e gerada. Mas voce nao fica com ela -- tem 7 dias pra <span class="highlight">dar pra quem quiser</span>. Generosidade obrigatoria.'
+  },
+  {
+    target: '[data-guide="5"]',
+    title: 'Ranking de Raridade',
+    text: 'Aqui voce ve em numeros absolutos: <span class="highlight">quantas pessoas no mundo</span> estao em cada nivel. Esses numeros atualizam em tempo real. E a prova de que estrelas sao raras -- e valem algo de verdade.'
+  },
+  {
+    target: '[data-guide="6"]',
+    title: 'O Top 1',
+    text: 'A pessoa com mais estrelas do mundo inteiro tem <span class="highlight">50 estrelas fixas</span>. Nao e so status -- o Top 1 pode gerar e distribuir estrelas temporarias. E um papel de lideranca na comunidade.'
+  },
+];
+
+let guideStep = 0;
+
+function startGuide() {
+  guideStep = 0;
+  document.getElementById('guideOverlay').classList.add('active');
+  showGuideStep();
+}
+
+function endGuide() {
+  document.getElementById('guideOverlay').classList.remove('active');
+}
+
+function nextStep() {
+  guideStep++;
+  if (guideStep >= GUIDE_STEPS.length) { endGuide(); return; }
+  showGuideStep();
+}
+
+function showGuideStep() {
+  const step = GUIDE_STEPS[guideStep];
+  const el = document.querySelector(step.target);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      const hl = document.getElementById('guideHL');
+      hl.style.top = (rect.top - 8) + 'px';
+      hl.style.left = (rect.left - 8) + 'px';
+      hl.style.width = (rect.width + 16) + 'px';
+      hl.style.height = (rect.height + 16) + 'px';
+    }, 400);
+  }
+
+  document.getElementById('guideName').textContent = step.title;
+  document.getElementById('guideText').innerHTML = step.text;
+  document.getElementById('guideNext').textContent = guideStep < GUIDE_STEPS.length - 1 ? 'Proximo' : 'Finalizar';
+
+  // Progress dots
+  document.getElementById('guideDots').innerHTML = GUIDE_STEPS.map((_, i) => {
+    let cls = 'guide-dot';
+    if (i === guideStep) cls += ' active';
+    else if (i < guideStep) cls += ' done';
+    return '<div class="' + cls + '"></div>';
+  }).join('');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+resizeAq();
+window.addEventListener('resize', resizeAq);
+initShowcase();
+initDistribution();
+initPricing();
+initRarity();
+initStats();
+initTop1();
+initTicker();
+aqAnimate();
+</script>
+</body>
+</html>

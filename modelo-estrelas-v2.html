@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch? -- Modelo de Estrelas v2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a19;color:#fff;font-family:'Inter','Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px}
+
+h1{font-size:22px;font-weight:800;margin-bottom:4px;text-align:center}
+.subtitle{font-size:12px;color:rgba(255,255,255,.4);margin-bottom:32px;text-align:center}
+
+.main-grid{display:flex;gap:32px;width:100%;max-width:1200px;flex-wrap:wrap;justify-content:center}
+
+/* PROFILE CARD */
+.profile-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:28px 24px;width:380px;flex-shrink:0}
+.profile-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6c5ce7,#a29bfe);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff}
+.profile-name{font-size:18px;font-weight:700}
+.profile-sub{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px}
+
+.stars-display{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0;min-height:60px;align-items:center}
+
+.star-slot{width:48px;height:48px;position:relative;display:flex;align-items:center;justify-content:center;transition:all .4s ease}
+.star-slot svg{width:40px;height:40px;filter:drop-shadow(0 0 6px rgba(255,215,0,.4));transition:all .4s ease}
+.star-slot.empty svg{opacity:.1;filter:none}
+.star-slot.gold svg .star-fill{fill:#ffd700}
+.star-slot.gold svg .star-stroke{stroke:#b8960f;stroke-width:1}
+.star-slot.wg svg .star-fill{fill:#e8e0c8}
+.star-slot.wg svg .star-stroke{stroke:#b0a890;stroke-width:1}
+.star-slot.wg svg{filter:drop-shadow(0 0 4px rgba(232,224,200,.3))}
+.star-slot.empty svg .star-fill{fill:rgba(255,255,255,.06)}
+.star-slot.empty svg .star-stroke{stroke:rgba(255,255,255,.08);stroke-width:1}
+
+.star-slot .star-label{position:absolute;bottom:-16px;font-size:7px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;text-align:center;width:60px;left:50%;transform:translateX(-50%)}
+.star-slot.gold .star-label{color:rgba(255,215,0,.5)}
+.star-slot.wg .star-label{color:rgba(232,224,200,.4)}
+
+.star-slot .star-timer{position:absolute;top:-14px;font-size:8px;color:rgba(255,215,0,.4);font-weight:600}
+
+.star-counter{text-align:center;margin-top:24px;font-size:13px;color:rgba(255,255,255,.5)}
+.star-counter b{color:#ffd700;font-size:18px}
+
+/* SCORE BAR */
+.score-section{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
+.score-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.score-title{font-size:11px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.06em}
+.score-val{font-size:16px;font-weight:800;color:#a29bfe}
+.score-bar{height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#6c5ce7,#a29bfe);transition:width .5s ease}
+.score-hint{font-size:10px;color:rgba(255,255,255,.25);margin-top:6px}
+
+/* CONNECTIONS */
+.conn-section{margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
+.conn-bar{height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;position:relative}
+.conn-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#00dc82,#60a5fa);transition:width .5s ease}
+.conn-markers{position:relative;height:20px;margin-top:4px}
+.conn-marker{position:absolute;font-size:8px;color:rgba(255,255,255,.3);transform:translateX(-50%)}
+.conn-marker.reached{color:#00dc82;font-weight:700}
+
+/* RIGHT PANEL */
+.controls-panel{flex:1;min-width:320px;max-width:500px;display:flex;flex-direction:column;gap:16px}
+
+.ctrl-section{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px}
+.ctrl-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:14px;font-weight:600}
+
+.slider-row{margin-bottom:14px}
+.slider-row:last-child{margin-bottom:0}
+.slider-label{display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.5);margin-bottom:6px}
+.slider-label .val{color:#fff;font-weight:700}
+input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:rgba(255,255,255,.08);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#6c5ce7;cursor:pointer;border:2px solid rgba(255,255,255,.15)}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.5)}
+.legend-dot{width:12px;height:12px;border-radius:50%}
+.legend-dot.gold{background:#ffd700}
+.legend-dot.dark{background:#4a4a5a}
+.legend-dot.empty{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+
+/* JOURNEY MAP */
+.journey{margin-top:8px}
+.journey-step{display:flex;align-items:flex-start;gap:12px;padding:10px 0;position:relative}
+.journey-step:not(:last-child){border-left:2px solid rgba(255,255,255,.06);margin-left:11px;padding-left:22px}
+.journey-step:last-child{margin-left:11px;padding-left:22px;border-left:2px solid transparent}
+.journey-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;position:absolute;left:0;top:8px}
+.journey-dot.done{background:#ffd700;color:#0a0a19}
+.journey-dot.active{background:#6c5ce7;color:#fff;box-shadow:0 0 12px rgba(108,92,231,.5)}
+.journey-dot.locked{background:rgba(255,255,255,.06);color:rgba(255,255,255,.2)}
+.journey-text{flex:1}
+.journey-title{font-size:12px;font-weight:600;color:rgba(255,255,255,.8)}
+.journey-desc{font-size:10px;color:rgba(255,255,255,.3);margin-top:2px;line-height:1.5}
+.journey-step.done .journey-title{color:#ffd700}
+.journey-step.active .journey-title{color:#a29bfe}
+
+/* TOP1 CARD */
+.top1-card{background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,215,0,.02));border:1px solid rgba(255,215,0,.15);border-radius:16px;padding:18px;text-align:center}
+.top1-card h3{color:#ffd700;font-size:13px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em}
+.top1-stars{display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
+.top1-mini{width:14px;height:14px}
+.top1-mini svg{width:14px;height:14px}
+.top1-mini svg .star-fill{fill:#ffd700}
+
+/* PRICE TABLE */
+.price-table{width:100%;font-size:11px;border-collapse:collapse}
+.price-table th{text-align:left;color:rgba(255,255,255,.3);font-size:10px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.price-table td{padding:6px 8px;color:rgba(255,255,255,.6);border-bottom:1px solid rgba(255,255,255,.03)}
+.price-table .cost{color:#a29bfe;font-weight:700}
+.price-table .highlight{color:#ffd700}
+
+/* ANIMATIONS */
+@keyframes pulse-gold{
+  0%,100%{filter:drop-shadow(0 0 4px rgba(255,215,0,.3))}
+  50%{filter:drop-shadow(0 0 12px rgba(255,215,0,.6))}
+}
+.star-slot.gold.newest svg{animation:pulse-gold 1.5s ease infinite}
+
+@keyframes slide-in{
+  from{opacity:0;transform:scale(.5)}
+  to{opacity:1;transform:scale(1)}
+}
+.star-slot.appearing{animation:slide-in .4s ease}
+
+@media(max-width:768px){
+  .main-grid{flex-direction:column;align-items:center}
+  .profile-card,.controls-panel{width:100%;max-width:420px}
+}
+</style>
+</head>
+<body>
+
+<h1>Touch? -- Sistema de Estrelas v2</h1>
+<div class="subtitle">Modelo interativo -- ate 10 estrelas por participante (exceto Top 1)</div>
+
+<div class="main-grid">
+  <!-- LEFT: PROFILE CARD -->
+  <div>
+    <div class="profile-card">
+      <div class="profile-header">
+        <div class="avatar">R</div>
+        <div>
+          <div class="profile-name">Ramon</div>
+          <div class="profile-sub" id="profileRank">Participante</div>
+        </div>
+      </div>
+
+      <!-- 10 STAR SLOTS -->
+      <div class="stars-display" id="starsDisplay"></div>
+
+      <div class="star-counter">
+        <b id="starCount">0</b> / 10 estrelas
+      </div>
+
+      <!-- SCORE -->
+      <div class="score-section">
+        <div class="score-header">
+          <span class="score-title">Score disponivel</span>
+          <span class="score-val" id="scoreVal">500</span>
+        </div>
+        <div class="score-bar"><div class="score-fill" id="scoreFill" style="width:50%"></div></div>
+        <div class="score-hint" id="scoreHint">Proxima estrela: 100 score</div>
+      </div>
+
+      <!-- CONNECTIONS -->
+      <div class="conn-section">
+        <div class="score-header">
+          <span class="score-title">Conexoes</span>
+          <span class="score-val" id="connVal">0</span>
+        </div>
+        <div class="conn-bar"><div class="conn-fill" id="connFill" style="width:0%"></div></div>
+        <div class="conn-markers">
+          <div class="conn-marker" id="mark100" style="left:10%">100</div>
+          <div class="conn-marker" id="mark500" style="left:50%">500</div>
+          <div class="conn-marker" id="mark1000" style="left:100%">1000</div>
+        </div>
+      </div>
+
+      <!-- LEGEND -->
+      <div style="margin-top:20px">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot gold"></div>Dourada</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#e8e0c8"></div>Ouro branco (Prof.)</div>
+          <div class="legend-item"><div class="legend-dot empty"></div>Vazia</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: CONTROLS + JOURNEY -->
+  <div class="controls-panel">
+
+    <!-- SIMULADOR -->
+    <div class="ctrl-section">
+      <h3>Simular perfil</h3>
+
+      <div class="slider-row">
+        <div class="slider-label"><span>Score total acumulado</span><span class="val" id="vScore">500</span></div>
+        <input type="range" id="slScore" min="0" max="2000" value="500" step="10" oninput="update()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Conexoes</span><span class="val" id="vConn">50</span></div>
+        <input type="range" id="slConn" min="0" max="1500" value="50" step="5" oninput="update()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Estrelas temp. de eventos/sorteio</span><span class="val" id="vEvent">0</span></div>
+        <input type="range" id="slEvent" min="0" max="5" value="0" step="1" oninput="update()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Estrelas temp. recebidas (doacao)</span><span class="val" id="vDonated">0</span></div>
+        <input type="range" id="slDonated" min="0" max="5" value="0" step="1" oninput="update()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Reconhecimento profissional</span><span class="val" id="vProf">0</span></div>
+        <input type="range" id="slProf" min="0" max="2" value="0" step="1" oninput="update()">
+      </div>
+    </div>
+
+    <!-- TABELA DE PRECOS -->
+    <div class="ctrl-section">
+      <h3>Custo das estrelas temporarias (compra com score)</h3>
+      <table class="price-table">
+        <thead><tr><th>#</th><th>Custo</th><th>Score acumulado</th><th>Status</th></tr></thead>
+        <tbody id="priceBody"></tbody>
+      </table>
+    </div>
+
+    <!-- JORNADA -->
+    <div class="ctrl-section">
+      <h3>Jornada de conquista</h3>
+      <div class="journey" id="journey"></div>
+    </div>
+
+    <!-- RESUMO DAS REGRAS -->
+    <div class="ctrl-section">
+      <h3>Regras resumidas</h3>
+      <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.8" id="rulesText"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// SVG da estrela (sem emoji)
+const STAR_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path class="star-fill star-stroke" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z"/>
+</svg>`;
+
+// Precos incrementais das temporarias
+const TEMP_PRICES = [100, 110, 120, 130, 140];
+
+function calcStars() {
+  const score = +document.getElementById('slScore').value;
+  const conn = +document.getElementById('slConn').value;
+  const eventStars = +document.getElementById('slEvent').value;
+  const donatedStars = +document.getElementById('slDonated').value;
+  const profStars = +document.getElementById('slProf').value;
+
+  // Conquistas (automaticas por conexoes)
+  let conquistas = 0;
+  if (conn >= 100) conquistas++;
+  if (conn >= 500) conquistas++;
+
+  // Permanente (1000 conexoes)
+  let permanente = conn >= 1000 ? 1 : 0;
+
+  // Temporarias compradas com score
+  let scoreRestante = score;
+  let compradas = 0;
+  let gastoTotal = 0;
+  for (let i = 0; i < 5; i++) {
+    if (scoreRestante >= TEMP_PRICES[i]) {
+      compradas++;
+      scoreRestante -= TEMP_PRICES[i];
+      gastoTotal += TEMP_PRICES[i];
+    } else break;
+  }
+
+  // Total de temporarias = compradas + eventos + doadas (max 5)
+  let totalTemp = Math.min(compradas + eventStars + donatedStars, 5);
+
+  // Total geral (max 10)
+  let total = Math.min(totalTemp + permanente + conquistas + profStars, 10);
+
+  return {
+    score, scoreRestante, conn,
+    conquistas, permanente,
+    compradas, eventStars, donatedStars,
+    totalTemp, profStars,
+    total, gastoTotal
+  };
+}
+
+function renderStars(data) {
+  const container = document.getElementById('starsDisplay');
+  container.innerHTML = '';
+
+  // Ordem de exibicao: Conquistas, Permanente, Temporarias, Profissional
+  const slots = [];
+
+  // Conquistas (douradas)
+  for (let i = 0; i < 2; i++) {
+    slots.push({
+      type: i < data.conquistas ? 'gold' : 'empty',
+      label: i === 0 ? '100 conex.' : '500 conex.',
+      category: 'conquista'
+    });
+  }
+
+  // Permanente (dourada)
+  slots.push({
+    type: data.permanente ? 'gold' : 'empty',
+    label: '1000 conex.',
+    category: 'permanente'
+  });
+
+  // Temporarias (douradas, max 5)
+  for (let i = 0; i < 5; i++) {
+    let src = '';
+    if (i < data.compradas) src = 'compra';
+    else if (i < data.compradas + data.eventStars) src = 'evento';
+    else if (i < data.totalTemp) src = 'doacao';
+
+    slots.push({
+      type: i < data.totalTemp ? 'gold' : 'empty',
+      label: src === 'compra' ? TEMP_PRICES[i] + ' sc' : (src === 'evento' ? 'evento' : (src === 'doacao' ? 'doacao' : 'temp. ' + (i+1))),
+      category: 'temp',
+      timer: i < data.totalTemp ? '30d' : null
+    });
+  }
+
+  // Reconhecimento profissional (escuras)
+  for (let i = 0; i < 2; i++) {
+    slots.push({
+      type: i < data.profStars ? 'wg' : 'empty',
+      label: 'profissional',
+      category: 'prof'
+    });
+  }
+
+  slots.forEach((s, idx) => {
+    const div = document.createElement('div');
+    div.className = 'star-slot ' + s.type;
+    if (s.type !== 'empty' && idx === data.total - 1) div.classList.add('newest');
+
+    let timerHTML = '';
+    if (s.timer && s.type !== 'empty') {
+      timerHTML = '<div class="star-timer">' + s.timer + '</div>';
+    }
+
+    div.innerHTML = timerHTML + STAR_SVG + '<div class="star-label">' + s.label + '</div>';
+    container.appendChild(div);
+  });
+
+  document.getElementById('starCount').textContent = data.total;
+}
+
+function renderPriceTable(data) {
+  const tbody = document.getElementById('priceBody');
+  let html = '';
+  let acum = 0;
+  for (let i = 0; i < 5; i++) {
+    acum += TEMP_PRICES[i];
+    const canBuy = data.score >= acum;
+    const bought = i < data.compradas;
+    html += '<tr>' +
+      '<td>' + (i+1) + 'a</td>' +
+      '<td class="cost">' + TEMP_PRICES[i] + ' sc</td>' +
+      '<td>' + acum + ' sc</td>' +
+      '<td>' + (bought ? '<span class="highlight">Comprada</span>' : (canBuy ? 'Disponivel' : 'Bloqueada')) + '</td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+function renderJourney(data) {
+  const steps = [
+    { title: 'Primeiro contato', desc: 'Entrar no app, fazer primeira conexao', check: data.conn >= 1 },
+    { title: '100 conexoes -- 1a conquista', desc: 'Estrela de conquista automatica (dourada)', check: data.conn >= 100 },
+    { title: 'Comprar 1a estrela temporaria', desc: '100 score gastos, dura 30 dias', check: data.compradas >= 1 },
+    { title: 'Participar de evento', desc: 'Ganhar estrela temporaria via sorteio/doacao', check: data.eventStars >= 1 },
+    { title: 'Receber doacao', desc: 'Outro participante transfere uma estrela pra voce', check: data.donatedStars >= 1 },
+    { title: '500 conexoes -- 2a conquista', desc: 'Segunda estrela de conquista automatica', check: data.conn >= 500 },
+    { title: 'Reconhecimento profissional', desc: 'Receber estrela preta/cinza de outro profissional', check: data.profStars >= 1 },
+    { title: '1000 conexoes -- permanente', desc: 'Estrela permanente dourada, nunca expira', check: data.conn >= 1000 },
+    { title: '10/10 estrelas', desc: 'Perfil completo, todas as categorias preenchidas', check: data.total >= 10 },
+  ];
+
+  const container = document.getElementById('journey');
+  let html = '';
+  let foundActive = false;
+
+  steps.forEach((s, i) => {
+    let state = 'locked';
+    if (s.check) {
+      state = 'done';
+    } else if (!foundActive) {
+      state = 'active';
+      foundActive = true;
+    }
+
+    html += '<div class="journey-step ' + state + '">' +
+      '<div class="journey-dot ' + state + '">' + (state === 'done' ? '&#10003;' : (i+1)) + '</div>' +
+      '<div class="journey-text">' +
+        '<div class="journey-title">' + s.title + '</div>' +
+        '<div class="journey-desc">' + s.desc + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function renderRules() {
+  document.getElementById('rulesText').innerHTML =
+    '<b style="color:#ffd700">TEMPORARIAS (max 5) -- douradas</b><br>' +
+    'Duram 30 dias. Compra com score (100, 110, 120, 130, 140).<br>' +
+    'Ganhas em sorteio de eventos ou doadas entre usuarios.<br>' +
+    'Doacao = transferencia (quem doa perde, quem recebe ganha).<br>' +
+    'Eventos compram estrelas da Touch IRL LLC pra distribuir.<br><br>' +
+    '<b style="color:#ffd700">PERMANENTE (max 1) -- dourada</b><br>' +
+    '1000 conexoes = ganha automaticamente. Nao expira.<br><br>' +
+    '<b style="color:#ffd700">CONQUISTA (max 2) -- douradas</b><br>' +
+    '100 conexoes = 1a. 500 conexoes = 2a. Automaticas.<br><br>' +
+    '<b style="color:#4a4a5a">RECONHECIMENTO PROFISSIONAL (max 2) -- pretas/cinzas</b><br>' +
+    'Passadas entre profissionais (detalhes pendentes).<br><br>' +
+    '<b style="color:#e8e0c8">RECONHECIMENTO PROFISSIONAL (max 2) -- ouro branco</b><br>' +
+    'Passadas entre profissionais (detalhes pendentes).';
+}
+
+function renderTop1() {
+  const container = document.getElementById('top1Stars');
+  let html = '';
+  for (let i = 0; i < 50; i++) {
+    html += '<div class="top1-mini">' + STAR_SVG.replace('star-fill', 'star-fill').replace('star-stroke', 'star-stroke') + '</div>';
+  }
+  container.innerHTML = html;
+  // Colorir todas
+  container.querySelectorAll('.star-fill').forEach(el => el.style.fill = '#ffd700');
+}
+
+function update() {
+  // Update labels
+  document.getElementById('vScore').textContent = (+document.getElementById('slScore').value).toLocaleString('pt-BR');
+  document.getElementById('vConn').textContent = (+document.getElementById('slConn').value).toLocaleString('pt-BR');
+  document.getElementById('vEvent').textContent = document.getElementById('slEvent').value;
+  document.getElementById('vDonated').textContent = document.getElementById('slDonated').value;
+  document.getElementById('vProf').textContent = document.getElementById('slProf').value;
+
+  const data = calcStars();
+
+  renderStars(data);
+  renderPriceTable(data);
+  renderJourney(data);
+
+  // Score bar
+  document.getElementById('scoreVal').textContent = data.scoreRestante.toLocaleString('pt-BR');
+  document.getElementById('scoreFill').style.width = Math.min(data.score / 2000 * 100, 100) + '%';
+
+  // Score hint
+  let nextCost = data.compradas < 5 ? TEMP_PRICES[data.compradas] : null;
+  if (nextCost) {
+    document.getElementById('scoreHint').textContent = 'Proxima estrela: ' + nextCost + ' score (falta ' + Math.max(0, nextCost - data.scoreRestante) + ')';
+  } else {
+    document.getElementById('scoreHint').textContent = 'Maximo de compras atingido';
+  }
+
+  // Connections bar
+  document.getElementById('connVal').textContent = data.conn.toLocaleString('pt-BR');
+  document.getElementById('connFill').style.width = Math.min(data.conn / 1000 * 100, 100) + '%';
+
+  // Connection markers
+  document.getElementById('mark100').className = 'conn-marker' + (data.conn >= 100 ? ' reached' : '');
+  document.getElementById('mark500').className = 'conn-marker' + (data.conn >= 500 ? ' reached' : '');
+  document.getElementById('mark1000').className = 'conn-marker' + (data.conn >= 1000 ? ' reached' : '');
+
+  // Profile rank
+  let rank = 'Participante';
+  if (data.total >= 10) rank = 'Perfil Completo';
+  else if (data.total >= 7) rank = 'Veterano';
+  else if (data.total >= 4) rank = 'Ativo';
+  else if (data.total >= 1) rank = 'Iniciante';
+  document.getElementById('profileRank').textContent = rank + ' -- ' + data.total + '/10 estrelas';
+}
+
+// Init
+renderRules();
+update();
+</script>
+</body>
+</html>
