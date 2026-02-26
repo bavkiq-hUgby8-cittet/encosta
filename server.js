@@ -4161,15 +4161,36 @@ const PPLX_API_KEY = process.env.PPLX_API_KEY || '';
 const NEWS_INTERVAL_MS = 5 * 60 * 1000; // 5 min entre noticias por canal
 const _newsLastPosted = {}; // channelKey -> timestamp
 
-async function fetchNewsForChannel(channelKey, channelName, channelType) {
-  if (!PPLX_API_KEY) return null;
-  // Rate limit: 1 news per channel per interval
-  const lastTime = _newsLastPosted[channelKey] || 0;
-  if (Date.now() - lastTime < NEWS_INTERVAL_MS) return null;
+const NEWS_TOPICS = {
+  geral: { label: 'Geral', prompt: 'Noticias de hoje de {local}. Resuma a principal noticia em 2 frases curtas em portugues.' },
+  eventos: { label: 'Eventos', prompt: 'Eventos e shows acontecendo em {local} nos proximos dias. Resuma o mais interessante em 2 frases curtas em portugues.' },
+  cultura: { label: 'Cultura', prompt: 'Agenda cultural de {local}: teatro, cinema, museus, exposicoes. Resuma a principal em 2 frases curtas em portugues.' },
+  esporte: { label: 'Esporte', prompt: 'Noticias de esporte de hoje em {local}. Resuma a principal em 2 frases curtas em portugues.' },
+  clima: { label: 'Clima', prompt: 'Previsao do tempo para {local} hoje e amanha. Resuma em 2 frases curtas em portugues.' },
+  policial: { label: 'Policial', prompt: 'Noticias policiais de hoje em {local}. Resuma a principal em 2 frases curtas em portugues.' },
+  politica: { label: 'Politica', prompt: 'Noticias de politica de hoje em {local}. Resuma a principal em 2 frases curtas em portugues.' },
+  tecnologia: { label: 'Tecnologia', prompt: 'Noticias de tecnologia de hoje no mundo. Resuma a principal em 2 frases curtas em portugues.' }
+};
 
-  // Build query based on channel type and name
+async function fetchNewsForChannel(channelKey, channelName, channelType, topic) {
+  if (!PPLX_API_KEY) return null;
+  // Rate limit: skip for manual triggers with topic (only auto uses rate limit)
+  if (!topic) {
+    const lastTime = _newsLastPosted[channelKey] || 0;
+    if (Date.now() - lastTime < NEWS_INTERVAL_MS) return null;
+  }
+
+  // Build local name based on channel type
+  let localName = channelName || channelKey;
+  if (channelType === 'state') localName = 'estado ' + channelName + ', Brasil';
+  else if (channelType === 'country') localName = channelName;
+  else if (channelType === 'region') localName = 'mundo';
+
+  // Build query: use topic template or default
   let query = '';
-  if (channelType === 'city') query = 'Noticias de hoje de ' + channelName + '. Resuma a principal noticia em 2 frases curtas em portugues.';
+  if (topic && NEWS_TOPICS[topic]) {
+    query = NEWS_TOPICS[topic].prompt.replace('{local}', localName);
+  } else if (channelType === 'city') query = 'Noticias de hoje de ' + channelName + '. Resuma a principal noticia em 2 frases curtas em portugues.';
   else if (channelType === 'state') query = 'Noticia mais relevante de hoje no estado ' + channelName + ', Brasil. Resuma em 2 frases curtas em portugues.';
   else if (channelType === 'country') query = 'Principal noticia de hoje no ' + channelName + '. Resuma em 2 frases curtas em portugues.';
   else query = 'Noticia mais comentada de hoje no mundo. Resuma em 2 frases curtas em portugues.';
@@ -4272,7 +4293,7 @@ setInterval(async () => {
 // Manual trigger: POST /api/mural/:channelKey/news — force fetch news (mod only)
 app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
   const { channelKey } = req.params;
-  const { userId } = req.body;
+  const { userId, topic } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
   const user = db.users[userId];
   const priv = getMuralPrivileges(user);
@@ -4281,7 +4302,8 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
   const posts = (db.muralPosts[channelKey] || []).filter(p => p.channelName && p.channelType);
   const sample = posts[posts.length - 1];
   if (!sample) return res.status(400).json({ error: 'Canal sem historico.' });
-  const newsText = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType);
+  const topicLabel = (topic && NEWS_TOPICS[topic]) ? NEWS_TOPICS[topic].label : 'Geral';
+  const newsText = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType, topic || null);
   if (!newsText) return res.status(500).json({ error: 'Nao foi possivel buscar noticias agora.' });
   _newsLastPosted[channelKey] = Date.now();
   const newsPost = {
@@ -4300,7 +4322,8 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     expiresAt: Date.now() + 12 * 3600000,
     hidden: false,
     isNarrator: false,
-    isNews: true
+    isNews: true,
+    newsTopic: topicLabel
   };
   if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
   db.muralPosts[channelKey].push(newsPost);
