@@ -4150,7 +4150,7 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
 
 // ═══ MURAL NEWS AGENT — robo jornalista com Perplexity API ═══
 const PPLX_API_KEY = process.env.PPLX_API_KEY || '';
-const NEWS_INTERVAL_MS = 45 * 60 * 1000; // 45 min entre noticias por canal
+const NEWS_INTERVAL_MS = 5 * 60 * 1000; // 5 min entre noticias por canal
 const _newsLastPosted = {}; // channelKey -> timestamp
 
 async function fetchNewsForChannel(channelKey, channelName, channelType) {
