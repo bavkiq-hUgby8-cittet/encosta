@@ -395,6 +395,33 @@ function withTimeout(promise, ms, label) {
 }
 
 let _dbLoadedFromCloud = false; // true if DB was loaded from Firebase with real data
+
+// Normalizar muralPosts apos carregar do Firebase
+// Firebase RTDB converte arrays JS em objetos { "0": ..., "1": ..., "2": ... }
+// Precisamos converter de volta pra arrays pra .push() funcionar
+function _normalizeMuralPosts() {
+  if (!db.muralPosts || typeof db.muralPosts !== 'object') {
+    db.muralPosts = {};
+    return;
+  }
+  let fixed = 0;
+  for (const chKey of Object.keys(db.muralPosts)) {
+    const raw = db.muralPosts[chKey];
+    if (Array.isArray(raw)) continue; // ja e array, ok
+    if (raw && typeof raw === 'object') {
+      // Converter objeto pra array, filtrando nulos/invalidos
+      const arr = Object.values(raw).filter(p => p && typeof p === 'object' && p.id);
+      db.muralPosts[chKey] = arr;
+      fixed++;
+      console.log('[mural] Normalizado canal ' + chKey + ': objeto -> array (' + arr.length + ' posts)');
+    } else {
+      db.muralPosts[chKey] = [];
+      fixed++;
+    }
+  }
+  if (fixed > 0) console.log('[mural] ' + fixed + ' canais normalizados de objeto para array');
+}
+
 async function loadDB() {
   console.log('loadDB() iniciando... RTDB URL:', FIREBASE_DB_URL);
   try {
@@ -446,9 +473,12 @@ async function loadDB() {
       }
     }
     dbLoaded = true;
+    // Normalizar muralPosts: Firebase RTDB converte arrays em objetos com chaves numericas
+    // Precisamos garantir que cada canal tenha um Array, nao um objeto
+    _normalizeMuralPosts();
     // Initialize corruption guard counts
     DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
-    console.log('🛡️ Corruption guard initialized:', JSON.stringify(_lastKnownCounts));
+    console.log('Corruption guard initialized:', JSON.stringify(_lastKnownCounts));
     initRegistrationCounter();
     // Auto-backup on startup (async, don't block)
     if (Object.keys(db.users).length > 0) {
@@ -467,6 +497,7 @@ async function loadDB() {
         if (uc > 0) _dbLoadedFromCloud = true;
         console.log('DB carregado do RTDB no retry (' + uc + ' users)');
         dbLoaded = true;
+        _normalizeMuralPosts();
         DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
         initRegistrationCounter();
         if (Object.keys(db.users).length > 0) {
@@ -491,6 +522,7 @@ async function loadDB() {
       console.error('Fallback db.json tambem falhou:', e2.message);
     }
     dbLoaded = true;
+    _normalizeMuralPosts();
     DB_COLLECTIONS.forEach(c => { _lastKnownCounts[c] = Object.keys(db[c] || {}).length; });
     initRegistrationCounter();
   }
@@ -4145,11 +4177,13 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
     stars: 0,
     text: narration,
     createdAt: Date.now(),
-    expiresAt: Date.now() + 24 * 3600000,
     hidden: false,
     isNarrator: true
   };
   if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  if (!Array.isArray(db.muralPosts[channelKey])) {
+    db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
+  }
   db.muralPosts[channelKey].push(narratorPost);
   saveDB('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: narratorPost });
@@ -4256,16 +4290,18 @@ async function postNewsToChannel(channelKey, channelName, channelType) {
     accessory: null,
     likes: [],
     createdAt: Date.now(),
-    expiresAt: Date.now() + 12 * 3600000, // 12h expiry for news
     hidden: false,
     isNarrator: false,
     isNews: true
   };
   if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  if (!Array.isArray(db.muralPosts[channelKey])) {
+    db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
+  }
   db.muralPosts[channelKey].push(newsPost);
   saveDB('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
-  console.log('[news-agent] Posted news to #' + channelKey);
+  console.log('[news-agent] Posted news to #' + channelKey + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
 
 // Auto-post news to active channels every NEWS_INTERVAL_MS
@@ -4326,13 +4362,15 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     accessory: null,
     likes: [],
     createdAt: Date.now(),
-    expiresAt: Date.now() + 12 * 3600000,
     hidden: false,
     isNarrator: false,
     isNews: true,
     newsTopic: topicLabel
   };
   if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  if (!Array.isArray(db.muralPosts[channelKey])) {
+    db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
+  }
   db.muralPosts[channelKey].push(newsPost);
   saveDB('muralPosts');
   io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
