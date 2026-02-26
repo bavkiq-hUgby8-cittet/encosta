@@ -1033,6 +1033,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-msg.narrator .mural-msg-text{color:#6a1b9a;font-style:italic;font-size:.68rem}
 .mural-msg.news .mural-msg-nick{color:#e65100}
 .mural-msg.news .mural-msg-text{color:#bf360c;font-size:.7rem;line-height:1.5}
+.mural-news-source{display:block;font-size:.58rem;color:#90a4ae;font-style:italic;margin-top:.25rem;font-weight:500}
 .mural-msg.news .mural-news-tag{display:inline-block;font-size:.42rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#ff6f00,#ff8f00);padding:.1rem .35rem;border-radius:6px;margin-bottom:.2rem;letter-spacing:.04em;text-transform:uppercase}
 .mural-msg-actions{display:flex;align-items:center;gap:.5rem;margin-top:.2rem}
 .mural-msg-like{background:none;border:none;font-size:.52rem;color:#b0bec5;cursor:pointer;padding:.15rem .2rem;font-family:inherit;transition:color .2s;display:flex;align-items:center;gap:.2rem}
@@ -7433,7 +7434,19 @@ function renderMuralFeed() {
       + '<span class="mural-msg-time">' + _muralTimeAgo(p.createdAt) + '</span>'
       + '</div>'
       + newsTag
-      + '<div class="mural-msg-text">' + esc(p.text) + '</div>'
+      + (function() {
+        var txt = p.text || '';
+        var sourceHtml = '';
+        if (isNews) {
+          // Separar "Fonte: ..." do texto principal
+          var sourceMatch = txt.match(/\n?\s*[Ff]onte:\s*(.+)$/);
+          if (sourceMatch) {
+            txt = txt.replace(sourceMatch[0], '').trim();
+            sourceHtml = '<span class="mural-news-source">Fonte: ' + esc(sourceMatch[1].trim()) + '</span>';
+          }
+        }
+        return '<div class="mural-msg-text">' + esc(txt) + sourceHtml + '</div>';
+      })()
       + '<div class="mural-msg-actions">' + likeBtn + flagBtn + hideBtn + banBtn + '</div>'
       + '</div>'
       + '</div>';
@@ -7494,10 +7507,7 @@ async function postToMural() {
     var wc = $('muralWordCount');
     if (wc) wc.classList.add('hidden');
     haptic([15, 10]);
-    if (d.post) {
-      _muralState.posts.push(d.post);
-      renderMuralFeed();
-    }
+    // Post sera adicionado via socket (mural-new-post), nao duplicar aqui
   } catch (e) {
     btn.disabled = false;
     showToast('Erro ao postar.');

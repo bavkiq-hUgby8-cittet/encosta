@@ -4207,10 +4207,10 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, topic) 
       body: JSON.stringify({
         model: 'sonar',
         messages: [
-          { role: 'system', content: 'Voce e um reporter de noticias. Responda apenas com a noticia resumida em 2 frases curtas e objetivas em portugues brasileiro. Nao use emojis. Nao comece com "De acordo com" ou "Segundo". Va direto ao ponto.' },
+          { role: 'system', content: 'Voce e um reporter de noticias. Responda com a noticia resumida em 2 frases curtas e objetivas em portugues brasileiro. Na terceira linha, escreva "Fonte: " seguido do nome do veiculo de imprensa (ex: Fonte: G1, Fonte: Folha de S.Paulo). Nao use emojis. Nao comece com "De acordo com" ou "Segundo". Va direto ao ponto.' },
           { role: 'user', content: query }
         ],
-        max_tokens: 200,
+        max_tokens: 250,
         temperature: 0.3
       }),
       signal: ctrl.signal
@@ -4218,9 +4218,22 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, topic) 
     clearTimeout(timer);
     if (!resp.ok) return null;
     const data = await resp.json();
-    const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    let text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
     if (!text || text.length < 20) return null;
-    return text.trim().slice(0, 300);
+    text = text.trim().slice(0, 400);
+    // Se o modelo nao incluiu "Fonte:", tentar extrair das citations da API
+    if (!text.toLowerCase().includes('fonte:') && data.citations && data.citations.length > 0) {
+      // Extrair nome do dominio da primeira citation como fonte
+      try {
+        const url = new URL(data.citations[0]);
+        let domain = url.hostname.replace('www.', '');
+        // Capitalizar dominio pra ficar mais bonito
+        domain = domain.split('.')[0];
+        domain = domain.charAt(0).toUpperCase() + domain.slice(1);
+        text += '\nFonte: ' + domain;
+      } catch (e2) { /* ignore */ }
+    }
+    return text;
   } catch (e) {
     return null;
   }
