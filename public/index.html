@@ -877,8 +877,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes constSearchIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 .const-copy{position:absolute;top:0;left:0;right:0;text-align:center;padding-top:calc(max(env(safe-area-inset-top),.8rem) + 3rem);z-index:5;pointer-events:none}
 .const-copy p{font-size:.65rem;color:rgba(255,255,255,.2);font-weight:300;font-style:italic;line-height:1.7;letter-spacing:.05em}
-.const-canvas-wrap{position:absolute;inset:0;z-index:1;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,1) 0%,rgba(2,2,5,1) 70%)}
-.const-canvas-wrap canvas{width:100%;height:100%;touch-action:none}
+.const-canvas-wrap{position:absolute;inset:0;z-index:1;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,1) 0%,rgba(2,2,5,1) 70%);touch-action:none;-webkit-user-select:none;user-select:none}
+.const-canvas-wrap canvas{width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none}
 .const-loader{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 45%,rgba(15,15,30,.97) 0%,rgba(2,2,5,.98) 70%);transition:opacity .5s ease}
 .const-loader.fade-out{opacity:0;pointer-events:none}
 .const-loader-inner{display:flex;flex-direction:column;align-items:center;gap:1rem}
@@ -2094,7 +2094,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="rll" id="relationsList"></div>
 </div>
 
-<div id="history" class="screen">
+<div id="history" class="screen" style="touch-action:none;-webkit-user-select:none">
   <div class="const-header">
     <button class="chb" onclick="goHome()">&#x2190;</button>
     <h2 data-i18n="home.constellation_title">Minha Rede</h2>
@@ -7809,6 +7809,9 @@ async function showHistory(){
   const loader=$('constLoader');
   if(loader){loader.classList.remove('hidden','fade-out')}
   showScreen('history');
+  // Pre-focus canvas immediately so first touch is not eaten by browser activation
+  var _preCanvas=$('constCanvas');
+  if(_preCanvas){_preCanvas.setAttribute('tabindex','0');_preCanvas.style.outline='none';_preCanvas.focus({preventScroll:true})}
   // Initialize canvas IMMEDIATELY so touch/zoom works while data loads
   constState.nodes=[];
   constState.cam={x:0,y:0,zoom:0.15};
@@ -7930,6 +7933,13 @@ function initConstCanvas(){
   ctx.scale(dpr,dpr);
   const W=wrap.clientWidth,H=wrap.clientHeight;
 
+  // Pre-activate canvas for touch: focus + tabIndex ensure first touch is not eaten by browser
+  canvas.setAttribute('tabindex','0');
+  canvas.style.outline='none';
+  canvas.focus({preventScroll:true});
+  // Force layout recalc to ensure canvas is ready for events immediately
+  void canvas.offsetHeight;
+
   // ── 3D Perspective parameters ──
   const FOV=300; // field of view — higher = less extreme perspective
 
@@ -7959,9 +7969,16 @@ function initConstCanvas(){
   };
   canvas.onpointerup=e=>{
     if(constState.dragging&&pointerStart){
-      const tapThresh=20;
-      if(Math.abs(e.clientX-pointerStart.x)<tapThresh&&Math.abs(e.clientY-pointerStart.y)<tapThresh&&!(constState._entryAnim&&constState._entryAnim.active))
+      const tapThresh=25;
+      // Allow taps even during entry animation — skip entry anim block
+      if(Math.abs(e.clientX-pointerStart.x)<tapThresh&&Math.abs(e.clientY-pointerStart.y)<tapThresh){
+        // If entry animation is active, skip it to let user interact immediately
+        if(constState._entryAnim&&constState._entryAnim.active){
+          constState._entryAnim.active=false;
+          constState.cam.zoom=1;
+        }
         handleConstTap(e.clientX-canvas.getBoundingClientRect().left,e.clientY-canvas.getBoundingClientRect().top,W,H);
+      }
     }
     constState.dragging=false;constState.lastTouch=null;pointerStart=null;constState._touching=false;
   };
