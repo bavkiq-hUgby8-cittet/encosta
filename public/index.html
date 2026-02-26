@@ -14878,7 +14878,7 @@ const VA = (function(){
   let _pendingToolCall = false;  // true between function_call and next response
   let _pendingAgentTranscript = ''; // partial agent transcript being built
   let _unmuteTimer = null;       // delayed unmute after response.done
-  const UNMUTE_DELAY_MS = 1200;   // delay to let WebRTC audio drain from speaker (increased for mobile)
+  const UNMUTE_DELAY_MS = 2500;   // delay to let WebRTC audio fully drain from speaker (prevents echo loop)
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
 
@@ -15211,9 +15211,8 @@ const VA = (function(){
         if(evt.transcript) fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,tier:vaTier,role:'assistant',content:evt.transcript})}).catch(()=>{});
         // Legacy: also save to ultimateBank for backward compat
         if(vaTier==='ultimatedev'&&evt.transcript) fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:evt.transcript})}).catch(()=>{});
-        // Audio generation done — mark agent as no longer speaking
-        _agentSpeaking=false;
-        // Do NOT unmute here — wait for response.done + delay
+        // NOTE: do NOT set _agentSpeaking=false here -- audio buffer may still be playing
+        // Only response.done should clear this flag
         break;
       case 'response.done':
         _agentSpeaking=false;
