@@ -15961,7 +15961,7 @@ const VA = (function(){
       var data=await r.json();
       if(data.id && data.status === 'planning'){
         _devAddLiveLog('info', 'Comando enviado', 'ID: '+data.id+' - aguardando Claude Opus...');
-        _sendToolResult(callId,'Comando enviado! ID: '+data.id+'. Claude Opus esta gerando o plano agora. Diga pro usuario que esta processando e que voce vai avisar quando terminar.');
+        _sendToolResult(callId,'Comando enviado! ID: '+data.id+'. Claude Opus esta gerando o plano. FIQUE EM SILENCIO agora — voce ja avisou o usuario. So fale quando o plano ficar pronto.');
         var pollCount = 0;
         _devPollStatus(data.id,
           function(status, elapsed){
@@ -15969,7 +15969,8 @@ const VA = (function(){
             _showVaActivity('Claude pensando...', elapsed+'s');
             if(pollCount % 5 === 0) {
               _devAddLiveLog('info', 'Processando...', elapsed+'s');
-              _devInjectMsg('[SISTEMA] Claude ainda esta processando... '+elapsed+'s. Diga pro usuario aguardar.');
+              // NAO injeta [SISTEMA] aqui — a barra visual ja mostra o progresso
+              // Injetar msg a cada 15s fazia o agente falar sem parar
             }
           },
           function(result){
@@ -16022,7 +16023,7 @@ const VA = (function(){
       var data=await r.json();
       if(data.status === 'executing'){
         _devAddLiveLog('info', 'Aprovado!', 'ID: '+id+' - gerando codigo...');
-        _sendToolResult(callId,'Plano aprovado! Claude Opus esta gerando o codigo agora. Diga pro usuario que esta processando.');
+        _sendToolResult(callId,'Plano aprovado! Gerando codigo. FIQUE EM SILENCIO — so fale quando terminar.');
         var pollCount = 0;
         _devPollStatus(id,
           function(status, elapsed){
@@ -16030,7 +16031,7 @@ const VA = (function(){
             _showVaActivity('Gerando codigo...', elapsed+'s');
             if(pollCount % 5 === 0) {
               _devAddLiveLog('info', 'Gerando...', elapsed+'s');
-              _devInjectMsg('[SISTEMA] Claude gerando codigo... '+elapsed+'s. Diga pro usuario aguardar.');
+              // NAO injeta [SISTEMA] aqui — progresso visual ja suficiente
             }
           },
           function(result){
@@ -16137,7 +16138,7 @@ const VA = (function(){
     }).then(function(data){
       if(data.id && data.status === 'planning'){
         _devAddLiveLog('info', 'Comando criado', 'ID: '+data.id+' - Claude Opus processando...');
-        _devInjectMsg('[SISTEMA] Comando enviado pro Claude Opus. Diga pro usuario que esta processando e que pode levar ate 2 minutos.');
+        // NAO injeta [SISTEMA] aqui — o tool result do comando_dev ja avisa o agente
         console.log('[INTERCEPTOR] Polling started for', data.id);
         var pollCount = 0;
         _devPollStatus(data.id,
@@ -16146,9 +16147,7 @@ const VA = (function(){
             _showVaActivity('Claude pensando...', elapsed+'s');
             if(pollCount % 5 === 0) {
               _devAddLiveLog('info', 'Processando...', elapsed+'s');
-            }
-            if(pollCount % 10 === 0) {
-              _devInjectMsg('[SISTEMA] Claude ainda processando... '+elapsed+'s. Diga pro usuario que esta trabalhando.');
+              // NAO injeta [SISTEMA] aqui — progresso visual ja suficiente
             }
           },
           function(result){
