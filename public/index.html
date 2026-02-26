@@ -999,17 +999,18 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-ch-pill.active{color:#00ff41;background:rgba(0,255,65,.08);border-color:rgba(0,255,65,.2);text-shadow:0 0 8px rgba(0,255,65,.3)}
 .mural-ch-pill .mural-ch-type{font-size:.4rem;opacity:.35;margin-left:.2rem}
 .mural-body{flex:1;display:flex;overflow:hidden;position:relative;z-index:1;min-height:0}
-.mural-feed{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:.5rem .6rem .5rem;display:flex;flex-direction:column;gap:0;overscroll-behavior:contain}
-.mural-users-panel{width:0;overflow:hidden;transition:width .3s ease;border-left:1px solid rgba(0,255,65,.08);background:rgba(0,5,0,.5);flex-shrink:0}
-.mural-users-panel.open{width:120px;overflow-y:auto}
-.mural-users-title{font-size:.5rem;color:rgba(0,255,65,.3);padding:.5rem .4rem .3rem;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid rgba(0,255,65,.06)}
-.mural-user-item{display:flex;align-items:center;gap:.3rem;padding:.25rem .4rem;font-size:.55rem;color:rgba(0,255,65,.5)}
-.mural-user-item .mu-avatar{width:18px;height:18px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1px solid rgba(0,255,65,.15)}
+.mural-feed{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:.4rem .5rem;display:flex;flex-direction:column;gap:0;overscroll-behavior:contain;min-width:0}
+.mural-users-panel{width:105px;overflow-y:auto;-webkit-overflow-scrolling:touch;border-left:1px solid rgba(0,255,65,.12);background:rgba(0,4,0,.5);flex-shrink:0;display:flex;flex-direction:column}
+.mural-users-title{font-size:.48rem;color:rgba(0,255,65,.35);padding:.4rem .35rem .25rem;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid rgba(0,255,65,.08);flex-shrink:0}
+.mural-users-sep{font-size:.42rem;color:rgba(0,255,65,.2);padding:.35rem .35rem .15rem;letter-spacing:.06em;text-transform:uppercase;border-top:1px solid rgba(0,255,65,.04);margin-top:.15rem}
+.mural-user-item{display:flex;align-items:center;gap:.25rem;padding:.2rem .35rem;font-size:.52rem;color:rgba(0,255,65,.55)}
+.mural-user-item .mu-avatar{width:16px;height:16px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1px solid rgba(0,255,65,.12)}
 .mural-user-item .mu-avatar svg{width:100%;height:100%}
-.mural-user-item .mu-nick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mural-user-item.mod .mu-nick::before{content:'@';color:rgba(0,255,65,.3)}
-.mural-users-toggle{background:none;border:none;color:rgba(0,255,65,.3);font-size:.65rem;cursor:pointer;padding:.3rem;transition:color .2s}
-.mural-users-toggle:active{color:#00ff41}
+.mural-user-item .mu-nick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.5rem}
+.mural-user-item.mod{color:rgba(0,255,65,.8)}
+.mural-user-item.mod .mu-nick{font-weight:700}
+.mural-user-item.voicer{color:rgba(0,255,65,.65)}
+.mural-users-toggle{display:none}
 /* IRC-style messages */
 .mural-msg{display:flex;gap:.4rem;padding:.2rem 0;animation:muralSlideIn .3s ease both;align-items:flex-start}
 @keyframes muralSlideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -2505,9 +2506,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </button>
     <h2>Mural<span class="mural-city-label" id="muralCityLabel"></span></h2>
     <span class="mural-online-count" id="muralOnlineCount">0 online</span>
-    <button class="mural-users-toggle" id="muralUsersToggle" onclick="toggleMuralUsers()" title="Usuarios online">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-    </button>
     <button class="mural-mod-btn hidden" id="muralNarrateBtn" onclick="triggerNarrator()" title="Narrador">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
     </button>
@@ -7293,28 +7291,39 @@ function _renderMuralOnline() {
   if (countEl) countEl.textContent = _muralState.onlineCount + ' online';
   if (!listEl) return;
   var sorted = _sortMuralUsers(_muralState.onlineUsers);
-  var html = '';
+  // Split into groups like mIRC: @ Operators, + Voiced, Users
+  var mods = [], voicers = [], regulars = [];
   sorted.forEach(function(u) {
     var stars = u.stars || 0;
-    var isMod = stars >= 10;
-    var isVoicer = stars >= 3 && stars < 10;
-    var prefix = isMod ? '@' : (isVoicer ? '+' : '');
-    var modClass = isMod ? ' mod' : '';
+    if (stars >= 10) mods.push(u);
+    else if (stars >= 3) voicers.push(u);
+    else regulars.push(u);
+  });
+  var html = '';
+  function renderUser(u, prefix, cls) {
     var nickC = u.color || nickColor(u.nick || 'anon');
-    var avatarHtml = makeAvatar(u.nick || 'anon', nickC, 18, null, false, u.accessory || null);
-    html += '<div class="mural-user-item' + modClass + '">'
+    var avatarHtml = makeAvatar(u.nick || 'anon', nickC, 16, null, false, u.accessory || null);
+    return '<div class="mural-user-item' + cls + '">'
       + '<span class="mu-avatar">' + avatarHtml + '</span>'
       + '<span class="mu-nick" style="color:' + esc(nickC) + '">' + prefix + esc(u.nick || 'anon') + '</span>'
       + '</div>';
-  });
+  }
+  if (mods.length) {
+    html += '<div class="mural-users-sep">@ Ops (' + mods.length + ')</div>';
+    mods.forEach(function(u) { html += renderUser(u, '@', ' mod'); });
+  }
+  if (voicers.length) {
+    html += '<div class="mural-users-sep">+ Voice (' + voicers.length + ')</div>';
+    voicers.forEach(function(u) { html += renderUser(u, '+', ' voicer'); });
+  }
+  if (regulars.length) {
+    html += '<div class="mural-users-sep">Users (' + regulars.length + ')</div>';
+    regulars.forEach(function(u) { html += renderUser(u, '', ''); });
+  }
+  if (!sorted.length) {
+    html = '<div class="mural-user-item" style="opacity:.3;justify-content:center">--</div>';
+  }
   listEl.innerHTML = html;
-}
-
-function toggleMuralUsers() {
-  var panel = $('muralUsersPanel');
-  if (!panel) return;
-  _muralState.usersPanelOpen = !_muralState.usersPanelOpen;
-  panel.classList.toggle('open', _muralState.usersPanelOpen);
 }
 
 function renderMuralFeed() {
