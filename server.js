@@ -3985,7 +3985,13 @@ app.get('/api/mural/:channelKey', requireAuth, (req, res) => {
   const before = parseInt(req.query.before) || Date.now() + 1;
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 30));
   const now = Date.now();
-  let posts = (db.muralPosts[channelKey] || [])
+  // Firebase pode converter arrays em objetos — garantir que e array
+  let raw = db.muralPosts[channelKey] || [];
+  if (!Array.isArray(raw)) {
+    raw = Object.values(raw).filter(p => p && typeof p === 'object' && p.id);
+    db.muralPosts[channelKey] = raw; // fix in memory
+  }
+  let posts = raw
     .filter(p => !p.hidden && p.createdAt < before && (!p.expiresAt || p.expiresAt > now));
   // Sort oldest first (wall: newest at bottom)
   posts.sort((a, b) => a.createdAt - b.createdAt);
@@ -4040,7 +4046,9 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
     hidden: false,
     isNarrator: false
   };
-  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  if (!db.muralPosts[channelKey] || !Array.isArray(db.muralPosts[channelKey])) {
+    db.muralPosts[channelKey] = Array.isArray(db.muralPosts[channelKey]) ? db.muralPosts[channelKey] : (db.muralPosts[channelKey] ? Object.values(db.muralPosts[channelKey]).filter(p => p && p.id) : []);
+  }
   db.muralPosts[channelKey].push(post);
   // Cap at 500 posts per channel
   if (db.muralPosts[channelKey].length > 500) db.muralPosts[channelKey] = db.muralPosts[channelKey].slice(-500);

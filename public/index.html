@@ -1002,11 +1002,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-users-panel{width:105px;overflow-y:auto;-webkit-overflow-scrolling:touch;border-left:1px solid #e8eaf0;background:linear-gradient(180deg,#f0f4ff,#f8f9ff);flex-shrink:0;display:flex;flex-direction:column}
 .mural-users-title{font-size:.48rem;color:#90a4ae;padding:.45rem .4rem .3rem;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #e8eaf0;flex-shrink:0;font-weight:600}
 .mural-users-sep{font-size:.42rem;color:#b0bec5;padding:.35rem .35rem .15rem;letter-spacing:.04em;text-transform:uppercase;border-top:1px solid #eceff1;margin-top:.2rem;font-weight:600}
-.mural-user-item{display:flex;align-items:center;gap:.25rem;padding:.22rem .35rem;font-size:.52rem;color:#546e7a;transition:background .15s}
+.mural-user-item{display:flex;align-items:center;gap:.35rem;padding:.3rem .45rem;font-size:.68rem;color:#546e7a;transition:background .15s}
 .mural-user-item:active{background:rgba(66,165,245,.08)}
-.mural-user-item .mu-avatar{width:16px;height:16px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid #e0e0e0}
+.mural-user-item .mu-avatar{width:20px;height:20px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid #e0e0e0}
 .mural-user-item .mu-avatar svg{width:100%;height:100%}
-.mural-user-item .mu-nick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.5rem}
+.mural-user-item .mu-nick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem}
 .mural-user-item.mod{color:#1565c0}
 .mural-user-item.mod .mu-nick{font-weight:700}
 .mural-user-item.mod .mu-avatar{border-color:#42a5f5}
@@ -1024,10 +1024,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-msg-body{flex:1;min-width:0;background:#fff;border-radius:0 12px 12px 12px;padding:.45rem .6rem;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04)}
 .mural-msg.narrator .mural-msg-body,.mural-msg.news .mural-msg-body{background:transparent;box-shadow:none;border:none;padding:0}
 .mural-msg-head{display:flex;align-items:baseline;gap:.3rem;flex-wrap:wrap}
-.mural-msg-nick{font-size:.62rem;font-weight:700;letter-spacing:.02em;cursor:default}
+.mural-msg-nick{font-size:.82rem;font-weight:700;letter-spacing:.02em;cursor:default}
 .mural-msg-nick.mod::before{content:'@';opacity:.4}
-.mural-msg-stars{font-size:.42rem;color:#ffa726;font-weight:600}
-.mural-msg-time{font-size:.42rem;color:#b0bec5;letter-spacing:.02em;margin-left:auto}
+.mural-msg-stars{font-size:.58rem;color:#ffa726;font-weight:600}
+.mural-msg-time{font-size:.55rem;color:#b0bec5;letter-spacing:.02em;margin-left:auto}
 .mural-msg-text{font-size:.76rem;color:#37474f;line-height:1.55;word-break:break-word;margin-top:.15rem}
 .mural-msg.narrator .mural-msg-nick{color:#7b1fa2}
 .mural-msg.narrator .mural-msg-text{color:#6a1b9a;font-style:italic;font-size:.68rem}
@@ -7057,6 +7057,7 @@ async function showRelations(){
 // ═══ MURAL DA CIDADE — IRC/Matrix modern chat ═════════════
 // ═══════════════════════════════════════════════════════════
 
+var _muralPostsCache = {}; // channelKey -> posts array (cache local)
 var _muralState = {
   channels: [],
   activeChannel: null,
@@ -7251,15 +7252,25 @@ async function loadMuralPosts(channelKey) {
   var feed = $('muralFeed');
   var empty = $('muralEmpty');
   if (!feed) return;
+  // Mostrar cache imediatamente se existir (evita "sumir" posts ao trocar canal)
+  if (_muralPostsCache[channelKey] && _muralPostsCache[channelKey].length > 0) {
+    _muralState.posts = _muralPostsCache[channelKey];
+    renderMuralFeed();
+  }
   _muralState.loading = true;
   try {
     var r = await apiFetch('/api/mural/' + channelKey);
     var d = await r.json();
-    _muralState.posts = d.posts || [];
+    var posts = d.posts || [];
+    _muralPostsCache[channelKey] = posts; // salvar no cache
+    _muralState.posts = posts;
     renderMuralFeed();
   } catch (e) {
-    _muralState.posts = [];
-    renderMuralFeed();
+    // Se falhar e tem cache, manter cache
+    if (!_muralPostsCache[channelKey] || _muralPostsCache[channelKey].length === 0) {
+      _muralState.posts = [];
+      renderMuralFeed();
+    }
   }
   _muralState.loading = false;
 }
@@ -7601,7 +7612,14 @@ function _initMuralSocket() {
   _muralSocketInit = true;
   socket.on('mural-new-post', function(data) {
     if (!data || !data.post) return;
-    if (data.post.channelKey !== _muralState.activeChannel) return;
+    var chKey = data.post.channelKey;
+    // Atualizar cache mesmo se nao for canal ativo
+    if (chKey && _muralPostsCache[chKey]) {
+      if (!_muralPostsCache[chKey].find(function(p) { return p.id === data.post.id; })) {
+        _muralPostsCache[chKey].push(data.post);
+      }
+    }
+    if (chKey !== _muralState.activeChannel) return;
     if (_muralState.posts.find(function(p) { return p.id === data.post.id; })) return;
     _muralState.posts.push(data.post);
     renderMuralFeed();
