@@ -4046,11 +4046,12 @@ app.get('/api/mural/geocode/:userId', requireAuth, async (req, res) => {
   // Cache on user object
   user.muralGeo = { ...geo, updatedAt: Date.now() };
   saveDB('users');
-  // Build channels list (cidade, estado, pais)
+  // Build channels list (cidade, estado, pais, mundo)
   const channels = [];
   if (geo.city) channels.push({ type: 'city', name: geo.city, key: normalizeChannel(geo.city + '-' + geo.countryCode) });
   if (geo.state) channels.push({ type: 'state', name: geo.state, key: normalizeChannel(geo.state + '-' + geo.countryCode) });
   if (geo.country) channels.push({ type: 'country', name: geo.country, key: normalizeChannel(geo.country) });
+  channels.push({ type: 'world', name: 'Mundo', key: 'mundo-global' });
   // Canais dinamicos: cidades de conexoes recentes (touch em outra cidade, dura 10 dias)
   const dynChannels = _getDynamicChannels(userId);
   for (const dc of dynChannels) {
