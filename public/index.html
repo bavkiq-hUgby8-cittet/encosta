@@ -15694,11 +15694,15 @@ const VA = (function(){
     try {
       // 1. Token — premium or standard endpoint
       const sessionUrl = vaTier === 'ultimatedev' ? '/api/agent/ultimate-session' : vaTier === 'pro' ? '/api/agent/premium-session' : '/api/agent/session';
+      // Check if there's news context from Mural "Falar disso com IA"
+      var newsCtx = window._vaNewsContext || null;
+      if (newsCtx) { window._vaNewsContext = null; } // Consume and clear
       const tr = await fetch(sessionUrl,{
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           userId: typeof state!=='undefined'?state.userId:null,
-          lastInteraction: parseInt(localStorage.getItem(VA_LAST_KEY)||'0')
+          lastInteraction: parseInt(localStorage.getItem(VA_LAST_KEY)||'0'),
+          newsContext: newsCtx
         })
       });
       if(!tr.ok){
@@ -15760,7 +15764,13 @@ const VA = (function(){
         _agentSpeaking = true;
         // Agent speaks first — use exact opening text from server
         const openingText = td.openingText || 'Oi! Sou a Touch, sua assistente. Vamos nos conhecer?';
-        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que ja chega contando a fofoca: "'+openingText.replace(/"/g,'\\"')+'" -- MAXIMO 2 frases. NUNCA comece com saudacao vazia tipo "E ai". Va DIRETO ao assunto.'}}));
+        var openingInstr;
+        if (newsCtx) {
+          openingInstr = 'Voce esta no MODO NOTICIA. O usuario quer conversar sobre uma noticia do Mural. Comece assim de forma natural e provocativa: "' + openingText.replace(/"/g, '\\"') + '" -- Comente a noticia, de sua opiniao e pergunte o que o usuario acha. MAXIMO 3 frases.';
+        } else {
+          openingInstr = 'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que ja chega contando a fofoca: "' + openingText.replace(/"/g, '\\"') + '" -- MAXIMO 2 frases. NUNCA comece com saudacao vazia tipo "E ai". Va DIRETO ao assunto.';
+        }
+        dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:openingInstr}}));
       };
       dc.onmessage = e => { try{
         var parsed=JSON.parse(e.data);

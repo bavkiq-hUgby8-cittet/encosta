@@ -8550,7 +8550,7 @@ function canUseVA(userId, requestedTier) {
 
 app.post('/api/agent/session', vaLimiter, async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY não configurada.' });
-  const { userId, lastInteraction } = req.body;
+  const { userId, lastInteraction, newsContext } = req.body;
 
   // Check VA access
   const access = canUseVA(userId, 'plus');
@@ -8580,8 +8580,27 @@ app.post('/api/agent/session', vaLimiter, async (req, res) => {
   const isNewSession = msSinceLast > 60 * 60 * 1000; // 1 hour
   const user = db.users[userId] || {};
 
+  // News context from Mural "Falar disso com IA" button
+  let newsInstructions = '';
+  if (newsContext && newsContext.headline) {
+    const agentNames = { reporter: 'Reporter', fitness: 'Coach Fit', futebol: 'Boleiro', cozinha: 'Chef Touch', tecnologia: 'TechBot', politica: 'Politico', educacao: 'Prof. Saber' };
+    const agentName = agentNames[newsContext.agentType] || 'Reporter';
+    newsInstructions = `\n\n=== CONTEXTO DE NOTICIA DO MURAL ===
+O usuario clicou em "Falar disso com IA" em uma noticia do Mural da Cidade.
+A noticia foi postada pelo agente "${agentName}".
+MANCHETE: ${newsContext.headline.slice(0, 200)}
+TEXTO COMPLETO: ${newsContext.fullText.slice(0, 1500)}
+=== FIM DO CONTEXTO ===
+INSTRUCAO: Voce DEVE falar sobre essa noticia! Comente, de sua opiniao, puxe assunto sobre o tema. Seja provocativa e interessante. Pergunte o que o usuario acha.`;
+  }
+
   let openingInstruction, openingText;
-  if (plusConvos.length && !isNewSession) {
+  if (newsContext && newsContext.headline) {
+    // News context mode — override all other opening modes
+    const shortHeadline = newsContext.headline.slice(0, 100);
+    openingText = `Ei, ${userName}! Vi que voce quer falar sobre essa noticia: ${shortHeadline}... Bora conversar sobre isso!`;
+    openingInstruction = `MODO NOTICIA DO MURAL: O usuario quer discutir uma noticia especifica. Comece comentando a manchete de forma provocativa, de sua opiniao e pergunte o que o usuario acha. NAO mude de assunto. Foque na noticia.`;
+  } else if (plusConvos.length && !isNewSession) {
     // Has recent history -- resume from where we left off
     const lastMsg = plusConvos[plusConvos.length - 1];
     openingText = `${userName}, voltei! A gente tava falando sobre... continuamos?`;
@@ -8655,6 +8674,7 @@ ${tierCfg.memoryRules}
 
 ${tierCfg.extraInstructions ? 'INSTRUCOES EXTRAS:\n' + tierCfg.extraInstructions : ''}
 ${convHistoryPlus}
+${newsInstructions}
 
 IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.create do cliente para comecar.`,
         tools: [{
