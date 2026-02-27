@@ -1991,7 +1991,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <button class="bs" onclick="startEncounter()" style="font-size:.72rem;display:inline-flex;align-items:center;gap:.3rem" data-i18n="home.use_code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Conectar por codigo</button>
     </div>
     <div class="daily-counter hidden" id="dailyCounter" onclick="showEncounterLog()"><strong id="dailyNum">0</strong> <span id="dailyLabel" data-i18n="home.daily_touches">Toques em 24h</span> <span class="dc-arrow">›</span></div>
-    <button class="home-location-btn" onclick="openLocationScreen()" style="margin-top:.6rem;display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .8rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:16px;color:var(--t2);font-size:.68rem;font-family:inherit;cursor:pointer;transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> <span data-i18n="common.location">Local</span></button>
+    <button class="home-location-btn" onclick="openLocationScreen()" style="margin-top:.6rem;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:50%;color:var(--t2);font-family:inherit;cursor:pointer;transition:all .2s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>
   </div>
   <!-- BOTTOM: minimal — only mural + ai + tutorial -->
   <div class="home-bottom">
@@ -3142,7 +3142,14 @@ async function linkFirebaseToEncosta(user){
       showScreen('home');
       $('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
       // Atualizar label da cidade no botao do mural na home
-      setTimeout(function(){ if(typeof initMuralFab==='function') initMuralFab(); }, 500);
+      setTimeout(function(){
+        if(typeof initMuralFab==='function') initMuralFab();
+        // Se geo ja disponivel, atualizar label imediatamente
+        if(typeof _muralState!=='undefined' && _muralState.geo && _muralState.geo.city){
+          var hl=$('homeMuralCityLabel');
+          if(hl) hl.textContent=_muralState.geo.city;
+        }
+      }, 500);
       state.userAccessory=d.user.avatarAccessory||null;
       if(state.userAccessory)localStorage.setItem('touch_userAccessory',state.userAccessory);else localStorage.removeItem('touch_userAccessory');
       state.userProfession=d.user.profession||null;
