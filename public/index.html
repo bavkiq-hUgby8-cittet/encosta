@@ -1080,9 +1080,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-news-preview.hidden{display:none}
 .mural-news-body{font-size:.68rem;color:rgba(203,213,225,.72);margin-top:.25rem;line-height:1.45}
 .mural-news-body.hidden{display:none}
-.mural-news-img{margin:.3rem 0;border-radius:12px;overflow:hidden;max-height:160px;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.mural-news-img{margin:.3rem 0;border-radius:12px;overflow:hidden;max-height:120px;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .mural-news-img::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(13,13,20,.5) 100%);pointer-events:none;border-radius:12px}
-.mural-news-img img{width:100%;height:auto;max-height:160px;object-fit:cover;display:block;border-radius:12px}
+.mural-news-img img{width:100%;height:auto;max-height:120px;object-fit:cover;display:block;border-radius:12px}
+.mural-news-collapsed .mural-news-img,.mural-news-collapsed .mural-news-preview,.mural-news-collapsed .mural-news-body,.mural-news-collapsed .mural-news-citations,.mural-news-collapsed .mural-comments-list{display:none}
+.mural-news-stats{display:flex;gap:.5rem;align-items:center;margin-top:.2rem;font-size:.58rem;color:rgba(203,213,225,.5)}
+.mural-news-stats span{display:flex;align-items:center;gap:.15rem}
+.mural-news-expand{background:none;border:none;color:rgba(129,140,248,.7);font-size:.6rem;cursor:pointer;padding:.15rem 0;font-weight:600;font-family:inherit}
+.mural-news-expand:active{color:rgba(129,140,248,.9)}
 .mural-news-citations{font-size:.55rem;color:rgba(148,163,184,.5);margin-top:.3rem;display:flex;align-items:center;gap:.2rem;flex-wrap:wrap}
 .mural-news-cite-link{color:rgba(129,140,248,.65);text-decoration:none;font-weight:500;padding:.1rem .3rem;background:rgba(129,140,248,.06);border-radius:6px;border:1px solid rgba(129,140,248,.08);transition:all .2s}
 .mural-news-cite-link:active{background:rgba(129,140,248,.14);color:rgba(167,139,250,.9)}
@@ -7731,6 +7736,13 @@ function toggleNewsExpand(postId) {
   }
 }
 
+function toggleNewsCard(postId) {
+  var post = _muralState.posts.find(function(p) { return p.id === postId; });
+  if (!post) return;
+  post._expanded = !post._expanded;
+  renderMuralFeed(true);
+}
+
 function talkAboutNews(postId) {
   var post = _muralState.posts.find(function(p) { return p.id === postId; });
   if (!post) return;
@@ -8072,7 +8084,15 @@ function _buildMuralMsgHtml(p) {
           + '</div>'
           + '</div>';
       }
-      var html = '<div class="mural-msg' + typeClass + pinnedClass + '" id="mp_' + p.id + '">'
+      var isExpanded = p._expanded;
+      var collapsedClass = isExpanded ? '' : ' mural-news-collapsed';
+      var likeCount = (p.likes || []).length;
+      var statsHtml = '<div class="mural-news-stats">'
+        + '<span>' + (likeCount > 0 ? likeCount : '') + ' &#9825;</span>'
+        + '<span>' + cmtCount + ' comentario' + (cmtCount !== 1 ? 's' : '') + '</span>'
+        + '<button class="mural-news-expand" onclick="toggleNewsCard(\'' + p.id + '\')">' + (isExpanded ? 'Recolher' : 'Expandir') + '</button>'
+        + '</div>';
+      var html = '<div class="mural-msg' + typeClass + pinnedClass + collapsedClass + '" id="mp_' + p.id + '">'
         + '<div class="mural-msg-avatar">' + avatarHtml + '</div>'
         + '<div class="mural-msg-body">'
         + '<div class="mural-msg-head">'
@@ -8081,6 +8101,7 @@ function _buildMuralMsgHtml(p) {
         + '</div>'
         + relatedBadge + newsTag
         + '<div class="mural-news-headline">' + _cleanNewsText(headline) + '</div>'
+        + statsHtml
         + newsImageHtml
         + '<div class="mural-news-preview" id="news-preview-' + p.id + '">' + _cleanNewsText(preview) + (hasMore ? '...' : '') + '</div>'
         + '<div class="mural-news-body hidden" id="news-body-' + p.id + '">' + _cleanNewsText(body) + '</div>'
@@ -8343,11 +8364,14 @@ function _openMentionProfile(nick) {
   }
 }
 
+var _muralPosting = false;
 async function postToMural() {
+  if (_muralPosting) return;
   var input = $('muralInput');
   var btn = $('muralSendBtn');
   var text = (input ? input.value.trim() : '');
   if (!text || !_muralState.activeChannel) return;
+  _muralPosting = true;
   btn.disabled = true;
   var ch = _muralState.channels.find(function(c) { return c.key === _muralState.activeChannel; });
   var savedText = text;
@@ -8402,6 +8426,7 @@ async function postToMural() {
       renderMuralFeed(true);
       input.value = savedText;
       btn.disabled = false;
+      _muralPosting = false;
       return showToast(d.error);
     }
     // Substituir optimistic pelo post real do servidor
@@ -8430,6 +8455,7 @@ async function postToMural() {
       if (tempEl) tempEl.id = 'mp_' + d.post.id;
     }
     btn.disabled = false;
+    _muralPosting = false;
   } catch (e) {
     // Remover post optimistic em caso de falha de rede
     _muralState.posts = _muralState.posts.filter(function(p) { return p.id !== tempId; });
@@ -8437,6 +8463,7 @@ async function postToMural() {
     renderMuralFeed(true);
     input.value = savedText;
     btn.disabled = false;
+    _muralPosting = false;
     showToast('Erro ao postar.');
   }
 }
@@ -8984,9 +9011,16 @@ function _initMuralSocket() {
           var n = post.comments.length;
           countBtn.textContent = n + ' comentario' + (n > 1 ? 's' : '');
         }
-        // Nao fazer full rebuild - so rebuilda se secao de comentarios esta visivel
+        // Atualizar stats inline (likes/comments count)
+        var statsEl = document.querySelector('#mp_' + data.postId + ' .mural-news-stats');
+        if (statsEl) {
+          var n2 = post.comments.length;
+          var spans = statsEl.querySelectorAll('span');
+          if (spans[1]) spans[1].textContent = n2 + ' comentario' + (n2 !== 1 ? 's' : '');
+        }
+        // Re-render se comentarios visiveis ou card expandido
         var cmtList = document.getElementById('cmts-' + data.postId);
-        if (cmtList && cmtList.style.display !== 'none') {
+        if ((cmtList && cmtList.style.display !== 'none') || post._expanded) {
           renderMuralFeed(true);
         }
       }

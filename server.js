@@ -4821,7 +4821,7 @@ app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
 });
 
 // POST /api/mural/:postId/comment — add comment to a post
-app.post('/api/mural/:postId/comment', requireAuth, (req, res) => {
+app.post('/api/mural/:postId/comment', requireAuth, async (req, res) => {
   const { postId } = req.params;
   const { userId, text } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
@@ -4847,6 +4847,51 @@ app.post('/api/mural/:postId/comment', requireAuth, (req, res) => {
   saveDBNow('muralPosts');
   io.to('mural:' + foundChannel).emit('mural-new-comment', { postId, comment });
   res.json({ ok: true, comment });
+
+  // Auto-reply: se o post e uma noticia, o agente responde ao comentario
+  if (foundPost.isNews && PPLX_API_KEY) {
+    const agentId = foundPost.agentType || 'reporter';
+    const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
+    const headline = (foundPost.text || '').split('\n')[0];
+    // Pegar ultimos 3 comentarios pra contexto
+    const recentCmts = (foundPost.comments || []).slice(-3).map(c => (c.nick || 'anon') + ': ' + (c.text || '')).join('\n');
+    try {
+      const pplxRes = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + PPLX_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'sonar',
+          messages: [
+            { role: 'system', content: 'Voce e ' + agent.nick + ', um bot de noticias em um mural comunitario. Responda ao comentario do usuario sobre esta noticia de forma curta (max 2 frases), informativa, em portugues BR. Seja conversacional e amigavel. Noticia: ' + headline.slice(0, 200) },
+            { role: 'user', content: recentCmts }
+          ],
+          max_tokens: 150,
+          temperature: 0.5
+        })
+      });
+      const pplxData = await pplxRes.json();
+      let answer = (pplxData.choices && pplxData.choices[0] && pplxData.choices[0].message) ? pplxData.choices[0].message.content : '';
+      if (answer && answer.length > 10) {
+        answer = answer.replace(/\*\*/g, '').replace(/\*/g, '').replace(/\[\d+\]/g, '').trim().slice(0, 300);
+        const agentComment = {
+          id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          userId: 'agent-' + agentId,
+          nick: agent.nick,
+          color: agent.color,
+          text: answer,
+          likes: [],
+          isAgent: true,
+          createdAt: Date.now()
+        };
+        foundPost.comments.push(agentComment);
+        saveDBNow('muralPosts');
+        io.to('mural:' + foundChannel).emit('mural-new-comment', { postId, comment: agentComment });
+        console.log('[agent-reply] ' + agent.nick + ' respondeu comentario em #' + foundChannel);
+      }
+    } catch (e) {
+      console.error('[agent-reply] Erro:', e.message);
+    }
+  }
 });
 
 // POST /api/mural/:postId/comment/:commentId/like — like a comment
