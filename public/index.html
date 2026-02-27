@@ -1123,6 +1123,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-ask-agent-btn:active{background:rgba(99,102,241,.1);color:rgba(129,140,248,.9)}
 .mural-talk-ai-btn{font-size:.58rem;color:rgba(129,140,248,.8);background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:8px;padding:.2rem .5rem;cursor:pointer;font-weight:600;margin-top:.15rem;font-family:inherit;transition:all .2s}
 .mural-talk-ai-btn:active{background:rgba(99,102,241,.18);border-color:rgba(99,102,241,.3)}
+.radio-fab{position:fixed;bottom:80px;right:16px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#d32f2f,#ff5252);border:none;color:#fff;font-size:1.2rem;cursor:pointer;z-index:900;box-shadow:0 3px 12px rgba(211,47,47,.4);display:flex;align-items:center;justify-content:center;transition:all .3s}
+.radio-fab.live{animation:radio-pulse 1.5s infinite;background:linear-gradient(135deg,#b71c1c,#d32f2f)}
+.radio-fab.hidden{display:none}
+@keyframes radio-pulse{0%,100%{box-shadow:0 3px 12px rgba(211,47,47,.4)}50%{box-shadow:0 3px 24px rgba(211,47,47,.8)}}
+.mural-msg.radio{border-left:3px solid #d32f2f;background:rgba(211,47,47,.04)}
 .mural-mention{color:rgba(129,140,248,.85);font-weight:600;cursor:pointer}
 .mural-mention-dropdown{position:absolute;bottom:100%;left:.5rem;right:.5rem;background:#1a1a2e;border-radius:14px 14px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.5);max-height:160px;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:300;margin-bottom:.25rem;border:1px solid rgba(255,255,255,.08);border-bottom:none}
 .mural-mention-item{display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;font-size:.7rem;color:rgba(226,232,240,.85);cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);transition:all .15s}
@@ -2667,6 +2672,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
   </div>
 </div>
+
+<!-- Radio Touch — botao toggle -->
+<button class="radio-fab hidden" id="radioFab" onclick="radioToggle()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49"/><path d="M7.76 16.24a6 6 0 010-8.49"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M4.93 19.07a10 10 0 010-14.14"/></svg>
+</button>
 
 <div id="completeProfile" class="screen">
   <div class="cp-top-bar"><button class="chb" onclick="goHome()">&#x2190;</button><span>Cadastro</span><button class="chb" onclick="saveCompleteProfile()">Salvar</button></div>
@@ -7372,6 +7382,7 @@ function openMural() {
     haptic([20]);
     _initMuralInputFix();
     renderMuralChannels();
+    _showRadioFab();
     // Restaurar ultimo canal ou usar o primeiro
     var lastCh = _muralState._lastChannel || _muralState.channels[0].key;
     // Verificar se o ultimo canal ainda existe na lista
@@ -7699,6 +7710,17 @@ function _cleanNewsText(t) {
 
 function _muralAgentSvg(agentType, size) {
   size = size || 32;
+  // Radio Touch usa SVG vermelho especial
+  if (agentType === 'radio') {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      + '<circle cx="20" cy="20" r="18" fill="#d32f2f"/>'
+      + '<circle cx="20" cy="20" r="4" fill="#fff"/>'
+      + '<path d="M26 14a8.5 8.5 0 010 12" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>'
+      + '<path d="M14 26a8.5 8.5 0 010-12" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>'
+      + '<path d="M29 11a13 13 0 010 18" stroke="#ffcdd2" stroke-width="1.5" fill="none" stroke-linecap="round"/>'
+      + '<path d="M11 29a13 13 0 010-18" stroke="#ffcdd2" stroke-width="1.5" fill="none" stroke-linecap="round"/>'
+      + '</svg>';
+  }
   var hasImage = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(agentType) !== -1;
   if (hasImage) {
     return '<img src="/img/agents/' + agentType + '.png" width="' + size + '" height="' + size + '" style="border-radius:50%;object-fit:cover" alt="' + agentType + '"/>';
@@ -7739,6 +7761,130 @@ function toggleNewsCard(postId) {
   if (!post) return;
   post._expanded = !post._expanded;
   renderMuralFeed(true);
+}
+
+// ═══ RADIO TOUCH — Toggle simples: clica liga, clica desliga ═══
+var _radioPlaying = false;
+var _radioAudioQueue = [];
+var _radioCurrentAudio = null;
+var _radioSegmentTypes = ['abertura', 'noticia', 'interacao', 'entrevista', 'vinheta'];
+var _radioSegmentIndex = 0;
+var _radioFetching = false;
+
+function _showRadioFab() {
+  var fab = $('radioFab');
+  if (fab && _muralState.currentChannel) fab.classList.remove('hidden');
+}
+
+function radioToggle() {
+  if (_radioPlaying) {
+    _radioStop();
+  } else {
+    _radioStart();
+  }
+}
+
+function _radioStart() {
+  if (!_muralState.currentChannel) return;
+  _radioPlaying = true;
+  _radioSegmentIndex = 0;
+  var fab = $('radioFab');
+  if (fab) fab.classList.add('live');
+  haptic([30, 15, 30]);
+  // Notificar server que estou ouvindo
+  if (typeof socket !== 'undefined' && socket.connected) {
+    socket.emit('radio-listen', _muralState.currentChannel);
+  }
+  _radioFetchAndPlay('abertura');
+}
+
+function _radioStop() {
+  _radioPlaying = false;
+  if (_radioCurrentAudio) {
+    _radioCurrentAudio.pause();
+    _radioCurrentAudio = null;
+  }
+  _radioAudioQueue = [];
+  _radioFetching = false;
+  var fab = $('radioFab');
+  if (fab) fab.classList.remove('live');
+  haptic([20]);
+  // Notificar server que parei de ouvir
+  if (typeof socket !== 'undefined' && socket.connected) {
+    socket.emit('radio-stop', _muralState.currentChannel);
+  }
+  fetch('/api/radio/stop/' + _muralState.currentChannel, { method: 'POST' }).catch(function(){});
+}
+
+function _radioFetchAndPlay(segmentType) {
+  if (!_radioPlaying || !_muralState.currentChannel || _radioFetching) return;
+  _radioFetching = true;
+  fetch('/api/radio/play/' + _muralState.currentChannel, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: state.userId, segmentType: segmentType })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    _radioFetching = false;
+    if (!_radioPlaying) return;
+    if (!data.ok || !data.segment) {
+      // Tentar proximo tipo
+      if (_radioPlaying) setTimeout(function() { _radioAdvance(); }, 3000);
+      return;
+    }
+    _radioAudioQueue = data.segment.segments || [];
+    _radioPlayNext();
+  })
+  .catch(function(err) {
+    _radioFetching = false;
+    console.error('[RADIO] Fetch error:', err);
+    if (_radioPlaying) setTimeout(function() { _radioAdvance(); }, 5000);
+  });
+}
+
+function _radioAdvance() {
+  if (!_radioPlaying) return;
+  if (_radioCurrentAudio) {
+    _radioCurrentAudio.pause();
+    _radioCurrentAudio = null;
+  }
+  _radioSegmentIndex++;
+  var type = _radioSegmentTypes[_radioSegmentIndex % _radioSegmentTypes.length];
+  _radioFetchAndPlay(type);
+}
+
+function _radioPlayNext() {
+  if (!_radioPlaying) return;
+  if (_radioAudioQueue.length === 0) {
+    // Fim do segmento, buscar proximo apos pausa
+    setTimeout(function() {
+      if (_radioPlaying) _radioAdvance();
+    }, 2500);
+    return;
+  }
+  var seg = _radioAudioQueue.shift();
+  try {
+    var audioSrc = 'data:audio/mp3;base64,' + seg.audio;
+    _radioCurrentAudio = new Audio(audioSrc);
+    _radioCurrentAudio.volume = 0.85;
+    _radioCurrentAudio.onended = function() {
+      _radioCurrentAudio = null;
+      setTimeout(function() { _radioPlayNext(); }, 600);
+    };
+    _radioCurrentAudio.onerror = function() {
+      _radioCurrentAudio = null;
+      _radioPlayNext();
+    };
+    _radioCurrentAudio.play().catch(function(e) {
+      console.error('[RADIO] Play blocked:', e.message);
+      // Em mobile, precisa de interacao do usuario primeiro
+      _radioCurrentAudio = null;
+      _radioPlayNext();
+    });
+  } catch (e) {
+    _radioPlayNext();
+  }
 }
 
 function talkAboutNews(postId) {
@@ -7954,9 +8100,10 @@ function _buildMuralMsgHtml(p) {
   var age = now - p.createdAt;
   var fadeStyle = '';
   var isNews = p.isNews || false;
+  var isRadio = p.isRadio || false;
   var isUrgent = isNews && p.agentType === 'urgente';
-  var isRegularPost = !p.isNarrator && !isNews;
-  var typeClass = p.isNarrator ? ' narrator' : (isNews ? ' news' + (isUrgent ? ' urgent' : '') : (isRegularPost ? ' user-post' : ''));
+  var isRegularPost = !p.isNarrator && !isNews && !isRadio;
+  var typeClass = p.isNarrator ? ' narrator' : (isRadio ? ' radio' : (isNews ? ' news' + (isUrgent ? ' urgent' : '') : (isRegularPost ? ' user-post' : '')));
   var likeCount = (p.likes || []).length;
   var isPinned = likeCount >= 3;
   var pinnedClass = isPinned ? ' pinned' : '';
@@ -7972,7 +8119,9 @@ function _buildMuralMsgHtml(p) {
   }
   var nickC = p.color || nickColor(p.nick || 'anon');
   var avatarHtml = '';
-  if (isNews) {
+  if (isRadio) {
+    avatarHtml = _muralAgentSvg('radio', 42);
+  } else if (isNews) {
     var agentType = p.agentType || 'reporter';
     avatarHtml = _muralAgentSvg(agentType, 42);
   } else {

@@ -12667,6 +12667,318 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
+// ══════════════════════════════════════════════════════════════
+// ═══ RADIO TOUCH — Locutor IA ao vivo no mural ═══
+// ══════════════════════════════════════════════════════════════
+
+const RADIO_VOICES = {
+  locutor: { voice: 'onyx', name: 'DJ Touch', style: 'Voce e o DJ Touch, locutor da Radio Touch. Fale como locutor de radio brasileiro: animado, caloroso, com energia. Use girias leves, seja carismatico. Frases curtas e impactantes. NUNCA use emojis.' },
+  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Fale de forma inteligente e curiosa, fazendo perguntas interessantes. Tom amigavel e profissional. NUNCA use emojis.' },
+  reporter_radio: { voice: 'echo', name: 'Echo', style: 'Voce e o Echo, reporter de campo da Radio Touch. Fale como reporter ao vivo, com urgencia e clareza. Tom serio mas acessivel. NUNCA use emojis.' }
+};
+
+// Estado da radio por canal
+const _radioState = {};
+function _getRadioState(channelKey) {
+  if (!_radioState[channelKey]) {
+    _radioState[channelKey] = {
+      isLive: false,
+      listeners: 0,
+      currentSegment: null,
+      segmentQueue: [],
+      lastSegmentAt: 0,
+      generatingSegment: false
+    };
+  }
+  return _radioState[channelKey];
+}
+
+// Gerar roteiro do locutor baseado no contexto do canal
+function _buildRadioScript(channelKey, segmentType) {
+  const viewers = _getMuralViewers(channelKey);
+  const viewerNames = viewers.map(v => v.nick).slice(0, 8);
+
+  // Pegar noticias recentes do canal
+  const posts = db.muralPosts[channelKey];
+  const recentNews = (posts && Array.isArray(posts))
+    ? posts.filter(p => p && p.isNews && (Date.now() - (p.createdAt || 0)) < 3600000).slice(-3)
+    : [];
+  const recentUserPosts = (posts && Array.isArray(posts))
+    ? posts.filter(p => p && !p.isNews && !p.isNarrator && p.text && (Date.now() - (p.createdAt || 0)) < 3600000).slice(-5)
+    : [];
+
+  let script = '';
+
+  if (segmentType === 'abertura') {
+    script = 'Faca uma abertura de radio animada da Radio Touch. ';
+    if (viewerNames.length > 0) {
+      script += 'Mande um abraco pra quem ta ouvindo: ' + viewerNames.join(', ') + '. ';
+    }
+    script += 'Diga que e a radio da comunidade e que vai trazer noticias e conversas. Maximo 4 frases.';
+  }
+  else if (segmentType === 'noticia' && recentNews.length > 0) {
+    const news = recentNews[Math.floor(Math.random() * recentNews.length)];
+    const headline = (news.text || '').split('\n')[0];
+    script = 'Leia esta noticia no estilo radio, comentando rapidamente: "' + headline.slice(0, 200) + '". Maximo 4 frases. Comente com opiniao leve.';
+  }
+  else if (segmentType === 'interacao' && recentUserPosts.length > 0) {
+    const post = recentUserPosts[Math.floor(Math.random() * recentUserPosts.length)];
+    script = 'Alguem no mural escreveu: "' + (post.text || '').slice(0, 150) + '" (por ' + (post.nick || 'alguem') + '). Comente sobre isso de forma calorosa e engajante, como locutor de radio. Maximo 3 frases.';
+  }
+  else if (segmentType === 'entrevista' && recentNews.length > 0) {
+    const news = recentNews[0];
+    const headline = (news.text || '').split('\n')[0];
+    script = 'ENTREVISTA SIMULADA sobre: "' + headline.slice(0, 200) + '". Faca um dialogo CURTO entre DJ Touch (locutor) e Nova (co-apresentadora). Formato:\nDJ Touch: [fala]\nNova: [fala]\nDJ Touch: [fala]\nMaximo 3 trocas. Cada fala com no maximo 2 frases.';
+  }
+  else {
+    // Vinheta generica
+    if (viewerNames.length > 0) {
+      script = 'Faca uma vinheta curta da Radio Touch mandando abraco pra ' + viewerNames.slice(0, 4).join(', ') + '. Diga algo motivacional e que a programacao continua. Maximo 2 frases.';
+    } else {
+      script = 'Faca uma vinheta curta da Radio Touch dizendo que a radio ta no ar e que a galera pode participar no mural. Maximo 2 frases.';
+    }
+  }
+
+  return script;
+}
+
+// Gerar audio TTS via OpenAI
+async function _generateRadioAudio(text, voiceId) {
+  if (!OPENAI_API_KEY) return null;
+  const voice = voiceId || 'onyx';
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    const resp = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + OPENAI_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        input: text,
+        voice: voice,
+        response_format: 'mp3',
+        speed: 1.05
+      }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!resp.ok) {
+      console.error('[RADIO] TTS error:', resp.status);
+      return null;
+    }
+    const arrayBuf = await resp.arrayBuffer();
+    const base64 = Buffer.from(arrayBuf).toString('base64');
+    return { audio: base64, format: 'mp3', voice };
+  } catch (e) {
+    console.error('[RADIO] TTS catch:', e.message);
+    return null;
+  }
+}
+
+// Gerar segmento completo (roteiro via Perplexity/OpenAI + TTS)
+async function _generateRadioSegment(channelKey, segmentType) {
+  const rs = _getRadioState(channelKey);
+  if (rs.generatingSegment) return null;
+  rs.generatingSegment = true;
+
+  try {
+    const script = _buildRadioScript(channelKey, segmentType);
+    if (!script) { rs.generatingSegment = false; return null; }
+
+    // Usar OpenAI chat pra gerar o texto do locutor
+    const isInterview = segmentType === 'entrevista';
+    const systemMsg = isInterview
+      ? 'Voce e roteirista da Radio Touch. Escreva dialogos curtos entre DJ Touch (masculino, animado) e Nova (feminina, inteligente). Sem emojis. Portugues brasileiro.'
+      : RADIO_VOICES.locutor.style;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const chatResp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + OPENAI_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemMsg },
+          { role: 'user', content: script }
+        ],
+        max_tokens: 300,
+        temperature: 0.8
+      }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!chatResp.ok) { rs.generatingSegment = false; return null; }
+    const chatData = await chatResp.json();
+    const fullText = (chatData.choices && chatData.choices[0] && chatData.choices[0].message && chatData.choices[0].message.content) || '';
+    if (!fullText || fullText.length < 10) { rs.generatingSegment = false; return null; }
+
+    // Para entrevistas, separar as falas e gerar TTS com vozes diferentes
+    const audioSegments = [];
+    if (isInterview) {
+      const lines = fullText.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        let voice = 'onyx'; // DJ Touch default
+        let cleanLine = line;
+        if (line.match(/^Nova[:\s]/i)) {
+          voice = 'nova';
+          cleanLine = line.replace(/^Nova[:\s]+/i, '');
+        } else if (line.match(/^DJ\s*Touch[:\s]/i)) {
+          voice = 'onyx';
+          cleanLine = line.replace(/^DJ\s*Touch[:\s]+/i, '');
+        } else if (line.match(/^Echo[:\s]/i)) {
+          voice = 'echo';
+          cleanLine = line.replace(/^Echo[:\s]+/i, '');
+        }
+        if (cleanLine.trim().length < 5) continue;
+        const audio = await _generateRadioAudio(cleanLine.trim(), voice);
+        if (audio) {
+          audioSegments.push({ ...audio, text: cleanLine.trim(), speaker: voice === 'nova' ? 'Nova' : 'DJ Touch' });
+        }
+      }
+    } else {
+      const audio = await _generateRadioAudio(fullText, 'onyx');
+      if (audio) {
+        audioSegments.push({ ...audio, text: fullText, speaker: 'DJ Touch' });
+      }
+    }
+
+    rs.generatingSegment = false;
+    if (audioSegments.length === 0) return null;
+
+    return {
+      id: 'radio_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+      type: segmentType,
+      segments: audioSegments,
+      fullText,
+      channelKey,
+      createdAt: Date.now()
+    };
+  } catch (e) {
+    console.error('[RADIO] Segment error:', e.message);
+    rs.generatingSegment = false;
+    return null;
+  }
+}
+
+// GET /api/radio/status/:channelKey — estado da radio
+app.get('/api/radio/status/:channelKey', (req, res) => {
+  const rs = _getRadioState(req.params.channelKey);
+  res.json({
+    isLive: rs.isLive,
+    listeners: rs.listeners,
+    generating: rs.generatingSegment,
+    queueLength: rs.segmentQueue.length,
+    currentSegment: rs.currentSegment ? {
+      id: rs.currentSegment.id,
+      type: rs.currentSegment.type,
+      text: rs.currentSegment.fullText
+    } : null
+  });
+});
+
+// POST /api/radio/play/:channelKey — gerar e retornar proximo segmento
+app.post('/api/radio/play/:channelKey', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'API nao configurada.' });
+  const { channelKey } = req.params;
+  const { userId, segmentType } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+
+  const rs = _getRadioState(channelKey);
+  rs.isLive = true;
+
+  // Determinar tipo do segmento
+  const types = ['abertura', 'noticia', 'interacao', 'entrevista', 'vinheta'];
+  const type = segmentType || types[Math.floor(Math.random() * types.length)];
+
+  const segment = await _generateRadioSegment(channelKey, type);
+  if (!segment) return res.status(500).json({ error: 'Nao foi possivel gerar segmento.' });
+
+  rs.currentSegment = segment;
+  rs.lastSegmentAt = Date.now();
+
+  // Postar transcricao no mural como post de radio
+  const radioPost = {
+    id: 'mrl_radio_' + Date.now(),
+    channelKey,
+    channelName: '',
+    channelType: '',
+    userId: 'radio-touch',
+    nick: 'Radio Touch',
+    color: '#d32f2f',
+    agentType: 'radio',
+    stars: 0,
+    text: segment.fullText,
+    accessory: null,
+    likes: [],
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 12 * 3600000,
+    hidden: false,
+    isNarrator: false,
+    isNews: false,
+    isRadio: true
+  };
+  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  if (!Array.isArray(db.muralPosts[channelKey])) {
+    db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
+  }
+  db.muralPosts[channelKey].push(radioPost);
+  saveDBNow('muralPosts');
+  io.to('mural:' + channelKey).emit('mural-new-post', { post: radioPost });
+
+  res.json({
+    ok: true,
+    segment: {
+      id: segment.id,
+      type: segment.type,
+      segments: segment.segments.map(s => ({
+        audio: s.audio,
+        format: s.format,
+        speaker: s.speaker,
+        text: s.text
+      })),
+      fullText: segment.fullText
+    }
+  });
+});
+
+// POST /api/radio/stop/:channelKey — parar radio
+app.post('/api/radio/stop/:channelKey', (req, res) => {
+  const rs = _getRadioState(req.params.channelKey);
+  rs.isLive = false;
+  rs.currentSegment = null;
+  rs.segmentQueue = [];
+  res.json({ ok: true });
+});
+
+// Socket event: rastrear listeners da radio
+io.on('connection', (socket) => {
+  socket.on('radio-listen', (channelKey) => {
+    if (!channelKey) return;
+    socket.join('radio:' + channelKey);
+    const rs = _getRadioState(channelKey);
+    rs.listeners = (io.sockets.adapter.rooms.get('radio:' + channelKey) || { size: 0 }).size;
+    rs.isLive = rs.listeners > 0;
+  });
+  socket.on('radio-stop', (channelKey) => {
+    if (!channelKey) return;
+    socket.leave('radio:' + channelKey);
+    const rs = _getRadioState(channelKey);
+    rs.listeners = (io.sockets.adapter.rooms.get('radio:' + channelKey) || { size: 0 }).size;
+    if (rs.listeners <= 0) rs.isLive = false;
+  });
+});
+
+console.log('[RADIO] Radio Touch engine loaded');
+
+// ══════════════════════════════════════════════════════════════
+
 process.on('SIGINT', () => {
   console.log('SIGINT received, cleaning up...');
   cleanupIntervals();
