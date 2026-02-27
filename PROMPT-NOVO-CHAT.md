@@ -25,14 +25,15 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
    -> Email: ramonnvc@hotmail.com
    -> Nome: Ramon
 
-## ESTRUTURA DO PROJETO (atualizado 25/02/2026 -- sessao 4)
+## ESTRUTURA DO PROJETO (atualizado 27/02/2026 -- sessao 6)
 
 Arquivos principais:
-- `server.js` (~11444 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
-- `public/index.html` (~16197 linhas) -- Frontend SPA completo (23+ telas)
+- `server.js` (~13017 linhas) -- Backend Node.js + Express + Socket.IO + Firebase RTDB
+- `public/index.html` (~18391 linhas) -- Frontend SPA completo (25+ telas)
 - `public/va-test.html` (~1260 linhas) -- Pagina de ligacao telefonica pros 3 assistentes + Dev Log
 - `public/va-admin.html` (~501 linhas) -- Painel admin dos 3 assistentes de voz
 - `public/admin.html` (~989 linhas) -- Painel administrativo geral (com aba DEV Monitor)
+- `ROADMAP-USA.md` -- Roadmap de lancamento nos EUA (7 fases, checklists, prazos)
 - `public/games/index.html` (1909 linhas) -- TouchGames lobby (microservico iframe)
 - `public/games/*.html` -- 11 jogos individuais
 - `public/operator.html` -- Painel do operador de eventos
@@ -90,10 +91,14 @@ GitHub Token: GITHUB_TOKEN no Render -- permite UltimateDEV fazer git push autom
 10. VOICE AGENT 3-TIER: Sistema de 3 assistentes de voz AI (ver secao abaixo)
 11. TOUCHGAMES: Microservico com 11 jogos, lobby multiplayer, convites via chat
 12. ASSINATURAS: Touch Plus R$50/mes (agente AI, acessorios premium, faixa VIP), Selo R$10/mes
-13. GORJETAS: Pagamento via MercadoPago (Pix, cartao, checkout pro, saved card, one-tap)
+13. GORJETAS: MercadoPago (BR) + Stripe (US) com Apple Pay, Google Pay, Link, cartao
 14. EXTRATO FINANCEIRO: Tela com summary cards, filtros, lista de gorjetas
 15. SWIPE-BACK: Gesto de arrastar da borda esquerda pra voltar
 16. PAINEL RESTAURANTE: Menu CRUD, pedidos em tempo real, status por mesa
+17. MURAL: Feed social com canais por cidade/estado/pais, 9 agentes AI de noticias (Perplexity), comentarios, likes, narrador inteligente
+18. RADIO TOUCH: Locutor IA ao vivo gerando audio via OpenAI TTS no mural
+19. STRIPE CONNECT: Pagamentos internacionais com split, Apple Pay, Google Pay nativo
+20. NACIONALIDADE: Campo de nacionalidade no cadastro com deteccao automatica
 
 =================================================================
 ## VOICE AGENT -- SISTEMA DE 3 TIERS (DETALHADO)
@@ -184,7 +189,7 @@ O Voice Agent usa OpenAI Realtime API via WebRTC. Tem 3 niveis:
 - Server VAD: threshold 0.95, prefix_padding_ms 500, silence_duration_ms 1500
 
 =================================================================
-## MAPA DO SERVER.JS (~11444 linhas)
+## MAPA DO SERVER.JS (~13017 linhas)
 =================================================================
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET, vaLimiter)
@@ -220,13 +225,21 @@ Linha ~8700-8900: Dev diagnostico, approve (async), reject, learn, conversation 
 Linha ~8600-8800: Dev new tools (thought, backup, save-file, escriba)
 Linha ~8800-9000: Dev history endpoint (GET /api/dev/history/:userId)
 Linha ~9000-9200: VA conversation persistence (vaConversations)
-Linha ~9200-11000+: VA Config system, fetchWithTimeout, security audit fixes
+Linha ~9200-11000: VA Config system, fetchWithTimeout, security audit fixes
+Linha ~11000-11970: Onboarding VA, Stripe config (stripeInstance)
+Linha ~11970-12260: Stripe endpoints (pay, create-payment-intent, confirm, subscription, cancel) -- TODOS com requireAuth
+Linha ~12260-12330: Stripe Connect (connect-url, connect-refresh, connect-result)
+Linha ~12330-12450: Stripe webhook (/stripe/webhook -- sem auth, necessario)
+Linha ~12450-12620: Games endpoints (sessions, invite, temp-chat, results) -- TODOS com requireAuth
+Linha ~12620-12890: Mural system (canais, posts, likes, comments, ask-agent, news-chat, ban, narrate)
+Linha ~12890-12970: Radio Touch (play, stop) -- TODOS com requireAuth
+Linha ~12970-13017: Server listen, cleanup
 
 ### DB COLLECTIONS (Firebase):
-users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations
+users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations, muralPosts
 
 =================================================================
-## MAPA DO INDEX.HTML (~16197 linhas)
+## MAPA DO INDEX.HTML (~18391 linhas)
 =================================================================
 
 Linha ~1-400: CSS completo (variaveis CSS, telas, componentes, animacoes)
@@ -292,31 +305,33 @@ Linha ~14700-15200: Escriba, cleanup, init
 
 ### MEDIA PRIORIDADE:
 4. Escriba system -- implementado, auto-flush a cada 2min, nao testado em sessao real.
-5. Stripe Express Checkout -- preparado mas desativado.
+5. Stripe pagamentos -- IMPLEMENTADO, precisa testar fluxo completo em producao.
+6. Mural + Radio -- IMPLEMENTADO, precisa monitorar performance com muitos usuarios.
 
 ### BAIXA PRIORIDADE:
 6. Convite via sonic touch no lobby (encosta em alguem = convite de jogo)
 7. Atualizar checkout das assinaturas com novo design
 
 =================================================================
-## GIT LOG RECENTE (25/02/2026)
+## GIT LOG RECENTE (27/02/2026)
 =================================================================
 
-4e9100c fix: tema UltimateDEV de verde matrix para branco clean + reverter filtro CSS
-25fb5c6 feat: painel DEV Monitor no admin + otimizacao de contexto do UltimateDEV
-703fc78 fix: corrigir crash bank.conversations undefined (bug de migracao)
-7ea05ad fix: logging robusto v3 + fallback URL no handleComandoDev e handleAprovarPlano
-cb22764 feat: suporte Apple Pay com rota .well-known para verificacao de dominio
-5dd78d9 fix: trocar _fetchWithTimeout por fetch puro em todas funcoes DEV (Safari iOS)
-aca07e7 feat: integracao Stripe completa com deteccao de regiao e multi-moeda
+5dfbb02 fix: radio sem feedback visual + erros silenciosos
+cd6ab62 feat: Radio Touch -- locutor IA ao vivo no mural
+7489f48 Fix comments section, improve agent reply context, update agent images
+77ab1cb Add ClimaBot agent for weather forecasts
+99157df Compact news cards, fix duplicates, agent auto-replies
+cb9a255 feat: subir botao localizacao, nacionalidade no cadastro
+f188a51 Rewrite gorjeta (tip) checkout page with improved UX and inline Stripe
+3292eaf feat: redesign gorjeta - Apple Pay + Stripe lado a lado, PIX sutil
+269de4f feat: instant message posting - Enter to send + optimistic UI
+76b6f6e feat: mural improvements - agent cards, smart narrator, clear all
+714a037 feat: redesign tip payment UI - Stripe primary position
+8361d4f Redesign visual do Mural + fix toggle AI + avatares + painel agentes
+f123003 Reorganiza telas de pagamento e adiciona Stripe Connect no cadastro
+4d4e3f4 feat: redesign mural dark UI with modern glassmorphism
 09741ae docs: roadmap de lancamento EUA + status da LLC no PROMPT
-918add3 docs: plano de empresa USA + prompt do agente fiscal/contabil
-0ba074f docs: atualizar PROMPT-NOVO-CHAT.md com todas as mudancas da sessao 3
-fb755d8 fix: criar remote origin no Render quando nao existe
-c826dfa fix: pegar URL do remote automaticamente em vez de hardcoded
-b3106e3 fix: configurar git remote origin com GITHUB_TOKEN para push no Render
-cc30292 feat: retry automatico com backoff em 429/529 da Anthropic API
-0626f72 fix: voltar Opus na geracao + personalidade amigo tradutor + contexto otimizado
+aca07e7 feat: integracao Stripe completa com deteccao de regiao e multi-moeda
 
 ## ROLLBACK RAPIDO
 
@@ -333,7 +348,7 @@ Apos rollback: git push --force origin main (CUIDADO: sobrescreve GitHub)
 
 ## VARIAVEIS DE AMBIENTE (Render Dashboard)
 
-Todas configuradas e verificadas em 25/02/2026:
+Verificadas em 27/02/2026:
 - ADMIN_SECRET (protege endpoints admin)
 - ANTHROPIC_API_KEY (cerebro de dev do UltimateDEV -- Claude Opus 4)
 - APP_URL=https://touch-irl.com
@@ -344,7 +359,12 @@ Todas configuradas e verificadas em 25/02/2026:
 - GITHUB_TOKEN (Personal Access Token classic, permissao repo, sem expiracao)
 - MP_ACCESS_TOKEN, MP_APP_ID, MP_CLIENT_SECRET, MP_PUBLIC_KEY
 - MP_REDIRECT_URI, MP_WEBHOOK_SECRET
-- OPENAI_API_KEY (para voz em tempo real dos 3 assistentes)
+- OPENAI_API_KEY (para voz em tempo real dos 3 assistentes + TTS da Radio)
+- PPLX_API_KEY (Perplexity API -- agentes de noticias do Mural)
+- STRIPE_SECRET_KEY (pagamentos Stripe US -- VERIFICAR SE ESTA NO RENDER)
+- STRIPE_PUBLIC_KEY (frontend Stripe -- VERIFICAR SE ESTA NO RENDER)
+- STRIPE_WEBHOOK_SECRET (webhook Stripe -- VERIFICAR SE ESTA NO RENDER)
+- STRIPE_CONNECT_CLIENT_ID (Stripe Connect -- VERIFICAR SE ESTA NO RENDER)
 
 ## FLUXOS DE PAGAMENTO
 

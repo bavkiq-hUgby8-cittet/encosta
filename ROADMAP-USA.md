@@ -1,6 +1,6 @@
 # ROADMAP -- Lancamento do Touch? nos EUA
 
-Atualizado: 25/02/2026
+Atualizado: 27/02/2026
 
 ---
 
@@ -11,6 +11,10 @@ Atualizado: 25/02/2026
 - EIN -- PENDENTE (3-6 semanas)
 - App -- FUNCIONANDO em PT-BR (touch-irl.com)
 - Auditoria -- CONCLUIDA (30+ fixes de seguranca/performance)
+- Stripe -- IMPLEMENTADO no codigo (Payment Intents, Apple Pay, Google Pay, Connect, Subscriptions)
+- Mural -- IMPLEMENTADO (feed social, 9 agentes AI, canais por cidade/estado/pais)
+- Radio Touch -- IMPLEMENTADO (locutor IA com TTS OpenAI)
+- Security review -- requireAuth adicionado a todos os endpoints Stripe/Radio/Games (27/02)
 
 ---
 
@@ -26,6 +30,13 @@ Atualizado: 25/02/2026
   - Nao depende da LLC, pode comecar imediatamente
   - Prioridade: ingles americano primeiro
   - Entrega: inventario de textos + arquitetura i18n + traducoes
+
+### Codigo ja adiantado (feito por outros agentes):
+- [x] Stripe integrado (Payment Intents, Apple Pay, Google Pay, Link, Connect)
+- [x] Mural com 9 agentes AI de noticias (Perplexity)
+- [x] Radio Touch com locutor IA (OpenAI TTS)
+- [x] Redesign das telas de gorjeta e pagamento
+- [x] requireAuth em TODOS os endpoints novos (Stripe, Radio, Games) -- fix 27/02
 
 ---
 

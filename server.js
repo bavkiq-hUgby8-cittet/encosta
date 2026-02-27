@@ -11969,7 +11969,7 @@ app.get('/api/stripe/config', (req, res) => {
 });
 
 // Legacy Express Checkout endpoint (kept for backward compatibility)
-app.post('/api/stripe/pay', async (req, res) => {
+app.post('/api/stripe/pay', requireAuth, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { paymentMethodId, amount, payerId, receiverId } = req.body;
   if (!paymentMethodId || !amount || amount < 1) return res.status(400).json({ error: 'Dados invalidos' });
@@ -12013,7 +12013,7 @@ app.post('/api/stripe/pay', async (req, res) => {
 });
 
 // Create PaymentIntent — used by Payment Element (Card + Link + Apple Pay + Google Pay)
-app.post('/api/stripe/create-payment-intent', paymentLimiter, async (req, res) => {
+app.post('/api/stripe/create-payment-intent', requireAuth, paymentLimiter, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { amount, currency, payerId, receiverId, type, eventId } = req.body;
   if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
@@ -12075,7 +12075,7 @@ app.post('/api/stripe/create-payment-intent', paymentLimiter, async (req, res) =
 });
 
 // Confirm payment — called after Payment Element completes on frontend
-app.post('/api/stripe/confirm-payment', async (req, res) => {
+app.post('/api/stripe/confirm-payment', requireAuth, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { paymentIntentId, tipId } = req.body;
 
@@ -12123,7 +12123,7 @@ app.post('/api/stripe/confirm-payment', async (req, res) => {
 });
 
 // Create Stripe Checkout Session for subscriptions
-app.post('/api/stripe/create-subscription', paymentLimiter, async (req, res) => {
+app.post('/api/stripe/create-subscription', requireAuth, paymentLimiter, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { userId, planId, email, currency: reqCurrency } = req.body;
   if (!userId || !planId) return res.status(400).json({ error: 'Dados incompletos.' });
@@ -12225,7 +12225,7 @@ app.get('/stripe/sub-result', async (req, res) => {
 });
 
 // Cancel Stripe subscription
-app.post('/api/stripe/cancel-subscription', async (req, res) => {
+app.post('/api/stripe/cancel-subscription', requireAuth, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
@@ -12446,7 +12446,7 @@ app.get('/api/games/player-status/:userId', (req, res) => {
 });
 
 // POST create game session
-app.post('/api/games/sessions', (req, res) => {
+app.post('/api/games/sessions', requireAuth, (req, res) => {
   const { gameId, gameFile, gameName } = req.body;
   // Accept both param styles: hostUserId/opponentUserId OR userId/opponentId
   const hostUserId = req.body.hostUserId || req.body.userId;
@@ -12484,7 +12484,7 @@ app.post('/api/games/sessions', (req, res) => {
 });
 
 // POST send game invite as chat message (reliable HTTP instead of socket)
-app.post('/api/games/invite-message', (req, res) => {
+app.post('/api/games/invite-message', requireAuth, (req, res) => {
   const { fromUserId, toUserId, gameId, sessionId, gameName, relationId } = req.body;
   if (!fromUserId || !toUserId || !gameId || !sessionId) {
     return res.status(400).json({ error: 'Campos obrigatorios: fromUserId, toUserId, gameId, sessionId' });
@@ -12533,7 +12533,7 @@ app.get('/api/games/find-relation', (req, res) => {
   res.json({ relationId: null });
 });
 
-app.post('/api/games/temp-chat', (req, res) => {
+app.post('/api/games/temp-chat', requireAuth, (req, res) => {
   const { hostUserId, opponentUserId, gameId, gameName } = req.body;
   if (!hostUserId || !opponentUserId) return res.status(400).json({ error: 'hostUserId e opponentUserId obrigatorios' });
   // Check if active relation already exists
@@ -12574,7 +12574,7 @@ app.get('/api/games/sessions/:id', (req, res) => {
 });
 
 // POST submit result
-app.post('/api/games/results', (req, res) => {
+app.post('/api/games/results', requireAuth, (req, res) => {
   const { sessionId, winner, scores, duration, surrendered } = req.body;
   if (!sessionId) return res.status(400).json({ error: 'sessionId obrigatorio' });
   const gs = db.gameSessions[sessionId];
@@ -12893,7 +12893,7 @@ app.get('/api/radio/status/:channelKey', (req, res) => {
 });
 
 // POST /api/radio/play/:channelKey — gerar e retornar proximo segmento
-app.post('/api/radio/play/:channelKey', async (req, res) => {
+app.post('/api/radio/play/:channelKey', requireAuth, async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'API nao configurada.' });
   const { channelKey } = req.params;
   const { userId, segmentType } = req.body;
@@ -12963,7 +12963,7 @@ app.post('/api/radio/play/:channelKey', async (req, res) => {
 });
 
 // POST /api/radio/stop/:channelKey — parar radio
-app.post('/api/radio/stop/:channelKey', (req, res) => {
+app.post('/api/radio/stop/:channelKey', requireAuth, (req, res) => {
   const rs = _getRadioState(req.params.channelKey);
   rs.isLive = false;
   rs.currentSegment = null;
