@@ -12511,6 +12511,21 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
+  // Limpeza unica de noticias antigas no boot (remover este bloco depois)
+  (function clearOldNews() {
+    let total = 0;
+    for (const ch of Object.keys(db.muralPosts || {})) {
+      if (!Array.isArray(db.muralPosts[ch])) continue;
+      const before = db.muralPosts[ch].length;
+      db.muralPosts[ch] = db.muralPosts[ch].filter(p => !p.isNews);
+      total += before - db.muralPosts[ch].length;
+    }
+    if (total > 0) {
+      saveDBNow('muralPosts');
+      console.log('[boot] Limpeza de noticias: removidas ' + total + ' noticias antigas');
+    }
+  })();
+
   server.listen(PORT, '0.0.0.0', () => {
     const nets = require('os').networkInterfaces();
     let localIP = 'localhost';
