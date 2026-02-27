@@ -8260,20 +8260,31 @@ function _insertMention(idx) {
 }
 
 function onMuralInputKey(e) {
-  if (!_mentionState.active || _mentionState.results.length === 0) return;
-  if (e.key === 'ArrowDown') {
+  // Mention autocomplete ativo
+  if (_mentionState.active && _mentionState.results.length > 0) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _mentionState.selectedIdx = (_mentionState.selectedIdx + 1) % _mentionState.results.length;
+      _showMentionAutocomplete();
+      return;
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _mentionState.selectedIdx = (_mentionState.selectedIdx - 1 + _mentionState.results.length) % _mentionState.results.length;
+      _showMentionAutocomplete();
+      return;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      _insertMention(_mentionState.selectedIdx);
+      return;
+    } else if (e.key === 'Escape') {
+      _hideMentionDropdown();
+      return;
+    }
+  }
+  // Enter envia mensagem (Shift+Enter = nova linha)
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    _mentionState.selectedIdx = (_mentionState.selectedIdx + 1) % _mentionState.results.length;
-    _showMentionAutocomplete();
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    _mentionState.selectedIdx = (_mentionState.selectedIdx - 1 + _mentionState.results.length) % _mentionState.results.length;
-    _showMentionAutocomplete();
-  } else if (e.key === 'Enter' && _mentionState.active) {
-    e.preventDefault();
-    _insertMention(_mentionState.selectedIdx);
-  } else if (e.key === 'Escape') {
-    _hideMentionDropdown();
+    postToMural();
   }
 }
 
@@ -8310,12 +8321,39 @@ async function postToMural() {
   if (!text || !_muralState.activeChannel) return;
   btn.disabled = true;
   var ch = _muralState.channels.find(function(c) { return c.key === _muralState.activeChannel; });
-  // Limpar input e salvar texto (feedback instantaneo)
   var savedText = text;
   input.value = '';
   input.style.height = '';
   var wc = $('muralWordCount');
   if (wc) wc.classList.add('hidden');
+  // Optimistic UI: mostrar post IMEDIATAMENTE antes da resposta
+  var tempId = '_temp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+  // Pegar nick/color do ultimo post do usuario ou do state
+  var myLastPost = _muralState.posts.slice().reverse().find(function(p) { return p.userId === state.userId; });
+  var optimisticPost = {
+    id: tempId,
+    channelKey: _muralState.activeChannel,
+    channelName: ch ? ch.name : '',
+    channelType: ch ? ch.type : 'city',
+    userId: state.userId,
+    nick: (myLastPost && myLastPost.nick) || state.userName || '??',
+    color: (myLastPost && myLastPost.color) || state.userColor || '#888',
+    stars: (myLastPost && myLastPost.stars) || 0,
+    accessory: (myLastPost && myLastPost.accessory) || state.userAccessory || null,
+    text: savedText,
+    likes: [],
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 24 * 3600000,
+    hidden: false,
+    isNarrator: false,
+    _optimistic: true
+  };
+  _muralState.posts.push(optimisticPost);
+  var ck = _muralState.activeChannel;
+  if (!_muralPostsCache[ck]) _muralPostsCache[ck] = [];
+  _muralPostsCache[ck].push(optimisticPost);
+  renderMuralFeed();
+  haptic([15, 10]);
   try {
     var r = await apiFetch('/api/mural/' + _muralState.activeChannel + '/post', {
       method: 'POST',
@@ -8329,24 +8367,35 @@ async function postToMural() {
     });
     var d = await r.json();
     if (d.error) {
-      input.value = savedText; // restaurar texto se erro
+      // Remover post optimistic em caso de erro
+      _muralState.posts = _muralState.posts.filter(function(p) { return p.id !== tempId; });
+      if (_muralPostsCache[ck]) _muralPostsCache[ck] = _muralPostsCache[ck].filter(function(p) { return p.id !== tempId; });
+      renderMuralFeed(true);
+      input.value = savedText;
       btn.disabled = false;
       return showToast(d.error);
     }
-    haptic([15, 10]);
-    // Adicionar post localmente (feedback instantaneo pro remetente)
-    // Socket dedup evita mostrar 2x quando o evento chegar
-    if (d.post && !_muralState.posts.find(function(p) { return p.id === d.post.id; })) {
-      _muralState.posts.push(d.post);
-      var ck = d.post.channelKey || _muralState.activeChannel;
-      if (!_muralPostsCache[ck]) _muralPostsCache[ck] = [];
-      if (!_muralPostsCache[ck].find(function(p) { return p.id === d.post.id; })) {
-        _muralPostsCache[ck].push(d.post);
+    // Substituir post temporario pelo real (com id do servidor)
+    if (d.post) {
+      var idx = _muralState.posts.findIndex(function(p) { return p.id === tempId; });
+      if (idx !== -1) _muralState.posts[idx] = d.post;
+      if (_muralPostsCache[ck]) {
+        var ci = _muralPostsCache[ck].findIndex(function(p) { return p.id === tempId; });
+        if (ci !== -1) _muralPostsCache[ck][ci] = d.post;
       }
-      renderMuralFeed();
+      // Atualizar o rendered ID para o real
+      delete _muralRenderedIds[tempId];
+      _muralRenderedIds[d.post.id] = true;
+      // Atualizar DOM inline sem rebuild completo
+      var tempEl = $('mp_' + tempId);
+      if (tempEl) tempEl.id = 'mp_' + d.post.id;
     }
     btn.disabled = false;
   } catch (e) {
+    // Remover post optimistic em caso de falha de rede
+    _muralState.posts = _muralState.posts.filter(function(p) { return p.id !== tempId; });
+    if (_muralPostsCache[ck]) _muralPostsCache[ck] = _muralPostsCache[ck].filter(function(p) { return p.id !== tempId; });
+    renderMuralFeed(true);
     input.value = savedText;
     btn.disabled = false;
     showToast('Erro ao postar.');
@@ -8821,6 +8870,24 @@ function _initMuralSocket() {
     if (!data || !data.post) return;
     var p = data.post;
     var chKey = p.channelKey;
+    // Ignorar se e meu proprio post (ja adicionado via optimistic UI)
+    if (p.userId === state.userId) {
+      // Substituir optimistic em cache e state (se existir)
+      var optIdx = _muralState.posts.findIndex(function(x) { return x._optimistic && x.userId === p.userId && x.text === p.text; });
+      if (optIdx !== -1) {
+        _muralState.posts[optIdx] = p;
+        delete _muralRenderedIds[_muralState.posts[optIdx].id];
+        _muralRenderedIds[p.id] = true;
+      }
+      if (chKey && _muralPostsCache[chKey]) {
+        var ci = _muralPostsCache[chKey].findIndex(function(x) { return x._optimistic && x.userId === p.userId && x.text === p.text; });
+        if (ci !== -1) _muralPostsCache[chKey][ci] = p;
+        else if (!_muralPostsCache[chKey].find(function(x) { return x.id === p.id; })) {
+          _muralPostsCache[chKey].push(p);
+        }
+      }
+      return; // Nao re-renderizar, post ja ta na tela
+    }
     // Atualizar cache sempre (criar se nao existir)
     if (chKey) {
       if (!_muralPostsCache[chKey]) _muralPostsCache[chKey] = [];
