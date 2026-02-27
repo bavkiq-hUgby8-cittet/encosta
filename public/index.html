@@ -985,7 +985,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-fab .mural-fab-dot{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.6);animation:muralPulse 3s ease-in-out infinite}
 .mural-fab .mural-fab-label{font-size:.62rem;color:#fff;font-weight:700;letter-spacing:.04em;text-transform:uppercase;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes muralPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
-#muralScreen{background:#0d0d14;overflow:hidden}
+#muralScreen{background:#0d0d14;overflow:hidden;display:flex;flex-direction:column}
 .mural-matrix-bg{display:none}
 .mural-header{display:flex;align-items:center;gap:.35rem;padding:.4rem .6rem;padding-top:max(env(safe-area-inset-top),.4rem);position:relative;z-index:3;background:#0f0f1a;border-bottom:1px solid rgba(255,255,255,.06)}
 .mural-header h2{font-size:.58rem;font-weight:600;color:rgba(148,163,184,.6);margin:0;flex:1;letter-spacing:.08em;text-transform:uppercase}
@@ -7368,6 +7368,7 @@ function openMural() {
     }
     showScreen('muralScreen');
     haptic([20]);
+    _initMuralInputFix();
     renderMuralChannels();
     // Restaurar ultimo canal ou usar o primeiro
     var lastCh = _muralState._lastChannel || _muralState.channels[0].key;
@@ -7446,7 +7447,36 @@ function closeMural() {
   if (_muralState.cooldownTimer) { clearInterval(_muralState.cooldownTimer); _muralState.cooldownTimer = null; }
   if (_newsCountdownTimer) { clearInterval(_newsCountdownTimer); _newsCountdownTimer = null; }
   if (_muralPollTimer) { clearInterval(_muralPollTimer); _muralPollTimer = null; }
+  // Resetar estilos de viewport do teclado virtual
+  var muralEl = $('muralScreen');
+  if (muralEl) { muralEl.style.height = ''; muralEl.style.transform = ''; }
   showScreen('home');
+}
+
+// Mural keyboard viewport fix: focus/blur no input
+var _muralInputInitDone = false;
+function _initMuralInputFix() {
+  if (_muralInputInitDone) return;
+  var input = $('muralInput');
+  if (!input) return;
+  _muralInputInitDone = true;
+  input.addEventListener('focus', function() {
+    // Quando teclado abre, scroll pro final do feed apos pequeno delay
+    setTimeout(function() {
+      var feed = $('muralFeed');
+      if (feed) feed.scrollTop = feed.scrollHeight;
+    }, 300);
+  });
+  input.addEventListener('blur', function() {
+    // Quando teclado fecha, resetar altura do muralScreen
+    setTimeout(function() {
+      var muralEl = $('muralScreen');
+      if (muralEl && muralEl.classList.contains('active')) {
+        muralEl.style.height = '';
+        muralEl.style.transform = '';
+      }
+    }, 100);
+  });
 }
 
 // Matrix rain background animation (lightweight for mobile)
@@ -15405,17 +15435,28 @@ if(window.visualViewport){
     const chatEl=$('chat');
     if(chatEl&&chatEl.classList.contains('active')){
       const vh=window.visualViewport.height;
-      // Resize chat to visible viewport (handles keyboard open/close)
       chatEl.style.height=vh+'px';
       requestAnimationFrame(()=>{$('chatMessages').scrollTop=99999});
+    }
+    // Mural: redimensionar quando teclado abre/fecha
+    const muralEl=$('muralScreen');
+    if(muralEl&&muralEl.classList.contains('active')){
+      const vh=window.visualViewport.height;
+      muralEl.style.height=vh+'px';
+      const feed=$('muralFeed');
+      if(feed) requestAnimationFrame(()=>{feed.scrollTop=feed.scrollHeight});
     }
     ph=window.visualViewport.height;
   });
   window.visualViewport.addEventListener('scroll',()=>{
     const chatEl=$('chat');
     if(chatEl&&chatEl.classList.contains('active')){
-      // Keep chat anchored to top of visual viewport
       chatEl.style.transform='translateY('+window.visualViewport.offsetTop+'px)';
+    }
+    // Mural: manter ancorado ao topo do viewport visual
+    const muralEl=$('muralScreen');
+    if(muralEl&&muralEl.classList.contains('active')){
+      muralEl.style.transform='translateY('+window.visualViewport.offsetTop+'px)';
     }
   });
 }
