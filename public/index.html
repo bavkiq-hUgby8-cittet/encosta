@@ -7598,13 +7598,9 @@ function openNewsChat(postId, headline, fullText, agentType) {
   _newsChatState.currentUtterance = null;
 
   var agentColors = {
-    'reporter': '#FF6F00',
-    'economist': '#4CAF50',
-    'technologist': '#2196F3',
-    'scientist': '#9C27B0',
-    'diplomat': '#00BCD4',
-    'artist': '#E91E63',
-    'philosopher': '#FF9800'
+    'reporter': '#e65100', 'fitness': '#2e7d32', 'futebol': '#1565c0',
+    'cozinha': '#d84315', 'tecnologia': '#6a1b9a', 'politica': '#37474f',
+    'educacao': '#f57f17'
   };
   var agentColor = agentColors[agentType] || '#FF6F00';
 
@@ -7705,43 +7701,36 @@ function openNewsChat(postId, headline, fullText, agentType) {
 
 function sendNewsChatInitialMessage(agentType) {
   var agentNicks = {
-    'reporter': 'Reporter',
-    'economist': 'Economista',
-    'technologist': 'Tecnologista',
-    'scientist': 'Cientista',
-    'diplomat': 'Diplomata',
-    'artist': 'Artista',
-    'philosopher': 'Filosofo'
+    'reporter': 'Reporter', 'fitness': 'Coach Fit', 'futebol': 'Boleiro',
+    'cozinha': 'Chef Touch', 'tecnologia': 'TechBot', 'politica': 'Politico',
+    'educacao': 'Prof. Saber'
   };
   var nick = agentNicks[agentType] || 'Agente';
 
-  apiFetch('POST', '/api/mural/news-chat', {
-    userId: state.userId,
-    newsContext: {
-      headline: _newsChatState.headline,
-      fullText: _newsChatState.fullText,
-      agentType: _newsChatState.agentType
-    },
-    message: 'Comece uma conversa engajante e bem-fundamentada sobre esta noticia.',
-    history: []
-  }, function(err, data) {
-    if (err) {
-      showToast('Erro ao iniciar conversa: ' + err);
-      closeNewsChat();
-      return;
-    }
+  apiFetch('/api/mural/news-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: state.userId,
+      newsContext: {
+        headline: _newsChatState.headline,
+        fullText: _newsChatState.fullText,
+        agentType: _newsChatState.agentType
+      },
+      message: 'Comece uma conversa engajante e bem-fundamentada sobre esta noticia.',
+      history: []
+    })
+  }).then(function(r) { return r.json(); }).then(function(data) {
     if (!data || !data.reply) {
       showToast('Resposta vazia');
       closeNewsChat();
       return;
     }
-
-    _newsChatState.history.push({
-      role: 'assistant',
-      content: data.reply
-    });
-
+    _newsChatState.history.push({ role: 'assistant', content: data.reply });
     addNewsChatMessage(nick, data.reply, true, data.citations || []);
+  }).catch(function(e) {
+    showToast('Erro ao iniciar conversa');
+    closeNewsChat();
   });
 }
 
@@ -7750,13 +7739,9 @@ function addNewsChatMessage(sender, text, isAI, citations) {
   if (!msgContainer) return;
 
   var agentColors = {
-    'reporter': '#FF6F00',
-    'economist': '#4CAF50',
-    'technologist': '#2196F3',
-    'scientist': '#9C27B0',
-    'diplomat': '#00BCD4',
-    'artist': '#E91E63',
-    'philosopher': '#FF9800'
+    'reporter': '#e65100', 'fitness': '#2e7d32', 'futebol': '#1565c0',
+    'cozinha': '#d84315', 'tecnologia': '#6a1b9a', 'politica': '#37474f',
+    'educacao': '#f57f17'
   };
   var color = isAI ? (agentColors[_newsChatState.agentType] || '#FF6F00') : '#60a5fa';
 
@@ -7812,40 +7797,36 @@ function sendNewsChatMessage() {
   input.value = '';
   addNewsChatMessage('Voce', message, false, []);
 
-  apiFetch('POST', '/api/mural/news-chat', {
-    userId: state.userId,
-    newsContext: {
-      headline: _newsChatState.headline,
-      fullText: _newsChatState.fullText,
-      agentType: _newsChatState.agentType
-    },
-    message: message,
-    history: _newsChatState.history
-  }, function(err, data) {
-    if (err) {
-      showToast('Erro: ' + err);
-      return;
-    }
+  _newsChatState.history.push({ role: 'user', content: message });
+
+  apiFetch('/api/mural/news-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: state.userId,
+      newsContext: {
+        headline: _newsChatState.headline,
+        fullText: _newsChatState.fullText,
+        agentType: _newsChatState.agentType
+      },
+      message: message,
+      history: _newsChatState.history
+    })
+  }).then(function(r) { return r.json(); }).then(function(data) {
     if (!data || !data.reply) {
       showToast('Resposta vazia');
       return;
     }
-
     var agentNicks = {
-      'reporter': 'Reporter',
-      'economist': 'Economista',
-      'technologist': 'Tecnologista',
-      'scientist': 'Cientista',
-      'diplomat': 'Diplomata',
-      'artist': 'Artista',
-      'philosopher': 'Filosofo'
+      'reporter': 'Reporter', 'fitness': 'Coach Fit', 'futebol': 'Boleiro',
+      'cozinha': 'Chef Touch', 'tecnologia': 'TechBot', 'politica': 'Politico',
+      'educacao': 'Prof. Saber'
     };
     var nick = agentNicks[_newsChatState.agentType] || 'Agente';
-
-    _newsChatState.history.push({ role: 'user', content: message });
     _newsChatState.history.push({ role: 'assistant', content: data.reply });
-
     addNewsChatMessage(nick, data.reply, true, data.citations || []);
+  }).catch(function(e) {
+    showToast('Erro ao enviar mensagem');
   });
 }
 
