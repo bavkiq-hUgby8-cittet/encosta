@@ -2234,7 +2234,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div id="constFilters" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:.25rem;padding:.3rem .4rem;background:rgba(10,10,25,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:16px;border:1px solid rgba(255,255,255,.08);z-index:5">
       <button class="elog-filter active" id="cfRevealed" onclick="toggleConstFilter('revealed',this)"><span class="fdot" style="background:#00dc82"></span>Revelados</button>
       <button class="elog-filter active" id="cfAnon" onclick="toggleConstFilter('anon',this)"><span class="fdot" style="background:#ff4466"></span>Anonimos</button>
-      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)" style="position:relative"><span class="fdot" style="background:#60a5fa"></span>Eventos<span id="cfEventsLive" class="hidden" style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:#60a5fa;color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;pointer-events:none;animation:pulse 2s infinite">0</span></button>
+      <button class="elog-filter" id="cfEvents" onclick="toggleConstFilter('events',this)" style="position:relative"><span class="fdot" style="background:#60a5fa"></span>Locais<span id="cfEventsLive" class="hidden" style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:#60a5fa;color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;pointer-events:none;animation:pulse 2s infinite">0</span></button>
     </div>
     <div id="constLoader" class="const-loader hidden">
       <div class="const-loader-inner">
@@ -2387,7 +2387,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="loc-status" id="locStatus" data-i18n="location.activate">Ative sua localização para descobrir pessoas e eventos.</div>
     <div class="loc-tabs">
       <div class="loc-tab active" id="tabNearby" onclick="switchLocTab('nearby')" data-i18n="location.tab_people">Pessoas</div>
-      <div class="loc-tab" id="tabEvents" onclick="switchLocTab('events')" data-i18n="location.tab_events">Eventos</div>
+      <div class="loc-tab" id="tabEvents" onclick="switchLocTab('events')" data-i18n="location.tab_events">Locais</div>
     </div>
     <div id="locContent"></div>
   </div>
@@ -7578,7 +7578,7 @@ async function showRelations(){
       if(isEventRel){
         // Event relation: show event icon and name
         displayName=r.eventName||r.partnerName||'Evento';
-        photoHtml='<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 12px rgba(96,165,250,.2)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>';
+        photoHtml=r.eventLogo?'<div style="width:52px;height:52px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,.1);box-shadow:0 0 12px rgba(96,165,250,.2)"><img src="'+esc(r.eventLogo)+'" style="width:100%;height:100%;object-fit:cover" alt=""></div>':'<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 12px rgba(96,165,250,.2)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>';
         nameHtml='<div class="rn" style="color:#60a5fa">'+esc(displayName)+'</div><div style="font-size:.6rem;color:var(--t3);margin-top:.1rem">evento</div>';
       }else{
         displayName=r.partnerRealName||r.partnerName;
@@ -9629,7 +9629,7 @@ function updateConstFilterBadges(){
   }
   setBtnCount($('cfRevealed'),t('home.revealed_filter')||'Revelados',revealed.length);
   setBtnCount($('cfAnon'),t('home.anon_filter')||'Anonimos',anon);
-  setBtnCount($('cfEvents'),t('home.events_filter')||'Eventos',events);
+  setBtnCount($('cfEvents'),t('home.events_filter')||'Locais',events);
   const liveBadge=$('cfEventsLive');
   if(liveBadge){liveBadge.textContent=activeEvents;liveBadge.classList.toggle('hidden',activeEvents===0)}
 }
@@ -10276,15 +10276,29 @@ function initConstCanvas(){
 
       // Node body: event icon, photo if revealed, or initials
       if(n.isEvent){
-        // Event node: blue gradient with pin icon
-        ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
-        const evGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
-        evGrad.addColorStop(0,'rgba(96,165,250,0.7)');evGrad.addColorStop(1,'rgba(59,130,246,0.3)');
-        ctx.fillStyle=evGrad;ctx.fill();
-        if(r>5){
-          ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';
-          // Draw pin icon on canvas
-          ctx.save();ctx.translate(sx,sy);const ps=r*0.07;ctx.scale(ps,ps);ctx.beginPath();ctx.arc(0,-4,5,Math.PI,0);ctx.lineTo(0,8);ctx.closePath();ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';ctx.fill();ctx.beginPath();ctx.arc(0,-4,2,0,Math.PI*2);ctx.fillStyle='rgba(96,165,250,'+(depthAlpha*0.5).toFixed(2)+')';ctx.fill();ctx.restore();
+        // Load event logo if available
+        if(n.eventLogo&&!n._evLogoLoaded){
+          n._evLogoLoaded=true;
+          const img=new Image();
+          img.crossOrigin='anonymous';
+          img.onload=function(){n._evLogo=img;n._evLogoReady=true};
+          img.onerror=function(){n._evLogoReady=false};
+          img.src=n.eventLogo;
+        }
+        // Draw event logo if ready and radius is large enough
+        if(n._evLogoReady&&n._evLogo&&r>4){
+          ctx.save();ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.clip();
+          ctx.drawImage(n._evLogo,sx-r,sy-r,r*2,r*2);ctx.restore();
+        }else{
+          // Fallback: blue gradient with pin icon
+          ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
+          const evGrad=ctx.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
+          evGrad.addColorStop(0,'rgba(96,165,250,0.7)');evGrad.addColorStop(1,'rgba(59,130,246,0.3)');
+          ctx.fillStyle=evGrad;ctx.fill();
+          if(r>5){
+            ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';
+            ctx.save();ctx.translate(sx,sy);const ps=r*0.07;ctx.scale(ps,ps);ctx.beginPath();ctx.arc(0,-4,5,Math.PI,0);ctx.lineTo(0,8);ctx.closePath();ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.85).toFixed(2)+')';ctx.fill();ctx.beginPath();ctx.arc(0,-4,2,0,Math.PI*2);ctx.fillStyle='rgba(96,165,250,'+(depthAlpha*0.5).toFixed(2)+')';ctx.fill();ctx.restore();
+          }
         }
       }else if(n._revealed&&n._imgLoaded&&n._img&&r>4){
         drawCroppedImage(n._img,sx,sy,r);
@@ -10558,10 +10572,15 @@ function showConstDetail(node){
   if(node.isEvent){
     window._constDetailNodeId=node.id;
     const cleanEventId=node.id.replace('evt:','');
-    // Avatar with gradient
+    // Avatar with gradient or logo
     const av=$('cdAvatar');
-    av.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
-    av.style.background='linear-gradient(135deg,#3b82f6,#6366f1)';av.style.fontSize='';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
+    if(node.eventLogo){
+      av.innerHTML='<img src="'+esc(node.eventLogo)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+      av.style.background='';av.style.fontSize='';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
+    }else{
+      av.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+      av.style.background='linear-gradient(135deg,#3b82f6,#6366f1)';av.style.fontSize='';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
+    }
     // Name
     $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>'+(node.eventActive?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:6px;vertical-align:middle;box-shadow:0 0 6px rgba(34,197,94,.6)"></span>':'');
     $('cdAlias').textContent=node.eventActive?'ao vivo':'evento encerrado';$('cdAlias').style.display='';

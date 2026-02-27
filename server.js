@@ -2333,7 +2333,7 @@ app.post('/api/session/join', (req, res) => {
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
       userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
-      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, verified: !!(sessionEventObj && sessionEventObj.verified) },
+      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, verified: !!(sessionEventObj && sessionEventObj.verified), eventLogo: sessionEventObj ? (sessionEventObj.eventLogo || null) : null },
       zodiacPhrase: null
     };
   } else {
@@ -2599,7 +2599,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       likesCount: 0, starsCount: 0, likedByMe: false,
       isPrestador: false, serviceLabel: null, pendingReveal: null, verified: !!ev.verified,
       eventActive: ev.active, eventParticipants: (ev.participants || []).length,
-      peopleMet: peopleMet
+      peopleMet: peopleMet, eventLogo: ev.eventLogo || null
     });
   });
   nodes.push(...eventNodes);
@@ -6295,7 +6295,7 @@ function createSonicConnection(userIdA, userIdB) {
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
       // userA = visitor, userB = event (virtual)
       userA: { id: visitorUser.id, name: visitorUser.nickname || visitorUser.name, color: visitorUser.color, profilePhoto: visitorUser.profilePhoto || null, photoURL: visitorUser.photoURL || null, score: calcScore(visitorUser.id), stars: (visitorUser.stars || []).length, sign: vSign, signInfo: vSign ? ZODIAC_INFO[vSign] : null, isPrestador: !!visitorUser.isPrestador, serviceLabel: visitorUser.serviceLabel || '' },
-      userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true },
+      userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, eventLogo: eventObj ? (eventObj.eventLogo || null) : null },
       zodiacPhrase: null
     };
   } else {
@@ -11170,12 +11170,21 @@ app.post('/api/operator/settings', (req, res) => {
 });
 
 // ═══ OPERATOR EVENTS ═══
-app.post('/api/operator/event/create', (req, res) => {
-  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile } = req.body;
+app.post('/api/operator/event/create', async (req, res) => {
+  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile, eventLogo } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
   const price = parseFloat(entryPrice) || 0;
+  
+  // Handle eventLogo upload
+  let finalEventLogoUrl = null;
+  if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
+    const uploadUrl = await uploadBase64ToStorage(eventLogo, `photos/event-logo/${id}_${Date.now()}.jpg`);
+    finalEventLogoUrl = uploadUrl || eventLogo; // fallback to base64 if upload fails
+  } else if (eventLogo && typeof eventLogo === 'string') {
+    finalEventLogoUrl = eventLogo; // assume it's already a URL
+  }
   db.operatorEvents[id] = {
     id, name: name.trim(), description: (description || '').trim(),
     creatorId: userId, creatorName: db.users[userId].nickname || db.users[userId].name,
@@ -11187,6 +11196,7 @@ app.post('/api/operator/event/create', (req, res) => {
     createdAt: Date.now(),
     welcomePhrase: (welcomePhrase || '').trim().slice(0, 120),
     quickPhrases: Array.isArray(quickPhrases) ? quickPhrases.slice(0, 8).map(p => String(p).trim().slice(0, 40)) : [],
+    eventLogo: finalEventLogoUrl || null,
     businessProfile: businessProfile && typeof businessProfile === 'object' ? {
       name: (businessProfile.name || '').trim().slice(0, 60),
       type: (businessProfile.type || '').trim(),
@@ -11595,7 +11605,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
         };
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
-    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: ev.eventLogo || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -11619,16 +11629,24 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     entryPrice: ev.entryPrice || 0,
     participantCount: (ev.participants || []).length,
     hasMenu: (ev.menu || []).length > 0,
-    createdAt: ev.createdAt
+    createdAt: ev.createdAt,
+    eventLogo: ev.eventLogo || null
   });
 });
 
-app.post('/api/operator/event/:eventId/business-profile', (req, res) => {
+app.post('/api/operator/event/:eventId/business-profile', async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const { businessProfile, welcomePhrase, quickPhrases } = req.body;
+  const { businessProfile, welcomePhrase, quickPhrases, eventLogo } = req.body;
   if (welcomePhrase !== undefined) ev.welcomePhrase = String(welcomePhrase).trim().slice(0, 120);
   if (Array.isArray(quickPhrases)) ev.quickPhrases = quickPhrases.slice(0, 8).map(p => String(p).trim().slice(0, 40));
+  // Handle eventLogo upload
+  if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
+    const uploadUrl = await uploadBase64ToStorage(eventLogo, `photos/event-logo/${ev.id}_${Date.now()}.jpg`);
+    ev.eventLogo = uploadUrl || eventLogo; // fallback to base64 if upload fails
+  } else if (eventLogo && typeof eventLogo === 'string') {
+    ev.eventLogo = eventLogo; // assume it's already a URL
+  }
   if (businessProfile && typeof businessProfile === 'object') {
     ev.businessProfile = {
       name: (businessProfile.name || '').trim().slice(0, 60),

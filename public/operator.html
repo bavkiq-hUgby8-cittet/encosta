@@ -609,6 +609,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
         <div style="font-size:.5rem;color:var(--t3);margin-top:.15rem">Aparece quando alguem faz check-in no seu evento.</div>
       </div>
 
+      <!-- Event Logo -->
+      <div class="op-login-field" style="margin-bottom:.5rem">
+        <label class="op-login-label">Logo do local (opcional)</label>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <div id="opLogoPreview" style="width:48px;height:48px;border-radius:12px;background:var(--s2);border:1.5px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0" onclick="document.getElementById('opLogoInput').click()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </div>
+          <input type="file" id="opLogoInput" accept="image/*" style="display:none" onchange="previewEventLogo(this)">
+          <div style="flex:1">
+            <div style="font-size:.65rem;color:var(--t2);font-weight:500">Adicione a marca do seu local</div>
+            <div style="font-size:.5rem;color:var(--t3);margin-top:.1rem">Aparece nas bolinhas do app. JPG/PNG ate 2MB.</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Event Name -->
       <div class="op-login-field" style="margin-bottom:.5rem">
         <label class="op-login-label">Nome do evento</label>
@@ -1139,6 +1154,18 @@ function selectEventType(elem,type){
 // Toggle custom service field
 if($('opServiceType')){$('opServiceType').onchange=function(){$('opServiceCustomWrap').style.display=this.value==='custom'?'':'none'}}
 
+let _eventLogoBase64='';
+function previewEventLogo(input){
+  const file=input.files[0];if(!file)return;
+  if(file.size>2*1024*1024){alert('Imagem muito grande (max 2MB)');input.value='';return}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    _eventLogoBase64=e.target.result;
+    const preview=$('opLogoPreview');
+    preview.innerHTML='<img src="'+_eventLogoBase64+'" style="width:100%;height:100%;object-fit:cover">';
+  };reader.readAsDataURL(file);
+}
+
 async function opCreateEvent(){
   const name=$('opNewEventName').value.trim();
   const err=$('opEventErr');
@@ -1151,10 +1178,10 @@ async function opCreateEvent(){
   err.textContent='Criando...';
   try{
     const welcomePhrase=$('opWelcomePhrase')?$('opWelcomePhrase').value.trim():'';
-    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice,revealMode,welcomePhrase})});
+    const r=await fetch('/api/operator/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:S.userId,name,serviceLabel,acceptsTips,entryPrice,revealMode,welcomePhrase,eventLogo:_eventLogoBase64||undefined})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error||'Erro ao criar.';return}
-    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';$('opRevealMode').value='optional';if($('opWelcomePhrase'))$('opWelcomePhrase').value='';
+    err.textContent='';$('opNewEventName').value='';$('opServiceType').value='';$('opServiceCustom').value='';$('opAcceptsTips').checked=false;$('opServiceCustomWrap').style.display='none';$('opEntryPrice').value='';$('opRevealMode').value='optional';if($('opWelcomePhrase'))$('opWelcomePhrase').value='';_eventLogoBase64='';const logoPreview=$('opLogoPreview');if(logoPreview)logoPreview.innerHTML='<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--t3)\" stroke-width=\"1.5\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><path d=\"M21 15l-5-5L5 21\"/></svg>';
     opSelectEvent(d.event.id,d.event.name);
   }catch(e){err.textContent='Erro: '+e.message}
 }
