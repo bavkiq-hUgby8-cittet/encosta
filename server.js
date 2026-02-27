@@ -4452,7 +4452,15 @@ const MURAL_AGENTS = {
 // Fila round-robin: todos os agentes postam a cada 30 min alternando
 const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => !MURAL_AGENTS[k].isUrgent);
 let _agentQueueIndex = 0;
-let _newsEngineEnabled = false; // Motor de noticias desligado por padrao (economizar API)
+// Persistido em db.muralFlags._newsEngineEnabled para sobreviver restart
+let _newsEngineEnabled = false;
+// Carregar estado salvo quando db estiver pronto (chamado apos loadDB)
+function _loadNewsEngineState() {
+  if (db.muralFlags && db.muralFlags._newsEngineEnabled !== undefined) {
+    _newsEngineEnabled = !!db.muralFlags._newsEngineEnabled;
+    console.log('[news-engine] Estado restaurado do banco: ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO'));
+  }
+}
 
 // Backward compatible mapping
 const NEWS_TOPICS = {};
@@ -4946,7 +4954,11 @@ app.get('/api/mural/news-engine', (req, res) => {
 app.post('/api/mural/news-engine', requireAuth, (req, res) => {
   const { enabled } = req.body;
   _newsEngineEnabled = !!enabled;
-  console.log('[news-engine] Motor de noticias ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO'));
+  // Persistir no banco para sobreviver restarts
+  if (!db.muralFlags) db.muralFlags = {};
+  db.muralFlags._newsEngineEnabled = _newsEngineEnabled;
+  saveDBNow('muralFlags');
+  console.log('[news-engine] Motor de noticias ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO') + ' (salvo)');
   res.json({ ok: true, enabled: _newsEngineEnabled });
 });
 
@@ -12578,6 +12590,7 @@ const PORT = process.env.PORT || 3000;
     dbLoaded = true; // start with empty DB
   }
   console.log('✅ loadDB concluído, abrindo porta...');
+  _loadNewsEngineState();
 
 // Cleanup function for graceful shutdown
 function cleanupIntervals() {
