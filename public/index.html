@@ -8145,15 +8145,17 @@ async function openAgentPanel() {
     var sheet = '<div class="mural-topics-sheet">';
     sheet += '<div class="mural-topics-title">Selecione um agente</div>';
     sheet += '<div class="mural-topics-grid" style="display:flex;flex-direction:column;gap:.5rem">';
+    for (var id in agents) {
+      var ag = agents[id];
       var agentImg = _muralAgentSvg(id, 48);
-      sheet += '<div style="padding:.7rem;border:1px solid rgba(66,165,245,.15);border-radius:12px;background:rgba(66,165,245,.04);display:flex;align-items:center;gap:.8rem;cursor:pointer" onclick="toggleAgentModal('' + id + '')" data-agent-id="' + id + '">';
+      sheet += '<div style="padding:.7rem;border:1px solid rgba(66,165,245,.15);border-radius:12px;background:rgba(66,165,245,.04);display:flex;align-items:center;gap:.8rem;cursor:pointer" onclick="toggleAgentModal(\'' + id + '\')" data-agent-id="' + id + '">';
       sheet += '<div style="width:48px;height:48px;flex-shrink:0;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center">' + agentImg + '</div>';
       sheet += '<div style="flex:1;min-width:0">';
       sheet += '<div style="font-size:.75rem;font-weight:600;color:' + ag.color + '">' + ag.nick + '</div>';
       sheet += '<div style="font-size:.58rem;color:var(--t3);margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ag.description + '</div>';
       sheet += '</div>';
-      sheet += '<div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;border:2px solid ' + ag.color + ';display:flex;align-items:center;justify-content:center;background:' + (ag.enabled ? ag.color : 'transparent') + '" id="agent-toggle-' + id + '">';
-      sheet += ag.enabled ? '<span style="color:white;font-weight:bold;font-size:12px">✓</span>' : '';
+      sheet += '<div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;border:2px solid ' + ag.color + ';display:flex;align-items:center;justify-content:center;background:' + (ag.enabled ? ag.color : 'transparent') + '" id="agent-toggle-' + id + '" data-agent-color="' + ag.color + '">';
+      sheet += ag.enabled ? '<span style="color:white;font-weight:bold;font-size:13px">&#10003;</span>' : '';
       sheet += '</div>';
       sheet += '</div>';
     }
@@ -8172,7 +8174,8 @@ async function openAgentPanel() {
 function toggleAgentModal(agentId) {
   var toggle = $('agent-toggle-' + agentId);
   if (!toggle) return;
-  var isEnabled = toggle.textContent.indexOf('✓') > -1;
+  var isEnabled = toggle.innerHTML.indexOf('10003') > -1 || toggle.innerHTML.indexOf('✓') > -1;
+  var agColor = toggle.getAttribute('data-agent-color') || '#60a5fa';
   apiFetch('/api/mural/agents/toggle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -8181,19 +8184,14 @@ function toggleAgentModal(agentId) {
     return r.json();
   }).then(function(d) {
     if (d.ok) {
-      var agentElement = toggle.closest('[data-agent-id]');
-      if (agentElement) {
-        var agColor = agentElement.querySelector('[style*="color:"]');
-        var color = agColor ? window.getComputedStyle(agColor).color : '#60a5fa';
-        if (!isEnabled) {
-          toggle.style.background = color;
-          toggle.innerHTML = '<span style="color:white;font-weight:bold;font-size:12px">✓</span>';
-        } else {
-          toggle.style.background = 'transparent';
-          toggle.innerHTML = '';
-        }
+      if (!isEnabled) {
+        toggle.style.background = agColor;
+        toggle.innerHTML = '<span style="color:white;font-weight:bold;font-size:13px">&#10003;</span>';
+      } else {
+        toggle.style.background = 'transparent';
+        toggle.innerHTML = '';
       }
-      showToast((isEnabled ? 'Desativado' : 'Ativado') + ': ' + agentId);
+      haptic([8]);
     }
   }).catch(function(e) { showToast('Erro ao alternar agente.'); });
 }
