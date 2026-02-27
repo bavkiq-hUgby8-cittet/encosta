@@ -4451,10 +4451,11 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
           educacao: 'education,books,learning'
         };
         const keywords = agentKeywords[agentId] || 'news,city';
-        // Unsplash Source ainda funciona para uso existente
-        const fallbackUrl = 'https://source.unsplash.com/800x400/?' + keywords + '&sig=' + Date.now();
+        // Usar Picsum como fallback confiavel (Unsplash Source descontinuado)
+        const seed = Math.floor(Math.random() * 9999);
+        const fallbackUrl = 'https://picsum.photos/seed/' + agentId + seed + '/800/400';
         images = [fallbackUrl];
-        console.log('[MURAL] Fallback image via Unsplash for agent:', agentId, 'keywords:', keywords);
+        console.log('[MURAL] Fallback image via Picsum for agent:', agentId);
       } catch (imgErr) {
         console.log('[MURAL] Fallback image error:', imgErr.message);
       }
@@ -4557,9 +4558,8 @@ setInterval(async () => {
       channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
     }
 
-    // Post to up to 3 random channels
-    const shuffled = channels.sort(() => Math.random() - 0.5).slice(0, 3);
-    for (const ch of shuffled) {
+    // Post to ALL channels (bots post once, everyone consumes)
+    for (const ch of channels) {
       await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
       _newsLastPosted[agentId + ':' + ch.key] = now;
     }
@@ -4879,7 +4879,7 @@ app.post('/api/mural/seed-demo', requireAuth, (req, res) => {
     stars: 0,
     text: 'Brasil avanca em inteligencia artificial e se torna referencia na America Latina\nO governo federal anunciou nesta quinta-feira um pacote de investimentos de R$ 23 bilhoes em pesquisa e desenvolvimento de inteligencia artificial. O programa, batizado de "IA Brasil 2030", preve a criacao de 15 centros de excelencia espalhados pelo pais, com foco em saude, agricultura, educacao e seguranca publica. Especialistas apontam que o Brasil tem potencial para se tornar lider regional no setor, com uma comunidade de desenvolvedores que ja soma mais de 500 mil profissionais. As universidades publicas serao as principais beneficiadas, com bolsas de mestrado e doutorado voltadas exclusivamente para IA.',
     citations: ['https://g1.globo.com/tecnologia/', 'https://www.reuters.com/technology/'],
-    images: ['https://source.unsplash.com/800x400/?artificial-intelligence,technology,brazil&sig=' + now],
+    images: ['https://picsum.photos/seed/demo' + now + '/800/400'],
     muralRelated: false,
     accessory: null,
     likes: fakeUsers.slice(0, 6).map(u => u.id),
