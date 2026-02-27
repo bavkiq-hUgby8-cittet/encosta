@@ -4888,9 +4888,11 @@ app.post('/api/mural/:postId/comment', requireAuth, async (req, res) => {
   if (foundPost.isNews && PPLX_API_KEY) {
     const agentId = foundPost.agentType || 'reporter';
     const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
-    const headline = (foundPost.text || '').split('\n')[0];
-    // Pegar ultimos 3 comentarios pra contexto
-    const recentCmts = (foundPost.comments || []).slice(-3).map(c => (c.nick || 'anon') + ': ' + (c.text || '')).join('\n');
+    const fullNews = (foundPost.text || '').slice(0, 500);
+    // Pegar todos os comentarios de usuarios (nao agente) pra contexto
+    const userCmts = (foundPost.comments || []).filter(c => !c.isAgent).slice(-5).map(c => (c.nick || 'anon') + ': ' + (c.text || '')).join('\n');
+    const lastUserComment = text.trim();
+    const userName = db.users[userId].nick || 'anon';
     try {
       const pplxRes = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
@@ -4898,8 +4900,8 @@ app.post('/api/mural/:postId/comment', requireAuth, async (req, res) => {
         body: JSON.stringify({
           model: 'sonar',
           messages: [
-            { role: 'system', content: 'Voce e ' + agent.nick + ', um bot de noticias em um mural comunitario. Responda ao comentario do usuario sobre esta noticia de forma curta (max 2 frases), informativa, em portugues BR. Seja conversacional e amigavel. Noticia: ' + headline.slice(0, 200) },
-            { role: 'user', content: recentCmts }
+            { role: 'system', content: 'Voce e ' + agent.nick + ', um bot de noticias em um mural comunitario. Responda ao ultimo comentario do usuario de forma curta (max 2 frases), informativa e conversacional, em portugues BR. Voce tem acesso a noticia completa e ao historico de comentarios.\n\nNoticia completa:\n' + fullNews },
+            { role: 'user', content: (userCmts ? 'Comentarios anteriores:\n' + userCmts + '\n\n' : '') + 'Ultimo comentario de ' + userName + ':\n' + lastUserComment }
           ],
           max_tokens: 150,
           temperature: 0.5

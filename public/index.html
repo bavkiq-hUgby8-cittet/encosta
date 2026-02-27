@@ -1081,7 +1081,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-news-img{margin:.3rem 0;border-radius:12px;overflow:hidden;max-height:120px;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .mural-news-img::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(13,13,20,.5) 100%);pointer-events:none;border-radius:12px}
 .mural-news-img img{width:100%;height:auto;max-height:120px;object-fit:cover;display:block;border-radius:12px}
-.mural-news-collapsed .mural-news-img,.mural-news-collapsed .mural-news-preview,.mural-news-collapsed .mural-news-body,.mural-news-collapsed .mural-news-citations,.mural-news-collapsed .mural-comments-list{display:none}
+.mural-news-collapsed .mural-news-img,.mural-news-collapsed .mural-news-preview,.mural-news-collapsed .mural-news-body,.mural-news-collapsed .mural-news-citations{display:none}
 .mural-news-stats{display:flex;gap:.5rem;align-items:center;margin-top:.2rem;font-size:.58rem;color:rgba(203,213,225,.5)}
 .mural-news-stats span{display:flex;align-items:center;gap:.15rem}
 .mural-news-expand{background:none;border:none;color:rgba(129,140,248,.7);font-size:.6rem;cursor:pointer;padding:.15rem 0;font-weight:600;font-family:inherit}
@@ -8044,9 +8044,10 @@ function _buildMuralMsgHtml(p) {
       var cmtCount = comments.length;
       var commentsHtml = '';
       if (cmtCount > 0 || true) {
-        var cmtListHtml = '';
-        var visibleCmts = comments.slice(-5); // show last 5
+        var showAll = p._showAllComments;
+        var visibleCmts = showAll ? comments : comments.slice(-2);
         var hiddenCount = cmtCount - visibleCmts.length;
+        var cmtListHtml = '';
         for (var ci = 0; ci < visibleCmts.length; ci++) {
           var c = visibleCmts[ci];
           var cLiked = (c.likes || []).indexOf(state.userId) !== -1;
@@ -8054,7 +8055,6 @@ function _buildMuralMsgHtml(p) {
           var cAgentClass = c.isAgent ? ' agent-reply' : '';
           var cNickClass = c.isAgent ? ' agent' : '';
           var cText = c.text || '';
-          // Highlight @mentions
           cText = cText.replace(/@(\S+)/g, '<span class="mention">@$1</span>');
           var cAvHtml = c.isAgent ? _muralAgentSvg(p.agentType || 'reporter', 16) : makeAvatar(c.nick || 'anon', c.color || '#888', 16);
           cmtListHtml += '<div class="mural-cmt' + cAgentClass + '">'
@@ -8071,11 +8071,12 @@ function _buildMuralMsgHtml(p) {
             + '</div></div></div>';
         }
         var showMoreBtn = hiddenCount > 0 ? '<button class="mural-comments-count" onclick="toggleAllComments(\'' + p.id + '\')">Ver todos ' + cmtCount + ' comentarios</button>' : '';
+        var collapseBtn = (showAll && cmtCount > 2) ? '<button class="mural-comments-count" onclick="collapseComments(\'' + p.id + '\')">Recolher</button>' : '';
         commentsHtml = '<div class="mural-comments">'
-          + (cmtCount > 0 ? '<button class="mural-comments-count" onclick="toggleCommentsSection(\'' + p.id + '\')">' + cmtCount + ' comentario' + (cmtCount > 1 ? 's' : '') + '</button>' : '')
-          + '<div class="mural-comments-list" id="cmts-' + p.id + '"' + (cmtCount > 3 ? ' style="display:none"' : '') + '>'
+          + '<div class="mural-comments-list" id="cmts-' + p.id + '">'
           + showMoreBtn
           + cmtListHtml
+          + collapseBtn
           + '</div>'
           + '<div class="mural-cmt-input-wrap">'
           + '<input class="mural-cmt-input" id="cmt-input-' + p.id + '" placeholder="Comentar..." maxlength="300" onkeydown="if(event.key===\'Enter\')sendComment(\'' + p.id + '\')">'
@@ -8569,17 +8570,20 @@ async function likeComment(postId, commentId) {
   } catch (e) { showToast('Erro.'); }
 }
 
-function toggleCommentsSection(postId) {
-  var el = document.getElementById('cmts-' + postId);
-  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
-}
-
 function toggleAllComments(postId) {
-  // re-render showing all comments
   var post = _muralState.posts.find(function(p) { return p.id === postId; });
   if (post) {
     post._showAllComments = true;
-    renderMuralFeed();
+    if (!post._expanded) post._expanded = true;
+    renderMuralFeed(true);
+  }
+}
+
+function collapseComments(postId) {
+  var post = _muralState.posts.find(function(p) { return p.id === postId; });
+  if (post) {
+    post._showAllComments = false;
+    renderMuralFeed(true);
   }
 }
 
