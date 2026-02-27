@@ -1125,8 +1125,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-talk-ai-btn:active{background:rgba(99,102,241,.18);border-color:rgba(99,102,241,.3)}
 .radio-fab{position:fixed;bottom:80px;right:16px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#d32f2f,#ff5252);border:none;color:#fff;font-size:1.2rem;cursor:pointer;z-index:900;box-shadow:0 3px 12px rgba(211,47,47,.4);display:flex;align-items:center;justify-content:center;transition:all .3s}
 .radio-fab.live{animation:radio-pulse 1.5s infinite;background:linear-gradient(135deg,#b71c1c,#d32f2f)}
+.radio-fab.loading{animation:radio-loading 1s infinite linear}
+.radio-fab.loading svg{opacity:.5}
 .radio-fab.hidden{display:none}
 @keyframes radio-pulse{0%,100%{box-shadow:0 3px 12px rgba(211,47,47,.4)}50%{box-shadow:0 3px 24px rgba(211,47,47,.8)}}
+@keyframes radio-loading{0%{transform:scale(1);opacity:1}50%{transform:scale(.9);opacity:.6}100%{transform:scale(1);opacity:1}}
 .mural-msg.radio{border-left:3px solid #d32f2f;background:rgba(211,47,47,.04)}
 .mural-mention{color:rgba(129,140,248,.85);font-weight:600;cursor:pointer}
 .mural-mention-dropdown{position:absolute;bottom:100%;left:.5rem;right:.5rem;background:#1a1a2e;border-radius:14px 14px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.5);max-height:160px;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:300;margin-bottom:.25rem;border:1px solid rgba(255,255,255,.08);border-bottom:none}
@@ -7776,6 +7779,9 @@ function _showRadioFab() {
   if (fab) fab.classList.remove('hidden');
 }
 
+var _radioRetryCount = 0;
+var _radioMaxRetries = 3;
+
 function radioToggle() {
   if (_radioPlaying) {
     _radioStop();
@@ -7785,12 +7791,17 @@ function radioToggle() {
 }
 
 function _radioStart() {
-  if (!_muralState.activeChannel) return;
+  if (!_muralState.activeChannel) {
+    showToast('Abra um canal primeiro.');
+    return;
+  }
   _radioPlaying = true;
   _radioSegmentIndex = 0;
+  _radioRetryCount = 0;
   var fab = $('radioFab');
-  if (fab) fab.classList.add('live');
+  if (fab) { fab.classList.add('live'); fab.classList.add('loading'); }
   haptic([30, 15, 30]);
+  showToast('Sintonizando Radio Touch...');
   // Notificar server que estou ouvindo
   if (typeof socket !== 'undefined' && socket.connected) {
     socket.emit('radio-listen', _muralState.activeChannel);
@@ -7800,6 +7811,7 @@ function _radioStart() {
 
 function _radioStop() {
   _radioPlaying = false;
+  _radioRetryCount = 0;
   if (_radioCurrentAudio) {
     _radioCurrentAudio.pause();
     _radioCurrentAudio = null;
@@ -7807,38 +7819,66 @@ function _radioStop() {
   _radioAudioQueue = [];
   _radioFetching = false;
   var fab = $('radioFab');
-  if (fab) fab.classList.remove('live');
+  if (fab) { fab.classList.remove('live'); fab.classList.remove('loading'); }
   haptic([20]);
+  showToast('Radio desligada.');
   // Notificar server que parei de ouvir
   if (typeof socket !== 'undefined' && socket.connected) {
     socket.emit('radio-stop', _muralState.activeChannel);
   }
-  fetch('/api/radio/stop/' + _muralState.activeChannel, { method: 'POST' }).catch(function(){});
+  apiFetch('/api/radio/stop/' + _muralState.activeChannel, { method: 'POST' }).catch(function(){});
 }
 
 function _radioFetchAndPlay(segmentType) {
   if (!_radioPlaying || !_muralState.activeChannel || _radioFetching) return;
   _radioFetching = true;
-  fetch('/api/radio/play/' + _muralState.activeChannel, {
+  var fab = $('radioFab');
+  if (fab) fab.classList.add('loading');
+  console.log('[RADIO] Buscando segmento:', segmentType);
+  apiFetch('/api/radio/play/' + _muralState.activeChannel, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: state.userId, segmentType: segmentType })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
   .then(function(data) {
     _radioFetching = false;
+    if (fab) fab.classList.remove('loading');
     if (!_radioPlaying) return;
     if (!data.ok || !data.segment) {
-      // Tentar proximo tipo
+      console.warn('[RADIO] Segmento vazio, tentando proximo...');
+      _radioRetryCount++;
+      if (_radioRetryCount >= _radioMaxRetries) {
+        showToast('Radio indisponivel no momento.');
+        _radioStop();
+        return;
+      }
       if (_radioPlaying) setTimeout(function() { _radioAdvance(); }, 3000);
       return;
     }
+    _radioRetryCount = 0; // reset on success
     _radioAudioQueue = data.segment.segments || [];
+    if (_radioAudioQueue.length === 0) {
+      showToast('Nenhum audio gerado. Tentando proximo...');
+      if (_radioPlaying) setTimeout(function() { _radioAdvance(); }, 3000);
+      return;
+    }
     _radioPlayNext();
   })
   .catch(function(err) {
     _radioFetching = false;
+    if (fab) fab.classList.remove('loading');
     console.error('[RADIO] Fetch error:', err);
+    _radioRetryCount++;
+    if (_radioRetryCount >= _radioMaxRetries) {
+      showToast('Erro na Radio. Tente novamente mais tarde.');
+      _radioStop();
+      return;
+    }
+    showToast('Carregando radio...');
     if (_radioPlaying) setTimeout(function() { _radioAdvance(); }, 5000);
   });
 }
@@ -7856,13 +7896,16 @@ function _radioAdvance() {
 
 function _radioPlayNext() {
   if (!_radioPlaying) return;
+  var fab = $('radioFab');
   if (_radioAudioQueue.length === 0) {
     // Fim do segmento, buscar proximo apos pausa
+    if (fab) fab.classList.add('loading');
     setTimeout(function() {
       if (_radioPlaying) _radioAdvance();
     }, 2500);
     return;
   }
+  if (fab) fab.classList.remove('loading');
   var seg = _radioAudioQueue.shift();
   try {
     var audioSrc = 'data:audio/mp3;base64,' + seg.audio;
@@ -7872,17 +7915,20 @@ function _radioPlayNext() {
       _radioCurrentAudio = null;
       setTimeout(function() { _radioPlayNext(); }, 600);
     };
-    _radioCurrentAudio.onerror = function() {
+    _radioCurrentAudio.onerror = function(e) {
+      console.error('[RADIO] Audio error:', e);
       _radioCurrentAudio = null;
       _radioPlayNext();
     };
-    _radioCurrentAudio.play().catch(function(e) {
+    _radioCurrentAudio.play().then(function() {
+      console.log('[RADIO] Tocando:', seg.speaker || 'DJ Touch');
+    }).catch(function(e) {
       console.error('[RADIO] Play blocked:', e.message);
-      // Em mobile, precisa de interacao do usuario primeiro
-      _radioCurrentAudio = null;
-      _radioPlayNext();
+      showToast('Audio bloqueado. Toque no botao novamente.');
+      _radioStop();
     });
   } catch (e) {
+    console.error('[RADIO] Audio exception:', e);
     _radioPlayNext();
   }
 }

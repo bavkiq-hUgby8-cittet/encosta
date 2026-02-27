@@ -12906,8 +12906,13 @@ app.post('/api/radio/play/:channelKey', async (req, res) => {
   const types = ['abertura', 'noticia', 'interacao', 'entrevista', 'vinheta'];
   const type = segmentType || types[Math.floor(Math.random() * types.length)];
 
+  console.log('[RADIO] Gerando segmento tipo=' + type + ' canal=' + channelKey);
   const segment = await _generateRadioSegment(channelKey, type);
-  if (!segment) return res.status(500).json({ error: 'Nao foi possivel gerar segmento.' });
+  if (!segment) {
+    console.error('[RADIO] Falha ao gerar segmento tipo=' + type);
+    return res.status(500).json({ ok: false, error: 'Nao foi possivel gerar segmento.' });
+  }
+  console.log('[RADIO] Segmento gerado com ' + segment.segments.length + ' audios');
 
   rs.currentSegment = segment;
   rs.lastSegmentAt = Date.now();
