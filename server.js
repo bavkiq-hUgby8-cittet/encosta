@@ -4852,6 +4852,60 @@ app.post('/api/mural/agents/toggle', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/mural/seed-demo — insere reportagem demo com comentarios e curtidas
+app.post('/api/mural/seed-demo', requireAuth, (req, res) => {
+  const { channelKey } = req.body;
+  if (!channelKey) return res.status(400).json({ error: 'channelKey obrigatorio.' });
+  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+  const now = Date.now();
+  const fakeUsers = [
+    { id: 'demo_usr1', nick: 'Marina', color: '#f472b6' },
+    { id: 'demo_usr2', nick: 'Carlos', color: '#60a5fa' },
+    { id: 'demo_usr3', nick: 'Pedro', color: '#34d399' },
+    { id: 'demo_usr4', nick: 'Ana', color: '#fbbf24' },
+    { id: 'demo_usr5', nick: 'Joao', color: '#a78bfa' },
+    { id: 'demo_usr6', nick: 'Lucia', color: '#fb923c' },
+    { id: 'demo_usr7', nick: 'Rafael', color: '#38bdf8' },
+  ];
+  const demoPost = {
+    id: 'mrl_demo_' + now,
+    channelKey,
+    channelName: 'Demo',
+    channelType: 'city',
+    userId: 'news-agent',
+    nick: 'Reporter',
+    color: '#e65100',
+    agentType: 'reporter',
+    stars: 0,
+    text: 'Brasil avanca em inteligencia artificial e se torna referencia na America Latina\nO governo federal anunciou nesta quinta-feira um pacote de investimentos de R$ 23 bilhoes em pesquisa e desenvolvimento de inteligencia artificial. O programa, batizado de "IA Brasil 2030", preve a criacao de 15 centros de excelencia espalhados pelo pais, com foco em saude, agricultura, educacao e seguranca publica. Especialistas apontam que o Brasil tem potencial para se tornar lider regional no setor, com uma comunidade de desenvolvedores que ja soma mais de 500 mil profissionais. As universidades publicas serao as principais beneficiadas, com bolsas de mestrado e doutorado voltadas exclusivamente para IA.',
+    citations: ['https://g1.globo.com/tecnologia/', 'https://www.reuters.com/technology/'],
+    images: ['https://source.unsplash.com/800x400/?artificial-intelligence,technology,brazil&sig=' + now],
+    muralRelated: false,
+    accessory: null,
+    likes: fakeUsers.slice(0, 6).map(u => u.id),
+    comments: [
+      { id: 'cmt_d1', userId: fakeUsers[0].id, nick: fakeUsers[0].nick, color: fakeUsers[0].color, text: 'Finalmente o Brasil investindo em tecnologia de verdade! Espero que as universidades publicas sejam priorizadas mesmo', likes: [fakeUsers[1].id, fakeUsers[2].id, fakeUsers[4].id], createdAt: now - 3600000 },
+      { id: 'cmt_d2', userId: fakeUsers[1].id, nick: fakeUsers[1].nick, color: fakeUsers[1].color, text: 'R$ 23 bilhoes parece muito mas quando distribui entre 15 centros da menos de 2 bi por centro. Sera que e suficiente?', likes: [fakeUsers[0].id, fakeUsers[3].id], createdAt: now - 3200000 },
+      { id: 'cmt_d3', userId: fakeUsers[2].id, nick: fakeUsers[2].nick, color: fakeUsers[2].color, text: '@Reporter qual e o prazo pra esses centros comecarem a funcionar?', likes: [fakeUsers[0].id], isMention: true, createdAt: now - 2800000 },
+      { id: 'cmt_d3r', userId: 'agent-reporter', nick: 'Reporter', color: '#e65100', text: 'Segundo o cronograma do governo, os primeiros 5 centros devem comecar a operar ate o final de 2027, com os demais sendo inaugurados ate 2029. O foco inicial sera nas regioes Sudeste e Nordeste.', likes: [fakeUsers[2].id, fakeUsers[0].id, fakeUsers[4].id], isAgent: true, createdAt: now - 2700000 },
+      { id: 'cmt_d4', userId: fakeUsers[3].id, nick: fakeUsers[3].nick, color: fakeUsers[3].color, text: 'Como profissional de TI fico animada! A area de IA paga muito bem e com mais investimento vai ter mais oportunidade pra todo mundo', likes: [fakeUsers[0].id, fakeUsers[1].id, fakeUsers[5].id, fakeUsers[6].id], createdAt: now - 2000000 },
+      { id: 'cmt_d5', userId: fakeUsers[4].id, nick: fakeUsers[4].nick, color: fakeUsers[4].color, text: 'Sera que vai ter bolsa pra quem ja ta na graduacao ou so mestrado/doutorado?', likes: [fakeUsers[5].id], createdAt: now - 1500000 },
+      { id: 'cmt_d6', userId: fakeUsers[5].id, nick: fakeUsers[5].nick, color: fakeUsers[5].color, text: 'O mais importante e que esse investimento nao seja desviado. Precisamos de transparencia total', likes: [fakeUsers[0].id, fakeUsers[1].id, fakeUsers[2].id], createdAt: now - 1000000 },
+      { id: 'cmt_d7', userId: fakeUsers[6].id, nick: fakeUsers[6].nick, color: fakeUsers[6].color, text: '500 mil devs de IA no Brasil? Impressionante. Mas a maioria ta ganhando pouco... tomara que melhore', likes: [fakeUsers[3].id, fakeUsers[4].id], createdAt: now - 500000 },
+    ],
+    createdAt: now - 4 * 3600000,
+    expiresAt: now + 24 * 3600000,
+    hidden: false,
+    isNarrator: false,
+    isNews: true,
+    newsTopic: 'Noticias Gerais'
+  };
+  db.muralPosts[channelKey].push(demoPost);
+  saveDBNow('muralPosts');
+  io.to('mural:' + channelKey).emit('mural-new-post', { post: demoPost });
+  res.json({ ok: true, post: demoPost });
+});
+
 // GET /api/mural/:channelKey/next-news — when is the next auto news?
 app.get('/api/mural/:channelKey/next-news', (req, res) => {
   const channelKey = req.params.channelKey;
