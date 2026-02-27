@@ -690,6 +690,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <div class="op-toggle"><span>Só revelados</span><div class="op-toggle-switch" id="opToggleReveal" onclick="toggleRequireReveal()"><div class="op-toggle-dot"></div></div></div>
       <div class="op-toggle"><span>Nomes reais</span><div class="op-toggle-switch on" id="opToggleNames" onclick="toggleShowRealNames()"><div class="op-toggle-dot"></div></div></div>
       <div class="op-toggle"><span>Sem fotos</span><div class="op-toggle-switch" id="opTogglePhotos" onclick="toggleHidePhotos()"><div class="op-toggle-dot"></div></div></div>
+      <div class="op-toggle" style="border-left:1px solid rgba(255,255,255,.08);padding-left:.5rem;margin-left:.3rem"><span style="color:rgba(251,146,60,.8)">Noticias AI</span><div class="op-toggle-switch" id="opToggleNews" onclick="toggleNewsEngine()"><div class="op-toggle-dot"></div></div></div>
       <div class="op-user" id="opUserName"></div>
       <button class="op-hdr-btn" onclick="opBackToEvents()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Eventos</button>
       <button class="op-hdr-btn danger" onclick="opEndEvent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg> Encerrar</button>
@@ -1029,6 +1030,7 @@ function $(id){return document.getElementById(id)}
         $('opSetup').style.display='none';$('opApp').style.display='none';
         // Show events screen instead of going directly to dashboard
         showEventsScreen();
+        loadNewsEngineState();
       }
     }else{$('opLogin').style.display='';$('opApp').style.display='none';$('opSetup').style.display='none';$('opEvents').style.display='none'}
   });
@@ -1864,6 +1866,27 @@ function toggleHidePhotos(){
   S.hidePhotos=!S.hidePhotos;
   const sw=$('opTogglePhotos');
   if(S.hidePhotos)sw.classList.add('on');else sw.classList.remove('on');
+}
+async function toggleNewsEngine(){
+  const sw=$('opToggleNews');
+  const isOn=sw.classList.contains('on');
+  const newState=!isOn;
+  try{
+    const r=await fetch('/api/mural/news-engine',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.token},body:JSON.stringify({enabled:newState})});
+    const d=await r.json();
+    if(d.ok){
+      if(d.enabled)sw.classList.add('on');else sw.classList.remove('on');
+      console.log('[news-engine]',d.enabled?'LIGADO':'DESLIGADO');
+    }
+  }catch(e){console.error('toggle news error',e)}
+}
+async function loadNewsEngineState(){
+  try{
+    const r=await fetch('/api/mural/news-engine');
+    const d=await r.json();
+    const sw=$('opToggleNews');
+    if(sw&&d.enabled)sw.classList.add('on');
+  }catch(e){}
 }
 function markPaidPresencial(userId,btn){
   const ci=S.checkins.find(c=>c.userId===userId);

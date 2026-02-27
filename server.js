@@ -4347,6 +4347,7 @@ const MURAL_AGENTS = {
 // Fila round-robin: todos os agentes postam a cada 30 min alternando
 const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => !MURAL_AGENTS[k].isUrgent);
 let _agentQueueIndex = 0;
+let _newsEngineEnabled = false; // Motor de noticias desligado por padrao (economizar API)
 
 // Backward compatible mapping
 const NEWS_TOPICS = {};
@@ -4538,9 +4539,9 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
   console.log('[' + agentId + '] Posted to #' + channelKey + (muralRelated ? ' (mural-related)' : '') + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
 
-// Auto-post news: round-robin a cada 30 min (alterna entre agentes)
+// Auto-post news: round-robin a cada 10 min (alterna entre agentes)
 setInterval(async () => {
-  if (!PPLX_API_KEY) return;
+  if (!PPLX_API_KEY || !_newsEngineEnabled) return;
   try {
     const now = Date.now();
     // Pegar proximo agente da fila (round-robin)
@@ -4572,7 +4573,7 @@ setInterval(async () => {
 
 // Agente URGENTE: checa a cada 15 min se ha algo urgente (fura a fila)
 setInterval(async () => {
-  if (!PPLX_API_KEY) return;
+  if (!PPLX_API_KEY || !_newsEngineEnabled) return;
   const urgAgent = MURAL_AGENTS.urgente;
   if (!urgAgent || !urgAgent.enabled) return;
   try {
@@ -4826,6 +4827,19 @@ app.post('/api/mural/:postId/ask-agent', requireAuth, async (req, res) => {
 });
 
 // GET /api/mural/agents/config — get agent configuration
+// GET /api/mural/news-engine — status do motor de noticias
+app.get('/api/mural/news-engine', (req, res) => {
+  res.json({ enabled: _newsEngineEnabled });
+});
+
+// POST /api/mural/news-engine — liga/desliga motor de noticias (operator only)
+app.post('/api/mural/news-engine', requireAuth, (req, res) => {
+  const { enabled } = req.body;
+  _newsEngineEnabled = !!enabled;
+  console.log('[news-engine] Motor de noticias ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO'));
+  res.json({ ok: true, enabled: _newsEngineEnabled });
+});
+
 app.get('/api/mural/agents/config', (req, res) => {
   const config = {};
   for (const [id, agent] of Object.entries(MURAL_AGENTS)) {
