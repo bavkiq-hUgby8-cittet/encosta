@@ -993,11 +993,6 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-header .mural-online-count{font-size:.55rem;color:rgba(52,211,153,.8);padding:.2rem .5rem;background:rgba(52,211,153,.1);border-radius:10px;white-space:nowrap;border:1px solid rgba(52,211,153,.15)}
 .mural-header .mural-mod-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:rgba(255,255,255,.6);font-size:.65rem;cursor:pointer;padding:.3rem .45rem;transition:all .2s}
 .mural-header .mural-mod-btn:active{background:rgba(255,255,255,.15);color:#fff}
-.mural-news-toggle{display:flex;align-items:center;gap:.25rem;padding:.15rem .35rem;background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.15);border-radius:10px}
-.mural-news-toggle-switch{width:28px;height:16px;background:rgba(255,255,255,.15);border-radius:8px;position:relative;cursor:pointer;transition:background .3s}
-.mural-news-toggle-switch.active{background:rgba(251,146,60,.7)}
-.mural-news-toggle-dot{width:12px;height:12px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform .3s}
-.mural-news-toggle-switch.active .mural-news-toggle-dot{transform:translateX(12px)}
 .mural-news-clear-btn{background:none;border:none;color:rgba(239,68,68,.7);cursor:pointer;padding:2px;display:flex;align-items:center}
 .mural-news-clear-btn:active{color:rgba(239,68,68,1)}
 .mural-channels{display:flex;gap:.3rem;padding:.4rem .6rem;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;z-index:2;background:#0c0c16;border-bottom:1px solid rgba(255,255,255,.04)}
@@ -2640,15 +2635,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <button class="mural-mod-btn" id="muralAgentsBtn" onclick="openAgentPanel()" title="Agentes">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m2.12 2.12l4.24 4.24M1 12h6m6 0h6M4.22 19.78l4.24-4.24m2.12-2.12l4.24-4.24M19.78 19.78l-4.24-4.24m-2.12-2.12l-4.24-4.24"/></svg>
     </button>
-    <div class="mural-news-toggle hidden" id="muralNewsToggle" title="Ligar/Desligar noticias AI">
-      <span style="font-size:.55rem;color:rgba(251,146,60,.85);font-weight:600">AI</span>
-      <div class="mural-news-toggle-switch" id="muralNewsToggleSwitch" onclick="toggleMuralNewsEngine()">
-        <div class="mural-news-toggle-dot"></div>
-      </div>
-      <button class="mural-news-clear-btn" onclick="clearMuralNews()" title="Limpar tudo do mural">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-      </button>
-    </div>
+    <button class="mural-news-clear-btn hidden" id="muralClearBtn" onclick="clearMuralNews()" title="Limpar tudo do mural">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+    </button>
   </div>
   <div class="mural-channels" id="muralChannels"></div>
   <div class="mural-next-news hidden" id="muralNextNews"></div>
@@ -8831,63 +8820,18 @@ async function _checkMuralMod() {
       if (_muralState.isMod) newsBtn.classList.remove('hidden');
       else newsBtn.classList.add('hidden');
     }
-    // Show news toggle only for top1 or admin
-    var newsToggle = $('muralNewsToggle');
-    if (newsToggle) {
+    // Show clear button only for top1 or admin
+    var clearBtn = $('muralClearBtn');
+    if (clearBtn) {
       if (d.isAdmin || d.tier === 'top1') {
-        newsToggle.classList.remove('hidden');
-        _loadMuralNewsToggleState();
+        clearBtn.classList.remove('hidden');
       } else {
-        newsToggle.classList.add('hidden');
+        clearBtn.classList.add('hidden');
       }
     }
   } catch (e) { /* ignore */ }
 }
 
-async function _loadMuralNewsToggleState() {
-  try {
-    var r = await apiFetch('/api/mural/news-engine');
-    var d = await r.json();
-    var sw = $('muralNewsToggleSwitch');
-    if (sw) {
-      if (d.enabled) sw.classList.add('active');
-      else sw.classList.remove('active');
-    }
-  } catch (e) { /* ignore */ }
-}
-
-async function toggleMuralNewsEngine() {
-  var sw = $('muralNewsToggleSwitch');
-  if (!sw) return;
-  var isActive = sw.classList.contains('active');
-  var newState = !isActive;
-  // Feedback visual imediato
-  if (newState) sw.classList.add('active');
-  else sw.classList.remove('active');
-  try {
-    var r = await apiFetch('/api/mural/news-engine', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: newState, userId: state.userId })
-    });
-    var d = await r.json();
-    if (d.ok) {
-      if (d.enabled) sw.classList.add('active');
-      else sw.classList.remove('active');
-      showToast(d.enabled ? 'Noticias AI ligadas' : 'Noticias AI desligadas');
-    } else {
-      // Reverter
-      if (isActive) sw.classList.add('active');
-      else sw.classList.remove('active');
-      showToast(d.error || 'Erro');
-    }
-  } catch (e) {
-    // Reverter
-    if (isActive) sw.classList.add('active');
-    else sw.classList.remove('active');
-    showToast('Erro ao alterar noticias: ' + (e.message || ''));
-  }
-}
 
 async function clearMuralNews() {
   if (!confirm('Limpar TODAS as mensagens do Mural (noticias e conversas)?')) return;

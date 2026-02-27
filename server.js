@@ -4455,15 +4455,8 @@ const MURAL_AGENTS = {
 // Fila round-robin: todos os agentes postam a cada 30 min alternando
 const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => !MURAL_AGENTS[k].isUrgent);
 let _agentQueueIndex = 0;
-// Persistido em db.muralFlags.newsEngineOn para sobreviver restart
-let _newsEngineEnabled = false;
-// Carregar estado salvo quando db estiver pronto (chamado apos loadDB)
-function _loadNewsEngineState() {
-  if (db.muralFlags && typeof db.muralFlags.newsEngineOn !== 'undefined') {
-    _newsEngineEnabled = !!db.muralFlags.newsEngineOn;
-  }
-  console.log('[news-engine] Estado restaurado: ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO'));
-}
+// Motor de noticias sempre ligado (sem toggle)
+const _newsEngineEnabled = true;
 
 // Backward compatible mapping
 const NEWS_TOPICS = {};
@@ -4948,23 +4941,6 @@ app.post('/api/mural/:postId/ask-agent', requireAuth, async (req, res) => {
 });
 
 // GET /api/mural/agents/config — get agent configuration
-// GET /api/mural/news-engine — status do motor de noticias
-app.get('/api/mural/news-engine', (req, res) => {
-  res.json({ enabled: _newsEngineEnabled });
-});
-
-// POST /api/mural/news-engine — liga/desliga motor de noticias (operator only)
-app.post('/api/mural/news-engine', requireAuth, (req, res) => {
-  const { enabled } = req.body;
-  _newsEngineEnabled = !!enabled;
-  // Persistir no banco para sobreviver restarts
-  if (!db.muralFlags) db.muralFlags = {};
-  db.muralFlags.newsEngineOn = _newsEngineEnabled;
-  saveDBNow('muralFlags');
-  console.log('[news-engine] Motor de noticias ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO') + ' (salvo)');
-  res.json({ ok: true, enabled: _newsEngineEnabled });
-});
-
 app.get('/api/mural/agents/config', (req, res) => {
   const config = {};
   for (const [id, agent] of Object.entries(MURAL_AGENTS)) {
@@ -12593,7 +12569,7 @@ const PORT = process.env.PORT || 3000;
     dbLoaded = true; // start with empty DB
   }
   console.log('✅ loadDB concluído, abrindo porta...');
-  _loadNewsEngineState();
+  console.log('[news-engine] Motor de noticias sempre LIGADO');
 
 // Cleanup function for graceful shutdown
 function cleanupIntervals() {
