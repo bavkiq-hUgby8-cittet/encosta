@@ -4452,14 +4452,14 @@ const MURAL_AGENTS = {
 // Fila round-robin: todos os agentes postam a cada 30 min alternando
 const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => !MURAL_AGENTS[k].isUrgent);
 let _agentQueueIndex = 0;
-// Persistido em db.muralFlags._newsEngineEnabled para sobreviver restart
+// Persistido em db.muralFlags.newsEngineOn para sobreviver restart
 let _newsEngineEnabled = false;
 // Carregar estado salvo quando db estiver pronto (chamado apos loadDB)
 function _loadNewsEngineState() {
-  if (db.muralFlags && db.muralFlags._newsEngineEnabled !== undefined) {
-    _newsEngineEnabled = !!db.muralFlags._newsEngineEnabled;
-    console.log('[news-engine] Estado restaurado do banco: ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO'));
+  if (db.muralFlags && typeof db.muralFlags.newsEngineOn !== 'undefined') {
+    _newsEngineEnabled = !!db.muralFlags.newsEngineOn;
   }
+  console.log('[news-engine] Estado restaurado: ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO'));
 }
 
 // Backward compatible mapping
@@ -4956,7 +4956,7 @@ app.post('/api/mural/news-engine', requireAuth, (req, res) => {
   _newsEngineEnabled = !!enabled;
   // Persistir no banco para sobreviver restarts
   if (!db.muralFlags) db.muralFlags = {};
-  db.muralFlags._newsEngineEnabled = _newsEngineEnabled;
+  db.muralFlags.newsEngineOn = _newsEngineEnabled;
   saveDBNow('muralFlags');
   console.log('[news-engine] Motor de noticias ' + (_newsEngineEnabled ? 'LIGADO' : 'DESLIGADO') + ' (salvo)');
   res.json({ ok: true, enabled: _newsEngineEnabled });
@@ -12610,21 +12610,6 @@ process.on('SIGINT', () => {
   cleanupIntervals();
   process.exit(0);
 });
-
-  // Limpeza unica de noticias antigas no boot (remover este bloco depois)
-  (function clearOldNews() {
-    let total = 0;
-    for (const ch of Object.keys(db.muralPosts || {})) {
-      if (!Array.isArray(db.muralPosts[ch])) continue;
-      const before = db.muralPosts[ch].length;
-      db.muralPosts[ch] = db.muralPosts[ch].filter(p => !p.isNews);
-      total += before - db.muralPosts[ch].length;
-    }
-    if (total > 0) {
-      saveDBNow('muralPosts');
-      console.log('[boot] Limpeza de noticias: removidas ' + total + ' noticias antigas');
-    }
-  })();
 
   server.listen(PORT, '0.0.0.0', () => {
     const nets = require('os').networkInterfaces();
