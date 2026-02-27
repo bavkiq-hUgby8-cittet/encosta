@@ -4505,6 +4505,7 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
     muralRelated: muralRelated,
     accessory: null,
     likes: [],
+    comments: [],
     createdAt: Date.now(),
     expiresAt: Date.now() + 24 * 3600000,
     hidden: false,
@@ -4567,7 +4568,7 @@ setInterval(async () => {
   } catch (e) {
     console.error('[agents] Error in round-robin cycle:', e.message);
   }
-}, 30 * 60 * 1000); // 30 minutos
+}, 10 * 60 * 1000); // 10 minutos
 
 // Agente URGENTE: checa a cada 15 min se ha algo urgente (fura a fila)
 setInterval(async () => {
@@ -4663,6 +4664,7 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     muralRelated: !!(result && result.muralRelated),
     accessory: null,
     likes: [],
+    comments: [],
     createdAt: Date.now(),
     expiresAt: Date.now() + 24 * 3600000,
     hidden: false,
@@ -4701,6 +4703,126 @@ app.post('/api/mural/:postId/like', requireAuth, (req, res) => {
   saveDBNow('muralPosts');
   io.to('mural:' + foundChannel).emit('mural-post-liked', { postId, likes: foundPost.likes });
   res.json({ ok: true, likes: foundPost.likes });
+});
+
+// POST /api/mural/:postId/comment — add comment to a post
+app.post('/api/mural/:postId/comment', requireAuth, (req, res) => {
+  const { postId } = req.params;
+  const { userId, text } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!text || text.trim().length === 0) return res.status(400).json({ error: 'Comentario vazio.' });
+  if (text.trim().length > 300) return res.status(400).json({ error: 'Maximo 300 caracteres.' });
+  let foundPost = null, foundChannel = null;
+  for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    const p = posts.find(pp => pp.id === postId);
+    if (p) { foundPost = p; foundChannel = ch; break; }
+  }
+  if (!foundPost) return res.status(404).json({ error: 'Post nao encontrado.' });
+  if (!foundPost.comments) foundPost.comments = [];
+  const comment = {
+    id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+    userId,
+    nick: db.users[userId].nick || 'anon',
+    color: db.users[userId].color || '#888',
+    text: text.trim(),
+    likes: [],
+    createdAt: Date.now()
+  };
+  foundPost.comments.push(comment);
+  saveDBNow('muralPosts');
+  io.to('mural:' + foundChannel).emit('mural-new-comment', { postId, comment });
+  res.json({ ok: true, comment });
+});
+
+// POST /api/mural/:postId/comment/:commentId/like — like a comment
+app.post('/api/mural/:postId/comment/:commentId/like', requireAuth, (req, res) => {
+  const { postId, commentId } = req.params;
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  let foundPost = null, foundChannel = null;
+  for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    const p = posts.find(pp => pp.id === postId);
+    if (p) { foundPost = p; foundChannel = ch; break; }
+  }
+  if (!foundPost) return res.status(404).json({ error: 'Post nao encontrado.' });
+  if (!foundPost.comments) foundPost.comments = [];
+  const cmt = foundPost.comments.find(c => c.id === commentId);
+  if (!cmt) return res.status(404).json({ error: 'Comentario nao encontrado.' });
+  if (!cmt.likes) cmt.likes = [];
+  if (cmt.likes.includes(userId)) {
+    cmt.likes = cmt.likes.filter(id => id !== userId);
+  } else {
+    cmt.likes.push(userId);
+  }
+  saveDBNow('muralPosts');
+  io.to('mural:' + foundChannel).emit('mural-comment-liked', { postId, commentId, likes: cmt.likes });
+  res.json({ ok: true, likes: cmt.likes });
+});
+
+// POST /api/mural/:postId/ask-agent — ask the news agent about the topic
+app.post('/api/mural/:postId/ask-agent', requireAuth, async (req, res) => {
+  const { postId } = req.params;
+  const { userId, question } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!question || question.trim().length === 0) return res.status(400).json({ error: 'Pergunta vazia.' });
+  if (!PPLX_API_KEY) return res.status(500).json({ error: 'API indisponivel.' });
+  let foundPost = null, foundChannel = null;
+  for (const [ch, posts] of Object.entries(db.muralPosts)) {
+    const p = posts.find(pp => pp.id === postId);
+    if (p) { foundPost = p; foundChannel = ch; break; }
+  }
+  if (!foundPost || !foundPost.isNews) return res.status(404).json({ error: 'Noticia nao encontrada.' });
+  const agentId = foundPost.agentType || 'reporter';
+  const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
+  const headline = (foundPost.text || '').split('\n')[0];
+  try {
+    const pplxRes = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + PPLX_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          { role: 'system', content: 'Voce e ' + agent.nick + ', um bot de noticias. Responda a pergunta do usuario sobre esta noticia de forma curta (max 150 palavras), informativa e em portugues BR. Noticia: ' + headline },
+          { role: 'user', content: question.trim() }
+        ],
+        max_tokens: 300
+      })
+    });
+    const pplxData = await pplxRes.json();
+    const answer = pplxData.choices && pplxData.choices[0] && pplxData.choices[0].message ? pplxData.choices[0].message.content : 'Desculpe, nao consegui responder agora.';
+    // Add as a comment from the agent
+    if (!foundPost.comments) foundPost.comments = [];
+    const agentComment = {
+      id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+      userId: 'agent-' + agentId,
+      nick: agent.nick,
+      color: agent.color,
+      text: answer.trim(),
+      likes: [],
+      isAgent: true,
+      createdAt: Date.now()
+    };
+    foundPost.comments.push(agentComment);
+    // Also add user question as comment
+    const userComment = {
+      id: 'cmt_' + (Date.now() - 1) + '_' + Math.random().toString(36).slice(2, 5),
+      userId,
+      nick: db.users[userId].nick || 'anon',
+      color: db.users[userId].color || '#888',
+      text: '@' + agent.nick + ' ' + question.trim(),
+      likes: [],
+      isMention: true,
+      createdAt: Date.now() - 1
+    };
+    foundPost.comments.splice(foundPost.comments.length - 1, 0, userComment);
+    saveDBNow('muralPosts');
+    io.to('mural:' + foundChannel).emit('mural-new-comment', { postId, comment: userComment });
+    io.to('mural:' + foundChannel).emit('mural-new-comment', { postId, comment: agentComment });
+    res.json({ ok: true, userComment, agentComment });
+  } catch (e) {
+    console.error('[ask-agent] Error:', e.message);
+    res.status(500).json({ error: 'Erro ao consultar agente.' });
+  }
 });
 
 // GET /api/mural/agents/config — get agent configuration
