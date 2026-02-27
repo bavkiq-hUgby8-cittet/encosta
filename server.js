@@ -4003,6 +4003,37 @@ async function reverseGeocode(lat, lng) {
   }
 }
 
+// Canais dinamicos: encontra cidades de conexoes recentes (ultimos 10 dias)
+function _getDynamicChannels(userId) {
+  const TEN_DAYS = 10 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const userGeo = db.users[userId] && db.users[userId].muralGeo;
+  const userCityKey = userGeo ? normalizeChannel(userGeo.city + '-' + (userGeo.countryCode || '')) : '';
+  const dynChannels = [];
+  const seenKeys = new Set();
+  for (const rel of Object.values(db.relations || {})) {
+    // Conexao dos ultimos 10 dias
+    if (!rel.createdAt || (now - rel.createdAt) > TEN_DAYS) continue;
+    const otherId = rel.userA === userId ? rel.userB : (rel.userB === userId ? rel.userA : null);
+    if (!otherId) continue;
+    const other = db.users[otherId];
+    if (!other || !other.muralGeo || !other.muralGeo.city) continue;
+    const otherGeo = other.muralGeo;
+    const cityKey = normalizeChannel(otherGeo.city + '-' + (otherGeo.countryCode || ''));
+    // So adicionar se e uma cidade diferente da do usuario
+    if (cityKey === userCityKey || seenKeys.has(cityKey)) continue;
+    seenKeys.add(cityKey);
+    dynChannels.push({
+      type: 'dynamic',
+      name: otherGeo.city,
+      key: cityKey,
+      expiresAt: rel.createdAt + TEN_DAYS,
+      fromUser: other.nickname || otherId
+    });
+  }
+  return dynChannels;
+}
+
 // GET /api/mural/geocode/:userId — detect user city from stored location
 app.get('/api/mural/geocode/:userId', requireAuth, async (req, res) => {
   const userId = req.params.userId;
@@ -4015,14 +4046,19 @@ app.get('/api/mural/geocode/:userId', requireAuth, async (req, res) => {
   // Cache on user object
   user.muralGeo = { ...geo, updatedAt: Date.now() };
   saveDB('users');
-  // Build channels list (city, state, country, continent, mundo)
+  // Build channels list (cidade, estado, pais)
   const channels = [];
   if (geo.city) channels.push({ type: 'city', name: geo.city, key: normalizeChannel(geo.city + '-' + geo.countryCode) });
   if (geo.state) channels.push({ type: 'state', name: geo.state, key: normalizeChannel(geo.state + '-' + geo.countryCode) });
   if (geo.country) channels.push({ type: 'country', name: geo.country, key: normalizeChannel(geo.country) });
-  if (geo.continent) channels.push({ type: 'region', name: geo.continent, key: normalizeChannel(geo.continent) });
-  // Canal global: Mundo (todas as pessoas do mundo se encontram)
-  channels.push({ type: 'world', name: 'Mundo', key: 'mundo-global' });
+  // Canais dinamicos: cidades de conexoes recentes (touch em outra cidade, dura 10 dias)
+  const dynChannels = _getDynamicChannels(userId);
+  for (const dc of dynChannels) {
+    // Evitar duplicata com canais ja existentes
+    if (!channels.find(c => c.key === dc.key)) {
+      channels.push(dc);
+    }
+  }
   res.json({ ok: true, geo, channels });
 });
 
