@@ -4399,13 +4399,18 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
       citations = data.citations.slice(0, 3);
     }
 
-    // Extrair imagens da API (Perplexity retorna array de {imageUrl, originUrl, width, height})
+    // Extrair imagens da API (Perplexity retorna array de {image_url, origin_url, title, width, height})
     let images = [];
-    if (data.images && Array.isArray(data.images)) {
+    if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+      console.log('[DEV] Perplexity images raw:', JSON.stringify(data.images.slice(0, 2)));
       images = data.images.slice(0, 2).map(img => {
         if (typeof img === 'string') return img;
-        return img.imageUrl || img.url || img.src || '';
+        if (typeof img === 'object' && img !== null) {
+          return img.image_url || img.imageUrl || img.url || img.src || '';
+        }
+        return '';
       }).filter(u => u && u.startsWith('http'));
+      console.log('[DEV] Parsed images:', images);
     }
 
     // Se o modelo nao incluiu "Fonte:", tentar extrair das citations da API
