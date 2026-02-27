@@ -4449,6 +4449,16 @@ const MURAL_AGENTS = {
     systemPrompt: 'Voce e o Prof. Saber, um professor curioso e didatico. Traga curiosidades, fatos interessantes e conteudo educativo. Formato: Uma frase de titulo curiosa na primeira linha.\n\nExplicacao didatica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Ensine algo novo.',
     queryTemplate: 'Curiosidade interessante ou fato educativo do dia. Algo surpreendente que as pessoas nao sabem.',
     enabled: true
+  },
+  clima: {
+    id: 'clima',
+    nick: 'ClimaBot',
+    color: '#1976d2',
+    label: 'Clima e Tempo',
+    description: 'Previsao do tempo e alertas climaticos',
+    systemPrompt: 'Voce e o ClimaBot, um meteorologista digital confiavel. Traga a previsao do tempo atual, alertas climaticos e informacoes uteis sobre o clima. Fale de forma clara e pratica, como um apresentador de previsao do tempo. Formato: Uma frase de titulo sobre o clima na primeira linha.\n\nPrevisao detalhada em 2-3 frases com temperatura, chuva e dicas praticas. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    queryTemplate: 'Previsao do tempo de hoje e amanha para {local}. Inclua temperatura, chance de chuva, umidade e se ha alertas meteorologicos. Foque no que as pessoas precisam saber para sair de casa.',
+    enabled: true
   }
 };
 
