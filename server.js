@@ -4414,9 +4414,10 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
     let text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
     if (!text || text.length < 20) return null;
     // Limpar formatacao markdown que aparece literalmente na tela
-    text = text.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove **bold**
-    text = text.replace(/\[([\d]+)\]/g, '');      // Remove [1], [2], etc
-    text = text.replace(/  +/g, ' ');              // Colapsar espacos duplos
+    text = text.replace(/\*\*/g, '');         // Remove todos **
+    text = text.replace(/\*/g, '');           // Remove * soltos
+    text = text.replace(/\[\d+\]/g, '');      // Remove [1], [2], etc
+    text = text.replace(/  +/g, ' ');         // Colapsar espacos duplos
     text = text.trim().slice(0, 500);
 
     // Extrair citations da API
