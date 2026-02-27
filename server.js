@@ -4399,18 +4399,42 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
       citations = data.citations.slice(0, 3);
     }
 
-    // Extrair imagens da API (Perplexity retorna array de {image_url, origin_url, title, width, height})
+    // Extrair imagens da API (Perplexity retorna array de {imageUrl, originUrl, title, width, height})
     let images = [];
     if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-      console.log('[DEV] Perplexity images raw:', JSON.stringify(data.images.slice(0, 2)));
+      console.log('[MURAL] Perplexity images raw:', JSON.stringify(data.images.slice(0, 3)));
       images = data.images.slice(0, 2).map(img => {
         if (typeof img === 'string') return img;
         if (typeof img === 'object' && img !== null) {
-          return img.image_url || img.imageUrl || img.url || img.src || '';
+          return img.imageUrl || img.image_url || img.url || img.src || '';
         }
         return '';
       }).filter(u => u && u.startsWith('http'));
-      console.log('[DEV] Parsed images:', images);
+      console.log('[MURAL] Parsed images:', images);
+    } else {
+      console.log('[MURAL] Perplexity returned no images. data.images:', data.images || 'undefined');
+    }
+
+    // Fallback: se Perplexity nao retornou imagens, usar imagem tematica do Picsum/Unsplash
+    if (images.length === 0 && text) {
+      try {
+        const agentKeywords = {
+          reporter: 'newspaper,city,news',
+          fitness: 'fitness,exercise,gym',
+          futebol: 'soccer,football,stadium',
+          cozinha: 'food,cooking,recipe',
+          tecnologia: 'technology,computer,innovation',
+          politica: 'government,politics,congress',
+          educacao: 'education,books,learning'
+        };
+        const keywords = agentKeywords[agentId] || 'news,city';
+        // Unsplash Source ainda funciona para uso existente
+        const fallbackUrl = 'https://source.unsplash.com/800x400/?' + keywords + '&sig=' + Date.now();
+        images = [fallbackUrl];
+        console.log('[MURAL] Fallback image via Unsplash for agent:', agentId, 'keywords:', keywords);
+      } catch (imgErr) {
+        console.log('[MURAL] Fallback image error:', imgErr.message);
+      }
     }
 
     // Se o modelo nao incluiu "Fonte:", tentar extrair das citations da API
