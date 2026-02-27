@@ -7382,7 +7382,6 @@ function openMural() {
     haptic([20]);
     _initMuralInputFix();
     renderMuralChannels();
-    _showRadioFab();
     // Restaurar ultimo canal ou usar o primeiro
     var lastCh = _muralState._lastChannel || _muralState.channels[0].key;
     // Verificar se o ultimo canal ainda existe na lista
@@ -7592,6 +7591,7 @@ async function switchMuralChannel(channelKey) {
   await loadMuralPosts(channelKey);
   _loadMuralOnline(channelKey);
   _loadNextNewsTimer(channelKey);
+  _showRadioFab();
 }
 
 async function loadMuralPosts(channelKey) {
@@ -7773,7 +7773,7 @@ var _radioFetching = false;
 
 function _showRadioFab() {
   var fab = $('radioFab');
-  if (fab && _muralState.currentChannel) fab.classList.remove('hidden');
+  if (fab) fab.classList.remove('hidden');
 }
 
 function radioToggle() {
@@ -7785,7 +7785,7 @@ function radioToggle() {
 }
 
 function _radioStart() {
-  if (!_muralState.currentChannel) return;
+  if (!_muralState.activeChannel) return;
   _radioPlaying = true;
   _radioSegmentIndex = 0;
   var fab = $('radioFab');
@@ -7793,7 +7793,7 @@ function _radioStart() {
   haptic([30, 15, 30]);
   // Notificar server que estou ouvindo
   if (typeof socket !== 'undefined' && socket.connected) {
-    socket.emit('radio-listen', _muralState.currentChannel);
+    socket.emit('radio-listen', _muralState.activeChannel);
   }
   _radioFetchAndPlay('abertura');
 }
@@ -7811,15 +7811,15 @@ function _radioStop() {
   haptic([20]);
   // Notificar server que parei de ouvir
   if (typeof socket !== 'undefined' && socket.connected) {
-    socket.emit('radio-stop', _muralState.currentChannel);
+    socket.emit('radio-stop', _muralState.activeChannel);
   }
-  fetch('/api/radio/stop/' + _muralState.currentChannel, { method: 'POST' }).catch(function(){});
+  fetch('/api/radio/stop/' + _muralState.activeChannel, { method: 'POST' }).catch(function(){});
 }
 
 function _radioFetchAndPlay(segmentType) {
-  if (!_radioPlaying || !_muralState.currentChannel || _radioFetching) return;
+  if (!_radioPlaying || !_muralState.activeChannel || _radioFetching) return;
   _radioFetching = true;
-  fetch('/api/radio/play/' + _muralState.currentChannel, {
+  fetch('/api/radio/play/' + _muralState.activeChannel, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: state.userId, segmentType: segmentType })
