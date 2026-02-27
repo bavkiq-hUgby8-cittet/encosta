@@ -3280,7 +3280,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', requireAuth, async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city, showCountry } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -3338,6 +3338,9 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
   if (profession !== undefined) user.profession = sanitizeStr(profession, 100);
   if (sports !== undefined) user.sports = Array.isArray(sports) ? sports.slice(0, 2) : [];
   if (hobbies !== undefined) user.hobbies = Array.isArray(hobbies) ? hobbies.slice(0, 2) : [];
+  if (country !== undefined) user.country = country;
+  if (city !== undefined) user.city = sanitizeStr(city, 60);
+  if (showCountry !== undefined) user.showCountry = !!showCountry;
   if (profilePhoto !== undefined && profilePhoto) {
     // Only update profilePhoto if a real value is provided (ignore empty string to avoid clearing)
     if (profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });

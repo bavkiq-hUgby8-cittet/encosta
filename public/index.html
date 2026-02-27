@@ -2046,7 +2046,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="daily-counter hidden" id="dailyCounter" onclick="showEncounterLog()"><strong id="dailyNum">0</strong> <span id="dailyLabel" data-i18n="home.daily_touches">Toques em 24h</span> <span class="dc-arrow">›</span></div>
   </div>
   <!-- Location button - floating right, above bottom nav -->
-  <button class="home-location-btn" id="homeLocationBtn" onclick="openLocationScreen()" style="position:absolute;right:16px;bottom:90px;z-index:8;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:50%;color:rgba(255,255,255,.6);font-family:inherit;cursor:pointer;transition:all .2s;box-shadow:0 2px 10px rgba(0,0,0,.3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>
+  <button class="home-location-btn" id="homeLocationBtn" onclick="openLocationScreen()" style="position:absolute;right:16px;bottom:110px;z-index:8;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:50%;color:rgba(255,255,255,.6);font-family:inherit;cursor:pointer;transition:all .2s;box-shadow:0 2px 10px rgba(0,0,0,.3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>
   <!-- BOTTOM: minimal — only mural + ai + tutorial -->
   <div class="home-bottom">
     <div class="home-nav">
@@ -2711,8 +2711,20 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cp-field"><label>Hobbies / Música <span style="font-size:.55rem;color:var(--t3);font-weight:400">(até 2)</span></label>
       <div id="cpHobbiesGrid" class="cp-tag-grid"></div>
     </div>
+    <!-- Nacionalidade -->
+    <div class="cp-section-title">Nacionalidade</div>
+    <div class="cp-field">
+      <label>Pais</label>
+      <div id="cpCountryGrid" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem"></div>
+    </div>
+    <div class="cp-field"><label>Cidade</label><input type="text" id="cpCity" placeholder="Ex: Sao Paulo, New York..." maxlength="30"></div>
+    <div class="cp-field" style="display:flex;align-items:center;gap:.5rem;padding:.5rem 0">
+      <span style="font-size:.72rem;color:var(--t2);flex:1">Mostrar nacionalidade no perfil</span>
+      <label style="position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0"><input type="checkbox" id="cpShowCountry" style="opacity:0;width:0;height:0"><span id="cpShowCountryTrack" style="position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:10px;transition:.2s"></span><span id="cpShowCountryThumb" style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s"></span></label>
+    </div>
+
     <!-- Verification -->
-    <div class="cp-section-title">Verificação</div>
+    <div class="cp-section-title">Verificacao</div>
     <div class="cp-verif-row">
       <button class="cp-verif-card" id="cpEmailCard" onclick="resendEmailVerification()">
         <div class="cp-verif-ico">✉</div>
@@ -11970,8 +11982,48 @@ async function openCompleteProfile(){
     state._selectedHobbies=(d.hobbies||[]).slice(0,2);
     renderTagGrid('cpSportsGrid',SPORTS_LIST,state._selectedSports,2,'_selectedSports');
     renderTagGrid('cpHobbiesGrid',HOBBIES_LIST,state._selectedHobbies,2,'_selectedHobbies');
+    // Nacionalidade
+    if(d.country)state.userCountry=d.country;
+    if(d.city)state.userCity=d.city;
+    if(d.showCountry!==undefined)state.userShowCountry=d.showCountry;
+    if($('cpCity'))$('cpCity').value=state.userCity||'';
+    renderCpCountryGrid();
+    var _scToggle=$('cpShowCountry');
+    if(_scToggle){
+      _scToggle.checked=!!state.userShowCountry;
+      $('cpShowCountryTrack').style.background=state.userShowCountry?'var(--ac)':'rgba(255,255,255,.1)';
+      $('cpShowCountryThumb').style.left=state.userShowCountry?'18px':'2px';
+      _scToggle.onchange=function(){
+        $('cpShowCountryTrack').style.background=this.checked?'var(--ac)':'rgba(255,255,255,.1)';
+        $('cpShowCountryThumb').style.left=this.checked?'18px':'2px';
+      };
+    }
   }catch(e){}
 }
+// ═══ COUNTRY GRID IN CADASTRO ═══
+function renderCpCountryGrid(){
+  var grid=$('cpCountryGrid');if(!grid)return;
+  var regions={
+    'Americas':['US','CA','BR','MX','AR','CO','CL','PE','UY','PY','BO','EC','VE','CR','PA','DO','CU','PR'],
+    'Europe':['GB','FR','DE','ES','IT','PT','NL','BE','SE','NO','DK','FI','PL','CZ','AT','CH','IE','RO','GR','UA'],
+    'Asia':['JP','KR','CN','IN','TH','PH','VN','ID','MY','SG','TW','HK','AE','SA','IL','TR'],
+    'Africa/Oceania':['AU','NZ','ZA','NG','EG','KE','GH','MA','RU']
+  };
+  var html='';
+  Object.keys(regions).forEach(function(region){
+    html+='<div style="width:100%;font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin:.4rem 0 .2rem;font-weight:600">'+region+'</div>';
+    regions[region].forEach(function(code){
+      var isActive=state.userCountry===code;
+      html+='<button type="button" onclick="cpSelectCountry(\''+code+'\')" style="width:38px;height:32px;border-radius:8px;border:1px solid '+(isActive?'var(--ac)':'rgba(255,255,255,.06)')+';background:'+(isActive?'rgba(255,107,53,.1)':'rgba(255,255,255,.03)')+';cursor:pointer;font-size:1.1rem;display:inline-flex;align-items:center;justify-content:center;transition:all .15s" title="'+code+'">'+(COUNTRY_FLAGS[code]||code)+'</button>';
+    });
+  });
+  grid.innerHTML=html;
+}
+function cpSelectCountry(code){
+  state.userCountry=code;
+  renderCpCountryGrid();
+}
+
 // ═══ ACCESSORY SELECTOR ═══
 function renderAccessoryGrid(userTier){
   const grid=$('cpAccessoryGrid');
@@ -12106,6 +12158,9 @@ async function saveCompleteProfile(){
     twitter:$('cpTwitter').value.trim(),
     profilePhoto:cpPhotoData||undefined,
     avatarAccessory:state._selectedAccessory||null,
+    country:state.userCountry||null,
+    city:$('cpCity')?$('cpCity').value.trim():'',
+    showCountry:$('cpShowCountry')?$('cpShowCountry').checked:false,
     privacy:{
       instagram:privBtn('Instagram')?privBtn('Instagram').classList.contains('priv-on'):true,
       tiktok:privBtn('Tiktok')?privBtn('Tiktok').classList.contains('priv-on'):true,
@@ -12808,7 +12863,6 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>'+t('home.service_mode_toggle')+'</button>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>'+t('profile.verified_label')+'</button>':'')
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showLanguageSelector()"><span class="my-pf-ico" style="font-style:normal">'+((I18N_LANGUAGES[window._currentLang]||{}).emoji||'🌐')+'</span>'+(I18N_LANGUAGES[window._currentLang]||{}).name+' <span style="font-size:.5rem;color:var(--t3);margin-left:.3rem">'+t('profile.language_label')+'</span></button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showCountrySelector()"><span class="my-pf-ico" style="font-style:normal">'+(state.userCountry?COUNTRY_FLAGS[state.userCountry]||'🌍':'🌍')+'</span>'+(state.userCountry?(COUNTRY_FLAGS[state.userCountry]||'🌍')+' '+(state.userCity||''):t('profile.country_flag'))+'</button>'
     +'<div class="my-pf-divider"></div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">i</span>'+t('common.about')+' Touch</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/termos\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">§</span>'+t('common.terms')+'</button>'
