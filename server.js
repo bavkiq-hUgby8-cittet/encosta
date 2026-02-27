@@ -4160,7 +4160,16 @@ app.post('/api/mural/:channelKey/post', requireAuth, muralLimiter, (req, res) =>
   const viewRoomObj = io.sockets.adapter.rooms.get(viewRoom);
   const viewSize = viewRoomObj ? viewRoomObj.size : 0;
   console.log('[mural] Post em #' + channelKey + ' por ' + (user.nickname || userId) + ' — ' + roomSize + ' broadcast, ' + viewSize + ' viewers');
-  io.to(broadcastRoom).emit('mural-new-post', { post });
+  // Broadcast para todos EXCETO o remetente (ele ja recebe via HTTP response)
+  // Isso evita race condition entre HTTP response e socket event que causava posts duplicados
+  if (room) {
+    for (const sid of room) {
+      const s = io.sockets.sockets.get(sid);
+      if (s && s.touchUserId !== userId) {
+        s.emit('mural-new-post', { post });
+      }
+    }
+  }
   // Process @mentions and send notifications
   const mentions = cleanText.match(/@(\w+)/g);
   if (mentions && mentions.length > 0) {

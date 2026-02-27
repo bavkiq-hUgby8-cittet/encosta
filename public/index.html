@@ -9043,31 +9043,9 @@ function _initMuralSocket() {
     if (!data || !data.post) return;
     var p = data.post;
     var chKey = p.channelKey;
-    // Se e meu proprio post, ja foi adicionado via optimistic/HTTP
-    if (p.userId === state.userId) {
-      // Checar se ja existe pelo id real ou como optimistic
-      var exists = _muralState.posts.find(function(x) { return x.id === p.id; });
-      var optIdx = exists ? -1 : _muralState.posts.findIndex(function(x) { return x._optimistic && x.text === p.text; });
-      if (exists) {
-        // Ja existe com id real (HTTP response ja substituiu), ignorar
-        return;
-      }
-      if (optIdx !== -1) {
-        // Substituir optimistic pelo real
-        var oldId = _muralState.posts[optIdx].id;
-        _muralState.posts[optIdx] = p;
-        delete _muralRenderedIds[oldId];
-        _muralRenderedIds[p.id] = true;
-        var el = $('mp_' + oldId);
-        if (el) el.id = 'mp_' + p.id;
-      }
-      // Atualizar cache
-      if (chKey && _muralPostsCache[chKey]) {
-        var ci = _muralPostsCache[chKey].findIndex(function(x) { return x._optimistic && x.text === p.text; });
-        if (ci !== -1) _muralPostsCache[chKey][ci] = p;
-      }
-      return;
-    }
+    // Se e meu proprio post, ignorar completamente — HTTP response ja cuida
+    // Backend ja exclui remetente do broadcast, mas esse check e safety extra
+    if (p.userId === state.userId) return;
     // Atualizar cache sempre (criar se nao existir)
     if (chKey) {
       if (!_muralPostsCache[chKey]) _muralPostsCache[chKey] = [];
