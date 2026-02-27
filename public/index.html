@@ -7541,16 +7541,11 @@ function _renderMuralOnline() {
 
 function _muralAgentSvg(agentType, size) {
   size = size || 32;
-  var colors = {
-    reporter: { body: '#e65100', eye: '#fff3e0', accent: '#ff8f00' },
-    fitness: { body: '#2e7d32', eye: '#e8f5e9', accent: '#66bb6a' },
-    futebol: { body: '#1565c0', eye: '#e3f2fd', accent: '#42a5f5' },
-    cozinha: { body: '#d84315', eye: '#fbe9e7', accent: '#ff8a65' },
-    tecnologia: { body: '#6a1b9a', eye: '#f3e5f5', accent: '#ab47bc' },
-    politica: { body: '#37474f', eye: '#eceff1', accent: '#78909c' },
-    educacao: { body: '#f57f17', eye: '#fffde7', accent: '#ffca28' }
-  };
-  var c = colors[agentType] || colors.reporter;
+  var hasImage = ['reporter','fitness','futebol','cozinha','tecnologia','politica'].indexOf(agentType) !== -1;
+  if (hasImage) {
+    return '<img src="/img/agents/' + agentType + '.png" width="' + size + '" height="' + size + '" style="border-radius:50%;object-fit:cover" alt="' + agentType + '"/>';
+  }
+  var c = { body: '#f57f17', eye: '#fffde7', accent: '#ffca28' };
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">'
     + '<rect x="6" y="12" width="28" height="22" rx="6" fill="' + c.body + '"/>'
     + '<rect x="10" y="16" width="8" height="6" rx="2" fill="' + c.eye + '"/>'
@@ -8150,14 +8145,16 @@ async function openAgentPanel() {
     var sheet = '<div class="mural-topics-sheet">';
     sheet += '<div class="mural-topics-title">Selecione um agente</div>';
     sheet += '<div class="mural-topics-grid" style="display:flex;flex-direction:column;gap:.5rem">';
-    for (var id in agents) {
-      var ag = agents[id];
-      sheet += '<div style="padding:.7rem;border:1px solid rgba(66,165,245,.15);border-radius:12px;background:rgba(66,165,245,.04);display:flex;align-items:center;gap:.6rem;cursor:pointer" onclick="toggleAgentModal(\'' + id + '\')" data-agent-id="' + id + '">';
-      sheet += '<div style="flex:1">';
+      var agentImg = _muralAgentSvg(id, 48);
+      sheet += '<div style="padding:.7rem;border:1px solid rgba(66,165,245,.15);border-radius:12px;background:rgba(66,165,245,.04);display:flex;align-items:center;gap:.8rem;cursor:pointer" onclick="toggleAgentModal('' + id + '')" data-agent-id="' + id + '">';
+      sheet += '<div style="width:48px;height:48px;flex-shrink:0;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center">' + agentImg + '</div>';
+      sheet += '<div style="flex:1;min-width:0">';
       sheet += '<div style="font-size:.75rem;font-weight:600;color:' + ag.color + '">' + ag.nick + '</div>';
-      sheet += '<div style="font-size:.58rem;color:var(--t3);margin-top:.15rem">' + ag.description + '</div>';
+      sheet += '<div style="font-size:.58rem;color:var(--t3);margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ag.description + '</div>';
       sheet += '</div>';
-      sheet += '<div style="font-size:1.4rem" id="agent-toggle-' + id + '">' + (ag.enabled ? '✓' : '○') + '</div>';
+      sheet += '<div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;border:2px solid ' + ag.color + ';display:flex;align-items:center;justify-content:center;background:' + (ag.enabled ? ag.color : 'transparent') + '" id="agent-toggle-' + id + '">';
+      sheet += ag.enabled ? '<span style="color:white;font-weight:bold;font-size:12px">✓</span>' : '';
+      sheet += '</div>';
       sheet += '</div>';
     }
     sheet += '</div>';
@@ -8184,7 +8181,18 @@ function toggleAgentModal(agentId) {
     return r.json();
   }).then(function(d) {
     if (d.ok) {
-      toggle.textContent = isEnabled ? '○' : '✓';
+      var agentElement = toggle.closest('[data-agent-id]');
+      if (agentElement) {
+        var agColor = agentElement.querySelector('[style*="color:"]');
+        var color = agColor ? window.getComputedStyle(agColor).color : '#60a5fa';
+        if (!isEnabled) {
+          toggle.style.background = color;
+          toggle.innerHTML = '<span style="color:white;font-weight:bold;font-size:12px">✓</span>';
+        } else {
+          toggle.style.background = 'transparent';
+          toggle.innerHTML = '';
+        }
+      }
       showToast((isEnabled ? 'Desativado' : 'Ativado') + ': ' + agentId);
     }
   }).catch(function(e) { showToast('Erro ao alternar agente.'); });
