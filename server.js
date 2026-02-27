@@ -4652,6 +4652,80 @@ app.get('/api/mural/:channelKey/next-news', (req, res) => {
   res.json({ nextAt: nextTime, remainingMs, intervalMs: MURAL_AGENTS.reporter.interval, lastAt: lastTime || null });
 });
 
+// POST /api/mural/news-chat — Perplexity chat about a news article
+app.post('/api/mural/news-chat', requireAuth, async (req, res) => {
+  const { userId, newsContext, message, history } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!PPLX_API_KEY) return res.status(503).json({ error: 'Servico de chat indisponivel.' });
+  if (!newsContext || !newsContext.headline || !newsContext.fullText) {
+    return res.status(400).json({ error: 'Contexto da noticia invalido.' });
+  }
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ error: 'Mensagem vazia.' });
+  }
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+
+    const systemPrompt = 'Voce eh um comentarista experiente de noticias. Um usuario quer conversar sobre a seguinte noticia:\n\n'
+      + 'Titulo: ' + newsContext.headline + '\n'
+      + 'Conteudo: ' + newsContext.fullText.slice(0, 1000) + '\n\n'
+      + 'Comente sobre esta noticia com conhecimento, contexto e opiniao bem fundamentada. Seja engajante e conversacional.';
+
+    const messages = [
+      { role: 'system', content: systemPrompt }
+    ];
+
+    if (Array.isArray(history) && history.length > 0) {
+      for (const msg of history) {
+        if (msg.role && msg.content) {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      }
+    }
+
+    messages.push({ role: 'user', content: message });
+
+    const resp = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + PPLX_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: messages,
+        max_tokens: 500,
+        temperature: 0.5,
+        return_citations: true
+      }),
+      signal: ctrl.signal
+    });
+
+    clearTimeout(timer);
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: 'Erro ao consultar Perplexity.' });
+    }
+
+    const data = await resp.json();
+    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    const citations = (data.citations && Array.isArray(data.citations)) ? data.citations.slice(0, 5) : [];
+
+    if (!reply || reply.trim().length === 0) {
+      return res.status(400).json({ error: 'Resposta vazia de Perplexity.' });
+    }
+
+    res.json({ reply: reply.trim(), citations });
+  } catch (e) {
+    console.error('[news-chat] Error:', e.message);
+    if (e.name === 'AbortError') {
+      return res.status(504).json({ error: 'Timeout ao conversar com Perplexity.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao processar conversa.' });
+  }
+});
+
 // POST /api/mural/:channelKey/ban — moderator bans user from channel
 app.post('/api/mural/:channelKey/ban', requireAuth, (req, res) => {
   const { channelKey } = req.params;
