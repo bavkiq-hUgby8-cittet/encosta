@@ -4375,8 +4375,8 @@ const MURAL_AGENTS = {
     color: '#d50000',
     label: 'Urgente',
     description: 'Noticias urgentes de ultima hora',
-    systemPrompt: 'Voce e o alerta Urgente, um sistema de noticias de ultima hora. So traga noticias realmente urgentes e impactantes que estejam acontecendo agora. Se nao houver nada urgente, responda apenas "SEM URGENCIAS". Formato: Uma frase de titulo na primeira linha.\n\nDetalhes em 1-2 frases. Nao use emojis, asteriscos ou formatacao markdown. Seja direto e preciso.',
-    queryTemplate: 'Ha alguma noticia URGENTE ou de ultima hora acontecendo agora em {local} ou no mundo? Algo que acabou de acontecer nas ultimas horas. Se nao houver nada urgente, diga "SEM URGENCIAS".',
+    systemPrompt: 'Voce e o alerta Urgente, um sistema de noticias de ULTIMA HORA. APENAS traga noticias se for algo REALMENTE grave e urgente: desastres naturais, atentados, mortes de figuras publicas, crises graves, acidentes com vitimas. Noticias politicas comuns, votacoes, decisoes judiciais rotineiras NAO sao urgentes. Se nao houver algo realmente grave acontecendo AGORA, responda EXATAMENTE: "SEM URGENCIAS". Formato: Uma frase de titulo na primeira linha.\n\nDetalhes em 1-2 frases. Nao use emojis, asteriscos ou formatacao markdown. Seja direto e preciso.',
+    queryTemplate: 'Ha alguma noticia REALMENTE URGENTE acontecendo AGORA em {local} ou no mundo? Apenas desastres, atentados, mortes, crises graves, acidentes com vitimas. Votacoes, decisoes judiciais e politica normal NAO contam. Se nao houver nada GRAVE, responda "SEM URGENCIAS".',
     isUrgent: true,
     enabled: true
   },
@@ -4452,8 +4452,8 @@ const MURAL_AGENTS = {
   }
 };
 
-// Fila round-robin: todos os agentes postam a cada 30 min alternando
-const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => !MURAL_AGENTS[k].isUrgent);
+// Fila round-robin: agentes de nicho alternam a cada 1h (sem reporter e urgente)
+const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => k !== 'reporter' && !MURAL_AGENTS[k].isUrgent);
 let _agentQueueIndex = 0;
 // Motor de noticias sempre ligado (sem toggle)
 const _newsEngineEnabled = true;
@@ -4653,27 +4653,45 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
   console.log('[' + agentId + '] Posted to #' + channelKey + (muralRelated ? ' (mural-related)' : '') + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
 
-// Auto-post news: round-robin a cada 10 min (alterna entre agentes)
+// Helper: buscar canais ativos
+function _getActiveChannels() {
+  const channels = [];
+  for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+    if (!Array.isArray(posts)) continue;
+    const validPosts = posts.filter(p => p && p.channelName && p.channelType);
+    if (validPosts.length === 0) continue;
+    channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
+  }
+  return channels;
+}
+
+// Reporter: posta a cada 30 min (noticias gerais do local)
 setInterval(async () => {
   if (!PPLX_API_KEY || !_newsEngineEnabled) return;
   try {
     const now = Date.now();
-    // Pegar proximo agente da fila (round-robin)
+    const channels = _getActiveChannels();
+    for (const ch of channels) {
+      await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, 'reporter');
+      _newsLastPosted['reporter:' + ch.key] = now;
+    }
+    console.log('[reporter] Noticia geral postada em ' + channels.length + ' canais');
+  } catch (e) {
+    console.error('[reporter] Erro:', e.message);
+  }
+}, 30 * 60 * 1000); // 30 minutos
+
+// Agentes de nicho: round-robin a cada 1h (alterna entre sport, fitness, saude, etc)
+setInterval(async () => {
+  if (!PPLX_API_KEY || !_newsEngineEnabled) return;
+  try {
+    const now = Date.now();
     const agentId = _agentQueue[_agentQueueIndex % _agentQueue.length];
     _agentQueueIndex++;
     const agent = MURAL_AGENTS[agentId];
     if (!agent || !agent.enabled) return;
 
-    // Find channels with history
-    const channels = [];
-    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
-      if (!Array.isArray(posts)) continue;
-      const validPosts = posts.filter(p => p && p.channelName && p.channelType);
-      if (validPosts.length === 0) continue;
-      channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
-    }
-
-    // Post to ALL channels (bots post once, everyone consumes)
+    const channels = _getActiveChannels();
     for (const ch of channels) {
       await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
       _newsLastPosted[agentId + ':' + ch.key] = now;
@@ -4683,7 +4701,7 @@ setInterval(async () => {
   } catch (e) {
     console.error('[agents] Error in round-robin cycle:', e.message);
   }
-}, 10 * 60 * 1000); // 10 minutos
+}, 60 * 60 * 1000); // 1 hora
 
 // Agente URGENTE: checa a cada 15 min se ha algo urgente (fura a fila)
 setInterval(async () => {
@@ -4704,8 +4722,16 @@ setInterval(async () => {
     const result = await fetchNewsForChannel(testCh.key, testCh.sample.channelName, testCh.sample.channelType, 'urgente');
     if (!result) return;
     const newsText = typeof result === 'string' ? result : result.text;
-    // Se retornou "SEM URGENCIAS" ou texto muito curto, ignorar
-    if (!newsText || newsText.toUpperCase().includes('SEM URGENCIA') || newsText.length < 30) {
+    // Se retornou "SEM URGENCIAS" ou texto muito curto ou nao parece urgente, ignorar
+    const upper = (newsText || '').toUpperCase();
+    const notUrgent = !newsText || newsText.length < 30
+      || upper.includes('SEM URGENCIA')
+      || upper.includes('NAO HA URGENCIA')
+      || upper.includes('NENHUMA URGENCIA')
+      || upper.includes('NAO FORAM ENCONTRAD')
+      || upper.includes('MOMENTO NAO HA')
+      || upper.includes('NAO HA NOTICIAS URGENTES');
+    if (notUrgent) {
       console.log('[urgente] Nenhuma urgencia detectada');
       return;
     }
