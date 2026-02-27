@@ -4399,10 +4399,13 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
       citations = data.citations.slice(0, 3);
     }
 
-    // Extrair imagens da API (Perplexity retorna array de URLs)
+    // Extrair imagens da API (Perplexity retorna array de {imageUrl, originUrl, width, height})
     let images = [];
     if (data.images && Array.isArray(data.images)) {
-      images = data.images.slice(0, 2);
+      images = data.images.slice(0, 2).map(img => {
+        if (typeof img === 'string') return img;
+        return img.imageUrl || img.url || img.src || '';
+      }).filter(u => u && u.startsWith('http'));
     }
 
     // Se o modelo nao incluiu "Fonte:", tentar extrair das citations da API
