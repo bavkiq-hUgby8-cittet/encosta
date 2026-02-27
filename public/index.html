@@ -2647,7 +2647,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div class="mural-news-toggle-switch" id="muralNewsToggleSwitch" onclick="toggleMuralNewsEngine()">
         <div class="mural-news-toggle-dot"></div>
       </div>
-      <button class="mural-news-clear-btn" onclick="clearMuralNews()" title="Limpar noticias">
+      <button class="mural-news-clear-btn" onclick="clearMuralNews()" title="Limpar tudo do mural">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
       </button>
     </div>
@@ -8552,60 +8552,48 @@ async function triggerNarrator() {
   } catch (e) { showToast('Erro ao narrar.'); }
 }
 
-var _muralNewsTopics = [
-  { key: 'geral', icon: 'newspaper', label: 'Geral' },
-  { key: 'eventos', icon: 'calendar', label: 'Eventos' },
-  { key: 'cultura', icon: 'palette', label: 'Cultura' },
-  { key: 'esporte', icon: 'trophy', label: 'Esporte' },
-  { key: 'clima', icon: 'cloud-sun', label: 'Clima' },
-  { key: 'policial', icon: 'shield', label: 'Policial' },
-  { key: 'politica', icon: 'landmark', label: 'Politica' },
-  { key: 'tecnologia', icon: 'cpu', label: 'Tecnologia' }
-];
-var _topicIcons = {
-  newspaper: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e88e5" stroke-width="2"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2zm0 0a2 2 0 01-2-2v-9c0-1.1.9-2 2-2h2"/><line x1="10" y1="6" x2="18" y2="6"/><line x1="10" y1="10" x2="18" y2="10"/><line x1="10" y1="14" x2="14" y2="14"/></svg>',
-  calendar: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e65100" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-  palette: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7b1fa2" stroke-width="2"><circle cx="13.5" cy="6.5" r="0.5" fill="#7b1fa2"/><circle cx="17.5" cy="10.5" r="0.5" fill="#7b1fa2"/><circle cx="8.5" cy="7.5" r="0.5" fill="#7b1fa2"/><circle cx="6.5" cy="12.5" r="0.5" fill="#7b1fa2"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.75 1.5-1.5 0-.36-.12-.68-.36-.96-.22-.26-.34-.58-.34-.96C12.8 17.68 13.68 16.8 14.6 16.8H16c3.31 0 6-2.69 6-6 0-5.52-4.48-10-10-10z"/></svg>',
-  trophy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2"><path d="M6 9H4a2 2 0 01-2-2V5a2 2 0 012-2h2"/><path d="M18 9h2a2 2 0 002-2V5a2 2 0 00-2-2h-2"/><path d="M6 3h12v7a6 6 0 01-12 0V3z"/><path d="M9 21h6"/><path d="M12 16v5"/></svg>',
-  'cloud-sun': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0277bd" stroke-width="2"><path d="M12 2v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M20 12h2"/><path d="M17.66 6.34l1.41-1.41"/><path d="M2 12h2"/><circle cx="12" cy="12" r="4"/><path d="M16 16a4 4 0 01-8 0h2a2 2 0 004 0h2z"/></svg>',
-  shield: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
-  landmark: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#546e7a" stroke-width="2"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>',
-  cpu: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00838f" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>'
-};
-
-function triggerMuralNews() {
+// triggerMuralNews agora busca agentes reais da API
+async function triggerMuralNews() {
   if (!_muralState.activeChannel) return;
   if (!_muralState.isMod) return showToast('Apenas moderadores podem acionar noticias.');
-  // Mostrar menu de temas
-  var overlay = document.createElement('div');
-  overlay.className = 'mural-topics-overlay';
-  var sheet = '<div class="mural-topics-sheet">';
-  sheet += '<div class="mural-topics-title">Escolha o assunto</div>';
-  sheet += '<div class="mural-topics-grid">';
-  for (var i = 0; i < _muralNewsTopics.length; i++) {
-    var t = _muralNewsTopics[i];
-    sheet += '<button class="mural-topic-btn" data-topic="' + t.key + '">';
-    sheet += '<span class="mural-topic-icon">' + (_topicIcons[t.icon] || '') + '</span>';
-    sheet += '<span>' + t.label + '</span></button>';
-  }
-  sheet += '</div>';
-  sheet += '<button class="mural-topics-cancel">Cancelar</button>';
-  sheet += '</div>';
-  overlay.innerHTML = sheet;
-  document.body.appendChild(overlay);
-  // Close on overlay tap
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay || e.target.classList.contains('mural-topics-cancel')) {
-      overlay.remove();
-      return;
+  try {
+    var r = await apiFetch('/api/mural/agents/config');
+    var d = await r.json();
+    var agents = d.agents || {};
+    var agentImgs = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao'];
+    var overlay = document.createElement('div');
+    overlay.className = 'mural-topics-overlay';
+    var sheet = '<div class="mural-topics-sheet">';
+    sheet += '<div class="mural-topics-title">Gerar noticia com...</div>';
+    sheet += '<div class="mural-topics-grid">';
+    for (var id in agents) {
+      var ag = agents[id];
+      var hasImg = agentImgs.indexOf(id) !== -1;
+      var imgHtml = hasImg
+        ? '<img src="/img/agents/' + id + '.png" style="width:100%;height:100%;object-fit:cover;display:block" />'
+        : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:' + ag.color + '22;color:' + ag.color + ';font-weight:700;font-size:.6rem">' + ag.nick.charAt(0) + '</div>';
+      sheet += '<button class="mural-topic-btn" data-topic="' + id + '">';
+      sheet += '<div style="width:28px;height:28px;flex-shrink:0;border-radius:50%;overflow:hidden;border:1.5px solid ' + ag.color + '40">' + imgHtml + '</div>';
+      sheet += '<span style="color:' + ag.color + ';font-weight:600">' + ag.nick + '</span></button>';
     }
-    var btn = e.target.closest('.mural-topic-btn');
-    if (!btn) return;
-    var topic = btn.getAttribute('data-topic');
-    overlay.remove();
-    _sendMuralNews(topic);
-  });
-  haptic([10]);
+    sheet += '</div>';
+    sheet += '<button class="mural-topics-cancel">Cancelar</button>';
+    sheet += '</div>';
+    overlay.innerHTML = sheet;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay || e.target.classList.contains('mural-topics-cancel')) {
+        overlay.remove();
+        return;
+      }
+      var btn = e.target.closest('.mural-topic-btn');
+      if (!btn) return;
+      var topic = btn.getAttribute('data-topic');
+      overlay.remove();
+      _sendMuralNews(topic);
+    });
+    haptic([10]);
+  } catch (e) { showToast('Erro ao carregar agentes.'); }
 }
 
 async function _sendMuralNews(agentId) {
@@ -8635,23 +8623,27 @@ async function openAgentPanel() {
     var sheet = '<div style="background:#13131f;border-radius:20px 20px 0 0;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;padding:1rem;padding-bottom:max(env(safe-area-inset-bottom),1rem)">';
     sheet += '<div style="width:36px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;margin:0 auto .8rem"></div>';
     sheet += '<div style="font-size:.85rem;font-weight:700;color:#f0f0ff;text-align:center;margin-bottom:.8rem">Agentes de Noticias</div>';
-    sheet += '<div style="display:flex;flex-direction:column;gap:.4rem">';
+    // Cards grid 3x3
+    sheet += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem">';
     var agentImgs = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao'];
     for (var id in agents) {
       var ag = agents[id];
       var hasImg = agentImgs.indexOf(id) !== -1;
       var imgHtml = hasImg
         ? '<img src="/img/agents/' + id + '.png" style="width:100%;height:100%;object-fit:cover;display:block"/>'
-        : _muralAgentSvg(id, 44);
-      sheet += '<div style="padding:.55rem .6rem;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(255,255,255,.03);display:flex;align-items:center;gap:.7rem;cursor:pointer;transition:background .2s" onclick="toggleAgentModal(\'' + id + '\')" data-agent-id="' + id + '">';
-      sheet += '<div style="width:44px;height:44px;flex-shrink:0;border-radius:50%;overflow:hidden;border:2px solid ' + ag.color + '30;box-shadow:0 2px 8px rgba(0,0,0,.2)">' + imgHtml + '</div>';
-      sheet += '<div style="flex:1;min-width:0">';
-      sheet += '<div style="font-size:.75rem;font-weight:700;color:' + ag.color + '">' + ag.nick + '</div>';
-      sheet += '<div style="font-size:.55rem;color:rgba(203,213,225,.5);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + ag.description + '</div>';
-      sheet += '</div>';
+        : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:' + ag.color + '22;color:' + ag.color + ';font-weight:800;font-size:1.2rem">' + ag.nick.charAt(0) + '</div>';
+      var enabledClass = ag.enabled ? 'border-color:' + ag.color + '60;box-shadow:0 0 12px ' + ag.color + '15' : 'border-color:rgba(255,255,255,.06)';
+      sheet += '<div style="padding:.6rem .4rem;border:1.5px solid;' + enabledClass + ';border-radius:14px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;align-items:center;gap:.4rem;cursor:pointer;transition:all .25s;position:relative" onclick="toggleAgentModal(\'' + id + '\')" data-agent-id="' + id + '">';
+      // Avatar
+      sheet += '<div style="width:52px;height:52px;border-radius:50%;overflow:hidden;border:2px solid ' + ag.color + '40;box-shadow:0 2px 10px rgba(0,0,0,.3)">' + imgHtml + '</div>';
+      // Name
+      sheet += '<div style="font-size:.65rem;font-weight:700;color:' + ag.color + ';text-align:center;line-height:1.1">' + ag.nick + '</div>';
+      // Description
+      sheet += '<div style="font-size:.5rem;color:rgba(203,213,225,.45);text-align:center;line-height:1.2;max-height:2rem;overflow:hidden">' + ag.description + '</div>';
+      // Toggle indicator
       var toggleBg = ag.enabled ? ag.color : 'rgba(255,255,255,.08)';
-      sheet += '<div style="flex-shrink:0;width:22px;height:22px;border-radius:50%;border:2px solid ' + ag.color + ';display:flex;align-items:center;justify-content:center;background:' + toggleBg + ';transition:background .2s" id="agent-toggle-' + id + '" data-agent-color="' + ag.color + '">';
-      sheet += ag.enabled ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+      sheet += '<div style="position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;border:1.5px solid ' + ag.color + ';display:flex;align-items:center;justify-content:center;background:' + toggleBg + ';transition:background .2s" id="agent-toggle-' + id + '" data-agent-color="' + ag.color + '">';
+      sheet += ag.enabled ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
       sheet += '</div>';
       sheet += '</div>';
     }
@@ -8799,24 +8791,24 @@ async function toggleMuralNewsEngine() {
 }
 
 async function clearMuralNews() {
-  if (!confirm('Limpar todas as noticias do Mural?')) return;
+  if (!confirm('Limpar TODAS as mensagens do Mural (noticias e conversas)?')) return;
   try {
-    var r = await apiFetch('/api/mural/clear-news', {
+    var r = await apiFetch('/api/mural/clear-all', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: state.userId })
     });
     var d = await r.json();
     if (d.ok) {
-      showToast('Removidas ' + d.removed + ' noticias');
-      // Remove news posts from local state and re-render
-      _muralState.posts = _muralState.posts.filter(function(p) { return !p.isNews; });
+      showToast('Removidas ' + d.removed + ' mensagens');
+      _muralState.posts = [];
+      if (_muralState.activeChannel) _muralPostsCache[_muralState.activeChannel] = [];
       renderMuralFeed(true);
     } else {
-      showToast(d.error || 'Erro ao limpar noticias');
+      showToast(d.error || 'Erro ao limpar mural');
     }
   } catch (e) {
-    showToast('Erro ao limpar noticias');
+    showToast('Erro ao limpar mural');
   }
 }
 

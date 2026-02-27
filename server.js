@@ -4250,6 +4250,23 @@ app.post('/api/mural/clear-news', requireAuth, (req, res) => {
   res.json({ ok: true, removed: total });
 });
 
+// POST /api/mural/clear-all — limpar TODAS as mensagens do mural (top1/admin only)
+app.post('/api/mural/clear-all', requireAuth, (req, res) => {
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const user = db.users[userId];
+  if (!user.isAdmin && user.tier !== 'top1') return res.status(403).json({ error: 'Apenas operadores podem limpar o mural.' });
+  let total = 0;
+  for (const ch of Object.keys(db.muralPosts)) {
+    if (!Array.isArray(db.muralPosts[ch])) continue;
+    total += db.muralPosts[ch].length;
+    db.muralPosts[ch] = [];
+  }
+  saveDBNow('muralPosts');
+  console.log('[mural] clear-all: removidas ' + total + ' mensagens por ' + userId);
+  res.json({ ok: true, removed: total });
+});
+
 // POST /api/mural/:channelKey/narrate — narrator agent summarizes recent activity
 app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
   const channelKey = req.params.channelKey;
@@ -4259,21 +4276,54 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
   const priv = getMuralPrivileges(user);
   if (!priv.isMod && !user.isAdmin) return res.status(403).json({ error: 'Apenas moderadores podem acionar o narrador.' });
   const posts = (db.muralPosts[channelKey] || []).filter(p => !p.hidden && !p.isNarrator);
-  if (posts.length < 5) return res.status(400).json({ error: 'Poucas mensagens para narrar.' });
-  // Get last 20 non-narrator posts
-  const recent = posts.slice(-20);
-  const textsForContext = recent.map(p => p.nick + ': ' + p.text).join('\n');
-  // Generate narration using simple heuristic (no LLM dependency for MVP)
+  if (posts.length < 3) return res.status(400).json({ error: 'Poucas mensagens para narrar.' });
+  // Get last 30 posts (news + conversations)
+  const recent = posts.slice(-30);
+  const newsPosts = recent.filter(p => p.isNews);
+  const userPosts = recent.filter(p => !p.isNews);
   const postCount = recent.length;
-  const uniqueAuthors = new Set(recent.map(p => p.userId)).size;
-  const lastMinutes = Math.round((Date.now() - recent[0].createdAt) / 60000);
+  const uniqueAuthors = new Set(userPosts.map(p => p.userId)).size;
   let narration = '';
-  if (postCount >= 15 && lastMinutes <= 10) {
-    narration = 'Muitas vozes falando ao mesmo tempo. O mural acelera. ' + uniqueAuthors + ' pessoas escrevendo nos ultimos ' + lastMinutes + ' minutos.';
-  } else if (postCount >= 10) {
-    narration = 'O mural se movimenta. ' + uniqueAuthors + ' vozes diferentes nas ultimas mensagens. A cidade parece inquieta hoje.';
-  } else {
-    narration = uniqueAuthors + ' pessoas passaram pelo mural recentemente. Ha um ritmo calmo, mas presente.';
+  // Try Perplexity for smart narration
+  if (PPLX_API_KEY) {
+    try {
+      const contextLines = recent.map(p => {
+        const tag = p.isNews ? '[noticia de ' + (p.nick || 'agente') + ']' : '[usuario ' + (p.nick || 'anonimo') + ']';
+        return tag + ' ' + (p.text || '').slice(0, 200);
+      }).join('\n');
+      const pplxRes = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + PPLX_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'sonar',
+          messages: [
+            { role: 'system', content: 'Voce e o Narrador do mural da cidade. Faca um breve resumo (3-4 frases) do que esta acontecendo no mural, mencionando os assuntos das noticias e o que os usuarios estao conversando. Escreva em portugues, tom poetico mas direto, sem emojis, sem asteriscos, sem formatacao markdown. Nao cite nomes de usuarios.' },
+            { role: 'user', content: 'Resuma a atividade recente deste mural:\n\n' + contextLines }
+          ],
+          max_tokens: 200,
+          temperature: 0.7
+        })
+      });
+      const pplxData = await pplxRes.json();
+      if (pplxData.choices && pplxData.choices[0]) {
+        narration = pplxData.choices[0].message.content.trim();
+      }
+    } catch (e) {
+      console.log('[narrador] Perplexity falhou, usando heuristica:', e.message);
+    }
+  }
+  // Fallback heuristic if no Perplexity or if it failed
+  if (!narration) {
+    const newsTopics = newsPosts.map(p => p.nick || 'agente').filter((v, i, a) => a.indexOf(v) === i).slice(0, 3);
+    const lastMinutes = Math.round((Date.now() - recent[0].createdAt) / 60000);
+    const timeStr = lastMinutes < 60 ? lastMinutes + ' minutos' : Math.round(lastMinutes / 60) + ' horas';
+    if (newsPosts.length > 0 && userPosts.length > 0) {
+      narration = 'Nas ultimas ' + timeStr + ', ' + newsPosts.length + ' noticias passaram pelo mural via ' + newsTopics.join(', ') + '. ' + uniqueAuthors + ' pessoas conversaram sobre os assuntos do momento.';
+    } else if (newsPosts.length > 0) {
+      narration = newsPosts.length + ' noticias chegaram ao mural nas ultimas ' + timeStr + ' via ' + newsTopics.join(', ') + '. A cidade acompanha em silencio.';
+    } else {
+      narration = uniqueAuthors + ' vozes diferentes ecoaram pelo mural nas ultimas ' + timeStr + '. ' + postCount + ' mensagens trocadas. A cidade pulsa.';
+    }
   }
   // Post as narrator
   const narratorPost = {
