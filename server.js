@@ -4015,12 +4015,14 @@ app.get('/api/mural/geocode/:userId', requireAuth, async (req, res) => {
   // Cache on user object
   user.muralGeo = { ...geo, updatedAt: Date.now() };
   saveDB('users');
-  // Build channels list (city, state, country, continent)
+  // Build channels list (city, state, country, continent, mundo)
   const channels = [];
   if (geo.city) channels.push({ type: 'city', name: geo.city, key: normalizeChannel(geo.city + '-' + geo.countryCode) });
   if (geo.state) channels.push({ type: 'state', name: geo.state, key: normalizeChannel(geo.state + '-' + geo.countryCode) });
   if (geo.country) channels.push({ type: 'country', name: geo.country, key: normalizeChannel(geo.country) });
   if (geo.continent) channels.push({ type: 'region', name: geo.continent, key: normalizeChannel(geo.continent) });
+  // Canal global: Mundo (todas as pessoas do mundo se encontram)
+  channels.push({ type: 'world', name: 'Mundo', key: 'mundo-global' });
   res.json({ ok: true, geo, channels });
 });
 
@@ -4257,7 +4259,27 @@ const MURAL_AGENTS = {
     description: 'Noticias locais e do mundo em tempo real',
     systemPrompt: 'Voce e o Reporter, um jornalista digital serio e objetivo. Responda com a noticia em formato: MANCHETE (uma frase impactante em caixa alta)\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis. Va direto ao ponto.',
     queryTemplate: 'Principal noticia de hoje de {local}. Traga a mais relevante e impactante.',
-    interval: 60 * 60 * 1000,
+    enabled: true
+  },
+  urgente: {
+    id: 'urgente',
+    nick: 'URGENTE',
+    color: '#d50000',
+    label: 'Urgente',
+    description: 'Noticias urgentes de ultima hora',
+    systemPrompt: 'Voce e o alerta URGENTE, um sistema de noticias de ultima hora. So traga noticias REALMENTE urgentes e impactantes que estejam acontecendo AGORA. Se nao houver nada urgente, responda apenas "SEM URGENCIAS". Formato: URGENTE: MANCHETE em caixa alta\n\nDetalhes em 1-2 frases. Nao use emojis. Seja direto e preciso.',
+    queryTemplate: 'Ha alguma noticia URGENTE ou de ultima hora acontecendo agora em {local} ou no mundo? Algo que acabou de acontecer nas ultimas horas. Se nao houver nada urgente, diga "SEM URGENCIAS".',
+    isUrgent: true,
+    enabled: true
+  },
+  sport: {
+    id: 'sport',
+    nick: 'SportBot',
+    color: '#1565c0',
+    label: 'Esporte',
+    description: 'Noticias de todos os esportes',
+    systemPrompt: 'Voce e o SportBot, um comentarista esportivo apaixonado que cobre TODOS os esportes. Futebol, basquete, MMA, F1, tenis, volei, olimpiadas e mais. Fale com paixao e opiniao. Formato: MANCHETE ESPORTIVA em caixa alta\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis.',
+    queryTemplate: 'Principal noticia de esporte de hoje no Brasil e no mundo. Pode ser futebol, basquete, MMA, F1, tenis ou qualquer esporte. Foco em resultados, transferencias ou polemicas.',
     enabled: true
   },
   fitness: {
@@ -4266,20 +4288,18 @@ const MURAL_AGENTS = {
     color: '#2e7d32',
     label: 'Fitness',
     description: 'Dicas de exercicio e motivacao',
-    systemPrompt: 'Voce e o Coach Fit, um personal trainer digital animado e motivador. Fale como um coach que incentiva as pessoas. Traga dicas de exercicio, saude e bem-estar. Formato: TITULO MOTIVACIONAL em caixa alta\n\nDica pratica em 2-3 frases. Nao use emojis.',
-    queryTemplate: 'Dica de exercicio ou saude do dia. Algo pratico que qualquer pessoa pode fazer em casa ou na rua em {local}.',
-    interval: 3 * 60 * 60 * 1000,
+    systemPrompt: 'Voce e o Coach Fit, um personal trainer digital animado e motivador. Fale como um coach que incentiva as pessoas. Traga dicas de exercicio e treino. Formato: TITULO MOTIVACIONAL em caixa alta\n\nDica pratica em 2-3 frases. Nao use emojis.',
+    queryTemplate: 'Dica de exercicio ou treino do dia. Algo pratico que qualquer pessoa pode fazer em casa ou na rua em {local}.',
     enabled: true
   },
-  futebol: {
-    id: 'futebol',
-    nick: 'Boleiro',
-    color: '#1565c0',
-    label: 'Futebol',
-    description: 'Noticias de futebol com opiniao',
-    systemPrompt: 'Voce e o Boleiro, um comentarista esportivo apaixonado. Fale como narrador de futebol, com opiniao e paixao. Traga noticias de futebol com sua analise. Formato: MANCHETE ESPORTIVA em caixa alta\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis.',
-    queryTemplate: 'Principal noticia de futebol de hoje no Brasil e no mundo. Foco em resultados, transferencias ou polemicas.',
-    interval: 2 * 60 * 60 * 1000,
+  saude: {
+    id: 'saude',
+    nick: 'Dr. Touch',
+    color: '#00897b',
+    label: 'Saude',
+    description: 'Dicas de saude e bem-estar',
+    systemPrompt: 'Voce e o Dr. Touch, um medico digital acessivel e confiavel. Traga dicas de saude, prevencao, bem-estar, alimentacao saudavel e saude mental. NAO faca diagnosticos. Formato: DICA DE SAUDE em caixa alta\n\nExplicacao em 2-3 frases claras e uteis. Nao use emojis. Cite fontes confiaveis quando possivel.',
+    queryTemplate: 'Dica de saude, prevencao ou bem-estar do dia. Algo pratico e acessivel para a populacao de {local}.',
     enabled: true
   },
   cozinha: {
@@ -4290,7 +4310,6 @@ const MURAL_AGENTS = {
     description: 'Receitas e dicas culinarias',
     systemPrompt: 'Voce e o Chef Touch, um chef de cozinha carismatico. Fale como um chef que ensina com carinho e simplicidade. Traga receitas faceis e dicas culinarias. Formato: NOME DA RECEITA/DICA em caixa alta\n\nInstrucoes em 2-3 frases simples. Nao use emojis.',
     queryTemplate: 'Receita facil e rapida ou dica culinaria do dia. Algo acessivel para cozinhar em {local}.',
-    interval: 4 * 60 * 60 * 1000,
     enabled: true
   },
   tecnologia: {
@@ -4301,7 +4320,6 @@ const MURAL_AGENTS = {
     description: 'Novidades tech e inovacao',
     systemPrompt: 'Voce e o TechBot, um especialista em tecnologia e inovacao. Fale de forma clara e acessivel sobre tech. Traga novidades de tecnologia, apps, gadgets e IA. Formato: NOVIDADE TECH em caixa alta\n\nExplicacao em 2-3 frases acessiveis. Nao use emojis.',
     queryTemplate: 'Principal novidade de tecnologia de hoje no mundo. Foco em lancamentos, IA, apps ou gadgets.',
-    interval: 3 * 60 * 60 * 1000,
     enabled: true
   },
   politica: {
@@ -4312,7 +4330,6 @@ const MURAL_AGENTS = {
     description: 'Noticias politicas com analise',
     systemPrompt: 'Voce e o Politico, um analista politico imparcial e direto. Traga noticias de politica sem tomar lado, mas com analise critica. Formato: MANCHETE POLITICA em caixa alta\n\nAnalise equilibrada em 2-3 frases. Nao use emojis. Seja imparcial.',
     queryTemplate: 'Principal noticia de politica de hoje no Brasil e no mundo. Foco em decisoes que afetam a populacao.',
-    interval: 2 * 60 * 60 * 1000,
     enabled: true
   },
   educacao: {
@@ -4323,10 +4340,13 @@ const MURAL_AGENTS = {
     description: 'Curiosidades e aprendizado',
     systemPrompt: 'Voce e o Prof. Saber, um professor curioso e didatico. Traga curiosidades, fatos interessantes e conteudo educativo. Formato: VOCE SABIA? ou CURIOSIDADE DO DIA em caixa alta\n\nExplicacao didatica em 2-3 frases. Nao use emojis. Ensine algo novo.',
     queryTemplate: 'Curiosidade interessante ou fato educativo do dia. Algo surpreendente que as pessoas nao sabem.',
-    interval: 4 * 60 * 60 * 1000,
     enabled: true
   }
 };
+
+// Fila round-robin: todos os agentes postam a cada 30 min alternando
+const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => !MURAL_AGENTS[k].isUrgent);
+let _agentQueueIndex = 0;
 
 // Backward compatible mapping
 const NEWS_TOPICS = {};
@@ -4356,6 +4376,7 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
   if (channelType === 'state') localName = 'estado ' + channelName + ', Brasil';
   else if (channelType === 'country') localName = channelName;
   else if (channelType === 'region') localName = 'mundo';
+  else if (channelType === 'world') localName = 'o mundo inteiro';
 
   // Detectar contexto do mural para buscar noticias relacionadas
   const muralContext = _detectMuralContext(channelKey);
@@ -4420,8 +4441,10 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
       try {
         const agentKeywords = {
           reporter: 'newspaper,city,news',
+          urgente: 'breaking,news,alert,emergency',
+          sport: 'sports,soccer,basketball,mma',
           fitness: 'fitness,exercise,gym',
-          futebol: 'soccer,football,stadium',
+          saude: 'health,medicine,wellness',
           cozinha: 'food,cooking,recipe',
           tecnologia: 'technology,computer,innovation',
           politica: 'government,politics,congress',
@@ -4513,39 +4536,72 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
   console.log('[' + agentId + '] Posted to #' + channelKey + (muralRelated ? ' (mural-related)' : '') + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
 
-// Auto-post news to active channels — iterate through all agents with their own intervals
+// Auto-post news: round-robin a cada 30 min (alterna entre agentes)
 setInterval(async () => {
   if (!PPLX_API_KEY) return;
   try {
     const now = Date.now();
-    for (const [agentId, agent] of Object.entries(MURAL_AGENTS)) {
-      if (!agent.enabled) continue;
-      // Check per-agent interval
-      const lastKey = agentId + ':global';
-      const lastTime = _newsLastPosted[lastKey] || 0;
-      if (now - lastTime < agent.interval) continue;
+    // Pegar proximo agente da fila (round-robin)
+    const agentId = _agentQueue[_agentQueueIndex % _agentQueue.length];
+    _agentQueueIndex++;
+    const agent = MURAL_AGENTS[agentId];
+    if (!agent || !agent.enabled) return;
 
-      // Find channels with history
-      const channels = [];
-      for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
-        if (!Array.isArray(posts)) continue;
-        const validPosts = posts.filter(p => p && p.channelName && p.channelType);
-        if (validPosts.length === 0) continue;
-        channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
-      }
+    // Find channels with history
+    const channels = [];
+    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+      if (!Array.isArray(posts)) continue;
+      const validPosts = posts.filter(p => p && p.channelName && p.channelType);
+      if (validPosts.length === 0) continue;
+      channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
+    }
 
-      // Post to up to 3 random channels per agent per cycle
-      const shuffled = channels.sort(() => Math.random() - 0.5).slice(0, 3);
-      for (const ch of shuffled) {
-        await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
-        _newsLastPosted[agentId + ':' + ch.key] = now;
-      }
-      _newsLastPosted[lastKey] = now;
+    // Post to up to 3 random channels
+    const shuffled = channels.sort(() => Math.random() - 0.5).slice(0, 3);
+    for (const ch of shuffled) {
+      await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
+      _newsLastPosted[agentId + ':' + ch.key] = now;
+    }
+    _newsLastPosted[agentId + ':global'] = now;
+    console.log('[agents] Round-robin posted: ' + agentId + ' (next: ' + _agentQueue[_agentQueueIndex % _agentQueue.length] + ')');
+  } catch (e) {
+    console.error('[agents] Error in round-robin cycle:', e.message);
+  }
+}, 30 * 60 * 1000); // 30 minutos
+
+// Agente URGENTE: checa a cada 15 min se ha algo urgente (fura a fila)
+setInterval(async () => {
+  if (!PPLX_API_KEY) return;
+  const urgAgent = MURAL_AGENTS.urgente;
+  if (!urgAgent || !urgAgent.enabled) return;
+  try {
+    const channels = [];
+    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
+      if (!Array.isArray(posts)) continue;
+      const validPosts = posts.filter(p => p && p.channelName && p.channelType);
+      if (validPosts.length === 0) continue;
+      channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
+    }
+    if (channels.length === 0) return;
+    // Buscar noticia urgente para o primeiro canal (para checar se ha urgencia)
+    const testCh = channels[0];
+    const result = await fetchNewsForChannel(testCh.key, testCh.sample.channelName, testCh.sample.channelType, 'urgente');
+    if (!result) return;
+    const newsText = typeof result === 'string' ? result : result.text;
+    // Se retornou "SEM URGENCIAS" ou texto muito curto, ignorar
+    if (!newsText || newsText.toUpperCase().includes('SEM URGENCIA') || newsText.length < 30) {
+      console.log('[urgente] Nenhuma urgencia detectada');
+      return;
+    }
+    // Ha urgencia! Postar em todos os canais
+    console.log('[urgente] URGENCIA DETECTADA! Postando em ' + channels.length + ' canais');
+    for (const ch of channels.slice(0, 5)) {
+      await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, 'urgente');
     }
   } catch (e) {
-    console.error('[agents] Error in auto-post cycle:', e.message);
+    console.error('[urgente] Error:', e.message);
   }
-}, 10 * 60 * 1000); // Check every 10 minutes
+}, 15 * 60 * 1000); // Checa a cada 15 min
 
 // Cleanup: remover posts expirados (> 24h) a cada 30 minutos
 setInterval(() => {
@@ -4820,12 +4876,35 @@ function _broadcastMuralOnline(channelKey) {
     count: users.length,
     users: users
   });
+  // Broadcast contagens de todos canais para atualizar badges
+  const allCounts = {};
+  for (const [room] of io.sockets.adapter.rooms) {
+    if (room.startsWith('mural-view:')) {
+      const chKey = room.replace('mural-view:', '');
+      const v = _getMuralViewers(chKey);
+      if (v.length > 0) allCounts[chKey] = v.length;
+    }
+  }
+  io.emit('mural-channel-counts', allCounts);
 }
 
 // GET /api/mural/:channelKey/online — usuarios VENDO este canal (deduplica por userId)
 app.get('/api/mural/:channelKey/online', (req, res) => {
   const users = _getMuralViewers(req.params.channelKey);
   res.json({ count: users.length, users });
+});
+
+// GET /api/mural-online-counts — contagem de pessoas online em TODOS os canais (para badges)
+app.get('/api/mural-online-counts', (req, res) => {
+  const counts = {};
+  for (const [room] of io.sockets.adapter.rooms) {
+    if (room.startsWith('mural-view:')) {
+      const chKey = room.replace('mural-view:', '');
+      const viewers = _getMuralViewers(chKey);
+      if (viewers.length > 0) counts[chKey] = viewers.length;
+    }
+  }
+  res.json(counts);
 });
 
 // Check ban before posting (update post endpoint)
@@ -8689,7 +8768,7 @@ app.post('/api/agent/session', vaLimiter, async (req, res) => {
   // News context from Mural "Falar disso com IA" button
   let newsInstructions = '';
   if (newsContext && newsContext.headline) {
-    const agentNames = { reporter: 'Reporter', fitness: 'Coach Fit', futebol: 'Boleiro', cozinha: 'Chef Touch', tecnologia: 'TechBot', politica: 'Politico', educacao: 'Prof. Saber' };
+    const agentNames = { reporter: 'Reporter', urgente: 'URGENTE', sport: 'SportBot', fitness: 'Coach Fit', saude: 'Dr. Touch', cozinha: 'Chef Touch', tecnologia: 'TechBot', politica: 'Politico', educacao: 'Prof. Saber' };
     const agentName = agentNames[newsContext.agentType] || 'Reporter';
     newsInstructions = `\n\n=== CONTEXTO DE NOTICIA DO MURAL ===
 O usuario clicou em "Falar disso com IA" em uma noticia do Mural da Cidade.
