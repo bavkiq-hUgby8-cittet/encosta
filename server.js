@@ -4334,6 +4334,19 @@ for (const [key, agent] of Object.entries(MURAL_AGENTS)) {
   NEWS_TOPICS[key] = { label: agent.label, prompt: agent.queryTemplate };
 }
 
+// Detectar assunto dominante nos ultimos posts do mural
+function _detectMuralContext(channelKey, limit) {
+  limit = limit || 10;
+  const posts = db.muralPosts[channelKey];
+  if (!posts || !Array.isArray(posts)) return '';
+  const recent = posts
+    .filter(p => p && p.text && !p.isNews && !p.isNarrator && (Date.now() - (p.createdAt || 0)) < 3600000)
+    .slice(-limit);
+  if (recent.length < 2) return '';
+  const texts = recent.map(p => (p.text || '').slice(0, 100)).join(' | ');
+  return texts;
+}
+
 async function fetchNewsForChannel(channelKey, channelName, channelType, agentId) {
   if (!PPLX_API_KEY) return null;
   const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
@@ -4344,12 +4357,16 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
   else if (channelType === 'country') localName = channelName;
   else if (channelType === 'region') localName = 'mundo';
 
-  // Build query using agent template
+  // Detectar contexto do mural para buscar noticias relacionadas
+  const muralContext = _detectMuralContext(channelKey);
   let query = agent.queryTemplate.replace('{local}', localName);
+  if (muralContext) {
+    query += '\n\nContexto: as pessoas estao conversando sobre: ' + muralContext.slice(0, 300) + '\nSe possivel, traga uma noticia relacionada a esse assunto.';
+  }
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const timer = setTimeout(() => ctrl.abort(), 20000);
     const resp = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -4362,8 +4379,10 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
           { role: 'system', content: agent.systemPrompt },
           { role: 'user', content: query }
         ],
-        max_tokens: 250,
-        temperature: 0.3
+        max_tokens: 350,
+        temperature: 0.3,
+        return_images: true,
+        return_related_questions: false
       }),
       signal: ctrl.signal
     });
@@ -4372,18 +4391,33 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
     const data = await resp.json();
     let text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
     if (!text || text.length < 20) return null;
-    text = text.trim().slice(0, 400);
+    text = text.trim().slice(0, 500);
+
+    // Extrair citations da API
+    let citations = [];
+    if (data.citations && Array.isArray(data.citations)) {
+      citations = data.citations.slice(0, 3);
+    }
+
+    // Extrair imagens da API (Perplexity retorna array de URLs)
+    let images = [];
+    if (data.images && Array.isArray(data.images)) {
+      images = data.images.slice(0, 2);
+    }
+
     // Se o modelo nao incluiu "Fonte:", tentar extrair das citations da API
-    if (!text.toLowerCase().includes('fonte:') && data.citations && data.citations.length > 0) {
+    if (!text.toLowerCase().includes('fonte:') && citations.length > 0) {
       try {
-        const url = new URL(data.citations[0]);
+        const url = new URL(citations[0]);
         let domain = url.hostname.replace('www.', '');
         domain = domain.split('.')[0];
         domain = domain.charAt(0).toUpperCase() + domain.slice(1);
         text += '\nFonte: ' + domain;
       } catch (e2) { /* ignore */ }
     }
-    return text;
+
+    // Retornar objeto rico em vez de string simples
+    return { text, citations, images, muralRelated: !!muralContext };
   } catch (e) {
     return null;
   }
@@ -4391,8 +4425,14 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
 
 async function postNewsToChannel(channelKey, channelName, channelType, agentId) {
   const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
-  const newsText = await fetchNewsForChannel(channelKey, channelName, channelType, agentId);
-  if (!newsText) return;
+  const result = await fetchNewsForChannel(channelKey, channelName, channelType, agentId);
+  if (!result) return;
+  // Suportar retorno antigo (string) e novo (objeto)
+  const newsText = typeof result === 'string' ? result : result.text;
+  const citations = (result && result.citations) || [];
+  const images = (result && result.images) || [];
+  const muralRelated = (result && result.muralRelated) || false;
+
   _newsLastPosted[agentId + ':' + channelKey] = Date.now();
   const newsPost = {
     id: 'mrl_news_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -4405,6 +4445,9 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
     agentType: agentId,
     stars: 0,
     text: newsText,
+    citations: citations,
+    images: images,
+    muralRelated: muralRelated,
     accessory: null,
     likes: [],
     createdAt: Date.now(),
@@ -4420,8 +4463,22 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
   }
   db.muralPosts[channelKey].push(newsPost);
   saveDBNow('muralPosts');
+
+  // Salvar no banco de contexto do agente principal (OpenAI VA)
+  if (!db.agentNewsContext) db.agentNewsContext = [];
+  db.agentNewsContext.push({
+    headline: newsText.split('\n')[0],
+    agent: agentId,
+    channel: channelKey,
+    ts: Date.now(),
+    muralRelated
+  });
+  // Manter apenas ultimas 50 noticias no contexto
+  if (db.agentNewsContext.length > 50) db.agentNewsContext = db.agentNewsContext.slice(-50);
+  saveDB('agentNewsContext');
+
   io.to('mural:' + channelKey).emit('mural-new-post', { post: newsPost });
-  console.log('[' + agentId + '] Posted to #' + channelKey + ' (total: ' + db.muralPosts[channelKey].length + ')');
+  console.log('[' + agentId + '] Posted to #' + channelKey + (muralRelated ? ' (mural-related)' : '') + ' (total: ' + db.muralPosts[channelKey].length + ')');
 }
 
 // Auto-post news to active channels — iterate through all agents with their own intervals
@@ -4495,8 +4552,11 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
   if (!sample) return res.status(400).json({ error: 'Canal sem historico.' });
 
   const agent = MURAL_AGENTS[agentId];
-  const newsText = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType, agentId);
-  if (!newsText) return res.status(500).json({ error: 'Nao foi possivel buscar noticias agora.' });
+  const result = await fetchNewsForChannel(channelKey, sample.channelName, sample.channelType, agentId);
+  if (!result) return res.status(500).json({ error: 'Nao foi possivel buscar noticias agora.' });
+  const newsTextStr = typeof result === 'string' ? result : result.text;
+  const citationsArr = (result && result.citations) || [];
+  const imagesArr = (result && result.images) || [];
   _newsLastPosted[agentId + ':' + channelKey] = Date.now();
 
   const newsPost = {
@@ -4509,7 +4569,10 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     color: agent.color,
     agentType: agentId,
     stars: 0,
-    text: newsText,
+    text: newsTextStr,
+    citations: citationsArr,
+    images: imagesArr,
+    muralRelated: !!(result && result.muralRelated),
     accessory: null,
     likes: [],
     createdAt: Date.now(),
