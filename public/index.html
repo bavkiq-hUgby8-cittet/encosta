@@ -1027,6 +1027,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-msg.user-post{flex-direction:column;gap:0;padding:.15rem 0}
 .mural-msg-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid #e0e0e0;margin-top:2px;background:#fff}
 .mural-msg-avatar svg{width:100%;height:100%}
+.mural-msg-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.mural-msg.news .mural-msg-avatar{width:38px;height:38px;border:2px solid #e65100}
 .mural-msg.user-post .mural-msg-avatar{display:none}
 .mural-msg-body{flex:1;min-width:0;background:#fff;border-radius:0 12px 12px 12px;padding:.45rem .6rem;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04)}
 .mural-msg.user-post .mural-msg-body{background:transparent;box-shadow:none;border:none;padding:.15rem .4rem}
@@ -7581,223 +7583,71 @@ function talkAboutNews(postId) {
   if (!post) return;
   var headline = (post.text || '').split('\n')[0];
   var fullText = post.text || '';
-  openNewsChat(postId, headline, fullText, post.agentType || 'reporter');
+  openNewsChat(postId, headline, fullText, post.agentType || 'reporter', post.nick || 'Reporter');
 }
 
-var _newsChatState = {};
+var _newsChatState = { active: false, history: [], ttsEnabled: true, sending: false };
 
-function openNewsChat(postId, headline, fullText, agentType) {
+var _ncAgentNicks = {
+  'reporter': 'Reporter', 'fitness': 'Coach Fit', 'futebol': 'Boleiro',
+  'cozinha': 'Chef Touch', 'tecnologia': 'TechBot', 'politica': 'Politico',
+  'educacao': 'Prof. Saber'
+};
+var _ncAgentColors = {
+  'reporter': '#e65100', 'fitness': '#2e7d32', 'futebol': '#1565c0',
+  'cozinha': '#d84315', 'tecnologia': '#6a1b9a', 'politica': '#37474f',
+  'educacao': '#f57f17'
+};
+
+function openNewsChat(postId, headline, fullText, agentType, agentNick) {
   if (_newsChatState.active) return;
-  _newsChatState.active = true;
-  _newsChatState.postId = postId;
-  _newsChatState.headline = headline;
-  _newsChatState.fullText = fullText;
-  _newsChatState.agentType = agentType || 'reporter';
-  _newsChatState.history = [];
-  _newsChatState.ttsEnabled = true;
-  _newsChatState.currentUtterance = null;
+  var color = _ncAgentColors[agentType] || '#e65100';
+  var nick = _ncAgentNicks[agentType] || agentNick || 'Agente';
+  var imgSrc = ['reporter','fitness','futebol','cozinha','tecnologia','politica'].indexOf(agentType) !== -1
+    ? '/img/agents/' + agentType + '.png' : '';
 
-  var agentColors = {
-    'reporter': '#e65100', 'fitness': '#2e7d32', 'futebol': '#1565c0',
-    'cozinha': '#d84315', 'tecnologia': '#6a1b9a', 'politica': '#37474f',
-    'educacao': '#f57f17'
+  _newsChatState = {
+    active: true, postId: postId, headline: headline, fullText: fullText,
+    agentType: agentType, history: [], ttsEnabled: true, sending: false, nick: nick
   };
-  var agentColor = agentColors[agentType] || '#FF6F00';
 
-  var overlayHtml = '<div id="newsChatOverlay" style="'
-    + 'position:fixed;top:0;left:0;right:0;bottom:0;'
-    + 'background:rgba(0,0,0,0.95);'
-    + 'z-index:99999;'
-    + 'display:flex;'
-    + 'flex-direction:column;'
-    + 'font-family:\'Helvetica Neue\',sans-serif;'
-    + '">'
-    + '<div style="'
-    + 'display:flex;'
-    + 'justify-content:space-between;'
-    + 'align-items:center;'
-    + 'padding:16px;'
-    + 'border-bottom:1px solid #333;'
-    + 'background:' + agentColor + ';'
-    + 'color:#fff;'
-    + '">'
-    + '<div style="flex:1;">'
-    + '<h2 style="margin:0;font-size:16px;font-weight:600;">' + esc(headline.slice(0, 60)) + '</h2>'
-    + '</div>'
-    + '<button id="newsChatTtsToggle" onclick="toggleNewsChatTts()" style="'
-    + 'background:rgba(255,255,255,0.2);'
-    + 'border:1px solid rgba(255,255,255,0.3);'
-    + 'color:#fff;'
-    + 'width:40px;'
-    + 'height:40px;'
-    + 'border-radius:50%;'
-    + 'cursor:pointer;'
-    + 'font-size:18px;'
-    + 'display:flex;'
-    + 'align-items:center;'
-    + 'justify-content:center;'
-    + 'margin-right:8px;'
-    + '">Volume</button>'
-    + '<button onclick="closeNewsChat()" style="'
-    + 'background:rgba(255,255,255,0.2);'
-    + 'border:1px solid rgba(255,255,255,0.3);'
-    + 'color:#fff;'
-    + 'width:40px;'
-    + 'height:40px;'
-    + 'border-radius:50%;'
-    + 'cursor:pointer;'
-    + 'font-size:20px;'
-    + '">X</button>'
-    + '</div>'
-    + '<div id="newsChatMessages" style="'
-    + 'flex:1;'
-    + 'overflow-y:auto;'
-    + 'padding:16px;'
-    + 'display:flex;'
-    + 'flex-direction:column;'
-    + 'gap:12px;'
-    + '"></div>'
-    + '<div style="'
-    + 'display:flex;'
-    + 'gap:8px;'
-    + 'padding:12px;'
-    + 'border-top:1px solid #333;'
-    + 'background:#0a0a14;'
-    + '">'
-    + '<input id="newsChatInput" type="text" placeholder="Sua pergunta sobre a noticia..." style="'
-    + 'flex:1;'
-    + 'padding:12px;'
-    + 'background:#1a1a2e;'
-    + 'border:1px solid #333;'
-    + 'color:#fff;'
-    + 'border-radius:6px;'
-    + 'font-size:14px;'
-    + '"/>'
-    + '<button id="newsChatSend" onclick="sendNewsChatMessage()" style="'
-    + 'padding:12px 20px;'
-    + 'background:' + agentColor + ';'
-    + 'color:#fff;'
-    + 'border:none;'
-    + 'border-radius:6px;'
-    + 'cursor:pointer;'
-    + 'font-weight:600;'
-    + '">Enviar</button>'
-    + '</div>'
-    + '</div>';
+  var headerImg = imgSrc ? '<img src="' + imgSrc + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3)"/>' : '';
 
-  document.body.insertAdjacentHTML('beforeend', overlayHtml);
+  var h = '<div id="newsChatOverlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0a0a14;z-index:99999;display:flex;flex-direction:column">';
+  // Header
+  h += '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:' + color + ';color:#fff;flex-shrink:0">';
+  h += headerImg;
+  h += '<div style="flex:1;min-width:0"><div style="font-size:.65rem;opacity:.8">' + esc(nick) + '</div>';
+  h += '<div style="font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(headline.slice(0, 80)) + '</div></div>';
+  h += '<button onclick="toggleNewsChatTts()" id="ncTtsBtn" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0">';
+  h += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>';
+  h += '</button>';
+  h += '<button onclick="closeNewsChat()" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:18px;cursor:pointer;flex-shrink:0">X</button>';
+  h += '</div>';
+  // Messages
+  h += '<div id="ncMsgs" style="flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px"></div>';
+  // Input
+  h += '<div style="display:flex;gap:8px;padding:10px 12px;border-top:1px solid #222;background:#0d0d1a;flex-shrink:0">';
+  h += '<input id="ncInput" type="text" placeholder="Pergunte sobre a noticia..." style="flex:1;padding:10px 14px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:20px;font-size:14px;outline:none" autocomplete="off"/>';
+  h += '<button onclick="sendNewsChatMessage()" id="ncSendBtn" style="padding:10px 18px;background:' + color + ';color:#fff;border:none;border-radius:20px;cursor:pointer;font-weight:600;font-size:14px;flex-shrink:0">Enviar</button>';
+  h += '</div></div>';
 
-  var input = document.getElementById('newsChatInput');
+  document.body.insertAdjacentHTML('beforeend', h);
+  var input = document.getElementById('ncInput');
   if (input) {
-    input.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') sendNewsChatMessage();
-    });
-    setTimeout(function() { input.focus(); }, 100);
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNewsChatMessage(); } });
   }
 
-  showToast('Iniciando conversa...');
-  sendNewsChatInitialMessage(agentType);
+  // Auto-send first message
+  _ncAddMsg(nick, 'Carregando...', true, []);
+  _ncSendToPerplexity('Comece uma conversa engajante e bem-fundamentada sobre esta noticia. Comente com opiniao e pergunte o que o usuario acha.', true);
 }
 
-function sendNewsChatInitialMessage(agentType) {
-  var agentNicks = {
-    'reporter': 'Reporter', 'fitness': 'Coach Fit', 'futebol': 'Boleiro',
-    'cozinha': 'Chef Touch', 'tecnologia': 'TechBot', 'politica': 'Politico',
-    'educacao': 'Prof. Saber'
-  };
-  var nick = agentNicks[agentType] || 'Agente';
-
-  apiFetch('/api/mural/news-chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: state.userId,
-      newsContext: {
-        headline: _newsChatState.headline,
-        fullText: _newsChatState.fullText,
-        agentType: _newsChatState.agentType
-      },
-      message: 'Comece uma conversa engajante e bem-fundamentada sobre esta noticia.',
-      history: []
-    })
-  }).then(function(r) { return r.json(); }).then(function(data) {
-    if (!data || !data.reply) {
-      showToast('Resposta vazia');
-      closeNewsChat();
-      return;
-    }
-    _newsChatState.history.push({ role: 'assistant', content: data.reply });
-    addNewsChatMessage(nick, data.reply, true, data.citations || []);
-  }).catch(function(e) {
-    showToast('Erro ao iniciar conversa');
-    closeNewsChat();
-  });
-}
-
-function addNewsChatMessage(sender, text, isAI, citations) {
-  var msgContainer = document.getElementById('newsChatMessages');
-  if (!msgContainer) return;
-
-  var agentColors = {
-    'reporter': '#e65100', 'fitness': '#2e7d32', 'futebol': '#1565c0',
-    'cozinha': '#d84315', 'tecnologia': '#6a1b9a', 'politica': '#37474f',
-    'educacao': '#f57f17'
-  };
-  var color = isAI ? (agentColors[_newsChatState.agentType] || '#FF6F00') : '#60a5fa';
-
-  var msgHtml = '<div style="'
-    + 'display:flex;'
-    + 'justify-content:' + (isAI ? 'flex-start' : 'flex-end') + ';'
-    + 'gap:8px;'
-    + '">'
-    + '<div style="'
-    + 'max-width:80%;'
-    + 'background:' + color + ';'
-    + 'color:#fff;'
-    + 'padding:12px;'
-    + 'border-radius:12px;'
-    + 'word-wrap:break-word;'
-    + '">'
-    + '<div style="font-weight:600;font-size:12px;margin-bottom:4px;">' + esc(sender) + '</div>'
-    + '<div style="font-size:14px;line-height:1.4;">' + esc(text).replace(/\n/g, '<br>') + '</div>';
-
-  if (isAI && citations && citations.length > 0) {
-    msgHtml += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2);font-size:11px;">'
-      + '<strong>Fontes:</strong><br>';
-    for (var i = 0; i < Math.min(citations.length, 3); i++) {
-      var url = citations[i];
-      try {
-        var urlObj = new URL(url);
-        var domain = urlObj.hostname.replace('www.', '');
-        msgHtml += '<a href="' + esc(url) + '" target="_blank" style="color:#fff;text-decoration:underline;">'
-          + esc(domain.slice(0, 30)) + '</a><br>';
-      } catch(e) {}
-    }
-    msgHtml += '</div>';
-  }
-
-  msgHtml += '</div>'
-    + '</div>';
-
-  msgContainer.insertAdjacentHTML('beforeend', msgHtml);
-  msgContainer.scrollTop = msgContainer.scrollHeight;
-
-  if (isAI && _newsChatState.ttsEnabled) {
-    readTextAloud(text);
-  }
-}
-
-function sendNewsChatMessage() {
-  var input = document.getElementById('newsChatInput');
-  if (!input) return;
-  var message = input.value.trim();
-  if (!message) return;
-
-  stopCurrentSpeech();
-  input.value = '';
-  addNewsChatMessage('Voce', message, false, []);
-
-  _newsChatState.history.push({ role: 'user', content: message });
+function _ncSendToPerplexity(message, isInitial) {
+  if (_newsChatState.sending) return;
+  _newsChatState.sending = true;
+  var sendBtn = document.getElementById('ncSendBtn');
+  if (sendBtn) sendBtn.textContent = '...';
 
   apiFetch('/api/mural/news-chat', {
     method: 'POST',
@@ -7812,65 +7662,126 @@ function sendNewsChatMessage() {
       message: message,
       history: _newsChatState.history
     })
-  }).then(function(r) { return r.json(); }).then(function(data) {
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data) {
+    _newsChatState.sending = false;
+    if (sendBtn) sendBtn.textContent = 'Enviar';
     if (!data || !data.reply) {
-      showToast('Resposta vazia');
+      if (isInitial) {
+        _ncUpdateLastMsg('Nao consegui carregar. Tente novamente.');
+      } else {
+        showToast('Resposta vazia');
+      }
       return;
     }
-    var agentNicks = {
-      'reporter': 'Reporter', 'fitness': 'Coach Fit', 'futebol': 'Boleiro',
-      'cozinha': 'Chef Touch', 'tecnologia': 'TechBot', 'politica': 'Politico',
-      'educacao': 'Prof. Saber'
-    };
-    var nick = agentNicks[_newsChatState.agentType] || 'Agente';
     _newsChatState.history.push({ role: 'assistant', content: data.reply });
-    addNewsChatMessage(nick, data.reply, true, data.citations || []);
+    if (isInitial) {
+      _ncUpdateLastMsg(data.reply, data.citations || []);
+    } else {
+      _ncAddMsg(_newsChatState.nick, data.reply, true, data.citations || []);
+    }
+    if (_newsChatState.ttsEnabled) readTextAloud(data.reply);
   }).catch(function(e) {
-    showToast('Erro ao enviar mensagem');
+    _newsChatState.sending = false;
+    if (sendBtn) sendBtn.textContent = 'Enviar';
+    console.error('[NewsChat] Error:', e);
+    if (isInitial) {
+      _ncUpdateLastMsg('Erro ao conectar. Tente novamente mais tarde.');
+    } else {
+      showToast('Erro ao enviar');
+    }
   });
+}
+
+function _ncAddMsg(sender, text, isAI, citations) {
+  var box = document.getElementById('ncMsgs');
+  if (!box) return;
+  var color = isAI ? (_ncAgentColors[_newsChatState.agentType] || '#e65100') : '#2563eb';
+  var align = isAI ? 'flex-start' : 'flex-end';
+  var imgSrc = isAI && ['reporter','fitness','futebol','cozinha','tecnologia','politica'].indexOf(_newsChatState.agentType) !== -1
+    ? '/img/agents/' + _newsChatState.agentType + '.png' : '';
+  var avatarHtml = isAI && imgSrc ? '<img src="' + imgSrc + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:2px"/>' : '';
+
+  var m = '<div class="nc-msg" style="display:flex;justify-content:' + align + ';gap:8px">';
+  if (isAI && avatarHtml) m += avatarHtml;
+  m += '<div style="max-width:82%;background:' + (isAI ? 'rgba(255,255,255,.08)' : color) + ';color:#fff;padding:10px 14px;border-radius:' + (isAI ? '4px 16px 16px 16px' : '16px 4px 16px 16px') + ';word-wrap:break-word;border:' + (isAI ? '1px solid rgba(255,255,255,.1)' : 'none') + '">';
+  m += '<div style="font-size:.6rem;font-weight:600;color:' + (isAI ? color : 'rgba(255,255,255,.7)') + ';margin-bottom:3px">' + esc(sender) + '</div>';
+  m += '<div style="font-size:.8rem;line-height:1.5" id="ncMsgText_' + Date.now() + '">' + esc(text).replace(/\n/g, '<br>') + '</div>';
+
+  if (isAI && citations && citations.length > 0) {
+    m += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1);font-size:.55rem">';
+    m += '<span style="color:rgba(255,255,255,.5)">Fontes: </span>';
+    for (var i = 0; i < Math.min(citations.length, 3); i++) {
+      try {
+        var d = new URL(citations[i]).hostname.replace('www.', '');
+        m += '<a href="' + esc(citations[i]) + '" target="_blank" style="color:' + color + ';text-decoration:none;margin-right:8px">' + esc(d.split('.')[0]) + '</a>';
+      } catch(e) {}
+    }
+    m += '</div>';
+  }
+  m += '</div></div>';
+
+  box.insertAdjacentHTML('beforeend', m);
+  box.scrollTop = box.scrollHeight;
+}
+
+function _ncUpdateLastMsg(text, citations) {
+  var box = document.getElementById('ncMsgs');
+  if (!box) return;
+  var lastMsg = box.querySelector('.nc-msg:last-child');
+  if (lastMsg) lastMsg.remove();
+  _ncAddMsg(_newsChatState.nick, text, true, citations || []);
+}
+
+function sendNewsChatMessage() {
+  var input = document.getElementById('ncInput');
+  if (!input) return;
+  var message = input.value.trim();
+  if (!message || _newsChatState.sending) return;
+  stopCurrentSpeech();
+  input.value = '';
+  _ncAddMsg('Voce', message, false, []);
+  _newsChatState.history.push({ role: 'user', content: message });
+  _ncSendToPerplexity(message, false);
 }
 
 function toggleNewsChatTts() {
   _newsChatState.ttsEnabled = !_newsChatState.ttsEnabled;
-  var btn = document.getElementById('newsChatTtsToggle');
-  if (btn) {
-    btn.style.opacity = _newsChatState.ttsEnabled ? '1' : '0.5';
-  }
+  var btn = document.getElementById('ncTtsBtn');
+  if (btn) btn.style.opacity = _newsChatState.ttsEnabled ? '1' : '0.4';
   stopCurrentSpeech();
-  showToast(_newsChatState.ttsEnabled ? 'Audio ativado' : 'Audio desativado');
+  showToast(_newsChatState.ttsEnabled ? 'Audio ligado' : 'Audio desligado');
 }
 
 function stopCurrentSpeech() {
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-  if (_newsChatState.currentUtterance) {
-    _newsChatState.currentUtterance = null;
-  }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 function readTextAloud(text) {
-  if (!window.speechSynthesis) return;
+  if (!window.speechSynthesis || !text) return;
   stopCurrentSpeech();
-
-  var utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'pt-BR';
-  utterance.rate = 1;
-  utterance.pitch = 1;
-  utterance.volume = 1;
-
-  _newsChatState.currentUtterance = utterance;
-  window.speechSynthesis.speak(utterance);
+  // Remove markdown-style formatting
+  var clean = text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,3}\s/g, '').replace(/\[.*?\]\(.*?\)/g, '');
+  var utt = new SpeechSynthesisUtterance(clean);
+  utt.lang = 'pt-BR';
+  utt.rate = 1.05;
+  utt.pitch = 1;
+  utt.volume = 1;
+  // Try to find a pt-BR voice
+  var voices = window.speechSynthesis.getVoices();
+  for (var i = 0; i < voices.length; i++) {
+    if (voices[i].lang && voices[i].lang.indexOf('pt') === 0) { utt.voice = voices[i]; break; }
+  }
+  window.speechSynthesis.speak(utt);
 }
 
 function closeNewsChat() {
   stopCurrentSpeech();
   var overlay = document.getElementById('newsChatOverlay');
-  if (overlay) {
-    overlay.remove();
-  }
-  _newsChatState.active = false;
-  _newsChatState = {};
+  if (overlay) overlay.remove();
+  _newsChatState = { active: false, history: [], ttsEnabled: true, sending: false };
 }
 
 function _buildMuralMsgHtml(p) {
