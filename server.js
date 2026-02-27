@@ -4195,6 +4195,24 @@ app.post('/api/mural/:postId/hide', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/mural/clear-news — limpar todas as noticias de agentes (operator only)
+app.post('/api/mural/clear-news', requireAuth, (req, res) => {
+  const { userId } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const user = db.users[userId];
+  if (!user.isAdmin && user.tier !== 'top1') return res.status(403).json({ error: 'Apenas operadores podem limpar noticias.' });
+  let total = 0;
+  for (const ch of Object.keys(db.muralPosts)) {
+    if (!Array.isArray(db.muralPosts[ch])) continue;
+    const before = db.muralPosts[ch].length;
+    db.muralPosts[ch] = db.muralPosts[ch].filter(p => !p.isNews);
+    total += before - db.muralPosts[ch].length;
+  }
+  saveDBNow('muralPosts');
+  console.log('[mural] clear-news: removidas ' + total + ' noticias por ' + userId);
+  res.json({ ok: true, removed: total });
+});
+
 // POST /api/mural/:channelKey/narrate — narrator agent summarizes recent activity
 app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
   const channelKey = req.params.channelKey;
