@@ -6084,8 +6084,12 @@ function doReveal(data){
     const myAccKey=me.accessory||null;
     $('rvAvatarMeInner').innerHTML=makeAvatar(me.name,meColor,56,null,myVerified,myAccKey);
   }
-  // Their avatar: anonymous if not revealed to me
-  if(theirPhoto){
+  // Their avatar: for events use eventLogo, otherwise anonymous if not revealed
+  const theirEventLogo=(them.isEvent&&them.eventLogo)?them.eventLogo:null;
+  if(theirEventLogo){
+    let evAv='<img class="rv-avatar-img" src="'+esc(theirEventLogo)+'" alt="" style="object-fit:cover;border-radius:50%" onerror="this.outerHTML=makeAvatar(\''+esc(them.name||\'??\').replace(/\'/g,"\\\'")+'\',\''+esc(themColor)+'\',56)">';
+    $('rvAvatarThemInner').innerHTML=evAv;
+  }else if(theirPhoto){
     let thAv='<img class="rv-avatar-img" src="'+esc(theirPhoto)+'" alt="" onerror="this.outerHTML=makeAvatar(\''+esc(them.name||'??').replace(/'/g,"\\'")+'\',\''+esc(themColor)+'\',56)">';
     $('rvAvatarThemInner').innerHTML=theirVerified?'<div class="verified-wrap">'+thAv+verifiedBadge('verified-badge-lg')+'</div>':thAv;
   }else{
@@ -6275,7 +6279,7 @@ function doReveal(data){
       let h='';
       var evLogo=(them.eventLogo||'').replace(/'/g,"\\'");
       h+=_rvBtn(_rvIco.ticket,'Pagar '+priceLabel,"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+opId+"','"+evLogo+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,'Cancelar',"goHome()",'skip');
+      h+=_rvBtn(_rvIco.skip,'Pular',"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"')",'skip');
       iconRow.innerHTML=h;
       if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">Este evento cobra '+priceLabel+' de ingresso.</div>';
     }else if(data.requireReveal){
@@ -6337,6 +6341,15 @@ function openTipFromReveal(){
 async function showEntryPayment(eventId,eventName,price,operatorId,eventLogo){
   if(!state.userId){showToast('Faca login para continuar.');return}
   showEntryCardForm(eventId,eventName,price,operatorId,eventLogo);
+}
+
+function skipEntryPayment(eventId,eventName,operatorId){
+  // Notify operator that user skipped payment
+  if(socket&&socket.connected){
+    socket.emit('entry-skipped',{eventId:eventId,userId:state.userId,nickname:state.nickname||state.userName,operatorId:operatorId});
+  }
+  // Still enter the event view
+  showEventView(eventId,eventName);
 }
 
 function showEntryCardForm(eventId,eventName,price,operatorId,eventLogo){

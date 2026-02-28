@@ -1341,7 +1341,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
       <div class="op-toggle"><span>Só revelados</span><div class="op-toggle-switch" id="opToggleReveal" onclick="toggleRequireReveal()"><div class="op-toggle-dot"></div></div></div>
       <div class="op-toggle"><span>Nomes reais</span><div class="op-toggle-switch on" id="opToggleNames" onclick="toggleShowRealNames()"><div class="op-toggle-dot"></div></div></div>
       <div class="op-toggle"><span>Sem fotos</span><div class="op-toggle-switch" id="opTogglePhotos" onclick="toggleHidePhotos()"><div class="op-toggle-dot"></div></div></div>
-      <div class="op-toggle" style="border-left:1px solid rgba(255,255,255,.08);padding-left:.5rem;margin-left:.3rem"><span style="color:rgba(251,146,60,.8)">Noticias AI</span><div class="op-toggle-switch" id="opToggleNews" onclick="toggleNewsEngine()"><div class="op-toggle-dot"></div></div></div>
       <div class="op-user" id="opUserName"></div>
       <button class="op-hdr-btn" onclick="opBackToEvents()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Eventos</button>
       <button class="op-hdr-btn danger" onclick="opEndEvent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg> Encerrar</button>
@@ -1869,7 +1868,7 @@ async function loadExistingEvent(){
     if(d.attendees&&d.attendees.length>0){
       $('opEmpty').style.display='none';
       d.attendees.forEach(a=>{
-        const checkinData={userId:a.userId,nickname:a.nickname,color:a.color,profilePhoto:a.profilePhoto,timestamp:Date.now(),relationId:null,revealed:a.revealed,revealData:a.revealData,stars:a.stars,topTag:a.topTag,score:a.score};
+        const checkinData={userId:a.userId,nickname:a.nickname,color:a.color,profilePhoto:a.profilePhoto,timestamp:Date.now(),relationId:null,revealed:a.revealed,revealData:a.revealData,stars:a.stars,topTag:a.topTag,score:a.score,entryStatus:a.entryStatus||null};
         S.checkins.push(checkinData);
         addCheckinToList(checkinData);
         addNodeToCanvas(checkinData,true);
@@ -1948,6 +1947,7 @@ function initSocket(){
   });
   // Use checkin-created as the primary event (avoids duplicates with relation-created)
   S.socket.on('checkin-created',d=>{handleNewCheckin(d)});
+  S.socket.on('entry-skipped',d=>{handleEntrySkipped(d)});
   // Event match — two visitors connected inside the event
   S.socket.on('event-match',d=>{
     console.log('[event-match]',d);
@@ -2261,6 +2261,53 @@ function runNextFlash(){
   setTimeout(runNextFlash,1500); // 1.5s between flashes
 }
 
+function handleEntrySkipped(d){
+  const wrap=document.querySelector('.op-ci-wrap[data-user-id="'+d.userId+'"]');
+  if(!wrap)return;
+  const item=wrap.querySelector('.op-checkin-item');
+  if(!item)return;
+  const actions=item.querySelector('.op-ci-actions');
+  if(!actions)return;
+  actions.querySelectorAll('.entry-ctrl').forEach(e=>e.remove());
+  const ctrl=document.createElement('div');ctrl.className='entry-ctrl';
+  ctrl.style.cssText='display:flex;gap:.2rem;margin-top:.2rem';
+  ctrl.innerHTML='<button class="op-ci-action-btn entry-free" onclick="event.stopPropagation();setEntryStatus(\''+d.userId+'\',\'freed\',this)" style="font-size:.42rem;padding:.1rem .22rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px;cursor:pointer;font-family:inherit">Liberar</button>'
+    +'<button class="op-ci-action-btn entry-pres" onclick="event.stopPropagation();setEntryStatus(\''+d.userId+'\',\'presencial\',this)" style="font-size:.42rem;padding:.1rem .22rem;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;font-family:inherit">Presencial</button>'
+    +'<button class="op-ci-action-btn entry-remove" onclick="event.stopPropagation();removeAttendee(\''+d.userId+'\')" style="font-size:.42rem;padding:.1rem .22rem;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2);border-radius:6px;cursor:pointer;font-family:inherit">Remover</button>';
+  actions.appendChild(ctrl);
+  item.style.boxShadow='0 0 12px rgba(251,191,36,.3)';
+  setTimeout(()=>{item.style.boxShadow=''},3000);
+}
+
+async function setEntryStatus(userId,status,btn){
+  const ci=S.checkins.find(c=>c.userId===userId);
+  if(ci)ci.entryStatus=status;
+  const wrap=document.querySelector('.op-ci-wrap[data-user-id="'+userId+'"]');
+  if(wrap){
+    wrap.querySelectorAll('.entry-ctrl').forEach(e=>e.remove());
+    const actions=wrap.querySelector('.op-ci-actions');
+    if(actions){
+      const badge=document.createElement('span');
+      badge.className='op-ci-action-btn';
+      if(status==='freed'){
+        badge.style.cssText='font-size:.48rem;padding:.12rem .3rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px';
+        badge.textContent='Liberado';
+      }else if(status==='presencial'){
+        badge.style.cssText='font-size:.48rem;padding:.12rem .3rem;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.2);border-radius:6px';
+        badge.textContent='Presencial';
+      }
+      actions.appendChild(badge);
+    }
+  }
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/attendee-status',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:userId,entryStatus:status})
+    });
+  }catch(e){console.error('[setEntryStatus]',e)}
+}
+
 function addCheckinToList(d){
   S.checkins.unshift(d);
   $('opCount').textContent=S.checkins.length;
@@ -2283,8 +2330,13 @@ function addCheckinToList(d){
   const starsText=(d.stars||0)>0?'<span class="op-ci-stars">★ '+(d.stars||0)+'</span>':'';
   const topBadge=d.topTag?'<span class="op-ci-badge">'+({top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100'}[d.topTag]||'')+'</span>':'';
   const revBadge=d.revealed?'<span class="op-ci-action-btn revealed" style="font-size:.48rem;padding:.12rem .3rem">✓ ID</span>':'';
-  const paidBtn=d.paidPresencial
-    ?'<span class="op-ci-action-btn paid active" style="font-size:.48rem;padding:.12rem .3rem">$ Pago</span>'
+  const es=d.entryStatus||null;
+  const paidBtn=d.paidPresencial||es==='paid'
+    ?'<span class="op-ci-action-btn" style="font-size:.48rem;padding:.12rem .3rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px">Pago</span>'
+    :es==='freed'
+    ?'<span class="op-ci-action-btn" style="font-size:.48rem;padding:.12rem .3rem;background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);border-radius:6px">Liberado</span>'
+    :es==='presencial'
+    ?'<span class="op-ci-action-btn" style="font-size:.48rem;padding:.12rem .3rem;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.2);border-radius:6px">Presencial</span>'
     :'<button class="op-ci-action-btn paid" onclick="event.stopPropagation();markPaidPresencial(\''+esc(d.userId||'')+'\',this)" style="font-size:.48rem;padding:.12rem .3rem">$ Pago?</button>';
   item.innerHTML=
     '<div class="op-ci-avatar" style="background:'+col+'">'+ini(d.nickname||'?')+'</div>'+

@@ -6894,6 +6894,17 @@ io.on('connection', (socket) => {
     io.to(`user:${partnerId}`).emit('pulse-received', { relationId, from: userId });
   });
 
+  // Entry skipped — user skipped payment for event entry
+  socket.on('entry-skipped', (data) => {
+    if (data && data.operatorId) {
+      io.to(`user:${data.operatorId}`).emit('entry-skipped', {
+        eventId: data.eventId,
+        userId: data.userId,
+        nickname: data.nickname || 'Visitante'
+      });
+    }
+  });
+
   // Ephemeral message — persisted so recipient sees when opening chat
   socket.on('send-ephemeral', ({ relationId, userId, text }) => {
     if (!dbLoaded) return;
@@ -11648,11 +11659,13 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
         const revEntry = isRevealedTo(uid, creatorUser, req.params.eventId);
         const revealed = !!revEntry;
         const revealData = revEntry || null;
+        const entryStatus = (ev.attendees && ev.attendees[uid]) ? ev.attendees[uid].entryStatus : null;
         return {
           userId: uid, nickname: u.nickname || u.name, color: u.color,
           profilePhoto: u.profilePhoto || u.photoURL || null,
           stars, topTag, revealed, revealData,
-          score: calcScore(uid)
+          score: calcScore(uid),
+          entryStatus: entryStatus
         };
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
@@ -11715,6 +11728,21 @@ app.post('/api/operator/event/:eventId/business-profile', async (req, res) => {
   }
   saveDB('operatorEvents');
   res.json({ ok: true, event: ev });
+});
+
+app.post('/api/operator/event/:eventId/attendee-status', async (req, res) => {
+  const { eventId } = req.params;
+  const { userId, entryStatus } = req.body;
+  const ev = db.operatorEvents ? db.operatorEvents[eventId] : null;
+  if (!ev) return res.status(404).json({ error: 'Event not found' });
+  if (!ev.attendees) ev.attendees = {};
+  if (!ev.attendees[userId]) ev.attendees[userId] = {};
+  ev.attendees[userId].entryStatus = entryStatus;
+  saveDB('operatorEvents');
+  if (entryStatus === 'freed' || entryStatus === 'presencial') {
+    io.to(`user:${userId}`).emit('entry-status-update', { eventId, status: entryStatus });
+  }
+  res.json({ ok: true });
 });
 
 // ═══ EVENT DELETE & LIKE ═══
