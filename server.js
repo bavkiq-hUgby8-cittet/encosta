@@ -11633,6 +11633,24 @@ app.post('/api/operator/event/create', async (req, res) => {
       maxHours: 24,
       vehicles: {}
     },
+    gym: {
+      enabled: false,
+      config: { maxCapacity: 50, openTime: '06:00', closeTime: '22:00' },
+      classes: {},
+      plans: {},
+      members: {},
+      workouts: {}
+    },
+    church: {
+      enabled: false,
+      config: { churchName: '', pastorName: '', denomination: '' },
+      tithes: {},
+      campaigns: {},
+      services: {},
+      prayers: {},
+      cells: {},
+      announcements: []
+    },
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
     paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
@@ -12558,6 +12576,196 @@ app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
   };
   saveDB('operatorEvents');
   res.json({ ok: true, vehicle: ev.parking.vehicles[plateTrimmed] });
+});
+
+// ═══════════════════════════════════════════════════
+// ═══ GYM MODULE ENDPOINTS ═══
+// ═══════════════════════════════════════════════════
+
+app.post('/api/operator/event/:eventId/gym/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { enabled, maxCapacity, openTime, closeTime } = req.body;
+  if (!ev.gym) ev.gym = { enabled: false, config: {}, classes: {}, plans: {}, members: {}, workouts: {} };
+  ev.gym.config = { enabled: !!enabled, maxCapacity: parseInt(maxCapacity) || 50, openTime: openTime || '06:00', closeTime: closeTime || '22:00' };
+  ev.gym.enabled = !!enabled;
+  saveDB('operatorEvents');
+  res.json({ ok: true, config: ev.gym.config });
+});
+
+app.get('/api/event/:eventId/gym', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.json({ enabled: false, config: {}, classes: {}, plans: {} });
+  res.json({ enabled: ev.gym.enabled, config: ev.gym.config, classes: ev.gym.classes, plans: ev.gym.plans });
+});
+
+app.post('/api/operator/event/:eventId/gym/class/:classId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const classData = req.body;
+  if (!ev.gym.classes) ev.gym.classes = {};
+  ev.gym.classes[classData.id] = classData;
+  saveDB('operatorEvents');
+  res.json({ ok: true, class: classData });
+});
+
+app.delete('/api/operator/event/:eventId/gym/class/:classId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  if (ev.gym.classes) delete ev.gym.classes[req.params.classId];
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+app.post('/api/operator/event/:eventId/gym/plan/:planId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const planData = req.body;
+  if (!ev.gym.plans) ev.gym.plans = {};
+  ev.gym.plans[planData.id] = planData;
+  saveDB('operatorEvents');
+  res.json({ ok: true, plan: planData });
+});
+
+app.delete('/api/operator/event/:eventId/gym/plan/:planId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  if (ev.gym.plans) delete ev.gym.plans[req.params.planId];
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+app.post('/api/event/:eventId/gym/checkin', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const { userId, nickname } = req.body;
+  if (!ev.gym.workouts) ev.gym.workouts = {};
+  const workoutId = 'wo_' + Date.now();
+  ev.gym.workouts[workoutId] = { odId: workoutId, userId, nickname, checkInTime: Date.now(), checkOutTime: null, status: 'active' };
+  saveDB('operatorEvents');
+  res.json({ ok: true, workout: ev.gym.workouts[workoutId] });
+});
+
+app.post('/api/event/:eventId/gym/checkout', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const { odId } = req.body;
+  if (ev.gym.workouts && ev.gym.workouts[odId]) {
+    ev.gym.workouts[odId].checkOutTime = Date.now();
+    ev.gym.workouts[odId].status = 'done';
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+app.get('/api/event/:eventId/gym/my-status', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  const userId = req.query.userId;
+  if (!ev || !ev.gym) return res.json({ status: null });
+  const member = ev.gym.members && ev.gym.members[userId];
+  res.json({ status: member?.status, planId: member?.planId, endDate: member?.endDate });
+});
+
+// ═══════════════════════════════════════════════════
+// ═══ CHURCH MODULE ENDPOINTS
+// ═══════════════════════════════════════════════════
+
+app.post('/api/operator/event/:eventId/church/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { enabled, churchName, pastorName, denomination } = req.body;
+  if (!ev.church) ev.church = { enabled: false, config: {}, tithes: {}, services: {}, prayers: {}, cells: {}, announcements: [] };
+  ev.church.config = { enabled: !!enabled, churchName: churchName || '', pastorName: pastorName || '', denomination: denomination || '' };
+  ev.church.enabled = !!enabled;
+  saveDB('operatorEvents');
+  res.json({ ok: true, config: ev.church.config });
+});
+
+app.get('/api/event/:eventId/church', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.json({ enabled: false, config: {}, services: {}, announcements: [] });
+  res.json({ enabled: ev.church.enabled, config: ev.church.config, services: ev.church.services, announcements: ev.church.announcements });
+});
+
+app.post('/api/event/:eventId/church/tithe', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const { userId, nickname, amount, type, campaignName, note } = req.body;
+  if (!ev.church.tithes) ev.church.tithes = {};
+  const titheId = 'tithe_' + Date.now();
+  ev.church.tithes[titheId] = { id: titheId, odId: titheId, userId, nickname: nickname || 'Anonimo', amount: parseFloat(amount) || 0, type: type || 'offering', campaignName: campaignName || '', date: Date.now(), paymentMethod: 'app', note: note || '' };
+  saveDB('operatorEvents');
+  res.json({ ok: true, tithe: ev.church.tithes[titheId] });
+});
+
+app.get('/api/event/:eventId/church/my-contributions', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  const userId = req.query.userId;
+  if (!ev || !ev.church) return res.json({ contributions: [] });
+  const contributions = Object.values(ev.church.tithes || {}).filter(t => t.userId === userId);
+  res.json({ contributions });
+});
+
+app.post('/api/operator/event/:eventId/church/campaign', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const campaignData = req.body;
+  if (!ev.church.campaigns) ev.church.campaigns = {};
+  ev.church.campaigns[campaignData.id] = campaignData;
+  saveDB('operatorEvents');
+  res.json({ ok: true, campaign: campaignData });
+});
+
+app.post('/api/event/:eventId/church/prayer', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const { userId, nickname, text, anonymous } = req.body;
+  if (!ev.church.prayers) ev.church.prayers = {};
+  const prayerId = 'prayer_' + Date.now();
+  ev.church.prayers[prayerId] = { id: prayerId, odId: prayerId, userId, nickname: anonymous ? 'Anonimo' : (nickname || ''), text, anonymous: !!anonymous, date: Date.now(), prayedFor: false, supporters: [], status: 'active' };
+  saveDB('operatorEvents');
+  res.json({ ok: true, prayer: ev.church.prayers[prayerId] });
+});
+
+app.post('/api/event/:eventId/church/prayer/:prayerId/support', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const prayerId = req.params.prayerId;
+  const { userId } = req.body;
+  if (ev.church.prayers && ev.church.prayers[prayerId]) {
+    if (!ev.church.prayers[prayerId].supporters) ev.church.prayers[prayerId].supporters = [];
+    if (!ev.church.prayers[prayerId].supporters.includes(userId)) {
+      ev.church.prayers[prayerId].supporters.push(userId);
+    }
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+app.get('/api/operator/event/:eventId/church/finances', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.json({ total: 0, byType: {}, byCampaign: {} });
+  const tithes = Object.values(ev.church.tithes || {});
+  let total = 0, byType = {}, byCampaign = {};
+  tithes.forEach(t => {
+    total += t.amount;
+    byType[t.type] = (byType[t.type] || 0) + t.amount;
+    if (t.campaignName) byCampaign[t.campaignName] = (byCampaign[t.campaignName] || 0) + t.amount;
+  });
+  res.json({ total, byType, byCampaign });
+});
+
+app.post('/api/operator/event/:eventId/church/service/:serviceId/checkin', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.church) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const serviceId = req.params.serviceId;
+  const { userId } = req.body;
+  if (ev.church.services && ev.church.services[serviceId]) {
+    if (!ev.church.services[serviceId].attendance) ev.church.services[serviceId].attendance = {};
+    ev.church.services[serviceId].attendance[userId] = Date.now();
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true });
 });
 
 // ═══ STRIPE — Full Payment Integration ═══
