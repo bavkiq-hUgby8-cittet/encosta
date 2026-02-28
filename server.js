@@ -12705,7 +12705,7 @@ process.on('SIGTERM', () => {
 // ══════════════════════════════════════════════════════════════
 
 const RADIO_VOICES = {
-  locutor: { voice: 'fable', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — todas as noticias resumidas pra voce! Voce e SUPER ANIMADO, EMPOLGADO, VIBRANTE. Fale como o melhor locutor de radio comunitaria brasileira: cheio de energia, com paixao, fazendo a galera sentir que ta acontecendo algo incrivel. Fale BASTANTE — nao se limite, desenvolva os assuntos com entusiasmo. Comente noticias com detalhes e opiniao. Fale de previsao do tempo, eventos culturais, o que ta rolando na cidade. CONECTE os assuntos entre si — se saiu noticia de saude e alguem postou sobre treino, link os dois com empolgacao. Use girias leves do Maranhao. Voce CONHECE a galera pelo nome e fica FELIZ de ver todo mundo. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
+  locutor: { voice: 'alloy', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio da comunidade! Seu estilo e LEVE, ALEGRE e BEM-HUMORADO. Fale como um amigo animado contando as noticias num papo descontraido. FACA PIADAS leves e inteligentes sobre as noticias — humor sutil, trocadilhos, observacoes engracadas. Sorria enquanto fala (use tom risonho). TRANSICOES entre noticias sao OBRIGATORIAS: "E olha so o que vem agora...", "Mas perai que tem mais...", "Agora segura essa...", "E passando pra proxima...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale como se estivesse numa roda de amigos, nao num palco. Use girias LEVES e naturais, nada forcado, nada de sotaque paulista. Tom nordestino leve e acolhedor. Voce CONHECE a galera pelo nome e fica FELIZ de ver todo mundo. Comente noticias com detalhes e opiniao propria. Fale de previsao do tempo, eventos culturais, o que ta rolando. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
   entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa, ANIMADA. Faz perguntas que a galera quer saber e reage com empolgacao. Complementa o locutor trazendo profundidade. Tom amigavel, alegre e profissional. NUNCA use emojis.' },
   reporter_radio: { voice: 'echo', name: 'Echo', style: 'Voce e o Echo, reporter de campo da Radio Touch. Fale como reporter ao vivo, com urgencia, clareza e empolgacao. Traz os detalhes das noticias. Tom serio mas acessivel e animado. NUNCA use emojis.' }
 };
@@ -12820,22 +12820,27 @@ function _buildRadioScript(channelKey, segmentType) {
 
   let script = contextBlock;
 
-  // Regra geral: falar com MUITA empolgacao e energia
-  script += 'REGRA: Seja MUITO animado, empolgado, vibrante! Fale com paixao! Desenvolva os assuntos com entusiasmo!\n\n';
+  // Regra geral: leve, bem-humorado, com pausas naturais
+  script += 'REGRAS GERAIS:\n';
+  script += '- Seja ALEGRE e BEM-HUMORADO, como um amigo contando novidades\n';
+  script += '- FACA PIADAS leves sobre as noticias (trocadilhos, observacoes engracadas)\n';
+  script += '- PAUSE entre assuntos com transicoes: "E olha so...", "Mas perai...", "Agora segura essa..."\n';
+  script += '- NAO despeje tudo de uma vez — respire, sorria, comente\n';
+  script += '- Tom de CONVERSA, nao de palco. Como se tivesse num papo com amigos\n\n';
 
   if (segmentType === 'abertura') {
     script += 'SEGMENTO: ABERTURA DA RADIO\n';
-    script += 'Faca uma abertura EMPOLGADA da Radio Touch! Comece com "E ai galera! Ta no ar a Radio Touch!" ou algo parecido. ';
+    script += 'Abra a Radio Touch com ALEGRIA! Comece com algo tipo "E ai minha gente! Ta no ar a Radio Touch!" ou crie sua propria abertura criativa. ';
     if (ctx.viewers.length > 0) {
-      script += 'Cumprimente os ouvintes PELO NOME com empolgacao: ' + ctx.viewers.join(', ') + '. Fale algo pessoal pra cada um se possivel. ';
+      script += 'Cumprimente os ouvintes PELO NOME com carinho: ' + ctx.viewers.join(', ') + '. Fale algo simpatico pra cada um. ';
     }
-    script += 'Faca um PANORAMA COMPLETO do que ta rolando:\n';
-    script += '- Mencione TODAS as noticias que tem no mural, uma por uma, com entusiasmo\n';
-    script += '- Comente o que a galera ta falando\n';
-    script += '- Fale da previsao do tempo se souber (ex: ta chovendo? ta quente?)\n';
-    script += '- Mencione eventos culturais se tiver no contexto\n';
-    script += '- Diga o que vem na programacao: noticias, entrevistas, interacao\n';
-    script += 'FALE BASTANTE! Minimo 8 frases, pode ir ate 12. Desenvolva cada assunto com comentario proprio. Tom de radio comunitaria animadissima!';
+    script += 'Faca um PANORAMA LEVE do que ta rolando:\n';
+    script += '- Mencione as noticias do mural, MAS com comentarios engracados ou observacoes pessoais\n';
+    script += '- Entre cada noticia, faca uma TRANSICAO natural: "E passando pra outra...", "Agora olha essa..."\n';
+    script += '- Comente o que a galera ta falando com humor\n';
+    script += '- Fale da previsao do tempo de forma descontraida\n';
+    script += '- Diga o que vem na programacao\n';
+    script += 'FALE BASTANTE! Minimo 8 frases, pode ir ate 12. Mas com LEVEZA — como se tivesse rindo entre as frases. Faca pelo menos 1 piada ou observacao engracada!';
   }
   else if (segmentType === 'noticia') {
     script += 'SEGMENTO: LEITURA DE NOTICIA\n';
@@ -12849,18 +12854,21 @@ function _buildRadioScript(channelKey, segmentType) {
       }
       if (!chosen) chosen = ctx.news[ctx.news.length - 1];
 
-      script += 'Leia esta noticia como um GRANDE DESTAQUE da Radio Touch! Faca parecer importante e interessante:\n';
+      script += 'Conte esta noticia como se fosse uma novidade que acabou de chegar:\n';
       script += '"' + chosen.text.slice(0, 500) + '"\n\n';
-      script += 'DESENVOLVA a noticia com empolgacao:\n';
-      script += '- Explique os detalhes com suas palavras\n';
-      script += '- De sua opiniao (leve e positiva)\n';
-      script += '- Diga como isso afeta a comunidade\n';
+      script += 'FORMATO OBRIGATORIO:\n';
+      script += '1. Comece com uma chamada animada: "Olha so o que ta acontecendo..." ou "Gente, essa e boa..."\n';
+      script += '2. Conte a noticia com SUAS palavras, de forma leve e acessivel\n';
+      script += '3. FACA UMA PIADA ou observacao engracada sobre o assunto\n';
+      script += '4. De sua opiniao pessoal (leve, bem-humorada)\n';
+      script += '5. Diga como isso afeta a comunidade\n';
+      script += '6. Termine com transicao: "E por falar nisso...", "Mas vamo seguindo que tem mais..."\n\n';
 
       if (ctx.userPosts.length > 0) {
-        script += '- CONECTE com o que os ouvintes estao falando no mural. Ex: "E olha que a galera ja tava comentando sobre isso!"\n';
+        script += 'CONECTE com o que os ouvintes estao falando: "E olha que a galera ja tava comentando sobre isso!"\n';
       }
-      script += '- Se tiver relacao com previsao do tempo, saude, eventos culturais ou esporte, CONECTE\n';
-      script += 'Minimo 6 frases, pode ir ate 10. Faca a noticia parecer a MANCHETE DO DIA!';
+      script += 'Se tiver relacao com tempo, saude, cultura ou esporte, CONECTE de forma natural.\n';
+      script += 'Minimo 6 frases, pode ir ate 10. Tom de CONVERSA, nao de telejornal. Pelo menos 1 piada!';
     } else {
       script += 'Nao tem noticia nova no momento. Fale sobre o que a galera ta comentando no mural com empolgacao! ';
       script += 'Comente sobre o dia, o clima, eventos culturais da regiao. ';
@@ -12871,14 +12879,17 @@ function _buildRadioScript(channelKey, segmentType) {
     script += 'SEGMENTO: INTERACAO COM O MURAL\n';
     if (ctx.userPosts.length > 0) {
       const selected = ctx.userPosts.slice(-10);
-      script += 'A galera ta BOMBANDO no mural! Comente CADA mensagem com empolgacao:\n';
+      script += 'A galera ta participando no mural! Leia e comente cada mensagem com humor e carinho:\n';
       selected.forEach(function(p) {
         script += '- ' + p.nick + ' disse: "' + p.text + '"\n';
       });
-      script += '\nPra CADA pessoa, fale algo pessoal e animado. Exemplo:\n';
-      script += '"Eita, olha o que o fulano ta falando! Muito bom! E conecta com a noticia que saiu sobre..."\n';
-      script += 'CONECTE os assuntos entre si e com as noticias. Se alguem falou de comida e saiu noticia de saude, faca a ponte com empolgacao.\n';
-      script += 'Mencione as pessoas PELO NOME. Minimo 8 frases, pode ir ate 12. Faca cada um se sentir especial!';
+      script += '\nPra CADA pessoa:\n';
+      script += '- Chame PELO NOME com simpatia\n';
+      script += '- Comente o que ela disse de forma leve, pode brincar\n';
+      script += '- FACA UMA TRANSICAO antes de ir pra proxima: "E agora olha o que fulano falou...", "Mas espera que tem mais..."\n';
+      script += '- CONECTE assuntos entre si e com noticias de forma natural\n';
+      script += 'Se alguem falou de comida e saiu noticia de saude, brinque com a conexao!\n';
+      script += 'Minimo 8 frases, pode ir ate 12. Faca piadas leves, seja acolhedor!';
     } else {
       script += 'Ninguem postou no mural ainda. Incentive a galera com MUITA energia! ';
       script += 'Diga que a radio ta la pra interagir, que e so escrever no mural que o locutor comenta ao vivo! ';
@@ -12894,9 +12905,9 @@ function _buildRadioScript(channelKey, segmentType) {
       topic = ctx.userPosts[ctx.userPosts.length - 1].text;
     }
     if (topic) {
-      script += 'Faca um dialogo ANIMADO entre Locutor e Nova sobre: "' + topic.slice(0, 300) + '"\n';
-      script += 'Locutor traz o assunto com MUITA ENERGIA e empolgacao. Nova reage com curiosidade e entusiasmo.\n';
-      script += 'Ambos devem parecer GENUINAMENTE interessados e animados com o assunto.\n';
+      script += 'Faca um dialogo DESCONTRAIDO entre Locutor e Nova sobre: "' + topic.slice(0, 300) + '"\n';
+      script += 'Locutor traz o assunto com HUMOR e leveza. Nova reage com curiosidade, ri das piadas.\n';
+      script += 'Ambos devem brincar entre si, como amigos conversando. Piadas leves sao BEM-VINDAS.\n';
       if (ctx.userPosts.length > 0) {
         script += 'Mencionem o que os ouvintes estao dizendo no mural — por nome!\n';
       }
@@ -12904,7 +12915,7 @@ function _buildRadioScript(channelKey, segmentType) {
       script += 'Faca um dialogo ANIMADO entre Locutor e Nova sobre a comunidade, o dia, eventos culturais, previsao do tempo.\n';
     }
     script += 'Formato OBRIGATORIO (cada fala em linha separada):\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\n';
-    script += 'Minimo 5 trocas, pode ir ate 8. Cada fala com 2-3 frases. Muita empolgacao!';
+    script += 'Minimo 5 trocas, pode ir ate 8. Cada fala com 2-3 frases. Clima leve e bem-humorado!';
   }
   else {
     // Vinheta — conectar tudo
@@ -12924,17 +12935,17 @@ function _buildRadioScript(channelKey, segmentType) {
     }
 
     if (quadro) {
-      script += 'Abra o quadro "' + quadro + '" da Radio Touch com MUITA EMPOLGACAO! ';
-      script += 'Baseie no contexto real do mural. Desenvolva o assunto com detalhes e entusiasmo. ';
-      script += 'Fale como se fosse o momento mais importante da programacao! ';
-      script += 'Minimo 6 frases.';
+      script += 'Abra o quadro "' + quadro + '" da Radio Touch com ALEGRIA e BOM HUMOR! ';
+      script += 'Baseie no contexto real do mural. Desenvolva o assunto com leveza e piadas. ';
+      script += 'Fale como se fosse o melhor momento da programacao — mas sem forcar, com naturalidade. ';
+      script += 'Faca pelo menos 1 piada relacionada ao tema. Minimo 6 frases.';
     } else if (ctx.viewers.length > 0) {
-      script += 'Mande um abraco CALOROSO pra ' + ctx.viewers.slice(0, 8).join(', ') + '. ';
-      script += 'Resuma o que ta rolando no canal, fale sobre o dia, previsao do tempo, eventos culturais. ';
-      script += 'Minimo 6 frases. Muita energia!';
+      script += 'Mande um abraco afetuoso pra ' + ctx.viewers.slice(0, 8).join(', ') + '. ';
+      script += 'Resuma o que ta rolando no canal com humor. Fale sobre o dia, tempo, eventos culturais. ';
+      script += 'Brinque com alguma coisa que aconteceu. Minimo 6 frases.';
     } else {
-      script += 'Faca uma vinheta EMPOLGADA da Radio Touch. Fale sobre o dia, dicas, eventos culturais, previsao do tempo. ';
-      script += 'Incentive a galera a participar no mural. Minimo 5 frases.';
+      script += 'Faca uma vinheta ALEGRE da Radio Touch. Fale sobre o dia, dicas, eventos culturais, previsao do tempo. ';
+      script += 'Faca uma piada ou observacao engracada. Incentive a galera a participar no mural. Minimo 5 frases.';
     }
   }
 
@@ -12944,9 +12955,9 @@ function _buildRadioScript(channelKey, segmentType) {
 // Vinhetas de transicao entre segmentos (frases curtas faladas em tom de chamada)
 function _getRadioJingle(segmentType) {
   const jingles = {
-    abertura: 'Radio Touch no ar! A radio da comunidade com todas as noticias resumidas! Bora comecar!',
-    noticia: 'Manchete! Acompanhe agora as noticias na Radio Touch!',
-    interacao: 'Hora da interacao na Radio Touch! Olha o que a galera ta comentando no mural!',
+    abertura: 'Ta no ar a Radio Touch! A radio da comunidade, leve e descontraida. Bora la!',
+    noticia: 'Epa! Olha a noticia que chegou agora na Radio Touch!',
+    interacao: 'Hora de ouvir a galera! Olha o que ta rolando no mural da Radio Touch!',
     entrevista: 'Radio Touch Entrevista! A mesa redonda ta no ar, nao perde!',
     vinheta: null
   };
@@ -12984,7 +12995,7 @@ async function _generateRadioAudio(text, voiceId) {
         input: text,
         voice: voice,
         response_format: 'mp3',
-        speed: 1.1
+        speed: 1.05
       }),
       signal: ctrl.signal
     });
@@ -13033,7 +13044,7 @@ async function _generateRadioSegment(channelKey, segmentType) {
           { role: 'user', content: script }
         ],
         max_tokens: 900,
-        temperature: 0.9
+        temperature: 0.95
       }),
       signal: ctrl.signal
     });
