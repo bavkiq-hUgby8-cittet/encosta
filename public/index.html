@@ -6336,43 +6336,72 @@ function showEntryCardForm(eventId,eventName,price,operatorId){
   const priceLabel=formatPrice(price);
   const secRow=$('rvSecRow');
   const iconRow=$('rvIconRow');
+  const revealActions=$('revealActions');
   const evSafe=eventName.replace(/'/g,"\\'");
 
   if(iconRow)iconRow.style.display='none';
 
+  // Make rv-actions a full overlay with scroll so payment form doesn't overlap
+  if(revealActions){
+    revealActions.style.position='absolute';
+    revealActions.style.top='0';
+    revealActions.style.bottom='0';
+    revealActions.style.overflowY='auto';
+    revealActions.style.background='var(--bg,#0a0a1a)';
+    revealActions.style.zIndex='10';
+    revealActions.style.padding='0';
+    revealActions.style.justifyContent='flex-start';
+  }
+
   if(secRow){
     secRow.style.display='';
-    secRow.innerHTML='<div style="width:100%;padding:.6rem">'
-      +'<div style="display:flex;align-items:center;margin-bottom:.5rem"><button onclick="var s=$(\'rvSecRow\');if(s)s.style.display=\'none\';var i=$(\'rvIconRow\');if(i)i.style.display=\'\'" style="padding:.3rem;border:none;background:transparent;color:var(--t2);font-size:.9rem;cursor:pointer;font-family:inherit">&#x2190;</button><div style="flex:1;text-align:center;font-size:.75rem;font-weight:700;color:var(--t1)">Ingresso '+priceLabel+'</div><div style="width:24px"></div></div>'
-      +'<div style="font-size:.5rem;color:var(--t3);text-align:center;margin-bottom:.5rem">'+esc(eventName)+'</div>'
+    secRow.style.flexDirection='column';
+    secRow.style.width='100%';
+    secRow.innerHTML='<div style="width:100%;padding:.8rem .6rem calc(env(safe-area-inset-bottom,.5rem) + 1rem)">'
+      +'<div style="display:flex;align-items:center;margin-bottom:.6rem"><button onclick="closeEntryPayment()" style="padding:.3rem;border:none;background:transparent;color:var(--t2);font-size:.9rem;cursor:pointer;font-family:inherit">&#x2190;</button><div style="flex:1;text-align:center;font-size:.85rem;font-weight:700;color:var(--t1)">Ingresso '+priceLabel+'</div><div style="width:24px"></div></div>'
+      +'<div style="font-size:.55rem;color:var(--t3);text-align:center;margin-bottom:.6rem">'+esc(eventName)+'</div>'
+      // Apple Pay (iOS only - mounted by initEntryExpressCheckout)
+      +'<div id="entryExpressCheckout" style="display:none;margin-bottom:.5rem">'
+      +'<button id="entryApplePayBtn" onclick="entryExpressCheckout(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:none;width:100%;padding:1.2rem;border-radius:16px;border:none;background:#000;color:#fff;font-size:1.1rem;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;min-height:60px">'
+      +'<svg viewBox="0 0 24 24" width="20" height="20" style="vertical-align:middle;margin-right:.4rem;margin-top:-2px" fill="#fff"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.52-3.23 0-1.44.64-2.2.46-3.06-.4C3.79 16.17 4.36 9.02 8.73 8.76c1.26.07 2.14.72 2.88.75.97-.2 1.9-.87 3.04-.79 1.37.1 2.39.65 3.07 1.65-2.67 1.6-2.03 5.12.37 6.1-.5 1.3-.73 1.88-1.38 3.03-.99 1.72-2.38 3.44-4.1 3.5l.44.28zM12.03 8.67c-.16-2.35 1.73-4.35 3.94-4.67.3 2.62-2.34 4.87-3.94 4.67z"/></svg>'
+      +' Pay '+priceLabel
+      +'</button>'
+      +'<button id="entryGooglePayBtn" onclick="entryExpressCheckout(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:none;width:100%;padding:1.2rem;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:#fff;color:#3c4043;font-size:1.1rem;font-weight:600;font-family:Roboto,-apple-system,sans-serif;cursor:pointer;min-height:60px">'
+      +'<svg viewBox="0 0 24 24" width="20" height="20" style="vertical-align:middle;margin-right:.4rem;margin-top:-2px"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>'
+      +' Pay '+priceLabel
+      +'</button>'
+      +'<div style="display:flex;align-items:center;gap:.6rem;margin-top:.4rem"><div style="flex:1;height:1px;background:rgba(255,255,255,.06)"></div><span style="font-size:.48rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">ou</span><div style="flex:1;height:1px;background:rgba(255,255,255,.06)"></div></div>'
+      +'</div>'
       // Payment methods
       +'<div id="entryPayMethods" style="display:flex;flex-direction:column;gap:.5rem">'
-      // Stripe
-      +'<button id="entryStripeBtn" onclick="payEntryStripe(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.75rem .9rem;border-radius:14px;border:1px solid rgba(99,91,255,.25);background:rgba(99,91,255,.08);cursor:pointer;font-family:inherit;transition:all .2s">'
-      +'<div style="width:32px;height:32px;border-radius:10px;overflow:hidden;flex-shrink:0"><svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="6" fill="#635BFF"/><path d="M15.2 11.2c0-.9.7-1.2 1.9-1.2 1.7 0 3.8.5 5.5 1.4V7.1C21 6.5 19.3 6 17.1 6c-3.8 0-6.3 2-6.3 5.3 0 5.2 7.1 4.3 7.1 6.6 0 1.1-.9 1.4-2.2 1.4-1.9 0-4.3-.8-6.2-1.8v4.4c2.1.9 4.2 1.3 6.2 1.3 3.9 0 6.5-1.9 6.5-5.3-.1-5.6-7-4.6-7-6.7z" fill="#fff"/></svg></div>'
-      +'<div style="flex:1;text-align:left"><div style="font-size:.72rem;font-weight:700;color:#a5b4fc">Cartao / Apple Pay / Link</div><div style="font-size:.48rem;color:var(--t3)">Visa, Master, Amex + wallets</div></div>'
-      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
-      +'</button>'
+      // Stripe inline PE wrapper
+      +'<div id="entryStripeInlineWrapper" style="display:none;background:rgba(99,91,255,.04);border:1px solid rgba(99,91,255,.12);border-radius:16px;padding:.8rem">'
+      +'<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem">'
+      +'<svg viewBox="0 0 32 32" width="18" height="18"><rect width="32" height="32" rx="6" fill="#635BFF"/><path d="M15.2 11.2c0-.9.7-1.2 1.9-1.2 1.7 0 3.8.5 5.5 1.4V7.1C21 6.5 19.3 6 17.1 6c-3.8 0-6.3 2-6.3 5.3 0 5.2 7.1 4.3 7.1 6.6 0 1.1-.9 1.4-2.2 1.4-1.9 0-4.3-.8-6.2-1.8v4.4c2.1.9 4.2 1.3 6.2 1.3 3.9 0 6.5-1.9 6.5-5.3-.1-5.6-7-4.6-7-6.7z" fill="#fff"/></svg>'
+      +'<span style="font-size:.62rem;font-weight:600;color:#a5b4fc">Pague com cartao ou Link</span>'
+      +'</div>'
+      +'<div id="entryStripeInline"></div>'
+      +'</div>'
       // PIX
-      +'<button id="entryPixBtn" onclick="payEntryPix(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.75rem .9rem;border-radius:14px;border:1px solid rgba(50,188,173,.2);background:rgba(50,188,173,.06);cursor:pointer;font-family:inherit;transition:all .2s">'
-      +'<div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#32BCAD,#2A9D8F);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;padding:5px"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M63.3 36.7L53.5 46.5c-2 2-5.1 2-7.1 0L36.7 36.7c-2-2-5.1-2-7.1 0L20 46.4l9.6 9.6c2 2 2 5.1 0 7.1L20 72.7l9.6 9.6c2 2 5.1 2 7.1 0l9.7-9.7c2-2 5.1-2 7.1 0l9.7 9.7c2 2 5.1 2 7.1 0L80 72.7l-9.6-9.6c-2-2-2-5.1 0-7.1L80 46.4l-9.6-9.6c-2-2-5.2-2-7.1-.1z" fill="#fff"/></svg></div>'
-      +'<div style="flex:1;text-align:left"><div style="font-size:.78rem;font-weight:700;color:#32BCAD">PIX</div><div style="font-size:.48rem;color:var(--t3)">Instantaneo, sem taxa</div></div>'
-      +'<span style="font-size:.55rem;color:#32BCAD;font-weight:600;background:rgba(50,188,173,.1);padding:2px 6px;border-radius:6px">Rapido</span>'
+      +'<button id="entryPixBtn" onclick="payEntryPix(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+      +'<div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#32BCAD,#2A9D8F);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;padding:4px"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M63.3 36.7L53.5 46.5c-2 2-5.1 2-7.1 0L36.7 36.7c-2-2-5.1-2-7.1 0L20 46.4l9.6 9.6c2 2 2 5.1 0 7.1L20 72.7l9.6 9.6c2 2 5.1 2 7.1 0l9.7-9.7c2-2 5.1-2 7.1 0l9.7 9.7c2 2 5.1 2 7.1 0L80 72.7l-9.6-9.6c-2-2-2-5.1 0-7.1L80 46.4l-9.6-9.6c-2-2-5.2-2-7.1-.1z" fill="#fff"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">PIX</div><div style="font-size:.42rem;color:var(--t3)">Instantaneo, sem taxa</div></div>'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
       +'</button>'
       // Saved card (if exists)
       +'<div id="entrySavedCardSection"></div>'
       // Mercado Pago
-      +'<button id="entryMPBtn" onclick="payEntryMP(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.75rem .9rem;border-radius:14px;border:1px solid rgba(0,158,227,.15);background:rgba(0,158,227,.04);cursor:pointer;font-family:inherit;transition:all .2s">'
-      +'<div style="width:32px;height:32px;border-radius:10px;overflow:hidden;flex-shrink:0;background:#00AEEF;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 40 40" width="24" height="24"><path d="M20 8c-2.2 0-4.2.8-5.8 2.1C13 9.4 11.6 9 10 9c-4 0-7 3.5-7 7.8 0 5.5 4.5 10 10 13.2 1 .6 2 1.1 3 1.5.3.2.7.3 1 .5l1 .5c.6.3 1.3.5 2 .5s1.4-.2 2-.5l1-.5c.3-.2.7-.3 1-.5 1-.4 2-.9 3-1.5 5.5-3.2 10-7.7 10-13.2 0-4.3-3-7.8-7-7.8-1.6 0-3 .4-4.2 1.1C24.2 8.8 22.2 8 20 8z" fill="#fff"/></svg></div>'
-      +'<div style="flex:1;text-align:left"><div style="font-size:.72rem;font-weight:700;color:#009ee3">Mercado Pago</div><div style="font-size:.48rem;color:var(--t3)">Cartao, saldo ou parcelado</div></div>'
+      +'<button id="entryMPBtn" onclick="payEntryMP(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(0,158,227,.12);background:rgba(0,158,227,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+      +'<div style="width:26px;height:26px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#00AEEF;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 40 40" width="16" height="16"><path d="M20 8c-2.2 0-4.2.8-5.8 2.1C13 9.4 11.6 9 10 9c-4 0-7 3.5-7 7.8 0 5.5 4.5 10 10 13.2 1 .6 2 1.1 3 1.5.3.2.7.3 1 .5l1 .5c.6.3 1.3.5 2 .5s1.4-.2 2-.5l1-.5c.3-.2.7-.3 1-.5 1-.4 2-.9 3-1.5 5.5-3.2 10-7.7 10-13.2 0-4.3-3-7.8-7-7.8-1.6 0-3 .4-4.2 1.1C24.2 8.8 22.2 8 20 8z" fill="#fff"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:#009ee3">Mercado Pago</div><div style="font-size:.42rem;color:var(--t3)">Cartao, saldo ou parcelado</div></div>'
       +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
       +'</button>'
-      // Stripe Payment Element container (inline)
+      // Stripe Payment Element container (old inline fallback)
       +'<div id="entryStripeContainer" style="display:none"></div>'
       // New card (MP)
-      +'<button id="entryNewCardBtn" onclick="showEntryNewCardForm(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.6rem .9rem;border-radius:14px;border:1px dashed rgba(99,102,241,.15);background:transparent;cursor:pointer;font-family:inherit">'
-      +'<div style="width:32px;height:32px;border-radius:10px;background:rgba(99,102,241,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="14" viewBox="0 0 48 32"><rect width="48" height="32" rx="4" fill="#1A1F71"/><path d="M18.7 21.3h-3l1.9-11.6h3l-1.9 11.6zm12.7-11.3c-.6-.2-1.5-.5-2.7-.5-3 0-5.1 1.5-5.1 3.7 0 1.6 1.5 2.5 2.7 3.1 1.2.5 1.6.9 1.6 1.4 0 .7-.9 1.1-1.8 1.1-1.2 0-1.9-.2-2.9-.6l-.4-.2-.4 2.5c.7.3 2.1.6 3.5.6 3.2 0 5.2-1.5 5.2-3.8 0-1.3-.8-2.2-2.5-3.1-1-.5-1.7-.9-1.7-1.4 0-.5.5-1 1.7-1 1 0 1.7.2 2.2.4l.3.1.3-2.3zm7.9-.3h-2.3c-.7 0-1.3.2-1.6 1l-4.5 10.6h3.2l.6-1.7h3.9l.4 1.7H42l-2.7-11.6zm-3.7 7.5l1.6-4.3.4 2.1.6 2.2h-2.6zM15.6 9.7l-2.8 7.9-.3-1.5c-.5-1.7-2.1-3.6-3.9-4.5l2.7 10h3.2l4.8-11.9h-3.7z" fill="#fff"/></svg></div>'
-      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">Novo cartao</div><div style="font-size:.45rem;color:var(--t3)">Visa, Master, Elo</div></div>'
+      +'<button id="entryNewCardBtn" onclick="showEntryNewCardForm(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.55rem .9rem;border-radius:14px;border:1px dashed rgba(99,102,241,.12);background:transparent;cursor:pointer;font-family:inherit">'
+      +'<div style="width:26px;height:26px;border-radius:8px;background:rgba(99,102,241,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.62rem;font-weight:600;color:var(--t2)">Novo cartao</div><div style="font-size:.42rem;color:var(--t3)">Visa, Master, Elo</div></div>'
       +'</button>'
       +'</div>'
       // Security + skip
@@ -6387,10 +6416,10 @@ function showEntryCardForm(eventId,eventName,price,operatorId){
       +'</div>';
     // Load saved card into entry section
     loadEntrySavedCard(eventId,eventName,price);
-    // Show Stripe button if configured
-    fetch('/api/stripe/config').then(function(r){return r.json()}).then(function(d){
-      if(d.publicKey){var sb=$('entryStripeBtn');if(sb)sb.style.display='flex'}
-    }).catch(function(){});
+    // Init Apple Pay / Google Pay for entry
+    initEntryExpressCheckout(price);
+    // Mount inline Stripe PE for entry
+    mountEntryStripeInline(price,eventId,evSafe);
   }
 }
 
@@ -6429,6 +6458,147 @@ function showEntryNewCardForm(eventId,eventName,price){
       +'<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.5rem"><input type="checkbox" id="entrySaveCard" checked style="accent-color:#6366f1"><label for="entrySaveCard" style="font-size:.55rem;color:var(--t3)">Salvar cartao</label></div>'
       +'<button onclick="payEntry(\''+eventId+'\',\''+evSafe+'\','+price+')" style="width:100%;padding:.65rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer" id="entryPayBtn">Pagar '+priceLabel+'</button>'
       +'</div>';
+  }
+}
+
+// Close entry payment overlay and restore reveal actions
+function closeEntryPayment(){
+  var secRow=$('rvSecRow');if(secRow){secRow.style.display='none';secRow.innerHTML='';}
+  var iconRow=$('rvIconRow');if(iconRow)iconRow.style.display='';
+  var revealActions=$('revealActions');
+  if(revealActions){
+    revealActions.style.position='absolute';
+    revealActions.style.top='';
+    revealActions.style.overflowY='';
+    revealActions.style.background='';
+    revealActions.style.zIndex='5';
+    revealActions.style.padding='.5rem 1rem calc(env(safe-area-inset-bottom,.5rem) + .6rem)';
+    revealActions.style.justifyContent='';
+  }
+  // Clean up entry Stripe PE
+  _entryStripeElements=null;_entryStripePE=null;
+}
+
+// Apple Pay / Google Pay for entry payment
+function initEntryExpressCheckout(price){
+  loadStripeJS().then(function(){
+    if(!_stripePublicKey||!window.Stripe)return;
+    try{
+      var stripe=window._stripeInstance||Stripe(_stripePublicKey);
+      window._stripeInstance=stripe;
+      var reqCountry=_userRegion||'BR';
+      if(!STRIPE_COUNTRIES.has(reqCountry))reqCountry='US';
+      var paymentRequest=stripe.paymentRequest({country:reqCountry,currency:_userCurrency||'brl',total:{label:'Ingresso Touch?',amount:Math.round(price*100)},requestPayerEmail:true});
+      paymentRequest.canMakePayment().then(function(result){
+        if(!result)return;
+        var container=$('entryExpressCheckout');if(!container)return;
+        container.style.display='';
+        var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+        if(result.applePay){var ab=$('entryApplePayBtn');if(ab)ab.style.display='';}
+        else if(result.googlePay&&!isIOS){var gb=$('entryGooglePayBtn');if(gb)gb.style.display='';}
+        window._entryPaymentRequest=paymentRequest;
+      });
+    }catch(e){console.log('[entry-express] error:',e)}
+  });
+}
+
+// Handle Apple Pay / Google Pay payment for entry
+function entryExpressCheckout(eventId,eventName,price){
+  if(!window._stripeInstance||!window._entryPaymentRequest)return showToast('Pagamento express indisponivel.');
+  window._entryPaymentRequest.update({total:{label:'Ingresso Touch?',amount:Math.round(price*100)}});
+  window._entryPaymentRequest.show();
+  window._entryPaymentRequest.on('paymentmethod',function(ev){
+    fetch('/api/stripe/pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({paymentMethodId:ev.paymentMethod.id,amount:price,payerId:state.userId,type:'entry',eventId:eventId})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.ok){ev.complete('success');showToast('Ingresso pago!');haptic([40,20,40]);closeEntryPayment();}
+      else{ev.complete('fail');showToast(d.error||'Erro no pagamento')}
+    }).catch(function(){ev.complete('fail');showToast(t('errors.connection_lost'))});
+  });
+}
+
+// Inline Stripe PE for entry payment (deferred intent)
+var _entryStripeElements=null;
+var _entryStripePE=null;
+
+async function mountEntryStripeInline(price,eventId,evSafe){
+  if(!price||price<3)return;
+  var wrapper=$('entryStripeInlineWrapper');
+  if(!wrapper)return;
+  await loadStripeJS();
+  if(!_stripePublicKey||!window.Stripe){wrapper.style.display='none';return;}
+  var stripe=window._stripeInstance||Stripe(_stripePublicKey);
+  window._stripeInstance=stripe;
+  wrapper.style.display='';
+  try{
+    _entryStripeElements=stripe.elements({
+      mode:'payment',amount:Math.round(price*100),currency:_userCurrency||'brl',
+      appearance:{theme:'night',variables:{colorPrimary:'#635bff',colorBackground:'#1a1a2e',colorText:'#e2e8f0',borderRadius:'12px',fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',colorDanger:'#ef4444',spacingUnit:'4px'}}
+    });
+    var container=$('entryStripeInline');
+    if(!container)return;
+    var priceLabel='R$'+price.toFixed(2).replace('.',',');
+    container.innerHTML='<div id="entryStripeInline-pe" style="margin-bottom:.5rem"></div>'
+      +'<button id="entryStripeConfirmBtn" onclick="confirmEntryStripe(\''+eventId+'\',\''+evSafe+'\','+price+')" disabled style="width:100%;padding:.75rem;border-radius:14px;border:none;background:linear-gradient(135deg,#635bff,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;opacity:.5;transition:all .2s">Preencha os dados</button>'
+      +'<div id="entryStripeInline-msg" style="font-size:.48rem;color:var(--err);margin-top:.3rem;text-align:center;display:none"></div>';
+    _entryStripePE=_entryStripeElements.create('payment',{layout:'tabs'});
+    _entryStripePE.mount('#entryStripeInline-pe');
+    _entryStripePE.on('change',function(ev){
+      var btn=$('entryStripeConfirmBtn');
+      var msgEl=$('entryStripeInline-msg');
+      if(ev.error){if(msgEl){msgEl.style.display='';msgEl.textContent=ev.error.message;}}
+      else{if(msgEl)msgEl.style.display='none';}
+      if(btn){
+        btn.disabled=!ev.complete;
+        btn.textContent=ev.complete?'Pagar '+priceLabel:'Preencha os dados';
+        btn.style.opacity=ev.complete?'1':'.5';
+      }
+    });
+  }catch(e){
+    console.log('[entry-stripe-inline] mount error:',e);
+    wrapper.style.display='none';
+  }
+}
+
+async function confirmEntryStripe(eventId,eventName,price){
+  if(!_entryStripeElements||!price)return;
+  var btn=$('entryStripeConfirmBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...';}
+  try{
+    var submitResult=await _entryStripeElements.submit();
+    if(submitResult.error){
+      showToast(submitResult.error.message);
+      if(btn){btn.disabled=false;btn.textContent='Pagar R$'+price.toFixed(2).replace('.',',');btn.style.opacity='1';}
+      return;
+    }
+    var resp=await fetch('/api/stripe/create-payment-intent',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({amount:price,currency:_userCurrency||'brl',payerId:state.userId,type:'entry',eventId:eventId})
+    });
+    var data=await resp.json();
+    if(data.error){
+      showToast(data.error);
+      if(btn){btn.disabled=false;btn.textContent='Pagar R$'+price.toFixed(2).replace('.',',');btn.style.opacity='1';}
+      return;
+    }
+    var confirmResult=await window._stripeInstance.confirmPayment({
+      elements:_entryStripeElements,clientSecret:data.clientSecret,
+      confirmParams:{return_url:window.location.origin+'/stripe/payment-result'},
+      redirect:'if_required'
+    });
+    if(confirmResult.error){
+      showToast(confirmResult.error.message);
+      if(btn){btn.disabled=false;btn.textContent='Pagar R$'+price.toFixed(2).replace('.',',');btn.style.opacity='1';}
+      return;
+    }
+    showToast('Ingresso pago!');haptic([40,20,40]);
+    closeEntryPayment();
+    _entryStripeElements=null;_entryStripePE=null;
+  }catch(e){
+    console.log('[entry-stripe] confirm error:',e);
+    showToast('Erro na conexao. Tente novamente.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar R$'+price.toFixed(2).replace('.',',');btn.style.opacity='1';}
   }
 }
 
