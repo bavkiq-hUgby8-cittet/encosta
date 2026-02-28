@@ -2951,6 +2951,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <button id="evMenuBtn" onclick="openEventMenu()" style="display:none;position:absolute;bottom:70px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#f97316,#ef4444);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(249,115,22,.4);z-index:5;transition:transform .2s;display:none;align-items:center;gap:.4rem;letter-spacing:.03em"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg> Cardapio</button>
     <!-- Parking FAB (only if event has parking) -->
     <button id="evParkBtn" onclick="openEventParking()" style="display:none;position:absolute;bottom:130px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#3b82f6,#60a5fa);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">🅿 Estacionamento</button>
+    <!-- Gym FAB (only if event has gym) -->
+    <button id="evGymBtn" onclick="openEventGym()" style="display:none;position:absolute;bottom:190px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#10b981,#34d399);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(16,185,129,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">💪 Academia</button>
+    <!-- Church FAB (only if event has church) -->
+    <button id="evChurchBtn" onclick="openEventChurch()" style="display:none;position:absolute;bottom:250px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#8b5cf6,#a78bfa);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(139,92,246,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">⛪ Igreja</button>
     <div id="evCartBadge" style="display:none;position:absolute;bottom:102px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.55rem;font-weight:700;text-align:center;line-height:20px;z-index:6;pointer-events:none">0</div>
     <!-- Leave event button -->
     <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Sair do evento</button>
@@ -2982,6 +2986,22 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">🅿 Estacionamento</div>
     </div>
     <div id="evParkingContent" style="padding:.8rem"></div>
+  </div>
+  <!-- GYM OVERLAY -->
+  <div id="evGymOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
+      <button onclick="closeEventGym()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">←</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">💪 Academia</div>
+    </div>
+    <div id="evGymContent" style="padding:.8rem"></div>
+  </div>
+  <!-- CHURCH OVERLAY -->
+  <div id="evChurchOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
+      <button onclick="closeEventChurch()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">←</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">⛪ Igreja</div>
+    </div>
+    <div id="evChurchContent" style="padding:.8rem"></div>
   </div>
 </div>
 
@@ -4418,6 +4438,8 @@ async function showEventView(eventId,eventName){
   }catch(e){console.error('[eventView] load error:',e)}
   loadEventMenu(eventId);
   loadParkingConfig(eventId);
+  loadGymConfig(eventId);
+  loadChurchConfig(eventId);
   if(socket){
     socket.off('event-attendee-joined');
     socket.off('event-attendee-left');
@@ -4624,9 +4646,9 @@ function closeEventView(){
   const savedId=evViewEventId;
   const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evBolts.length=0;evViewCtx=null;
-  // Close menu/cart/parking overlays
-  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evParkingOverlay').style.display='none';
-  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evParkBtn').style.display='none';
+  // Close menu/cart/parking/gym/church overlays
+  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';
+  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';
   if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended');socket.off('event-match')}
   // Persist active event in localStorage for floating button
   if(savedId){
@@ -4926,6 +4948,126 @@ async function registerUserVehicle(){
     console.error('registerUserVehicle:',e);
     $('userParkStatus').textContent='Erro ao registrar';
     $('userParkStatus').style.color='#ef4444';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// ═══ GYM USER VIEW ═══
+// ═══════════════════════════════════════════════════
+
+async function loadGymConfig(eventId){
+  try{
+    const r=await fetch('/api/event/'+eventId+'/gym');const d=await r.json();
+    if(d.enabled)$('evGymBtn').style.display='';
+    else $('evGymBtn').style.display='none';
+  }catch(e){$('evGymBtn').style.display='none';}
+}
+
+async function openEventGym(){
+  $('evGymOverlay').style.display='';
+  renderGymUI();
+}
+
+function closeEventGym(){$('evGymOverlay').style.display='none'}
+
+async function renderGymUI(){
+  if(!evViewEventId)return;
+  const el=$('evGymContent');
+  try{
+    const r=await fetch('/api/event/'+evViewEventId+'/gym');
+    const d=await r.json();
+    if(!d.enabled){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Academia nao esta disponivel neste evento</div>';return}
+    const classes=Object.values(d.classes||{});
+    const plans=Object.values(d.plans||{});
+    el.innerHTML='<div style="margin-bottom:1.5rem"><div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Aulas Disponíveis</div>';
+    if(classes.length>0){
+      el.innerHTML+=classes.map(c=>'<div style="padding:.8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;margin-bottom:.5rem"><div style="font-weight:700;color:#10b981;margin-bottom:.3rem">'+esc(c.name)+'</div><div style="font-size:.7rem;color:var(--t2);line-height:1.4"><div>Professor: '+esc(c.instructor)+'</div><div>Hora: '+c.time+' ('+c.duration+' min)</div><div>Vagas: '+(c.maxSpots-(c.enrolled?.length||0))+'/'+c.maxSpots+'</div></div></div>').join('')
+    }else{
+      el.innerHTML+='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem;background:var(--s2);border-radius:12px">Nenhuma aula disponível</div>'
+    }
+    el.innerHTML+='</div><div style="margin-bottom:1.5rem"><div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Planos de Mensalidade</div>';
+    if(plans.length>0){
+      el.innerHTML+=plans.map(p=>'<div style="padding:.8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;margin-bottom:.5rem"><div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-weight:700;color:#10b981">'+esc(p.name)+'</div><div style="font-size:.7rem;color:var(--t3);margin-top:.2rem">'+p.duration+'</div></div><div style="font-size:1rem;font-weight:800;color:#10b981">R$'+p.price.toFixed(2)+'</div></div><button onclick="gymSubscribe(\''+p.id+'\')" style="width:100%;padding:.5rem;margin-top:.6rem;border-radius:10px;border:none;background:linear-gradient(135deg,#10b981,#34d399);color:#fff;font-weight:700;font-size:.72rem;cursor:pointer;font-family:inherit">Assinar</button></div>').join('')
+    }else{
+      el.innerHTML+='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem;background:var(--s2);border-radius:12px">Nenhum plano disponível</div>'
+    }
+    el.innerHTML+='</div>';
+  }catch(e){
+    console.error('renderGymUI:',e);
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Erro ao carregar academia</div>';
+  }
+}
+
+async function gymSubscribe(planId){
+  if(!evViewEventId||!state.userId)return;
+  showToast('Plano adicionado!');
+  closeEventGym();
+}
+
+// ═══════════════════════════════════════════════════
+// ═══ CHURCH USER VIEW ═══
+// ═══════════════════════════════════════════════════
+
+async function loadChurchConfig(eventId){
+  try{
+    const r=await fetch('/api/event/'+eventId+'/church');const d=await r.json();
+    if(d.enabled)$('evChurchBtn').style.display='';
+    else $('evChurchBtn').style.display='none';
+  }catch(e){$('evChurchBtn').style.display='none';}
+}
+
+async function openEventChurch(){
+  $('evChurchOverlay').style.display='';
+  renderChurchUI();
+}
+
+function closeEventChurch(){$('evChurchOverlay').style.display='none'}
+
+async function renderChurchUI(){
+  if(!evViewEventId)return;
+  const el=$('evChurchContent');
+  try{
+    const r=await fetch('/api/event/'+evViewEventId+'/church');
+    const d=await r.json();
+    if(!d.enabled){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Igreja nao esta disponível neste evento</div>';return}
+    const services=Object.values(d.services||{});
+    const announcements=d.announcements||[];
+    el.innerHTML='<div style="margin-bottom:1.5rem"><div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Cultos</div>';
+    if(services.length>0){
+      el.innerHTML+=services.map(s=>'<div style="padding:.8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;margin-bottom:.5rem"><div style="font-weight:700;color:#8b5cf6;margin-bottom:.3rem">'+esc(s.name)+'</div><div style="font-size:.7rem;color:var(--t2);line-height:1.4"><div>'+s.dayOfWeek+' as '+s.time+'</div><div>Tipo: '+s.type+'</div></div></div>').join('')
+    }else{
+      el.innerHTML+='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem;background:var(--s2);border-radius:12px">Nenhum culto disponível</div>'
+    }
+    el.innerHTML+='</div><div style="margin-bottom:1.5rem"><div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Avisos</div>';
+    if(announcements.length>0){
+      el.innerHTML+=announcements.slice(0,5).map(a=>'<div style="padding:.8rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;margin-bottom:.5rem"><div style="font-weight:700;color:'+(a.priority==='urgent'?'#ef4444':'#8b5cf6')+';margin-bottom:.2rem">'+esc(a.title)+'</div><div style="font-size:.7rem;color:var(--t2);line-height:1.4">'+esc(a.message.slice(0,100))+'...</div></div>').join('')
+    }else{
+      el.innerHTML+='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem;background:var(--s2);border-radius:12px">Nenhum aviso</div>'
+    }
+    el.innerHTML+='</div><div style="padding:1rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px"><button onclick="submitTitheOffering()" style="width:100%;padding:.7rem;border-radius:10px;border:none;background:linear-gradient(135deg,#8b5cf6,#a78bfa);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Dizimo/Oferta</button></div>';
+  }catch(e){
+    console.error('renderChurchUI:',e);
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Erro ao carregar igreja</div>';
+  }
+}
+
+async function submitTitheOffering(){
+  const amount=prompt('Valor do dizimo/oferta (R$):');
+  if(!amount||isNaN(parseFloat(amount)))return;
+  const type=prompt('Tipo (tithe/offering):','offering');
+  if(!type)return;
+  try{
+    const r=await fetch('/api/event/'+evViewEventId+'/church/tithe',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,nickname:state.userName||'Anonimo',amount:parseFloat(amount),type})
+    });
+    const d=await r.json();
+    if(d.ok){
+      showToast('Dizimo/Oferta registrada!');
+      closeEventChurch();
+    }
+  }catch(e){
+    console.error('submitTitheOffering:',e);
   }
 }
 
