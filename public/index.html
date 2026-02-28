@@ -8445,12 +8445,14 @@ function _radioPlayNext() {
   if (fab) fab.classList.remove('loading');
   var seg = _radioAudioQueue.shift();
   try {
+    var isJingle = seg.isJingle || false;
     var audioSrc = 'data:audio/mp3;base64,' + seg.audio;
     _radioCurrentAudio = new Audio(audioSrc);
-    _radioCurrentAudio.volume = 0.85;
+    _radioCurrentAudio.volume = isJingle ? 0.95 : 0.85;
     _radioCurrentAudio.onended = function() {
       _radioCurrentAudio = null;
-      setTimeout(function() { _radioPlayNext(); }, 600);
+      var delay = isJingle ? 300 : 600;
+      setTimeout(function() { _radioPlayNext(); }, delay);
     };
     _radioCurrentAudio.onerror = function(e) {
       console.error('[RADIO] Audio error:', e);
@@ -8458,7 +8460,7 @@ function _radioPlayNext() {
       _radioPlayNext();
     };
     _radioCurrentAudio.play().then(function() {
-      console.log('[RADIO] Tocando:', seg.speaker || 'DJ Touch');
+      console.log('[RADIO] Tocando:', (isJingle ? '[VINHETA] ' : '') + (seg.speaker || 'Locutor'));
     }).catch(function(e) {
       console.error('[RADIO] Play blocked:', e.message);
       showToast('Audio bloqueado. Toque no botao novamente.');

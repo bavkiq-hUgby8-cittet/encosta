@@ -12705,13 +12705,14 @@ process.on('SIGTERM', () => {
 // ══════════════════════════════════════════════════════════════
 
 const RADIO_VOICES = {
-  locutor: { voice: 'onyx', name: 'DJ Touch', style: 'Voce e o DJ Touch, locutor da Radio Touch — a radio da comunidade. Fale como locutor de radio comunitaria brasileira: caloroso, proximo, com energia boa. Use girias leves do Maranhao quando fizer sentido. Voce CONHECE a galera pelo nome. Voce TEM CONTEXTO sobre tudo que esta rolando no mural: noticias, conversas, dicas. Sua missao e CONECTAR os assuntos — se saiu uma noticia de saude e alguem postou sobre treino, voce linka os dois. Se saiu receita e alguem falou de chuva, voce faz a ponte. Frases curtas e impactantes. NUNCA use emojis. NUNCA invente noticias — so comente as que foram fornecidas.' },
-  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa, faz perguntas que a galera quer saber. Complementa o DJ Touch trazendo profundidade pros assuntos. Tom amigavel e profissional. NUNCA use emojis.' },
+  locutor: { voice: 'onyx', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio da comunidade que resume todas as noticias pra voce. Fale como locutor de radio comunitaria brasileira: caloroso, proximo, com energia boa. Use girias leves do Maranhao quando fizer sentido. Voce CONHECE a galera pelo nome. Voce TEM CONTEXTO sobre tudo que esta rolando no mural: noticias, conversas, dicas. Sua missao e CONECTAR os assuntos — se saiu uma noticia de saude e alguem postou sobre treino, voce linka os dois. Se saiu receita e alguem falou de chuva, voce faz a ponte. NUNCA se apresente como DJ. Voce e o LOCUTOR da Radio Touch. Slogan da radio: "Radio Touch — todas as noticias resumidas pra voce." Use o slogan quando fizer sentido. Frases curtas e impactantes. NUNCA use emojis. NUNCA invente noticias — so comente as que foram fornecidas.' },
+  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch — a radio da comunidade. Inteligente, curiosa, faz perguntas que a galera quer saber. Complementa o locutor trazendo profundidade pros assuntos. Tom amigavel e profissional. NUNCA use emojis.' },
   reporter_radio: { voice: 'echo', name: 'Echo', style: 'Voce e o Echo, reporter de campo da Radio Touch. Fale como reporter ao vivo, com urgencia e clareza. Traz os detalhes das noticias. Tom serio mas acessivel. NUNCA use emojis.' }
 };
 
-// Estado da radio por canal
+// Estado da radio por canal (com cache de segmentos)
 const _radioState = {};
+const RADIO_CACHE_TTL = 5 * 60 * 1000; // 5 min — segmentos cacheados por canal
 function _getRadioState(channelKey) {
   if (!_radioState[channelKey]) {
     _radioState[channelKey] = {
@@ -12720,7 +12721,8 @@ function _getRadioState(channelKey) {
       currentSegment: null,
       segmentQueue: [],
       lastSegmentAt: 0,
-      generatingSegment: false
+      generatingSegment: false,
+      cache: {} // { [segmentType]: { data, createdAt } }
     };
   }
   return _radioState[channelKey];
@@ -12861,8 +12863,8 @@ function _buildRadioScript(channelKey, segmentType) {
   else if (segmentType === 'interacao') {
     script += 'SEGMENTO: INTERACAO COM O MURAL\n';
     if (ctx.userPosts.length > 0) {
-      // Pegar 2-3 posts e conectar os assuntos
-      const selected = ctx.userPosts.slice(-3);
+      // Pegar ate 10 posts e conectar os assuntos
+      const selected = ctx.userPosts.slice(-10);
       script += 'Comente sobre essas mensagens do mural, CONECTANDO os assuntos entre si e com as noticias:\n';
       selected.forEach(function(p) {
         script += '- ' + p.nick + ' disse: "' + p.text + '"\n';
@@ -12884,15 +12886,15 @@ function _buildRadioScript(channelKey, segmentType) {
       topic = ctx.userPosts[ctx.userPosts.length - 1].text;
     }
     if (topic) {
-      script += 'Faca um dialogo CURTO entre DJ Touch e Nova sobre: "' + topic.slice(0, 250) + '"\n';
-      script += 'DJ Touch traz o assunto com energia, Nova aprofunda com perguntas inteligentes.\n';
+      script += 'Faca um dialogo CURTO entre Locutor e Nova sobre: "' + topic.slice(0, 250) + '"\n';
+      script += 'Locutor traz o assunto com energia, Nova aprofunda com perguntas inteligentes.\n';
       if (ctx.userPosts.length > 0) {
         script += 'Mencionem o que os ouvintes estao dizendo no mural.\n';
       }
     } else {
-      script += 'Faca um dialogo CURTO entre DJ Touch e Nova sobre a comunidade e o app Touch.\n';
+      script += 'Faca um dialogo CURTO entre Locutor e Nova sobre a comunidade e o app Touch.\n';
     }
-    script += 'Formato OBRIGATORIO (cada fala em linha separada):\nDJ Touch: [fala]\nNova: [fala]\nDJ Touch: [fala]\nNova: [fala]\n';
+    script += 'Formato OBRIGATORIO (cada fala em linha separada):\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\n';
     script += 'Maximo 4 trocas. Cada fala com no maximo 2 frases curtas.';
   }
   else {
@@ -12925,6 +12927,31 @@ function _buildRadioScript(channelKey, segmentType) {
   }
 
   return script;
+}
+
+// Vinhetas de transicao entre segmentos (frases curtas faladas em tom de chamada)
+function _getRadioJingle(segmentType) {
+  const jingles = {
+    abertura: 'Radio Touch! Todas as noticias resumidas pra voce. Comecando agora!',
+    noticia: 'Atencao! Manchete na Radio Touch.',
+    interacao: 'Hora da interacao! A galera ta falando no mural.',
+    entrevista: 'Radio Touch Entrevista! Mesa redonda no ar.',
+    vinheta: null // vinheta nao tem vinheta de si mesma
+  };
+  return jingles[segmentType] || null;
+}
+
+// Cache de vinhetas geradas (nao muda, pode cachear pra sempre na memoria)
+const _jingleCache = {};
+async function _getOrGenerateJingle(segmentType) {
+  if (_jingleCache[segmentType]) return _jingleCache[segmentType];
+  const text = _getRadioJingle(segmentType);
+  if (!text) return null;
+  const audio = await _generateRadioAudio(text, 'nova');
+  if (audio) {
+    _jingleCache[segmentType] = { ...audio, text, speaker: 'Vinheta', isJingle: true };
+  }
+  return _jingleCache[segmentType] || null;
 }
 
 // Gerar audio TTS via OpenAI
@@ -12976,7 +13003,7 @@ async function _generateRadioSegment(channelKey, segmentType) {
     // Usar OpenAI chat pra gerar o texto do locutor
     const isInterview = segmentType === 'entrevista';
     const systemMsg = isInterview
-      ? 'Voce e roteirista da Radio Touch — radio comunitaria do app Touch. Escreva dialogos curtos e NATURAIS entre DJ Touch (locutor masculino, animado, caloroso, conhece a galera pelo nome) e Nova (co-apresentadora feminina, inteligente, curiosa, faz boas perguntas). Use o CONTEXTO fornecido — noticias reais, conversas dos ouvintes. Conecte assuntos de forma criativa. Sem emojis. Portugues brasileiro informal.'
+      ? 'Voce e roteirista da Radio Touch — radio comunitaria do app Touch. Escreva dialogos curtos e NATURAIS entre Locutor (locutor masculino, animado, caloroso, conhece a galera pelo nome) e Nova (co-apresentadora feminina, inteligente, curiosa, faz boas perguntas). Use o CONTEXTO fornecido — noticias reais, conversas dos ouvintes. Conecte assuntos de forma criativa. Sem emojis. Portugues brasileiro informal.'
       : RADIO_VOICES.locutor.style;
 
     const ctrl = new AbortController();
@@ -13008,19 +13035,25 @@ async function _generateRadioSegment(channelKey, segmentType) {
     const fullText = (chatData.choices && chatData.choices[0] && chatData.choices[0].message && chatData.choices[0].message.content) || '';
     if (!fullText || fullText.length < 10) { rs.generatingSegment = false; return null; }
 
-    // Para entrevistas, separar as falas e gerar TTS com vozes diferentes
+    // Gerar vinheta de abertura do segmento (som de transicao) — cacheada permanentemente
     const audioSegments = [];
+    const jingle = await _getOrGenerateJingle(segmentType);
+    if (jingle) {
+      audioSegments.push(jingle);
+    }
+
+    // Para entrevistas, separar as falas e gerar TTS com vozes diferentes
     if (isInterview) {
       const lines = fullText.split('\n').filter(l => l.trim());
       for (const line of lines) {
-        let voice = 'onyx'; // DJ Touch default
+        let voice = 'onyx'; // Locutor default
         let cleanLine = line;
         if (line.match(/^Nova[:\s]/i)) {
           voice = 'nova';
           cleanLine = line.replace(/^Nova[:\s]+/i, '');
-        } else if (line.match(/^DJ\s*Touch[:\s]/i)) {
+        } else if (line.match(/^Locutor[:\s]/i)) {
           voice = 'onyx';
-          cleanLine = line.replace(/^DJ\s*Touch[:\s]+/i, '');
+          cleanLine = line.replace(/^Locutor[:\s]+/i, '');
         } else if (line.match(/^Echo[:\s]/i)) {
           voice = 'echo';
           cleanLine = line.replace(/^Echo[:\s]+/i, '');
@@ -13028,13 +13061,13 @@ async function _generateRadioSegment(channelKey, segmentType) {
         if (cleanLine.trim().length < 5) continue;
         const audio = await _generateRadioAudio(cleanLine.trim(), voice);
         if (audio) {
-          audioSegments.push({ ...audio, text: cleanLine.trim(), speaker: voice === 'nova' ? 'Nova' : 'DJ Touch' });
+          audioSegments.push({ ...audio, text: cleanLine.trim(), speaker: voice === 'nova' ? 'Nova' : 'Locutor' });
         }
       }
     } else {
       const audio = await _generateRadioAudio(fullText, 'onyx');
       if (audio) {
-        audioSegments.push({ ...audio, text: fullText, speaker: 'DJ Touch' });
+        audioSegments.push({ ...audio, text: fullText, speaker: 'Locutor' });
       }
     }
 
@@ -13086,6 +13119,27 @@ app.post('/api/radio/play/:channelKey', requireAuth, async (req, res) => {
   const types = ['abertura', 'noticia', 'interacao', 'entrevista', 'vinheta'];
   const type = segmentType || types[Math.floor(Math.random() * types.length)];
 
+  // Cache: se outro ouvinte ja gerou esse tipo recentemente, servir cache
+  const cached = rs.cache[type];
+  if (cached && (Date.now() - cached.createdAt) < RADIO_CACHE_TTL) {
+    console.log('[RADIO] Cache hit tipo=' + type + ' canal=' + channelKey);
+    return res.json({
+      ok: true,
+      cached: true,
+      segment: {
+        id: cached.data.id,
+        type: cached.data.type,
+        segments: cached.data.segments.map(s => ({
+          audio: s.audio,
+          format: s.format,
+          speaker: s.speaker,
+          text: s.text
+        })),
+        fullText: cached.data.fullText
+      }
+    });
+  }
+
   console.log('[RADIO] Gerando segmento tipo=' + type + ' canal=' + channelKey);
   const segment = await _generateRadioSegment(channelKey, type);
   if (!segment) {
@@ -13093,6 +13147,9 @@ app.post('/api/radio/play/:channelKey', requireAuth, async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Nao foi possivel gerar segmento.' });
   }
   console.log('[RADIO] Segmento gerado com ' + segment.segments.length + ' audios');
+
+  // Cachear pra outros ouvintes (5 min)
+  rs.cache[type] = { data: segment, createdAt: Date.now() };
 
   rs.currentSegment = segment;
   rs.lastSegmentAt = Date.now();
