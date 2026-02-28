@@ -1860,12 +1860,15 @@ async function loadExistingEvent(){
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/attendees');const d=await r.json();
     // Load event logo for center node
+    console.log('[loadExistingEvent] eventLogo value:', d.eventLogo ? d.eventLogo.substring(0,80) : 'NULL/EMPTY');
     if(d.eventLogo){
       S._eventLogoLoaded=true;
       const img=new Image();
-      img.onload=function(){S._eventLogoImg=img;S._eventLogoReady=true};
-      img.onerror=function(){S._eventLogoReady=false;console.error('[loadExistingEvent] logo load error')};
+      img.onload=function(){S._eventLogoImg=img;S._eventLogoReady=true;console.log('[loadExistingEvent] logo LOADED OK')};
+      img.onerror=function(e){S._eventLogoReady=false;console.error('[loadExistingEvent] logo LOAD FAILED', e)};
       img.src=d.eventLogo;
+    }else{
+      console.warn('[loadExistingEvent] NO eventLogo in API response');
     }
     if(d.attendees&&d.attendees.length>0){
       $('opEmpty').style.display='none';

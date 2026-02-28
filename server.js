@@ -2639,7 +2639,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       likesCount: 0, starsCount: 0, likedByMe: false,
       isPrestador: false, serviceLabel: null, pendingReveal: null, verified: !!ev.verified,
       eventActive: ev.active, eventParticipants: (ev.participants || []).length,
-      peopleMet: peopleMet, eventLogo: ev.eventLogo || null
+      peopleMet: peopleMet, eventLogo: proxyStorageUrl(ev.eventLogo || null)
     });
   });
   nodes.push(...eventNodes);
@@ -8068,7 +8068,7 @@ app.get('/api/user/:userId/transactions', requireAuth, (req, res) => {
       statusDetail: '',
       otherName: ep.eventName || (ev ? ev.name : '?'),
       otherColor: operatorUser ? operatorUser.color : '#60a5fa',
-      otherPhoto: ev ? ev.eventLogo : (operatorUser ? operatorUser.profilePhoto : null),
+      otherPhoto: ev ? proxyStorageUrl(ev.eventLogo) : (operatorUser ? operatorUser.profilePhoto : null),
       eventName: ep.eventName || (ev ? ev.name : null),
       timestamp: ep.createdAt || 0
     });
@@ -11587,12 +11587,15 @@ app.post('/api/operator/event/create', async (req, res) => {
   
   // Handle eventLogo upload
   let finalEventLogoUrl = null;
+  console.log('[event-create] eventLogo received:', eventLogo ? (eventLogo.substring(0,40) + '... len=' + eventLogo.length) : 'NONE');
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
     const uploadUrl = await uploadBase64ToStorage(eventLogo, `photos/event-logo/${id}_${Date.now()}.jpg`);
+    console.log('[event-create] upload result:', uploadUrl ? uploadUrl.substring(0,60) : 'FAILED');
     finalEventLogoUrl = uploadUrl || eventLogo; // fallback to base64 if upload fails
   } else if (eventLogo && typeof eventLogo === 'string') {
     finalEventLogoUrl = eventLogo; // assume it's already a URL
   }
+  console.log('[event-create] final eventLogo stored:', finalEventLogoUrl ? finalEventLogoUrl.substring(0,60) : 'NULL');
   db.operatorEvents[id] = {
     id, name: name.trim(), description: (description || '').trim(),
     creatorId: userId, creatorName: db.users[userId].nickname || db.users[userId].name,
@@ -12025,7 +12028,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: ev.eventLogo || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null) });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -12050,7 +12053,7 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     participantCount: (ev.participants || []).length,
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
-    eventLogo: ev.eventLogo || null
+    eventLogo: proxyStorageUrl(ev.eventLogo || null)
   });
 });
 
