@@ -142,6 +142,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+// Storage proxy (serve Firebase Storage images without CORS issues)
+setupStorageProxy(app);
 // Serve .well-known for Apple Pay domain verification (dotfiles need explicit route)
 app.use('/.well-known', express.static(path.join(__dirname, 'public', '.well-known'), { dotfiles: 'allow' }));
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -310,11 +312,43 @@ async function uploadBase64ToStorage(base64Data, filePath) {
       metadata: { cacheControl: 'public, max-age=31536000' },
       public: true
     });
-    return `https://storage.googleapis.com/${storageBucket.name}/${filePath}`;
+    return `/api/storage/${filePath}`;
   } catch (e) {
     console.error('❌ Storage upload error:', e.message);
     return null; // fallback: caller keeps base64
   }
+}
+
+// ── Storage URL helper (convert old GCS URLs to proxy) ──
+function proxyStorageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  // Convert https://storage.googleapis.com/BUCKET/path to /api/storage/path
+  const prefix = 'https://storage.googleapis.com/' + (storageBucket ? storageBucket.name + '/' : '');
+  if (url.startsWith(prefix)) {
+    return '/api/storage/' + url.substring(prefix.length);
+  }
+  return url;
+}
+
+// ── Storage proxy (avoids CORS issues with Firebase Storage) ──
+function setupStorageProxy(app) {
+  app.get('/api/storage/*', async (req, res) => {
+    try {
+      const filePath = req.params[0];
+      if (!filePath || filePath.includes('..')) return res.status(400).send('Invalid path');
+      const file = storageBucket.file(filePath);
+      const [exists] = await file.exists();
+      if (!exists) return res.status(404).send('Not found');
+      const [metadata] = await file.getMetadata();
+      res.set('Content-Type', metadata.contentType || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.set('Access-Control-Allow-Origin', '*');
+      file.createReadStream().pipe(res);
+    } catch (e) {
+      console.error('[storage-proxy]', e.message);
+      res.status(500).send('Error');
+    }
+  });
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
@@ -2333,7 +2367,7 @@ app.post('/api/session/join', (req, res) => {
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
       userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
-      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, verified: !!(sessionEventObj && sessionEventObj.verified), eventLogo: sessionEventObj ? (sessionEventObj.eventLogo || null) : null },
+      userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, verified: !!(sessionEventObj && sessionEventObj.verified), eventLogo: sessionEventObj ? proxyStorageUrl(sessionEventObj.eventLogo || null) : null },
       zodiacPhrase: null
     };
   } else {
@@ -2427,7 +2461,7 @@ app.get('/api/encounters/:userId', (req, res) => {
     if (typeof e.with === 'string' && e.with.startsWith('evt:')) {
       const evId = e.with.replace('evt:', '');
       const ev = db.operatorEvents ? db.operatorEvents[evId] : null;
-      return { ...e, realName: null, profilePhoto: ev ? (ev.eventLogo || null) : null, eventLogo: ev ? (ev.eventLogo || null) : null, verified: !!(ev && ev.verified) };
+      return { ...e, realName: null, profilePhoto: ev ? proxyStorageUrl(ev.eventLogo || null) : null, eventLogo: ev ? proxyStorageUrl(ev.eventLogo || null) : null, verified: !!(ev && ev.verified) };
     }
     const other = db.users[e.with];
     const isRevealed = other?.revealedTo?.includes(req.params.userId);
@@ -2913,7 +2947,7 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       fromId: null,
       nickname: e.withName || (evObj ? evObj.name : 'Evento'),
       eventName: e.withName || (evObj ? evObj.name : 'Evento'),
-      eventLogo: evObj ? (evObj.eventLogo || evObj.logo || null) : null,
+      eventLogo: evObj ? proxyStorageUrl(evObj.eventLogo || evObj.logo || null) : null,
       color: '#a78bfa',
       eventId: evId,
       timestamp: ts,
@@ -6305,7 +6339,7 @@ function createSonicConnection(userIdA, userIdB) {
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
       // userA = visitor, userB = event (virtual)
       userA: { id: visitorUser.id, name: visitorUser.nickname || visitorUser.name, color: visitorUser.color, profilePhoto: visitorUser.profilePhoto || null, photoURL: visitorUser.photoURL || null, score: calcScore(visitorUser.id), stars: (visitorUser.stars || []).length, sign: vSign, signInfo: vSign ? ZODIAC_INFO[vSign] : null, isPrestador: !!visitorUser.isPrestador, serviceLabel: visitorUser.serviceLabel || '' },
-      userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, eventLogo: eventObj ? (eventObj.eventLogo || null) : null },
+      userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, eventLogo: eventObj ? proxyStorageUrl(eventObj.eventLogo || null) : null },
       zodiacPhrase: null
     };
   } else {
@@ -7916,7 +7950,7 @@ app.get('/api/tips/:userId', requireAuth, (req, res) => {
       payerPhoto: db.users[ep.payerId]?.profilePhoto || null,
       payerColor: db.users[ep.payerId]?.color || null,
       receiverName: ep.eventName || (ev ? ev.name : '?'),
-      receiverPhoto: ev ? (ev.eventLogo || null) : (operator ? operator.profilePhoto : null),
+      receiverPhoto: ev ? proxyStorageUrl(ev.eventLogo || null) : (operator ? operator.profilePhoto : null),
       receiverColor: operator ? operator.color : '#60a5fa',
       receiverService: '',
       direction: 'sent'

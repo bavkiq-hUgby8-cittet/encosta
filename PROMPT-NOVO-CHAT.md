@@ -74,6 +74,35 @@ Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
 | PROMPT-FINANCEIRO.md | Stripe Connect + pagamentos US |
 | PROMPT-FISCAL.md | Compliance fiscal US+BR, conciliacao |
 
+## OBSERVACOES TECNICAS IMPORTANTES
+
+### Firebase Storage e CORS
+- Firebase Storage (bucket encosta-f32e7) NAO tem CORS configurado para touch-irl.com
+- NUNCA use crossOrigin='anonymous' em Images carregadas do Firebase Storage
+- Todas as URLs de imagens do Storage passam pelo proxy /api/storage/* no server.js
+- A funcao proxyStorageUrl() converte URLs antigas do GCS para o proxy local
+- A funcao uploadBase64ToStorage() ja retorna URLs no formato /api/storage/path
+
+### Painel Operacional (operator.html)
+- Tres telas: opLogin -> opEvents -> opApp (dentro do evento)
+- Backgrounds usam gradientes deep purple coordenados entre todas as telas
+- Canvas do aquarium: logo do evento no centro via S._eventLogoReady/S._eventLogoImg
+- IMPORTANTE: resetar S._eventLogoLoaded, S._eventLogoReady, S._eventLogoImg ao trocar de evento (em opSelectEvent)
+- Sidebar lateral (op-sidebar) tem lista de participantes com status de entrada (liberar/pago/remover)
+- Socket events: checkin-created, entry-skipped, operator-event-update, event-attendee-joined/left
+
+### Event View do Usuario (index.html)
+- Tela eventView com canvas que renderiza aquarium de participantes
+- Logo no centro via window._evLogoImg / window._evLogoLoaded
+- API /api/operator/event/:id/attendees retorna eventLogo (ja com proxy)
+- Workflow de pagamento: Pagar ou Pular -> operador decide (liberar/pago presencial/remover)
+
+### Entry Management (fluxo de entrada)
+- Usuario pula pagamento -> socket 'entry-skipped' emitido ao operador
+- Operador ve alerta discreto com 3 opcoes: liberar, pagamento presencial, remover
+- Status salvo em ev.attendees[userId].entryStatus via POST /api/operator/event/:id/attendee-status
+- Badges coloridos na lista de participantes (verde=liberado, amarelo=presencial, vermelho=removido)
+
 ## STATUS ATUAL (28/02/2026)
 
 - App funcionando em producao (touch-irl.com)
@@ -84,6 +113,8 @@ Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
 - Stripe Connect por evento (conta separada por evento)
 - 30+ fixes de seguranca/performance aplicados
 - i18n parcial (frases poeticas traduzidas, UI pendente)
+- Painel operacional com glass morphism, logo de eventos, entry management
+- Proxy de imagens /api/storage/* para contornar CORS do Firebase Storage
 - Proximo: traduzir UI para ingles (mercado US e prioridade #1)
 
 Quando estiver pronto, me avisa que a gente comeca.
