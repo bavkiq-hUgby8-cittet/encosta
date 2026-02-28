@@ -318,7 +318,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
 }
 
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags', 'eventPayments', 'payouts'];
 let db = {};
 DB_COLLECTIONS.forEach(c => db[c] = {});
 let dbLoaded = false;
@@ -6812,6 +6812,123 @@ app.get('/api/admin/financial', adminLimiter, requireAdmin, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ PAYOUTS — Manual transfers for providers without Stripe/MP ═══
+
+// Admin: list all providers with retained balances
+app.get('/api/admin/payouts/pending', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const prestadores = Object.values(db.users).filter(u => u.isPrestador);
+    const result = [];
+    prestadores.forEach(u => {
+      const isConnected = u.mpConnected || u.stripeConnected;
+      if (isConnected) return; // skip connected providers — they get auto-split
+      // Calculate retained balance from tips
+      const tipsReceived = Object.values(db.tips).filter(t => t.receiverId === u.id && t.status === 'approved');
+      const tipsTotal = tipsReceived.reduce((s, t) => s + (t.amount || 0), 0);
+      const tipsFees = tipsReceived.reduce((s, t) => s + (t.fee || 0), 0);
+      // Calculate retained from event entries
+      const opEventIds = Object.values(db.operatorEvents || {}).filter(ev => ev.creatorId === u.id).map(ev => ev.id);
+      const entries = Object.values(db.eventPayments || {}).filter(ep => (ep.receiverId === u.id || opEventIds.includes(ep.eventId)) && ep.status === 'approved');
+      const entriesTotal = entries.reduce((s, e) => s + (e.amount || 0), 0);
+      const entriesFees = entries.reduce((s, e) => s + (e.fee || 0), 0);
+      const grossRetained = (tipsTotal - tipsFees) + (entriesTotal - entriesFees);
+      // Subtract already paid out
+      const paidOut = Object.values(db.payouts || {}).filter(p => p.receiverId === u.id && p.status === 'completed').reduce((s, p) => s + (p.amount || 0), 0);
+      const balance = grossRetained - paidOut;
+      if (balance <= 0) return;
+      result.push({
+        userId: u.id,
+        nickname: u.nickname || u.name || '?',
+        profilePhoto: u.profilePhoto || null,
+        serviceLabel: u.serviceLabel || '',
+        email: u.email || '',
+        pixKey: u.pixKey || null,
+        bankInfo: u.bankInfo || null,
+        grossRetained,
+        alreadyPaid: paidOut,
+        balance,
+        tipsCount: tipsReceived.length,
+        entriesCount: entries.length
+      });
+    });
+    result.sort((a, b) => b.balance - a.balance);
+    // Also return totals
+    const totalPending = result.reduce((s, r) => s + r.balance, 0);
+    const totalPaidAll = Object.values(db.payouts || {}).filter(p => p.status === 'completed').reduce((s, p) => s + (p.amount || 0), 0);
+    res.json({ providers: result, totalPending, totalPaidAll, count: result.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: register a manual payout (PIX, TED, cash, etc)
+app.post('/api/admin/payouts/register', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const { receiverId, amount, method, reference, notes } = req.body;
+    if (!receiverId || !db.users[receiverId]) return res.status(400).json({ error: 'Prestador nao encontrado.' });
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'Valor invalido.' });
+    const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const payout = {
+      id,
+      receiverId,
+      receiverName: db.users[receiverId].nickname || db.users[receiverId].name || '?',
+      amount: parseFloat(amount),
+      method: method || 'pix', // pix, ted, cash, other
+      reference: (reference || '').trim().slice(0, 100), // PIX transaction ID, TED comprovante, etc
+      notes: (notes || '').trim().slice(0, 200),
+      status: 'completed',
+      approvedBy: req.adminUserId || 'admin',
+      createdAt: Date.now()
+    };
+    db.payouts[id] = payout;
+    saveDB('payouts');
+    // Notify provider via socket
+    io.to(receiverId).emit('payout-received', { amount: payout.amount, method: payout.method });
+    res.json({ ok: true, payout });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: list all payouts (history)
+app.get('/api/admin/payouts/history', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const all = Object.values(db.payouts || {}).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
+    const total = all.reduce((s, p) => s + (p.amount || 0), 0);
+    res.json({ payouts: all, total, count: all.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Provider: save PIX key / bank info for receiving payouts
+app.post('/api/prestador/:userId/bank-info', requireAuth, (req, res) => {
+  const userId = req.params.userId;
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const { pixKey, pixKeyType, bankName, bankAgency, bankAccount, bankAccountType, holderName, holderCpf } = req.body;
+  // Save PIX key
+  if (pixKey) {
+    user.pixKey = (pixKey || '').trim().slice(0, 100);
+    user.pixKeyType = pixKeyType || 'cpf'; // cpf, cnpj, email, phone, random
+  }
+  // Save bank info (for TED)
+  if (bankName || bankAgency || bankAccount) {
+    user.bankInfo = {
+      bankName: (bankName || '').trim().slice(0, 60),
+      agency: (bankAgency || '').trim().slice(0, 10),
+      account: (bankAccount || '').trim().slice(0, 20),
+      accountType: bankAccountType === 'poupanca' ? 'poupanca' : 'corrente',
+      holderName: (holderName || '').trim().slice(0, 80),
+      holderCpf: (holderCpf || '').trim().slice(0, 14)
+    };
+  }
+  saveDB('users');
+  res.json({ ok: true, pixKey: user.pixKey, bankInfo: user.bankInfo });
+});
+
+// Provider: get their payout history
+app.get('/api/prestador/:userId/payouts', requireAuth, (req, res) => {
+  const userId = req.params.userId;
+  const payouts = Object.values(db.payouts || {}).filter(p => p.receiverId === userId).sort((a, b) => b.createdAt - a.createdAt);
+  const total = payouts.reduce((s, p) => s + (p.amount || 0), 0);
+  res.json({ payouts, total, count: payouts.length });
+});
+
 // ── STATUS / HEALTH ──
 app.get('/api/status', (req, res) => {
   res.json({
@@ -8042,6 +8159,9 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
     isPrestador: !!user.isPrestador,
     mpConnected: !!user.mpConnected,
     stripeConnected: !!user.stripeConnected,
+    pixKey: user.pixKey || null,
+    pixKeyType: user.pixKeyType || null,
+    bankInfo: user.bankInfo || null,
     stats: {
       totalReceived, totalFees, totalNet,
       totalCount: allApproved.length,

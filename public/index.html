@@ -2574,6 +2574,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div id="pdPeriods" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem;margin-bottom:.8rem"></div>
     <!-- MP connection status -->
     <div id="pdMpStatus" style="margin-bottom:.8rem"></div>
+    <!-- Bank info / PIX -->
+    <div id="pdBankInfo" style="margin-bottom:.8rem"></div>
+    <!-- Payouts received -->
+    <div id="pdPayouts" style="margin-bottom:.8rem"></div>
     <!-- Recent tips -->
     <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.4rem">Pagamentos recebidos</div>
     <div id="pdTips" style="margin-bottom:1rem"></div>
@@ -16362,9 +16366,97 @@ async function showPrestadorDash() {
           '<div style="font-size:.55rem;color:var(--t3)">' + time + '</div></div></div>';
       }).join('');
     }
+
+    // Bank info / PIX registration (only show if no gateway connected)
+    const hasGateway = d.mpConnected || d.stripeConnected;
+    if (!hasGateway) {
+      const pixTypes = {cpf:'CPF', cnpj:'CNPJ', email:'E-mail', phone:'Telefone', random:'Chave aleatoria'};
+      const curPixType = d.pixKeyType || 'cpf';
+      const curPix = d.pixKey || '';
+      const bi = d.bankInfo || {};
+      $('pdBankInfo').innerHTML =
+        '<div style="padding:.7rem;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)">'
+        +'<div style="font-size:.6rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Dados para recebimento (PIX/TED)</div>'
+        +'<div style="font-size:.5rem;color:var(--t3);margin-bottom:.5rem">Sem gateway conectado, transferencias serao feitas manualmente. Cadastre seus dados para facilitar.</div>'
+        +'<div style="margin-bottom:.4rem"><label style="font-size:.5rem;color:var(--t3);display:block;margin-bottom:.15rem">Tipo de chave PIX</label>'
+        +'<select id="pdPixKeyType" style="width:100%;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t1);font-size:.6rem;font-family:inherit">'
+        + Object.entries(pixTypes).map(([k,v]) => '<option value="'+k+'"'+(k===curPixType?' selected':'')+'>'+v+'</option>').join('')
+        +'</select></div>'
+        +'<div style="margin-bottom:.4rem"><label style="font-size:.5rem;color:var(--t3);display:block;margin-bottom:.15rem">Chave PIX</label>'
+        +'<input id="pdPixKey" type="text" value="'+esc(curPix)+'" placeholder="Sua chave PIX" style="width:100%;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t1);font-size:.6rem;font-family:inherit;box-sizing:border-box"></div>'
+        +'<details style="margin-bottom:.4rem"><summary style="font-size:.5rem;color:var(--t3);cursor:pointer">Dados bancarios (opcional, para TED)</summary>'
+        +'<div style="margin-top:.3rem;display:grid;grid-template-columns:1fr 1fr;gap:.3rem">'
+        +'<div><label style="font-size:.45rem;color:var(--t3)">Banco</label><input id="pdBankName" type="text" value="'+esc(bi.bankName||'')+'" placeholder="Ex: Nubank" style="width:100%;padding:.3rem .4rem;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.55rem;font-family:inherit;box-sizing:border-box"></div>'
+        +'<div><label style="font-size:.45rem;color:var(--t3)">Agencia</label><input id="pdBankAgency" type="text" value="'+esc(bi.agency||'')+'" placeholder="0001" style="width:100%;padding:.3rem .4rem;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.55rem;font-family:inherit;box-sizing:border-box"></div>'
+        +'<div><label style="font-size:.45rem;color:var(--t3)">Conta</label><input id="pdBankAccount" type="text" value="'+esc(bi.account||'')+'" placeholder="123456-7" style="width:100%;padding:.3rem .4rem;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.55rem;font-family:inherit;box-sizing:border-box"></div>'
+        +'<div><label style="font-size:.45rem;color:var(--t3)">Tipo</label><select id="pdBankAccType" style="width:100%;padding:.3rem .4rem;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.55rem;font-family:inherit"><option value="corrente"'+(bi.accountType==='poupanca'?'':' selected')+'>Corrente</option><option value="poupanca"'+(bi.accountType==='poupanca'?' selected':'')+'>Poupanca</option></select></div>'
+        +'<div><label style="font-size:.45rem;color:var(--t3)">Titular</label><input id="pdHolderName" type="text" value="'+esc(bi.holderName||'')+'" placeholder="Nome completo" style="width:100%;padding:.3rem .4rem;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.55rem;font-family:inherit;box-sizing:border-box"></div>'
+        +'<div><label style="font-size:.45rem;color:var(--t3)">CPF</label><input id="pdHolderCpf" type="text" value="'+esc(bi.holderCpf||'')+'" placeholder="000.000.000-00" style="width:100%;padding:.3rem .4rem;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--t1);font-size:.55rem;font-family:inherit;box-sizing:border-box"></div>'
+        +'</div></details>'
+        +'<button onclick="saveBankInfo()" style="width:100%;padding:.45rem;border-radius:10px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.6rem;font-weight:700;cursor:pointer;font-family:inherit;margin-top:.2rem">Salvar dados</button>'
+        +'</div>';
+    } else {
+      $('pdBankInfo').innerHTML = '';
+    }
+
+    // Payout history
+    try {
+      const payResp = await apiFetch('/api/prestador/' + state.userId + '/payouts');
+      const payData = await payResp.json();
+      if (payData.payouts && payData.payouts.length > 0) {
+        const methodLabels = {pix:'PIX', ted:'TED', cash:'Dinheiro', other:'Outro'};
+        $('pdPayouts').innerHTML =
+          '<div style="padding:.7rem;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)">'
+          +'<div style="font-size:.6rem;font-weight:700;color:var(--t1);margin-bottom:.1rem">Pagamentos recebidos (manuais)</div>'
+          +'<div style="font-size:.5rem;color:var(--t3);margin-bottom:.4rem">Total recebido: '+fmt(payData.total)+' ('+payData.count+' transferencia'+(payData.count>1?'s':'')+')</div>'
+          + payData.payouts.map(p => {
+            const dt = new Date(p.createdAt);
+            const dtStr = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;background:rgba(16,185,129,.04);border-radius:8px;margin-bottom:.2rem;border:1px solid rgba(16,185,129,.08)">'
+              +'<div><div style="font-size:.6rem;font-weight:600;color:#10b981">'+fmt(p.amount)+'</div>'
+              +'<div style="font-size:.48rem;color:var(--t3)">'+dtStr+' via '+(methodLabels[p.method]||p.method)+'</div>'
+              +(p.reference ? '<div style="font-size:.42rem;color:var(--t3);opacity:.7">Ref: '+esc(p.reference)+'</div>' : '')
+              +'</div>'
+              +'<div style="font-size:.45rem;padding:2px 6px;border-radius:5px;background:rgba(16,185,129,.1);color:#10b981;font-weight:600">Recebido</div>'
+              +'</div>';
+          }).join('')
+          +'</div>';
+      } else {
+        $('pdPayouts').innerHTML = '';
+      }
+    } catch (pe) {
+      console.error('Payouts load error:', pe);
+      $('pdPayouts').innerHTML = '';
+    }
   } catch (e) {
     console.error('Dashboard error:', e);
     $('pdStats').innerHTML = '<div style="text-align:center;grid-column:1/-1;padding:1rem;color:var(--err);font-size:.7rem">Erro ao carregar: ' + (e.message || '') + '</div>';
+  }
+}
+
+async function saveBankInfo() {
+  try {
+    const body = {
+      pixKey: $('pdPixKey') ? $('pdPixKey').value.trim() : '',
+      pixKeyType: $('pdPixKeyType') ? $('pdPixKeyType').value : 'cpf',
+      bankName: $('pdBankName') ? $('pdBankName').value.trim() : '',
+      bankAgency: $('pdBankAgency') ? $('pdBankAgency').value.trim() : '',
+      bankAccount: $('pdBankAccount') ? $('pdBankAccount').value.trim() : '',
+      bankAccountType: $('pdBankAccType') ? $('pdBankAccType').value : 'corrente',
+      holderName: $('pdHolderName') ? $('pdHolderName').value.trim() : '',
+      holderCpf: $('pdHolderCpf') ? $('pdHolderCpf').value.trim() : ''
+    };
+    if (!body.pixKey) { showToast('Informe sua chave PIX', 'error'); return; }
+    const resp = await apiFetch('/api/prestador/' + state.userId + '/bank-info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Dados salvos com sucesso!', 'success');
+  } catch (e) {
+    showToast('Erro ao salvar: ' + (e.message || ''), 'error');
   }
 }
 
@@ -17336,9 +17428,120 @@ async function showAdminFinancial(){
         h+='</div></div>';
       });
     }
+    // Payouts section
+    h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin:.6rem 0 .4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center">';
+    h+='<span>Payouts (saldos retidos)</span>';
+    h+='<button onclick="loadAdminPayouts()" style="font-size:.55rem;padding:.2rem .6rem;border-radius:8px;border:1px solid rgba(16,185,129,.3);background:rgba(16,185,129,.08);color:#10b981;cursor:pointer;font-weight:600">Ver pendentes</button>';
+    h+='</div>';
+    h+='<div id="adminPayoutsList" style="font-size:.6rem;color:var(--t3);text-align:center;padding:.5rem">Clique em "Ver pendentes" para carregar</div>';
+
     overlay.querySelector('.more-menu-sheet').innerHTML=h;
   }catch(e){
     overlay.querySelector('.more-menu-sheet').innerHTML='<div class="more-menu-handle"></div><div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro: '+(e.message||'Falha ao carregar')+'</div>';
+  }
+}
+
+// Admin: Load pending payouts
+async function loadAdminPayouts(){
+  var el=document.getElementById('adminPayoutsList');
+  if(!el)return;
+  el.innerHTML='<div style="text-align:center;padding:.5rem;color:var(--t3);font-size:.6rem">Carregando...</div>';
+  try{
+    var resp=await apiFetch('/api/admin/payouts/pending');
+    var d=await resp.json();
+    if(d.error)throw new Error(d.error);
+    var fmt=function(v){return 'R$'+(v||0).toFixed(2).replace('.',',')};
+    var h='';
+    // Summary
+    h+='<div style="display:flex;gap:.4rem;margin-bottom:.5rem">';
+    h+='<div style="flex:1;padding:.4rem;border-radius:10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.12);text-align:center">';
+    h+='<div style="font-size:.45rem;color:#fbbf24">Total pendente</div>';
+    h+='<div style="font-size:.8rem;font-weight:700;color:#fbbf24">'+fmt(d.totalPending)+'</div>';
+    h+='<div style="font-size:.4rem;color:var(--t3)">'+d.count+' prestadores</div></div>';
+    h+='<div style="flex:1;padding:.4rem;border-radius:10px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.12);text-align:center">';
+    h+='<div style="font-size:.45rem;color:#10b981">Ja pago (total)</div>';
+    h+='<div style="font-size:.8rem;font-weight:700;color:#10b981">'+fmt(d.totalPaidAll)+'</div>';
+    h+='<button onclick="loadAdminPayoutHistory()" style="font-size:.4rem;padding:1px 5px;border-radius:5px;border:1px solid rgba(16,185,129,.2);background:transparent;color:#10b981;cursor:pointer;margin-top:.15rem">Ver historico</button>';
+    h+='</div></div>';
+    // Provider list
+    if(!d.providers||d.providers.length===0){
+      h+='<div style="text-align:center;padding:.8rem;color:var(--t3);font-size:.6rem">Nenhum saldo pendente. Todos os prestadores estao conectados ou ja receberam!</div>';
+    } else {
+      d.providers.forEach(function(p){
+        var initial=(p.nickname||'?')[0].toUpperCase();
+        var pixInfo=p.pixKey?'<span style="font-size:.4rem;color:#10b981">PIX: '+esc(p.pixKey)+'</span>':'<span style="font-size:.4rem;color:#fbbf24">Sem PIX cadastrado</span>';
+        h+='<div style="padding:.5rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);margin-bottom:.3rem">';
+        h+='<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">';
+        h+='<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#fff;font-weight:700;flex-shrink:0">'+initial+'</div>';
+        h+='<div style="flex:1;min-width:0"><div style="font-size:.65rem;font-weight:600;color:var(--t1)">'+esc(p.nickname)+'</div>';
+        h+='<div style="font-size:.45rem;color:var(--t3)">'+esc(p.serviceLabel||'')+' &middot; '+p.tipsCount+' gorj. + '+p.entriesCount+' ingr.</div>';
+        h+='<div>'+pixInfo+'</div></div>';
+        h+='<div style="text-align:right"><div style="font-size:.8rem;font-weight:700;color:#fbbf24">'+fmt(p.balance)+'</div>';
+        h+='<div style="font-size:.4rem;color:var(--t3)">ja pago: '+fmt(p.alreadyPaid)+'</div></div></div>';
+        // Action buttons
+        h+='<div style="display:flex;gap:.3rem;margin-top:.2rem">';
+        h+='<button onclick="adminRegisterPayout(\''+p.userId+'\','+p.balance+',\''+esc(p.nickname)+'\')" style="flex:1;font-size:.5rem;padding:.3rem;border-radius:8px;border:1px solid rgba(16,185,129,.3);background:rgba(16,185,129,.08);color:#10b981;cursor:pointer;font-weight:600">Registrar payout</button>';
+        if(!p.pixKey){
+          h+='<button onclick="showToast(\'Prestador nao tem PIX cadastrado. Peca pra ele cadastrar no app.\')" style="flex:1;font-size:.5rem;padding:.3rem;border-radius:8px;border:1px solid rgba(251,191,36,.3);background:rgba(251,191,36,.06);color:#fbbf24;cursor:pointer;font-weight:600">Sem dados bancarios</button>';
+        }
+        h+='</div></div>';
+      });
+    }
+    el.innerHTML=h;
+  }catch(e){
+    el.innerHTML='<div style="text-align:center;padding:.5rem;color:var(--err);font-size:.6rem">Erro: '+(e.message||'')+'</div>';
+  }
+}
+
+// Admin: Register payout dialog
+function adminRegisterPayout(receiverId,maxAmount,name){
+  var amount=prompt('Valor do payout para '+name+' (max R$'+maxAmount.toFixed(2).replace('.',',')+'):',''+maxAmount.toFixed(2));
+  if(!amount)return;
+  amount=parseFloat(amount.replace(',','.'));
+  if(isNaN(amount)||amount<=0||amount>maxAmount){showToast('Valor invalido.');return}
+  var method=prompt('Metodo: pix, ted, cash, outro','pix');
+  if(!method)return;
+  var reference=prompt('Referencia (ID PIX, comprovante TED, etc):','');
+  apiFetch('/api/admin/payouts/register',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({receiverId:receiverId,amount:amount,method:method,reference:reference||'',notes:''})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.error){showToast('Erro: '+d.error);return}
+    showToast('Payout de R$'+amount.toFixed(2).replace('.',',')+' registrado para '+name+'!');
+    loadAdminPayouts(); // refresh list
+  }).catch(function(e){showToast('Erro ao registrar payout')});
+}
+
+// Admin: Show payout history
+async function loadAdminPayoutHistory(){
+  var el=document.getElementById('adminPayoutsList');
+  if(!el)return;
+  el.innerHTML='<div style="text-align:center;padding:.5rem;color:var(--t3);font-size:.6rem">Carregando historico...</div>';
+  try{
+    var resp=await apiFetch('/api/admin/payouts/history');
+    var d=await resp.json();
+    if(d.error)throw new Error(d.error);
+    var fmt=function(v){return 'R$'+(v||0).toFixed(2).replace('.',',')};
+    var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">';
+    h+='<div style="font-size:.6rem;font-weight:600;color:var(--t1)">Historico de payouts ('+d.count+')</div>';
+    h+='<button onclick="loadAdminPayouts()" style="font-size:.45rem;padding:2px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--t3);cursor:pointer">Voltar</button></div>';
+    h+='<div style="font-size:.55rem;color:#10b981;margin-bottom:.4rem">Total pago: '+fmt(d.total)+'</div>';
+    if(!d.payouts||d.payouts.length===0){
+      h+='<div style="text-align:center;padding:.8rem;color:var(--t3);font-size:.6rem">Nenhum payout registrado.</div>';
+    } else {
+      d.payouts.forEach(function(p){
+        var date=new Date(p.createdAt);
+        var time=date.toLocaleDateString('pt-BR')+' '+date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+        h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;margin-bottom:.2rem;border:1px solid rgba(255,255,255,.04)">';
+        h+='<div><div style="font-size:.6rem;font-weight:600;color:var(--t1)">'+esc(p.receiverName)+'</div>';
+        h+='<div style="font-size:.42rem;color:var(--t3)">'+esc(p.method)+' &middot; '+time+(p.reference?' &middot; ref: '+esc(p.reference):'')+'</div></div>';
+        h+='<div style="font-size:.7rem;font-weight:700;color:#10b981">'+fmt(p.amount)+'</div></div>';
+      });
+    }
+    el.innerHTML=h;
+  }catch(e){
+    el.innerHTML='<div style="text-align:center;padding:.5rem;color:var(--err);font-size:.6rem">Erro: '+(e.message||'')+'</div>';
   }
 }
 
