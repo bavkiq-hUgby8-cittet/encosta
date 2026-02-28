@@ -4386,10 +4386,24 @@ async function showEventView(eventId,eventName){
     // Load event logo for center node
     window._evLogoImg=null;window._evLogoLoaded=false;
     if(d.eventLogo){
+      var logoUrl=d.eventLogo;
+      if(logoUrl.indexOf('storage.googleapis.com')!==-1){
+        var pathMatch=logoUrl.match(/storage\.googleapis\.com\/[^/]+\/(.+)/);
+        if(pathMatch) logoUrl='/api/storage/'+pathMatch[1];
+      }
+      console.log('[eventView] loading logo from:', logoUrl.substring(0,80));
       var _eLogo=new Image();
-      _eLogo.onload=function(){window._evLogoImg=_eLogo;window._evLogoLoaded=true};
-      _eLogo.onerror=function(){window._evLogoLoaded=false;console.error('[eventView] logo load error:',d.eventLogo)};
-      _eLogo.src=d.eventLogo;
+      _eLogo.onload=function(){window._evLogoImg=_eLogo;window._evLogoLoaded=true;console.log('[eventView] logo OK')};
+      _eLogo.onerror=function(){
+        console.error('[eventView] logo failed, trying blob fallback...');
+        fetch(d.eventLogo).then(function(r){return r.blob()}).then(function(blob){
+          var url=URL.createObjectURL(blob);
+          var img2=new Image();
+          img2.onload=function(){window._evLogoImg=img2;window._evLogoLoaded=true;console.log('[eventView] logo via blob OK')};
+          img2.src=url;
+        }).catch(function(e2){console.error('[eventView] blob fallback failed:', e2)});
+      };
+      _eLogo.src=logoUrl;
     }else{console.log('[eventView] no eventLogo in API response')}
   }catch(e){console.error('[eventView] load error:',e)}
   loadEventMenu(eventId);
@@ -10592,10 +10606,20 @@ function initConstCanvas(){
         // Load event logo if available
         if(n.eventLogo&&!n._evLogoLoaded){
           n._evLogoLoaded=true;
+          var cLogoUrl=n.eventLogo;
+          if(cLogoUrl.indexOf('storage.googleapis.com')!==-1){
+            var cMatch=cLogoUrl.match(/storage\.googleapis\.com\/[^/]+\/(.+)/);
+            if(cMatch) cLogoUrl='/api/storage/'+cMatch[1];
+          }
           const img=new Image();
           img.onload=function(){n._evLogo=img;n._evLogoReady=true};
-          img.onerror=function(){n._evLogoReady=false};
-          img.src=n.eventLogo;
+          img.onerror=function(){
+            fetch(n.eventLogo).then(function(r){return r.blob()}).then(function(blob){
+              var url=URL.createObjectURL(blob);
+              var img2=new Image();img2.onload=function(){n._evLogo=img2;n._evLogoReady=true};img2.src=url;
+            }).catch(function(){n._evLogoReady=false});
+          };
+          img.src=cLogoUrl;
         }
         // Draw event logo if ready and radius is large enough
         if(n._evLogoReady&&n._evLogo&&r>4){

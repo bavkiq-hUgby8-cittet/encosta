@@ -1863,10 +1863,27 @@ async function loadExistingEvent(){
     console.log('[loadExistingEvent] eventLogo value:', d.eventLogo ? d.eventLogo.substring(0,80) : 'NULL/EMPTY');
     if(d.eventLogo){
       S._eventLogoLoaded=true;
-      const img=new Image();
+      var logoUrl=d.eventLogo;
+      // If it's a GCS URL, convert to proxy
+      if(logoUrl.indexOf('storage.googleapis.com')!==-1){
+        var pathMatch=logoUrl.match(/storage\.googleapis\.com\/[^/]+\/(.+)/);
+        if(pathMatch) logoUrl='/api/storage/'+pathMatch[1];
+      }
+      console.log('[loadExistingEvent] loading logo from:', logoUrl.substring(0,80));
+      var img=new Image();
       img.onload=function(){S._eventLogoImg=img;S._eventLogoReady=true;console.log('[loadExistingEvent] logo LOADED OK')};
-      img.onerror=function(e){S._eventLogoReady=false;console.error('[loadExistingEvent] logo LOAD FAILED', e)};
-      img.src=d.eventLogo;
+      img.onerror=function(e){
+        console.error('[loadExistingEvent] logo LOAD FAILED, trying fetch as blob...');
+        // Fallback: fetch as blob to bypass CORS
+        fetch(d.eventLogo).then(function(r){return r.blob()}).then(function(blob){
+          var url=URL.createObjectURL(blob);
+          var img2=new Image();
+          img2.onload=function(){S._eventLogoImg=img2;S._eventLogoReady=true;console.log('[loadExistingEvent] logo LOADED via blob fallback')};
+          img2.onerror=function(){S._eventLogoReady=false;console.error('[loadExistingEvent] logo blob fallback also FAILED')};
+          img2.src=url;
+        }).catch(function(e2){S._eventLogoReady=false;console.error('[loadExistingEvent] fetch fallback error:', e2)});
+      };
+      img.src=logoUrl;
     }else{
       console.warn('[loadExistingEvent] NO eventLogo in API response');
     }
