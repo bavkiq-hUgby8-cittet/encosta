@@ -1196,7 +1196,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 
 /* ENCOUNTER LOG */
 #encounterLog{padding:0;overflow-y:auto;background:var(--bg)}
-.elog-header{display:flex;align-items:center;gap:.6rem;padding:max(env(safe-area-inset-top),.8rem) 1.2rem .6rem;position:sticky;top:0;z-index:10;background:linear-gradient(180deg,var(--bg) 85%,transparent)}
+.elog-header{display:flex;align-items:center;gap:.6rem;padding:max(env(safe-area-inset-top),.8rem) 1.2rem .4rem;background:var(--bg)}
 .elog-header h2{font-size:.95rem;font-weight:700;flex:1;color:var(--t1);letter-spacing:.03em}
 .elog-list{padding:.5rem .8rem;display:flex;flex-direction:column;gap:.35rem;padding-bottom:3rem}
 .elog-date-label{font-size:.62rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;padding:.8rem 0 .3rem;font-weight:700;opacity:.65}
@@ -2621,12 +2621,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 </div>
 
 <div id="encounterLog" class="screen">
-  <div class="elog-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Histórico</h2></div>
-  <div style="display:flex;gap:.35rem;padding:.5rem .8rem .4rem;overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:44px;z-index:5;background:var(--bg)" id="elogFilters">
+  <div style="position:sticky;top:0;z-index:10;background:var(--bg)">
+    <div class="elog-header" style="position:relative;z-index:auto"><button class="chb" onclick="goHome()">&#x2190;</button><h2>Historico</h2></div>
+    <div style="display:flex;gap:.35rem;padding:.3rem .8rem .5rem;overflow-x:auto;-webkit-overflow-scrolling:touch" id="elogFilters">
     <button class="elog-filter active" onclick="filterElog('all',this)">Todos</button>
     <button class="elog-filter" onclick="filterElog('people',this)">Pessoas</button>
     <button class="elog-filter" onclick="filterElog('service',this)">Serviços</button>
     <button class="elog-filter" onclick="filterElog('payments',this)">Pagamentos</button>
+    </div>
   </div>
   <div class="elog-list" id="elogList"></div>
 </div>
@@ -6594,6 +6596,11 @@ async function confirmEntryStripe(eventId,eventName,price){
       if(btn){btn.disabled=false;btn.textContent='Pagar R$'+price.toFixed(2).replace('.',',');btn.style.opacity='1';}
       return;
     }
+    // Confirm on backend so payment status changes from pending to approved
+    fetch('/api/stripe/confirm-payment',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({paymentIntentId:data.paymentIntentId,tipId:data.tipId})
+    }).catch(function(){});
     showToast('Ingresso pago!');haptic([40,20,40]);
     closeEntryPayment();
     _entryStripeElements=null;_entryStripePE=null;
@@ -12493,7 +12500,7 @@ function showMoreMenu(){
 let _elogData=[];let _elogFilter='all';
 function filterElog(filter,btn){
   _elogFilter=filter;
-  if(btn){document.querySelectorAll('.elog-filter').forEach(f=>f.classList.remove('active'));btn.classList.add('active')}
+  if(btn){document.querySelectorAll('#elogFilters .elog-filter').forEach(f=>f.classList.remove('active'));btn.classList.add('active')}
   renderElogList(_elogData);
 }
 function renderElogList(data){
@@ -14952,6 +14959,11 @@ async function confirmTipStripe() {
       if (btn) { btn.disabled = false; btn.textContent = 'Pagar R$' + tipState.amount.toFixed(2).replace('.', ','); btn.style.opacity = '1'; }
       return;
     }
+    // Confirm payment on backend so tip status changes from pending to approved
+    fetch('/api/stripe/confirm-payment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentIntentId: data.paymentIntentId, tipId: data.tipId })
+    }).catch(function(){});
     showTipResult('OK', 'Pago!');
     haptic([40, 20, 40]);
     _tipStripeElements = null; _tipStripePE = null; _tipStripeAmount = 0;
