@@ -11579,7 +11579,7 @@ app.post('/api/operator/settings', (req, res) => {
 
 // ═══ OPERATOR EVENTS ═══
 app.post('/api/operator/event/create', async (req, res) => {
-  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile, eventLogo, paymentAccount } = req.body;
+  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile, eventLogo, paymentAccount, modules } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
@@ -11654,7 +11654,13 @@ app.post('/api/operator/event/create', async (req, res) => {
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
     paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
-    paymentMpAccessToken: null    // set when event-specific MercadoPago is connected
+    paymentMpAccessToken: null,    // set when event-specific MercadoPago is connected
+    modules: modules && typeof modules === 'object' ? {
+      restaurant: !!modules.restaurant,
+      parking: !!modules.parking,
+      gym: !!modules.gym,
+      church: !!modules.church
+    } : { restaurant: true, parking: false, gym: false, church: false }
   };
   // Add to index so it shows in operator's event list immediately
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
@@ -11997,6 +12003,74 @@ app.post('/api/operator/event/:eventId/end', (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/operator/event/:eventId/reopen', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  ev.active = true;
+  delete ev.endedAt;
+  saveDB('operatorEvents');
+  if (ev.creatorId) io.to(ev.creatorId).emit('operator-event-update', { eventId: ev.id, action: 'reopened' });
+  res.json({ ok: true });
+});
+
+app.post('/api/operator/event/:eventId/update', async (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { name, welcomePhrase, entryPrice, revealMode, acceptsTips, businessProfile, modules, eventLogo } = req.body;
+
+  if (name && name.trim().length >= 2) {
+    ev.name = name.trim();
+  }
+  if (welcomePhrase !== undefined) {
+    ev.welcomePhrase = (welcomePhrase || '').trim().slice(0, 120);
+  }
+  if (entryPrice !== undefined) {
+    const price = parseFloat(entryPrice) || 0;
+    ev.entryPrice = price > 0 ? price : 0;
+  }
+  if (revealMode !== undefined) {
+    ev.revealMode = revealMode === 'all_revealed' ? 'all_revealed' : 'optional';
+  }
+  if (acceptsTips !== undefined) {
+    ev.acceptsTips = !!acceptsTips;
+  }
+  if (businessProfile && typeof businessProfile === 'object') {
+    ev.businessProfile = {
+      name: (businessProfile.name || '').trim().slice(0, 60),
+      type: (businessProfile.type || '').trim(),
+      address: (businessProfile.address || '').trim().slice(0, 200),
+      phone: (businessProfile.phone || '').trim().slice(0, 20),
+      hours: (businessProfile.hours || '').trim().slice(0, 200),
+      description: (businessProfile.description || '').trim().slice(0, 500),
+      website: (businessProfile.website || '').trim().slice(0, 100),
+      instagram: (businessProfile.instagram || '').trim().slice(0, 40),
+      acceptsDelivery: !!businessProfile.acceptsDelivery,
+      deliveryFee: parseFloat(businessProfile.deliveryFee) || 0,
+      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100)
+    };
+  }
+  if (modules && typeof modules === 'object') {
+    ev.modules = {
+      restaurant: !!modules.restaurant,
+      parking: !!modules.parking,
+      gym: !!modules.gym,
+      church: !!modules.church
+    };
+  }
+  if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
+    const uploadUrl = await uploadBase64ToStorage(eventLogo, `photos/event-logo/${ev.id}_${Date.now()}.jpg`);
+    if (uploadUrl) {
+      ev.eventLogo = uploadUrl;
+    }
+  } else if (eventLogo && typeof eventLogo === 'string') {
+    ev.eventLogo = eventLogo;
+  }
+
+  saveDB('operatorEvents');
+  if (ev.creatorId) io.to(ev.creatorId).emit('operator-event-update', { eventId: ev.id, action: 'updated' });
+  res.json({ ok: true, event: ev });
+});
+
 app.post('/api/operator/event/:eventId/leave', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -12054,7 +12128,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null) });
+    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false } });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
