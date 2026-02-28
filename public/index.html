@@ -2591,20 +2591,41 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="prestadorReg" class="screen">
   <div class="tip-header"><button class="chb" onclick="goHome()">&#x2190;</button><h2 style="font-size:1rem;font-weight:600">Cadastro de Prestador</h2></div>
   <div class="preg-title">Receba gorjetas pelo Touch?</div>
-  <div class="preg-sub">Cadastre-se como prestador de serviço para receber pagamentos de gorjeta diretamente no seu celular.</div>
+  <div class="preg-sub">Cadastre-se como prestador de servico para receber pagamentos de gorjeta diretamente no seu celular.</div>
   <div class="fg"><label>Nome completo</label><input type="text" id="pregName" placeholder="Seu nome"></div>
-  <div class="fg"><label>Nickname</label><input type="text" id="pregNick" placeholder="Como vão te encontrar" maxlength="20" oninput="checkPregNick(this.value)"><div class="nick-hint" id="pregNickHint"></div></div>
+  <div class="fg"><label>Nickname</label><input type="text" id="pregNick" placeholder="Como vao te encontrar" maxlength="20" oninput="checkPregNick(this.value)"><div class="nick-hint" id="pregNickHint"></div></div>
   <div class="fg"><label>CPF (opcional)</label><input type="text" id="pregCPF" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" oninput="formatCPF(this)"></div>
   <div class="fg"><label>Data de nascimento</label><input type="date" id="pregBirth"></div>
-  <div class="fg"><label>Tipo de serviço</label></div>
+  <div class="fg"><label>Tipo de servico</label></div>
   <div class="preg-services" id="pregServices"></div>
   <div class="preg-mp-status pending" id="pregMpStatus" style="display:none">
     <span id="pregMpText">Conecte sua conta MercadoPago para receber pagamentos</span>
   </div>
   <button class="bp" id="pregSubmitBtn" onclick="registerPrestador()" style="margin-bottom:.8rem">Criar conta de prestador</button>
-  <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" style="display:none;margin-bottom:.8rem;width:100%">Conectar MercadoPago</button>
-  <button class="bs" id="pregStripeBtn" onclick="connectStripe()" style="display:none;margin-bottom:.8rem;width:100%;background:rgba(99,91,255,.1);border:1px solid rgba(99,91,255,.25);color:#a5b4fc">Conectar Stripe (Internacional)</button>
-  <div id="pregStripeStatus" style="display:none;padding:.4rem;border-radius:10px;background:rgba(99,91,255,.06);font-size:.55rem;color:var(--t3);text-align:center;margin-bottom:.8rem">Receba de qualquer pais via Stripe Connect</div>
+
+  <!-- Gateway connection section — shown after registration -->
+  <div id="pregGatewaySection" style="display:none;margin-bottom:1rem">
+    <div style="padding:.8rem;border-radius:16px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(79,70,229,.06));border:1px solid rgba(99,102,241,.15)">
+      <div style="font-size:.7rem;font-weight:800;color:var(--t1);margin-bottom:.15rem">Ultimo passo: ative seus pagamentos</div>
+      <div style="font-size:.52rem;color:var(--t3);line-height:1.4;margin-bottom:.5rem">Para receber dinheiro automaticamente quando alguem te pagar, conecte sua conta de pagamento. E rapido, seguro e gratis.</div>
+
+      <div style="font-size:.45rem;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem">Como funciona:</div>
+      <div style="display:flex;gap:.25rem;margin-bottom:.5rem">
+        <div style="flex:1;padding:.3rem;border-radius:8px;background:rgba(255,255,255,.04);text-align:center"><div style="font-size:.7rem;margin-bottom:.1rem">1</div><div style="font-size:.42rem;color:var(--t2)">Clique no botao</div></div>
+        <div style="flex:1;padding:.3rem;border-radius:8px;background:rgba(255,255,255,.04);text-align:center"><div style="font-size:.7rem;margin-bottom:.1rem">2</div><div style="font-size:.42rem;color:var(--t2)">Autorize no site deles</div></div>
+        <div style="flex:1;padding:.3rem;border-radius:8px;background:rgba(255,255,255,.04);text-align:center"><div style="font-size:.7rem;margin-bottom:.1rem">3</div><div style="font-size:.42rem;color:var(--t2)">Pronto! Receba direto</div></div>
+      </div>
+
+      <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" style="width:100%;margin-bottom:.3rem;padding:.5rem;border-radius:12px;border:none;background:linear-gradient(135deg,#00b1ea,#009ee3);color:#fff;font-size:.65rem;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(0,177,234,.2)">Conectar Mercado Pago (Brasil)</button>
+      <div style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.4rem">Ja tem conta? So autorizar. Nao tem? Cria na hora, gratis.</div>
+
+      <button class="bs" id="pregStripeBtn" onclick="connectStripe()" style="width:100%;margin-bottom:.2rem;padding:.45rem;border-radius:12px;border:1px solid rgba(99,91,255,.25);background:rgba(99,91,255,.08);color:#a5b4fc;font-size:.6rem;font-weight:700;cursor:pointer;font-family:inherit">Conectar Stripe (Internacional)</button>
+      <div id="pregStripeStatus" style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.3rem">Para receber de qualquer pais do mundo</div>
+
+      <div style="text-align:center;margin-top:.3rem"><button onclick="showPrestadorDash()" style="padding:4px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--t3);font-size:.48rem;cursor:pointer;font-family:inherit">Pular por agora (voce pode conectar depois)</button></div>
+    </div>
+  </div>
+
   <button class="bs" onclick="goHome()" style="width:100%;margin-bottom:2rem;opacity:.6">Voltar</button>
 </div>
 
@@ -15212,9 +15233,19 @@ async function stripeSubscribe(planId) {
 
 // Connect Stripe for receivers (prestadores)
 async function connectStripe() {
-  const resp = await fetch('/api/stripe/connect-url/' + state.userId).then(r => r.json());
-  if (resp.error) return showToast(resp.error);
-  if (resp.url) window.location.href = resp.url;
+  if (!state.userId) return showToast('Crie sua conta primeiro.');
+  // Show loading feedback
+  showToast('Preparando conexao com Stripe...');
+  try {
+    const resp = await fetch('/api/stripe/connect-url/' + state.userId).then(r => r.json());
+    if (resp.error) return showToast('Erro: ' + resp.error, 'error');
+    if (resp.url) {
+      showToast('Redirecionando para o Stripe... Autorize e volte aqui.');
+      setTimeout(function() { window.location.href = resp.url; }, 600);
+    }
+  } catch (e) {
+    showToast('Erro ao conectar Stripe. Tente novamente.', 'error');
+  }
 }
 function payWithMercadoPago() {
   if (!tipState.amount || tipState.amount < 1) return showToast('Escolha um valor.');
@@ -15948,6 +15979,35 @@ async function payWithNewCard() {
   }
 }
 
+function checkGatewayConnectResult() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('mp_connected') === '1') {
+    showToast('Mercado Pago conectado com sucesso! Agora voce recebe automaticamente.', 'success');
+    window.history.replaceState({}, '', window.location.pathname);
+    // If on prestador dashboard, refresh it
+    if (document.getElementById('prestadorDash') && document.getElementById('prestadorDash').classList.contains('active')) {
+      setTimeout(function() { showPrestadorDash(); }, 500);
+    }
+  }
+  if (params.get('mp_error') === '1') {
+    showToast('Erro ao conectar Mercado Pago. Tente novamente.', 'error');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  if (params.get('stripeConnected') === 'ok') {
+    showToast('Stripe conectado com sucesso! Agora voce recebe automaticamente.', 'success');
+    window.history.replaceState({}, '', window.location.pathname);
+    if (document.getElementById('prestadorDash') && document.getElementById('prestadorDash').classList.contains('active')) {
+      setTimeout(function() { showPrestadorDash(); }, 500);
+    }
+  }
+  if (params.get('eventStripeConnected') === 'ok') {
+    var evId = params.get('eventId');
+    showToast('Stripe conectado ao evento! Pagamentos de ingresso caem direto na conta.', 'success');
+    window.history.replaceState({}, '', window.location.pathname);
+    if (evId) setTimeout(function() { openEventDetail(evId); }, 500);
+  }
+}
+
 function checkTipResultParam() {
   const params = new URLSearchParams(window.location.search);
   const tipResult = params.get('tipResult');
@@ -16315,22 +16375,76 @@ async function showPrestadorDash() {
       pdMini('Semana', fmt(d.stats.weekTotal), d.stats.weekCount) +
       pdMini('Mês', fmt(d.stats.monthTotal), d.stats.monthCount);
 
-    // Payment gateways status
+    // Payment gateways status — redesigned for clarity
+    const bothConnected = d.mpConnected;
     let gwHtml = '';
-    if (d.mpConnected) {
-      gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:.65rem;color:#10b981;text-align:center;margin-bottom:.3rem">Mercado Pago conectado</div>';
-    } else {
-      gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:.65rem;color:#fbbf24;text-align:center;margin-bottom:.3rem">MP nao conectado <button onclick="connectMercadoPago()" style="margin-left:.3rem;padding:2px 8px;border-radius:6px;border:1px solid rgba(251,191,36,.3);background:transparent;color:#fbbf24;font-size:.55rem;cursor:pointer;font-family:inherit">Conectar</button></div>';
-    }
-    // Check Stripe Connect status
+    // Fetch Stripe status first, then render the complete gateway section
     fetch('/api/stripe/connect-status/' + state.userId).then(r=>r.json()).then(sc => {
-      if (sc.connected) {
-        gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(99,91,255,.08);border:1px solid rgba(99,91,255,.2);font-size:.65rem;color:#a5b4fc;text-align:center">Stripe Connect ativo (' + (sc.country || 'BR') + ')</div>';
+      const stripeOk = sc.connected;
+      const anyConnected = d.mpConnected || stripeOk;
+
+      if (anyConnected) {
+        // Connected state — clean confirmation
+        gwHtml += '<div style="padding:.7rem;border-radius:14px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);margin-bottom:.2rem">';
+        gwHtml += '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem"><div style="width:24px;height:24px;border-radius:50%;background:rgba(16,185,129,.15);display:flex;align-items:center;justify-content:center;font-size:.65rem">&#x2705;</div><div style="font-size:.65rem;font-weight:700;color:#10b981">Recebimento automatico ativo</div></div>';
+        gwHtml += '<div style="font-size:.52rem;color:var(--t3);line-height:1.4;margin-bottom:.4rem">Seus pagamentos caem direto na sua conta. A taxa Touch? (10%) e descontada automaticamente.</div>';
+        gwHtml += '<div style="display:flex;flex-wrap:wrap;gap:.25rem">';
+        if (d.mpConnected) gwHtml += '<div style="padding:3px 8px;border-radius:6px;background:rgba(16,185,129,.1);font-size:.5rem;color:#10b981;font-weight:600">Mercado Pago ativo</div>';
+        if (stripeOk) gwHtml += '<div style="padding:3px 8px;border-radius:6px;background:rgba(99,91,255,.1);font-size:.5rem;color:#a5b4fc;font-weight:600">Stripe ativo (' + (sc.country || 'BR') + ')</div>';
+        // Show option to connect the other one
+        if (!d.mpConnected) gwHtml += '<button onclick="connectMercadoPago()" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;font-size:.48rem;color:var(--t3);cursor:pointer;font-family:inherit">+ Conectar Mercado Pago</button>';
+        if (!stripeOk) gwHtml += '<button onclick="connectStripe()" style="padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;font-size:.48rem;color:var(--t3);cursor:pointer;font-family:inherit">+ Conectar Stripe</button>';
+        gwHtml += '</div></div>';
       } else {
-        gwHtml += '<div style="padding:.5rem;border-radius:12px;background:rgba(99,91,255,.06);border:1px solid rgba(99,91,255,.15);font-size:.65rem;color:var(--t3);text-align:center">Stripe <button onclick="connectStripe()" style="margin-left:.3rem;padding:2px 8px;border-radius:6px;border:1px solid rgba(99,91,255,.3);background:transparent;color:#a5b4fc;font-size:.55rem;cursor:pointer;font-family:inherit">Conectar Stripe</button> <span style="font-size:.45rem;opacity:.6">(EUA/Internacional)</span></div>';
+        // NOT connected — educational, motivating banner
+        gwHtml += '<div style="padding:.8rem;border-radius:16px;background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(251,146,60,.06));border:1px solid rgba(251,191,36,.2);margin-bottom:.2rem">';
+        // Header with icon
+        gwHtml += '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem"><div style="width:28px;height:28px;border-radius:50%;background:rgba(251,191,36,.15);display:flex;align-items:center;justify-content:center;font-size:.75rem">&#x1F4B0;</div><div><div style="font-size:.7rem;font-weight:800;color:#fbbf24">Ative o recebimento automatico</div><div style="font-size:.48rem;color:var(--t3);margin-top:.05rem">Leva menos de 2 minutos</div></div></div>';
+        // Explanation
+        gwHtml += '<div style="font-size:.55rem;color:var(--t2);line-height:1.5;margin-bottom:.5rem">'
+          +'Quando alguem te paga pelo Touch?, o dinheiro precisa ir pra algum lugar. '
+          +'Conectando sua conta, <b style="color:#fbbf24">o valor cai direto pra voce</b> (ja descontando 10% de taxa). '
+          +'Sem isso, o dinheiro fica retido e voce precisa pedir transferencia manual.</div>';
+        // Benefits
+        gwHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-bottom:.5rem">';
+        gwHtml += '<div style="padding:.35rem .4rem;border-radius:8px;background:rgba(255,255,255,.04);font-size:.48rem;color:var(--t2)"><b style="color:#10b981">Automatico</b><br>Dinheiro cai na hora</div>';
+        gwHtml += '<div style="padding:.35rem .4rem;border-radius:8px;background:rgba(255,255,255,.04);font-size:.48rem;color:var(--t2)"><b style="color:#10b981">Seguro</b><br>Stripe e Mercado Pago</div>';
+        gwHtml += '<div style="padding:.35rem .4rem;border-radius:8px;background:rgba(255,255,255,.04);font-size:.48rem;color:var(--t2)"><b style="color:#10b981">Simples</b><br>So clicar e autorizar</div>';
+        gwHtml += '<div style="padding:.35rem .4rem;border-radius:8px;background:rgba(255,255,255,.04);font-size:.48rem;color:var(--t2)"><b style="color:#10b981">Gratis</b><br>Sem custo pra voce</div>';
+        gwHtml += '</div>';
+        // CTA buttons — big, clear, motivating
+        gwHtml += '<div style="font-size:.5rem;color:var(--t3);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em">Escolha como quer receber:</div>';
+        // MercadoPago — primary for Brazil
+        gwHtml += '<button onclick="connectMercadoPago()" style="width:100%;padding:.55rem .6rem;border-radius:12px;border:none;background:linear-gradient(135deg,#00b1ea,#009ee3);color:#fff;font-size:.65rem;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:.3rem;display:flex;align-items:center;justify-content:center;gap:.4rem;box-shadow:0 2px 8px rgba(0,177,234,.25)">'
+          +'<span style="font-size:.75rem">&#x1F1E7;&#x1F1F7;</span> Conectar Mercado Pago'
+          +'</button>';
+        gwHtml += '<div style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.4rem;line-height:1.3">Recomendado para o Brasil. Ja tem conta? So clicar, autorizar e pronto.</div>';
+        // Stripe — for international or alternative
+        gwHtml += '<button onclick="connectStripe()" style="width:100%;padding:.5rem .6rem;border-radius:12px;border:1px solid rgba(99,91,255,.3);background:rgba(99,91,255,.08);color:#a5b4fc;font-size:.6rem;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:.2rem;display:flex;align-items:center;justify-content:center;gap:.4rem">'
+          +'<span style="font-size:.7rem">&#x1F30D;</span> Conectar Stripe'
+          +'</button>';
+        gwHtml += '<div style="font-size:.42rem;color:var(--t3);text-align:center;line-height:1.3">Aceita em qualquer pais. Ideal se voce atende turistas ou esta fora do Brasil.</div>';
+        // FAQ mini
+        gwHtml += '<details style="margin-top:.5rem"><summary style="font-size:.48rem;color:var(--t3);cursor:pointer;font-weight:600">Duvidas frequentes</summary>';
+        gwHtml += '<div style="font-size:.45rem;color:var(--t3);line-height:1.5;margin-top:.3rem;padding:.4rem;background:rgba(255,255,255,.03);border-radius:8px">';
+        gwHtml += '<b style="color:var(--t2)">E seguro?</b> Sim. Voce autoriza direto no site do Mercado Pago ou Stripe. O Touch? nunca vê seus dados bancarios.<br><br>';
+        gwHtml += '<b style="color:var(--t2)">Tem custo?</b> Nao. Conectar e gratis. A unica taxa e os 10% do Touch? sobre cada pagamento recebido.<br><br>';
+        gwHtml += '<b style="color:var(--t2)">Ja tenho conta, preciso criar outra?</b> Nao! Se voce ja tem Mercado Pago ou Stripe, so autorizar. Leva 30 segundos.<br><br>';
+        gwHtml += '<b style="color:var(--t2)">E se eu nao conectar?</b> Voce ainda recebe, mas o dinheiro fica retido na conta do Touch? ate voce pedir transferencia manual (mais demorado).<br><br>';
+        gwHtml += '<b style="color:var(--t2)">Posso conectar os dois?</b> Sim! Conecte ambos pra ter mais flexibilidade.';
+        gwHtml += '</div></details>';
+        gwHtml += '</div>';
       }
       $('pdMpStatus').innerHTML = gwHtml;
-    }).catch(() => { $('pdMpStatus').innerHTML = gwHtml; });
+    }).catch(() => {
+      // Fallback if Stripe status fails — show MP only
+      if (d.mpConnected) {
+        gwHtml = '<div style="padding:.5rem;border-radius:12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:.65rem;color:#10b981;text-align:center">Mercado Pago conectado</div>';
+      } else {
+        gwHtml = '<div style="padding:.5rem;border-radius:12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);font-size:.65rem;color:#fbbf24;text-align:center">Conecte um gateway para receber automaticamente</div>';
+      }
+      $('pdMpStatus').innerHTML = gwHtml;
+    });
 
     // Tips list
     if (d.tips.length === 0) {
@@ -16486,21 +16600,15 @@ function showPrestadorRegister() {
       if (u.birthdate) $('pregBirth').value = u.birthdate;
       if (u.isPrestador) {
         $('pregSubmitBtn').textContent = 'Atualizar servico';
-        // Show already-prestador status
-        $('pregMpStatus').style.display = 'block';
-        $('pregMpText').textContent = u.mpConnected ? 'MercadoPago conectado' : 'Conecte MercadoPago para receber pagamentos';
-        if (!u.mpConnected) { $('pregMpBtn').style.display = 'block'; }
-        // Show Stripe Connect option
-        $('pregStripeStatus').style.display = 'block';
+        // Show gateway section for already-prestadores
+        var anyGw = u.mpConnected;
         fetch('/api/stripe/connect-status/' + state.userId).then(function(r){return r.json()}).then(function(sc) {
-          if (sc.connected) {
-            $('pregStripeStatus').innerHTML = '<span style="color:#10b981">Stripe Connect ativo (' + (sc.country || 'BR') + ')</span>';
-            $('pregStripeBtn').style.display = 'none';
-          } else {
-            $('pregStripeBtn').style.display = 'block';
+          if (!anyGw && !sc.connected) {
+            // Not connected — show gateway section
+            if ($('pregGatewaySection')) $('pregGatewaySection').style.display = 'block';
           }
         }).catch(function(){
-          $('pregStripeBtn').style.display = 'block';
+          if (!anyGw && $('pregGatewaySection')) $('pregGatewaySection').style.display = 'block';
         });
       }
     }).catch(() => {});
@@ -16509,7 +16617,7 @@ function showPrestadorRegister() {
     $('pregNick').disabled = false;
     $('pregSubmitBtn').textContent = 'Criar conta de prestador';
     $('pregMpStatus').style.display = 'none';
-    $('pregMpBtn').style.display = 'none';
+    if ($('pregGatewaySection')) $('pregGatewaySection').style.display = 'none';
   }
   // Load service types
   const grid = $('pregServices');
@@ -16572,20 +16680,21 @@ async function registerPrestador() {
     lsSet('touch_userName', data.user.nickname);
     lsSet('touch_userColor', data.user.color);
     localStorage.setItem('touch_isPrestador', '1');
-    showToast(existingId ? 'Conta atualizada! Agora você é prestador.' : 'Conta criada!');
-    // Show payment connect options
+    showToast(existingId ? 'Conta atualizada! Agora voce e prestador.' : 'Conta criada! Agora ative seus pagamentos.');
+    // Show gateway connection section
     $('pregSubmitBtn').style.display = 'none';
-    $('pregMpBtn').style.display = 'block';
-    $('pregStripeBtn').style.display = 'block';
-    $('pregStripeStatus').style.display = 'block';
-    $('pregMpStatus').style.display = 'block';
-    $('pregMpText').textContent = 'Conecte suas contas para receber pagamentos.';
+    if ($('pregGatewaySection')) $('pregGatewaySection').style.display = 'block';
+    // Scroll to gateway section smoothly
+    setTimeout(function() {
+      if ($('pregGatewaySection')) $('pregGatewaySection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
   } catch (e) { showToast('Erro: ' + e.message); }
 }
 
 function connectMercadoPago() {
-  if (!state.userId) return showToast('Crie a conta primeiro.');
-  window.location.href = '/mp/auth/' + state.userId;
+  if (!state.userId) return showToast('Crie sua conta primeiro.');
+  showToast('Redirecionando para o Mercado Pago... Autorize e volte aqui.');
+  setTimeout(function() { window.location.href = '/mp/auth/' + state.userId; }, 600);
 }
 
 // ═══ PULL TO REFRESH (Home) ═══
@@ -16824,7 +16933,7 @@ window.addEventListener('load',()=>{
 
         if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
         else{showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
-        refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();
+        refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();checkGatewayConnectResult();
       }else if(state.userId){
         // validateUser failed but userId still exists (network error, server restarting)
         // Still show home with cached data — socket will reconnect when server is back
