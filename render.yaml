@@ -1,0 +1,35 @@
+# render.yaml -- Infrastructure as Code para o Render
+# Documentacao: https://docs.render.com/infrastructure-as-code
+#
+# COMO USAR:
+# 1. Push este arquivo na main
+# 2. No Render Dashboard -> Blueprints -> New Blueprint Instance
+# 3. Selecione o repo bavkiq-hUgby8-cittet/encosta
+# 4. Render cria o servico automaticamente
+# 5. Configure as env vars no painel (ou via envVarGroups)
+#
+# IMPORTANTE PARA AGENTES:
+# - Nao altere este arquivo sem autorizacao do Ramon
+# - Env vars sensiveis ficam APENAS no painel do Render, nunca aqui
+# - Apos push, deploy leva ~90 segundos
+# - Health check em /api/status deve retornar dbLoaded: true
+
+services:
+  - type: web
+    name: encosta
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/status
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Todas as outras env vars devem ser configuradas
+      # diretamente no painel do Render por seguranca.
+      # Ver .env.example para a lista completa de variaveis necessarias.

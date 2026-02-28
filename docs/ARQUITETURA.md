@@ -156,6 +156,45 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 22. Payout manual: sistema de pagamento para prestadores sem Stripe/MP
 23. Stripe Connect por evento: conta separada para cada evento do operador
 
+## DEPLOY (Render.com)
+
+### Configuracao do servico:
+- Tipo: Web Service
+- URL interna: encosta.onrender.com
+- Dominio producao: touch-irl.com (Cloudflare DNS, redirect 301 do onrender)
+- Build command: npm install
+- Start command: node server.js
+- Node version: >=18.0.0 (package.json engines)
+- Auto-deploy: ativado (cada push na main dispara deploy, ~90 segundos)
+- Health check: GET /api/status (retorna uptime, dbLoaded, userCount)
+- Free tier: nao recomendado (cold start mata o ultrassom); usar Starter ou superior
+
+### Fluxo de deploy:
+1. Agente faz commit + push na main
+2. Render detecta push via webhook do GitHub
+3. Render roda npm install
+4. Render inicia node server.js
+5. App sobe, carrega Firebase DB para memoria (~5-15s dependendo do tamanho)
+6. Health check em /api/status confirma dbLoaded: true
+7. Dominio touch-irl.com ja aponta para o servico
+
+### Cloudflare DNS:
+- A/CNAME apontando para encosta.onrender.com
+- SSL: Full (strict) -- Render + Cloudflare ambos com cert
+- Proxy: ativado (laranja) para CDN + DDoS protection
+- CORS no server.js aceita: touch-irl.com, www.touch-irl.com, encosta.onrender.com
+
+### Logs e monitoramento:
+- Render Dashboard: logs em tempo real
+- /api/status: uptime, dbLoaded, userCount, firebase connected
+- /api/admin/dashboard-stats: stats completos (requer ADMIN_SECRET)
+- /api/admin/firebase-diagnostic: health do Firebase (requer admin)
+
+### Rollback:
+- Render permite rollback para deploy anterior via dashboard
+- POST /api/admin/rollback: rollback de dados do Firebase (requer admin)
+- Backups automaticos do DB em memoria via POST /api/admin/backup
+
 ## RATE LIMITING
 
 | Categoria | Limite | Janela |

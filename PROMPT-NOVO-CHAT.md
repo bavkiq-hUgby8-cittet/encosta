@@ -103,6 +103,18 @@ Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
 - Status salvo em ev.attendees[userId].entryStatus via POST /api/operator/event/:id/attendee-status
 - Badges coloridos na lista de participantes (verde=liberado, amarelo=presencial, vermelho=removido)
 
+## DEPLOY (Render.com)
+
+- Servico: Web Service no Render (encosta.onrender.com)
+- Build command: npm install
+- Start command: node server.js
+- Node version: >=18 (definido no package.json engines)
+- Auto-deploy: ativado (push na main = deploy automatico em ~90 segundos)
+- Dominio customizado: touch-irl.com (DNS via Cloudflare, 301 do onrender)
+- Env vars: configuradas no painel do Render (ver docs/ARQUITETURA.md ou .env.example)
+- render.yaml: Infrastructure as Code na raiz do repositorio
+- IMPORTANTE: apos cada push, aguardar ~90s para o deploy concluir no Render
+
 ## STATUS ATUAL (28/02/2026)
 
 - App funcionando em producao (touch-irl.com)
