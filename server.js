@@ -6689,19 +6689,126 @@ app.get('/api/admin/events', adminLimiter, requireAdmin, (req, res) => {
 
 app.get('/api/admin/financial', adminLimiter, requireAdmin, (req, res) => {
   try {
-    let tipsTotal = 0, tipsCount = 0, tipsFee = 0;
-    const recentTips = [];
-    for (const uid of Object.keys(db.tips || {})) {
-      const arr = db.tips[uid];
-      if (!Array.isArray(arr)) continue;
-      arr.forEach(t => { tipsCount++; tipsTotal += (t.amount||0); tipsFee += (t.touchFee||0); if (recentTips.length < 50) recentTips.push({ amount: t.amount, from: t.payerNickname||t.payerId, to: t.receiverNickname||t.receiverId, date: t.createdAt, method: t.method||'card' }); });
+    // ── TIPS (gorjetas) ──
+    const allTips = Object.values(db.tips || {});
+    const approvedTips = allTips.filter(t => t.status === 'approved');
+    const pendingTips = allTips.filter(t => t.status === 'pending' || t.status === 'in_process');
+    const tipsTotal = approvedTips.reduce((s, t) => s + (t.amount || 0), 0);
+    const tipsFee = approvedTips.reduce((s, t) => s + (t.fee || 0), 0);
+    const tipsNet = tipsTotal - tipsFee;
+
+    // ── EVENT ENTRY PAYMENTS (ingressos) ──
+    const allEntries = Object.values(db.eventPayments || {});
+    const approvedEntries = allEntries.filter(t => t.status === 'approved');
+    const entriesTotal = approvedEntries.reduce((s, t) => s + (t.amount || 0), 0);
+    const entriesFee = approvedEntries.reduce((s, t) => s + (t.fee || 0), 0);
+
+    // ── SUBSCRIPTIONS ──
+    let subsActive = 0, subsTotal = 0, subsRevenue = 0;
+    for (const uid of Object.keys(db.subscriptions || {})) {
+      const s = db.subscriptions[uid]; if (!s) continue;
+      subsTotal++;
+      if (s.status === 'authorized' || s.status === 'active') {
+        subsActive++;
+        subsRevenue += (s.amount || 0);
+      }
     }
-    recentTips.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    let subsActive = 0, subsTotal = 0;
-    for (const uid of Object.keys(db.subscriptions || {})) { const s = db.subscriptions[uid]; if (!s) continue; subsTotal++; if (s.status === 'authorized' || s.status === 'active') subsActive++; }
-    let eventRevenue = 0;
-    for (const oe of Object.values(db.operatorEvents || {})) { eventRevenue += (oe.revenue || 0); }
-    res.json({ tips: { total: tipsTotal, count: tipsCount, fee: tipsFee }, subscriptions: { active: subsActive, total: subsTotal }, events: { revenue: eventRevenue }, recentTips: recentTips.slice(0, 30) });
+
+    // ── TRANSFER STATUS ──
+    // Tips where receiver has Stripe/MP connected = direct transfer (auto split)
+    // Tips where receiver has NO connection = retained in Touch? account
+    let transferredDirect = 0, retainedInTouch = 0;
+    approvedTips.forEach(t => {
+      const receiver = db.users[t.receiverId];
+      if (receiver && (receiver.mpConnected || receiver.stripeConnected)) {
+        transferredDirect += (t.amount || 0) - (t.fee || 0);
+      } else {
+        retainedInTouch += (t.amount || 0);
+      }
+    });
+    // Entry payments: check event's payment account or operator's connection
+    approvedEntries.forEach(ep => {
+      const ev = db.operatorEvents[ep.eventId];
+      const operator = ep.receiverId ? db.users[ep.receiverId] : null;
+      if (ev && ev.paymentStripeConnected) {
+        transferredDirect += (ep.amount || 0) - (ep.fee || 0);
+      } else if (operator && (operator.mpConnected || operator.stripeConnected)) {
+        transferredDirect += (ep.amount || 0) - (ep.fee || 0);
+      } else {
+        retainedInTouch += (ep.amount || 0);
+      }
+    });
+
+    // ── EVENTS SUMMARY ──
+    const events = Object.values(db.operatorEvents || {});
+    const activeEvents = events.filter(e => e.active);
+    const eventRevenue = events.reduce((s, e) => s + (e.revenue || 0), 0);
+
+    // ── PRESTADORES (service providers) ──
+    const prestadores = Object.values(db.users).filter(u => u.isPrestador);
+    const prestadoresConnected = prestadores.filter(u => u.mpConnected || u.stripeConnected);
+
+    // ── RECENT TRANSACTIONS (combined) ──
+    const recentTips = allTips.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 30).map(t => {
+      const receiver = db.users[t.receiverId];
+      const payer = db.users[t.payerId];
+      const isConnected = receiver && (receiver.mpConnected || receiver.stripeConnected);
+      return {
+        id: t.id, type: 'tip', amount: t.amount || 0, fee: t.fee || 0,
+        net: (t.amount || 0) - (t.fee || 0), status: t.status,
+        from: payer ? (payer.nickname || payer.name) : (t.payerId || '?'),
+        to: receiver ? (receiver.nickname || receiver.name) : (t.receiverId || '?'),
+        method: t.method || 'card', createdAt: t.createdAt,
+        transferStatus: !isConnected ? 'retained' : 'transferred'
+      };
+    });
+    const recentEntries = allEntries.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 20).map(ep => {
+      const ev = db.operatorEvents[ep.eventId];
+      const payer = db.users[ep.payerId];
+      const operator = ep.receiverId ? db.users[ep.receiverId] : null;
+      const isConnected = (ev && ev.paymentStripeConnected) || (operator && (operator.mpConnected || operator.stripeConnected));
+      return {
+        id: ep.id, type: 'entry', amount: ep.amount || 0, fee: ep.fee || 0,
+        net: (ep.amount || 0) - (ep.fee || 0), status: ep.status,
+        from: payer ? (payer.nickname || payer.name) : '?',
+        to: ep.eventName || (ev ? ev.name : '?'),
+        method: ep.method || 'card', createdAt: ep.createdAt,
+        transferStatus: !isConnected ? 'retained' : 'transferred'
+      };
+    });
+    const recentAll = [...recentTips, ...recentEntries].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50);
+
+    // ── GROSS REVENUE (everything Touch? collected) ──
+    const grossRevenue = tipsTotal + entriesTotal;
+    const totalFees = tipsFee + entriesFee;
+    const platformRevenue = totalFees + subsRevenue; // Touch? keeps fees + subscription revenue
+
+    res.json({
+      overview: {
+        grossRevenue, totalFees, platformRevenue,
+        transferredDirect, retainedInTouch,
+        totalTransactions: approvedTips.length + approvedEntries.length,
+        pendingTransactions: pendingTips.length + allEntries.filter(e => e.status === 'pending').length
+      },
+      tips: {
+        total: tipsTotal, count: approvedTips.length, fee: tipsFee, net: tipsNet,
+        pending: pendingTips.length
+      },
+      entries: {
+        total: entriesTotal, count: approvedEntries.length, fee: entriesFee,
+        pending: allEntries.filter(e => e.status === 'pending').length
+      },
+      subscriptions: { active: subsActive, total: subsTotal, revenue: subsRevenue },
+      events: {
+        total: events.length, active: activeEvents.length,
+        revenue: eventRevenue, totalCheckins: events.reduce((s, e) => s + (e.paidCheckins || 0), 0)
+      },
+      prestadores: {
+        total: prestadores.length, connected: prestadoresConnected.length,
+        notConnected: prestadores.length - prestadoresConnected.length
+      },
+      recentTransactions: recentAll
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -7712,10 +7819,38 @@ app.get('/api/financial/:userId', requireAuth, (req, res) => {
   const received = allTips.filter(t => t.receiverId === userId && t.status === 'approved');
   const sent = allTips.filter(t => t.payerId === userId && t.status === 'approved');
   const pending = allTips.filter(t => (t.payerId === userId || t.receiverId === userId) && (t.status === 'pending' || t.status === 'in_process'));
-  const totalReceived = received.reduce((s, t) => s + (t.amount || 0), 0);
-  const totalSent = sent.reduce((s, t) => s + (t.amount || 0), 0);
-  const totalFees = received.reduce((s, t) => s + (t.fee || 0), 0);
+
+  // Include entry payments (sent)
+  const entriesSent = Object.values(db.eventPayments || {}).filter(ep => ep.payerId === userId && ep.status === 'approved');
+  const entriesSentTotal = entriesSent.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // Include entry payments (received - as operator)
+  const operatorEventIds = Object.values(db.operatorEvents || {}).filter(ev => ev.creatorId === userId).map(ev => ev.id);
+  const entriesReceived = Object.values(db.eventPayments || {}).filter(ep => (ep.receiverId === userId || operatorEventIds.includes(ep.eventId)) && ep.status === 'approved');
+  const entriesReceivedTotal = entriesReceived.reduce((s, e) => s + (e.amount || 0), 0);
+  const entriesReceivedFee = entriesReceived.reduce((s, e) => s + (e.fee || 0), 0);
+
+  const totalReceived = received.reduce((s, t) => s + (t.amount || 0), 0) + entriesReceivedTotal;
+  const totalSent = sent.reduce((s, t) => s + (t.amount || 0), 0) + entriesSentTotal;
+  const totalFees = received.reduce((s, t) => s + (t.fee || 0), 0) + entriesReceivedFee;
   const netReceived = totalReceived - totalFees;
+
+  // Transfer status for received payments
+  const isConnected = user.mpConnected || user.stripeConnected;
+  let transferredToMe = 0, retainedByTouch = 0;
+  if (user.isPrestador) {
+    received.forEach(t => {
+      if (isConnected) transferredToMe += (t.amount || 0) - (t.fee || 0);
+      else retainedByTouch += (t.amount || 0) - (t.fee || 0);
+    });
+    entriesReceived.forEach(ep => {
+      const ev = db.operatorEvents[ep.eventId];
+      const evConnected = (ev && ev.paymentStripeConnected) || isConnected;
+      if (evConnected) transferredToMe += (ep.amount || 0) - (ep.fee || 0);
+      else retainedByTouch += (ep.amount || 0) - (ep.fee || 0);
+    });
+  }
+
   // Group by month
   const byMonth = {};
   allTips.filter(t => t.status === 'approved').forEach(t => {
@@ -7727,12 +7862,19 @@ app.get('/api/financial/:userId', requireAuth, (req, res) => {
     byMonth[key].count++;
   });
   res.json({
-    summary: { totalReceived, totalSent, totalFees, netReceived, pendingCount: pending.length },
+    summary: {
+      totalReceived, totalSent, totalFees, netReceived,
+      pendingCount: pending.length,
+      transferredToMe, retainedByTouch
+    },
     byMonth,
     isPrestador: !!user.isPrestador,
     mpConnected: !!user.mpConnected,
+    stripeConnected: !!user.stripeConnected,
     tipsReceivedCount: received.length,
-    tipsSentCount: sent.length
+    tipsSentCount: sent.length,
+    entriesSentCount: entriesSent.length,
+    entriesReceivedCount: entriesReceived.length
   });
 });
 
@@ -7853,20 +7995,45 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
   }
   allEncounters.sort((a, b) => b.timestamp - a.timestamp);
 
+  // Transfer status
+  const isConnected = user.mpConnected || user.stripeConnected;
+  let transferredToMe = 0, retainedByTouch = 0;
+  allApproved.forEach(t => {
+    const net = (t.amount || 0) - (t.fee || 0);
+    // For entry payments, check event-specific Stripe or operator connection
+    if (t.eventId) {
+      const ev = db.operatorEvents[t.eventId];
+      if ((ev && ev.paymentStripeConnected) || isConnected) transferredToMe += net;
+      else retainedByTouch += net;
+    } else {
+      if (isConnected) transferredToMe += net;
+      else retainedByTouch += net;
+    }
+  });
+
   // Enriched tips + entry payments
-  const tipsEnriched = tipsReceived.slice(0, 30).map(t => ({
-    id: t.id, type: 'tip', amount: t.amount, fee: t.fee || 0, net: (t.amount || 0) - (t.fee || 0),
-    status: t.status, statusDetail: t.statusDetail,
-    payerName: db.users[t.payerId]?.nickname || 'Anônimo',
-    createdAt: t.createdAt
-  }));
-  const entriesEnriched = entryPayments.slice(0, 30).map(ep => ({
-    id: ep.id, type: 'entry', amount: ep.amount, fee: 0, net: ep.amount || 0,
-    status: ep.status, statusDetail: '',
-    payerName: db.users[ep.payerId]?.nickname || 'Anônimo',
-    eventName: ep.eventName || '',
-    createdAt: ep.createdAt
-  }));
+  const tipsEnriched = tipsReceived.slice(0, 30).map(t => {
+    const tNet = (t.amount || 0) - (t.fee || 0);
+    return {
+      id: t.id, type: 'tip', amount: t.amount, fee: t.fee || 0, net: tNet,
+      status: t.status, statusDetail: t.statusDetail,
+      payerName: db.users[t.payerId]?.nickname || 'Anonimo',
+      createdAt: t.createdAt, method: t.method || 'card',
+      transferStatus: isConnected ? 'transferred' : 'retained'
+    };
+  });
+  const entriesEnriched = entryPayments.slice(0, 30).map(ep => {
+    const ev = db.operatorEvents[ep.eventId];
+    const evConnected = (ev && ev.paymentStripeConnected) || isConnected;
+    return {
+      id: ep.id, type: 'entry', amount: ep.amount, fee: ep.fee || 0, net: (ep.amount || 0) - (ep.fee || 0),
+      status: ep.status, statusDetail: '',
+      payerName: db.users[ep.payerId]?.nickname || 'Anonimo',
+      eventName: ep.eventName || '',
+      createdAt: ep.createdAt, method: ep.method || 'card',
+      transferStatus: evConnected ? 'transferred' : 'retained'
+    };
+  });
   const allEnriched = [...tipsEnriched, ...entriesEnriched].sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
 
   res.json({
@@ -7874,6 +8041,7 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
     serviceLabel: user.serviceLabel || '',
     isPrestador: !!user.isPrestador,
     mpConnected: !!user.mpConnected,
+    stripeConnected: !!user.stripeConnected,
     stats: {
       totalReceived, totalFees, totalNet,
       totalCount: allApproved.length,
@@ -7882,7 +8050,8 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
       totalEntryRevenue: entriesApproved.reduce((s, t) => s + (t.amount || 0), 0),
       todayTotal, todayCount: tipsToday.length,
       weekTotal, weekCount: tipsWeek.length,
-      monthTotal, monthCount: tipsMonth.length
+      monthTotal, monthCount: tipsMonth.length,
+      transferredToMe, retainedByTouch
     },
     tips: allEnriched,
     encounters: allEncounters.slice(0, 50),

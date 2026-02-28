@@ -9959,28 +9959,42 @@ function renderFinSummary(){
   if(!el||!_finData)return;
   const s=_finData.summary||{};
   const fmt=v=>'R$ '+(v||0).toFixed(2).replace('.',',');
-  el.innerHTML=`
-    <div style="background:rgba(0,220,130,.08);border:1px solid rgba(0,220,130,.15);border-radius:14px;padding:.8rem .9rem">
-      <div style="font-size:.65rem;color:rgba(0,220,130,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Recebido</div>
-      <div style="font-size:1.15rem;font-weight:700;color:#00dc82">${fmt(s.totalReceived)}</div>
-      ${s.totalFees>0?'<div style="font-size:.62rem;color:var(--t3);margin-top:.15rem">Taxa: '+fmt(s.totalFees)+'</div>':''}
-    </div>
-    <div style="background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.15);border-radius:14px;padding:.8rem .9rem">
-      <div style="font-size:.65rem;color:rgba(255,68,102,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Enviado</div>
-      <div style="font-size:1.15rem;font-weight:700;color:#ff4466">${fmt(s.totalSent)}</div>
-      ${(_finData.tipsSentCount||0)>0?'<div style="font-size:.62rem;color:var(--t3);margin-top:.15rem">'+_finData.tipsSentCount+' gorjeta'+((_finData.tipsSentCount||0)>1?'s':'')+'</div>':''}
-    </div>
-    ${s.netReceived>0?`
-    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:14px;padding:.8rem .9rem">
-      <div style="font-size:.65rem;color:rgba(99,102,241,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Liquido</div>
-      <div style="font-size:1.15rem;font-weight:700;color:#6366f1">${fmt(s.netReceived)}</div>
-    </div>`:''}
-    ${s.pendingCount>0?`
-    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.15);border-radius:14px;padding:.8rem .9rem">
-      <div style="font-size:.65rem;color:rgba(251,191,36,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Pendentes</div>
-      <div style="font-size:1.15rem;font-weight:700;color:#fbbf24">${s.pendingCount}</div>
-    </div>`:''}
-  `;
+  // Count labels
+  var sentLabel='';
+  if(_finData.tipsSentCount)sentLabel+=_finData.tipsSentCount+' gorjeta'+(_finData.tipsSentCount>1?'s':'');
+  if(_finData.entriesSentCount)sentLabel+=(sentLabel?' + ':'')+_finData.entriesSentCount+' ingresso'+(_finData.entriesSentCount>1?'s':'');
+  var recvLabel='';
+  if(_finData.tipsReceivedCount)recvLabel+=_finData.tipsReceivedCount+' gorjeta'+(_finData.tipsReceivedCount>1?'s':'');
+  if(_finData.entriesReceivedCount)recvLabel+=(recvLabel?' + ':'')+_finData.entriesReceivedCount+' ingresso'+(_finData.entriesReceivedCount>1?'s':'');
+  el.innerHTML=
+    '<div style="background:rgba(0,220,130,.08);border:1px solid rgba(0,220,130,.15);border-radius:14px;padding:.8rem .9rem">'
+    +'<div style="font-size:.65rem;color:rgba(0,220,130,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Recebido</div>'
+    +'<div style="font-size:1.15rem;font-weight:700;color:#00dc82">'+fmt(s.totalReceived)+'</div>'
+    +(s.totalFees>0?'<div style="font-size:.62rem;color:var(--t3);margin-top:.15rem">Taxa: '+fmt(s.totalFees)+'</div>':'')
+    +(recvLabel?'<div style="font-size:.55rem;color:var(--t3);margin-top:.1rem">'+recvLabel+'</div>':'')
+    +'</div>'
+    +'<div style="background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.15);border-radius:14px;padding:.8rem .9rem">'
+    +'<div style="font-size:.65rem;color:rgba(255,68,102,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Enviado</div>'
+    +'<div style="font-size:1.15rem;font-weight:700;color:#ff4466">'+fmt(s.totalSent)+'</div>'
+    +(sentLabel?'<div style="font-size:.55rem;color:var(--t3);margin-top:.1rem">'+sentLabel+'</div>':'')
+    +'</div>'
+    +(s.netReceived>0?
+      '<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:14px;padding:.8rem .9rem">'
+      +'<div style="font-size:.65rem;color:rgba(99,102,241,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Liquido</div>'
+      +'<div style="font-size:1.15rem;font-weight:700;color:#6366f1">'+fmt(s.netReceived)+'</div>'
+      +'</div>':'')
+    +(s.pendingCount>0?
+      '<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.15);border-radius:14px;padding:.8rem .9rem">'
+      +'<div style="font-size:.65rem;color:rgba(251,191,36,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.3rem">Pendentes</div>'
+      +'<div style="font-size:1.15rem;font-weight:700;color:#fbbf24">'+s.pendingCount+'</div>'
+      +'</div>':'')
+    +(_finData.isPrestador && (s.transferredToMe>0||s.retainedByTouch>0)?
+      '<div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15);border-radius:14px;padding:.8rem .9rem;grid-column:1/-1">'
+      +'<div style="font-size:.65rem;color:rgba(139,92,246,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.4rem">Status de transferencia</div>'
+      +'<div style="display:flex;gap:.6rem">'
+      +(s.transferredToMe>0?'<div style="flex:1"><div style="font-size:.55rem;color:#10b981;margin-bottom:.15rem">Transferido pra voce</div><div style="font-size:.9rem;font-weight:700;color:#10b981">'+fmt(s.transferredToMe)+'</div></div>':'')
+      +(s.retainedByTouch>0?'<div style="flex:1"><div style="font-size:.55rem;color:#fbbf24;margin-bottom:.15rem">Retido na Touch?</div><div style="font-size:.9rem;font-weight:700;color:#fbbf24">'+fmt(s.retainedByTouch)+'</div><div style="font-size:.45rem;color:var(--t3);margin-top:.1rem">Conecte Stripe/MP para receber</div></div>':'')
+      +'</div></div>':'');
 }
 
 function renderFinancialList(){
@@ -10020,7 +10034,7 @@ function renderFinancialList(){
       ${avatarHtml}
       <div style="flex:1;min-width:0">
         <div style="font-size:.82rem;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${isSent?'Para ':'De '}${name}${statusBadge}</div>
-        <div style="font-size:.65rem;color:var(--t3);margin-top:.1rem">${isSent?'Gorjeta enviada':'Gorjeta recebida'} - ${time}</div>
+        <div style="font-size:.65rem;color:var(--t3);margin-top:.1rem">${t.type==='entry'?(isSent?'Ingresso pago':'Ingresso recebido'):(isSent?'Gorjeta enviada':'Gorjeta recebida')} - ${time}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:.9rem;font-weight:700;color:${amtColor}">${sign}R$${(t.amount||0).toFixed(2).replace('.',',')}</div>
@@ -12598,7 +12612,7 @@ function showMoreMenu(){
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showManual()"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div><div class="mm-lbl">Tutorial</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/site\',\'_blank\')"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div><div class="mm-lbl">Sobre o Touch</div></div>'
     +'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();window.open(\'/termos\',\'_blank\')"><div class="mm-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg></div><div class="mm-lbl">Termos de Uso</div></div>'
-    +(state.userIsAdmin?'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showVerificationPanel()"><div class="mm-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</div><div class="mm-lbl">Verificações</div></div>':'')
+    +(state.userIsAdmin?'<div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showVerificationPanel()"><div class="mm-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">&#x2713;</div><div class="mm-lbl">Verificacoes</div></div><div class="more-menu-item" onclick="this.closest(\'.more-menu-overlay\').remove();showAdminFinancial()"><div class="mm-ico" style="color:#10b981;font-weight:800">$</div><div class="mm-lbl">Financeiro</div></div>':'')
     +'</div></div>';
   document.body.appendChild(overlay);
 }
@@ -13721,7 +13735,7 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>'+t('profile.edit_profile_btn')+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>'+t('subscription.touch_plus_title')+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>'+t('home.service_mode_toggle')+'</button>'
-    +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">✓</span>'+t('profile.verified_label')+'</button>':'')
+    +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">&#x2713;</span>'+t('profile.verified_label')+'</button><button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showAdminFinancial()"><span class="my-pf-ico" style="color:#10b981;font-weight:800">$</span>Painel Financeiro Admin</button>':'')
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showLanguageSelector()"><span class="my-pf-ico" style="font-style:normal">'+((I18N_LANGUAGES[window._currentLang]||{}).emoji||'🌐')+'</span>'+(I18N_LANGUAGES[window._currentLang]||{}).name+' <span style="font-size:.5rem;color:var(--t3);margin-left:.3rem">'+t('profile.language_label')+'</span></button>'
     +'<div class="my-pf-divider"></div>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();window.open(\'/site\',\'_blank\')"><span class="my-pf-ico" style="font-style:normal">i</span>'+t('common.about')+' Touch</button>'
@@ -16282,7 +16296,14 @@ async function showPrestadorDash() {
     if (!countLabel) countLabel = '0 pagamentos';
     $('pdStats').innerHTML =
       pdCard('Total recebido', fmt(d.stats.totalReceived), '#6366f1', countLabel) +
-      pdCard('Liquido (apos taxa)', fmt(d.stats.totalNet), '#10b981', '10% taxa Touch?');
+      pdCard('Liquido (apos taxa)', fmt(d.stats.totalNet), '#10b981', '10% taxa Touch?') +
+      (d.stats.transferredToMe > 0 || d.stats.retainedByTouch > 0 ?
+        '<div style="grid-column:1/-1;padding:.6rem;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)">'
+        +'<div style="font-size:.55rem;color:var(--t3);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600">Status de transferencia</div>'
+        +'<div style="display:flex;gap:.5rem">'
+        +(d.stats.transferredToMe > 0 ? '<div style="flex:1;padding:.4rem;border-radius:10px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.12)"><div style="font-size:.5rem;color:#10b981;margin-bottom:.1rem">Transferido</div><div style="font-size:.85rem;font-weight:700;color:#10b981">'+fmt(d.stats.transferredToMe)+'</div></div>' : '')
+        +(d.stats.retainedByTouch > 0 ? '<div style="flex:1;padding:.4rem;border-radius:10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.12)"><div style="font-size:.5rem;color:#fbbf24;margin-bottom:.1rem">Retido (Touch?)</div><div style="font-size:.85rem;font-weight:700;color:#fbbf24">'+fmt(d.stats.retainedByTouch)+'</div><div style="font-size:.42rem;color:var(--t3);margin-top:.05rem">Conecte gateway pra receber</div></div>' : '')
+        +'</div></div>' : '');
 
     // Period cards
     $('pdPeriods').innerHTML =
@@ -16316,8 +16337,11 @@ async function showPrestadorDash() {
         const time = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
         const statusIcon = t.status === 'approved' ? '&#x2705;' : t.status === 'pending' ? '&#x23F3;' : '&#x274C;';
         const typeTag = t.type === 'entry' ? '<span style="font-size:.48rem;padding:1px 5px;border-radius:5px;background:rgba(96,165,250,.12);color:#60a5fa;font-weight:600;margin-left:.3rem">ingresso</span>' : '';
+        const transferTag = t.transferStatus === 'retained'
+          ? '<span style="font-size:.42rem;padding:1px 4px;border-radius:4px;background:rgba(251,191,36,.1);color:#fbbf24;margin-left:.2rem">retido</span>'
+          : (t.transferStatus === 'transferred' ? '<span style="font-size:.42rem;padding:1px 4px;border-radius:4px;background:rgba(16,185,129,.1);color:#10b981;margin-left:.2rem">transferido</span>' : '');
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:rgba(255,255,255,.03);border-radius:10px;margin-bottom:.3rem">' +
-          '<div><div style="font-size:.7rem;font-weight:600;color:var(--t1)">' + statusIcon + ' ' + fmt(t.amount) + typeTag + '</div>' +
+          '<div><div style="font-size:.7rem;font-weight:600;color:var(--t1)">' + statusIcon + ' ' + fmt(t.amount) + typeTag + transferTag + '</div>' +
           '<div style="font-size:.55rem;color:var(--t3)">' + esc(t.payerName) + ' &middot; ' + time + '</div></div>' +
           '<div style="text-align:right"><div style="font-size:.6rem;color:#10b981;font-weight:600">+' + fmt(t.net) + '</div>' +
           (t.fee > 0 ? '<div style="font-size:.5rem;color:var(--t3)">taxa ' + fmt(t.fee) + '</div>' : '') + '</div></div>';
@@ -17196,6 +17220,126 @@ async function togglePlusUser(targetId,grant,btn){
       btn.disabled=false;
     }else{btn.textContent='Erro';showToast(d.error||'Erro')}
   }catch(e){btn.textContent='Erro';btn.disabled=false}
+}
+
+// ═══ ADMIN FINANCIAL PANEL ═══
+async function showAdminFinancial(){
+  var existing=document.querySelector('.admin-fin-overlay');
+  if(existing){existing.remove();return}
+  var overlay=document.createElement('div');
+  overlay.className='more-menu-overlay admin-fin-overlay';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
+  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.5rem;max-height:90vh;overflow-y:auto"><div class="more-menu-handle"></div><div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Carregando painel financeiro...</div></div>';
+  document.body.appendChild(overlay);
+  try{
+    var resp=await apiFetch('/api/admin/financial');
+    var d=await resp.json();
+    if(d.error)throw new Error(d.error);
+    var fmt=function(v){return 'R$'+(v||0).toFixed(2).replace('.',',')};
+    var h='<div class="more-menu-handle"></div>';
+    // Title
+    h+='<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">';
+    h+='<div style="width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:1rem;color:#fff;font-weight:800">$</div>';
+    h+='<div><div style="font-size:1rem;font-weight:800;color:var(--t1)">Painel Financeiro</div>';
+    h+='<div style="font-size:.55rem;color:var(--t3)">Touch IRL LLC - Visao geral</div></div></div>';
+
+    // Overview cards
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.8rem">';
+    // Gross revenue
+    h+='<div style="padding:.6rem;border-radius:14px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15)">';
+    h+='<div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Volume total</div>';
+    h+='<div style="font-size:1.1rem;font-weight:800;color:#6366f1;margin-top:.1rem">'+fmt(d.overview.grossRevenue)+'</div>';
+    h+='<div style="font-size:.45rem;color:var(--t3);margin-top:.05rem">'+d.overview.totalTransactions+' transacoes</div></div>';
+    // Platform revenue (Touch? keeps)
+    h+='<div style="padding:.6rem;border-radius:14px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.15)">';
+    h+='<div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Receita Touch?</div>';
+    h+='<div style="font-size:1.1rem;font-weight:800;color:#10b981;margin-top:.1rem">'+fmt(d.overview.platformRevenue)+'</div>';
+    h+='<div style="font-size:.45rem;color:var(--t3);margin-top:.05rem">Taxas + Assinaturas</div></div>';
+    // Transferred direct
+    h+='<div style="padding:.6rem;border-radius:14px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.15)">';
+    h+='<div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Transferido direto</div>';
+    h+='<div style="font-size:1.1rem;font-weight:800;color:#3b82f6;margin-top:.1rem">'+fmt(d.overview.transferredDirect)+'</div>';
+    h+='<div style="font-size:.45rem;color:var(--t3);margin-top:.05rem">Para prestadores via split</div></div>';
+    // Retained
+    h+='<div style="padding:.6rem;border-radius:14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.15)">';
+    h+='<div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Retido na Touch?</div>';
+    h+='<div style="font-size:1.1rem;font-weight:800;color:#fbbf24;margin-top:.1rem">'+fmt(d.overview.retainedInTouch)+'</div>';
+    h+='<div style="font-size:.45rem;color:var(--t3);margin-top:.05rem">Prestador sem gateway</div></div>';
+    h+='</div>';
+
+    // Pending
+    if(d.overview.pendingTransactions>0){
+      h+='<div style="padding:.5rem .7rem;border-radius:10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.12);margin-bottom:.8rem;font-size:.65rem;color:#fbbf24;text-align:center">';
+      h+=d.overview.pendingTransactions+' transacoes pendentes</div>';
+    }
+
+    // Breakdown sections
+    h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)">Detalhamento</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.3rem;margin-bottom:.8rem">';
+    // Tips
+    h+='<div style="padding:.5rem;border-radius:12px;background:rgba(255,255,255,.03);text-align:center">';
+    h+='<div style="font-size:.45rem;color:var(--t3);text-transform:uppercase;margin-bottom:.15rem">Gorjetas</div>';
+    h+='<div style="font-size:.8rem;font-weight:700;color:var(--t1)">'+fmt(d.tips.total)+'</div>';
+    h+='<div style="font-size:.42rem;color:var(--t3)">'+d.tips.count+' aprovadas</div>';
+    h+='<div style="font-size:.42rem;color:#10b981">taxa: '+fmt(d.tips.fee)+'</div></div>';
+    // Entries
+    h+='<div style="padding:.5rem;border-radius:12px;background:rgba(255,255,255,.03);text-align:center">';
+    h+='<div style="font-size:.45rem;color:var(--t3);text-transform:uppercase;margin-bottom:.15rem">Ingressos</div>';
+    h+='<div style="font-size:.8rem;font-weight:700;color:var(--t1)">'+fmt(d.entries.total)+'</div>';
+    h+='<div style="font-size:.42rem;color:var(--t3)">'+d.entries.count+' aprovados</div>';
+    h+='<div style="font-size:.42rem;color:#10b981">taxa: '+fmt(d.entries.fee)+'</div></div>';
+    // Subscriptions
+    h+='<div style="padding:.5rem;border-radius:12px;background:rgba(255,255,255,.03);text-align:center">';
+    h+='<div style="font-size:.45rem;color:var(--t3);text-transform:uppercase;margin-bottom:.15rem">Assinaturas</div>';
+    h+='<div style="font-size:.8rem;font-weight:700;color:var(--t1)">'+d.subscriptions.active+'</div>';
+    h+='<div style="font-size:.42rem;color:var(--t3)">ativas de '+d.subscriptions.total+'</div>';
+    h+='<div style="font-size:.42rem;color:#10b981">receita: '+fmt(d.subscriptions.revenue)+'</div></div>';
+    h+='</div>';
+
+    // Events info
+    h+='<div style="display:flex;gap:.3rem;margin-bottom:.8rem">';
+    h+='<div style="flex:1;padding:.5rem;border-radius:12px;background:rgba(255,255,255,.03);text-align:center">';
+    h+='<div style="font-size:.45rem;color:var(--t3);text-transform:uppercase">Eventos</div>';
+    h+='<div style="font-size:.75rem;font-weight:700;color:var(--t1)">'+d.events.active+' ativos</div>';
+    h+='<div style="font-size:.42rem;color:var(--t3)">'+d.events.total+' total &middot; '+d.events.totalCheckins+' checkins pagos</div></div>';
+    h+='<div style="flex:1;padding:.5rem;border-radius:12px;background:rgba(255,255,255,.03);text-align:center">';
+    h+='<div style="font-size:.45rem;color:var(--t3);text-transform:uppercase">Prestadores</div>';
+    h+='<div style="font-size:.75rem;font-weight:700;color:var(--t1)">'+d.prestadores.total+'</div>';
+    h+='<div style="font-size:.42rem;color:var(--t3)">'+d.prestadores.connected+' conectados &middot; '+d.prestadores.notConnected+' sem gateway</div></div>';
+    h+='</div>';
+
+    // Recent transactions
+    h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)">Transacoes recentes</div>';
+    if(!d.recentTransactions||d.recentTransactions.length===0){
+      h+='<div style="text-align:center;padding:1rem;color:var(--t3);font-size:.65rem">Nenhuma transacao ainda</div>';
+    } else {
+      d.recentTransactions.forEach(function(t){
+        var date=new Date(t.createdAt);
+        var time=date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+        var typeColor=t.type==='entry'?'#60a5fa':'#a78bfa';
+        var typeLabel=t.type==='entry'?'ingresso':'gorjeta';
+        var statusColor=t.status==='approved'?'#10b981':(t.status==='pending'?'#fbbf24':'#ef4444');
+        var transferColor=t.transferStatus==='retained'?'#fbbf24':'#10b981';
+        var transferLabel=t.transferStatus==='retained'?'retido':'split';
+        h+='<div style="display:flex;align-items:center;gap:.4rem;padding:.45rem .5rem;background:rgba(255,255,255,.02);border-radius:10px;margin-bottom:.2rem;border:1px solid rgba(255,255,255,.04)">';
+        h+='<div style="flex:1;min-width:0">';
+        h+='<div style="font-size:.65rem;color:var(--t1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(t.from)+' &#x2192; '+esc(t.to)+'</div>';
+        h+='<div style="display:flex;gap:.3rem;align-items:center;margin-top:.15rem">';
+        h+='<span style="font-size:.42rem;padding:1px 4px;border-radius:4px;opacity:.9;color:'+typeColor+';font-weight:600">'+typeLabel+'</span>';
+        h+='<span style="font-size:.42rem;padding:1px 4px;border-radius:4px;opacity:.9;color:'+statusColor+';font-weight:600">'+t.status+'</span>';
+        h+='<span style="font-size:.42rem;padding:1px 4px;border-radius:4px;opacity:.9;color:'+transferColor+';font-weight:600">'+transferLabel+'</span>';
+        h+='<span style="font-size:.42rem;color:var(--t3)">'+time+'</span>';
+        h+='</div></div>';
+        h+='<div style="text-align:right;flex-shrink:0">';
+        h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1)">'+fmt(t.amount)+'</div>';
+        if(t.fee>0)h+='<div style="font-size:.42rem;color:#10b981">taxa '+fmt(t.fee)+'</div>';
+        h+='</div></div>';
+      });
+    }
+    overlay.querySelector('.more-menu-sheet').innerHTML=h;
+  }catch(e){
+    overlay.querySelector('.more-menu-sheet').innerHTML='<div class="more-menu-handle"></div><div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro: '+(e.message||'Falha ao carregar')+'</div>';
+  }
 }
 
 // ═══ TOUCHGAMES — Microservice Launcher ═══
