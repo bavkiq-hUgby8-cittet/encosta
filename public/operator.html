@@ -1848,6 +1848,7 @@ function opSelectEvent(eventId,eventName){
   const btn=$('opTouchBtn');
   if(btn){btn.classList.add('event-mode');$('opBtnText').textContent='📍 TOUCH'}
   S.checkins=[];nodes.length=0;
+  S._eventLogoLoaded=false;S._eventLogoReady=false;S._eventLogoImg=null;
   $('opCount').textContent='0';$('opListCount').textContent='0';
   // Recreate list with empty state (opEmpty is inside opList)
   $('opList').innerHTML='<div class="op-empty" id="opEmpty"><div class="op-empty-ico">📡</div><div class="op-empty-text">Ative o TOUCH para começar.<br>As pessoas encostam o celular e aparecem aqui.</div></div>';
@@ -1859,10 +1860,11 @@ async function loadExistingEvent(){
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/attendees');const d=await r.json();
     // Load event logo for center node
-    if(d.eventLogo&&!S._eventLogoLoaded){
+    if(d.eventLogo){
       S._eventLogoLoaded=true;
       const img=new Image();img.crossOrigin='anonymous';
       img.onload=function(){S._eventLogoImg=img;S._eventLogoReady=true};
+      img.onerror=function(){S._eventLogoReady=false;console.error('[loadExistingEvent] logo load error')};
       img.src=d.eventLogo;
     }
     if(d.attendees&&d.attendees.length>0){

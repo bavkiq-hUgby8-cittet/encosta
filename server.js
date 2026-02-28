@@ -11987,6 +11987,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
         };
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
+    console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
     res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: ev.eventLogo || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
