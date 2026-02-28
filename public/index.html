@@ -2924,10 +2924,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div style="flex:1;position:relative;overflow:hidden;background:#050508;touch-action:none">
     <canvas id="evCanvas" style="width:100%;height:100%;touch-action:none"></canvas>
     <!-- Menu FAB (only if event has menu) -->
-    <button id="evMenuBtn" onclick="openEventMenu()" style="display:none;position:absolute;bottom:70px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#f97316,#ef4444);border:none;color:#fff;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 20px rgba(249,115,22,.4);z-index:5;transition:transform .2s" title="Cardápio">🍽</button>
-    <div id="evCartBadge" style="display:none;position:absolute;bottom:108px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:22px;height:22px;font-size:.6rem;font-weight:700;text-align:center;line-height:22px;z-index:6;pointer-events:none">0</div>
+    <button id="evMenuBtn" onclick="openEventMenu()" style="display:none;position:absolute;bottom:70px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#f97316,#ef4444);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(249,115,22,.4);z-index:5;transition:transform .2s;display:none;align-items:center;gap:.4rem;letter-spacing:.03em"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg> Cardapio</button>
+    <div id="evCartBadge" style="display:none;position:absolute;bottom:102px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.55rem;font-weight:700;text-align:center;line-height:20px;z-index:6;pointer-events:none">0</div>
     <!-- Leave event button -->
-    <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Saí do evento</button>
+    <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Sair do evento</button>
   </div>
   <!-- MENU OVERLAY -->
   <div id="evMenuOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
@@ -4359,6 +4359,13 @@ async function showEventView(eventId,eventName){
     if(d.quickPhrases&&d.quickPhrases.length>0)setEventQuickPhrases(d.quickPhrases);
     if(d.businessProfile)window._currentEventBizProfile=d.businessProfile;
     else window._currentEventBizProfile=null;
+    // Load event logo for center node
+    window._evLogoImg=null;window._evLogoLoaded=false;
+    if(d.eventLogo){
+      var _eLogo=new Image();_eLogo.crossOrigin='anonymous';
+      _eLogo.onload=function(){window._evLogoImg=_eLogo;window._evLogoLoaded=true};
+      _eLogo.src=d.eventLogo;
+    }
   }catch(e){console.error('[eventView] load error:',e)}
   loadEventMenu(eventId);
   if(socket){
@@ -4419,19 +4426,26 @@ function renderEvCanvas(){
 
   // -- Center event node --
   const mcx=W/2,mcy=H/2;
-  const baseC=[96,165,250];const centerR=22;
+  const baseC=[96,165,250];const centerR=28;
   const cGlow=c.createRadialGradient(mcx,mcy,0,mcx,mcy,centerR*3);
-  cGlow.addColorStop(0,'rgba('+baseC.join(',')+',0.06)');cGlow.addColorStop(1,'transparent');
+  cGlow.addColorStop(0,'rgba('+baseC.join(',')+',0.08)');cGlow.addColorStop(1,'transparent');
   c.beginPath();c.arc(mcx,mcy,centerR*3,0,Math.PI*2);c.fillStyle=cGlow;c.fill();
-  const cGrad=c.createRadialGradient(mcx-centerR*0.3,mcy-centerR*0.3,0,mcx,mcy,centerR);
-  cGrad.addColorStop(0,'rgba('+baseC.join(',')+',0.8)');cGrad.addColorStop(1,'rgba('+baseC.join(',')+',0.3)');
-  c.beginPath();c.arc(mcx,mcy,centerR,0,Math.PI*2);c.fillStyle=cGrad;c.fill();
+  // Draw logo or fallback
+  if(window._evLogoLoaded&&window._evLogoImg){
+    c.save();c.beginPath();c.arc(mcx,mcy,centerR,0,Math.PI*2);c.clip();
+    c.drawImage(window._evLogoImg,mcx-centerR,mcy-centerR,centerR*2,centerR*2);
+    c.restore();
+  }else{
+    const cGrad=c.createRadialGradient(mcx-centerR*0.3,mcy-centerR*0.3,0,mcx,mcy,centerR);
+    cGrad.addColorStop(0,'rgba('+baseC.join(',')+',0.8)');cGrad.addColorStop(1,'rgba('+baseC.join(',')+',0.3)');
+    c.beginPath();c.arc(mcx,mcy,centerR,0,Math.PI*2);c.fillStyle=cGrad;c.fill();
+    c.fillStyle='rgba(255,255,255,.7)';c.font='16px sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('\uD83D\uDCCD',mcx,mcy);
+  }
   c.beginPath();c.arc(mcx,mcy,centerR+1,0,Math.PI*2);
-  c.strokeStyle='rgba('+baseC.join(',')+',0.5)';c.lineWidth=1;c.shadowColor='rgba('+baseC.join(',')+',0.5)';c.shadowBlur=8;c.stroke();c.shadowBlur=0;
-  c.fillStyle='rgba(255,255,255,.7)';c.font='14px sans-serif';c.textAlign='center';c.textBaseline='middle';
-  c.fillText('\uD83D\uDCCD',mcx,mcy);
-  c.fillStyle='rgba(255,255,255,.4)';c.font='600 9px Inter,sans-serif';c.textBaseline='top';
-  c.fillText(evNodes.length+' pessoa'+(evNodes.length!==1?'s':''),mcx,mcy+centerR+5);
+  c.strokeStyle='rgba('+baseC.join(',')+',0.5)';c.lineWidth=1.5;c.shadowColor='rgba('+baseC.join(',')+',0.5)';c.shadowBlur=10;c.stroke();c.shadowBlur=0;
+  c.fillStyle='rgba(255,255,255,.5)';c.font='600 10px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
+  c.fillText(evNodes.length+' pessoa'+(evNodes.length!==1?'s':''),mcx,mcy+centerR+6);
 
   if(!evNodes.length){evViewAnim=requestAnimationFrame(renderEvCanvas);return}
 
@@ -4639,7 +4653,7 @@ async function loadEventMenu(eventId){
   try{
     const r=await fetch('/api/event/'+eventId+'/menu');const d=await r.json();
     evMenuData=d.menu||[];evTables=d.tables||0;
-    if(evMenuData.length>0)$('evMenuBtn').style.display='';
+    if(evMenuData.length>0)$('evMenuBtn').style.display='flex';
     else $('evMenuBtn').style.display='none';
     evMenuEventId=eventId;
   }catch(e){evMenuData=[];}
