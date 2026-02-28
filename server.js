@@ -2906,12 +2906,16 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
   // 9. Event checkins (last 7 days)
   myEncounters.filter(e => e.isEvent && e.timestamp > now7d).forEach(e => {
     const ts = e.timestamp || 0;
+    const evId = (e.with || '').replace('evt:', '');
+    const evObj = db.operatorEvents[evId] || null;
     notifs.push({
       type: 'event-checkin',
       fromId: null,
-      nickname: e.withName || 'Evento',
-      color: '#f59e0b',
-      eventId: e.with,
+      nickname: e.withName || (evObj ? evObj.name : 'Evento'),
+      eventName: e.withName || (evObj ? evObj.name : 'Evento'),
+      eventLogo: evObj ? (evObj.eventLogo || evObj.logo || null) : null,
+      color: '#a78bfa',
+      eventId: evId,
       timestamp: ts,
       seen: ts <= seenAt
     });
