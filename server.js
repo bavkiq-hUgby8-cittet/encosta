@@ -11625,6 +11625,14 @@ app.post('/api/operator/event/create', async (req, res) => {
     menu: [],
     tables: 0,
     orders: [],
+    parking: {
+      enabled: false,
+      mode: 'postpaid',
+      hourlyRate: 10.00,
+      fixedRate: 0,
+      maxHours: 24,
+      vehicles: {}
+    },
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
     paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
@@ -12404,6 +12412,152 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   // Notify client
   io.emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
   res.json({ ok: true, order });
+});
+
+// ═══ PARKING MODULE ═══
+// Get parking config + active vehicles (public)
+app.get('/api/event/:eventId/parking', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const parking = ev.parking || { enabled: false, vehicles: {} };
+  const activeVehicles = Object.values(parking.vehicles || {}).filter(v => v.status === 'parked');
+  res.json({
+    enabled: parking.enabled,
+    mode: parking.mode,
+    hourlyRate: parking.hourlyRate,
+    fixedRate: parking.fixedRate,
+    maxHours: parking.maxHours,
+    activeVehicles: activeVehicles.length
+  });
+});
+
+// Set parking config (operator)
+app.post('/api/operator/event/:eventId/parking/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { enabled, mode, hourlyRate, fixedRate, maxHours } = req.body;
+  if (!ev.parking) ev.parking = { enabled: false, mode: 'postpaid', hourlyRate: 10, fixedRate: 0, maxHours: 24, vehicles: {} };
+  ev.parking.enabled = !!enabled;
+  ev.parking.mode = ['prepaid', 'postpaid', 'both'].includes(mode) ? mode : 'postpaid';
+  ev.parking.hourlyRate = Math.max(0, parseFloat(hourlyRate) || 10);
+  ev.parking.fixedRate = Math.max(0, parseFloat(fixedRate) || 0);
+  ev.parking.maxHours = Math.max(1, parseInt(maxHours) || 24);
+  saveDB('operatorEvents');
+  res.json({ ok: true, parking: ev.parking });
+});
+
+// Register vehicle (user)
+app.post('/api/event/:eventId/parking/register', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev.parking || !ev.parking.enabled) return res.status(400).json({ error: 'Estacionamento desativado.' });
+  const { userId, plate, photo } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  const plateTrimmed = (plate || '').toUpperCase().trim();
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatória.' });
+  if (!ev.parking.vehicles) ev.parking.vehicles = {};
+  const existing = ev.parking.vehicles[plateTrimmed];
+  if (existing && existing.status === 'parked') return res.status(400).json({ error: 'Veículo já estacionado.' });
+  const user = db.users[userId];
+  ev.parking.vehicles[plateTrimmed] = {
+    plate: plateTrimmed,
+    userId,
+    nickname: user.nickname || user.name || 'Visitante',
+    entryTime: Date.now(),
+    exitTime: null,
+    status: 'parked',
+    paymentMode: ev.parking.mode === 'prepaid' ? 'prepaid' : 'postpaid',
+    amountPaid: 0,
+    amountDue: 0,
+    photo: photo || null,
+    notes: ''
+  };
+  saveDB('operatorEvents');
+  io.emit('parking-vehicle-registered', { eventId: ev.id, plate: plateTrimmed, nickname: ev.parking.vehicles[plateTrimmed].nickname });
+  res.json({ ok: true, vehicle: ev.parking.vehicles[plateTrimmed] });
+});
+
+// Mark vehicle exit (operator)
+app.post('/api/operator/event/:eventId/parking/exit', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { plate } = req.body;
+  const plateTrimmed = (plate || '').toUpperCase().trim();
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatória.' });
+  if (!ev.parking || !ev.parking.vehicles) return res.status(404).json({ error: 'Veículo não encontrado.' });
+  const vehicle = ev.parking.vehicles[plateTrimmed];
+  if (!vehicle) return res.status(404).json({ error: 'Veículo não encontrado.' });
+  vehicle.exitTime = Date.now();
+  vehicle.status = 'exited';
+  const hoursParked = Math.ceil((vehicle.exitTime - vehicle.entryTime) / 3600000);
+  if (ev.parking.mode === 'postpaid') {
+    vehicle.amountDue = hoursParked * ev.parking.hourlyRate;
+  }
+  saveDB('operatorEvents');
+  io.emit('parking-vehicle-exited', { eventId: ev.id, plate: plateTrimmed, amountDue: vehicle.amountDue });
+  res.json({ ok: true, vehicle, hoursParked, amountDue: vehicle.amountDue });
+});
+
+// Pay parking (user)
+app.post('/api/event/:eventId/parking/pay', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const { userId, plate, amount, paymentMethod } = req.body;
+  const plateTrimmed = (plate || '').toUpperCase().trim();
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatória.' });
+  if (!ev.parking || !ev.parking.vehicles) return res.status(404).json({ error: 'Veículo não encontrado.' });
+  const vehicle = ev.parking.vehicles[plateTrimmed];
+  if (!vehicle) return res.status(404).json({ error: 'Veículo não encontrado.' });
+  const payAmount = Math.max(0, parseFloat(amount) || 0);
+  vehicle.amountPaid += payAmount;
+  if (vehicle.amountPaid >= vehicle.amountDue) {
+    vehicle.status = 'paid';
+    vehicle.amountDue = 0;
+  }
+  saveDB('operatorEvents');
+  io.emit('parking-payment-received', { eventId: ev.id, plate: plateTrimmed, amount: payAmount, status: vehicle.status });
+  res.json({ ok: true, vehicle, remaining: Math.max(0, vehicle.amountDue - vehicle.amountPaid) });
+});
+
+// Get vehicle status
+app.get('/api/event/:eventId/parking/vehicle/:plate', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const plateTrimmed = (req.params.plate || '').toUpperCase().trim();
+  if (!ev.parking || !ev.parking.vehicles) return res.status(404).json({ error: 'Veículo não encontrado.' });
+  const vehicle = ev.parking.vehicles[plateTrimmed];
+  if (!vehicle) return res.status(404).json({ error: 'Veículo não encontrado.' });
+  const elapsedTime = vehicle.exitTime ? (vehicle.exitTime - vehicle.entryTime) : (Date.now() - vehicle.entryTime);
+  const hoursParked = Math.ceil(elapsedTime / 3600000);
+  res.json({ vehicle, hoursParked, estimatedCost: hoursParked * ev.parking.hourlyRate });
+});
+
+// Manual vehicle entry (operator)
+app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev.parking || !ev.parking.enabled) return res.status(400).json({ error: 'Estacionamento desativado.' });
+  const { plate, nickname, notes } = req.body;
+  const plateTrimmed = (plate || '').toUpperCase().trim();
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatória.' });
+  if (!ev.parking.vehicles) ev.parking.vehicles = {};
+  const existing = ev.parking.vehicles[plateTrimmed];
+  if (existing && existing.status === 'parked') return res.status(400).json({ error: 'Veículo já estacionado.' });
+  ev.parking.vehicles[plateTrimmed] = {
+    plate: plateTrimmed,
+    userId: 'operador',
+    nickname: nickname || 'Manual',
+    entryTime: Date.now(),
+    exitTime: null,
+    status: 'parked',
+    paymentMode: ev.parking.mode === 'prepaid' ? 'prepaid' : 'postpaid',
+    amountPaid: 0,
+    amountDue: 0,
+    photo: null,
+    notes: notes || ''
+  };
+  saveDB('operatorEvents');
+  res.json({ ok: true, vehicle: ev.parking.vehicles[plateTrimmed] });
 });
 
 // ═══ STRIPE — Full Payment Integration ═══
