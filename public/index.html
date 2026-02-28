@@ -6376,13 +6376,13 @@ function showEntryCardForm(eventId,eventName,price,operatorId){
       +'</button>'
       +'<div style="display:flex;align-items:center;gap:.6rem;margin-top:.4rem"><div style="flex:1;height:1px;background:rgba(255,255,255,.06)"></div><span style="font-size:.48rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">ou</span><div style="flex:1;height:1px;background:rgba(255,255,255,.06)"></div></div>'
       +'</div>'
-      // Payment methods
+      // PRIMARY PAYMENT METHODS (clean, minimal)
       +'<div id="entryPayMethods" style="display:flex;flex-direction:column;gap:.5rem">'
-      // Stripe inline PE wrapper
+      // Stripe inline PE wrapper (cartao + Link - auto-mounts)
       +'<div id="entryStripeInlineWrapper" style="display:none;background:rgba(99,91,255,.04);border:1px solid rgba(99,91,255,.12);border-radius:16px;padding:.8rem">'
       +'<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem">'
       +'<svg viewBox="0 0 32 32" width="18" height="18"><rect width="32" height="32" rx="6" fill="#635BFF"/><path d="M15.2 11.2c0-.9.7-1.2 1.9-1.2 1.7 0 3.8.5 5.5 1.4V7.1C21 6.5 19.3 6 17.1 6c-3.8 0-6.3 2-6.3 5.3 0 5.2 7.1 4.3 7.1 6.6 0 1.1-.9 1.4-2.2 1.4-1.9 0-4.3-.8-6.2-1.8v4.4c2.1.9 4.2 1.3 6.2 1.3 3.9 0 6.5-1.9 6.5-5.3-.1-5.6-7-4.6-7-6.7z" fill="#fff"/></svg>'
-      +'<span style="font-size:.62rem;font-weight:600;color:#a5b4fc">Pague com cartao ou Link</span>'
+      +'<span style="font-size:.62rem;font-weight:600;color:#a5b4fc">Cartao ou Link</span>'
       +'</div>'
       +'<div id="entryStripeInline"></div>'
       +'</div>'
@@ -6392,21 +6392,29 @@ function showEntryCardForm(eventId,eventName,price,operatorId){
       +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">PIX</div><div style="font-size:.42rem;color:var(--t3)">Instantaneo, sem taxa</div></div>'
       +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
       +'</button>'
-      // Saved card (if exists)
+      // OTHER METHODS toggle
+      +'<button id="entryOtherToggle" onclick="toggleEntryOtherMethods()" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.5rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.06);background:transparent;cursor:pointer;font-family:inherit">'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>'
+      +'<span style="flex:1;font-size:.58rem;color:var(--t3);text-align:left">Outras formas de pagamento</span>'
+      +'<svg id="entryOtherArrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>'
+      +'</button>'
+      +'<div id="entryOtherPanel" style="display:none;flex-direction:column;gap:.4rem">'
+      // Saved card
       +'<div id="entrySavedCardSection"></div>'
       // Mercado Pago
-      +'<button id="entryMPBtn" onclick="payEntryMP(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(0,158,227,.12);background:rgba(0,158,227,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
-      +'<div style="width:26px;height:26px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#00AEEF;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 40 40" width="16" height="16"><path d="M20 8c-2.2 0-4.2.8-5.8 2.1C13 9.4 11.6 9 10 9c-4 0-7 3.5-7 7.8 0 5.5 4.5 10 10 13.2 1 .6 2 1.1 3 1.5.3.2.7.3 1 .5l1 .5c.6.3 1.3.5 2 .5s1.4-.2 2-.5l1-.5c.3-.2.7-.3 1-.5 1-.4 2-.9 3-1.5 5.5-3.2 10-7.7 10-13.2 0-4.3-3-7.8-7-7.8-1.6 0-3 .4-4.2 1.1C24.2 8.8 22.2 8 20 8z" fill="#fff"/></svg></div>'
-      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:#009ee3">Mercado Pago</div><div style="font-size:.42rem;color:var(--t3)">Cartao, saldo ou parcelado</div></div>'
-      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
+      +'<button id="entryMPBtn" onclick="payEntryMP(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.6rem .9rem;border-radius:12px;border:1px solid rgba(0,158,227,.12);background:rgba(0,158,227,.03);cursor:pointer;font-family:inherit">'
+      +'<div style="width:24px;height:24px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#00AEEF;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 40 40" width="14" height="14"><path d="M20 8c-2.2 0-4.2.8-5.8 2.1C13 9.4 11.6 9 10 9c-4 0-7 3.5-7 7.8 0 5.5 4.5 10 10 13.2 1 .6 2 1.1 3 1.5.3.2.7.3 1 .5l1 .5c.6.3 1.3.5 2 .5s1.4-.2 2-.5l1-.5c.3-.2.7-.3 1-.5 1-.4 2-.9 3-1.5 5.5-3.2 10-7.7 10-13.2 0-4.3-3-7.8-7-7.8-1.6 0-3 .4-4.2 1.1C24.2 8.8 22.2 8 20 8z" fill="#fff"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.62rem;font-weight:600;color:#009ee3">Mercado Pago</div><div style="font-size:.42rem;color:var(--t3)">Cartao, saldo ou parcelado</div></div>'
+      +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
       +'</button>'
-      // Stripe Payment Element container (old inline fallback)
+      // Stripe Payment Element container (old fallback)
       +'<div id="entryStripeContainer" style="display:none"></div>'
-      // New card (MP)
-      +'<button id="entryNewCardBtn" onclick="showEntryNewCardForm(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.55rem .9rem;border-radius:14px;border:1px dashed rgba(99,102,241,.12);background:transparent;cursor:pointer;font-family:inherit">'
-      +'<div style="width:26px;height:26px;border-radius:8px;background:rgba(99,102,241,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>'
+      // New card
+      +'<button id="entryNewCardBtn" onclick="showEntryNewCardForm(\''+eventId+'\',\''+evSafe+'\','+price+')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.5rem .9rem;border-radius:12px;border:1px dashed rgba(99,102,241,.12);background:transparent;cursor:pointer;font-family:inherit">'
+      +'<div style="width:24px;height:24px;border-radius:6px;background:rgba(99,102,241,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>'
       +'<div style="flex:1;text-align:left"><div style="font-size:.62rem;font-weight:600;color:var(--t2)">Novo cartao</div><div style="font-size:.42rem;color:var(--t3)">Visa, Master, Elo</div></div>'
       +'</button>'
+      +'</div>'
       +'</div>'
       // Security + skip
       +'<div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-top:.6rem;padding:.3rem;border-radius:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15)">'
@@ -6465,6 +6473,14 @@ function showEntryNewCardForm(eventId,eventName,price){
   }
 }
 
+function toggleEntryOtherMethods(){
+  var panel=$('entryOtherPanel');
+  var arrow=$('entryOtherArrow');
+  var isHidden=!panel.style.display||panel.style.display==='none';
+  panel.style.display=isHidden?'flex':'none';
+  if(arrow)arrow.style.transform=isHidden?'rotate(180deg)':'';
+}
+
 // Close entry payment overlay and restore reveal actions
 function closeEntryPayment(){
   var secRow=$('rvSecRow');if(secRow){secRow.style.display='none';secRow.innerHTML='';}
@@ -6514,7 +6530,7 @@ function entryExpressCheckout(eventId,eventName,price){
   window._entryPaymentRequest.on('paymentmethod',function(ev){
     fetch('/api/stripe/pay',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({paymentMethodId:ev.paymentMethod.id,amount:price,payerId:state.userId,type:'entry',eventId:eventId})
+      body:JSON.stringify({userId:state.userId,paymentMethodId:ev.paymentMethod.id,amount:price,payerId:state.userId,type:'entry',eventId:eventId})
     }).then(function(r){return r.json()}).then(function(d){
       if(d.ok){ev.complete('success');showToast('Ingresso pago!');haptic([40,20,40]);closeEntryPayment();}
       else{ev.complete('fail');showToast(d.error||'Erro no pagamento')}
@@ -6578,7 +6594,7 @@ async function confirmEntryStripe(eventId,eventName,price){
     }
     var resp=await fetch('/api/stripe/create-payment-intent',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({amount:price,currency:_userCurrency||'brl',payerId:state.userId,type:'entry',eventId:eventId})
+      body:JSON.stringify({userId:state.userId,amount:price,currency:_userCurrency||'brl',payerId:state.userId,type:'entry',eventId:eventId})
     });
     var data=await resp.json();
     if(data.error){
@@ -6599,7 +6615,7 @@ async function confirmEntryStripe(eventId,eventName,price){
     // Confirm on backend so payment status changes from pending to approved
     fetch('/api/stripe/confirm-payment',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({paymentIntentId:data.paymentIntentId,tipId:data.tipId})
+      body:JSON.stringify({userId:state.userId,paymentIntentId:data.paymentIntentId,tipId:data.tipId})
     }).catch(function(){});
     showToast('Ingresso pago!');haptic([40,20,40]);
     closeEntryPayment();
@@ -14859,7 +14875,7 @@ function expressCheckout(type, planId) {
   window._stripePaymentRequest.on('paymentmethod', function(ev) {
     fetch('/api/stripe/pay', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentMethodId: ev.paymentMethod.id, amount: tipState.amount, payerId: state.userId, receiverId: tipState.receiverId })
+      body: JSON.stringify({ userId: state.userId, paymentMethodId: ev.paymentMethod.id, amount: tipState.amount, payerId: state.userId, receiverId: tipState.receiverId })
     }).then(r => r.json()).then(d => {
       if (d.ok) { ev.complete('success'); showTipResult('OK', 'Pago!'); haptic([40, 20, 40]) }
       else { ev.complete('fail'); showToast(d.error || 'Erro no pagamento') }
@@ -14940,7 +14956,7 @@ async function confirmTipStripe() {
     }
     var resp = await fetch('/api/stripe/create-payment-intent', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: tipState.amount, currency: _userCurrency || 'brl', payerId: state.userId, receiverId: tipState.receiverId })
+      body: JSON.stringify({ userId: state.userId, amount: tipState.amount, currency: _userCurrency || 'brl', payerId: state.userId, receiverId: tipState.receiverId })
     });
     var data = await resp.json();
     if (data.error) {
@@ -14962,7 +14978,7 @@ async function confirmTipStripe() {
     // Confirm payment on backend so tip status changes from pending to approved
     fetch('/api/stripe/confirm-payment', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentIntentId: data.paymentIntentId, tipId: data.tipId })
+      body: JSON.stringify({ userId: state.userId, paymentIntentId: data.paymentIntentId, tipId: data.tipId })
     }).catch(function(){});
     showTipResult('OK', 'Pago!');
     haptic([40, 20, 40]);
@@ -14987,7 +15003,7 @@ async function showStripePaymentElement(containerId, amount, currency, onSuccess
   // Create PaymentIntent on server
   const resp = await fetch('/api/stripe/create-payment-intent', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount, currency: currency || 'brl', payerId: state.userId, ...metadata })
+    body: JSON.stringify({ userId: state.userId, amount, currency: currency || 'brl', payerId: state.userId, ...metadata })
   });
   const data = await resp.json();
   if (data.error) { showToast(data.error); return null; }
@@ -15020,7 +15036,7 @@ async function showStripePaymentElement(containerId, amount, currency, onSuccess
       // Payment succeeded without redirect
       const confirm = await fetch('/api/stripe/confirm-payment', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId: data.paymentIntentId, tipId: data.tipId })
+        body: JSON.stringify({ userId: state.userId, paymentIntentId: data.paymentIntentId, tipId: data.tipId })
       }).then(r => r.json()).catch(e => {console.warn('API error [stripe/confirm-payment]:', e.message||e);return {ok:false}});
       if (confirm.ok && onSuccess) onSuccess(data.tipId);
       else if (!confirm.ok) showToast('Pagamento pendente de confirmacao.');
@@ -15803,7 +15819,7 @@ function checkTipResultParam() {
           if (paymentIntent && paymentIntent.status === 'succeeded') {
             fetch('/api/stripe/confirm-payment', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentIntentId: paymentIntent.id, tipId })
+              body: JSON.stringify({ userId: state.userId, paymentIntentId: paymentIntent.id, tipId })
             }).then(() => showToast('Pagamento confirmado!')).catch(e => console.warn('API error [stripe/confirm-payment-return]:', e.message||e));
           } else if (paymentIntent && paymentIntent.status === 'processing') {
             showToast('Pagamento em processamento...');
