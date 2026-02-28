@@ -11265,6 +11265,7 @@ app.post('/api/operator/event/create', async (req, res) => {
     orders: []
   };
   saveDB('operatorEvents');
+  io.to(userId).emit('operator-event-update', { eventId: id, action: 'created' });
   res.json({ event: db.operatorEvents[id] });
 });
 
@@ -11596,6 +11597,7 @@ app.post('/api/operator/event/:eventId/end', (req, res) => {
   }
   // Notify all participants
   io.to('event:' + ev.id).emit('event-ended', { eventId: ev.id, name: ev.name });
+  if (ev.creatorId) io.to(ev.creatorId).emit('operator-event-update', { eventId: ev.id, action: 'ended' });
   saveDB('operatorEvents', 'relations');
   res.json({ ok: true });
 });

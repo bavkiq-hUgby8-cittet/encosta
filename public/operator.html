@@ -1965,6 +1965,14 @@ function initSocket(){
     setTimeout(()=>toast.remove(),5000);
     playBeep();
   });
+  // Real-time event list refresh (when on events screen)
+  S.socket.on('operator-event-update',()=>{
+    if(!S.currentEventId&&$('opEvents')&&$('opEvents').style.display!=='none')showEventsScreen();
+  });
+  // Auto-refresh events list every 30s when visible
+  setInterval(()=>{
+    if(!S.currentEventId&&$('opEvents')&&$('opEvents').style.display!=='none')showEventsScreen();
+  },30000);
   // Entry fee paid notification
   S.socket.on('entry-paid',d=>{
     const toast=document.createElement('div');
