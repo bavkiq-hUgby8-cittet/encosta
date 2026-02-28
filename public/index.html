@@ -2576,7 +2576,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <!-- MP connection status -->
     <div id="pdMpStatus" style="margin-bottom:.8rem"></div>
     <!-- Recent tips -->
-    <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.4rem">Gorjetas recebidas</div>
+    <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.4rem">Pagamentos recebidos</div>
     <div id="pdTips" style="margin-bottom:1rem"></div>
     <!-- Recent encounters -->
     <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.4rem">Encostadas recebidas</div>
@@ -16246,9 +16246,12 @@ async function showPrestadorDash() {
 
     // Stats cards
     const fmt = v => 'R$' + v.toFixed(2).replace('.', ',');
+    var countLabel = d.stats.tipsCount ? d.stats.tipsCount + ' gorj.' : '';
+    if (d.stats.entriesCount) countLabel += (countLabel ? ' + ' : '') + d.stats.entriesCount + ' ingr.';
+    if (!countLabel) countLabel = '0 pagamentos';
     $('pdStats').innerHTML =
-      pdCard('Total recebido', fmt(d.stats.totalReceived), '#6366f1', d.stats.totalCount + ' gorjetas') +
-      pdCard('Líquido (após taxa)', fmt(d.stats.totalNet), '#10b981', '10% taxa Touch?');
+      pdCard('Total recebido', fmt(d.stats.totalReceived), '#6366f1', countLabel) +
+      pdCard('Liquido (apos taxa)', fmt(d.stats.totalNet), '#10b981', '10% taxa Touch?');
 
     // Period cards
     $('pdPeriods').innerHTML =
@@ -16275,17 +16278,18 @@ async function showPrestadorDash() {
 
     // Tips list
     if (d.tips.length === 0) {
-      $('pdTips').innerHTML = '<div style="padding:.8rem;text-align:center;color:var(--t3);font-size:.65rem;background:rgba(255,255,255,.03);border-radius:12px">Nenhuma gorjeta recebida ainda</div>';
+      $('pdTips').innerHTML = '<div style="padding:.8rem;text-align:center;color:var(--t3);font-size:.65rem;background:rgba(255,255,255,.03);border-radius:12px">Nenhum pagamento recebido ainda</div>';
     } else {
       $('pdTips').innerHTML = d.tips.map(t => {
         const date = new Date(t.createdAt);
         const time = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-        const statusIcon = t.status === 'approved' ? '✅' : t.status === 'pending' ? '⏳' : '❌';
+        const statusIcon = t.status === 'approved' ? '&#x2705;' : t.status === 'pending' ? '&#x23F3;' : '&#x274C;';
+        const typeTag = t.type === 'entry' ? '<span style="font-size:.48rem;padding:1px 5px;border-radius:5px;background:rgba(96,165,250,.12);color:#60a5fa;font-weight:600;margin-left:.3rem">ingresso</span>' : '';
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;background:rgba(255,255,255,.03);border-radius:10px;margin-bottom:.3rem">' +
-          '<div><div style="font-size:.7rem;font-weight:600;color:var(--t1)">' + statusIcon + ' ' + fmt(t.amount) + '</div>' +
-          '<div style="font-size:.55rem;color:var(--t3)">' + esc(t.payerName) + ' · ' + time + '</div></div>' +
+          '<div><div style="font-size:.7rem;font-weight:600;color:var(--t1)">' + statusIcon + ' ' + fmt(t.amount) + typeTag + '</div>' +
+          '<div style="font-size:.55rem;color:var(--t3)">' + esc(t.payerName) + ' &middot; ' + time + '</div></div>' +
           '<div style="text-align:right"><div style="font-size:.6rem;color:#10b981;font-weight:600">+' + fmt(t.net) + '</div>' +
-          '<div style="font-size:.5rem;color:var(--t3)">taxa ' + fmt(t.fee) + '</div></div></div>';
+          (t.fee > 0 ? '<div style="font-size:.5rem;color:var(--t3)">taxa ' + fmt(t.fee) + '</div>' : '') + '</div></div>';
       }).join('');
     }
 

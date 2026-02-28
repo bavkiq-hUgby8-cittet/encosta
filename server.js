@@ -7806,26 +7806,40 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
   const user = db.users[userId];
   if (!user) return res.status(404).json({ error: 'Não encontrado.' });
 
-  // Tips received
+  // Tips received (gorjetas)
   const tipsReceived = Object.values(db.tips)
     .filter(t => t.receiverId === userId)
     .sort((a, b) => b.createdAt - a.createdAt);
 
+  // Entry payments received (ingressos for operator's events)
+  const operatorEventIds = Object.values(db.operatorEvents || {}).filter(ev => ev.creatorId === userId).map(ev => ev.id);
+  const entryPayments = Object.values(db.eventPayments || {})
+    .filter(ep => ep.receiverId === userId || operatorEventIds.includes(ep.eventId))
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  // Combine all payments
+  const allPayments = [...tipsReceived, ...entryPayments];
+  const allApproved = allPayments.filter(t => t.status === 'approved');
   const tipsApproved = tipsReceived.filter(t => t.status === 'approved');
-  const totalReceived = tipsApproved.reduce((s, t) => s + (t.amount || 0), 0);
-  const totalFees = tipsApproved.reduce((s, t) => s + (t.fee || 0), 0);
+  const entriesApproved = entryPayments.filter(t => t.status === 'approved');
+
+  const totalReceived = allApproved.reduce((s, t) => s + (t.amount || 0), 0);
+  const totalFees = allApproved.reduce((s, t) => s + (t.fee || 0), 0);
   const totalNet = totalReceived - totalFees;
 
   // Today (using user's timezone)
-  const tipsToday = tipsApproved.filter(t => t.createdAt >= getUserTodayStart(userId));
+  const todayStart = getUserTodayStart(userId);
+  const tipsToday = allApproved.filter(t => t.createdAt >= todayStart);
   const todayTotal = tipsToday.reduce((s, t) => s + (t.amount || 0), 0);
 
   // This week (using user's timezone)
-  const tipsWeek = tipsApproved.filter(t => t.createdAt >= getUserWeekStart(userId));
+  const weekStart = getUserWeekStart(userId);
+  const tipsWeek = allApproved.filter(t => t.createdAt >= weekStart);
   const weekTotal = tipsWeek.reduce((s, t) => s + (t.amount || 0), 0);
 
   // This month (using user's timezone)
-  const tipsMonth = tipsApproved.filter(t => t.createdAt >= getUserMonthStart(userId));
+  const monthStart = getUserMonthStart(userId);
+  const tipsMonth = allApproved.filter(t => t.createdAt >= monthStart);
   const monthTotal = tipsMonth.reduce((s, t) => s + (t.amount || 0), 0);
 
   // Encounters (encostadas) received
@@ -7839,13 +7853,21 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
   }
   allEncounters.sort((a, b) => b.timestamp - a.timestamp);
 
-  // Enriched tips
+  // Enriched tips + entry payments
   const tipsEnriched = tipsReceived.slice(0, 30).map(t => ({
-    id: t.id, amount: t.amount, fee: t.fee || 0, net: (t.amount || 0) - (t.fee || 0),
+    id: t.id, type: 'tip', amount: t.amount, fee: t.fee || 0, net: (t.amount || 0) - (t.fee || 0),
     status: t.status, statusDetail: t.statusDetail,
     payerName: db.users[t.payerId]?.nickname || 'Anônimo',
     createdAt: t.createdAt
   }));
+  const entriesEnriched = entryPayments.slice(0, 30).map(ep => ({
+    id: ep.id, type: 'entry', amount: ep.amount, fee: 0, net: ep.amount || 0,
+    status: ep.status, statusDetail: '',
+    payerName: db.users[ep.payerId]?.nickname || 'Anônimo',
+    eventName: ep.eventName || '',
+    createdAt: ep.createdAt
+  }));
+  const allEnriched = [...tipsEnriched, ...entriesEnriched].sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
 
   res.json({
     name: user.nickname || user.name,
@@ -7854,12 +7876,15 @@ app.get('/api/prestador/:userId/dashboard', (req, res) => {
     mpConnected: !!user.mpConnected,
     stats: {
       totalReceived, totalFees, totalNet,
-      totalCount: tipsApproved.length,
+      totalCount: allApproved.length,
+      tipsCount: tipsApproved.length,
+      entriesCount: entriesApproved.length,
+      totalEntryRevenue: entriesApproved.reduce((s, t) => s + (t.amount || 0), 0),
       todayTotal, todayCount: tipsToday.length,
       weekTotal, weekCount: tipsWeek.length,
       monthTotal, monthCount: tipsMonth.length
     },
-    tips: tipsEnriched,
+    tips: allEnriched,
     encounters: allEncounters.slice(0, 50),
     encounterCount: allEncounters.length
   });
@@ -11231,7 +11256,7 @@ app.post('/api/operator/settings', (req, res) => {
 
 // ═══ OPERATOR EVENTS ═══
 app.post('/api/operator/event/create', async (req, res) => {
-  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile, eventLogo } = req.body;
+  const { userId, name, description, acceptsTips, serviceLabel, entryPrice, revealMode, welcomePhrase, quickPhrases, businessProfile, eventLogo, paymentAccount } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Nome do evento obrigatório (mín. 2 caracteres).' });
   const id = uuidv4();
@@ -11273,7 +11298,11 @@ app.post('/api/operator/event/create', async (req, res) => {
     staff: [],
     menu: [],
     tables: 0,
-    orders: []
+    orders: [],
+    // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
+    paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
+    paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
+    paymentMpAccessToken: null    // set when event-specific MercadoPago is connected
   };
   saveDB('operatorEvents');
   io.to(userId).emit('operator-event-update', { eventId: id, action: 'created' });
@@ -12455,6 +12484,57 @@ app.get('/api/stripe/connect-status/:userId', async (req, res) => {
     connectId: user.stripeConnectId || null,
     country: user.stripeConnectCountry || null
   });
+});
+
+// Stripe Connect — onboarding for EVENT-specific account (separate from operator)
+app.get('/api/stripe/event-connect-url/:eventId/:userId', async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { eventId, userId } = req.params;
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (ev.creatorId !== userId) return res.status(403).json({ error: 'Sem permissao.' });
+  const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
+  try {
+    let accountId = ev.paymentStripeAccountId;
+    if (!accountId) {
+      const account = await stripeInstance.accounts.create({
+        type: 'express',
+        country: db.users[userId]?.country || 'BR',
+        email: db.users[userId]?.email || undefined,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        metadata: { eventId, userId, source: 'touch-event-connect' }
+      });
+      accountId = account.id;
+      ev.paymentStripeAccountId = accountId;
+      saveDB('operatorEvents');
+    }
+    const link = await stripeInstance.accountLinks.create({
+      account: accountId,
+      refresh_url: baseUrl + '/api/stripe/event-connect-url/' + eventId + '/' + userId,
+      return_url: baseUrl + '/stripe/event-connect-result?eventId=' + eventId + '&userId=' + userId,
+      type: 'account_onboarding'
+    });
+    res.json({ url: link.url });
+  } catch(e) {
+    console.error('[stripe/event-connect] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Stripe Connect — event return page
+app.get('/stripe/event-connect-result', async (req, res) => {
+  const { eventId, userId } = req.query;
+  const ev = db.operatorEvents[eventId];
+  if (ev && ev.paymentStripeAccountId && stripeInstance) {
+    try {
+      const account = await stripeInstance.accounts.retrieve(ev.paymentStripeAccountId);
+      ev.paymentStripeConnected = account.charges_enabled;
+      ev.paymentStripeCountry = account.country;
+      saveDB('operatorEvents');
+      console.log('[stripe/event-connect] Event account connected:', { eventId, chargesEnabled: account.charges_enabled });
+    } catch(e) { console.error('[stripe/event-connect-result]', e.message); }
+  }
+  res.redirect('/?eventStripeConnected=ok&eventId=' + (eventId || ''));
 });
 
 // Stripe Webhook — verify signatures and handle events
