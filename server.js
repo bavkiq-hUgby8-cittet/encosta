@@ -11627,6 +11627,9 @@ app.post('/api/operator/event/create', async (req, res) => {
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
     paymentMpAccessToken: null    // set when event-specific MercadoPago is connected
   };
+  // Add to index so it shows in operator's event list immediately
+  if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
+  IDX.operatorByCreator.get(userId).push(id);
   saveDB('operatorEvents');
   io.to(userId).emit('operator-event-update', { eventId: id, action: 'created' });
   res.json({ event: db.operatorEvents[id] });
