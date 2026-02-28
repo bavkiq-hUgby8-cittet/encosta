@@ -1076,14 +1076,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .mural-msg-hide{background:none;border:none;font-size:.46rem;color:rgba(251,191,36,.35);cursor:pointer;padding:.1rem .15rem;font-family:inherit;transition:color .2s}
 .mural-msg-hide:active{color:rgba(245,158,11,.8)}
 .mural-news-headline{font-weight:700;font-size:.72rem;line-height:1.35;color:rgba(241,245,249,.95);letter-spacing:-.01em;margin-top:.1rem}
-.mural-news-preview{font-size:.68rem;color:rgba(203,213,225,.72);margin-top:.25rem;line-height:1.45}
-.mural-news-preview.hidden{display:none}
+.mural-news-preview{font-size:.68rem;color:rgba(203,213,225,.72);margin-top:.15rem;line-height:1.4}
 .mural-news-body{font-size:.68rem;color:rgba(203,213,225,.72);margin-top:.25rem;line-height:1.45}
-.mural-news-body.hidden{display:none}
 .mural-news-img{margin:.3rem 0;border-radius:12px;overflow:hidden;max-height:120px;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .mural-news-img::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(13,13,20,.5) 100%);pointer-events:none;border-radius:12px}
 .mural-news-img img{width:100%;height:auto;max-height:120px;object-fit:cover;display:block;border-radius:12px}
-.mural-news-collapsed .mural-news-img,.mural-news-collapsed .mural-news-body,.mural-news-collapsed .mural-news-citations,.mural-news-collapsed .mural-news-source,.mural-news-collapsed .mural-news-toggle,.mural-news-collapsed .mural-comments,.mural-news-collapsed .mural-msg-actions{display:none}
+.mural-news-collapsed .mural-news-img,.mural-news-collapsed .mural-news-body,.mural-news-collapsed .mural-news-citations,.mural-news-collapsed .mural-news-source,.mural-news-collapsed .mural-comments,.mural-news-collapsed .mural-msg-actions{display:none}
+.mural-msg.news:not(.mural-news-collapsed) .mural-news-preview,.mural-msg.radio:not(.mural-news-collapsed) .mural-news-preview{display:none}
 .mural-news-stats{display:flex;gap:.5rem;align-items:center;margin-top:.2rem;font-size:.58rem;color:rgba(203,213,225,.5)}
 .mural-news-stats span{display:flex;align-items:center;gap:.15rem}
 .mural-news-expand{background:none;border:none;color:rgba(129,140,248,.7);font-size:.6rem;cursor:pointer;padding:.15rem 0;font-weight:600;font-family:inherit}
@@ -8334,21 +8333,7 @@ function _muralAgentSvg(agentType, size) {
     + '</svg>';
 }
 
-function toggleNewsExpand(postId) {
-  var body = $('news-body-' + postId);
-  var preview = $('news-preview-' + postId);
-  var btn = $('news-toggle-' + postId);
-  if (!body || !btn) return;
-  if (body.classList.contains('hidden')) {
-    body.classList.remove('hidden');
-    if (preview) preview.classList.add('hidden');
-    btn.textContent = 'Menos';
-  } else {
-    body.classList.add('hidden');
-    if (preview) preview.classList.remove('hidden');
-    btn.textContent = 'Ler mais';
-  }
-}
+// toggleNewsExpand removido — unificado com toggleNewsCard
 
 function _updateNewsStats(postId, post) {
   var statsEl = document.querySelector('#mp_' + postId + ' .mural-news-stats');
@@ -8834,10 +8819,10 @@ function _buildMuralMsgHtml(p) {
     }
     // Mural-related badge
     var relatedBadge = p.muralRelated ? '<span class="mural-news-related">Sobre o assunto</span> ' : '';
-    // Preview: primeiras 2 linhas, max ~120 chars
+    // Preview: primeiras 2 linhas, max ~120 chars (so mostra quando colapsado)
     var bodyLines = body.split('\n').filter(function(l){ return l.trim(); });
     var preview = bodyLines.slice(0, 2).join(' ').slice(0, 120);
-    var hasMore = bodyLines.length > 2 || body.length > 120;
+    var hasMore = body.length > 0;
     // Comments section
     var comments = p.comments || [];
     var cmtCount = comments.length;
@@ -8905,10 +8890,9 @@ function _buildMuralMsgHtml(p) {
       + '<div class="mural-news-preview">' + _cleanNewsText(preview) + (hasMore ? '...' : '') + '</div>'
       + statsHtml
       + newsImageHtml
-      + '<div class="mural-news-body hidden" id="news-body-' + p.id + '">' + _cleanNewsText(body) + '</div>'
+      + '<div class="mural-news-body">' + _cleanNewsText(body) + '</div>'
       + sourceHtml
       + citationsHtml
-      + (hasMore ? '<button class="mural-news-toggle" id="news-toggle-' + p.id + '" onclick="toggleNewsExpand(\'' + p.id + '\')">Ler mais</button>' : '')
       + '<div class="mural-msg-actions">' + likeBtn + '</div>'
       + commentsHtml
       + '</div>'
@@ -9269,42 +9253,45 @@ async function postToMural() {
 }
 
 async function likeMuralPost(postId) {
+  _spawnMsnHearts(postId);
+  haptic([10]);
+  // Optimistic: toggle like IMEDIATAMENTE
+  var post = _muralState.posts.find(function(p) { return p.id === postId; });
+  if (post) {
+    if (!post.likes) post.likes = [];
+    var idx = post.likes.indexOf(state.userId);
+    if (idx !== -1) post.likes.splice(idx, 1); else post.likes.push(state.userId);
+    var newLikes = post.likes.length;
+    var isLiked = post.likes.indexOf(state.userId) !== -1;
+    // Update botao inline
+    var likeBtn = document.querySelector('#mp_' + postId + ' .mural-msg-like');
+    if (likeBtn) {
+      likeBtn.className = 'mural-msg-like' + (isLiked ? ' liked like-pop' : '');
+      likeBtn.innerHTML = (isLiked ? '&#9829;' : '&#9825;') + (newLikes > 0 ? ' <span class="like-count">' + newLikes + '</span>' : '');
+      if (isLiked) setTimeout(function() { likeBtn.classList.remove('like-pop'); }, 500);
+    }
+    // Update badge e stats
+    var badge = document.querySelector('#mp_' + postId + ' .mural-likes-badge');
+    if (badge) badge.textContent = newLikes > 0 ? newLikes + (newLikes === 1 ? ' curtida' : ' curtidas') : '';
+    _updateNewsStats(postId, post);
+  }
   try {
-    // Spawn MSN hearts before API call for instant feedback
-    _spawnMsnHearts(postId);
     var r = await apiFetch('/api/mural/' + postId + '/like', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: state.userId })
     });
     var d = await r.json();
-    if (d.error) return showToast(d.error);
-    var post = _muralState.posts.find(function(p) { return p.id === postId; });
+    if (d.error) { showToast(d.error); return; }
+    // Sincronizar com servidor (pode ter divergido)
     if (post) {
-      var oldLikes = (post.likes || []).length;
+      var oldLen = post.likes.length;
       post.likes = d.likes || post.likes;
-      var newLikes = (post.likes || []).length;
-      var crossedPin = (oldLikes < 3 && newLikes >= 3) || (oldLikes >= 3 && newLikes < 3);
-      if (crossedPin) {
-        renderMuralFeed(true);
-      } else {
-        var likeBtn = document.querySelector('#mp_' + postId + ' .mural-msg-like');
-        if (likeBtn) {
-          var isLiked = post.likes.indexOf(state.userId) !== -1;
-          likeBtn.className = 'mural-msg-like' + (isLiked ? ' liked like-pop' : '');
-          var heart = isLiked ? '&#9829;' : '&#9825;';
-          var count = newLikes > 0 ? '<span class="like-count">' + newLikes + '</span>' : '';
-          likeBtn.innerHTML = heart + count;
-          if (isLiked) {
-            setTimeout(function() { likeBtn.classList.remove('like-pop'); }, 500);
-          }
-        }
-        // Atualizar stats inline (curtidas no card colapsado)
-        _updateNewsStats(postId, post);
-      }
+      var newLen = post.likes.length;
+      var crossedPin = (oldLen < 3 && newLen >= 3) || (oldLen >= 3 && newLen < 3);
+      if (crossedPin) renderMuralFeed(true);
     }
-    haptic([10]);
-  } catch (e) { showToast('Erro.'); }
+  } catch (e) { /* optimistic ja tratou visual */ }
 }
 function _spawnMsnHearts(postId) {
   var btn = document.querySelector('[onclick*="' + postId + '"].mural-msg-like');
@@ -9332,28 +9319,72 @@ async function sendComment(postId) {
   if (!input) return;
   var text = input.value.trim();
   if (!text) return;
+  var savedText = text;
+  input.value = '';
   input.disabled = true;
+  haptic([8]);
+  // Optimistic: mostrar comentario imediatamente
+  var post = _muralState.posts.find(function(p) { return p.id === postId; });
+  var tempId = '_tcmt_' + Date.now();
+  var myLastPost = _muralState.posts.slice().reverse().find(function(p2) { return p2.userId === state.userId; });
+  if (post) {
+    if (!post.comments) post.comments = [];
+    var tempCmt = {
+      id: tempId, userId: state.userId,
+      nick: (myLastPost && myLastPost.nick) || state.userName || '??',
+      color: (myLastPost && myLastPost.color) || state.userColor || '#888',
+      text: savedText, likes: [], createdAt: Date.now(), _optimistic: true
+    };
+    post.comments.push(tempCmt);
+    _updateNewsStats(postId, post);
+    renderMuralFeed(true);
+  }
   try {
     var r = await apiFetch('/api/mural/' + postId + '/comment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: state.userId, text: text })
+      body: JSON.stringify({ userId: state.userId, text: savedText })
     });
     var d = await r.json();
-    if (d.error) { input.disabled = false; return showToast(d.error); }
-    input.value = '';
     input.disabled = false;
-    var post = _muralState.posts.find(function(p) { return p.id === postId; });
-    if (post) {
-      if (!post.comments) post.comments = [];
-      post.comments.push(d.comment);
-      renderMuralFeed();
+    if (d.error) {
+      // Remover optimistic
+      if (post) { post.comments = post.comments.filter(function(c) { return c.id !== tempId; }); renderMuralFeed(true); }
+      input.value = savedText;
+      return showToast(d.error);
     }
-    haptic([8]);
-  } catch (e) { input.disabled = false; showToast('Erro.'); }
+    // Substituir optimistic pelo real
+    if (post && d.comment) {
+      var ci = post.comments.findIndex(function(c) { return c.id === tempId; });
+      if (ci !== -1) post.comments[ci] = d.comment;
+    }
+  } catch (e) {
+    input.disabled = false;
+    if (post) { post.comments = post.comments.filter(function(c) { return c.id !== tempId; }); renderMuralFeed(true); }
+    input.value = savedText;
+    showToast('Erro.');
+  }
 }
 
 async function likeComment(postId, commentId) {
+  // Optimistic: toggle like imediatamente
+  var post = _muralState.posts.find(function(p) { return p.id === postId; });
+  var cmt = post && post.comments ? post.comments.find(function(c) { return c.id === commentId; }) : null;
+  if (cmt) {
+    if (!cmt.likes) cmt.likes = [];
+    var idx = cmt.likes.indexOf(state.userId);
+    if (idx !== -1) cmt.likes.splice(idx, 1); else cmt.likes.push(state.userId);
+    // Update inline: achar o botao e atualizar
+    var btn = document.querySelector('#mp_' + postId + ' [onclick*="' + commentId + '"].mural-cmt-like');
+    if (btn) {
+      var isLiked = cmt.likes.indexOf(state.userId) !== -1;
+      btn.className = 'mural-cmt-like' + (isLiked ? ' liked' : '');
+      var heart = isLiked ? '&#9829;' : '&#9825;';
+      var cnt = cmt.likes.length > 0 ? ' ' + cmt.likes.length : '';
+      btn.innerHTML = heart + cnt;
+    }
+  }
+  haptic([5]);
   try {
     var r = await apiFetch('/api/mural/' + postId + '/comment/' + commentId + '/like', {
       method: 'POST',
@@ -9362,13 +9393,8 @@ async function likeComment(postId, commentId) {
     });
     var d = await r.json();
     if (d.error) return showToast(d.error);
-    var post = _muralState.posts.find(function(p) { return p.id === postId; });
-    if (post && post.comments) {
-      var cmt = post.comments.find(function(c) { return c.id === commentId; });
-      if (cmt) cmt.likes = d.likes || cmt.likes;
-      renderMuralFeed();
-    }
-    haptic([5]);
+    // Sincronizar com servidor
+    if (cmt) cmt.likes = d.likes || cmt.likes;
   } catch (e) { showToast('Erro.'); }
 }
 
@@ -9778,27 +9804,32 @@ function _initMuralSocket() {
         if (badge && newLikes > 0) {
           badge.textContent = newLikes + (newLikes === 1 ? ' curtida' : ' curtidas');
         }
+        // Atualizar stats inline do card colapsado
+        _updateNewsStats(data.postId, post);
       }
     }
   });
   socket.on('mural-new-comment', function(data) {
     if (!data || !data.postId || !data.comment) return;
+    // Se e meu proprio comentario, ja foi tratado otimisticamente
+    if (data.comment.userId === state.userId) {
+      // Substituir optimistic pelo real se existir
+      var myPost = _muralState.posts.find(function(p) { return p.id === data.postId; });
+      if (myPost && myPost.comments) {
+        var optIdx = myPost.comments.findIndex(function(c) { return c._optimistic && c.userId === state.userId && c.text === data.comment.text; });
+        if (optIdx !== -1) myPost.comments[optIdx] = data.comment;
+      }
+      return;
+    }
     var post = _muralState.posts.find(function(p) { return p.id === data.postId; });
     if (post) {
       if (!post.comments) post.comments = [];
       if (!post.comments.find(function(c) { return c.id === data.comment.id; })) {
         post.comments.push(data.comment);
-        // Atualizar contador de comentarios inline
-        var countBtn = document.querySelector('#mp_' + data.postId + ' .mural-comments-count');
-        if (countBtn) {
-          var n = post.comments.length;
-          countBtn.textContent = n + ' comentario' + (n > 1 ? 's' : '');
-        }
         // Atualizar stats inline (likes/comments count)
         _updateNewsStats(data.postId, post);
-        // Re-render se comentarios visiveis ou card expandido
-        var cmtList = document.getElementById('cmts-' + data.postId);
-        if ((cmtList && cmtList.style.display !== 'none') || post._expanded) {
+        // Re-render se card expandido (pra mostrar comentario novo)
+        if (post._expanded) {
           renderMuralFeed(true);
         }
       }
