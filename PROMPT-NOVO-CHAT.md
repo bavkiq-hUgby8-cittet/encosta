@@ -41,8 +41,8 @@ o celular detecta via ultrassom (~18-22kHz), e cria uma relacao anonima de 24h.
 Podem se revelar, dar estrelas, fazer check-in em eventos, enviar presentes digitais.
 
 Stack: Node.js + Express + Socket.IO + Firebase RTDB
-Frontend: HTML/CSS/JS vanilla SPA (~18k linhas)
-Backend: server.js monolito (~13k linhas)
+Frontend: HTML/CSS/JS vanilla SPA (~19.5k linhas)
+Backend: server.js monolito (~13.7k linhas)
 Deploy: Render -> touch-irl.com (Cloudflare DNS)
 
 ## FUNCIONALIDADES (20 features)
@@ -74,11 +74,14 @@ Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
 | PROMPT-FINANCEIRO.md | Stripe Connect + pagamentos US |
 | PROMPT-FISCAL.md | Compliance fiscal US+BR, conciliacao |
 
-## STATUS ATUAL (27/02/2026)
+## STATUS ATUAL (28/02/2026)
 
 - App funcionando em producao (touch-irl.com)
 - touch irl, LLC em Delaware -- incorporacao em andamento
-- Stripe implementado no codigo (pendente ativar chaves)
+- Stripe implementado no codigo (pendente ativar chaves no Render)
+- Dashboard financeiro admin completo (receita, taxas, payouts, prestadores)
+- Sistema de payout manual para prestadores sem Stripe/MP
+- Stripe Connect por evento (conta separada por evento)
 - 30+ fixes de seguranca/performance aplicados
 - i18n parcial (frases poeticas traduzidas, UI pendente)
 - Proximo: traduzir UI para ingles (mercado US e prioridade #1)

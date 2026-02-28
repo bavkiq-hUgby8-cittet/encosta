@@ -2,6 +2,40 @@
 
 Historico consolidado de todas as sessoes de desenvolvimento.
 
+## Sessao 8 -- 28/02/2026
+
+### Revisao e atualizacao da documentacao financeira
+- PROMPT-FINANCEIRO.md reescrito com endpoints corretos, line numbers atualizados, DB collections novas
+- docs/ARQUITETURA.md atualizado (13762/19581 linhas, novos endpoints, collections eventPayments/payouts)
+- docs/CHANGELOG.md atualizado com sessoes 7 e 8
+
+---
+
+## Sessao 7 -- 27-28/02/2026 (agentes DEV no Render)
+
+### Financial Dashboard + Payouts + Event Payments
+- Dashboard financeiro admin completo (receita bruta, taxas, plataforma, transferencias)
+- Sistema de payout manual para prestadores sem Stripe/MP (PIX, TED, dinheiro)
+- Redesign UX de onboarding Stripe/MP para prestadores
+- Stripe Connect por evento (conta separada por evento do operador)
+- Prestador dashboard com entradas de eventos recebidas
+- Fixes de UI (scroll eventos, backgrounds harmonizados)
+- Correcao de sintaxe na linha 6114
+
+### Commits:
+- c382aa2 Fix UI issues: scroll on events page, harmonize backgrounds
+- f178451 fix: syntax error on line 6114 breaking app load
+- f63397c feat: redesign Stripe/MP onboarding UX for prestadores
+- f2fee66 feat: manual payout system for providers without Stripe/MP
+- 508afba feat: complete financial dashboard overhaul for all personas
+- f51969d fix: revisao completa do mural -- layout, real-time, duplicatas
+- 2f2b9fc fix: prestador dashboard includes entry payments + event-specific Stripe Connect
+- 71e6f2b feat: entry management workflow + payment skip flow + entryStatus display
+- 7cf6316 feat: real-time sync no painel operador + emit operator-event-update
+- e1fe3d8 redesign: operator events page with MSN-inspired glass morphism
+
+---
+
 ## Sessao 6 -- 27/02/2026
 
 ### Security + Docs
@@ -114,3 +148,4 @@ Historico consolidado de todas as sessoes de desenvolvimento.
 | 25/02 | ~10909 | ~15228 | ~370 |
 | 26/02 | ~11400 | ~16200 | ~390 |
 | 27/02 | ~13017 | ~18391 | ~410 |
+| 28/02 | ~13762 | ~19581 | ~622 |

@@ -1,6 +1,6 @@
 # ARQUITETURA TECNICA -- Touch? (Encosta)
 
-Atualizado: 27/02/2026
+Atualizado: 28/02/2026
 
 ## STACK
 
@@ -18,8 +18,8 @@ Atualizado: 27/02/2026
 
 ## ARQUIVOS PRINCIPAIS
 
-- server.js (~13017 linhas) -- Backend monolito
-- public/index.html (~18391 linhas) -- Frontend SPA (25+ telas)
+- server.js (~13762 linhas) -- Backend monolito
+- public/index.html (~19581 linhas) -- Frontend SPA (25+ telas)
 - public/va-test.html (~1260 linhas) -- Tela de ligacao dos 3 assistentes + Dev Log
 - public/va-admin.html (~501 linhas) -- Painel admin dos assistentes de voz
 - public/admin.html (~989 linhas) -- Painel administrativo (8 abas)
@@ -32,47 +32,49 @@ Atualizado: 27/02/2026
 - simulador-estrelas.html -- Simulador da economia de estrelas
 - package.json -- Dependencias
 
-## MAPA DO SERVER.JS (~13017 linhas)
+## MAPA DO SERVER.JS (~13762 linhas)
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET, vaLimiter)
 Linha ~180-600: Firebase Admin, DB in-memory com dirty tracking, indexes (IDX), top tag calc
 Linha ~600-760: Dirty tracking (saveDB), backup/rollback system
 Linha ~780-1050: Auth (Firebase verify, link accounts, unificacao de contas)
-Linha ~1050-1250: MercadoPago config, phrases bank, zodiac system
-Linha ~1400-1800: Sonic matching, session create/join, streak system, NFC/QR links
-Linha ~1800-4400: REST APIs (user, relations, messages, constellation, stars, gifts, reveals, likes, profile, notifications, events, selfie, horoscope)
-Linha ~4400-4600: Admin endpoints (reset, backup, rollback, recover, dashboard-stats, users, toggle-admin, events, financial)
-Linha ~4600-4900: Socket.IO (identify, messages, typing, sonic, game lobby, game events)
-Linha ~4900-5850: MercadoPago (prestador, tips, pix, checkout, saved card, one-tap, subscription)
-Linha ~5850-6080: Assinaturas (Plus + Selo)
-Linha ~6080-6440: Voice Agent base (OpenAI Realtime sessions, notas, acesso)
-Linha ~6440-6550: Operator/Events/Restaurant (checkins, settings, events, menu, orders)
-Linha ~6550-6560: API Keys (OPENAI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY)
-Linha ~6560-6880: Timezone helpers, buildUserContext, VA cost tracking
-Linha ~6880-7100: VA tier system (canUseProVA, canUseUltimateVA, /api/agent/access)
-Linha ~7100-7400: VA Plus/Pro sessions (OpenAI Realtime)
-Linha ~7400-7700: VA context endpoint (/api/agent/context/:userId)
-Linha ~7700-8100: VA UltimateDEV session (OpenAI Realtime + 18 tools + interceptor)
-Linha ~7751: ULTIMATE_ADMIN_IDS (hardcoded UUIDs) + canUseUltimateVA()
-Linha ~8100-8300: Dev command endpoints (planejamento ASYNC com Claude)
-Linha ~8300-8400: Dev ping endpoint (POST /api/dev/ping)
-Linha ~8400-8600: _processDevPlan() e _processDevApproval() (async background)
-Linha ~8600-8700: GET /api/dev/status/:commandId (polling)
-Linha ~8700-8900: Dev diagnostico, approve, reject, learn, conversation endpoints
-Linha ~8800-9000: Dev history endpoint
-Linha ~9000-9200: VA conversation persistence (vaConversations)
-Linha ~9200-11000: VA Config system, fetchWithTimeout, security audit fixes
-Linha ~11000-11970: Onboarding VA, Stripe config (stripeInstance)
-Linha ~11970-12260: Stripe endpoints (pay, create-payment-intent, confirm, subscription, cancel) -- requireAuth
-Linha ~12260-12330: Stripe Connect (connect-url, connect-refresh, connect-result)
-Linha ~12330-12450: Stripe webhook (/stripe/webhook -- sem auth, necessario)
-Linha ~12450-12620: Games endpoints (sessions, invite, temp-chat, results) -- requireAuth
-Linha ~12620-12890: Mural system (canais, posts, likes, comments, ask-agent, news-chat, ban, narrate)
-Linha ~12890-12970: Radio Touch (play, stop) -- requireAuth
-Linha ~12970-13017: Server listen, cleanup
-GET /api/dev/monitor (~9100-9200): stats de todos os usuarios
+Linha ~1050-1300: MercadoPago config, phrases bank, zodiac system
+Linha ~1400-1950: Sonic matching, session create/join, streak system, NFC/QR links
+Linha ~1950-4050: REST APIs (user, relations, messages, constellation, stars, gifts, reveals, likes, profile, notifications, events, selfie, horoscope)
+Linha ~4050-5300: Mural system (canais, posts, likes, comments, ask-agent, news-chat, ban, narrate, online)
+Linha ~5300-5400: Doc verification, face enrollment/verify
+Linha ~5400-5700: Admin verify, admin grant-plus, admin events, score breakdown, debug
+Linha ~5700-5850: Location, events (create, join, nearby, encosta-request/accept)
+Linha ~5850-6100: Contact requests, horoscope, selfie
+Linha ~6100-6440: Voice Agent base (OpenAI Realtime sessions, notas, acesso)
+Linha ~6440-6690: Admin endpoints (reset, backup, rollback, recover, dashboard-stats, users, toggle-admin, events)
+Linha ~6690-6930: Dashboard Financeiro Admin + Payouts manuais + Bank info prestador
+Linha ~6930-7000: Status, Firebase diagnostic, force-reload, force-connect
+Linha ~7000-7460: VA tier system (canUseProVA, canUseUltimateVA, sessions Plus/Pro/UltimateDEV)
+Linha ~7460-7570: MercadoPago config (service-types, mp-public-key, prestador register, MP OAuth)
+Linha ~7570-8060: Gorjetas (tip/create, tip/pix, tip/checkout, tip-result, tips list, financial, transactions)
+Linha ~8060-8200: Prestador dashboard (gorjetas + entradas recebidas)
+Linha ~8200-8270: MP Webhook (/mp/webhook)
+Linha ~8270-8530: Cartao salvo (save-card, saved-card, quick-pay, delete, mp-checkout)
+Linha ~8530-8900: Assinaturas MP (create-card, plans, status, create, sub-result, webhook, cancel, create-pix)
+Linha ~8900-9500: VA config, conversation persistence, onboarding
+Linha ~9500-9810: VA onboarding (config, session, audio, done, reset)
+Linha ~9810-10000: VA context endpoint, notes, grant-access, access check, costs
+Linha ~10000-10180: VA Premium (Pro) session
+Linha ~10180-10450: VA UltimateDEV session (OpenAI Realtime + 18 tools + interceptor)
+Linha ~10450-10700: Dev command endpoints (ping, diagnostico, command)
+Linha ~10700-11100: Dev status, queue, monitor, _processDevPlan, _processDevApproval
+Linha ~11100-11300: Dev approve, reject, learn, conversation, va conversation
+Linha ~11300-11400: Dev thought, backup, save-file, escriba
+Linha ~11400-12260: Stripe config (stripeInstance), Stripe endpoints (pay, create-payment-intent, confirm, subscription, cancel)
+Linha ~12260-12330: Stripe Connect pessoal (connect-url, connect-refresh, connect-result)
+Linha ~12330-12450: Stripe Connect status + Event Connect (event-connect-url, event-connect-result)
+Linha ~12450-12620: Stripe Webhook (/api/stripe/webhook)
+Linha ~12620-12840: Games endpoints (sessions, invite, temp-chat, results)
+Linha ~12840-13100: Mural extended (Radio Touch play/stop)
+Linha ~13100-13762: Server listen, cleanup, error handling
 
-## MAPA DO INDEX.HTML (~18391 linhas)
+## MAPA DO INDEX.HTML (~19581 linhas)
 
 Linha ~1-400: CSS completo (variaveis, telas, componentes, animacoes)
 Linha ~400-1460: CSS Dev Log panel (tema branco/clean, azul #60a5fa)
@@ -86,19 +88,20 @@ Linha ~9500-11000: Voice Agent (WebRTC, audio pipeline, anti-echo)
 Linha ~11000-11500: VA Tier system
 Linha ~11500-12000: VA UltimateDEV (dev tool handlers, escriba, camera/screen)
 Linha ~12000-12500: TouchGames integration
-Linha ~12500-13700: Event handlers, game socket events, Dev Log HTML
-Linha ~13700-14200: VA connect(), DataChannel, SDP exchange
-Linha ~14200-14600: VA tool handlers + Dev Interceptor
-Linha ~14600-14700: Dev Log IIFE
-Linha ~14700-15200: Escriba, cleanup, init
+Linha ~12500-14000: Event handlers, game socket events, Dev Log HTML
+Linha ~14000-14600: VA connect(), DataChannel, SDP exchange
+Linha ~14600-15200: VA tool handlers + Dev Interceptor
+Linha ~15200-15400: Dev Log IIFE
+Linha ~15400-16000: Escriba, cleanup, init
+Linha ~16000-19581: Financial dashboard, prestador UX, payout screens, event payment UI
 
 ## DB COLLECTIONS (Firebase)
 
-users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations, muralPosts
+users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations, muralPosts, eventPayments, payouts
 
 ## VARIAVEIS DE AMBIENTE (Render)
 
-### Obrigatorias (verificadas 27/02/2026):
+### Obrigatorias (verificadas 28/02/2026):
 - ADMIN_SECRET -- protege endpoints admin
 - ANTHROPIC_API_KEY -- cerebro de dev (Claude Opus 4)
 - APP_URL=https://touch-irl.com
@@ -122,9 +125,10 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 
 1. GORJETAS: PIX, cartao novo, cartao salvo one-tap, Checkout Pro MP, Stripe (US)
 2. ASSINATURAS: Touch Plus R$50/mes, Selo R$10/mes
-3. ENTRADA EM EVENTOS: Cartao novo ou one-tap
-4. ESTRELAS: Compradas com pontos de jogo (sem dinheiro real)
-5. PRESENTES: Comprados com pontos (sem dinheiro real)
+3. ENTRADA EM EVENTOS: Cartao novo ou one-tap, com split para operador via Stripe Connect por evento
+4. PAYOUTS MANUAIS: Admin registra pagamento (PIX/TED/dinheiro) para prestadores sem Stripe/MP
+5. ESTRELAS: Compradas com pontos de jogo (sem dinheiro real)
+6. PRESENTES: Comprados com pontos (sem dinheiro real)
 
 ## FUNCIONALIDADES IMPLEMENTADAS
 
@@ -148,6 +152,9 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 18. Radio Touch: locutor IA (OpenAI TTS)
 19. Stripe Connect: pagamentos internacionais, Apple Pay, Google Pay
 20. Nacionalidade: campo com deteccao automatica
+21. Dashboard financeiro admin: receita bruta, taxas, plataforma, prestadores, payouts
+22. Payout manual: sistema de pagamento para prestadores sem Stripe/MP
+23. Stripe Connect por evento: conta separada para cada evento do operador
 
 ## RATE LIMITING
 
