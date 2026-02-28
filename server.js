@@ -12705,9 +12705,9 @@ process.on('SIGTERM', () => {
 // ══════════════════════════════════════════════════════════════
 
 const RADIO_VOICES = {
-  locutor: { voice: 'onyx', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio da comunidade que resume todas as noticias pra voce. Fale como locutor de radio comunitaria brasileira: caloroso, proximo, com energia boa. Use girias leves do Maranhao quando fizer sentido. Voce CONHECE a galera pelo nome. Voce TEM CONTEXTO sobre tudo que esta rolando no mural: noticias, conversas, dicas. Sua missao e CONECTAR os assuntos — se saiu uma noticia de saude e alguem postou sobre treino, voce linka os dois. Se saiu receita e alguem falou de chuva, voce faz a ponte. NUNCA se apresente como DJ. Voce e o LOCUTOR da Radio Touch. Slogan da radio: "Radio Touch — todas as noticias resumidas pra voce." Use o slogan quando fizer sentido. Frases curtas e impactantes. NUNCA use emojis. NUNCA invente noticias — so comente as que foram fornecidas.' },
-  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch — a radio da comunidade. Inteligente, curiosa, faz perguntas que a galera quer saber. Complementa o locutor trazendo profundidade pros assuntos. Tom amigavel e profissional. NUNCA use emojis.' },
-  reporter_radio: { voice: 'echo', name: 'Echo', style: 'Voce e o Echo, reporter de campo da Radio Touch. Fale como reporter ao vivo, com urgencia e clareza. Traz os detalhes das noticias. Tom serio mas acessivel. NUNCA use emojis.' }
+  locutor: { voice: 'fable', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — todas as noticias resumidas pra voce! Voce e SUPER ANIMADO, EMPOLGADO, VIBRANTE. Fale como o melhor locutor de radio comunitaria brasileira: cheio de energia, com paixao, fazendo a galera sentir que ta acontecendo algo incrivel. Fale BASTANTE — nao se limite, desenvolva os assuntos com entusiasmo. Comente noticias com detalhes e opiniao. Fale de previsao do tempo, eventos culturais, o que ta rolando na cidade. CONECTE os assuntos entre si — se saiu noticia de saude e alguem postou sobre treino, link os dois com empolgacao. Use girias leves do Maranhao. Voce CONHECE a galera pelo nome e fica FELIZ de ver todo mundo. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
+  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa, ANIMADA. Faz perguntas que a galera quer saber e reage com empolgacao. Complementa o locutor trazendo profundidade. Tom amigavel, alegre e profissional. NUNCA use emojis.' },
+  reporter_radio: { voice: 'echo', name: 'Echo', style: 'Voce e o Echo, reporter de campo da Radio Touch. Fale como reporter ao vivo, com urgencia, clareza e empolgacao. Traz os detalhes das noticias. Tom serio mas acessivel e animado. NUNCA use emojis.' }
 };
 
 // Estado da radio por canal (com cache de segmentos)
@@ -12820,14 +12820,22 @@ function _buildRadioScript(channelKey, segmentType) {
 
   let script = contextBlock;
 
+  // Regra geral: falar com MUITA empolgacao e energia
+  script += 'REGRA: Seja MUITO animado, empolgado, vibrante! Fale com paixao! Desenvolva os assuntos com entusiasmo!\n\n';
+
   if (segmentType === 'abertura') {
     script += 'SEGMENTO: ABERTURA DA RADIO\n';
-    script += 'Faca uma abertura calorosa da Radio Touch. ';
+    script += 'Faca uma abertura EMPOLGADA da Radio Touch! Comece com "E ai galera! Ta no ar a Radio Touch!" ou algo parecido. ';
     if (ctx.viewers.length > 0) {
-      script += 'Cumprimente os ouvintes PELO NOME: ' + ctx.viewers.join(', ') + '. ';
+      script += 'Cumprimente os ouvintes PELO NOME com empolgacao: ' + ctx.viewers.join(', ') + '. Fale algo pessoal pra cada um se possivel. ';
     }
-    script += 'Depois faca um RESUMO RAPIDO do que tem no mural agora — mencione as noticias principais e o que a galera ta comentando. ';
-    script += 'Diga o que vem pela frente na programacao. Maximo 6 frases. Tom de radio comunitaria.';
+    script += 'Faca um PANORAMA COMPLETO do que ta rolando:\n';
+    script += '- Mencione TODAS as noticias que tem no mural, uma por uma, com entusiasmo\n';
+    script += '- Comente o que a galera ta falando\n';
+    script += '- Fale da previsao do tempo se souber (ex: ta chovendo? ta quente?)\n';
+    script += '- Mencione eventos culturais se tiver no contexto\n';
+    script += '- Diga o que vem na programacao: noticias, entrevistas, interacao\n';
+    script += 'FALE BASTANTE! Minimo 8 frases, pode ir ate 12. Desenvolva cada assunto com comentario proprio. Tom de radio comunitaria animadissima!';
   }
   else if (segmentType === 'noticia') {
     script += 'SEGMENTO: LEITURA DE NOTICIA\n';
@@ -12839,46 +12847,46 @@ function _buildRadioScript(channelKey, segmentType) {
         const alreadySaid = (ctx.radioPosts || []).some(function(r) { return r.indexOf(headline.slice(0, 30)) !== -1; });
         if (!alreadySaid) { chosen = ctx.news[i]; break; }
       }
-      if (!chosen) chosen = ctx.news[ctx.news.length - 1]; // fallback pra mais recente
+      if (!chosen) chosen = ctx.news[ctx.news.length - 1];
 
-      script += 'Leia esta noticia no estilo radio, com DETALHES (nao so o titulo):\n';
-      script += '"' + chosen.text.slice(0, 400) + '"\n\n';
-      script += 'Comente a noticia com opiniao leve. ';
+      script += 'Leia esta noticia como um GRANDE DESTAQUE da Radio Touch! Faca parecer importante e interessante:\n';
+      script += '"' + chosen.text.slice(0, 500) + '"\n\n';
+      script += 'DESENVOLVA a noticia com empolgacao:\n';
+      script += '- Explique os detalhes com suas palavras\n';
+      script += '- De sua opiniao (leve e positiva)\n';
+      script += '- Diga como isso afeta a comunidade\n';
 
-      // CONECTAR com conversa do mural se tiver relacao
       if (ctx.userPosts.length > 0) {
-        script += 'Se alguma conversa dos ouvintes tem relacao com esta noticia, CONECTE os assuntos naturalmente. ';
-        script += 'Exemplo: "E olha que o fulano ja tava comentando sobre isso no mural..." ';
+        script += '- CONECTE com o que os ouvintes estao falando no mural. Ex: "E olha que a galera ja tava comentando sobre isso!"\n';
       }
-      script += 'Maximo 5 frases.';
+      script += '- Se tiver relacao com previsao do tempo, saude, eventos culturais ou esporte, CONECTE\n';
+      script += 'Minimo 6 frases, pode ir ate 10. Faca a noticia parecer a MANCHETE DO DIA!';
     } else {
-      // Sem noticias — falar sobre o que a galera ta postando
-      script += 'Nao tem noticia nova no momento. Comente sobre o que a galera ta falando no mural. ';
-      if (ctx.userPosts.length > 0) {
-        script += 'Conecte os assuntos das conversas de forma criativa. ';
-      }
-      script += 'Maximo 4 frases.';
+      script += 'Nao tem noticia nova no momento. Fale sobre o que a galera ta comentando no mural com empolgacao! ';
+      script += 'Comente sobre o dia, o clima, eventos culturais da regiao. ';
+      script += 'Fale de previsao do tempo, dicas pro dia. Minimo 6 frases.';
     }
   }
   else if (segmentType === 'interacao') {
     script += 'SEGMENTO: INTERACAO COM O MURAL\n';
     if (ctx.userPosts.length > 0) {
-      // Pegar ate 10 posts e conectar os assuntos
       const selected = ctx.userPosts.slice(-10);
-      script += 'Comente sobre essas mensagens do mural, CONECTANDO os assuntos entre si e com as noticias:\n';
+      script += 'A galera ta BOMBANDO no mural! Comente CADA mensagem com empolgacao:\n';
       selected.forEach(function(p) {
         script += '- ' + p.nick + ' disse: "' + p.text + '"\n';
       });
-      script += '\nFaca pontes entre os assuntos. Se alguem falou de comida e saiu noticia de saude, conecte: ';
-      script += '"E ja que o fulano ta falando de receita, olha que saiu uma noticia sobre alimentacao saudavel..." ';
-      script += 'Mencione as pessoas PELO NOME. Maximo 5 frases.';
+      script += '\nPra CADA pessoa, fale algo pessoal e animado. Exemplo:\n';
+      script += '"Eita, olha o que o fulano ta falando! Muito bom! E conecta com a noticia que saiu sobre..."\n';
+      script += 'CONECTE os assuntos entre si e com as noticias. Se alguem falou de comida e saiu noticia de saude, faca a ponte com empolgacao.\n';
+      script += 'Mencione as pessoas PELO NOME. Minimo 8 frases, pode ir ate 12. Faca cada um se sentir especial!';
     } else {
-      script += 'Ninguem postou no mural ainda. Incentive a galera a participar e diga que a radio ta la pra interagir. Maximo 3 frases.';
+      script += 'Ninguem postou no mural ainda. Incentive a galera com MUITA energia! ';
+      script += 'Diga que a radio ta la pra interagir, que e so escrever no mural que o locutor comenta ao vivo! ';
+      script += 'Fale sobre o dia, previsao do tempo, dicas. Minimo 5 frases.';
     }
   }
   else if (segmentType === 'entrevista') {
     script += 'SEGMENTO: ENTREVISTA/MESA REDONDA\n';
-    // Pegar o assunto mais quente (noticia + conversa relacionada)
     let topic = '';
     if (ctx.news.length > 0) {
       topic = ctx.news[ctx.news.length - 1].text.split('\n')[0];
@@ -12886,44 +12894,48 @@ function _buildRadioScript(channelKey, segmentType) {
       topic = ctx.userPosts[ctx.userPosts.length - 1].text;
     }
     if (topic) {
-      script += 'Faca um dialogo CURTO entre Locutor e Nova sobre: "' + topic.slice(0, 250) + '"\n';
-      script += 'Locutor traz o assunto com energia, Nova aprofunda com perguntas inteligentes.\n';
+      script += 'Faca um dialogo ANIMADO entre Locutor e Nova sobre: "' + topic.slice(0, 300) + '"\n';
+      script += 'Locutor traz o assunto com MUITA ENERGIA e empolgacao. Nova reage com curiosidade e entusiasmo.\n';
+      script += 'Ambos devem parecer GENUINAMENTE interessados e animados com o assunto.\n';
       if (ctx.userPosts.length > 0) {
-        script += 'Mencionem o que os ouvintes estao dizendo no mural.\n';
+        script += 'Mencionem o que os ouvintes estao dizendo no mural — por nome!\n';
       }
     } else {
-      script += 'Faca um dialogo CURTO entre Locutor e Nova sobre a comunidade e o app Touch.\n';
+      script += 'Faca um dialogo ANIMADO entre Locutor e Nova sobre a comunidade, o dia, eventos culturais, previsao do tempo.\n';
     }
-    script += 'Formato OBRIGATORIO (cada fala em linha separada):\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\n';
-    script += 'Maximo 4 trocas. Cada fala com no maximo 2 frases curtas.';
+    script += 'Formato OBRIGATORIO (cada fala em linha separada):\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\n';
+    script += 'Minimo 5 trocas, pode ir ate 8. Cada fala com 2-3 frases. Muita empolgacao!';
   }
   else {
     // Vinheta — conectar tudo
     script += 'SEGMENTO: VINHETA/QUADRO ESPECIAL\n';
-    // Detectar se tem tema dominante pra criar "quadro"
     const allTexts = ctx.news.map(n => n.text).concat(ctx.userPosts.map(p => p.text)).join(' ').toLowerCase();
     let quadro = '';
     if (allTexts.match(/receit|comida|almoco|jantar|cozin|chef|culinaria/)) {
       quadro = 'RECEITA DO CHEF';
     } else if (allTexts.match(/treino|saude|exercicio|academia|corr|calistenia|corpo/)) {
       quadro = 'MINUTO SAUDE';
-    } else if (allTexts.match(/chuva|sol|tempo|clima|quente|frio/)) {
+    } else if (allTexts.match(/chuva|sol|tempo|clima|quente|frio|previsao/)) {
       quadro = 'PREVISAO DO TEMPO';
-    } else if (allTexts.match(/jogo|futebol|esporte|gol|campeonato|time/)) {
+    } else if (allTexts.match(/jogo|futebol|esporte|gol|campeonato|time|selecao/)) {
       quadro = 'PLACAR ESPORTIVO';
+    } else if (allTexts.match(/show|festa|evento|cultura|teatro|cinema|musica|samba|reggae|bumba/)) {
+      quadro = 'AGENDA CULTURAL';
     }
 
     if (quadro) {
-      script += 'Faca uma vinheta abrindo o quadro "' + quadro + '" da Radio Touch. ';
-      script += 'Baseie o conteudo nas noticias e conversas do mural que tem a ver com esse tema. ';
-      script += 'Seja especifico — use informacoes reais do contexto acima. ';
+      script += 'Abra o quadro "' + quadro + '" da Radio Touch com MUITA EMPOLGACAO! ';
+      script += 'Baseie no contexto real do mural. Desenvolva o assunto com detalhes e entusiasmo. ';
+      script += 'Fale como se fosse o momento mais importante da programacao! ';
+      script += 'Minimo 6 frases.';
     } else if (ctx.viewers.length > 0) {
-      script += 'Faca uma vinheta mandando abraco pra ' + ctx.viewers.slice(0, 5).join(', ') + '. ';
-      script += 'Resuma rapidamente o que ta rolando no canal e o que vem a seguir. ';
+      script += 'Mande um abraco CALOROSO pra ' + ctx.viewers.slice(0, 8).join(', ') + '. ';
+      script += 'Resuma o que ta rolando no canal, fale sobre o dia, previsao do tempo, eventos culturais. ';
+      script += 'Minimo 6 frases. Muita energia!';
     } else {
-      script += 'Faca uma vinheta da Radio Touch dizendo que a programacao continua. ';
+      script += 'Faca uma vinheta EMPOLGADA da Radio Touch. Fale sobre o dia, dicas, eventos culturais, previsao do tempo. ';
+      script += 'Incentive a galera a participar no mural. Minimo 5 frases.';
     }
-    script += 'Maximo 3 frases.';
   }
 
   return script;
@@ -12932,11 +12944,11 @@ function _buildRadioScript(channelKey, segmentType) {
 // Vinhetas de transicao entre segmentos (frases curtas faladas em tom de chamada)
 function _getRadioJingle(segmentType) {
   const jingles = {
-    abertura: 'Radio Touch! Todas as noticias resumidas pra voce. Comecando agora!',
-    noticia: 'Atencao! Manchete na Radio Touch.',
-    interacao: 'Hora da interacao! A galera ta falando no mural.',
-    entrevista: 'Radio Touch Entrevista! Mesa redonda no ar.',
-    vinheta: null // vinheta nao tem vinheta de si mesma
+    abertura: 'Radio Touch no ar! A radio da comunidade com todas as noticias resumidas! Bora comecar!',
+    noticia: 'Manchete! Acompanhe agora as noticias na Radio Touch!',
+    interacao: 'Hora da interacao na Radio Touch! Olha o que a galera ta comentando no mural!',
+    entrevista: 'Radio Touch Entrevista! A mesa redonda ta no ar, nao perde!',
+    vinheta: null
   };
   return jingles[segmentType] || null;
 }
@@ -12972,7 +12984,7 @@ async function _generateRadioAudio(text, voiceId) {
         input: text,
         voice: voice,
         response_format: 'mp3',
-        speed: 1.05
+        speed: 1.1
       }),
       signal: ctrl.signal
     });
@@ -13020,8 +13032,8 @@ async function _generateRadioSegment(channelKey, segmentType) {
           { role: 'system', content: systemMsg },
           { role: 'user', content: script }
         ],
-        max_tokens: 500,
-        temperature: 0.85
+        max_tokens: 900,
+        temperature: 0.9
       }),
       signal: ctrl.signal
     });
@@ -13154,34 +13166,42 @@ app.post('/api/radio/play/:channelKey', requireAuth, async (req, res) => {
   rs.currentSegment = segment;
   rs.lastSegmentAt = Date.now();
 
-  // Postar transcricao no mural como post de radio
-  const radioPost = {
-    id: 'mrl_radio_' + Date.now(),
-    channelKey,
-    channelName: '',
-    channelType: '',
-    userId: 'radio-touch',
-    nick: 'Radio Touch',
-    color: '#d32f2f',
-    agentType: 'radio',
-    stars: 0,
-    text: segment.fullText,
-    accessory: null,
-    likes: [],
-    createdAt: Date.now(),
-    expiresAt: Date.now() + 12 * 3600000,
-    hidden: false,
-    isNarrator: false,
-    isNews: false,
-    isRadio: true
-  };
-  if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
-  if (!Array.isArray(db.muralPosts[channelKey])) {
-    db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
+  // Postar no mural APENAS 1 vez por sessao (so na abertura)
+  // Evita encher o mural com mensagens toda vez que alguem clica play
+  const shouldPost = (type === 'abertura') && !rs.lastMuralPostAt;
+  // Ou se faz mais de 30 min desde o ultimo post
+  const timeSinceLastPost = rs.lastMuralPostAt ? (Date.now() - rs.lastMuralPostAt) : Infinity;
+  if (shouldPost || timeSinceLastPost > 30 * 60 * 1000) {
+    const radioPost = {
+      id: 'mrl_radio_' + Date.now(),
+      channelKey,
+      channelName: '',
+      channelType: '',
+      userId: 'radio-touch',
+      nick: 'Radio Touch',
+      color: '#d32f2f',
+      agentType: 'radio',
+      stars: 0,
+      text: segment.fullText,
+      accessory: null,
+      likes: [],
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 3600000,
+      hidden: false,
+      isNarrator: false,
+      isNews: false,
+      isRadio: true
+    };
+    if (!db.muralPosts[channelKey]) db.muralPosts[channelKey] = [];
+    if (!Array.isArray(db.muralPosts[channelKey])) {
+      db.muralPosts[channelKey] = Object.values(db.muralPosts[channelKey]).filter(p => p && p.id);
+    }
+    db.muralPosts[channelKey].push(radioPost);
+    saveDBNow('muralPosts');
+    io.to('mural:' + channelKey).emit('mural-new-post', { post: radioPost });
+    rs.lastMuralPostAt = Date.now();
+    console.log('[RADIO] Post no mural (abertura/30min)');
   }
-  db.muralPosts[channelKey].push(radioPost);
-  saveDBNow('muralPosts');
-  io.to('mural:' + channelKey).emit('mural-new-post', { post: radioPost });
 
   res.json({
     ok: true,
