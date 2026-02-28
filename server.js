@@ -7649,12 +7649,11 @@ app.get('/tip-result', (req, res) => {
   res.redirect('/?tipResult=' + (status || 'unknown') + '&tipId=' + (tipId || ''));
 });
 
-// Tip history for user
+// Tip history for user (includes entry payments)
 app.get('/api/tips/:userId', requireAuth, (req, res) => {
   const userId = req.params.userId;
   const tipIds = new Set([...(IDX.tipsByPayer.get(userId) || []), ...(IDX.tipsByReceiver.get(userId) || [])]);
-  const tips = Array.from(tipIds).map(tid => db.tips[tid]).filter(Boolean)
-    .sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+  const tips = Array.from(tipIds).map(tid => db.tips[tid]).filter(Boolean);
   const enriched = tips.map(t => ({
     ...t,
     payerName: db.users[t.payerId]?.nickname || '?',
@@ -7666,7 +7665,26 @@ app.get('/api/tips/:userId', requireAuth, (req, res) => {
     receiverService: db.users[t.receiverId]?.serviceLabel || '',
     direction: t.payerId === userId ? 'sent' : 'received'
   }));
-  res.json(enriched);
+  // Also include event payments (entry fees) as tip-like items
+  const eventPayments = Object.values(db.eventPayments || {}).filter(ep => ep.payerId === userId);
+  const enrichedEntries = eventPayments.map(ep => {
+    const ev = db.operatorEvents[ep.eventId];
+    const operator = ep.receiverId ? db.users[ep.receiverId] : null;
+    return {
+      ...ep,
+      type: 'entry',
+      payerName: db.users[ep.payerId]?.nickname || '?',
+      payerPhoto: db.users[ep.payerId]?.profilePhoto || null,
+      payerColor: db.users[ep.payerId]?.color || null,
+      receiverName: ep.eventName || (ev ? ev.name : '?'),
+      receiverPhoto: ev ? (ev.eventLogo || null) : (operator ? operator.profilePhoto : null),
+      receiverColor: operator ? operator.color : '#60a5fa',
+      receiverService: '',
+      direction: 'sent'
+    };
+  });
+  const all = [...enriched, ...enrichedEntries].sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+  res.json(all);
 });
 
 // Financial summary for user (extrato)
@@ -7727,7 +7745,27 @@ app.get('/api/user/:userId/transactions', requireAuth, (req, res) => {
       timestamp: t.createdAt || 0
     });
   });
-  // 2. Encounters (connections)
+  // 2. Event payments (entry fees)
+  Object.values(db.eventPayments || {}).forEach(ep => {
+    if (ep.payerId !== userId) return;
+    const ev = db.operatorEvents[ep.eventId];
+    const operatorUser = ep.receiverId ? db.users[ep.receiverId] : null;
+    transactions.push({
+      id: ep.id,
+      type: 'entry',
+      direction: 'sent',
+      amount: ep.amount || 0,
+      fee: 0,
+      status: ep.status || 'unknown',
+      statusDetail: '',
+      otherName: ep.eventName || (ev ? ev.name : '?'),
+      otherColor: operatorUser ? operatorUser.color : '#60a5fa',
+      otherPhoto: ev ? ev.eventLogo : (operatorUser ? operatorUser.profilePhoto : null),
+      eventName: ep.eventName || (ev ? ev.name : null),
+      timestamp: ep.createdAt || 0
+    });
+  });
+  // 3. Encounters (connections)
   (db.encounters[userId] || []).forEach(e => {
     transactions.push({
       id: 'enc-' + e.timestamp,
@@ -7737,6 +7775,7 @@ app.get('/api/user/:userId/transactions', requireAuth, (req, res) => {
       status: 'ok',
       otherName: e.isEvent ? (e.withName || '?') : currentNick(e.with, e.withName),
       otherColor: e.withColor || '#888',
+      otherPhoto: e.withPhoto || null,
       phrase: e.phrase || null,
       eventName: e.isEvent ? e.withName : null,
       timestamp: e.timestamp || 0
@@ -11995,8 +12034,19 @@ app.get('/api/stripe/config', (req, res) => {
 // Legacy Express Checkout endpoint (kept for backward compatibility)
 app.post('/api/stripe/pay', requireAuth, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
-  const { paymentMethodId, amount, payerId, receiverId } = req.body;
+  const { paymentMethodId, amount, payerId, receiverId, type, eventId } = req.body;
   if (!paymentMethodId || !amount || amount < 1) return res.status(400).json({ error: 'Dados invalidos' });
+
+  // For entry payments, resolve the event operator as receiver
+  let effectiveReceiverId = receiverId;
+  let isEntry = (type === 'entry' && eventId);
+  let ev = null;
+  if (isEntry) {
+    ev = db.operatorEvents[eventId];
+    if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+    effectiveReceiverId = ev.creatorId;
+  }
+
   try {
     const intentData = {
       amount: Math.round(amount * 100),
@@ -12004,9 +12054,9 @@ app.post('/api/stripe/pay', requireAuth, async (req, res) => {
       payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      metadata: { payerId, receiverId, source: 'touch-express-checkout' }
+      metadata: { payerId, receiverId: effectiveReceiverId || '', type: type || 'tip', eventId: eventId || '', source: 'touch-express-checkout' }
     };
-    const receiver = receiverId ? db.users[receiverId] : null;
+    const receiver = effectiveReceiverId ? db.users[effectiveReceiverId] : null;
     if (receiver && receiver.stripeConnectId && receiver.stripeConnected) {
       const fee = Math.round(Math.round(amount * 100) * TOUCH_FEE_PERCENT / 100);
       intentData.application_fee_amount = fee;
@@ -12015,17 +12065,41 @@ app.post('/api/stripe/pay', requireAuth, async (req, res) => {
     const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
     if (paymentIntent.status === 'succeeded') {
       const tipId = uuidv4();
-      if (!db.tips) db.tips = {};
-      const tipStripeExpress = { id: tipId, payerId, receiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripePaymentIntentId: paymentIntent.id };
-      db.tips[tipId] = tipStripeExpress;
-      if (!IDX.tipsByPayer.has(tipStripeExpress.payerId)) IDX.tipsByPayer.set(tipStripeExpress.payerId, []);
-      IDX.tipsByPayer.get(tipStripeExpress.payerId).push(tipStripeExpress.id);
-      if (!IDX.tipsByReceiver.has(tipStripeExpress.receiverId)) IDX.tipsByReceiver.set(tipStripeExpress.receiverId, []);
-      IDX.tipsByReceiver.get(tipStripeExpress.receiverId).push(tipStripeExpress.id);
-      saveDB('tips');
-      const payer = db.users[payerId];
-      const payerName = payer ? (payer.nickname || payer.name || '?') : '?';
-      io.to(`user:${receiverId}`).emit('tip-received', { amount, from: payerName, status: 'approved' });
+
+      if (isEntry && ev) {
+        // Save as entry payment in eventPayments
+        if (!db.eventPayments) db.eventPayments = {};
+        db.eventPayments[tipId] = {
+          id: tipId, payerId, eventId, eventName: ev.name || '', amount,
+          receiverId: effectiveReceiverId, currency: 'brl',
+          stripePaymentIntentId: paymentIntent.id, status: 'approved',
+          method: 'stripe-express', createdAt: Date.now()
+        };
+        // Update event stats
+        ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+        ev.revenue = (ev.revenue || 0) + amount;
+        if (!ev.participants) ev.participants = [];
+        if (!ev.participants.includes(payerId)) ev.participants.push(payerId);
+        saveDB('eventPayments', 'operatorEvents');
+        io.emit('checkin', { eventId: ev.id, userId: payerId });
+        console.log('[stripe/pay] Entry payment approved:', { event: ev.name, userId: payerId, amount });
+      } else {
+        // Save as regular tip
+        if (!db.tips) db.tips = {};
+        const tipStripeExpress = { id: tipId, payerId, receiverId: effectiveReceiverId, amount, method: 'stripe-express', status: 'approved', createdAt: Date.now(), stripePaymentIntentId: paymentIntent.id };
+        db.tips[tipId] = tipStripeExpress;
+        if (!IDX.tipsByPayer.has(tipStripeExpress.payerId)) IDX.tipsByPayer.set(tipStripeExpress.payerId, []);
+        IDX.tipsByPayer.get(tipStripeExpress.payerId).push(tipStripeExpress.id);
+        if (!IDX.tipsByReceiver.has(tipStripeExpress.receiverId)) IDX.tipsByReceiver.set(tipStripeExpress.receiverId, []);
+        IDX.tipsByReceiver.get(tipStripeExpress.receiverId).push(tipStripeExpress.id);
+        saveDB('tips');
+        const payer = db.users[payerId];
+        const payerName = payer ? (payer.nickname || payer.name || '?') : '?';
+        if (effectiveReceiverId) {
+          io.to(`user:${effectiveReceiverId}`).emit('tip-received', { amount, from: payerName, status: 'approved' });
+        }
+      }
+
       res.json({ ok: true, tipId });
     } else {
       res.json({ ok: false, error: 'Pagamento nao confirmado', status: paymentIntent.status });

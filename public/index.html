@@ -12512,9 +12512,9 @@ function renderElogList(data){
   const list=$('elogList');
   if(!data||!data.length){list.innerHTML='<div class="elog-empty">Nenhum encontro ainda.<br>Toque em alguem para comecar!</div>';return}
   let filtered=data;
-  if(_elogFilter==='people')filtered=data.filter(e=>e.type!=='service'&&e.type!=='checkin'&&e.type!=='tip_received'&&e.type!=='tip_sent');
+  if(_elogFilter==='people')filtered=data.filter(e=>e.type!=='service'&&e.type!=='checkin'&&e.type!=='tip_received'&&e.type!=='tip_sent'&&e.type!=='entry_sent');
   else if(_elogFilter==='service')filtered=data.filter(e=>e.type==='service'||e.type==='checkin');
-  else if(_elogFilter==='payments')filtered=data.filter(e=>(e.tipAmount&&e.tipStatus==='approved')||e.type==='tip_received'||e.type==='tip_sent');
+  else if(_elogFilter==='payments')filtered=data.filter(e=>(e.tipAmount&&e.tipStatus==='approved')||e.type==='tip_received'||e.type==='tip_sent'||e.type==='entry_sent');
   if(!filtered.length){list.innerHTML='<div class="elog-empty">Nenhum item nesta categoria.</div>';return}
   const myCanSee2=state.revealedIds||{};
   let html='';let lastDateLabel='';
@@ -12528,10 +12528,10 @@ function renderElogList(data){
     const photo=revealed?(enc.profilePhoto||revData?.profilePhoto||null):null;
     const color=enc.withColor||'var(--ac)';
     const timeStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    const isTipItem=enc.type==='tip_received'||enc.type==='tip_sent';
-    const typeLabel=isTipItem?(enc.type==='tip_received'?'gorjeta recebida':'gorjeta enviada'):(enc.type==='service'?'servico':(enc.type==='checkin'?'checkin':(enc.type==='digital'?'digital':'touch')));
+    const isTipItem=enc.type==='tip_received'||enc.type==='tip_sent'||enc.type==='entry_sent';
+    const typeLabel=enc.type==='entry_sent'?'ingresso':(enc.type==='tip_received'?'gorjeta recebida':(enc.type==='tip_sent'?'gorjeta enviada':(enc.type==='service'?'servico':(enc.type==='checkin'?'checkin':(enc.type==='digital'?'digital':'touch')))));
     const hasTip=enc.tipAmount&&enc.tipStatus==='approved';
-    const paymentClass=isTipItem?(enc.type==='tip_sent'?' elog-payment-sent':' elog-payment-item'):'';
+    const paymentClass=isTipItem?(enc.type==='tip_sent'||enc.type==='entry_sent'?' elog-payment-sent':' elog-payment-item'):'';
     html+='<div class="elog-item'+paymentClass+'" data-ts="'+enc.timestamp+'">';
     if(!isTipItem){
       html+='<div class="elog-delete" onclick="event.stopPropagation();deleteEncounter(this.parentElement,'+enc.timestamp+')"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>';
@@ -12543,12 +12543,18 @@ function renderElogList(data){
       let avHtml='<div class="elog-avatar" style="border-color:'+color+'40"><img src="'+esc(photo)+'" alt=""></div>';
       html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
     }else if(isTipItem){
-      // Payment icon for tips
-      const tipIcon=enc.type==='tip_received'
-        ?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 7l-5-5-5 5"/></svg>'
-        :'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4466" stroke-width="2" stroke-linecap="round"><path d="M12 22V2M7 17l5 5 5-5"/></svg>';
-      const tipBg=enc.type==='tip_received'?'rgba(34,197,94,.1)':'rgba(255,68,102,.1)';
-      html+='<div class="elog-avatar" style="background:'+tipBg+';border-color:transparent">'+tipIcon+'</div>';
+      // Payment icon for tips / entry
+      if(enc.type==='entry_sent'&&enc.profilePhoto){
+        html+='<div class="elog-avatar" style="border-color:#60a5fa40"><img src="'+esc(enc.profilePhoto)+'" alt="" onerror="this.parentNode.innerHTML=\'<svg width=18 height=18 viewBox=\\\'0 0 24 24\\\' fill=\\\'none\\\' stroke=\\\'#60a5fa\\\' stroke-width=\\\'2\\\'><rect x=2 y=2 width=20 height=20 rx=5/><path d=\\\'M8 12l3 3 5-5\\\'/></svg>\'"></div>';
+      }else{
+        const tipIcon=enc.type==='entry_sent'
+          ?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M8 12l3 3 5-5"/></svg>'
+          :(enc.type==='tip_received'
+            ?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 7l-5-5-5 5"/></svg>'
+            :'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4466" stroke-width="2" stroke-linecap="round"><path d="M12 22V2M7 17l5 5 5-5"/></svg>');
+        const tipBg=enc.type==='entry_sent'?'rgba(96,165,250,.1)':(enc.type==='tip_received'?'rgba(34,197,94,.1)':'rgba(255,68,102,.1)');
+        html+='<div class="elog-avatar" style="background:'+tipBg+';border-color:transparent">'+tipIcon+'</div>';
+      }
     }else{
       let avHtml='<div class="elog-avatar" style="background:none;border-color:'+color+'30;overflow:visible">'+ANON_AVATAR_SVG+'</div>';
       html+=encVerified?'<div class="verified-wrap">'+avHtml+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>':avHtml;
@@ -12564,7 +12570,7 @@ function renderElogList(data){
     if(enc.points)html+='<span style="color:var(--ac);font-weight:600">+'+enc.points+'</span>';
     const canTip=enc.type==='service'||enc.type==='checkin';
     if(isTipItem){
-      const tipColor=enc.type==='tip_received'?'#4ade80':'#ff4466';
+      const tipColor=enc.type==='tip_received'?'#4ade80':(enc.type==='entry_sent'?'#60a5fa':'#ff4466');
       const tipSign=enc.type==='tip_received'?'+':'-';
       html+='<span style="color:'+tipColor+';font-weight:700;font-size:.72rem">'+tipSign+'R$'+(enc.tipAmount||0).toFixed(2).replace('.',',')+'</span>';
     }else if(hasTip){
@@ -12597,18 +12603,35 @@ async function showEncounterLog(){
     const tipsData=await tipsRes.json();
     const tips=Array.isArray(tipsData)?tipsData:[];
     // Merge tips into encounter-like items
-    const tipItems=tips.map(t=>({
-      timestamp:t.createdAt,
-      type:t.direction==='received'?'tip_received':'tip_sent',
-      with:t.direction==='received'?t.payerId:t.receiverId,
-      withName:t.direction==='received'?(t.payerName||'?'):(t.receiverName||'?'),
-      withColor:t.direction==='received'?(t.payerColor||'#4ade80'):(t.receiverColor||'#ff4466'),
-      profilePhoto:t.direction==='received'?t.payerPhoto:t.receiverPhoto,
-      tipAmount:t.amount||0,
-      tipStatus:t.status||'pending',
-      verified:false,
-      points:0
-    }));
+    const tipItems=tips.map(t=>{
+      if(t.type==='entry'){
+        return {
+          timestamp:t.createdAt,
+          type:'entry_sent',
+          with:t.receiverId||t.eventId||'',
+          withName:t.receiverName||t.eventName||'?',
+          withColor:t.receiverColor||'#60a5fa',
+          profilePhoto:t.receiverPhoto||null,
+          tipAmount:t.amount||0,
+          tipStatus:t.status||'pending',
+          eventName:t.eventName||t.receiverName||'',
+          verified:false,
+          points:0
+        };
+      }
+      return {
+        timestamp:t.createdAt,
+        type:t.direction==='received'?'tip_received':'tip_sent',
+        with:t.direction==='received'?t.payerId:t.receiverId,
+        withName:t.direction==='received'?(t.payerName||'?'):(t.receiverName||'?'),
+        withColor:t.direction==='received'?(t.payerColor||'#4ade80'):(t.receiverColor||'#ff4466'),
+        profilePhoto:t.direction==='received'?t.payerPhoto:t.receiverPhoto,
+        tipAmount:t.amount||0,
+        tipStatus:t.status||'pending',
+        verified:false,
+        points:0
+      };
+    });
     // Merge and sort by timestamp desc
     const merged=[...encounters,...tipItems].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
     _elogData=merged;
