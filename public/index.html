@@ -4896,6 +4896,18 @@ async function renderParkingUI(){
       return;
     }
 
+    var savedVehicles=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
+    var vehiclesHtml='';
+    if(savedVehicles.length>0){
+      vehiclesHtml='<div style="margin-bottom:.8rem"><div style="font-size:.65rem;color:var(--t2);margin-bottom:.4rem">Meus Veiculos Salvos</div><div style="display:flex;flex-wrap:wrap;gap:.4rem">';
+      for(var v of savedVehicles){
+        vehiclesHtml+='<div style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);border-radius:8px;padding:.4rem .6rem;font-size:.65rem;color:#34d399;display:flex;align-items:center;justify-content:space-between;gap:.4rem">'+
+          '<span style="cursor:pointer;font-weight:600" onclick="$'+('\'userParkPlate\'').replace(/'/g,"'")+'.value='+("'"+v+"'").replace(/'/g,"'")+';$'+('\'userParkPlate\'').replace(/'/g,"'")+'.focus()">'+v+'</span>'+
+          '<button onclick="removeUserVehicle('+("'"+v+"'").replace(/'/g,"'")+'" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.7rem;padding:0">x</button>'+
+        '</div>';
+      }
+      vehiclesHtml+='</div></div>';
+    }
     el.innerHTML=
       '<div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
         '<div style="font-size:.7rem;font-weight:600;color:#3b82f6;margin-bottom:.5rem">Como funciona</div>' +
@@ -4906,13 +4918,19 @@ async function renderParkingUI(){
           '<br><strong>Taxa:</strong> R$' + (d.hourlyRate||10).toFixed(2) + '/hora' +
         '</div>' +
       '</div>' +
+      vehiclesHtml +
       '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:1rem">' +
         '<div style="font-size:.7rem;font-weight:600;color:var(--t1);margin-bottom:.6rem">Registrar Veículo</div>' +
         '<div style="margin-bottom:.6rem">' +
           '<label style="font-size:.65rem;color:var(--t2);display:block;margin-bottom:.2rem">Placa do Veículo</label>' +
           '<input id="userParkPlate" placeholder="ABC1D23" maxlength="10" style="width:100%;padding:.55rem .7rem;background:var(--bg);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.8rem;font-family:inherit;text-transform:uppercase;outline:none" onfocus="this.style.borderColor=\'#3b82f6\'" onblur="this.style.borderColor=\'var(--b1)\'">' +
         '</div>' +
-        '<button onclick="registerUserVehicle()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Registrar Estacionamento</button>' +
+        '<div style="display:flex;gap:.5rem;margin-bottom:.6rem">' +
+          '<button onclick="userCapturePhoto()" style="flex:1;padding:.7rem;border-radius:14px;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.05);color:#34d399;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">Foto da Placa</button>' +
+          '<button onclick="registerUserVehicle()" style="flex:1;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Registrar</button>' +
+        '</div>' +
+        '<div id="userPhotoPreview" style="margin-bottom:.6rem"></div>' +
+        '<div id="userOCRStatus" style="font-size:.6rem;text-align:center;min-height:1em;margin-bottom:.3rem"></div>' +
         '<div id="userParkStatus" style="font-size:.6rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>' +
       '</div>';
   }catch(e){
@@ -4925,7 +4943,7 @@ async function registerUserVehicle(){
   if(!evViewEventId||!state.userId)return;
   const plate=($('userParkPlate').value||'').toUpperCase().trim();
   if(!plate){
-    $('userParkStatus').textContent='Placa obrigatória';
+    $('userParkStatus').textContent='Placa obrigatoria';
     $('userParkStatus').style.color='#ef4444';
     return;
   }
@@ -4936,7 +4954,12 @@ async function registerUserVehicle(){
     });
     const d=await r.json();
     if(d.ok){
-      $('userParkStatus').textContent='Veículo registrado no estacionamento!';
+      var saved=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
+      if(!saved.includes(plate)){
+        saved.push(plate);
+        localStorage.setItem('touch_my_vehicles',JSON.stringify(saved));
+      }
+      $('userParkStatus').textContent='Veiculo registrado no estacionamento!';
       $('userParkStatus').style.color='#34d399';
       $('userParkPlate').value='';
       setTimeout(()=>closeEventParking(),1500);
@@ -4948,6 +4971,73 @@ async function registerUserVehicle(){
     console.error('registerUserVehicle:',e);
     $('userParkStatus').textContent='Erro ao registrar';
     $('userParkStatus').style.color='#ef4444';
+  }
+}
+
+function removeUserVehicle(plate){
+  var saved=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
+  saved=saved.filter(p=>p!==plate);
+  localStorage.setItem('touch_my_vehicles',JSON.stringify(saved));
+  renderParkingUI();
+}
+
+function userCapturePhoto(){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';inp.capture='environment';
+  inp.onchange=function(){
+    if(!inp.files||!inp.files[0])return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var preview=$('userPhotoPreview');
+      preview.innerHTML='<img src="'+e.target.result+'" style="width:100%;border-radius:8px;margin-bottom:.3rem">';
+      preview.dataset.base64=e.target.result;
+      userTryOCR(e.target.result);
+    };
+    reader.readAsDataURL(inp.files[0]);
+  };
+  inp.click();
+}
+
+async function userTryOCR(base64){
+  if(typeof Tesseract==='undefined'){
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload=function(){userRunOCR(base64)};
+    document.head.appendChild(s);
+  }else{
+    userRunOCR(base64);
+  }
+}
+
+async function userRunOCR(base64){
+  var status=$('userOCRStatus');
+  status.textContent='Lendo placa...';
+  status.style.color='#3b82f6';
+  try{
+    var worker=await Tesseract.createWorker('por');
+    var result=await worker.recognize(base64);
+    await worker.terminate();
+    var text=result.data.text.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    var match=text.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/);
+    if(match){
+      $('userParkPlate').value=match[0];
+      status.textContent='Placa detectada: '+match[0];
+      status.style.color='#34d399';
+    }else{
+      match=text.match(/[A-Z]{3}[0-9]{4}/);
+      if(match){
+        $('userParkPlate').value=match[0];
+        status.textContent='Placa detectada: '+match[0];
+        status.style.color='#34d399';
+      }else{
+        status.textContent='Nao consegui ler. Digite a placa manualmente.';
+        status.style.color='#fbbf24';
+      }
+    }
+  }catch(e){
+    console.error('OCR error:',e);
+    status.textContent='OCR indisponivel. Digite a placa manualmente.';
+    status.style.color='var(--t3)';
   }
 }
 
