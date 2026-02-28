@@ -2423,6 +2423,12 @@ app.get('/api/encounters/:userId', (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
   const enriched = list.slice().reverse().map(e => {
+    // Check if this is an event encounter (with starts with 'evt:')
+    if (typeof e.with === 'string' && e.with.startsWith('evt:')) {
+      const evId = e.with.replace('evt:', '');
+      const ev = db.operatorEvents ? db.operatorEvents[evId] : null;
+      return { ...e, realName: null, profilePhoto: ev ? (ev.eventLogo || null) : null, eventLogo: ev ? (ev.eventLogo || null) : null, verified: !!(ev && ev.verified) };
+    }
     const other = db.users[e.with];
     const isRevealed = other?.revealedTo?.includes(req.params.userId);
     return { ...e, realName: isRevealed ? (other?.realName || null) : null, profilePhoto: isRevealed ? (other?.profilePhoto || other?.photoURL || null) : null, verified: !!(other && other.verified) };
