@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Touch? - Modelo de Negocio & Simulador Financeiro</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--s1:#13131a;--s2:#1a1a24;--b1:rgba(255,255,255,.06);--t1:#f0f0f5;--t2:#a0a0b0;--t3:#606070;--ac:#f97316;--green:#22c55e;--blue:#3b82f6;--purple:#8b5cf6;--red:#ef4444;--cyan:#06b6d4}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;padding:1rem}
+.container{max-width:1200px;margin:0 auto}
+h1{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,var(--ac),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.3rem}
+.subtitle{font-size:.7rem;color:var(--t3);margin-bottom:1.5rem}
+.section{margin-bottom:1.5rem}
+.section-title{font-size:.85rem;font-weight:700;color:var(--t2);margin-bottom:.8rem;text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:.5rem}
+.section-title::before{content:'';display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--ac)}
+
+/* Country toggle */
+.country-toggle{display:flex;gap:.4rem;margin-bottom:1.2rem;background:var(--s1);border-radius:12px;padding:.3rem;border:1px solid var(--b1);width:fit-content}
+.country-btn{padding:.4rem 1rem;border-radius:9px;border:none;background:none;color:var(--t3);font-size:.7rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+.country-btn.active{background:var(--ac);color:#fff}
+
+/* Input grid */
+.input-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;margin-bottom:1rem}
+.input-group{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:.6rem .8rem}
+.input-label{font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem;font-weight:600}
+.input-row{display:flex;align-items:center;gap:.4rem}
+.input-field{flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:.35rem .5rem;color:var(--t1);font-size:.8rem;font-weight:700;font-family:inherit;width:100%;text-align:right}
+.input-field:focus{outline:none;border-color:var(--ac)}
+.input-unit{font-size:.6rem;color:var(--t3);min-width:20px}
+.input-hint{font-size:.45rem;color:var(--t3);margin-top:.2rem;font-style:italic}
+
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem;margin-bottom:1.2rem}
+.kpi{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.7rem .8rem;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.orange::before{background:var(--ac)}
+.kpi.green::before{background:var(--green)}
+.kpi.blue::before{background:var(--blue)}
+.kpi.purple::before{background:var(--purple)}
+.kpi.red::before{background:var(--red)}
+.kpi.cyan::before{background:var(--cyan)}
+.kpi-label{font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:.2rem}
+.kpi-value{font-size:1.1rem;font-weight:800;letter-spacing:-.02em}
+.kpi-sub{font-size:.5rem;color:var(--t3);margin-top:.15rem}
+
+/* Chart containers */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
+@media(max-width:768px){.chart-row{grid-template-columns:1fr}}
+.chart-box{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem}
+.chart-box.full{grid-column:1/-1}
+.chart-title{font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.6rem}
+.chart-canvas{height:220px;position:relative}
+
+/* Waterfall / breakdown table */
+.breakdown{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;margin-bottom:1rem}
+.bk-row{display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:.7rem}
+.bk-row:last-child{border-bottom:none}
+.bk-row.total{border-top:2px solid var(--ac);padding-top:.5rem;margin-top:.2rem;font-weight:800;font-size:.8rem}
+.bk-row.sub{padding-left:1rem;font-size:.6rem;color:var(--t3)}
+.bk-val{font-weight:700}
+.bk-val.pos{color:var(--green)}
+.bk-val.neg{color:var(--red)}
+.bk-val.accent{color:var(--ac)}
+
+/* Fiscal section */
+.fiscal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+@media(max-width:600px){.fiscal-grid{grid-column:1fr}}
+.fiscal-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem}
+.fiscal-card h3{font-size:.7rem;font-weight:700;margin-bottom:.4rem}
+.fiscal-item{font-size:.6rem;color:var(--t2);padding:.2rem 0;display:flex;justify-content:space-between}
+.badge{display:inline-block;padding:.1rem .4rem;border-radius:5px;font-size:.5rem;font-weight:700}
+.badge-nfe{background:rgba(59,130,246,.15);color:var(--blue)}
+.badge-nfs{background:rgba(139,92,246,.15);color:var(--purple)}
+.badge-tax{background:rgba(249,115,22,.15);color:var(--ac)}
+.badge-exempt{background:rgba(34,197,94,.15);color:var(--green)}
+
+footer{text-align:center;padding:1.5rem 0;font-size:.5rem;color:var(--t3)}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Touch? - Modelo de Negocio</h1>
+<div class="subtitle">Simulador financeiro interativo | Custos, taxas, margens e projecao fiscal</div>
+
+<!-- Country toggle -->
+<div class="country-toggle">
+  <button class="country-btn active" onclick="setCountry('us')">EUA</button>
+  <button class="country-btn" onclick="setCountry('br')">Brasil</button>
+</div>
+
+<!-- ====== INPUTS ====== -->
+<div class="section">
+  <div class="section-title">Parametros do Modelo</div>
+  <div class="input-grid">
+    <div class="input-group">
+      <div class="input-label">Transacoes / mes</div>
+      <div class="input-row"><input class="input-field" id="inTx" type="number" value="5000" oninput="recalc()"></div>
+      <div class="input-hint">Pedidos + gorjetas + ingressos</div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Ticket medio</div>
+      <div class="input-row"><span class="input-unit" id="currSymbol">$</span><input class="input-field" id="inTicket" type="number" value="18" step="0.5" oninput="recalc()"></div>
+      <div class="input-hint">Valor medio por transacao</div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">% transacoes com gorjeta</div>
+      <div class="input-row"><input class="input-field" id="inTipPct" type="number" value="60" step="5" oninput="recalc()"><span class="input-unit">%</span></div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Gorjeta media</div>
+      <div class="input-row"><input class="input-field" id="inTipAvg" type="number" value="15" step="1" oninput="recalc()"><span class="input-unit">%</span></div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Taxa Touch? sobre transacao</div>
+      <div class="input-row"><input class="input-field" id="inTouchFee" type="number" value="5" step="0.5" oninput="recalc()"><span class="input-unit">%</span></div>
+      <div class="input-hint">Cobrado do parceiro (restaurante)</div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Taxa Touch? sobre gorjeta</div>
+      <div class="input-row"><input class="input-field" id="inTouchTipFee" type="number" value="10" step="1" oninput="recalc()"><span class="input-unit">%</span></div>
+      <div class="input-hint">Cobrado do prestador que recebe</div>
+    </div>
+    <div class="input-group">
+      <div class="input-label" id="labelCloud">Custo cloud (Render + Firebase)</div>
+      <div class="input-row"><span class="input-unit" id="currSymbol2">$</span><input class="input-field" id="inCloud" type="number" value="25" oninput="recalc()"></div>
+      <div class="input-hint">Render Starter $7 + Standard $25 etc</div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Parceiros ativos</div>
+      <div class="input-row"><input class="input-field" id="inPartners" type="number" value="20" oninput="recalc()"></div>
+      <div class="input-hint">Restaurantes, bares, baladas</div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== KPIs ====== -->
+<div class="section">
+  <div class="section-title">Resumo Financeiro Mensal</div>
+  <div class="kpi-row">
+    <div class="kpi orange"><div class="kpi-label">GMV (Volume Bruto)</div><div class="kpi-value" id="kGmv">-</div><div class="kpi-sub" id="kGmvSub">-</div></div>
+    <div class="kpi green"><div class="kpi-label">Receita Touch?</div><div class="kpi-value" id="kRevenue">-</div><div class="kpi-sub" id="kRevSub">-</div></div>
+    <div class="kpi red"><div class="kpi-label">Custos Totais</div><div class="kpi-value" id="kCosts">-</div><div class="kpi-sub" id="kCostSub">-</div></div>
+    <div class="kpi blue"><div class="kpi-label">Lucro Liquido</div><div class="kpi-value" id="kProfit">-</div><div class="kpi-sub" id="kProfitSub">-</div></div>
+    <div class="kpi purple"><div class="kpi-label">Margem Liquida</div><div class="kpi-value" id="kMargin">-</div><div class="kpi-sub" id="kMarginSub">-</div></div>
+    <div class="kpi cyan"><div class="kpi-label">Lucro por Transacao</div><div class="kpi-value" id="kPerTx">-</div><div class="kpi-sub" id="kPerTxSub">-</div></div>
+  </div>
+</div>
+
+<!-- ====== WATERFALL ====== -->
+<div class="section">
+  <div class="section-title">Decomposicao: De cada transacao, quanto fica pra quem?</div>
+  <div class="breakdown" id="waterfall"></div>
+</div>
+
+<!-- ====== CHARTS ====== -->
+<div class="section">
+  <div class="section-title">Graficos</div>
+  <div class="chart-row">
+    <div class="chart-box"><div class="chart-title">Distribuicao de Receita por Fonte</div><div class="chart-canvas"><canvas id="chartRevenue"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Estrutura de Custos</div><div class="chart-canvas"><canvas id="chartCosts"></canvas></div></div>
+    <div class="chart-box full"><div class="chart-title">Projecao 12 Meses (crescimento 15% ao mes)</div><div class="chart-canvas" style="height:280px"><canvas id="chartProjection"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ====== FISCAL ====== -->
+<div class="section">
+  <div class="section-title">Mapa Fiscal</div>
+  <div class="fiscal-grid">
+    <div class="fiscal-card" id="fiscalCard1"></div>
+    <div class="fiscal-card" id="fiscalCard2"></div>
+  </div>
+</div>
+
+<!-- ====== WHAT PARTNER SEES ====== -->
+<div class="section">
+  <div class="section-title">O que o Parceiro (Restaurante) Ve</div>
+  <div class="breakdown" id="partnerView"></div>
+</div>
+
+<footer>Touch? Business Model Simulator v1.0 | Dados atualizados em tempo real conforme parametros</footer>
+</div>
+
+<script>
+var country='us';
+var charts={};
+
+function setCountry(c){
+  country=c;
+  document.querySelectorAll('.country-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.country-btn[onclick*="'+c+'"]').classList.add('active');
+  if(c==='us'){
+    document.getElementById('inTicket').value=18;
+    document.getElementById('inCloud').value=25;
+    document.getElementById('currSymbol').textContent='$';
+    document.getElementById('currSymbol2').textContent='$';
+  }else{
+    document.getElementById('inTicket').value=45;
+    document.getElementById('inCloud').value=150;
+    document.getElementById('currSymbol').textContent='R$';
+    document.getElementById('currSymbol2').textContent='R$';
+  }
+  recalc();
+}
+
+function fmt(v){
+  var sym=country==='us'?'$':'R$';
+  if(Math.abs(v)>=1000000)return sym+(v/1000000).toFixed(1)+'M';
+  if(Math.abs(v)>=1000)return sym+(v/1000).toFixed(1)+'K';
+  return sym+v.toFixed(2);
+}
+function fmtPct(v){return v.toFixed(1)+'%'}
+
+function recalc(){
+  var tx=parseFloat(document.getElementById('inTx').value)||0;
+  var ticket=parseFloat(document.getElementById('inTicket').value)||0;
+  var tipPct=(parseFloat(document.getElementById('inTipPct').value)||0)/100;
+  var tipAvg=(parseFloat(document.getElementById('inTipAvg').value)||0)/100;
+  var touchFee=(parseFloat(document.getElementById('inTouchFee').value)||0)/100;
+  var touchTipFee=(parseFloat(document.getElementById('inTouchTipFee').value)||0)/100;
+  var cloud=parseFloat(document.getElementById('inCloud').value)||0;
+  var partners=parseFloat(document.getElementById('inPartners').value)||0;
+
+  // Stripe fees
+  var stripeRate=country==='us'?0.029:0.0399; // US 2.9%, BR 3.99%
+  var stripeFixed=country==='us'?0.30:0.39; // $0.30 or R$0.39
+  var stripeTaxRate=0.005; // 0.5% Stripe Tax (US only)
+  // Focus NFe (Brazil only)
+  var nfeCostPerDoc=country==='br'?0.65:0;
+  var nfeMonthly=country==='br'?109:0;
+
+  // ===== CALCULATIONS =====
+  var gmvProducts=tx*ticket;
+  var txWithTip=Math.round(tx*tipPct);
+  var gmvTips=txWithTip*ticket*tipAvg;
+  var gmvTotal=gmvProducts+gmvTips;
+
+  // Touch? revenue
+  var revFromProducts=gmvProducts*touchFee;        // Taxa sobre vendas
+  var revFromTips=gmvTips*touchTipFee;              // Taxa sobre gorjetas
+  var revTotal=revFromProducts+revFromTips;
+
+  // Costs
+  var costStripeProducts=gmvProducts*stripeRate+tx*stripeFixed;
+  var costStripeTips=gmvTips*stripeRate+txWithTip*stripeFixed;
+  var costStripeTotal=costStripeProducts+costStripeTips;
+  var costStripeTax=country==='us'?gmvProducts*stripeTaxRate:0;
+  var costNfe=country==='br'?(tx*nfeCostPerDoc+nfeMonthly):0;
+  var costCloud=cloud;
+  var costTotal=costStripeTotal+costStripeTax+costNfe+costCloud;
+
+  // Profit
+  var profit=revTotal-costTotal;
+  var margin=revTotal>0?(profit/revTotal)*100:0;
+  var perTx=tx>0?profit/tx:0;
+
+  // ===== UPDATE KPIs =====
+  document.getElementById('kGmv').textContent=fmt(gmvTotal);
+  document.getElementById('kGmvSub').textContent=fmt(gmvProducts)+' produtos + '+fmt(gmvTips)+' gorjetas';
+  document.getElementById('kRevenue').textContent=fmt(revTotal);
+  document.getElementById('kRevSub').textContent=fmtPct(revTotal/gmvTotal*100)+' do GMV | Take rate efetivo';
+  document.getElementById('kCosts').textContent=fmt(costTotal);
+  document.getElementById('kCostSub').textContent=fmtPct(costTotal/revTotal*100)+' da receita';
+  document.getElementById('kProfit').textContent=fmt(profit);
+  document.getElementById('kProfit').style.color=profit>=0?'var(--green)':'var(--red)';
+  document.getElementById('kProfitSub').textContent=profit>=0?'Operacao sustentavel':'Operacao deficitaria';
+  document.getElementById('kMargin').textContent=fmtPct(margin);
+  document.getElementById('kMargin').style.color=margin>=30?'var(--green)':(margin>=0?'var(--ac)':'var(--red)');
+  document.getElementById('kMarginSub').textContent=margin>=30?'Margem saudavel':(margin>=0?'Margem apertada':'Margem negativa');
+  document.getElementById('kPerTx').textContent=fmt(perTx);
+  document.getElementById('kPerTxSub').textContent='Liquido apos todos os custos';
+
+  // ===== WATERFALL =====
+  var wf=document.getElementById('waterfall');
+  wf.innerHTML=
+    bkRow('Cliente paga (ticket medio)','',fmt(ticket),'accent')
+    +bkRow('(-) Custo do produto (vai pro restaurante)','',(country==='us'?'-':'- ')+fmt(ticket*(1-touchFee)),'')
+    +bkRow('(=) Taxa Touch? sobre venda',fmtPct(touchFee*100),fmt(ticket*touchFee),'pos')
+    +bkRow('(-) Stripe processing',fmtPct(stripeRate*100)+' + '+fmt(stripeFixed),'-'+fmt(ticket*stripeRate+stripeFixed),'neg')
+    +(country==='us'?bkRow('(-) Stripe Tax','0.5%','-'+fmt(ticket*stripeTaxRate),'neg'):'')
+    +(country==='br'?bkRow('(-) Focus NFe (NF-e)','por doc','-'+fmt(nfeCostPerDoc),'neg'):'')
+    +bkRow('(=) Lucro Touch? por venda','',fmt(ticket*touchFee-(ticket*stripeRate+stripeFixed)-(country==='us'?ticket*stripeTaxRate:nfeCostPerDoc)),profit>=0?'pos':'neg',true)
+    +'<div style="height:.5rem"></div>'
+    +bkRow('Gorjeta media',''+fmtPct(tipAvg*100)+' de '+fmt(ticket),fmt(ticket*tipAvg),'accent')
+    +bkRow('(-) Repasse ao prestador',fmtPct((1-touchTipFee)*100),'-'+fmt(ticket*tipAvg*(1-touchTipFee)),'')
+    +bkRow('(=) Taxa Touch? sobre gorjeta',fmtPct(touchTipFee*100),fmt(ticket*tipAvg*touchTipFee),'pos')
+    +bkRow('(-) Stripe processing','','-'+fmt(ticket*tipAvg*stripeRate+stripeFixed),'neg')
+    +(country==='br'?bkRow('(-) Focus NFe (NF-S)','por doc','-'+fmt(nfeCostPerDoc),'neg'):'')
+    +bkRow('(=) Lucro Touch? por gorjeta','',fmt(ticket*tipAvg*touchTipFee-(ticket*tipAvg*stripeRate+stripeFixed)-(country==='br'?nfeCostPerDoc:0)),profit>=0?'pos':'neg',true);
+
+  // ===== PARTNER VIEW =====
+  var pv=document.getElementById('partnerView');
+  var partnerGmv=gmvProducts/partners;
+  var partnerFee=partnerGmv*touchFee;
+  var partnerNet=partnerGmv-partnerFee;
+  var partnerTipsReceived=(gmvTips/partners)*(1-touchTipFee);
+  pv.innerHTML=
+    '<div style="font-size:.6rem;color:var(--t3);margin-bottom:.4rem">Simulacao por parceiro ('+partners+' ativos) | Media mensal</div>'
+    +bkRow('Vendas brutas no Touch?','',fmt(partnerGmv),'accent')
+    +bkRow('(-) Taxa Touch?',fmtPct(touchFee*100),'-'+fmt(partnerFee),'neg')
+    +bkRow('(=) Recebe do Touch?','',fmt(partnerNet),'pos')
+    +bkRow('Gorjetas dos funcionarios','ja descontado '+fmtPct(touchTipFee*100),fmt(partnerTipsReceived),'pos')
+    +bkRow('Total liquido parceiro','',fmt(partnerNet+partnerTipsReceived),'pos',true);
+
+  // ===== FISCAL MAP =====
+  if(country==='us'){
+    document.getElementById('fiscalCard1').innerHTML=
+      '<h3><span class="badge badge-tax">Sales Tax</span> Produtos (Comida)</h3>'
+      +'<div class="fiscal-item"><span>Processador</span><span>Stripe Tax (automatico)</span></div>'
+      +'<div class="fiscal-item"><span>Custo</span><span>0.5% por transacao</span></div>'
+      +'<div class="fiscal-item"><span>Calculo</span><span>Automatico por estado + tipo</span></div>'
+      +'<div class="fiscal-item"><span>Tax Code</span><span>txcd_40060003 (prepared food)</span></div>'
+      +'<div class="fiscal-item"><span>Filing</span><span>Stripe gera CSV / Avalara auto-file</span></div>'
+      +'<div class="fiscal-item"><span>Quem paga</span><span>Cliente final (adicionado ao total)</span></div>';
+    document.getElementById('fiscalCard2').innerHTML=
+      '<h3><span class="badge badge-exempt">Exempt</span> Gorjetas</h3>'
+      +'<div class="fiscal-item"><span>Sales Tax?</span><span>NAO - gorjeta e isenta nos EUA</span></div>'
+      +'<div class="fiscal-item"><span>Income Tax?</span><span>SIM - reportado ao IRS (1099-K)</span></div>'
+      +'<div class="fiscal-item"><span>Threshold 1099-K</span><span>$5,000/ano (2025+)</span></div>'
+      +'<div class="fiscal-item"><span>Stripe gera</span><span>1099-K automatico pro prestador</span></div>'
+      +'<div class="fiscal-item"><span>Touch? responsabilidade</span><span>Reportar via Stripe Connect</span></div>';
+  }else{
+    document.getElementById('fiscalCard1').innerHTML=
+      '<h3><span class="badge badge-nfe">NF-e</span> Produtos (Comida/Bebida)</h3>'
+      +'<div class="fiscal-item"><span>Emissor</span><span>Focus NFe API</span></div>'
+      +'<div class="fiscal-item"><span>CFOP</span><span>5.102 (dentro estado) / 6.102 (fora)</span></div>'
+      +'<div class="fiscal-item"><span>CST</span><span>00 (tributacao normal)</span></div>'
+      +'<div class="fiscal-item"><span>NCM</span><span>2106.90.90 (refeicoes prontas)</span></div>'
+      +'<div class="fiscal-item"><span>Imposto</span><span>ICMS (varia por estado, 7-18%)</span></div>'
+      +'<div class="fiscal-item"><span>Quem emite</span><span>CNPJ do restaurante parceiro</span></div>'
+      +'<div class="fiscal-item"><span>Custo</span><span>R$0,65/doc + R$109/mes</span></div>';
+    document.getElementById('fiscalCard2').innerHTML=
+      '<h3><span class="badge badge-nfs">NF-S</span> Servicos (Gorjeta + Taxa Touch?)</h3>'
+      +'<div class="fiscal-item"><span>Emissor</span><span>Focus NFe API (NFS-e Nacional)</span></div>'
+      +'<div class="fiscal-item"><span>ISS Code</span><span>09.02 (intermediacao)</span></div>'
+      +'<div class="fiscal-item"><span>Imposto</span><span>ISS (2-5% varia por municipio)</span></div>'
+      +'<div class="fiscal-item"><span>Quem emite</span><span>CNPJ da Touch?</span></div>'
+      +'<div class="fiscal-item"><span>Sobre o que</span><span>Taxa de servico + intermediacao</span></div>'
+      +'<div class="fiscal-item"><span>Custo</span><span>R$0,65/doc + incluso no plano</span></div>';
+  }
+
+  // ===== CHARTS =====
+  renderRevenueChart(revFromProducts,revFromTips);
+  renderCostsChart(costStripeTotal,costStripeTax,costNfe,costCloud);
+  renderProjection(revTotal,costTotal,profit,tx);
+}
+
+function bkRow(label,detail,value,cls,isTotal){
+  return '<div class="bk-row'+(isTotal?' total':'')+'">'
+    +'<div><span>'+label+'</span>'+(detail?' <span style="font-size:.5rem;color:var(--t3)">'+detail+'</span>':'')+'</div>'
+    +'<div class="bk-val'+(cls?' '+cls:'')+'">'+value+'</div></div>';
+}
+
+function renderRevenueChart(prod,tips){
+  var ctx=document.getElementById('chartRevenue');
+  if(charts.revenue)charts.revenue.destroy();
+  charts.revenue=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels:['Taxa sobre vendas','Taxa sobre gorjetas'],
+      datasets:[{data:[prod,tips],backgroundColor:['#f97316cc','#22c55ecc'],borderColor:'#0a0a0f',borderWidth:3}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:'#a0a0b0',font:{size:11},usePointStyle:true,padding:12}}}}
+  });
+}
+
+function renderCostsChart(stripe,tax,nfe,cloud){
+  var ctx=document.getElementById('chartCosts');
+  if(charts.costs)charts.costs.destroy();
+  var labels=['Stripe Processing'];
+  var data=[stripe];
+  var colors=['#ef4444cc'];
+  if(tax>0){labels.push('Stripe Tax');data.push(tax);colors.push('#f97316cc')}
+  if(nfe>0){labels.push('Focus NFe');data.push(nfe);colors.push('#8b5cf6cc')}
+  labels.push('Cloud/Infra');data.push(cloud);colors.push('#3b82f6cc');
+  charts.costs=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderColor:'#0a0a0f',borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:'#a0a0b0',font:{size:11},usePointStyle:true,padding:12}}}}
+  });
+}
+
+function renderProjection(rev,cost,profit,tx){
+  var ctx=document.getElementById('chartProjection');
+  if(charts.proj)charts.proj.destroy();
+  var months=['Mes 1','Mes 2','Mes 3','Mes 4','Mes 5','Mes 6','Mes 7','Mes 8','Mes 9','Mes 10','Mes 11','Mes 12'];
+  var revData=[],costData=[],profitData=[],txData=[];
+  var growth=0.15; // 15% growth/mo
+  for(var i=0;i<12;i++){
+    var mult=Math.pow(1+growth,i);
+    revData.push(rev*mult);
+    costData.push(cost*mult*0.85+parseFloat(document.getElementById('inCloud').value||0)); // costs scale slower
+    profitData.push(revData[i]-costData[i]);
+    txData.push(Math.round(tx*mult));
+  }
+  charts.proj=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:months,
+      datasets:[
+        {label:'Receita',data:revData,borderColor:'#22c55e',backgroundColor:'#22c55e20',borderWidth:2,fill:true,tension:.3,pointRadius:3},
+        {label:'Custos',data:costData,borderColor:'#ef4444',backgroundColor:'#ef444420',borderWidth:2,fill:true,tension:.3,pointRadius:3},
+        {label:'Lucro',data:profitData,borderColor:'#3b82f6',backgroundColor:'#3b82f620',borderWidth:2.5,fill:false,tension:.3,pointRadius:4,borderDash:[]}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'top',labels:{color:'#a0a0b0',font:{size:11},usePointStyle:true,padding:15}},
+        tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+fmt(c.parsed.y)}}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#606070'}},
+        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#606070',callback:function(v){return fmt(v)}}}
+      }
+    }
+  });
+}
+
+// Initialize
+recalc();
+</script>
+</body>
+</html>
