@@ -955,6 +955,29 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .op-chat-input{flex:1;padding:.4rem .6rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.72rem;font-family:inherit;outline:none}
 .op-chat-input:focus{border-color:var(--ac)}
 .op-chat-send{background:var(--ac);border:none;color:#fff;border-radius:10px;padding:.3rem .6rem;font-size:.65rem;font-weight:600;cursor:pointer;font-family:inherit}
+/* Notification badge on user card */
+.op-ci-msg-badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid rgba(18,18,26,.95);animation:op-badge-pulse 2s infinite;z-index:2}
+@keyframes op-badge-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
+.op-ci-wrap{position:relative}
+/* Unread highlight on card */
+.op-ci-wrap.has-unread .op-checkin-item{border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.06)}
+.op-ci-wrap.has-unread .op-checkin-item::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;border-radius:0 3px 3px 0;background:#60a5fa}
+/* Header notification counter */
+.op-sb-notif{min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;animation:op-badge-pulse 2s infinite}
+/* Chat tabs for switching chat/history */
+.op-chat-tabs{display:flex;gap:0;border-bottom:1px solid var(--b1);background:rgba(12,12,20,.4)}
+.op-chat-tab{flex:1;padding:.45rem;text-align:center;font-size:.58rem;font-weight:600;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+.op-chat-tab:hover{color:var(--t1);background:rgba(255,255,255,.03)}
+.op-chat-tab.active{color:#60a5fa;border-bottom-color:#60a5fa}
+/* History items */
+.op-history-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;margin-bottom:.3rem}
+.op-history-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.7rem}
+.op-history-info{flex:1;min-width:0}
+.op-history-title{font-size:.65rem;font-weight:600;color:var(--t1)}
+.op-history-sub{font-size:.5rem;color:var(--t3);margin-top:.1rem}
+.op-history-val{text-align:right;flex-shrink:0}
+.op-history-amount{font-size:.75rem;font-weight:700}
+.op-history-status{font-size:.48rem;margin-top:.1rem}
 
 /* Sidebar revealed badge */
 .op-ci-revealed{font-size:.5rem;padding:.1rem .3rem;border-radius:6px;font-weight:600;background:rgba(52,211,153,.12);color:var(--ok);border:1px solid rgba(52,211,153,.2)}
@@ -2153,6 +2176,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
           </button>
           <span>Participantes</span>
           <span style="background:rgba(52,211,153,.1);color:var(--ok);padding:.1rem .35rem;border-radius:6px;font-size:.55rem;font-weight:700" id="opListCount">0</span>
+          <span class="op-sb-notif" id="opMsgNotifCount" style="display:none">0</span>
         </div>
         <div style="display:flex;gap:.3rem">
           <button onclick="showFinancialPanel()" class="op-ci-action-btn paid" style="font-size:.55rem;padding:.2rem .45rem">
@@ -2172,12 +2196,23 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <div class="op-chat-head">
           <div class="op-chat-avatar" id="opChatAvatar">?</div>
           <div class="op-chat-name" id="opChatName">Visitante</div>
-          <span class="op-chat-reveal-badge" id="opChatRevealBadge" style="display:none">Revelado ✓</span>
-          <button class="op-chat-close" onclick="closeChat()">✕</button>
+          <span class="op-chat-reveal-badge" id="opChatRevealBadge" style="display:none">Revelado</span>
+          <button class="op-chat-close" onclick="closeChat()">X</button>
         </div>
         <div class="op-chat-info" id="opChatInfo"></div>
+        <div class="op-chat-tabs">
+          <div class="op-chat-tab active" id="opChatTabChat" onclick="switchChatTab('chat')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Chat
+          </div>
+          <div class="op-chat-tab" id="opChatTabHistory" onclick="switchChatTab('history')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Historico
+          </div>
+        </div>
         <div class="op-chat-msgs" id="opChatMsgs"><div class="op-chat-empty">Nenhuma mensagem ainda</div></div>
-        <div class="op-chat-input-area">
+        <div class="op-chat-history" id="opChatHistory" style="display:none;flex:1;overflow-y:auto;padding:.6rem .8rem">
+          <div class="op-chat-empty">Carregando historico...</div>
+        </div>
+        <div class="op-chat-input-area" id="opChatInputArea">
           <input class="op-chat-input" id="opChatInput" placeholder="Mensagem..." onkeydown="if(event.key==='Enter')sendChatMsg()">
           <button class="op-chat-send" onclick="sendChatMsg()">Enviar</button>
         </div>
@@ -2753,9 +2788,31 @@ function initSocket(){
     document.body.appendChild(toast);
     setTimeout(()=>toast.remove(),4000);
   });
-  // Chat messages
+  // Chat messages with notification system
   S.socket.on('new-message',({relationId,message})=>{
-    if(chatOpen&&chatRelationId===relationId)appendChatMsg(message);
+    if(chatOpen&&chatRelationId===relationId){
+      appendChatMsg(message);
+    }else{
+      // Find which user sent this message
+      const senderId=message.userId;
+      if(senderId&&senderId!==S.userId){
+        // Increment unread count
+        unreadMsgs[senderId]=(unreadMsgs[senderId]||0)+1;
+        updateUserBadge(senderId);
+        updateNotifCounter();
+        // Play notification sound
+        try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;o.type='sine';g.gain.value=0.1;o.start();g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.stop(ctx.currentTime+0.3)}catch(e){}
+        // Toast notification
+        const checkin=S.checkins.find(c=>c.userId===senderId);
+        const name=checkin?(checkin.revealData&&checkin.revealData.realName?checkin.revealData.realName:checkin.nickname):'Alguem';
+        const toast=document.createElement('div');
+        toast.style.cssText='position:fixed;top:20px;right:20px;background:rgba(96,165,250,.95);color:#fff;padding:.5rem .8rem;border-radius:12px;font-size:.7rem;font-weight:600;z-index:9999;cursor:pointer;display:flex;align-items:center;gap:.5rem;animation:fadeIn .3s;box-shadow:0 4px 20px rgba(96,165,250,.3)';
+        toast.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'+esc(name)+': '+esc(message.text.substring(0,40))+(message.text.length>40?'...':'');
+        toast.onclick=()=>{toast.remove();if(checkin)openChat(checkin)};
+        document.body.appendChild(toast);
+        setTimeout(()=>toast.remove(),5000);
+      }
+    }
   });
   // Identity revealed — update sidebar + canvas node
   S.socket.on('identity-revealed',d=>{
@@ -3314,6 +3371,8 @@ function connectMercadoPago(){
 
 // ═══ CHAT PANEL ═══
 let chatOpen=false,chatRelationId=null,chatPartnerId=null;
+const unreadMsgs={};
+let currentChatTab='chat';
 function openChat(d){
   if(!d.relationId&&!d.userId){console.log('[chat] no relation/user data');return}
   chatPartnerId=d.userId||d.with||null;
@@ -3336,9 +3395,13 @@ function openChat(d){
   $('opChatMsgs').innerHTML='<div class="op-chat-empty">Carregando...</div>';
   if(chatRelationId){loadChatMessages(chatRelationId)}
   else{$('opChatMsgs').innerHTML='<div class="op-chat-empty">Sem chat disponível (sem relationId)</div>'}
+  // Clear unread for this user
+  if(chatPartnerId)clearUnread(chatPartnerId);
+  // Reset to chat tab
+  switchChatTab('chat');
   panel.classList.add('open');chatOpen=true;
 }
-function closeChat(){$('opChat').classList.remove('open');chatOpen=false;chatRelationId=null;chatPartnerId=null}
+function closeChat(){$('opChat').classList.remove('open');chatOpen=false;chatRelationId=null;chatPartnerId=null;currentChatTab='chat'}
 async function loadChatMessages(relId){
   try{
     const r=await fetch('/api/messages/'+relId);const d=await r.json();
@@ -3367,6 +3430,108 @@ function sendChatMsg(){
   S.socket.emit('send-message',{relationId:chatRelationId,userId:S.userId,text});
   appendChatMsg({userId:S.userId,text,timestamp:Date.now()});
   input.value='';
+}
+
+// ═══ NOTIFICATION BADGES ═══
+function updateUserBadge(userId){
+  const count=unreadMsgs[userId]||0;
+  const wrap=document.querySelector('.op-ci-wrap[data-user-id="'+userId+'"]');
+  if(!wrap)return;
+  // Remove existing badge
+  const old=wrap.querySelector('.op-ci-msg-badge');
+  if(old)old.remove();
+  if(count>0){
+    wrap.classList.add('has-unread');
+    const badge=document.createElement('div');
+    badge.className='op-ci-msg-badge';
+    badge.textContent=count>9?'9+':count;
+    wrap.appendChild(badge);
+  }else{
+    wrap.classList.remove('has-unread');
+  }
+}
+function updateNotifCounter(){
+  const total=Object.values(unreadMsgs).reduce((s,c)=>s+c,0);
+  const el=$('opMsgNotifCount');
+  if(total>0){el.style.display='';el.textContent=total>99?'99+':total}
+  else{el.style.display='none'}
+}
+function clearUnread(userId){
+  if(unreadMsgs[userId]){
+    delete unreadMsgs[userId];
+    updateUserBadge(userId);
+    updateNotifCounter();
+  }
+}
+
+// ═══ CHAT TABS (Chat / Historico) ═══
+function switchChatTab(tab){
+  currentChatTab=tab;
+  $('opChatTabChat').classList.toggle('active',tab==='chat');
+  $('opChatTabHistory').classList.toggle('active',tab==='history');
+  $('opChatMsgs').style.display=tab==='chat'?'':'none';
+  $('opChatInputArea').style.display=tab==='chat'?'':'none';
+  $('opChatHistory').style.display=tab==='history'?'':'none';
+  if(tab==='history'&&chatPartnerId){
+    loadUserHistory(chatPartnerId);
+  }
+}
+async function loadUserHistory(userId){
+  const container=$('opChatHistory');
+  container.innerHTML='<div class="op-chat-empty">Carregando historico...</div>';
+  const items=[];
+  try{
+    // Load tips between operator and this user
+    const tips=await(await fetch('/api/tips/'+S.userId)).json();
+    const userTips=tips.filter(t=>t.payerId===userId||t.receiverId===userId);
+    userTips.forEach(t=>{
+      const isReceived=t.receiverId===S.userId;
+      items.push({
+        type:isReceived?'tip_received':'tip_sent',
+        icon:isReceived?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+        bgColor:isReceived?'rgba(16,185,129,.12)':'rgba(96,165,250,.12)',
+        title:isReceived?'Gorjeta recebida':'Gorjeta enviada',
+        sub:new Date(t.createdAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}),
+        amount:'R$'+t.amount.toFixed(2).replace('.',','),
+        amountColor:isReceived?'var(--ok)':'#60a5fa',
+        status:({approved:'Aprovada',pending:'Pendente',rejected:'Rejeitada',in_process:'Processando'})[t.status]||t.status,
+        statusColor:({approved:'var(--ok)',pending:'#f59e0b',rejected:'var(--pk)',in_process:'#f59e0b'})[t.status]||'var(--t3)',
+        ts:t.createdAt||0
+      });
+    });
+  }catch(e){console.log('tips load error',e)}
+  // Get entry status for this event
+  const checkin=S.checkins.find(c=>c.userId===userId);
+  if(checkin){
+    const es=checkin.entryStatus||null;
+    if(es){
+      items.push({
+        type:'entry',
+        icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M13.8 12H3"/></svg>',
+        bgColor:'rgba(167,139,250,.12)',
+        title:'Entrada no evento',
+        sub:new Date(checkin.timestamp||Date.now()).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}),
+        amount:es==='paid'?'Pago':es==='freed'?'Liberado':'Presencial',
+        amountColor:es==='paid'?'var(--ok)':es==='freed'?'#60a5fa':'#fbbf24',
+        status:'Check-in',
+        statusColor:'var(--t3)',
+        ts:checkin.timestamp||0
+      });
+    }
+  }
+  // Sort by timestamp desc
+  items.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  if(items.length===0){
+    container.innerHTML='<div class="op-chat-empty">Nenhum historico ainda</div>';
+    return;
+  }
+  container.innerHTML='';
+  items.forEach(item=>{
+    const el=document.createElement('div');
+    el.className='op-history-item';
+    el.innerHTML='<div class="op-history-icon" style="background:'+item.bgColor+'">'+item.icon+'</div><div class="op-history-info"><div class="op-history-title">'+esc(item.title)+'</div><div class="op-history-sub">'+esc(item.sub)+'</div></div><div class="op-history-val"><div class="op-history-amount" style="color:'+item.amountColor+'">'+esc(item.amount)+'</div><div class="op-history-status" style="color:'+item.statusColor+'">'+esc(item.status)+'</div></div>';
+    container.appendChild(el);
+  });
 }
 
 // ═══ TOGGLE: SOMENTE REVELADOS ═══
