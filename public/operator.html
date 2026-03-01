@@ -2472,6 +2472,7 @@ function showToast(msg){
         // Show events screen instead of going directly to dashboard
         showEventsScreen();
         loadNewsEngineState();
+        checkVerifyResult();
       }
     }else{$('opLogin').style.display='';$('opApp').style.display='none';$('opSetup').style.display='none';$('opEvents').style.display='none'}
   });
@@ -3004,23 +3005,61 @@ async function lookupCnpj(){
 // ═══ VERIFIED BADGE ═══
 async function requestVerification(){
   if(!S.currentEventId)return;
-  // For now, mark as verified (payment via Stripe will be added later)
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/verify',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action:'request'})
     });
-    if(r.ok){
+    const d=await r.json();
+    if(!r.ok){showToast(d.error||'Erro ao verificar');return}
+    if(d.alreadyVerified){
+      $('verifiedNotYet').style.display='none';
+      $('verifiedAlready').style.display='';
+      showToast('Seu evento ja esta verificado!');
+      return;
+    }
+    // Stripe Checkout: redirect to payment page
+    if(d.checkoutUrl){
+      showToast('Redirecionando para pagamento...');
+      window.location.href=d.checkoutUrl;
+      return;
+    }
+    // No Stripe (dev mode): marked verified directly
+    if(d.verified){
       $('verifiedNotYet').style.display='none';
       $('verifiedAlready').style.display='';
       $('verifiedDate').textContent='Verificado em '+new Date().toLocaleDateString('pt-BR');
       showToast('Selo verificado ativado!');
-    }else{
-      const d=await r.json();
-      showToast(d.error||'Erro ao verificar');
     }
   }catch(e){showToast('Erro de conexao')}
+}
+
+// Check for verify_success URL parameter after Stripe redirect
+function checkVerifyResult(){
+  var params=new URLSearchParams(window.location.search);
+  var success=params.get('verify_success');
+  var cancelled=params.get('verify_cancelled');
+  var eventId=params.get('eventId');
+  var sessionId=params.get('session_id');
+  if(success&&eventId&&sessionId){
+    // Confirm payment with backend
+    fetch('/api/operator/event/'+eventId+'/verify-confirm',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sessionId:sessionId})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.ok&&d.verified){
+        showToast('Selo verificado ativado com sucesso!');
+      }else{
+        showToast(d.error||'Pagamento nao confirmado. Entre em contato.');
+      }
+    }).catch(function(){showToast('Erro ao confirmar pagamento.')});
+    // Clean URL
+    window.history.replaceState({},'',window.location.pathname);
+  }else if(cancelled){
+    showToast('Pagamento cancelado. Tente novamente quando quiser.');
+    window.history.replaceState({},'',window.location.pathname);
+  }
 }
 
 function opBackToEvents(){

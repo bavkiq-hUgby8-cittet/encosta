@@ -12415,16 +12415,73 @@ app.post('/api/operator/event/:eventId/business-profile', async (req, res) => {
 });
 
 // ═══ VERIFIED BADGE ═══
-app.post('/api/operator/event/:eventId/verify', (req, res) => {
+// Create Stripe Checkout session for badge purchase (R$100.00)
+app.post('/api/operator/event/:eventId/verify', async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
-  // TODO: integrate Stripe payment of R$100.00 before setting verified
-  // For now, mark as verified directly (payment will be enforced when Stripe keys are active)
-  ev.verified = true;
-  ev.verifiedAt = Date.now();
-  saveDB('operatorEvents');
-  res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+  // If Stripe is configured, create a checkout session
+  if (stripeInstance) {
+    try {
+      const baseUrl = process.env.BASE_URL || ('https://' + (req.headers.host || 'localhost:3000'));
+      const session = await stripeInstance.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: 'Selo Verificado - ' + (ev.name || 'Evento'),
+              description: 'Selo de verificacao para o evento ' + (ev.name || ev.id) + ' no Touch?'
+            },
+            unit_amount: 10000 // R$100.00 in centavos
+          },
+          quantity: 1
+        }],
+        success_url: baseUrl + '/operator.html?verify_success=1&eventId=' + req.params.eventId + '&session_id={CHECKOUT_SESSION_ID}',
+        cancel_url: baseUrl + '/operator.html?verify_cancelled=1&eventId=' + req.params.eventId,
+        metadata: { eventId: req.params.eventId, type: 'verified_badge' }
+      });
+      console.log('[stripe] Verified badge checkout created for event:', ev.name, 'session:', session.id);
+      res.json({ ok: true, checkoutUrl: session.url, sessionId: session.id });
+    } catch (e) {
+      console.error('[stripe] Verify badge error:', e.message);
+      res.status(500).json({ error: 'Erro ao criar pagamento: ' + e.message });
+    }
+  } else {
+    // Stripe not configured — mark verified directly (dev/test mode)
+    ev.verified = true;
+    ev.verifiedAt = Date.now();
+    saveDB('operatorEvents');
+    console.log('[verify] Badge granted without payment (Stripe not configured) for event:', ev.name);
+    res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+  }
+});
+
+// Confirm verified badge after Stripe payment success
+app.post('/api/operator/event/:eventId/verify-confirm', async (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'sessionId obrigatorio.' });
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado.' });
+  try {
+    const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status === 'paid' && session.metadata && session.metadata.eventId === req.params.eventId) {
+      ev.verified = true;
+      ev.verifiedAt = Date.now();
+      ev.verifyPaymentId = session.payment_intent;
+      saveDB('operatorEvents');
+      console.log('[stripe] Verified badge confirmed for event:', ev.name);
+      res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+    } else {
+      res.status(402).json({ error: 'Pagamento nao confirmado.', status: session.payment_status });
+    }
+  } catch (e) {
+    console.error('[stripe] Verify confirm error:', e.message);
+    res.status(500).json({ error: 'Erro ao confirmar pagamento: ' + e.message });
+  }
 });
 
 app.post('/api/operator/event/:eventId/attendee-status', async (req, res) => {

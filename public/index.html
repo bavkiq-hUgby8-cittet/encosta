@@ -11462,8 +11462,12 @@ function showConstDetail(node){
       av.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
       av.style.background='linear-gradient(135deg,#3b82f6,#6366f1)';av.style.fontSize='';av.style.display='flex';av.style.alignItems='center';av.style.justifyContent='center';
     }
-    // Name
-    $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>'+(node.eventActive?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:6px;vertical-align:middle;box-shadow:0 0 6px rgba(34,197,94,.6)"></span>':'');
+    // Verified badge for events
+    const cvbEvt=$('cdVerifiedBadge');
+    if(cvbEvt){if(node.verified)cvbEvt.classList.remove('hidden');else cvbEvt.classList.add('hidden')}
+    // Name with verified tag
+    const evtVerifiedTag=node.verified?' <span style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:5px;font-size:.5rem;font-weight:700;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;letter-spacing:.03em;vertical-align:middle;margin-left:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Verificado</span>':'';
+    $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>'+evtVerifiedTag+(node.eventActive?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:6px;vertical-align:middle;box-shadow:0 0 6px rgba(34,197,94,.6)"></span>':'');
     $('cdAlias').textContent=node.eventActive?'ao vivo':'evento encerrado';$('cdAlias').style.display='';
     $('cdStats').innerHTML='<span class="cd-stat-inline"><b>'+(node.encounters||0)+'</b> check-ins</span>';
     // Meta
@@ -11496,7 +11500,11 @@ function showConstDetail(node){
       if(bpHasData||bpDisplayName){
         // Business info card
         h+='<div style="padding:.6rem;background:rgba(96,165,250,.04);border:1px solid rgba(96,165,250,.1);border-radius:12px">';
-        if(bpDisplayName)h+='<div style="font-size:.8rem;font-weight:700;color:var(--t1);margin-bottom:.2rem">'+esc(bpDisplayName)+'</div>';
+        if(bpDisplayName){
+          h+='<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem"><span style="font-size:.8rem;font-weight:700;color:var(--t1)">'+esc(bpDisplayName)+'</span>';
+          if(node.verified)h+='<svg width="16" height="16" viewBox="0 0 24 24" fill="url(#verifiedGrad)" stroke="none" style="flex-shrink:0"><path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg>';
+          h+='</div>';
+        }
         if(bp&&bp.type)h+='<div style="display:inline-block;font-size:.5rem;color:#60a5fa;background:rgba(96,165,250,.1);padding:.15rem .4rem;border-radius:6px;text-transform:capitalize;margin-bottom:.4rem">'+esc(bp.type)+'</div>';
         if(bp&&bp.description)h+='<div style="font-size:.6rem;color:var(--t2);line-height:1.5;margin-bottom:.4rem">'+esc(bp.description)+'</div>';
         // Info rows with icons
