@@ -2986,6 +2986,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <!-- Church FAB (only if event has church) -->
     <button id="evChurchBtn" onclick="openEventChurch()" style="display:none;position:absolute;bottom:250px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#8b5cf6,#a78bfa);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(139,92,246,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">⛪ Igreja</button>
     <div id="evCartBadge" style="display:none;position:absolute;bottom:102px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.55rem;font-weight:700;text-align:center;line-height:20px;z-index:6;pointer-events:none">0</div>
+    <!-- Order history FAB -->
+    <button id="evOrderHistoryBtn" onclick="openOrderHistory()" style="display:none;position:absolute;bottom:70px;left:16px;padding:.5rem .8rem;border-radius:14px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);color:#f97316;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;z-index:5;backdrop-filter:blur(8px);display:none;align-items:center;gap:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg> Pedidos</button>
     <!-- Leave event button -->
     <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Sair do evento</button>
   </div>
@@ -3008,6 +3010,28 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     </div>
     <div id="evCartItems" style="padding:.8rem"></div>
     <div id="evCartFooter" style="position:sticky;bottom:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.8rem 1rem;border-top:1px solid rgba(255,255,255,.06)"></div>
+  </div>
+  <!-- CHECKOUT OVERLAY (payment + tip) -->
+  <div id="evCheckoutOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.98);z-index:12;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
+      <button onclick="closeCheckout()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">&#8592;</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">Pagamento</div>
+      <div style="width:24px"></div>
+    </div>
+    <div id="evCheckoutContent" style="padding:.8rem"></div>
+  </div>
+  <!-- RECEIPT OVERLAY (after payment) -->
+  <div id="evReceiptOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.98);z-index:13;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div id="evReceiptContent" style="padding:1rem"></div>
+  </div>
+  <!-- ORDER HISTORY OVERLAY -->
+  <div id="evOrderHistoryOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:11;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
+      <button onclick="closeOrderHistory()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">&#8592;</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">Meus Pedidos</div>
+      <div style="width:24px"></div>
+    </div>
+    <div id="evOrderHistoryContent" style="padding:.8rem"></div>
   </div>
   <!-- PARKING OVERLAY -->
   <div id="evParkingOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
@@ -4676,9 +4700,9 @@ function closeEventView(){
   const savedId=evViewEventId;
   const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evBolts.length=0;evViewCtx=null;
-  // Close menu/cart/parking/gym/church overlays
-  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';
-  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';
+  // Close menu/cart/parking/gym/church/checkout/receipt/history overlays
+  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evCheckoutOverlay').style.display='none';$('evReceiptOverlay').style.display='none';$('evOrderHistoryOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';
+  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evOrderHistoryBtn').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';
   if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended');socket.off('event-match')}
   // Persist active event in localStorage for floating button
   if(savedId){
@@ -4755,8 +4779,8 @@ async function loadEventMenu(eventId){
   try{
     const r=await fetch('/api/event/'+eventId+'/menu');const d=await r.json();
     evMenuData=d.menu||[];evTables=d.tables||0;
-    if(evMenuData.length>0)$('evMenuBtn').style.display='flex';
-    else $('evMenuBtn').style.display='none';
+    if(evMenuData.length>0){$('evMenuBtn').style.display='flex';$('evOrderHistoryBtn').style.display='flex';}
+    else{$('evMenuBtn').style.display='none';$('evOrderHistoryBtn').style.display='none';}
     evMenuEventId=eventId;
   }catch(e){evMenuData=[];}
 }
@@ -4830,81 +4854,237 @@ function updateCartBadge(){
   const mc=$('menuCartCount');if(mc)mc.textContent=total;
 }
 
+let evSelectedTip=0; // 0, 10, 15, 20
+
 function renderCart(){
-  const el=$('evCartItems');
+  var el=$('evCartItems');
   if(!evCart.length){
-    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:3rem 1rem;font-size:.8rem">Carrinho vazio<br><span style="font-size:.65rem">Escolha itens do cardápio</span></div>';
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:3rem 1rem;font-size:.8rem">Carrinho vazio<br><span style="font-size:.65rem">Escolha itens do cardapio</span></div>';
     $('evCartFooter').innerHTML='';return;
   }
-  el.innerHTML=evCart.map(c=>{
-    const price='R$'+(c.price*c.qty).toFixed(2).replace('.',',');
+  el.innerHTML=evCart.map(function(c){
+    var price='R$'+(c.price*c.qty).toFixed(2).replace('.',',');
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,.04)">'
       +'<div><div style="font-weight:600;font-size:.8rem;color:var(--t1)">'+esc(c.name)+'</div>'
-      +'<div style="font-size:.6rem;color:var(--t3)">'+c.qty+'× R$'+c.price.toFixed(2).replace('.',',')+'</div></div>'
+      +'<div style="font-size:.6rem;color:var(--t3)">'+c.qty+'x R$'+c.price.toFixed(2).replace('.',',')+'</div></div>'
       +'<div style="display:flex;align-items:center;gap:.3rem">'
       +'<span style="font-weight:700;color:#f97316;font-size:.8rem">'+price+'</span>'
-      +'<button onclick="addToCart(\''+c.id+'\',-1);renderCart()" style="width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,61,113,.3);background:none;color:#ff3d71;font-size:.8rem;cursor:pointer">−</button>'
+      +'<button onclick="addToCart(\''+c.id+'\',-1);renderCart()" style="width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,61,113,.3);background:none;color:#ff3d71;font-size:.8rem;cursor:pointer">-</button>'
       +'<button onclick="addToCart(\''+c.id+'\',1);renderCart()" style="width:26px;height:26px;border-radius:50%;border:none;background:#f97316;color:#fff;font-size:.8rem;cursor:pointer;font-weight:700">+</button>'
       +'</div></div>';
   }).join('');
-  const total=evCart.reduce((s,c)=>s+c.price*c.qty,0);
-  const totalStr='R$'+total.toFixed(2).replace('.',',');
-  let tableOpts='<option value="">Sem mesa</option>';
-  for(let i=1;i<=Math.max(evTables,50);i++)tableOpts+='<option value="'+i+'">Mesa '+i+'</option>';
+  var total=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
+  var totalStr='R$'+total.toFixed(2).replace('.',',');
+  var tableOpts='<option value="">Sem mesa</option>';
+  for(var i=1;i<=Math.max(evTables,50);i++)tableOpts+='<option value="'+i+'">Mesa '+i+'</option>';
   $('evCartFooter').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem"><span style="font-size:.8rem;color:var(--t2)">Total</span><span style="font-size:1.2rem;font-weight:800;color:#f97316">'+totalStr+'</span></div>'
     +'<div style="margin-bottom:.6rem"><label style="font-size:.65rem;color:var(--t3);display:block;margin-bottom:.2rem">Mesa de entrega</label>'
     +'<select id="evCartTable" style="width:100%;padding:.5rem;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t1);font-size:.8rem;font-family:inherit">'+tableOpts+'</select></div>'
-    +'<button onclick="submitOrder(\'counter\')" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:.4rem;font-family:inherit">📋 Mostrar pro garçom</button>'
-    +'<button onclick="submitOrder(\'card\')" style="width:100%;padding:.6rem;border-radius:14px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.08);color:#f97316;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">💳 Pagar agora</button>';
+    +'<button onclick="submitOrder(\'counter\')" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:.4rem;font-family:inherit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" style="vertical-align:middle;margin-right:4px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg> Mostrar pro garcom</button>'
+    +'<button onclick="openCheckout()" style="width:100%;padding:.6rem;border-radius:14px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.08);color:#f97316;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" style="vertical-align:middle;margin-right:4px"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pagar agora</button>';
 }
+
+function openCheckout(){
+  if(!evCart.length)return showToast('Carrinho vazio');
+  evSelectedTip=0;
+  renderCheckout();
+  $('evCheckoutOverlay').style.display='';
+}
+function closeCheckout(){$('evCheckoutOverlay').style.display='none'}
+
+function renderCheckout(){
+  var subtotal=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
+  var tipAmount=subtotal*(evSelectedTip/100);
+  var grandTotal=subtotal+tipAmount;
+  var table=$('evCartTable')?$('evCartTable').value:'';
+  var el=$('evCheckoutContent');
+  var itemsHtml=evCart.map(function(c){
+    return '<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.03)">'
+      +'<div style="font-size:.75rem;color:var(--t1)">'+c.qty+'x '+esc(c.name)+'</div>'
+      +'<div style="font-size:.75rem;font-weight:600;color:var(--t1)">R$'+(c.price*c.qty).toFixed(2).replace('.',',')+'</div></div>';
+  }).join('');
+
+  function tipBtn(pct){
+    var active=evSelectedTip===pct;
+    var label=pct===0?'Sem gorjeta':pct+'%';
+    var tipVal=pct===0?'':'+R$'+(subtotal*(pct/100)).toFixed(2).replace('.',',');
+    return '<button onclick="evSelectedTip='+pct+';renderCheckout()" style="flex:1;padding:.6rem .3rem;border-radius:12px;border:'+(active?'2px solid #f97316':'1px solid rgba(255,255,255,.1)')+';background:'+(active?'rgba(249,115,22,.15)':'rgba(255,255,255,.03)')+';color:'+(active?'#f97316':'var(--t2)')+';font-size:.7rem;font-weight:'+(active?'700':'500')+';cursor:pointer;font-family:inherit;text-align:center">'
+      +'<div>'+label+'</div>'
+      +(tipVal?'<div style="font-size:.55rem;margin-top:.15rem;opacity:.7">'+tipVal+'</div>':'')
+      +'</button>';
+  }
+
+  el.innerHTML=
+    '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+      +'<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.6rem">Resumo do pedido</div>'
+      +itemsHtml
+      +'<div style="display:flex;justify-content:space-between;padding:.5rem 0;margin-top:.3rem"><span style="font-size:.75rem;color:var(--t2)">Subtotal</span><span style="font-size:.8rem;font-weight:700;color:var(--t1)">R$'+subtotal.toFixed(2).replace('.',',')+'</span></div>'
+      +(table?'<div style="font-size:.65rem;color:var(--t3);padding:.2rem 0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>Mesa '+esc(table)+'</div>':'')
+    +'</div>'
+    +'<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+      +'<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.3rem">Gorjeta para o restaurante</div>'
+      +'<div style="font-size:.55rem;color:var(--t3);margin-bottom:.7rem">Opcional - valorize quem prepara seu pedido</div>'
+      +'<div style="display:flex;gap:.4rem">'
+        +tipBtn(0)+tipBtn(10)+tipBtn(15)+tipBtn(20)
+      +'</div>'
+    +'</div>'
+    +'<div style="background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(239,68,68,.08));border:1px solid rgba(249,115,22,.2);border-radius:16px;padding:1rem;margin-bottom:1rem;text-align:center">'
+      +(evSelectedTip>0?'<div style="font-size:.65rem;color:var(--t3)">Subtotal: R$'+subtotal.toFixed(2).replace('.',',')+' + Gorjeta '+evSelectedTip+'%: R$'+tipAmount.toFixed(2).replace('.',',')+'</div>':'')
+      +'<div style="font-size:.65rem;color:var(--t3);margin-bottom:.3rem">Total a pagar</div>'
+      +'<div style="font-size:1.8rem;font-weight:900;color:#f97316">R$'+grandTotal.toFixed(2).replace('.',',')+'</div>'
+    +'</div>'
+    +'<button onclick="processPayment()" id="evPayBtn" style="width:100%;padding:.8rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;gap:.4rem">'
+      +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+      +' Confirmar Pagamento'
+    +'</button>'
+    +'<div style="text-align:center;margin-top:.6rem;font-size:.55rem;color:var(--t3)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Pagamento seguro e protegido</div>';
+}
+
+async function processPayment(){
+  var btn=$('evPayBtn');
+  if(btn){btn.disabled=true;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="2.5" fill="none" stroke-dasharray="50 20"/></svg> Processando...';}
+  var subtotal=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
+  var tipAmount=subtotal*(evSelectedTip/100);
+  var grandTotal=subtotal+tipAmount;
+  var table=$('evCartTable')?$('evCartTable').value:'';
+  var items=evCart.map(function(c){return {menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}});
+  // Simulate processing delay
+  await new Promise(function(r){setTimeout(r,1500)});
+  try{
+    var r=await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,items:items,table:table,paymentMethod:'card',subtotal:subtotal,tipPercent:evSelectedTip,tipAmount:tipAmount,total:grandTotal})});
+    var d=await r.json();
+    if(d.error){if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pagamento';}return showToast(d.error);}
+    showReceipt(d.order);
+    evCart=[];updateCartBadge();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pagamento';}
+    showToast('Erro ao processar pagamento');
+  }
+}
+
+function showReceipt(order){
+  closeCheckout();closeCart();closeEventMenu();
+  $('evReceiptOverlay').style.display='';
+  var el=$('evReceiptContent');
+  var date=new Date(order.createdAt);
+  var dateStr=date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  el.innerHTML=
+    '<div style="text-align:center;margin-bottom:1.5rem;padding-top:.5rem">'
+      +'<div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);margin:0 auto .7rem;display:flex;align-items:center;justify-content:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>'
+      +'<div style="font-size:1.1rem;font-weight:800;color:#22c55e">Pagamento Confirmado!</div>'
+      +'<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem">Seu pedido foi registrado com sucesso</div>'
+    +'</div>'
+    +'<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:.5rem"><span style="font-size:.6rem;color:var(--t3)">Comprovante</span><span style="font-size:.6rem;font-weight:600;color:var(--ac)">'+(order.receiptNumber||'---')+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:.5rem"><span style="font-size:.6rem;color:var(--t3)">Data</span><span style="font-size:.6rem;color:var(--t1)">'+dateStr+'</span></div>'
+      +(order.eventName?'<div style="display:flex;justify-content:space-between;margin-bottom:.5rem"><span style="font-size:.6rem;color:var(--t3)">Local</span><span style="font-size:.6rem;color:var(--t1)">'+esc(order.eventName)+'</span></div>':'')
+      +(order.table?'<div style="display:flex;justify-content:space-between;margin-bottom:.5rem"><span style="font-size:.6rem;color:var(--t3)">Mesa</span><span style="font-size:.6rem;color:var(--t1)">'+esc(order.table)+'</span></div>':'')
+    +'</div>'
+    +'<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+      +'<div style="font-size:.65rem;font-weight:600;color:var(--t2);margin-bottom:.5rem">Itens</div>'
+      +(order.items||[]).map(function(i){
+        return '<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.03)">'
+          +'<span style="font-size:.7rem;color:var(--t1)">'+i.qty+'x '+esc(i.name)+'</span>'
+          +'<span style="font-size:.7rem;font-weight:600;color:var(--t1)">R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</span></div>';
+      }).join('')
+      +'<div style="border-top:1px solid rgba(255,255,255,.08);margin-top:.4rem;padding-top:.4rem">'
+        +'<div style="display:flex;justify-content:space-between"><span style="font-size:.65rem;color:var(--t3)">Subtotal</span><span style="font-size:.7rem;color:var(--t1)">R$'+(order.subtotal||0).toFixed(2).replace('.',',')+'</span></div>'
+        +(order.tipPercent>0?'<div style="display:flex;justify-content:space-between;margin-top:.2rem"><span style="font-size:.65rem;color:var(--t3)">Gorjeta ('+order.tipPercent+'%)</span><span style="font-size:.7rem;color:#22c55e">+R$'+(order.tipAmount||0).toFixed(2).replace('.',',')+'</span></div>':'')
+        +'<div style="display:flex;justify-content:space-between;margin-top:.4rem;padding-top:.3rem;border-top:1px solid rgba(249,115,22,.2)"><span style="font-size:.8rem;font-weight:700;color:var(--t1)">Total pago</span><span style="font-size:1rem;font-weight:900;color:#f97316">R$'+(order.total||0).toFixed(2).replace('.',',')+'</span></div>'
+      +'</div>'
+    +'</div>'
+    +'<button onclick="closeReceipt()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;margin-bottom:.4rem">Voltar ao evento</button>'
+    +'<button onclick="closeReceipt();openOrderHistory()" style="width:100%;padding:.6rem;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--t2);font-size:.75rem;cursor:pointer;font-family:inherit">Ver historico de pedidos</button>';
+}
+
+function closeReceipt(){$('evReceiptOverlay').style.display='none'}
+
+async function openOrderHistory(){
+  $('evOrderHistoryOverlay').style.display='';
+  var el=$('evOrderHistoryContent');
+  el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.75rem">Carregando...</div>';
+  try{
+    var r=await fetch('/api/event/'+evMenuEventId+'/orders/'+state.userId);
+    var d=await r.json();
+    var orders=d.orders||[];
+    if(!orders.length){
+      el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.75rem">Nenhum pedido ainda</div>';
+      return;
+    }
+    el.innerHTML=orders.map(function(o){
+      var date=new Date(o.createdAt);
+      var dateStr=date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      var statusColors={paid:'#22c55e',pending:'#eab308',preparing:'#3b82f6',ready:'#a855f7',delivered:'#22c55e',cancelled:'#ef4444'};
+      var statusLabels={paid:'Pago',pending:'Pendente',preparing:'Preparando',ready:'Pronto',delivered:'Entregue',cancelled:'Cancelado'};
+      var sc=statusColors[o.status]||'#eab308';
+      var sl=statusLabels[o.status]||o.status;
+      return '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;margin-bottom:.6rem">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">'
+          +'<span style="font-size:.6rem;color:var(--t3)">'+dateStr+'</span>'
+          +'<span style="font-size:.55rem;font-weight:600;color:'+sc+';background:'+sc+'18;padding:.15rem .5rem;border-radius:6px">'+sl+'</span>'
+        +'</div>'
+        +'<div style="margin-bottom:.4rem">'+(o.items||[]).map(function(i){return '<div style="font-size:.7rem;color:var(--t1)">'+i.qty+'x '+esc(i.name)+'</div>';}).join('')+'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.04);padding-top:.4rem">'
+          +'<div>'
+            +(o.table?'<span style="font-size:.55rem;color:var(--t3)">Mesa '+esc(o.table)+' | </span>':'')
+            +'<span style="font-size:.55rem;color:var(--t3)">'+(o.receiptNumber||'---')+'</span>'
+          +'</div>'
+          +'<div style="text-align:right">'
+            +(o.tipPercent>0?'<div style="font-size:.5rem;color:#22c55e">+'+o.tipPercent+'% gorjeta</div>':'')
+            +'<div style="font-size:.8rem;font-weight:700;color:#f97316">R$'+(o.total||0).toFixed(2).replace('.',',')+'</div>'
+          +'</div>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }catch(e){
+    el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.75rem">Erro ao carregar pedidos</div>';
+  }
+}
+
+function closeOrderHistory(){$('evOrderHistoryOverlay').style.display='none'}
 
 async function submitOrder(method){
   if(!evCart.length)return showToast('Carrinho vazio');
-  const table=$('evCartTable')?.value||'';
-  const total=evCart.reduce((s,c)=>s+c.price*c.qty,0);
-  const items=evCart.map(c=>({menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}));
+  var table=$('evCartTable')?$('evCartTable').value:'';
+  var total=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
+  var items=evCart.map(function(c){return {menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}});
   if(method==='counter'){
-    // Show big summary to waiter
     showWaiterView(items,table,total);return;
   }
-  // Card payment
-  try{
-    const r=await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,items,table,paymentMethod:'card',total})});
-    const d=await r.json();
-    if(d.error)return showToast(d.error);
-    showToast('Pedido enviado!');evCart=[];updateCartBadge();closeCart();closeEventMenu();
-  }catch(e){showToast('Erro ao enviar pedido')}
+  // For card payment, open checkout flow
+  openCheckout();
 }
 
 function showWaiterView(items,table,total){
-  // Full-screen big text for waiter to see
-  const totalStr='R$'+total.toFixed(2).replace('.',',');
-  const overlay=document.createElement('div');
+  var totalStr='R$'+total.toFixed(2).replace('.',',');
+  var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:#0a0a0f;z-index:9999;display:flex;flex-direction:column;padding:1.5rem;overflow-y:auto';
-  overlay.innerHTML='<div style="text-align:center;margin-bottom:1rem"><div style="font-size:1.4rem;font-weight:800;color:#f97316">📋 Pedido</div>'
+  overlay.innerHTML='<div style="text-align:center;margin-bottom:1rem"><div style="font-size:1.4rem;font-weight:800;color:#f97316"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" style="vertical-align:middle;margin-right:6px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Pedido</div>'
     +(table?'<div style="font-size:1.8rem;font-weight:900;color:#fff;margin-top:.4rem">Mesa '+esc(table)+'</div>':'')
     +'</div>'
-    +'<div style="flex:1">'+items.map(i=>'<div style="display:flex;justify-content:space-between;padding:.8rem 0;border-bottom:2px solid rgba(255,255,255,.08);align-items:center">'
-      +'<div><div style="font-size:1.3rem;font-weight:700;color:#fff">'+i.qty+'× '+esc(i.name)+'</div></div>'
-      +'<div style="font-size:1.1rem;font-weight:700;color:#f97316">R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</div></div>').join('')+'</div>'
+    +'<div style="flex:1">'+items.map(function(i){return '<div style="display:flex;justify-content:space-between;padding:.8rem 0;border-bottom:2px solid rgba(255,255,255,.08);align-items:center">'
+      +'<div><div style="font-size:1.3rem;font-weight:700;color:#fff">'+i.qty+'x '+esc(i.name)+'</div></div>'
+      +'<div style="font-size:1.1rem;font-weight:700;color:#f97316">R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</div></div>';}).join('')+'</div>'
     +'<div style="text-align:center;padding:1rem 0;border-top:2px solid rgba(249,115,22,.3);margin-top:.5rem">'
     +'<div style="font-size:.8rem;color:var(--t3)">Total</div>'
     +'<div style="font-size:2.2rem;font-weight:900;color:#f97316">'+totalStr+'</div></div>'
-    +'<button onclick="this.parentElement.remove();submitOrderCounter()" style="width:100%;padding:1rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:1.1rem;cursor:pointer;margin-top:.5rem;font-family:inherit">✅ Garçom anotou</button>'
+    +'<button onclick="this.parentElement.remove();submitOrderCounter()" style="width:100%;padding:1rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:1.1rem;cursor:pointer;margin-top:.5rem;font-family:inherit"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" style="vertical-align:middle;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Garcom anotou</button>'
     +'<button onclick="this.parentElement.remove()" style="width:100%;padding:.7rem;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--t2);font-size:.8rem;cursor:pointer;margin-top:.4rem;font-family:inherit">Voltar ao carrinho</button>';
   document.body.appendChild(overlay);
 }
 
 async function submitOrderCounter(){
-  const table=$('evCartTable')?.value||'';
-  const total=evCart.reduce((s,c)=>s+c.price*c.qty,0);
-  const items=evCart.map(c=>({menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}));
+  var table=$('evCartTable')?$('evCartTable').value:'';
+  var total=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
+  var items=evCart.map(function(c){return {menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}});
   try{
-    await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,items,table,paymentMethod:'counter',total})});
-  }catch(e){}
-  showToast('Pedido registrado!');evCart=[];updateCartBadge();closeCart();closeEventMenu();
+    var r=await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,items:items,table:table,paymentMethod:'counter',subtotal:total,tipPercent:0,tipAmount:0,total:total})});
+    var d=await r.json();
+    if(d&&d.order)showReceipt(d.order);
+    else{showToast('Pedido registrado!');evCart=[];updateCartBadge();closeCart();closeEventMenu();}
+  }catch(e){showToast('Pedido registrado!');evCart=[];updateCartBadge();closeCart();closeEventMenu();}
 }
 
 // ═══ PARKING MODULE (USER VIEW) ═══

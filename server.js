@@ -12649,15 +12649,22 @@ app.post('/api/operator/event/:eventId/menu', (req, res) => {
 app.post('/api/event/:eventId/order', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
-  const { userId, items, table, paymentMethod, total } = req.body;
+  const { userId, items, table, paymentMethod, total, tipPercent, tipAmount, subtotal } = req.body;
   // items: [{menuItemId, name, qty, price}]
   if (!userId || !items || items.length === 0) return res.status(400).json({ error: 'Pedido vazio.' });
   if (!ev.orders) ev.orders = [];
+  const receiptNumber = 'REC-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   const order = {
     id: uuidv4(), userId, userName: db.users[userId] ? (db.users[userId].nickname || db.users[userId].name) : '?',
-    items, table: table || null, total: parseFloat(total) || 0,
+    items, table: table || null,
+    subtotal: parseFloat(subtotal) || parseFloat(total) || 0,
+    tipPercent: parseInt(tipPercent) || 0,
+    tipAmount: parseFloat(tipAmount) || 0,
+    total: parseFloat(total) || 0,
     paymentMethod: paymentMethod || 'counter', // 'counter' = show to waiter, 'card' = paid online
     status: paymentMethod === 'card' ? 'paid' : 'pending', // pending = waiter collects
+    receiptNumber,
+    eventName: ev.name || 'Evento',
     createdAt: Date.now()
   };
   ev.orders.push(order);
@@ -12665,6 +12672,15 @@ app.post('/api/event/:eventId/order', (req, res) => {
   // Notify operator via socket
   io.emit('new-order', { eventId: ev.id, order });
   res.json({ ok: true, order });
+});
+
+// Get order history for a user in an event
+app.get('/api/event/:eventId/orders/:userId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const userOrders = (ev.orders || []).filter(o => o.userId === req.params.userId);
+  userOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ orders: userOrders, eventName: ev.name || 'Evento' });
 });
 
 // Get orders for event (operator)
