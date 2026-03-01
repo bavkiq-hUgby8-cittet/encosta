@@ -11795,8 +11795,24 @@ app.post('/api/operator/event/create', async (req, res) => {
       welcomeRestaurant: (businessProfile.welcomeRestaurant || '').trim().slice(0, 150),
       welcomeParking: (businessProfile.welcomeParking || '').trim().slice(0, 150),
       welcomeGym: (businessProfile.welcomeGym || '').trim().slice(0, 150),
-      welcomeChurch: (businessProfile.welcomeChurch || '').trim().slice(0, 150)
+      welcomeChurch: (businessProfile.welcomeChurch || '').trim().slice(0, 150),
+      cnpj: (businessProfile.cnpj || '').trim().slice(0, 18),
+      companyName: (businessProfile.companyName || '').trim().slice(0, 200),
+      tradeName: (businessProfile.tradeName || '').trim().slice(0, 200),
+      stateRegistration: (businessProfile.stateRegistration || '').trim().slice(0, 20),
+      cityRegistration: (businessProfile.cityRegistration || '').trim().slice(0, 20),
+      fiscalAddress: (businessProfile.fiscalAddress || '').trim().slice(0, 300),
+      fiscalCity: (businessProfile.fiscalCity || '').trim().slice(0, 100),
+      fiscalState: (businessProfile.fiscalState || '').toUpperCase().trim().slice(0, 2),
+      fiscalZip: (businessProfile.fiscalZip || '').trim().slice(0, 9),
+      cnae: (businessProfile.cnae || '').trim().slice(0, 10),
+      taxRegime: (businessProfile.taxRegime || '').trim().slice(0, 20),
+      fiscalEmail: (businessProfile.fiscalEmail || '').trim().slice(0, 100),
+      legalRepName: (businessProfile.legalRepName || '').trim().slice(0, 100),
+      legalRepCpf: (businessProfile.legalRepCpf || '').trim().slice(0, 14)
     } : null,
+    verified: false,
+    verifiedAt: null,
     staff: [],
     menu: [],
     tables: 0,
@@ -12226,7 +12242,21 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       welcomeRestaurant: (businessProfile.welcomeRestaurant || '').trim().slice(0, 150),
       welcomeParking: (businessProfile.welcomeParking || '').trim().slice(0, 150),
       welcomeGym: (businessProfile.welcomeGym || '').trim().slice(0, 150),
-      welcomeChurch: (businessProfile.welcomeChurch || '').trim().slice(0, 150)
+      welcomeChurch: (businessProfile.welcomeChurch || '').trim().slice(0, 150),
+      cnpj: (businessProfile.cnpj || '').trim().slice(0, 18),
+      companyName: (businessProfile.companyName || '').trim().slice(0, 200),
+      tradeName: (businessProfile.tradeName || '').trim().slice(0, 200),
+      stateRegistration: (businessProfile.stateRegistration || '').trim().slice(0, 20),
+      cityRegistration: (businessProfile.cityRegistration || '').trim().slice(0, 20),
+      fiscalAddress: (businessProfile.fiscalAddress || '').trim().slice(0, 300),
+      fiscalCity: (businessProfile.fiscalCity || '').trim().slice(0, 100),
+      fiscalState: (businessProfile.fiscalState || '').toUpperCase().trim().slice(0, 2),
+      fiscalZip: (businessProfile.fiscalZip || '').trim().slice(0, 9),
+      cnae: (businessProfile.cnae || '').trim().slice(0, 10),
+      taxRegime: (businessProfile.taxRegime || '').trim().slice(0, 20),
+      fiscalEmail: (businessProfile.fiscalEmail || '').trim().slice(0, 100),
+      legalRepName: (businessProfile.legalRepName || '').trim().slice(0, 100),
+      legalRepCpf: (businessProfile.legalRepCpf || '').trim().slice(0, 14)
     };
   }
   if (modules && typeof modules === 'object') {
@@ -12308,7 +12338,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false } });
+    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -12363,11 +12393,38 @@ app.post('/api/operator/event/:eventId/business-profile', async (req, res) => {
       instagram: (businessProfile.instagram || '').trim().slice(0, 40),
       acceptsDelivery: !!businessProfile.acceptsDelivery,
       deliveryFee: parseFloat(businessProfile.deliveryFee) || 0,
-      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100)
+      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100),
+      cnpj: (businessProfile.cnpj || '').trim().slice(0, 18),
+      companyName: (businessProfile.companyName || '').trim().slice(0, 200),
+      tradeName: (businessProfile.tradeName || '').trim().slice(0, 200),
+      stateRegistration: (businessProfile.stateRegistration || '').trim().slice(0, 20),
+      cityRegistration: (businessProfile.cityRegistration || '').trim().slice(0, 20),
+      fiscalAddress: (businessProfile.fiscalAddress || '').trim().slice(0, 300),
+      fiscalCity: (businessProfile.fiscalCity || '').trim().slice(0, 100),
+      fiscalState: (businessProfile.fiscalState || '').toUpperCase().trim().slice(0, 2),
+      fiscalZip: (businessProfile.fiscalZip || '').trim().slice(0, 9),
+      cnae: (businessProfile.cnae || '').trim().slice(0, 10),
+      taxRegime: (businessProfile.taxRegime || '').trim().slice(0, 20),
+      fiscalEmail: (businessProfile.fiscalEmail || '').trim().slice(0, 100),
+      legalRepName: (businessProfile.legalRepName || '').trim().slice(0, 100),
+      legalRepCpf: (businessProfile.legalRepCpf || '').trim().slice(0, 14)
     };
   }
   saveDB('operatorEvents');
   res.json({ ok: true, event: ev });
+});
+
+// ═══ VERIFIED BADGE ═══
+app.post('/api/operator/event/:eventId/verify', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
+  // TODO: integrate Stripe payment of R$100.00 before setting verified
+  // For now, mark as verified directly (payment will be enforced when Stripe keys are active)
+  ev.verified = true;
+  ev.verifiedAt = Date.now();
+  saveDB('operatorEvents');
+  res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
 });
 
 app.post('/api/operator/event/:eventId/attendee-status', async (req, res) => {
