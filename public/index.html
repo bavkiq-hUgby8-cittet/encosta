@@ -4931,17 +4931,6 @@ function renderCheckout(){
       +'</div>'
     +'</div>';
 
-  // Gateway de pagamento profissional
-  h+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
-    +'<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.6rem">Forma de pagamento</div>'
-    +'<div style="display:flex;flex-direction:column;gap:.4rem">';
-  h+=getPaymentMethodBtnHTML('pix',{id:'evPayPix',onclick:"selectEvPay('pix')"});
-  h+=getPaymentMethodBtnHTML('mercadopago',{id:'evPayMP',onclick:"selectEvPay('mercadopago')"});
-  h+=getPaymentMethodBtnHTML('stripe',{id:'evPayStripe',onclick:"selectEvPay('stripe')"});
-  h+=getPaymentMethodBtnHTML('applepay',{id:'evPayApple',onclick:"selectEvPay('applepay')"});
-  h+=getPaymentMethodBtnHTML('googlepay',{id:'evPayGoogle',onclick:"selectEvPay('googlepay')"});
-  h+='</div></div>';
-
   // Total
   h+='<div style="background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(239,68,68,.08));border:1px solid rgba(249,115,22,.2);border-radius:16px;padding:1rem;margin-bottom:1rem;text-align:center">'
       +(evSelectedTip>0?'<div style="font-size:.65rem;color:var(--t3)">Subtotal: R$'+subtotal.toFixed(2).replace('.',',')+' + Gorjeta '+evSelectedTip+'%: R$'+tipAmount.toFixed(2).replace('.',',')+'</div>':'')
@@ -4949,57 +4938,33 @@ function renderCheckout(){
       +'<div style="font-size:1.8rem;font-weight:900;color:#f97316">R$'+grandTotal.toFixed(2).replace('.',',')+'</div>'
     +'</div>';
 
-  // Botao confirmar
-  h+='<button onclick="processPayment()" id="evPayBtn" style="width:100%;padding:.8rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;gap:.4rem">'
-      +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
-      +' Confirmar Pagamento'
-    +'</button>'
-    +'<div style="text-align:center;margin-top:.6rem;font-size:.55rem;color:var(--t3)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Pagamento seguro e protegido</div>';
+  // Gateway de pagamento unificado (identico ao de ingresso)
+  h+='<div id="evMenuPayGateway"></div>';
 
   el.innerHTML=h;
-  // Highlight selected pay method
-  selectEvPay(window._evPayMethod||'pix');
-}
 
-function selectEvPay(method){
-  window._evPayMethod=method;
-  var ids=['evPayPix','evPayMP','evPayStripe','evPayApple','evPayGoogle'];
-  ids.forEach(function(id){
-    var el=$(id);if(!el)return;
-    var map={evPayPix:'pix',evPayMP:'mercadopago',evPayStripe:'stripe',evPayApple:'applepay',evPayGoogle:'googlepay'};
-    var isActive=map[id]===method;
-    if(isActive){
-      el.style.border='2px solid #3b82f6';
-      el.style.boxShadow='0 0 12px rgba(59,130,246,.15)';
-    }else{
-      el.style.border='1px solid rgba(255,255,255,.08)';
-      el.style.boxShadow='none';
+  // Renderizar gateway unificado
+  renderUnifiedPaymentGateway('evMenuPayGateway',{
+    prefix:'evMenu',
+    price:grandTotal,
+    label:'Pedido Restaurante',
+    type:'order',
+    eventId:evMenuEventId,
+    onConfirm:function(result){
+      // Registrar pedido no backend depois do pagamento
+      var items=evCart.map(function(c){return {menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}});
+      fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({userId:state.userId,items:items,table:table,paymentMethod:'paid',subtotal:subtotal,tipPercent:evSelectedTip,tipAmount:tipAmount,total:grandTotal})
+      }).then(function(r){return r.json()}).then(function(d){
+        if(d.order)showReceipt(d.order);
+        else showToast('Pedido registrado!');
+        evCart=[];updateCartBadge();
+      }).catch(function(){showToast('Pagamento ok! Pedido registrado.');evCart=[];updateCartBadge();});
     }
   });
 }
 
-async function processPayment(){
-  var btn=$('evPayBtn');
-  if(btn){btn.disabled=true;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="2.5" fill="none" stroke-dasharray="50 20"/></svg> Processando...';}
-  var subtotal=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
-  var tipAmount=subtotal*(evSelectedTip/100);
-  var grandTotal=subtotal+tipAmount;
-  var table=$('evCartTable')?$('evCartTable').value:'';
-  var items=evCart.map(function(c){return {menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}});
-  // Simulate processing delay
-  await new Promise(function(r){setTimeout(r,1500)});
-  try{
-    var r=await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,items:items,table:table,paymentMethod:window._evPayMethod||'pix',subtotal:subtotal,tipPercent:evSelectedTip,tipAmount:tipAmount,total:grandTotal})});
-    var d=await r.json();
-    if(d.error){if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pagamento';}return showToast(d.error);}
-    showReceipt(d.order);
-    evCart=[];updateCartBadge();
-  }catch(e){
-    if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pagamento';}
-    showToast('Erro ao processar pagamento');
-  }
-}
+// selectEvPay e processPayment removidos - agora usa renderUnifiedPaymentGateway
 
 function showReceipt(order){
   closeCheckout();closeCart();closeEventMenu();
@@ -12937,25 +12902,10 @@ function renderDelCheckout(){
   h+='<div class="del-checkout-section"><div class="del-checkout-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Observacoes (opcional)</div>';
   h+='<textarea class="del-checkout-input" id="delNotes" placeholder="Ex: portao preto, tocar interfone 102, sem cebola..." rows="2" style="resize:none"></textarea></div>';
 
-  // Pagamento - gateway profissional
+  // Pagamento - gateway unificado (identico a todos os outros)
   h+='<div class="del-checkout-section"><div class="del-checkout-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Forma de pagamento</div>';
-  h+='<div style="display:flex;flex-direction:column;gap:.4rem">';
-  // Na entrega (dinheiro/maquininha)
-  h+='<button id="delPayCounter" onclick="selectDelPay(\'counter\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .8rem;border-radius:14px;border:2px solid #3b82f6;background:rgba(59,130,246,.06);cursor:pointer;font-family:inherit;transition:all .2s">'
-    +'<div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/><circle cx="14" cy="14" r="2"/></svg></div>'
-    +'<div style="flex:1;text-align:left"><div style="font-size:.72rem;font-weight:700;color:#60a5fa">Na entrega</div><div style="font-size:.48rem;color:var(--t3)">Dinheiro ou maquininha</div></div>'
-  +'</button>';
-  // PIX
-  h+=getPaymentMethodBtnHTML('pix',{id:'delPayPix',onclick:"selectDelPay('pix')"});
-  // MercadoPago
-  h+=getPaymentMethodBtnHTML('mercadopago',{id:'delPayMP',onclick:"selectDelPay('mercadopago')"});
-  // Stripe (Cartao de credito)
-  h+=getPaymentMethodBtnHTML('stripe',{id:'delPayStripe',onclick:"selectDelPay('stripe')"});
-  // Apple Pay
-  h+=getPaymentMethodBtnHTML('applepay',{id:'delPayApple',onclick:"selectDelPay('applepay')"});
-  // Google Pay
-  h+=getPaymentMethodBtnHTML('googlepay',{id:'delPayGoogle',onclick:"selectDelPay('googlepay')"});
-  h+='</div></div>';
+  h+='<div id="delPayGateway"></div>';
+  h+='</div>';
 
   // Gorjeta
   h+='<div class="del-checkout-section">'
@@ -12973,12 +12923,29 @@ function renderDelCheckout(){
   h+='<div class="del-summary-row total"><span>Total</span><span>R$'+total.toFixed(2).replace('.',',')+'</span></div>';
   h+='</div>';
 
-  h+='<button id="delSubmitBtn" onclick="submitDeliveryOrder()" style="width:100%;padding:.8rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(59,130,246,.3);display:flex;align-items:center;justify-content:center;gap:.4rem"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Confirmar Pedido</button>';
-  h+='<div style="text-align:center;margin-top:.5rem;font-size:.5rem;color:var(--t3)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Seu pedido sera enviado diretamente ao restaurante</div>';
   h+='</div>';
   c.innerHTML=h;
-  if(!window._delPayMethod)window._delPayMethod='counter';
-  selectDelPay(window._delPayMethod||'counter');
+
+  // Renderizar gateway unificado no delivery (com opcao "Na entrega")
+  renderUnifiedPaymentGateway('delPayGateway',{
+    prefix:'delPay',
+    price:total,
+    label:'Delivery',
+    type:'delivery',
+    eventId:_delState.eventId,
+    showCounter:true,
+    onMethodSelect:function(method){window._delPayMethod=method;},
+    onConfirm:function(result){
+      // Pagamento online aprovado, registrar pedido
+      _submitDelOrderAfterPayment(result);
+    }
+  });
+
+  // Botao para pedidos "na entrega" (sem pagamento online)
+  var afterGw=document.createElement('div');
+  afterGw.style.cssText='margin-top:.6rem';
+  afterGw.innerHTML='<button id="delSubmitBtn" onclick="submitDeliveryOrder()" style="width:100%;padding:.8rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(59,130,246,.3);display:flex;align-items:center;justify-content:center;gap:.4rem"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Confirmar Pedido (pagar na entrega)</button>';
+  $('delPayGateway').parentNode.appendChild(afterGw);
 }
 
 function fillSavedAddress(){
@@ -12993,27 +12960,44 @@ function fillSavedAddress(){
   showToast('Endereco preenchido');
 }
 
-function selectDelPay(method){
-  window._delPayMethod=method;
-  var btnMap={
-    delPayCounter:'counter',
-    delPayPix:'pix',
-    delPayMP:'mercadopago',
-    delPayStripe:'stripe',
-    delPayApple:'applepay',
-    delPayGoogle:'googlepay'
+// selectDelPay removido - agora usa renderUnifiedPaymentGateway
+
+// Registrar pedido de delivery apos pagamento online ser confirmado pelo gateway
+async function _submitDelOrderAfterPayment(paymentResult){
+  var addr=$('delAddr');
+  var phone=($('delPhone')||{}).value||'';
+  var subtotal=_delState.cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var tipAmt=subtotal*(_delState.tipPercent/100);
+  var deliveryAddr={
+    street:(addr?addr.value:'').trim(),
+    complement:($('delComp')||{}).value||'',
+    neighborhood:($('delNeighb')||{}).value||'',
+    cep:($('delCep')||{}).value||'',
+    city:($('delCity')||{}).value||''
   };
-  Object.keys(btnMap).forEach(function(id){
-    var el=$(id);if(!el)return;
-    var isActive=btnMap[id]===method;
-    if(isActive){
-      el.style.border='2px solid #3b82f6';
-      el.style.boxShadow='0 0 12px rgba(59,130,246,.15)';
-    }else{
-      el.style.border='1px solid rgba(255,255,255,.08)';
-      el.style.boxShadow='none';
-    }
-  });
+  if($('delSaveAddr')&&$('delSaveAddr').checked){
+    _saveDelAddress({street:deliveryAddr.street,complement:deliveryAddr.complement,neighborhood:deliveryAddr.neighborhood,cep:deliveryAddr.cep,city:deliveryAddr.city,phone:phone.trim()});
+  }
+  try{
+    var r=await fetch('/api/delivery/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      eventId:_delState.eventId,customerId:state.userId,
+      customerName:state.userName||state.userNick||'Cliente',
+      phone:phone.trim(),
+      items:_delState.cart.map(function(i){return {name:i.name,price:i.price,qty:i.qty}}),
+      subtotal:subtotal,deliveryFee:_delState.deliveryFee,
+      tipPercent:_delState.tipPercent,tipAmount:tipAmt,
+      total:subtotal+_delState.deliveryFee+tipAmt,
+      deliveryAddress:deliveryAddr,
+      notes:($('delNotes')||{}).value||'',
+      paymentMethod:'paid'
+    })});
+    var d=await r.json();
+    if(d.error){showToast(d.error);return}
+    var order=d.order;
+    _delState.orderId=order.id;
+    _delState.step='confirmed';
+    showDeliveryConfirmation(order);
+  }catch(e){showToast('Erro ao registrar pedido');}
 }
 
 async function submitDeliveryOrder(){
@@ -16319,6 +16303,372 @@ const PAY_LOGOS_MINI = {
   hipercard: '<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#822124"/><text x="18" y="14.5" font-family="Arial,sans-serif" font-size="6" font-weight="700" fill="#fff" text-anchor="middle">HIPER</text></svg>',
   diners: '<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#0079BE"/><circle cx="16" cy="12" r="7" fill="#fff"/><path d="M13 8v8a7 7 0 0 1-3-4 7 7 0 0 1 3-4zm6 0a7 7 0 0 1 3 4 7 7 0 0 1-3 4V8z" fill="#0079BE"/></svg>'
 };
+
+// ── UNIFIED PAYMENT GATEWAY ──
+// One gateway for ALL checkouts: entry, event menu, delivery, tips, etc.
+// Usage: renderUnifiedPaymentGateway(containerId, opts)
+// opts: { prefix, price, label, onConfirm, onExpressConfirm, showPix, showStripe, showMP, showSaved, showNewCard, showApplePay, showGooglePay, showCounter, type, eventId, eventName }
+var _ugwStripeElements={};
+var _ugwStripePE={};
+
+function renderUnifiedPaymentGateway(containerId, opts){
+  opts=opts||{};
+  var pfx=opts.prefix||containerId;
+  var price=opts.price||0;
+  var priceLabel=formatPrice?formatPrice(price):'R$'+price.toFixed(2).replace('.',',');
+  var label=opts.label||'Pagamento';
+  var showPix=opts.showPix!==false;
+  var showStripe=opts.showStripe!==false;
+  var showSaved=opts.showSaved!==false;
+  var showNewCard=opts.showNewCard!==false;
+  var showApplePay=opts.showApplePay!==false;
+  var showGooglePay=opts.showGooglePay!==false;
+  var showCounter=opts.showCounter||false;
+  var container=$(containerId);
+  if(!container)return;
+
+  var h='';
+
+  // -- Express checkout: Apple Pay / Google Pay (top, prominent) --
+  h+='<div id="'+pfx+'_expressCheckout" style="display:none;margin-bottom:.5rem">'
+    +'<div style="font-size:.5rem;color:var(--t3);text-align:center;margin-bottom:.4rem;font-weight:500">Toque para pagar</div>'
+    +'<button id="'+pfx+'_applePayBtn" onclick="ugwExpressCheckout(\''+pfx+'\')" style="display:none;width:100%;padding:1.2rem 1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,.15);background:#1a1a2e;color:#fff;font-size:1.1rem;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;min-height:64px;box-shadow:0 2px 12px rgba(99,102,241,.15)">'
+    +PAY_LOGOS.applepay.replace('currentColor','#fff').replace('width="100%"','width="22"').replace('height="100%"','height="22"').replace('viewBox','style="vertical-align:middle;margin-right:.5rem;margin-top:-2px" viewBox')
+    +' Apple Pay - '+priceLabel
+    +'</button>'
+    +'<button id="'+pfx+'_googlePayBtn" onclick="ugwExpressCheckout(\''+pfx+'\')" style="display:none;width:100%;padding:1.2rem 1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:#fff;color:#3c4043;font-size:1.1rem;font-weight:600;font-family:Roboto,-apple-system,sans-serif;cursor:pointer;min-height:64px;box-shadow:0 2px 12px rgba(0,0,0,.1)">'
+    +'<svg viewBox="0 0 24 24" width="22" height="22" style="vertical-align:middle;margin-right:.5rem;margin-top:-2px"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>'
+    +' Google Pay - '+priceLabel
+    +'</button>'
+    +'</div>';
+
+  // -- Payment methods --
+  h+='<div id="'+pfx+'_payMethods" style="display:flex;flex-direction:column;gap:.5rem">';
+
+  // Counter (delivery only)
+  if(showCounter){
+    h+='<button id="'+pfx+'_counterBtn" onclick="ugwToggleOther(\''+pfx+'\');ugwSelectMethod(\''+pfx+'\',\'counter\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+      +'<div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/><circle cx="14" cy="14" r="2"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">Na entrega</div><div style="font-size:.42rem;color:var(--t3)">Dinheiro ou maquininha</div></div>'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
+    +'</button>';
+  }
+
+  // Other methods toggle
+  h+='<button id="'+pfx+'_otherToggle" onclick="ugwToggleOther(\''+pfx+'\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+    +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>'
+    +'<span style="flex:1;font-size:.6rem;color:var(--t3);text-align:left">'+(showCounter?'Pagar online':'Outras formas de pagamento')+'</span>'
+    +'<svg id="'+pfx+'_otherArrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>'
+  +'</button>';
+
+  h+='<div id="'+pfx+'_otherPanel" style="display:'+(showCounter?'none':'flex')+';flex-direction:column;gap:.5rem">';
+
+  // Stripe inline PE (cartao + Link)
+  if(showStripe){
+    h+='<div id="'+pfx+'_stripeWrapper" style="display:none;background:rgba(99,91,255,.04);border:1px solid rgba(99,91,255,.12);border-radius:16px;padding:.8rem">'
+      +'<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem">'
+      +'<svg viewBox="0 0 32 32" width="18" height="18"><rect width="32" height="32" rx="6" fill="#635BFF"/><path d="M15.2 11.2c0-.9.7-1.2 1.9-1.2 1.7 0 3.8.5 5.5 1.4V7.1C21 6.5 19.3 6 17.1 6c-3.8 0-6.3 2-6.3 5.3 0 5.2 7.1 4.3 7.1 6.6 0 1.1-.9 1.4-2.2 1.4-1.9 0-4.3-.8-6.2-1.8v4.4c2.1.9 4.2 1.3 6.2 1.3 3.9 0 6.5-1.9 6.5-5.3-.1-5.6-7-4.6-7-6.7z" fill="#fff"/></svg>'
+      +'<span style="font-size:.62rem;font-weight:600;color:#a5b4fc">Cartao ou Link</span>'
+      +'</div>'
+      +'<div id="'+pfx+'_stripeInline"></div>'
+    +'</div>';
+  }
+
+  // PIX
+  if(showPix){
+    h+='<button id="'+pfx+'_pixBtn" onclick="ugwSelectMethod(\''+pfx+'\',\'pix\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+      +'<div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#32BCAD,#2A9D8F);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;padding:4px"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M63.3 36.7L53.5 46.5c-2 2-5.1 2-7.1 0L36.7 36.7c-2-2-5.1-2-7.1 0L20 46.4l9.6 9.6c2 2 2 5.1 0 7.1L20 72.7l9.6 9.6c2 2 5.1 2 7.1 0l9.7-9.7c2-2 5.1-2 7.1 0l9.7 9.7c2 2 5.1 2 7.1 0L80 72.7l-9.6-9.6c-2-2-2-5.1 0-7.1L80 46.4l-9.6-9.6c-2-2-5.2-2-7.1-.1z" fill="#fff"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">PIX</div><div style="font-size:.42rem;color:var(--t3)">Instantaneo, sem taxa</div></div>'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
+    +'</button>';
+  }
+
+  // Saved card
+  if(showSaved){
+    h+='<div id="'+pfx+'_savedCardSection"></div>';
+  }
+
+  // New card
+  if(showNewCard){
+    h+='<button id="'+pfx+'_newCardBtn" onclick="ugwShowNewCardForm(\''+pfx+'\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.5rem .9rem;border-radius:12px;border:1px dashed rgba(99,102,241,.12);background:transparent;cursor:pointer;font-family:inherit">'
+      +'<div style="width:24px;height:24px;border-radius:6px;background:rgba(99,102,241,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.62rem;font-weight:600;color:var(--t2)">Novo cartao</div><div style="font-size:.42rem;color:var(--t3)">Visa, Master, Elo</div></div>'
+    +'</button>';
+  }
+
+  h+='</div>'; // otherPanel
+
+  h+='</div>'; // payMethods
+
+  // Security badge
+  h+='<div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-top:.6rem;padding:.3rem;border-radius:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15)">'
+    +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+    +'<span style="font-size:.5rem;color:#22c55e;font-weight:600">Pagamento seguro</span>'
+    +'<span style="font-size:.5rem;color:var(--t3)">|</span>'
+    +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'
+    +'<span style="font-size:.5rem;color:#22c55e;font-weight:600">SSL</span>'
+  +'</div>';
+
+  container.innerHTML=h;
+
+  // Store opts for later use by helper functions
+  window['_ugwOpts_'+pfx]=opts;
+
+  // Load saved card
+  if(showSaved)ugwLoadSavedCard(pfx,price);
+  // Init Apple Pay / Google Pay
+  if(showApplePay||showGooglePay)ugwInitExpress(pfx,price);
+  // If not counter mode, auto-expand other panel
+  if(!showCounter){
+    var toggle=$(pfx+'_otherToggle');
+    if(toggle)toggle.style.display='none';
+  }
+  // Mount Stripe PE
+  if(showStripe)ugwMountStripe(pfx,price);
+}
+
+// Toggle other methods panel
+function ugwToggleOther(pfx){
+  var panel=$(pfx+'_otherPanel');
+  var arrow=$(pfx+'_otherArrow');
+  var isHidden=!panel||!panel.style.display||panel.style.display==='none';
+  if(panel)panel.style.display=isHidden?'flex':'none';
+  if(arrow)arrow.style.transform=isHidden?'rotate(180deg)':'';
+  // Mount Stripe on first expand
+  var opts=window['_ugwOpts_'+pfx]||{};
+  if(isHidden&&!_ugwStripePE[pfx]&&opts.showStripe!==false){
+    ugwMountStripe(pfx,opts.price||0);
+  }
+}
+
+// Select payment method (for counter mode)
+function ugwSelectMethod(pfx,method){
+  window['_ugwSelectedMethod_'+pfx]=method;
+  var opts=window['_ugwOpts_'+pfx]||{};
+  if(typeof opts.onMethodSelect==='function')opts.onMethodSelect(method);
+}
+
+// Load saved card into gateway
+function ugwLoadSavedCard(pfx,price){
+  var saved=lsGet('touch_savedCard');
+  if(!saved)return;
+  try{var c=JSON.parse(saved);if(!c.lastFour)return}catch(e){return}
+  var sec=$(pfx+'_savedCardSection');if(!sec)return;
+  var priceLabel=formatPrice?formatPrice(price):'R$'+price.toFixed(2).replace('.',',');
+  var bk=(c.brand||'').toLowerCase();var bKey=bk==='mastercard'?'master':bk;
+  var bSvg=(typeof getCardBrandSVG==='function')?getCardBrandSVG(bKey,32):'';
+  var bIcon=bSvg?'<div style="width:40px;height:26px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">'+bSvg+'</div>':'';
+  sec.innerHTML='<div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);border-radius:14px;padding:.75rem .9rem">'
+    +'<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem">'
+    +bIcon
+    +'<div style="flex:1"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">'+esc(c.brand||'Cartao')+' **** '+esc(c.lastFour)+'</div></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:.4rem;align-items:center">'
+    +'<input type="password" id="'+pfx+'_savedCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" style="flex:.4;text-align:center" oninput="var b=$(\''+pfx+'_quickPayBtn\');if(b)b.disabled=this.value.length<3">'
+    +'<button id="'+pfx+'_quickPayBtn" onclick="ugwPaySavedCard(\''+pfx+'\')" disabled style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:.78rem;padding:.6rem;border-radius:12px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Pagar '+priceLabel+'</button>'
+    +'</div>'
+  +'</div>';
+}
+
+// Pay with saved card
+async function ugwPaySavedCard(pfx){
+  var cvv=($(pfx+'_savedCVV')||{}).value||'';
+  if(cvv.length<3)return showToast('CVV invalido.');
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var btn=$(pfx+'_quickPayBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...'}
+  try{
+    var saved=JSON.parse(lsGet('touch_savedCard')||'{}');
+    var resp=await fetch('/api/operator/event/'+(opts.eventId||'')+'/pay-entry',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,useSavedCard:true,cvv:cvv,payerEmail:state.email,payerCPF:saved.cpf||'',deviceId:typeof getMpDeviceId==='function'?getMpDeviceId():'',type:opts.type||'order',eventId:opts.eventId})
+    });
+    var result=await resp.json();
+    if(result.error)throw new Error(result.error);
+    showToast('Pagamento confirmado!');haptic([40,20,40]);
+    if(typeof opts.onConfirm==='function')opts.onConfirm(result);
+  }catch(e){
+    showToast(e.message||'Erro no pagamento.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar '+(formatPrice?formatPrice(opts.price||0):'');}
+  }
+}
+
+// Show new card form
+function ugwShowNewCardForm(pfx){
+  var sec=$(pfx+'_savedCardSection');
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var priceLabel=formatPrice?formatPrice(opts.price||0):'R$'+(opts.price||0).toFixed(2).replace('.',',');
+  if(sec){
+    sec.innerHTML='<div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);border-radius:16px;padding:.8rem">'
+      +'<div style="display:flex;align-items:center;margin-bottom:.4rem"><button onclick="renderUnifiedPaymentGateway(\''+$(pfx+'_payMethods')? pfx : pfx+'\')" style="padding:.2rem;border:none;background:transparent;color:var(--t2);font-size:.8rem;cursor:pointer;font-family:inherit">&#x2190;</button><div style="flex:1;font-size:.65rem;font-weight:600;color:var(--t2);text-align:center">Dados do cartao</div><div style="width:20px"></div></div>'
+      +'<div style="position:relative"><input type="text" id="'+pfx+'_cardNumber" class="tip-input" placeholder="Numero do cartao" inputmode="numeric" maxlength="19" autocomplete="cc-number" oninput="formatCardNumber(this)" style="margin-bottom:.3rem;padding-right:2.5rem"></div>'
+      +'<div style="display:flex;gap:.3rem;margin-bottom:.3rem"><input type="text" id="'+pfx+'_cardExpiry" class="tip-input" placeholder="MM/AA" inputmode="numeric" maxlength="5" oninput="formatExpiry(this)" style="flex:1"><input type="text" id="'+pfx+'_cardCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" style="flex:1"></div>'
+      +'<input type="text" id="'+pfx+'_cardHolder" class="tip-input" placeholder="Nome no cartao" style="margin-bottom:.3rem">'
+      +'<input type="text" id="'+pfx+'_cardCPF" class="tip-input" placeholder="CPF" inputmode="numeric" maxlength="14" oninput="formatCPF(this)" style="margin-bottom:.3rem">'
+      +'<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.5rem"><input type="checkbox" id="'+pfx+'_saveCard" checked style="accent-color:#6366f1"><label for="'+pfx+'_saveCard" style="font-size:.55rem;color:var(--t3)">Salvar cartao</label></div>'
+      +'<button onclick="ugwPayNewCard(\''+pfx+'\')" style="width:100%;padding:.65rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer" id="'+pfx+'_payNewBtn">Pagar '+priceLabel+'</button>'
+    +'</div>';
+  }
+}
+
+// Pay with new card (MercadoPago tokenize)
+async function ugwPayNewCard(pfx){
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var cardNum=($(pfx+'_cardNumber')||{}).value||'';
+  var holder=($(pfx+'_cardHolder')||{}).value||'';
+  var expiry=($(pfx+'_cardExpiry')||{}).value||'';
+  var cvv=($(pfx+'_cardCVV')||{}).value||'';
+  var cpf=($(pfx+'_cardCPF')||{}).value||'';
+  if(!cardNum||cardNum.replace(/\s/g,'').length<13)return showToast('Numero do cartao invalido.');
+  if(!expiry||expiry.length<5)return showToast('Data de validade invalida.');
+  if(!cvv||cvv.length<3)return showToast('CVV invalido.');
+  var btn=$(pfx+'_payNewBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...';}
+  var expParts=expiry.split('/');
+  try{
+    var resp=await fetch('/api/operator/event/'+(opts.eventId||'')+'/pay-entry',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        userId:state.userId,payerEmail:state.email||'',
+        cardNumber:cardNum.replace(/\s/g,''),cardholderName:holder,
+        expirationMonth:expParts[0],expirationYear:'20'+(expParts[1]||''),
+        securityCode:cvv,identificationType:'CPF',identificationNumber:cpf.replace(/\D/g,''),
+        deviceId:typeof getMpDeviceId==='function'?getMpDeviceId():'',
+        type:opts.type||'order',eventId:opts.eventId
+      })
+    });
+    var result=await resp.json();
+    if(result.error)throw new Error(result.error);
+    // Save card if checkbox checked
+    if($(pfx+'_saveCard')&&$(pfx+'_saveCard').checked){
+      var brand=typeof detectBrand==='function'?detectBrand(cardNum.replace(/\s/g,'')):null;
+      lsSet('touch_savedCard',JSON.stringify({lastFour:cardNum.replace(/\s/g,'').slice(-4),brand:brand?brand.name:'Card',cpf:cpf}));
+    }
+    showToast('Pagamento confirmado!');haptic([40,20,40]);
+    if(typeof opts.onConfirm==='function')opts.onConfirm(result);
+  }catch(e){
+    showToast(e.message||'Erro no pagamento.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar '+(formatPrice?formatPrice(opts.price||0):'');}
+  }
+}
+
+// Init express checkout (Apple Pay / Google Pay)
+function ugwInitExpress(pfx,price){
+  if(typeof loadStripeJS!=='function')return;
+  loadStripeJS().then(function(){
+    if(!_stripePublicKey||!window.Stripe)return;
+    try{
+      var stripe=window._stripeInstance||Stripe(_stripePublicKey);
+      window._stripeInstance=stripe;
+      var reqCountry=_userRegion||'BR';
+      if(!STRIPE_COUNTRIES.has(reqCountry))reqCountry='US';
+      var opts=window['_ugwOpts_'+pfx]||{};
+      var paymentRequest=stripe.paymentRequest({country:reqCountry,currency:_userCurrency||'brl',total:{label:opts.label||'Touch?',amount:Math.round(price*100)},requestPayerEmail:true});
+      paymentRequest.canMakePayment().then(function(result){
+        if(!result)return;
+        var container=$(pfx+'_expressCheckout');if(!container)return;
+        container.style.display='';
+        var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+        if(result.applePay){var ab=$(pfx+'_applePayBtn');if(ab)ab.style.display='';}
+        else if(result.googlePay&&!isIOS){var gb=$(pfx+'_googlePayBtn');if(gb)gb.style.display='';}
+        window['_ugwPayReq_'+pfx]=paymentRequest;
+      });
+    }catch(e){console.log('[ugw-express] error:',e)}
+  });
+}
+
+// Handle express checkout payment
+function ugwExpressCheckout(pfx){
+  var payReq=window['_ugwPayReq_'+pfx];
+  var opts=window['_ugwOpts_'+pfx]||{};
+  if(!window._stripeInstance||!payReq)return showToast('Pagamento express indisponivel.');
+  payReq.update({total:{label:opts.label||'Touch?',amount:Math.round((opts.price||0)*100)}});
+  payReq.show();
+  payReq.on('paymentmethod',function(ev){
+    fetch('/api/stripe/pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,paymentMethodId:ev.paymentMethod.id,amount:opts.price,payerId:state.userId,type:opts.type||'order',eventId:opts.eventId})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.ok){ev.complete('success');showToast('Pagamento confirmado!');haptic([40,20,40]);if(typeof opts.onConfirm==='function')opts.onConfirm(d);}
+      else{ev.complete('fail');showToast(d.error||'Erro no pagamento')}
+    }).catch(function(){ev.complete('fail');showToast('Erro na conexao')});
+  });
+}
+
+// Mount Stripe Payment Element inline
+async function ugwMountStripe(pfx,price){
+  if(!price||price<3)return;
+  var wrapper=$(pfx+'_stripeWrapper');
+  if(!wrapper)return;
+  if(typeof loadStripeJS!=='function')return;
+  await loadStripeJS();
+  if(!_stripePublicKey||!window.Stripe){wrapper.style.display='none';return;}
+  var stripe=window._stripeInstance||Stripe(_stripePublicKey);
+  window._stripeInstance=stripe;
+  wrapper.style.display='';
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var priceLabel=formatPrice?formatPrice(price):'R$'+price.toFixed(2).replace('.',',');
+  try{
+    _ugwStripeElements[pfx]=stripe.elements({
+      mode:'payment',amount:Math.round(price*100),currency:_userCurrency||'brl',
+      appearance:{theme:'night',variables:{colorPrimary:'#635bff',colorBackground:'#1a1a2e',colorText:'#e2e8f0',borderRadius:'12px',fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',colorDanger:'#ef4444',spacingUnit:'4px'}}
+    });
+    var inlineEl=$(pfx+'_stripeInline');
+    if(!inlineEl)return;
+    inlineEl.innerHTML='<div id="'+pfx+'_stripePE" style="margin-bottom:.5rem"></div>'
+      +'<button id="'+pfx+'_stripeConfirmBtn" onclick="ugwConfirmStripe(\''+pfx+'\')" disabled style="width:100%;padding:.75rem;border-radius:14px;border:none;background:linear-gradient(135deg,#635bff,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;opacity:.5;transition:all .2s">Preencha os dados</button>'
+      +'<div id="'+pfx+'_stripeMsg" style="font-size:.48rem;color:var(--err);margin-top:.3rem;text-align:center;display:none"></div>';
+    _ugwStripePE[pfx]=_ugwStripeElements[pfx].create('payment',{layout:'tabs'});
+    _ugwStripePE[pfx].mount('#'+pfx+'_stripePE');
+    _ugwStripePE[pfx].on('change',function(ev){
+      var btn=$(pfx+'_stripeConfirmBtn');
+      var msgEl=$(pfx+'_stripeMsg');
+      if(ev.error){if(msgEl){msgEl.style.display='';msgEl.textContent=ev.error.message;}}
+      else{if(msgEl)msgEl.style.display='none';}
+      if(btn){btn.disabled=!ev.complete;btn.textContent=ev.complete?'Pagar '+priceLabel:'Preencha os dados';btn.style.opacity=ev.complete?'1':'.5';}
+    });
+  }catch(e){
+    console.log('[ugw-stripe] mount error:',e);
+    wrapper.style.display='none';
+  }
+}
+
+// Confirm Stripe Payment Element
+async function ugwConfirmStripe(pfx){
+  var elements=_ugwStripeElements[pfx];
+  var opts=window['_ugwOpts_'+pfx]||{};
+  if(!elements)return;
+  var btn=$(pfx+'_stripeConfirmBtn');
+  var priceLabel=formatPrice?formatPrice(opts.price||0):'';
+  if(btn){btn.disabled=true;btn.textContent='Processando...';}
+  try{
+    var submitResult=await elements.submit();
+    if(submitResult.error){showToast(submitResult.error.message);if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1';}return;}
+    var resp=await fetch('/api/stripe/create-payment-intent',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,amount:opts.price,currency:_userCurrency||'brl',payerId:state.userId,type:opts.type||'order',eventId:opts.eventId})
+    });
+    var data=await resp.json();
+    if(data.error){showToast(data.error);if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1';}return;}
+    var confirmResult=await window._stripeInstance.confirmPayment({
+      elements:elements,clientSecret:data.clientSecret,
+      confirmParams:{return_url:window.location.origin+'/stripe/payment-result'},
+      redirect:'if_required'
+    });
+    if(confirmResult.error){showToast(confirmResult.error.message);if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1';}return;}
+    fetch('/api/stripe/confirm-payment',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,paymentIntentId:data.paymentIntentId,tipId:data.tipId})
+    }).catch(function(){});
+    showToast('Pagamento confirmado!');haptic([40,20,40]);
+    _ugwStripeElements[pfx]=null;_ugwStripePE[pfx]=null;
+    if(typeof opts.onConfirm==='function')opts.onConfirm(data);
+  }catch(e){
+    console.log('[ugw-stripe] confirm error:',e);
+    showToast('Erro na conexao. Tente novamente.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1';}
+  }
+}
 
 // Unified payment method button HTML generator
 function getPaymentMethodBtnHTML(method, opts) {

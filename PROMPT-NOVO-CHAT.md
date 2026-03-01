@@ -223,3 +223,61 @@ Quando estiver pronto, me avisa que a gente comeca.
 ---
 
 **Dica:** Depois de colar esse prompt, o agente vai estudar o projeto e te perguntar o que precisa. Ai e so mandar o que quer fazer!
+
+---
+
+## GATEWAY DE PAGAMENTO UNIFICADO (IMPORTANTE - NAO DUPLICAR!)
+
+Existe UMA UNICA funcao de gateway de pagamento: `renderUnifiedPaymentGateway(containerId, opts)`.
+Ela esta definida em `public/index.html` proximo a `getPaymentMethodBtnHTML()`.
+
+**REGRA ABSOLUTA:** Todo checkout do app DEVE usar essa funcao. NUNCA criar botoes de pagamento avulsos.
+Se precisar mudar algo no gateway, muda NESSA funcao e automaticamente muda em TODOS os checkouts.
+
+### Como usar:
+```javascript
+renderUnifiedPaymentGateway('meuContainerId', {
+  prefix: 'prefixoUnico',    // prefixo para IDs dos elementos (obrigatorio, deve ser unico)
+  price: 49.90,              // valor em reais
+  label: 'Meu Produto',      // label para Apple Pay / Stripe
+  type: 'order',             // tipo para o backend (order, delivery, entry, tip)
+  eventId: 'abc123',         // ID do evento
+  showCounter: true,         // mostrar opcao "Na entrega" (so delivery)
+  onConfirm: function(result){ /* chamado apos pagamento aprovado */ },
+  onMethodSelect: function(method){ /* chamado ao trocar metodo */ }
+});
+```
+
+### O que o gateway inclui automaticamente:
+- Apple Pay (detecta iOS) e Google Pay (detecta Android) no TOPO, com botoes grandes
+- Stripe Payment Element inline (cartao + Link)
+- PIX
+- Cartao salvo (com CVV para confirmar)
+- Novo cartao (formulario completo: numero, validade, CVV, CPF, salvar)
+- Opcao "Na entrega" (quando showCounter:true)
+- Badge de seguranca (SSL + cadeado)
+
+### Funcoes auxiliares do gateway (NAO chamar diretamente):
+- `ugwToggleOther(pfx)` - abre/fecha painel de metodos
+- `ugwSelectMethod(pfx, method)` - seleciona metodo
+- `ugwLoadSavedCard(pfx, price)` - carrega cartao salvo do localStorage
+- `ugwPaySavedCard(pfx)` - paga com cartao salvo
+- `ugwShowNewCardForm(pfx)` - mostra form de novo cartao
+- `ugwPayNewCard(pfx)` - processa novo cartao
+- `ugwInitExpress(pfx, price)` - inicia Apple Pay / Google Pay
+- `ugwExpressCheckout(pfx)` - processa pagamento express
+- `ugwMountStripe(pfx, price)` - monta Stripe Payment Element
+- `ugwConfirmStripe(pfx)` - confirma pagamento Stripe
+
+### Onde esta sendo usado atualmente:
+1. **Checkout do evento (restaurante):** `renderCheckout()` -> containerId='evMenuPayGateway'
+2. **Checkout do delivery:** `renderDelCheckout()` -> containerId='delPayGateway'
+3. **Ingresso de evento:** `showEntryCardForm()` (esse ainda usa o gateway antigo, mas o layout e identico)
+
+### SVGs e logos:
+- `PAY_LOGOS` - logos grandes (32x32) de todos os metodos
+- `PAY_LOGOS_MINI` - logos compactos para badges de bandeira
+- `CARD_BRANDS` - deteccao automatica de bandeira pelo numero do cartao
+- `getPaymentMethodBtnHTML(method, opts)` - gera botao de metodo (auxiliar, prefira o gateway unificado)
+- `getCardBrandBadgesHTML()` - row de badges de bandeiras
+- `getCardBrandSVG(brand, size)` - SVG de bandeira individual
