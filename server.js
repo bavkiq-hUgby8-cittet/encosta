@@ -12678,7 +12678,9 @@ app.post('/api/operator/event/:eventId/gym/class/:classId', (req, res) => {
   if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
   const classData = req.body;
   if (!ev.gym.classes) ev.gym.classes = {};
-  ev.gym.classes[classData.id] = classData;
+  const classKey = classData.id || req.params.classId;
+  classData.id = classKey;
+  ev.gym.classes[classKey] = classData;
   saveDB('operatorEvents');
   res.json({ ok: true, class: classData });
 });
@@ -12696,7 +12698,9 @@ app.post('/api/operator/event/:eventId/gym/plan/:planId', (req, res) => {
   if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
   const planData = req.body;
   if (!ev.gym.plans) ev.gym.plans = {};
-  ev.gym.plans[planData.id] = planData;
+  const planKey = planData.id || req.params.planId;
+  planData.id = planKey;
+  ev.gym.plans[planKey] = planData;
   saveDB('operatorEvents');
   res.json({ ok: true, plan: planData });
 });
@@ -12785,7 +12789,9 @@ app.post('/api/operator/event/:eventId/church/campaign', (req, res) => {
   if (!ev || !ev.church) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
   const campaignData = req.body;
   if (!ev.church.campaigns) ev.church.campaigns = {};
-  ev.church.campaigns[campaignData.id] = campaignData;
+  const campKey = campaignData.id || ('camp_' + Date.now());
+  campaignData.id = campKey;
+  ev.church.campaigns[campKey] = campaignData;
   saveDB('operatorEvents');
   res.json({ ok: true, campaign: campaignData });
 });

@@ -3951,6 +3951,10 @@ function populateTestMenu(){
 
 async function populateTestParking(){
   if(!S.currentEventId)return;
+  await fetch('/api/operator/event/'+S.currentEventId+'/parking/config',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({enabled:true,mode:'postpaid',hourlyRate:12,fixedRate:0,maxHours:24})
+  });
   var plates=['ABC1D23','XYZ9K87','JKL4F56','MNO2H90','PQR8J34','STU5L67','VWX3N01','DEF7P45','GHI6R89','BCD0T12'];
   var names=['Joao Silva','Maria Santos','Pedro Oliveira','Ana Costa','Carlos Souza','Juliana Lima','Roberto Pereira','Fernanda Alves','Marcos Ribeiro','Patricia Mendes'];
   for(var i=0;i<plates.length;i++){
@@ -3959,12 +3963,8 @@ async function populateTestParking(){
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({plate:plates[i],nickname:names[i],notes:'Teste #'+(i+1)})
       });
-    }catch(e){}
+    }catch(e){console.error('parking test error:',e)}
   }
-  await fetch('/api/operator/event/'+S.currentEventId+'/parking/config',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({enabled:true,mode:'postpaid',hourlyRate:12,fixedRate:0,maxHours:24})
-  });
   loadParkVehicles();loadParkConfig();
   showToast('10 veiculos de teste registrados!');
 }
@@ -3987,6 +3987,7 @@ async function populateTestGym(){
   ];
   for(var c of classes){
     var id='cls_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    c.id=id;
     await fetch('/api/operator/event/'+S.currentEventId+'/gym/class/'+id,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)
     });
@@ -3999,6 +4000,7 @@ async function populateTestGym(){
   ];
   for(var p of plans){
     var id='pln_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    p.id=id;
     await fetch('/api/operator/event/'+S.currentEventId+'/gym/plan/'+id,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)
     });
@@ -4019,6 +4021,7 @@ async function populateTestChurch(){
     {name:'Natal Solidario',goal:8000,description:'Cestas basicas para familias carentes'}
   ];
   for(var c of campaigns){
+    c.id='camp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
     await fetch('/api/operator/event/'+S.currentEventId+'/church/campaign',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)
     });
@@ -4037,7 +4040,7 @@ async function populateTestChurch(){
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(t)
     });
   }
-  loadChurchData();loadChurchConfig();
+  loadChurchTithes();loadChurchConfig();
   showToast('Igreja carregada com campanhas e dizimos!');
 }
 
