@@ -281,3 +281,55 @@ renderUnifiedPaymentGateway('meuContainerId', {
 - `getPaymentMethodBtnHTML(method, opts)` - gera botao de metodo (auxiliar, prefira o gateway unificado)
 - `getCardBrandBadgesHTML()` - row de badges de bandeiras
 - `getCardBrandSVG(brand, size)` - SVG de bandeira individual
+
+## SEPARACAO FISCAL: PRODUTOS vs SERVICOS (IMPORTANTE - SEFAZ)
+
+### Regra Geral
+- **Produtos (comida/bebida/frete)** = NF-e (Nota Fiscal Eletronica) -> SEFAZ estadual -> ICMS
+- **Servicos (gorjeta)** = NF-S (Nota Fiscal de Servico) -> Prefeitura -> ISS
+- NUNCA misturar produtos e servicos na mesma nota fiscal
+
+### Dados Fiscais nos Pedidos
+Todo pedido (restaurante e delivery) agora salva um objeto `fiscal`:
+```
+fiscal: {
+  productAmount: 100.00,       // Base NF-e
+  serviceAmount: 15.00,        // Base NF-S (gorjeta)
+  deliveryAmount: 8.00,        // Frete (NF-e)
+  productFiscalType: 'NF-e',
+  serviceFiscalType: 'NF-S',   // null se sem gorjeta
+  cfop: '5.102',               // Venda merc. adquirida dentro estado
+  cst: '00',                   // CST ICMS normal
+  ncm: '2106.90.90',           // NCM refeicoes prontas
+  issCode: '09.02',            // ISS intermediacao servicos
+  nfeStatus: 'pending',        // pending | emitted | error
+  nfsStatus: 'pending'         // pending | emitted | error | null
+}
+```
+
+### Endpoint Fiscal
+`GET /api/operator/event/:eventId/fiscal-summary` retorna:
+- `summary.totalProducts` - base NF-e (produtos)
+- `summary.totalDeliveryFee` - frete (incluso NF-e)
+- `summary.totalServices` - base NF-S (gorjetas)
+- `summary.totalGross` - faturamento bruto
+- `summary.nfeBase` - base final NF-e (produtos + frete)
+- `summary.nfsBase` - base final NF-S
+- `summary.nfeCount` / `nfsCount` - qtd documentos necessarios
+- `fiscalConfig` - CFOP, CST, NCM, ISS code
+
+### Exibicao nas Telas
+Todas as telas agora separam claramente:
+- **Meus Pedidos (cliente)**: Produtos R$X + Gorjeta R$Y = Total R$Z
+- **Post-it kanban (operador)**: Produtos + Gorjeta separados
+- **Dashboard stats**: "Produtos (NF-e)" + "Gorjetas (NF-S)" + "Total Bruto"
+- **Detalhe de mesa**: Subtotal produtos + gorjetas + total
+- **Comanda impressa**: Subtotal Produtos + Gorjeta + Total
+- **Delivery card**: Prod + Gorj = Total
+
+### Proximos Passos para SEFAZ
+1. Integrar API de emissao NF-e (ex: NFe.io, Enotas, Focus NFe)
+2. Integrar API de emissao NF-S (varia por municipio)
+3. Usar `fiscal.nfeStatus`/`nfsStatus` para rastrear emissao
+4. CFOP pode variar: 5.102 (dentro estado) vs 6.102 (fora estado)
+5. Regime tributario: definir se Simples Nacional, Lucro Presumido, etc

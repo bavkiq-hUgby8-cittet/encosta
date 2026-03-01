@@ -12604,6 +12604,20 @@ app.post('/api/delivery/order', (req, res) => {
   const deliveryFee = ev.businessProfile.deliveryFee || 0;
   const tip = parseFloat(tipAmount) || 0;
   const total = subtotal + deliveryFee + tip;
+  // Fiscal breakdown: produtos+frete = NF-e (ICMS), gorjeta = NF-S (ISS)
+  const fiscal = {
+    productAmount: subtotal,
+    deliveryAmount: deliveryFee,
+    serviceAmount: tip,
+    productFiscalType: 'NF-e',
+    serviceFiscalType: tip > 0 ? 'NF-S' : null,
+    cfop: '5.102',
+    cst: '00',
+    ncm: '2106.90.90',
+    issCode: tip > 0 ? '09.02' : null,
+    nfeStatus: 'pending',
+    nfsStatus: tip > 0 ? 'pending' : null
+  };
   const order = {
     id: require('uuid').v4(),
     eventId, customerId,
@@ -12618,6 +12632,7 @@ app.post('/api/delivery/order', (req, res) => {
     paymentMethod: paymentMethod || 'counter',
     paymentStatus: 'pending',
     notes: (notes || '').trim(),
+    fiscal,
     createdAt: Date.now(), deliveredAt: null
   };
   db.deliveryOrders[order.id] = order;
@@ -12715,17 +12730,34 @@ app.post('/api/event/:eventId/order', (req, res) => {
   if (!userId || !items || items.length === 0) return res.status(400).json({ error: 'Pedido vazio.' });
   if (!ev.orders) ev.orders = [];
   const receiptNumber = 'REC-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+  const parsedSubtotal = parseFloat(subtotal) || parseFloat(total) || 0;
+  const parsedTipAmount = parseFloat(tipAmount) || 0;
+  const parsedTotal = parseFloat(total) || 0;
+  // Fiscal breakdown: produtos = NF-e (ICMS), gorjeta = NF-S (ISS)
+  const fiscal = {
+    productAmount: parsedSubtotal,          // Base para NF-e (mercadoria)
+    serviceAmount: parsedTipAmount,          // Base para NF-S (servico/gorjeta)
+    productFiscalType: 'NF-e',              // Nota Fiscal Eletronica - produtos
+    serviceFiscalType: parsedTipAmount > 0 ? 'NF-S' : null, // Nota Fiscal de Servico - gorjeta
+    cfop: '5.102',                          // Venda mercadoria adquirida - dentro do estado
+    cst: '00',                              // CST ICMS - tributacao normal
+    ncm: '2106.90.90',                      // NCM generico refeicoes prontas
+    issCode: parsedTipAmount > 0 ? '09.02' : null, // Codigo ISS para servicos de intermediacao
+    nfeStatus: 'pending',                   // pending | emitted | error
+    nfsStatus: parsedTipAmount > 0 ? 'pending' : null
+  };
   const order = {
     id: uuidv4(), userId, userName: db.users[userId] ? (db.users[userId].nickname || db.users[userId].name) : '?',
     items, table: table || null,
-    subtotal: parseFloat(subtotal) || parseFloat(total) || 0,
+    subtotal: parsedSubtotal,
     tipPercent: parseInt(tipPercent) || 0,
-    tipAmount: parseFloat(tipAmount) || 0,
-    total: parseFloat(total) || 0,
-    paymentMethod: paymentMethod || 'counter', // 'counter' = show to waiter, 'card' = paid online
-    status: paymentMethod === 'card' ? 'paid' : 'pending', // pending = waiter collects
+    tipAmount: parsedTipAmount,
+    total: parsedTotal,
+    paymentMethod: paymentMethod || 'counter',
+    status: paymentMethod === 'card' ? 'paid' : 'pending',
     receiptNumber,
     eventName: ev.name || 'Evento',
+    fiscal,
     createdAt: Date.now()
   };
   ev.orders.push(order);
@@ -12762,6 +12794,60 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   // Notify client
   io.emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
   res.json({ ok: true, order });
+});
+
+// ═══ FISCAL SUMMARY (preparacao para SEFAZ) ═══
+app.get('/api/operator/event/:eventId/fiscal-summary', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const orders = (ev.orders || []).filter(o => o.status !== 'cancelled');
+  // Consolidar por tipo fiscal
+  let totalProducts = 0;     // Base NF-e (ICMS) - mercadorias
+  let totalServices = 0;     // Base NF-S (ISS) - gorjetas/servicos
+  let totalDeliveryFee = 0;  // Frete (incluso na NF-e)
+  let totalGross = 0;
+  let nfeCount = 0;
+  let nfsCount = 0;
+  orders.forEach(o => {
+    const sub = o.subtotal || o.total || 0;
+    const tip = o.tipAmount || 0;
+    totalProducts += sub;
+    totalServices += tip;
+    totalGross += (o.total || 0);
+    if (sub > 0) nfeCount++;
+    if (tip > 0) nfsCount++;
+  });
+  // Delivery orders
+  const delOrders = Object.values(db.deliveryOrders || {}).filter(o => o.eventId === req.params.eventId && o.status !== 'cancelled');
+  delOrders.forEach(o => {
+    totalProducts += (o.subtotal || 0);
+    totalDeliveryFee += (o.deliveryFee || 0);
+    totalServices += (o.tipAmount || 0);
+    totalGross += (o.total || 0);
+    if ((o.subtotal || 0) > 0) nfeCount++;
+    if ((o.tipAmount || 0) > 0) nfsCount++;
+  });
+  res.json({
+    summary: {
+      totalProducts,        // Base calculo NF-e (produtos + frete)
+      totalDeliveryFee,     // Frete (parte da NF-e)
+      totalServices,        // Base calculo NF-S (gorjetas)
+      totalGross,           // Faturamento bruto total
+      nfeCount,             // Qtd documentos NF-e necessarios
+      nfsCount,             // Qtd documentos NF-S necessarios
+      nfeBase: totalProducts + totalDeliveryFee,  // Base NF-e final
+      nfsBase: totalServices                       // Base NF-S final
+    },
+    fiscalConfig: {
+      cfop: '5.102',        // Venda merc. adquirida dentro do estado
+      cst: '00',            // CST ICMS tributacao normal
+      ncm: '2106.90.90',    // NCM refeicoes prontas
+      issCode: '09.02',     // Intermediacao de servicos
+      note: 'Produtos = NF-e (SEFAZ estadual, ICMS). Gorjetas = NF-S (prefeitura, ISS). Frete incluso na NF-e.'
+    },
+    ordersCount: orders.length + delOrders.length,
+    deliveryOrdersCount: delOrders.length
+  });
 });
 
 // ═══ PARKING MODULE ═══
