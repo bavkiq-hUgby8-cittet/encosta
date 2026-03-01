@@ -6433,6 +6433,59 @@ function createSonicConnection(userIdA, userIdB) {
     const totalUsers = Object.keys(db.users).length;
     const visitorStars = visitorUser ? (visitorUser.stars || []).length : 0;
     const visitorTopTag = visitorUser ? (visitorUser.topTag || null) : null;
+
+    // Build module welcome data
+    const ev = eventId ? db.operatorEvents[eventId] : null;
+    const moduleWelcome = [];
+    if (ev && ev.modules) {
+      if (ev.modules.restaurant) {
+        const menuCount = (ev.menu || []).length;
+        moduleWelcome.push({
+          key: 'restaurant',
+          label: 'Restaurante',
+          message: ev.businessProfile?.welcomeRestaurant || 'Confira nosso cardapio!',
+          action: 'menu',
+          actionLabel: 'Ver Cardapio',
+          color: '#f97316',
+          icon: 'restaurant',
+          extra: menuCount > 0 ? menuCount + ' itens' : null
+        });
+      }
+      if (ev.modules.parking) {
+        moduleWelcome.push({
+          key: 'parking',
+          label: 'Estacionamento',
+          message: ev.businessProfile?.welcomeParking || 'Registre seu veiculo!',
+          action: 'parking',
+          actionLabel: 'Registrar Veiculo',
+          color: '#3b82f6',
+          icon: 'parking'
+        });
+      }
+      if (ev.modules.gym) {
+        moduleWelcome.push({
+          key: 'gym',
+          label: 'Academia',
+          message: ev.businessProfile?.welcomeGym || 'Faca seu check-in!',
+          action: 'gym',
+          actionLabel: 'Check-in',
+          color: '#10b981',
+          icon: 'gym'
+        });
+      }
+      if (ev.modules.church) {
+        moduleWelcome.push({
+          key: 'church',
+          label: 'Igreja',
+          message: ev.businessProfile?.welcomeChurch || 'Bem-vindo ao culto!',
+          action: 'church',
+          actionLabel: 'Ver Programacao',
+          color: '#8b5cf6',
+          icon: 'church'
+        });
+      }
+    }
+
     const checkinData = {
       userId: visitorId, nickname: visitor.nickname || visitor.name, color: visitor.color,
       profilePhoto: visitor.profilePhoto || visitor.photoURL || null, timestamp: now,
@@ -6442,7 +6495,8 @@ function createSonicConnection(userIdA, userIdB) {
       stars: visitorStars,
       topTag: visitorTopTag,
       score: calcScore(visitorId),
-      welcomePhrase: (eventId && db.operatorEvents[eventId]) ? (db.operatorEvents[eventId].welcomePhrase || '') : ''
+      welcomePhrase: (eventId && db.operatorEvents[eventId]) ? (db.operatorEvents[eventId].welcomePhrase || '') : '',
+      moduleWelcome: moduleWelcome
     };
     io.to(`user:${operatorId}`).emit('checkin-created', checkinData);
     // Notify event room so phone users see new attendee
@@ -11619,7 +11673,11 @@ app.post('/api/operator/event/create', async (req, res) => {
       instagram: (businessProfile.instagram || '').trim().slice(0, 40),
       acceptsDelivery: !!businessProfile.acceptsDelivery,
       deliveryFee: parseFloat(businessProfile.deliveryFee) || 0,
-      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100)
+      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100),
+      welcomeRestaurant: (businessProfile.welcomeRestaurant || '').trim().slice(0, 150),
+      welcomeParking: (businessProfile.welcomeParking || '').trim().slice(0, 150),
+      welcomeGym: (businessProfile.welcomeGym || '').trim().slice(0, 150),
+      welcomeChurch: (businessProfile.welcomeChurch || '').trim().slice(0, 150)
     } : null,
     staff: [],
     menu: [],
@@ -12046,7 +12104,11 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       instagram: (businessProfile.instagram || '').trim().slice(0, 40),
       acceptsDelivery: !!businessProfile.acceptsDelivery,
       deliveryFee: parseFloat(businessProfile.deliveryFee) || 0,
-      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100)
+      deliveryNote: (businessProfile.deliveryNote || '').trim().slice(0, 100),
+      welcomeRestaurant: (businessProfile.welcomeRestaurant || '').trim().slice(0, 150),
+      welcomeParking: (businessProfile.welcomeParking || '').trim().slice(0, 150),
+      welcomeGym: (businessProfile.welcomeGym || '').trim().slice(0, 150),
+      welcomeChurch: (businessProfile.welcomeChurch || '').trim().slice(0, 150)
     };
   }
   if (modules && typeof modules === 'object') {
@@ -12153,7 +12215,8 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     participantCount: (ev.participants || []).length,
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
-    eventLogo: proxyStorageUrl(ev.eventLogo || null)
+    eventLogo: proxyStorageUrl(ev.eventLogo || null),
+    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false }
   });
 });
 
