@@ -4938,6 +4938,8 @@ function renderCheckout(){
   h+=getPaymentMethodBtnHTML('pix',{id:'evPayPix',onclick:"selectEvPay('pix')"});
   h+=getPaymentMethodBtnHTML('mercadopago',{id:'evPayMP',onclick:"selectEvPay('mercadopago')"});
   h+=getPaymentMethodBtnHTML('stripe',{id:'evPayStripe',onclick:"selectEvPay('stripe')"});
+  h+=getPaymentMethodBtnHTML('applepay',{id:'evPayApple',onclick:"selectEvPay('applepay')"});
+  h+=getPaymentMethodBtnHTML('googlepay',{id:'evPayGoogle',onclick:"selectEvPay('googlepay')"});
   h+='</div></div>';
 
   // Total
@@ -4961,10 +4963,10 @@ function renderCheckout(){
 
 function selectEvPay(method){
   window._evPayMethod=method;
-  var ids=['evPayPix','evPayMP','evPayStripe'];
+  var ids=['evPayPix','evPayMP','evPayStripe','evPayApple','evPayGoogle'];
   ids.forEach(function(id){
     var el=$(id);if(!el)return;
-    var map={evPayPix:'pix',evPayMP:'mercadopago',evPayStripe:'stripe'};
+    var map={evPayPix:'pix',evPayMP:'mercadopago',evPayStripe:'stripe',evPayApple:'applepay',evPayGoogle:'googlepay'};
     var isActive=map[id]===method;
     if(isActive){
       el.style.border='2px solid #3b82f6';
@@ -12947,8 +12949,12 @@ function renderDelCheckout(){
   h+=getPaymentMethodBtnHTML('pix',{id:'delPayPix',onclick:"selectDelPay('pix')"});
   // MercadoPago
   h+=getPaymentMethodBtnHTML('mercadopago',{id:'delPayMP',onclick:"selectDelPay('mercadopago')"});
-  // Stripe (Cartao / Apple Pay / Link)
+  // Stripe (Cartao de credito)
   h+=getPaymentMethodBtnHTML('stripe',{id:'delPayStripe',onclick:"selectDelPay('stripe')"});
+  // Apple Pay
+  h+=getPaymentMethodBtnHTML('applepay',{id:'delPayApple',onclick:"selectDelPay('applepay')"});
+  // Google Pay
+  h+=getPaymentMethodBtnHTML('googlepay',{id:'delPayGoogle',onclick:"selectDelPay('googlepay')"});
   h+='</div></div>';
 
   // Gorjeta
@@ -12993,7 +12999,9 @@ function selectDelPay(method){
     delPayCounter:'counter',
     delPayPix:'pix',
     delPayMP:'mercadopago',
-    delPayStripe:'stripe'
+    delPayStripe:'stripe',
+    delPayApple:'applepay',
+    delPayGoogle:'googlepay'
   };
   Object.keys(btnMap).forEach(function(id){
     var el=$(id);if(!el)return;
@@ -16341,14 +16349,34 @@ function getPaymentMethodBtnHTML(method, opts) {
       logo: PAY_LOGOS.mercadopago
     },
     stripe: {
-      name: 'Cartao / Apple Pay / Link',
-      desc: 'Visa, Master, Amex + wallets',
+      name: 'Cartao de credito',
+      desc: 'Visa, Master, Amex, Elo, Hiper',
       bgIcon: 'linear-gradient(135deg,#635BFF,#4f46e5)',
       border: 'rgba(99,91,255,.2)',
       bgBtn: 'rgba(99,91,255,.06)',
       nameColor: '#a5b4fc',
       badge: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>',
       logo: PAY_LOGOS.stripe
+    },
+    applepay: {
+      name: 'Apple Pay',
+      desc: 'Pague com iPhone ou Apple Watch',
+      bgIcon: '#000',
+      border: 'rgba(255,255,255,.15)',
+      bgBtn: 'rgba(255,255,255,.03)',
+      nameColor: '#fff',
+      badge: '<span style="font-size:.55rem;color:#a3a3a3;font-weight:500;background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px">Wallet</span>',
+      logo: PAY_LOGOS.applepay
+    },
+    googlepay: {
+      name: 'Google Pay',
+      desc: 'Pague com sua conta Google',
+      bgIcon: '#fff',
+      border: 'rgba(66,133,244,.2)',
+      bgBtn: 'rgba(66,133,244,.04)',
+      nameColor: '#4285F4',
+      badge: '<span style="font-size:.55rem;color:#4285F4;font-weight:500;background:rgba(66,133,244,.08);padding:2px 6px;border-radius:6px">Wallet</span>',
+      logo: PAY_LOGOS.googlepay
     },
     newcard: {
       name: opts.label || 'Adicionar cartao',
