@@ -1840,13 +1840,13 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
                 <span>Necessario para emissao de notas fiscais</span>
               </div>
             </div>
-            <button class="mod-btn primary full" onclick="requestVerification()" style="padding:.9rem;font-size:.85rem;font-weight:700;background:linear-gradient(135deg,#1877f2,#42a5f5);border:none;box-shadow:0 4px 20px rgba(24,119,242,.3)">
+            <button id="verifyBtn" class="mod-btn primary full" onclick="requestVerification()" style="padding:.9rem;font-size:.85rem;font-weight:700;background:linear-gradient(135deg,#1877f2,#42a5f5);border:none;box-shadow:0 4px 20px rgba(24,119,242,.3)">
               <span style="display:flex;align-items:center;justify-content:center;gap:.5rem">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                Verificar por R$ 100,00
+                Verificar por R$ 10,00/mes
               </span>
             </button>
-            <div style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.5rem">Pagamento unico. Valido enquanto o evento existir.</div>
+            <div style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.5rem">Assinatura mensal via MercadoPago. Cancele quando quiser.</div>
           </div>
           <!-- State: VERIFIED -->
           <div id="verifiedAlready" style="display:none">
@@ -3005,59 +3005,83 @@ async function lookupCnpj(){
 // ═══ VERIFIED BADGE ═══
 async function requestVerification(){
   if(!S.currentEventId)return;
+  var btn=$('verifyBtn');
+  if(btn){btn.disabled=true;btn.style.opacity='.6'}
   try{
-    const r=await fetch('/api/operator/event/'+S.currentEventId+'/verify',{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/verify',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'request'})
+      body:JSON.stringify({})
     });
-    const d=await r.json();
-    if(!r.ok){showToast(d.error||'Erro ao verificar');return}
-    if(d.alreadyVerified){
+    var d=await r.json();
+    if(!r.ok){showToast(d.error||'Erro ao verificar');if(btn){btn.disabled=false;btn.style.opacity='1'}return}
+    if(d.alreadyVerified||d.verified){
       $('verifiedNotYet').style.display='none';
       $('verifiedAlready').style.display='';
-      showToast('Seu evento ja esta verificado!');
-      return;
-    }
-    // Stripe Checkout: redirect to payment page
-    if(d.checkoutUrl){
-      showToast('Redirecionando para pagamento...');
-      window.location.href=d.checkoutUrl;
-      return;
-    }
-    // No Stripe (dev mode): marked verified directly
-    if(d.verified){
-      $('verifiedNotYet').style.display='none';
-      $('verifiedAlready').style.display='';
-      $('verifiedDate').textContent='Verificado em '+new Date().toLocaleDateString('pt-BR');
+      if($('verifiedDate'))$('verifiedDate').textContent='Verificado em '+new Date(d.verifiedAt||Date.now()).toLocaleDateString('pt-BR');
       showToast('Selo verificado ativado!');
+      return;
     }
-  }catch(e){showToast('Erro de conexao')}
+    // MP Preapproval redirect (subscription flow)
+    if(d.method==='redirect'){
+      var url=d.initPoint||d.sandboxInitPoint;
+      if(url){
+        showToast('Redirecionando para MercadoPago...');
+        window.location.href=url;
+        return;
+      }
+      showToast('Erro: URL de pagamento nao disponivel');
+      if(btn){btn.disabled=false;btn.style.opacity='1'}
+      return;
+    }
+    // PIX response
+    if(d.method==='pix'&&d.pixCode){
+      showPixModal(d.pixCode,d.pixBase64,d.ticketUrl);
+      if(btn){btn.disabled=false;btn.style.opacity='1'}
+      return;
+    }
+  }catch(e){showToast('Erro de conexao');if(btn){btn.disabled=false;btn.style.opacity='1'}}
 }
 
-// Check for verify_success URL parameter after Stripe redirect
+// Show PIX modal for verification payment
+function showPixModal(code,base64,ticketUrl){
+  var m=document.createElement('div');
+  m.id='verifyPixModal';
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:1rem';
+  var inner='<div style="background:var(--bg2,#1a1a2e);border-radius:20px;padding:1.5rem;max-width:360px;width:100%;text-align:center">';
+  inner+='<div style="font-size:1rem;font-weight:700;color:var(--t1,#fff);margin-bottom:.5rem">Pague com PIX</div>';
+  inner+='<div style="font-size:.7rem;color:var(--t2,#aaa);margin-bottom:1rem">Selo de Verificacao - R$ 10,00/mes</div>';
+  if(base64){inner+='<img src="data:image/png;base64,'+base64+'" style="width:200px;height:200px;border-radius:12px;margin:0 auto .8rem">';}
+  if(code){
+    inner+='<div style="background:var(--bg3,#111);border-radius:10px;padding:.6rem;margin-bottom:.8rem;word-break:break-all;font-size:.5rem;color:var(--t2,#aaa);max-height:80px;overflow:auto;cursor:pointer" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'Codigo copiado!\')">'+code+'</div>';
+    inner+='<button onclick="navigator.clipboard.writeText(\''+code.replace(/'/g,"\\'")+'\');showToast(\'Codigo PIX copiado!\')" style="width:100%;padding:.7rem;border-radius:12px;border:none;background:linear-gradient(135deg,#1877f2,#42a5f5);color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;margin-bottom:.5rem">Copiar codigo PIX</button>';
+  }
+  if(ticketUrl){inner+='<a href="'+ticketUrl+'" target="_blank" style="display:block;font-size:.7rem;color:#42a5f5;margin-bottom:.5rem">Abrir pagamento no navegador</a>';}
+  inner+='<button onclick="document.getElementById(\'verifyPixModal\').remove()" style="width:100%;padding:.6rem;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--t2,#aaa);font-size:.75rem;cursor:pointer">Fechar</button>';
+  inner+='</div>';
+  m.innerHTML=inner;
+  document.body.appendChild(m);
+}
+
+// Check for verify_result URL parameter after MP subscription redirect
 function checkVerifyResult(){
   var params=new URLSearchParams(window.location.search);
-  var success=params.get('verify_success');
-  var cancelled=params.get('verify_cancelled');
+  var result=params.get('verify_result');
   var eventId=params.get('eventId');
-  var sessionId=params.get('session_id');
-  if(success&&eventId&&sessionId){
-    // Confirm payment with backend
+  var subId=params.get('subId');
+  if(result&&eventId){
+    // Confirm subscription with backend
     fetch('/api/operator/event/'+eventId+'/verify-confirm',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sessionId:sessionId})
+      body:JSON.stringify({subId:subId||''})
     }).then(function(r){return r.json()}).then(function(d){
       if(d.ok&&d.verified){
         showToast('Selo verificado ativado com sucesso!');
       }else{
-        showToast(d.error||'Pagamento nao confirmado. Entre em contato.');
+        showToast(d.error||'Assinatura pendente. O selo sera ativado quando o pagamento for confirmado.');
       }
-    }).catch(function(){showToast('Erro ao confirmar pagamento.')});
+    }).catch(function(){showToast('Erro ao confirmar assinatura.')});
     // Clean URL
-    window.history.replaceState({},'',window.location.pathname);
-  }else if(cancelled){
-    showToast('Pagamento cancelado. Tente novamente quando quiser.');
     window.history.replaceState({},'',window.location.pathname);
   }
 }

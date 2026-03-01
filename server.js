@@ -8435,8 +8435,17 @@ app.post('/mp/webhook', (req, res) => {
                 user.verifiedAt = user.verifiedAt || Date.now();
                 user.verificationType = user.verificationType || 'subscriber';
               }
+              // If subscription has linked event, verify it too
+              if (sub.eventId && db.operatorEvents[sub.eventId]) {
+                const ev = db.operatorEvents[sub.eventId];
+                ev.verified = true;
+                ev.verifiedAt = Date.now();
+                ev.verifyMethod = 'pix';
+                ev.verifyPaymentId = paymentId;
+                console.log('[webhook] Event verified via PIX:', ev.name);
+              }
               console.log('[webhook] Subscription PIX approved:', { userId: sub.userId, plan: sub.planId });
-              saveDB('users');
+              saveDB('users', 'operatorEvents');
             }
           }
           // Handle event entry PIX activation
@@ -9039,8 +9048,21 @@ app.post('/mp/webhook/subscription', (req, res) => {
         if (pa.status === 'cancelled') {
           sub.cancelledAt = Date.now();
         }
-        saveDB('users');
-        console.log('📋 Subscription webhook:', { userId: uid, status: pa.status });
+        // If subscription has linked event, verify/unverify it
+        if (sub.eventId && db.operatorEvents[sub.eventId]) {
+          const ev = db.operatorEvents[sub.eventId];
+          if (pa.status === 'authorized') {
+            ev.verified = true;
+            ev.verifiedAt = ev.verifiedAt || Date.now();
+            ev.verifyMethod = 'subscription';
+            ev.verifySubscriptionId = data.id;
+          } else if (pa.status === 'cancelled') {
+            ev.verified = false;
+            ev.verifyMethod = null;
+          }
+        }
+        saveDB('users', 'operatorEvents');
+        console.log('[webhook] Subscription:', { userId: uid, status: pa.status, eventId: sub.eventId || 'none' });
       }
     }).catch(e => console.error('Sub webhook error:', e));
   }
@@ -12414,73 +12436,282 @@ app.post('/api/operator/event/:eventId/business-profile', async (req, res) => {
   res.json({ ok: true, event: ev });
 });
 
-// ═══ VERIFIED BADGE ═══
-// Create Stripe Checkout session for badge purchase (R$100.00)
-app.post('/api/operator/event/:eventId/verify', async (req, res) => {
+// ═══ VERIFIED BADGE (via assinatura touch_selo R$10/mes) ═══
+
+// Request event verification — uses existing subscription system
+app.post('/api/operator/event/:eventId/verify', paymentLimiter, async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
-  // If Stripe is configured, create a checkout session
-  if (stripeInstance) {
-    try {
-      const baseUrl = process.env.BASE_URL || ('https://' + (req.headers.host || 'localhost:3000'));
-      const session = await stripeInstance.checkout.sessions.create({
-        mode: 'payment',
-        payment_method_types: ['card'],
-        line_items: [{
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: 'Selo Verificado - ' + (ev.name || 'Evento'),
-              description: 'Selo de verificacao para o evento ' + (ev.name || ev.id) + ' no Touch?'
-            },
-            unit_amount: 10000 // R$100.00 in centavos
-          },
-          quantity: 1
-        }],
-        success_url: baseUrl + '/operator.html?verify_success=1&eventId=' + req.params.eventId + '&session_id={CHECKOUT_SESSION_ID}',
-        cancel_url: baseUrl + '/operator.html?verify_cancelled=1&eventId=' + req.params.eventId,
-        metadata: { eventId: req.params.eventId, type: 'verified_badge' }
-      });
-      console.log('[stripe] Verified badge checkout created for event:', ev.name, 'session:', session.id);
-      res.json({ ok: true, checkoutUrl: session.url, sessionId: session.id });
-    } catch (e) {
-      console.error('[stripe] Verify badge error:', e.message);
-      res.status(500).json({ error: 'Erro ao criar pagamento: ' + e.message });
-    }
-  } else {
-    // Stripe not configured — mark verified directly (dev/test mode)
+
+  // Find operator user
+  const operatorId = ev.operatorId || ev.userId;
+  const user = db.users[operatorId];
+  if (!user) return res.status(404).json({ error: 'Operador nao encontrado.' });
+
+  // Check if operator already has active selo subscription
+  const sub = db.subscriptions[operatorId];
+  if (sub && (sub.status === 'authorized' || sub.status === 'active') && sub.planId === 'touch_selo') {
+    // Already subscribed — just verify the event
     ev.verified = true;
     ev.verifiedAt = Date.now();
+    ev.verifyMethod = 'subscription';
+    ev.verifySubscriptionId = sub.id || sub.mpPreapprovalId;
     saveDB('operatorEvents');
-    console.log('[verify] Badge granted without payment (Stripe not configured) for event:', ev.name);
-    res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+    console.log('[verify] Event verified via existing selo subscription:', ev.name, 'operator:', operatorId);
+    return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+  }
+
+  // Also check if user already has touch_plus (which includes selo)
+  if (sub && (sub.status === 'authorized' || sub.status === 'active') && sub.planId === 'touch_plus') {
+    ev.verified = true;
+    ev.verifiedAt = Date.now();
+    ev.verifyMethod = 'subscription_plus';
+    ev.verifySubscriptionId = sub.id || sub.mpPreapprovalId;
+    saveDB('operatorEvents');
+    console.log('[verify] Event verified via Plus subscription:', ev.name, 'operator:', operatorId);
+    return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+  }
+
+  // No active subscription — check payment method and create
+  const { method, cvv } = req.body;
+  const plan = SUBSCRIPTION_PLANS.touch_selo;
+
+  // Method: saved card with CVV
+  if (method === 'card' && cvv) {
+    if (!user.savedCard?.customerId || !user.savedCard?.cardId) {
+      return res.status(400).json({ error: 'Nenhum cartao salvo. Use outro metodo de pagamento.' });
+    }
+    if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento nao configurado.' });
+    try {
+      // Verify customer exists
+      let custId = user.savedCard.customerId;
+      const custCheck = await fetch('https://api.mercadopago.com/v1/customers/' + custId, {
+        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+      });
+      if (!custCheck.ok) {
+        const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
+        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), {
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+        });
+        const searchData = await searchResp.json();
+        if (searchData.results && searchData.results.length > 0) {
+          custId = searchData.results[0].id;
+        } else {
+          const createResp = await fetch('https://api.mercadopago.com/v1/customers', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+          const newCust = await createResp.json();
+          if (!newCust.id) { delete user.savedCard; saveDB('users'); return res.status(400).json({ error: 'Cadastre o cartao novamente.', cardExpired: true }); }
+          custId = newCust.id;
+        }
+        user.savedCard.customerId = custId;
+        const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + custId + '/cards', { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
+        const cards = cardsResp.ok ? await cardsResp.json() : [];
+        if (!Array.isArray(cards) || !cards.length) { delete user.savedCard; saveDB('users'); return res.status(400).json({ error: 'Cadastre o cartao novamente.', cardExpired: true }); }
+        user.savedCard.cardId = cards[0].id;
+        saveDB('users');
+      }
+      // Create token with CVV
+      let tokenData;
+      const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ card_id: user.savedCard.cardId, customer_id: custId, security_code: cvv })
+      });
+      tokenData = await tokenResp.json();
+      if (!tokenData.id) {
+        const fb = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ card_id: user.savedCard.cardId, security_code: cvv })
+        });
+        tokenData = await fb.json();
+        if (!tokenData.id) return res.status(400).json({ error: 'CVV invalido ou cartao expirado.' });
+      }
+      // Validate email/CPF
+      const payerEmail = user.email || user.savedCard?.email;
+      const payerCpf = user.cpf || user.savedCard?.cpf;
+      if (!payerEmail || payerEmail.includes('@touch.app')) {
+        return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
+      }
+      if (!payerCpf || payerCpf === '00000000000') {
+        return res.status(400).json({ error: 'Cadastre seu CPF no perfil antes de assinar.' });
+      }
+      // Create payment
+      const paymentData = {
+        transaction_amount: plan.amount,
+        token: tokenData.id,
+        payment_method_id: user.savedCard.paymentMethodId || 'visa',
+        installments: 1,
+        payer: { email: payerEmail, identification: { type: 'CPF', number: payerCpf } },
+        description: plan.description + ' - Evento: ' + (ev.name || ev.id),
+        statement_descriptor: 'TOUCH SELO',
+        metadata: { user_id: operatorId, event_id: req.params.eventId, type: 'subscription', plan: 'touch_selo' }
+      };
+      console.log('[verify] Card payment for selo:', { event: ev.name, operator: operatorId });
+      const result = await mpPayment.create({ body: paymentData });
+      if (result.status === 'approved') {
+        // Activate subscription + verify event
+        user.subscription = { active: true, planId: 'touch_selo', method: 'card', startDate: new Date().toISOString(), mpPaymentId: result.id };
+        user.isSubscriber = true;
+        user.verified = true;
+        user.verifiedAt = user.verifiedAt || Date.now();
+        user.verificationType = user.verificationType || 'subscriber';
+        db.subscriptions[operatorId] = {
+          id: uuidv4(), userId: operatorId, planId: 'touch_selo',
+          status: 'active', startedAt: Date.now(),
+          expiresAt: Date.now() + 30 * 86400000,
+          amount: plan.amount, method: 'card', mpPaymentId: result.id
+        };
+        ev.verified = true;
+        ev.verifiedAt = Date.now();
+        ev.verifyMethod = 'card';
+        ev.verifyPaymentId = result.id;
+        saveDB('users', 'operatorEvents');
+        console.log('[verify] Event verified via card payment:', ev.name);
+        return res.json({ ok: true, verified: true, status: result.status });
+      } else {
+        const msgs = { cc_rejected_bad_filled_security_code: 'CVV incorreto', cc_rejected_insufficient_amount: 'Saldo insuficiente', cc_rejected_high_risk: 'Pagamento rejeitado por seguranca', cc_rejected_other_reason: 'Cartao recusado' };
+        const detail = result.status_detail || result.status || 'recusado';
+        return res.status(400).json({ error: msgs[detail] || 'Pagamento recusado: ' + detail, detail });
+      }
+    } catch (e) {
+      console.error('[verify] Card payment error:', e.message);
+      return res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+    }
+  }
+
+  // Method: PIX
+  if (method === 'pix') {
+    if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento nao configurado.' });
+    const payerEmail = user.email || 'pagamento@encosta.app';
+    const payerCpf = user.cpf || '';
+    if (!payerCpf || payerCpf === '00000000000') {
+      return res.status(400).json({ error: 'Cadastre seu CPF no perfil antes de pagar com PIX.' });
+    }
+    try {
+      const subId = uuidv4();
+      const pixBody = {
+        transaction_amount: plan.amount,
+        payment_method_id: 'pix',
+        payer: { email: payerEmail, identification: { type: 'CPF', number: payerCpf.replace(/\D/g, '') } },
+        description: plan.description + ' - Evento: ' + (ev.name || ev.id),
+        metadata: { user_id: operatorId, event_id: req.params.eventId, plan_id: 'touch_selo', sub_id: subId, type: 'subscription_pix' }
+      };
+      const result = await mpPayment.create({ body: pixBody });
+      if (!result.id) throw new Error('Erro ao gerar PIX');
+      const qrCode = result.point_of_interaction?.transaction_data?.qr_code;
+      const qrBase64 = result.point_of_interaction?.transaction_data?.qr_code_base64;
+      const ticketUrl = result.point_of_interaction?.transaction_data?.ticket_url;
+      // Save pending subscription
+      db.subscriptions[operatorId] = {
+        id: subId, userId: operatorId, planId: 'touch_selo',
+        status: 'pending_pix', startedAt: Date.now(),
+        expiresAt: Date.now() + 30 * 86400000,
+        amount: plan.amount, method: 'pix', mpPaymentId: result.id,
+        eventId: req.params.eventId
+      };
+      saveDB('users');
+      console.log('[verify] PIX generated for selo:', { event: ev.name, paymentId: result.id });
+      return res.json({
+        ok: true, method: 'pix',
+        status: result.status, paymentId: result.id,
+        pixCode: qrCode, pixBase64: qrBase64, ticketUrl,
+        subId
+      });
+    } catch (e) {
+      console.error('[verify] PIX error:', e.message);
+      return res.status(500).json({ error: 'Erro ao gerar PIX: ' + (e.message || 'tente novamente') });
+    }
+  }
+
+  // Default method: MP Preapproval redirect (subscription flow)
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'Sistema de pagamento nao configurado.' });
+  const payerEmail = user.email || user.savedCard?.email || '';
+  if (!payerEmail || payerEmail.includes('@touch.app')) {
+    return res.status(400).json({ error: 'Cadastre seu email no perfil antes de assinar.' });
+  }
+  const baseUrl = MP_REDIRECT_URI ? MP_REDIRECT_URI.replace('/mp/callback', '') : ('https://' + (req.headers.host || 'localhost:3000'));
+  const subId = uuidv4();
+  try {
+    const preapprovalData = {
+      reason: plan.description + ' - Evento: ' + (ev.name || ev.id),
+      auto_recurring: {
+        frequency: plan.frequency,
+        frequency_type: 'months',
+        transaction_amount: plan.amount,
+        currency_id: plan.currency
+      },
+      back_url: baseUrl + '/operator.html?verify_result=ok&eventId=' + req.params.eventId + '&subId=' + subId,
+      payer_email: payerEmail,
+      external_reference: subId,
+      notification_url: baseUrl + '/mp/webhook/subscription'
+    };
+    const mpResp = await fetch('https://api.mercadopago.com/preapproval', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify(preapprovalData)
+    });
+    const preapproval = await mpResp.json();
+    if (preapproval.error) {
+      console.error('[verify] MP Preapproval error:', preapproval);
+      throw new Error(preapproval.message || 'Erro ao criar assinatura');
+    }
+    console.log('[verify] Selo subscription created:', { id: preapproval.id, event: ev.name });
+    // Save subscription
+    db.subscriptions[operatorId] = {
+      id: subId, userId: operatorId, planId: 'touch_selo',
+      mpPreapprovalId: preapproval.id,
+      status: preapproval.status || 'pending',
+      startedAt: Date.now(),
+      expiresAt: Date.now() + 30 * 86400000,
+      amount: plan.amount, createdAt: Date.now(),
+      eventId: req.params.eventId
+    };
+    user.isSubscriber = false;
+    saveDB('users');
+    res.json({
+      ok: true, method: 'redirect', subId,
+      initPoint: preapproval.init_point,
+      sandboxInitPoint: preapproval.sandbox_init_point,
+      status: preapproval.status
+    });
+  } catch (e) {
+    console.error('[verify] Subscription error:', e.message);
+    res.status(500).json({ error: 'Erro ao criar assinatura: ' + (e.message || 'tente novamente') });
   }
 });
 
-// Confirm verified badge after Stripe payment success
+// Confirm event verification after MP subscription return
 app.post('/api/operator/event/:eventId/verify-confirm', async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
-  const { sessionId } = req.body;
-  if (!sessionId) return res.status(400).json({ error: 'sessionId obrigatorio.' });
-  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado.' });
-  try {
-    const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
-    if (session.payment_status === 'paid' && session.metadata && session.metadata.eventId === req.params.eventId) {
-      ev.verified = true;
-      ev.verifiedAt = Date.now();
-      ev.verifyPaymentId = session.payment_intent;
-      saveDB('operatorEvents');
-      console.log('[stripe] Verified badge confirmed for event:', ev.name);
-      res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
-    } else {
-      res.status(402).json({ error: 'Pagamento nao confirmado.', status: session.payment_status });
+  const { subId } = req.body;
+  const operatorId = ev.operatorId || ev.userId;
+  const sub = db.subscriptions[operatorId];
+  if (sub && (sub.id === subId || !subId)) {
+    // Mark subscription as authorized (MP redirect means user completed flow)
+    sub.status = sub.status === 'pending' ? 'authorized' : sub.status;
+    const user = db.users[operatorId];
+    if (user) {
+      user.isSubscriber = true;
+      user.verified = true;
+      user.verifiedAt = user.verifiedAt || Date.now();
+      user.verificationType = user.verificationType || 'subscriber';
     }
-  } catch (e) {
-    console.error('[stripe] Verify confirm error:', e.message);
-    res.status(500).json({ error: 'Erro ao confirmar pagamento: ' + e.message });
+    ev.verified = true;
+    ev.verifiedAt = Date.now();
+    ev.verifyMethod = 'subscription';
+    ev.verifySubscriptionId = sub.mpPreapprovalId || sub.id;
+    saveDB('users', 'operatorEvents');
+    console.log('[verify] Event verified after MP return:', ev.name);
+    res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+  } else {
+    res.status(400).json({ error: 'Assinatura nao encontrada. Tente novamente.' });
   }
 });
 
