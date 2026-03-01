@@ -1029,27 +1029,70 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .menu-cat-pill{padding:.35rem .8rem;border-radius:20px;background:var(--s2);border:1px solid var(--b1);color:var(--t3);font-size:.65rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;font-family:inherit}
 .menu-cat-pill.active{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.3);color:#f97316}
 
-/* Orders */
-.order-card{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:.8rem;margin-bottom:.5rem;transition:border .2s}
-.order-card.urgent{border-color:rgba(251,191,36,.4);animation:orderPulse 2s ease infinite}
-@keyframes orderPulse{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,0)}50%{box-shadow:0 0 12px rgba(251,191,36,.15)}}
-.order-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem}
-.order-num{font-size:.95rem;font-weight:800;color:#f97316}
-.order-status{padding:.2rem .5rem;border-radius:6px;font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
-.order-status.pending{background:rgba(251,191,36,.15);color:#fbbf24}
-.order-status.preparing{background:rgba(59,130,246,.15);color:#3b82f6}
-.order-status.ready{background:rgba(52,211,153,.15);color:#34d399}
-.order-status.delivered{background:rgba(113,113,122,.15);color:#71717a}
-.order-status.cancelled{background:rgba(239,68,68,.15);color:#ef4444}
-.order-items{margin:.4rem 0;font-size:.72rem;color:var(--t2);line-height:1.6}
-.order-meta{display:flex;align-items:center;gap:.5rem;font-size:.6rem;color:var(--t3);flex-wrap:wrap}
-.order-actions{display:flex;gap:.3rem;margin-top:.5rem;flex-wrap:wrap}
-.order-action-btn{padding:.5rem 1rem;border-radius:10px;border:none;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;min-height:44px}
-.order-action-btn:active{transform:scale(.95)}
-.order-action-btn.primary{background:linear-gradient(135deg,#f97316,#fb923c);color:#fff}
-.order-action-btn.success{background:linear-gradient(135deg,#10b981,#34d399);color:#fff}
-.order-action-btn.danger{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#ef4444}
-.order-action-btn.print{background:var(--s2);border:1px solid var(--b1);color:var(--t2)}
+/* ═══ KANBAN BOARD ═══ */
+.kanban-board{display:flex;gap:.6rem;overflow-x:auto;padding-bottom:.5rem;min-height:calc(100vh - 200px);-webkit-overflow-scrolling:touch}
+.kanban-col{flex:1;min-width:240px;max-width:360px;display:flex;flex-direction:column;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--b1);overflow:hidden}
+.kanban-col-head{display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid transparent}
+.kanban-col-head .kc-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;font-size:.6rem;font-weight:800;padding:0 6px}
+.kanban-col[data-status="pending"] .kanban-col-head{color:#fbbf24;border-color:rgba(251,191,36,.4)}
+.kanban-col[data-status="pending"] .kc-count{background:rgba(251,191,36,.15);color:#fbbf24}
+.kanban-col[data-status="preparing"] .kanban-col-head{color:#3b82f6;border-color:rgba(59,130,246,.4)}
+.kanban-col[data-status="preparing"] .kc-count{background:rgba(59,130,246,.15);color:#3b82f6}
+.kanban-col[data-status="ready"] .kanban-col-head{color:#34d399;border-color:rgba(52,211,153,.4)}
+.kanban-col[data-status="ready"] .kc-count{background:rgba(52,211,153,.15);color:#34d399}
+.kanban-col[data-status="delivered"] .kanban-col-head{color:#71717a;border-color:rgba(113,113,122,.3)}
+.kanban-col[data-status="delivered"] .kc-count{background:rgba(113,113,122,.15);color:#71717a}
+.kanban-col-body{flex:1;overflow-y:auto;padding:.5rem;display:flex;flex-direction:column;gap:.5rem}
+.kanban-col-body:empty::after{content:'Nenhum pedido';display:block;text-align:center;color:var(--t3);font-size:.65rem;padding:2rem .5rem;opacity:.6}
+
+/* Post-it cards */
+.postit{background:linear-gradient(135deg,rgba(30,30,38,.85),rgba(22,22,30,.95));border:1px solid var(--b1);border-radius:12px;padding:.7rem;transition:all .35s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
+.postit::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+.postit[data-status="pending"]::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+.postit[data-status="preparing"]::before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.postit[data-status="ready"]::before{background:linear-gradient(90deg,#10b981,#34d399)}
+.postit[data-status="delivered"]::before{background:linear-gradient(90deg,#71717a,#a1a1aa)}
+.postit.entering{animation:postitIn .4s cubic-bezier(.22,1,.36,1)}
+@keyframes postitIn{from{opacity:0;transform:translateX(-30px) scale(.95)}to{opacity:1;transform:translateX(0) scale(1)}}
+.postit.urgent{animation:postitPulse 2.5s ease infinite}
+@keyframes postitPulse{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,0)}50%{box-shadow:0 0 15px rgba(251,191,36,.12)}}
+.postit-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem}
+.postit-num{font-size:.9rem;font-weight:800;color:#f97316}
+.postit-time{font-size:.58rem;color:var(--t3);display:flex;align-items:center;gap:.2rem}
+.postit-time svg{width:12px;height:12px;opacity:.6}
+.postit-items{margin:.3rem 0;font-size:.7rem;color:var(--t2);line-height:1.55}
+.postit-items .pi-row{display:flex;justify-content:space-between;padding:.1rem 0}
+.postit-items .pi-row .pi-price{color:var(--t3);font-size:.62rem}
+.postit-meta{display:flex;align-items:center;gap:.5rem;font-size:.58rem;color:var(--t3);flex-wrap:wrap;margin:.3rem 0;padding-top:.3rem;border-top:1px solid rgba(255,255,255,.05)}
+.postit-meta svg{width:13px;height:13px;opacity:.5;flex-shrink:0}
+.postit-meta span{display:flex;align-items:center;gap:.2rem}
+.postit-total{font-size:.85rem;font-weight:800;color:#f97316;margin:.3rem 0}
+.postit-actions{display:flex;gap:.3rem;margin-top:.4rem}
+.postit-btn{flex:1;padding:.45rem .5rem;border-radius:10px;border:none;font-size:.65rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.3rem;min-height:38px}
+.postit-btn:active{transform:scale(.95)}
+.postit-btn svg{width:14px;height:14px}
+.postit-btn.advance{background:linear-gradient(135deg,#f97316,#fb923c);color:#fff}
+.postit-btn.advance[data-next="ready"]{background:linear-gradient(135deg,#10b981,#34d399)}
+.postit-btn.advance[data-next="delivered"]{background:linear-gradient(135deg,#3b82f6,#60a5fa)}
+.postit-btn.cancel{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#ef4444}
+.postit-btn.print{background:rgba(255,255,255,.05);border:1px solid var(--b1);color:var(--t3)}
+
+/* Kanban toolbar */
+.kanban-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem;gap:.5rem;flex-wrap:wrap}
+.kanban-toolbar .kt-left{display:flex;align-items:center;gap:.4rem}
+.kanban-toolbar .kt-info{font-size:.65rem;color:var(--t3)}
+.kanban-toolbar .kt-btn{padding:.4rem .7rem;border-radius:10px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:.62rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;gap:.3rem}
+.kanban-toolbar .kt-btn:hover{border-color:rgba(249,115,22,.3);color:#f97316}
+.kanban-toolbar .kt-btn svg{width:14px;height:14px}
+
+/* Fullscreen mode */
+.op-rest-panel.fullscreen{position:fixed;inset:0;z-index:9999;border-radius:0;padding:1rem;background:rgba(5,5,8,.99)}
+.op-rest-panel.fullscreen .kanban-board{min-height:calc(100vh - 120px)}
+.op-rest-panel.fullscreen .kanban-col{max-width:none}
+.op-rest-panel.fullscreen .postit{padding:.8rem}
+.op-rest-panel.fullscreen .postit-items{font-size:.8rem}
+.op-rest-panel.fullscreen .postit-num{font-size:1.1rem}
+.op-rest-panel.fullscreen .postit-total{font-size:1rem}
 
 /* Tables grid */
 .tables-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.5rem}
@@ -1918,16 +1961,16 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
   <!-- ═══ RESTAURANT PANEL ═══ -->
   <div class="op-rest-panel" id="opRestPanel">
     <div class="op-rest-head">
-      <h2>🍽 Restaurante</h2>
-      <button class="op-rest-close" onclick="closeRestPanel()">✕</button>
+      <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.578 4.657A2 2 0 006.47 8H21"/><path d="M6 8v13a1 1 0 001 1h10a1 1 0 001-1V8"/><path d="M3 2h18"/><line x1="10" y1="12" x2="10" y2="17"/><line x1="14" y1="12" x2="14" y2="17"/></svg> Restaurante</h2>
+      <button class="op-rest-close" onclick="closeRestPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="op-rest-tabs" id="opRestTabs">
-      <button class="op-rest-tab active" onclick="switchRestTab('menu')">🍕 Cardápio</button>
-      <button class="op-rest-tab" onclick="switchRestTab('orders')">📋 Pedidos <span class="badge" id="ordersBadge" style="display:none">0</span></button>
-      <button class="op-rest-tab" onclick="switchRestTab('tables')">🪑 Mesas</button>
-      <button class="op-rest-tab" onclick="switchRestTab('staff')">Equipe</button>
-      <button class="op-rest-tab" onclick="switchRestTab('dashboard')">📊 Dashboard</button>
-      <button class="op-rest-tab" onclick="switchRestTab('delivery')">Entregas</button>
+      <button class="op-rest-tab active" onclick="switchRestTab('menu')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Cardapio</button>
+      <button class="op-rest-tab" onclick="switchRestTab('orders')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg> Pedidos <span class="badge" id="ordersBadge" style="display:none">0</span></button>
+      <button class="op-rest-tab" onclick="switchRestTab('tables')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><line x1="6" y1="8" x2="6" y2="20"/><line x1="18" y1="8" x2="18" y2="20"/></svg> Mesas</button>
+      <button class="op-rest-tab" onclick="switchRestTab('staff')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Equipe</button>
+      <button class="op-rest-tab" onclick="switchRestTab('dashboard')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Dashboard</button>
+      <button class="op-rest-tab" onclick="switchRestTab('delivery')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Entregas</button>
     </div>
 
     <!-- MENU TAB -->
@@ -1942,16 +1985,34 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <div class="menu-grid" id="menuGrid"></div>
     </div>
 
-    <!-- ORDERS TAB -->
+    <!-- ORDERS TAB (KANBAN) -->
     <div id="restTabOrders" style="display:none">
-      <div style="display:flex;gap:.3rem;margin-bottom:.8rem;overflow-x:auto">
-        <button class="menu-cat-pill active" onclick="filterOrders('all',this)">Todos</button>
-        <button class="menu-cat-pill" onclick="filterOrders('pending',this)">🟡 Novos</button>
-        <button class="menu-cat-pill" onclick="filterOrders('preparing',this)">🔵 Preparando</button>
-        <button class="menu-cat-pill" onclick="filterOrders('ready',this)">🟢 Prontos</button>
-        <button class="menu-cat-pill" onclick="filterOrders('delivered',this)">⚫ Entregues</button>
+      <div class="kanban-toolbar">
+        <div class="kt-left">
+          <span class="kt-info" id="kanbanInfo">0 pedidos</span>
+        </div>
+        <div style="display:flex;gap:.3rem">
+          <button class="kt-btn" onclick="toggleOrdersFullscreen()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg> Fullscreen</button>
+        </div>
       </div>
-      <div id="ordersList"></div>
+      <div class="kanban-board" id="kanbanBoard">
+        <div class="kanban-col" data-status="pending">
+          <div class="kanban-col-head"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Novos</span><span class="kc-count" id="kcPending">0</span></div>
+          <div class="kanban-col-body" id="colPending"></div>
+        </div>
+        <div class="kanban-col" data-status="preparing">
+          <div class="kanban-col-head"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Preparando</span><span class="kc-count" id="kcPreparing">0</span></div>
+          <div class="kanban-col-body" id="colPreparing"></div>
+        </div>
+        <div class="kanban-col" data-status="ready">
+          <div class="kanban-col-head"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Prontos</span><span class="kc-count" id="kcReady">0</span></div>
+          <div class="kanban-col-body" id="colReady"></div>
+        </div>
+        <div class="kanban-col" data-status="delivered">
+          <div class="kanban-col-head"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Entregues</span><span class="kc-count" id="kcDelivered">0</span></div>
+          <div class="kanban-col-body" id="colDelivered"></div>
+        </div>
+      </div>
     </div>
 
     <!-- TABLES TAB -->
@@ -2018,7 +2079,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
   <!-- MENU ITEM MODAL -->
   <div class="menu-modal-bg" id="menuModalBg" style="display:none" onclick="if(event.target===this)closeMenuModal()">
     <div class="menu-modal">
-      <h3 id="menuModalTitle">🍕 Novo Item</h3>
+      <h3 id="menuModalTitle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Novo Item</h3>
       <input type="hidden" id="menuItemId">
       <div class="menu-field"><label>Nome</label><input id="menuItemName" placeholder="Ex: Filé Mignon ao Molho Madeira"></div>
       <div class="menu-field"><label>Descrição</label><textarea id="menuItemDesc" placeholder="Descrição do prato..."></textarea></div>
@@ -4513,7 +4574,7 @@ function renderMenuGrid(filterCat){
     const card=document.createElement('div');
     card.className='menu-card'+(item.available?'':' menu-unavail');
     card.innerHTML=
-      (item.photo?'<img class="menu-card-img" src="'+esc(item.photo)+'" onerror="this.style.display=\'none\'" loading="lazy">':'<div class="menu-card-img" style="display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--t3)">🍽</div>')+
+      (item.photo?'<img class="menu-card-img" src="'+esc(item.photo)+'" onerror="this.style.display=\'none\'" loading="lazy">':'<div class="menu-card-img" style="display:flex;align-items:center;justify-content:center;color:var(--t3)"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2l1.578 4.657A2 2 0 006.47 8H21"/><path d="M6 8v13a1 1 0 001 1h10a1 1 0 001-1V8"/><path d="M3 2h18"/></svg></div>')+
       '<div class="menu-card-body">'+
         '<div class="menu-card-name">'+esc(item.name)+'</div>'+
         '<div class="menu-card-desc">'+esc(item.description||'')+'</div>'+
@@ -4523,7 +4584,7 @@ function renderMenuGrid(filterCat){
           '<div class="menu-card-actions">'+
             '<button class="menu-card-btn" onclick="editMenuItem(\''+item.id+'\')">Editar</button>'+
             '<button class="menu-card-btn" onclick="toggleItemAvail(\''+item.id+'\')">'+(item.available?'Esgotar':'Ativar')+'</button>'+
-            '<button class="menu-card-btn danger" onclick="deleteMenuItem(\''+item.id+'\')">✕</button>'+
+            '<button class="menu-card-btn danger" onclick="deleteMenuItem(\''+item.id+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
           '</div>'+
         '</div>'+
       '</div>';
@@ -4551,7 +4612,7 @@ function openMenuModal(itemId){
     else{$('menuItemCat').value='__custom';$('menuCustomCat').value=item.category;$('menuCustomCatWrap').style.display=''}
     $('menuItemAvail').checked=item.available!==false;
   }else{
-    $('menuModalTitle').textContent='🍕 Novo Item';
+    $('menuModalTitle').textContent='+ Novo Item';
     $('menuItemId').value='';
     $('menuItemName').value='';$('menuItemDesc').value='';$('menuItemPrice').value='';$('menuItemPhoto').value='';
     $('menuItemCat').value='Pratos Principais';$('menuCustomCatWrap').style.display='none';$('menuItemAvail').checked=true;
@@ -4741,44 +4802,67 @@ function updateOrderBadges(){
 
 function filterOrders(status,btn){
   REST.orderFilter=status;
-  if(btn){btn.parentElement.querySelectorAll('.menu-cat-pill').forEach(p=>p.classList.remove('active'));btn.classList.add('active')}
   renderOrders();
 }
 
 function renderOrders(){
-  const el=$('ordersList');
-  let orders=REST.orders.slice().sort((a,b)=>b.createdAt-a.createdAt);
-  if(REST.orderFilter!=='all')orders=orders.filter(o=>o.status===REST.orderFilter);
-  if(!orders.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Nenhum pedido '+(REST.orderFilter!=='all'?'com este status':'ainda')+'.</div>';return}
-  el.innerHTML='';
-  orders.forEach((o,i)=>{
-    const num=REST.orders.length-REST.orders.indexOf(o);
-    const dt=new Date(o.createdAt);
-    const time=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    const itemsHtml=o.items.map(it=>'<div>'+it.qty+'× '+esc(it.name)+' <span style="color:var(--t3)">R$ '+(it.price*it.qty).toFixed(2).replace('.',',')+'</span></div>').join('');
-    const payLabel=o.paymentMethod==='card'?'💳 Cartão':'🧾 Balcão';
-    let actions='';
-    if(o.status==='pending')actions='<button class="order-action-btn primary" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">🔥 Preparar</button>';
-    if(o.status==='preparing')actions='<button class="order-action-btn success" onclick="advanceOrder(\''+o.id+'\',\'ready\')">✅ Pronto</button>';
-    if(o.status==='ready')actions='<button class="order-action-btn primary" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">📦 Entregue</button>';
-    if(o.status!=='delivered'&&o.status!=='cancelled')actions+=' <button class="order-action-btn danger" onclick="advanceOrder(\''+o.id+'\',\'cancelled\')">Cancelar</button>';
-    actions+=' <button class="order-action-btn print" onclick="printOrder(\''+o.id+'\')">🖨 Imprimir</button>';
-
-    const card=document.createElement('div');
-    card.className='order-card'+(o.status==='pending'?' urgent':'');
+  var cols={pending:$('colPending'),preparing:$('colPreparing'),ready:$('colReady'),delivered:$('colDelivered')};
+  var counts={pending:0,preparing:0,ready:0,delivered:0};
+  Object.keys(cols).forEach(function(k){if(cols[k])cols[k].innerHTML=''});
+  var orders=REST.orders.slice().sort(function(a,b){return b.createdAt-a.createdAt});
+  var total=0;
+  orders.forEach(function(o){
+    if(o.status==='cancelled')return;
+    var col=cols[o.status];
+    if(!col)return;
+    counts[o.status]++;total++;
+    var num=REST.orders.length-REST.orders.indexOf(o);
+    var dt=new Date(o.createdAt);
+    var time=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    var itemsHtml=o.items.map(function(it){return '<div class="pi-row"><span>'+it.qty+'x '+esc(it.name)+'</span><span class="pi-price">R$ '+(it.price*it.qty).toFixed(2).replace('.',',')+'</span></div>'}).join('');
+    var payIcon=o.paymentMethod==='card'?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+    var payLabel=o.paymentMethod==='card'?'Cartao':'Balcao';
+    var advBtn='';
+    if(o.status==='pending')advBtn='<button class="postit-btn advance" data-next="preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Preparar</button>';
+    if(o.status==='preparing')advBtn='<button class="postit-btn advance" data-next="ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Pronto</button>';
+    if(o.status==='ready')advBtn='<button class="postit-btn advance" data-next="delivered" onclick="advanceOrder(\''+o.id+'\',\'delivered\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/></svg> Entregue</button>';
+    var cancelBtn='';
+    if(o.status!=='delivered')cancelBtn='<button class="postit-btn cancel" onclick="advanceOrder(\''+o.id+'\',\'cancelled\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+    var printBtn='<button class="postit-btn print" onclick="printOrder(\''+o.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>';
+    var card=document.createElement('div');
+    card.className='postit'+(o.status==='pending'?' urgent':'')+' entering';
+    card.setAttribute('data-status',o.status);
+    card.setAttribute('data-id',o.id);
     card.innerHTML=
-      '<div class="order-head"><span class="order-num">#'+num+'</span><span class="order-status '+o.status+'">'+statusLabel(o.status)+'</span></div>'+
-      '<div class="order-items">'+itemsHtml+'</div>'+
-      '<div class="order-meta">'+
-        '<span>👤 '+(esc(o.userName)||'Cliente')+'</span>'+
-        (o.table?'<span>🪑 Mesa '+o.table+'</span>':'')+
-        '<span>'+payLabel+'</span>'+
-        '<span>⏰ '+time+'</span>'+
-        '<span style="font-weight:700;color:#f97316">R$ '+(o.total||0).toFixed(2).replace('.',',')+'</span>'+
+      '<div class="postit-head"><span class="postit-num">#'+num+'</span><span class="postit-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> '+time+'</span></div>'+
+      '<div class="postit-items">'+itemsHtml+'</div>'+
+      '<div class="postit-meta">'+
+        '<span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> '+(esc(o.userName)||'Cliente')+'</span>'+
+        (o.table?'<span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><line x1="6" y1="8" x2="6" y2="20"/><line x1="18" y1="8" x2="18" y2="20"/></svg> Mesa '+o.table+'</span>':'')+
+        '<span>'+payIcon+' '+payLabel+'</span>'+
       '</div>'+
-      '<div class="order-actions">'+actions+'</div>';
-    el.appendChild(card);
+      '<div class="postit-total">R$ '+(o.total||0).toFixed(2).replace('.',',')+'</div>'+
+      '<div class="postit-actions">'+advBtn+printBtn+cancelBtn+'</div>';
+    col.appendChild(card);
+    setTimeout(function(){card.classList.remove('entering')},400);
   });
+  if($('kcPending'))$('kcPending').textContent=counts.pending;
+  if($('kcPreparing'))$('kcPreparing').textContent=counts.preparing;
+  if($('kcReady'))$('kcReady').textContent=counts.ready;
+  if($('kcDelivered'))$('kcDelivered').textContent=counts.delivered;
+  if($('kanbanInfo'))$('kanbanInfo').textContent=total+' pedido'+(total!==1?'s':'');
+}
+
+function toggleOrdersFullscreen(){
+  var panel=$('opRestPanel');
+  if(!panel)return;
+  panel.classList.toggle('fullscreen');
+  var isFS=panel.classList.contains('fullscreen');
+  if(isFS&&document.documentElement.requestFullscreen){
+    try{document.documentElement.requestFullscreen()}catch(e){}
+  }else if(!isFS&&document.exitFullscreen){
+    try{document.exitFullscreen()}catch(e){}
+  }
 }
 
 function statusLabel(s){
@@ -4821,8 +4905,8 @@ function printOrder(orderId){
   });
   html+='<div class="print-total">TOTAL: R$ '+(o.total||0).toFixed(2).replace('.',',')+'</div>';
   html+='<div class="print-line"></div>';
-  html+='<div style="text-align:center;font-size:10px;margin-top:2mm">'+(o.paymentMethod==='card'?'PAGO - CARTÃO':'PAGAMENTO NO BALCÃO')+'</div>';
-  html+='<div class="print-footer">'+o.userName+' · Touch? Restaurant</div>';
+  html+='<div style="text-align:center;font-size:10px;margin-top:2mm">'+(o.paymentMethod==='card'?'PAGO - CARTAO':'PAGAMENTO NO BALCAO')+'</div>';
+  html+='<div class="print-footer">'+o.userName+' - Touch? Restaurant</div>';
   $('printArea').innerHTML=html;
   window.print();
 }
@@ -4856,7 +4940,7 @@ function renderTables(){
 function showTableDetail(tableNum,orders){
   const el=$('tableDetail');
   if(!orders.length){el.innerHTML='<div style="text-align:center;color:var(--t3);font-size:.72rem;padding:1rem">Mesa '+tableNum+' — Livre</div>';return}
-  let html='<div style="font-size:.85rem;font-weight:700;margin-bottom:.5rem">🪑 Mesa '+tableNum+' — '+orders.length+' pedido'+(orders.length>1?'s':'')+'</div>';
+  let html='<div style="font-size:.85rem;font-weight:700;margin-bottom:.5rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="3" y="4" width="18" height="4" rx="1"/><line x1="6" y1="8" x2="6" y2="20"/><line x1="18" y1="8" x2="18" y2="20"/></svg>Mesa '+tableNum+' - '+orders.length+' pedido'+(orders.length>1?'s':'')+'</div>';
   let total=0;
   orders.forEach(o=>{
     total+=o.total||0;
