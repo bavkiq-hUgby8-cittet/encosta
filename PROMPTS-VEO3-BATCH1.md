@@ -1,7 +1,7 @@
 # PROMPTS VEO 3 -- BATCH 1: Cenas Cotidianas Touch?
 # Gerado em 27/02/2026 | Agente MKT
 
-> Regras visuais: celulares sempre se aproximam VIRADOS DE FRENTE (tela pra cima, alto-falante visivel). Vibe jovem, quente, real. Iluminacao cinematografica. Aspecto 9:16 (vertical, formato Reels/TikTok/Shorts).
+> Regras visuais: celulares sempre se aproximam COM AS TELAS VIRADAS UMA PARA A OUTRA (screen-to-screen, tela contra tela). Cada pessoa segura o celular na vertical com a tela apontando para o celular do outro. As costas dos celulares ficam viradas para fora. Os alto-falantes ficam na parte de baixo. E como se os celulares estivessem "se olhando". Vibe jovem, quente, real. Iluminacao cinematografica. Aspecto 9:16 (vertical, formato Reels/TikTok/Shorts).
 
 ---
 
