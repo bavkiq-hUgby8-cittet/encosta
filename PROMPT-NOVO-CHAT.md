@@ -206,17 +206,135 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - Proxy de imagens /api/storage/* para contornar CORS do Firebase Storage
 - 30+ fixes de seguranca/performance aplicados
 - i18n parcial (frases poeticas traduzidas, UI pendente)
+- Site institucional (site.html) redesenhado com video hero, particulas, 3D animations
+- Card de conexao animado (shareConnectionVideo) para Instagram Stories
+- 3 videos Veo 3 gerados (bar-tipping, restaurant-checkin, rooftop-connection)
+- 12 prompts de imagem cinematica preparados (PROMPTS-IMAGENS-GEMINI.md)
+- GTM strategy doc criado (GTM-GORJETA-USA.docx)
+- Restricao legal: somente maiores de 18 anos (definido pelo agente juridico)
 
-## COMMITS RECENTES
+## ESTRATEGIA DE LANCAMENTO E MARKETING (MUITO IMPORTANTE)
 
-- d2d8c1d Notificacoes de chat + historico por usuario no painel Participantes
-- 5d4ba4d UI: Perfil com cores Facebook, SVG icons nos modulos, limpar header
-- 7519de2 Fix sidebar nesting and duplicate fullscreen button
-- 97d1f98 Create Profile module as primary FAB
-- 3a31af6 Fix broken module load functions - use API endpoints
-- b232fcc Fix test data loading for parking, gym, church
-- e6e6a39 Reopen events, module selection, event editing
-- ee66088 Glass morphism for Parking, Gym, Church panels
+### Visao Geral
+- Lancamento PRIMEIRO nos EUA, depois expandir para outros paises
+- Estrategia 100% REMOTA -- Ramon (Zito) mora no Brasil, nao vai para os EUA
+- Canal principal: REDES SOCIAIS (Instagram, TikTok, YouTube) com trafego pago
+- Todo conteudo criativo (videos, imagens, textos) feito 100% com IA
+- Orcamento inicial: $1K-2K/mes em paid traffic
+- Foco inicial: GORJETAS DIGITAIS como porta de entrada (mercado de $50B+/ano nos EUA)
+
+### Mercado de Gorjetas nos EUA (pesquisa feita)
+- $50B+ por ano em gorjetas
+- 85% ja sao digitais
+- 74% dos restaurantes tem tipping digital
+- +23% de ganho com digital vs cash-only
+- Concorrentes: Tippy ($6.1M funding), eTip ($990K), TipHaus, Canary, bene
+- DIFERENCIAL do Touch?: nenhum concorrente tem camada social + ultrassom
+
+### Duas Frentes de Aquisicao
+1. PRESTADORES DE SERVICO (supply side): bartenders, barbeiros, valets, DJs, nail techs
+   - Convencer que podem receber gorjetas digitais sem intermediario
+   - Modo Operador para gerenciar rotinas do local
+2. CONSUMIDORES (demand side): quem da gorjeta + quem quer conexoes sociais
+   - App web, sem download, 15 segundos pra cadastrar
+   - QR code resolve o cold-start problem (nao precisa dos dois terem o app antes)
+
+### Estrategia de Marketing em 3 Frentes
+1. CASE VIRAL -- "Zito: 1 pessoa sem saber programar + Claude = app de pagamentos e rede social em 20 dias"
+   - Narrativa: solo founder brasileiro, sem codigo, usando apenas IA
+   - Cases de referencia: Base44 vendida por $80M, Yaphone feito em 1 weekend, 52.3% dos exits sao solo founders
+   - Formato: threads no X/LinkedIn, videos curtos pro TikTok/Reels, posts no Reddit (r/startups, r/SideProject)
+   - Headlines: "How one person who can't code built a payment network in 20 days with AI"
+
+2. CONTENT MACHINE 100% IA -- todo conteudo feito com IA
+   - Videos: Google Veo 3 / Veo 3.1 Fast (3 videos/dia gratis)
+   - Imagens: Gemini image generation ("nano banana")
+   - Textos: Claude para copy, roteiros, threads
+   - 3 idiomas: EN, PT, ES
+   - Formato vertical 9:16 para Reels/TikTok/Shorts
+
+3. INFLUENCER SEEDING -- micro-influencers tech/startup
+   - Tier 1: tech creators (10K-100K followers) -- enviar o case
+   - Tier 2: bartender/service industry creators -- mostrar o tipping
+   - Tier 3: solo founder/indie hacker community -- compartilhar o build story
+
+### Trafego Pago (budget $1K-2K/mes)
+- TikTok 60% (CPC $0.35-1.00, melhor para viral)
+- Instagram 30% (CPC ~$1.10, targeting preciso)
+- YouTube 10% (CPC $0.10-0.30, awareness)
+- Segmentacao: 18-35, US metros (NYC, LA, Miami, Austin, SF)
+
+### Posicao Correta dos Celulares no Touch (CRITICO PARA TODO CONTEUDO)
+- Os celulares ficam COM AS TELAS VIRADAS UMA PARA A OUTRA (screen-to-screen)
+- Cada pessoa segura o celular na vertical, tela apontando pro celular do outro
+- As costas dos celulares ficam viradas para fora (para a camera/espectador)
+- Os alto-falantes ficam na parte de baixo
+- E como se os celulares estivessem "se olhando" -- tela contra tela
+- NAO e topo-com-topo, NAO e costas-com-costas, NAO e lado a lado com telas pra cima
+- Toda imagem, video, animacao e prompt DEVE seguir essa posicao
+
+## SITE INSTITUCIONAL (public/site.html)
+
+### Filosofia
+- A ESSENCIA do Touch? e a conexao por som ultrassonico -- isso e a magia
+- O gesto de encostar os celulares e o mais natural e humano
+- Site deve transmitir: cinematografico, premium, real, humano, moderno
+
+### Estrutura Atual
+- Hero com video de fundo (Veo 3) + particulas canvas + animacao 3D dos celulares
+- Secao "How it Works" (3 passos)
+- Secao "The Magic" (ultrassom, ondas, barras de frequencia)
+- Secao "See it Live" (3 videos Veo 3 em cards)
+- Secao Features (6 cards glassmorphism)
+- Secao Tipping (stats com counter animation + fluxo 3 passos)
+- Secao QR Code (onboarding sem fricao)
+- Secao For Business (3 cards: prestadores, operadores, eventos)
+- Secao Privacy (3 cards)
+- Secao "Built Different" (historia do Zito: 1 pessoa, 1 IA, 20 dias)
+- FAQ (7 perguntas)
+- CTA final
+- i18n completo: EN, PT, ES com auto-deteccao de idioma
+
+### Cores da Marca
+- --orange: #ff6b35 (principal)
+- --pink: #ff3c6e (accent)
+- --bg: #050508 (fundo escuro)
+- --card: #0a0a12
+
+### Assets de Media
+- Videos: public/media/videos/ (bar-tipping.mp4, restaurant-checkin.mp4, rooftop-connection.mp4)
+- Imagens: pendente geracao via Gemini (prompts em PROMPTS-IMAGENS-GEMINI.md)
+
+## CADASTRO DO USUARIO
+
+- Campos: nickname, data de nascimento, email, SENHA
+- Restricao: 18+ obrigatorio (agente juridico definiu)
+- Sem download de app -- funciona 100% no browser
+- QR code pessoal de cada usuario para onboarding de novos
+
+## FUNCIONALIDADES CORE (resumo expandido)
+
+- ULTRASSOM: conexao por proximidade via speaker/mic (~18-22kHz)
+- CHAT 24H: chat que expira em 24h se nao renovar a conexao
+- REVEAL: revelar identidade seletivamente (nome, foto, instagram, whatsapp)
+- CONSTELACAO: mapa visual animado do universo social do usuario
+- ESTRELAS: reputacao fisica de 0 a 10 (nao pode ser falsificada)
+- GORJETAS: tipping digital via Apple Pay, Google Pay, Stripe, PIX
+- EVENTOS: check-in, ingresso, conexoes em grupo
+- CAIXINHA DE SOM: speaker device com LED na entrada de locais pra check-in automatico
+- OPERADOR: modo de gestao para donos de local (check-in, contas, gorjetas, eventos)
+- PRESENTES DIGITAIS: enviar presentes entre usuarios
+- SELFIE: selfie no momento da conexao
+- BOARDING PASS: comprovante da conexao
+- SHARE CARD: card estatico (PNG) ou video animado (MP4) da conexao pra compartilhar
+
+## DOCUMENTOS DE ESTRATEGIA
+
+| Documento | Conteudo |
+|-----------|----------|
+| PROMPTS-VEO3-BATCH1.md | 16 prompts de video para Google Veo 3 (4 cenarios x variantes) |
+| PROMPTS-IMAGENS-GEMINI.md | 12 prompts de imagem cinematica para Gemini |
+| GTM-GORJETA-USA.docx | Estrategia go-to-market completa para gorjetas nos EUA |
 
 Quando estiver pronto, me avisa que a gente comeca.
 ```
