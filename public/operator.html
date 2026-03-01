@@ -1780,7 +1780,6 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <button class="op-rest-tab" onclick="switchRestTab('tables')">🪑 Mesas</button>
       <button class="op-rest-tab" onclick="switchRestTab('staff')">Equipe</button>
       <button class="op-rest-tab" onclick="switchRestTab('dashboard')">📊 Dashboard</button>
-      <button class="op-rest-tab" onclick="switchRestTab('profile')">Perfil</button>
       <button class="op-rest-tab" onclick="switchRestTab('delivery')">Entregas</button>
     </div>
 
@@ -1847,32 +1846,6 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <div id="staffEmpty" style="text-align:center;color:var(--t3);font-size:.65rem;padding:1.2rem;background:var(--s1);border:1px dashed var(--b1);border-radius:12px;display:none">Nenhum membro conectado.</div>
     </div>
 
-    <!-- PROFILE TAB -->
-    <div id="restTabProfile" style="display:none">
-      <div style="font-size:.8rem;font-weight:700;margin-bottom:.8rem;color:var(--t1)">Perfil do Negocio</div>
-      <div style="font-size:.6rem;color:var(--t3);margin-bottom:1rem">Estas informacoes ficam visiveis para os visitantes do seu evento.</div>
-      <div class="menu-field"><label>Nome do negocio</label><input id="bpName" placeholder="Ex: Bar do Joao"></div>
-      <div class="menu-field"><label>Tipo</label>
-        <select id="bpType">
-          <option value="">Selecione...</option>
-          <option value="restaurante">Restaurante</option>
-          <option value="bar">Bar</option>
-          <option value="cafe">Cafe</option>
-          <option value="balada">Balada</option>
-          <option value="food_truck">Food Truck</option>
-          <option value="outro">Outro</option>
-        </select>
-      </div>
-      <div class="menu-field"><label>Endereco</label><input id="bpAddress" placeholder="Rua, numero, bairro, cidade"></div>
-      <div class="menu-field"><label>Telefone / WhatsApp</label><input id="bpPhone" placeholder="+55 11 99999-9999"></div>
-      <div class="menu-field"><label>Horario de funcionamento</label><input id="bpHours" placeholder="Seg-Sex 18h-00h / Sab-Dom 12h-02h"></div>
-      <div class="menu-field"><label>Descricao</label><textarea id="bpDescription" placeholder="Conte sobre o seu negocio..." rows="3"></textarea></div>
-      <div class="menu-field"><label>Website</label><input id="bpWebsite" placeholder="https://"></div>
-      <div class="menu-field"><label>Instagram</label><input id="bpInstagram" placeholder="@seuperfil"></div>
-      <button class="menu-save-btn" onclick="saveBusinessProfile()" style="margin-top:.5rem">Salvar Perfil</button>
-      <div id="bpStatus" style="font-size:.6rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>
-    </div>
-
     <!-- DELIVERY TAB -->
     <div id="restTabDelivery" class="op-rest-content" style="display:none">
       <div class="delivery-toggle-wrap">
@@ -1888,6 +1861,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <div class="delivery-fields" id="deliveryFieldsWrap">
         <div class="menu-field" id="bpDeliveryFeeWrap"><label>Taxa de entrega (R$)</label><input id="bpDeliveryFee" type="number" placeholder="0.00" min="0" step="0.50"></div>
         <div class="menu-field" id="bpDeliveryNoteWrap"><label>Nota de entrega</label><input id="bpDeliveryNote" placeholder="Entrega em 30-45 min"></div>
+        <button class="menu-save-btn" onclick="saveDeliverySettings()" style="margin-top:.3rem;background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.3);color:#f97316">Salvar Delivery</button>
       </div>
       <div style="font-size:.8rem;font-weight:700;color:var(--t1);margin:.6rem 0">Pedidos de Delivery</div>
       <div id="opDeliveryList" style="font-size:.7rem;color:var(--t3);text-align:center;padding:1rem">Nenhum pedido de delivery</div>
@@ -2511,7 +2485,7 @@ async function loadExistingEvent(){
     }
   }catch(e){console.error('[loadExistingEvent]',e)}
   // Load restaurant data for this event
-  loadRestMenu();loadRestOrders();loadBusinessProfile();loadStaff();
+  loadRestMenu();loadRestOrders();loadStaff();
   // Load gym and church data for this event
   loadGymConfig();loadChurchConfig();
 }
@@ -4041,57 +4015,40 @@ function hexA(color,alpha){
   return'rgba(99,102,241,'+alpha+')';
 }
 
-// ═══ DELIVERY TOGGLE ═══
+// ═══ DELIVERY TOGGLE (Restaurante tab) ═══
 function toggleDeliveryMode(){
   const on=$('bpDelivery').checked;
   const wrap=$('deliveryFieldsWrap');
   if(wrap)wrap.classList.toggle('open',on);
-  saveBusinessProfile();
 }
 
-// ═══ BUSINESS PROFILE ═══
+// ═══ DELIVERY SAVE (only delivery fields -- preserves existing profile data) ═══
+async function saveDeliverySettings(){
+  if(!S.currentEventId)return;
+  try{
+    const r=await fetch('/api/event/'+S.currentEventId+'/business-profile');
+    const existing=await r.json();
+    const bp=existing.businessProfile||{};
+    bp.acceptsDelivery=$('bpDelivery')?$('bpDelivery').checked:false;
+    bp.deliveryFee=$('bpDeliveryFee')?parseFloat($('bpDeliveryFee').value)||0:0;
+    bp.deliveryNote=$('bpDeliveryNote')?$('bpDeliveryNote').value.trim():'';
+    const s=await fetch('/api/operator/event/'+S.currentEventId+'/business-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessProfile:bp})});
+    if(s.ok)showToast('Delivery atualizado!');
+  }catch(e){console.error('[saveDeliverySettings]',e)}
+}
 
-async function loadBusinessProfile(){
+// ═══ LOAD DELIVERY (populates delivery tab in restaurant) ═══
+async function loadDeliverySettings(){
   if(!S.currentEventId)return;
   try{
     const r=await fetch('/api/event/'+S.currentEventId+'/business-profile');const d=await r.json();
     if(d.businessProfile){
       const bp=d.businessProfile;
-      if($('bpName'))$('bpName').value=bp.name||'';
-      if($('bpType'))$('bpType').value=bp.type||'';
-      if($('bpAddress'))$('bpAddress').value=bp.address||'';
-      if($('bpPhone'))$('bpPhone').value=bp.phone||'';
-      if($('bpHours'))$('bpHours').value=bp.hours||'';
-      if($('bpDescription'))$('bpDescription').value=bp.description||'';
-      if($('bpWebsite'))$('bpWebsite').value=bp.website||'';
-      if($('bpInstagram'))$('bpInstagram').value=bp.instagram||'';
       if($('bpDelivery')){$('bpDelivery').checked=!!bp.acceptsDelivery;const wrap=$('deliveryFieldsWrap');if(wrap)wrap.classList.toggle('open',!!bp.acceptsDelivery)}
       if($('bpDeliveryFee'))$('bpDeliveryFee').value=bp.deliveryFee||'';
       if($('bpDeliveryNote'))$('bpDeliveryNote').value=bp.deliveryNote||'';
     }
-  }catch(e){console.error('[loadBusinessProfile]',e)}
-}
-
-async function saveBusinessProfile(){
-  if(!S.currentEventId)return;
-  const bp={
-    name:$('bpName')?$('bpName').value.trim():'',
-    type:$('bpType')?$('bpType').value:'',
-    address:$('bpAddress')?$('bpAddress').value.trim():'',
-    phone:$('bpPhone')?$('bpPhone').value.trim():'',
-    hours:$('bpHours')?$('bpHours').value.trim():'',
-    description:$('bpDescription')?$('bpDescription').value.trim():'',
-    website:$('bpWebsite')?$('bpWebsite').value.trim():'',
-    instagram:$('bpInstagram')?$('bpInstagram').value.trim():'',
-    acceptsDelivery:$('bpDelivery')?$('bpDelivery').checked:false,
-    deliveryFee:$('bpDeliveryFee')?parseFloat($('bpDeliveryFee').value)||0:0,
-    deliveryNote:$('bpDeliveryNote')?$('bpDeliveryNote').value.trim():''
-  };
-  try{
-    const r=await fetch('/api/operator/event/'+S.currentEventId+'/business-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessProfile:bp})});
-    if(r.ok){$('bpStatus').textContent='Perfil salvo com sucesso!';setTimeout(()=>{if($('bpStatus'))$('bpStatus').textContent=''},3000)}
-    else{const d=await r.json();$('bpStatus').textContent='Erro: '+(d.error||'Falha ao salvar');$('bpStatus').style.color='var(--pk)'}
-  }catch(e){$('bpStatus').textContent='Erro de conexao';$('bpStatus').style.color='var(--pk)'}
+  }catch(e){console.error('[loadDeliverySettings]',e)}
 }
 
 // ═══ STAFF MANAGEMENT ═══
@@ -4197,20 +4154,19 @@ function closeRestPanel(){$('opRestPanel').style.display='none'}
 
 function switchRestTab(tab){
   REST.activeTab=tab;
-  ['menu','orders','tables','staff','dashboard','profile','delivery'].forEach(t=>{
+  ['menu','orders','tables','staff','dashboard','delivery'].forEach(t=>{
     const el=$('restTab'+t.charAt(0).toUpperCase()+t.slice(1));
     if(el)el.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('.op-rest-tab').forEach((b,i)=>{
-    const tabs=['menu','orders','tables','staff','dashboard','profile','delivery'];
+    const tabs=['menu','orders','tables','staff','dashboard','delivery'];
     b.classList.toggle('active',tabs[i]===tab);
   });
   if(tab==='tables')renderTables();
   if(tab==='dashboard')renderRestDashboard();
   if(tab==='orders')renderOrders();
   if(tab==='staff')loadStaff();
-  if(tab==='profile')loadBusinessProfile();
-  if(tab==='delivery')loadDeliveryOrders();
+  if(tab==='delivery'){loadDeliverySettings();loadDeliveryOrders()}
 }
 
 // ── Load menu from server ──
