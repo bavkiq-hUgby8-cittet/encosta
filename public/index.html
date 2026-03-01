@@ -4898,6 +4898,7 @@ function renderCheckout(){
   var grandTotal=subtotal+tipAmount;
   var table=$('evCartTable')?$('evCartTable').value:'';
   var el=$('evCheckoutContent');
+  if(!window._evPayMethod)window._evPayMethod='pix';
   var itemsHtml=evCart.map(function(c){
     return '<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.03)">'
       +'<div style="font-size:.75rem;color:var(--t1)">'+c.qty+'x '+esc(c.name)+'</div>'
@@ -4914,30 +4915,65 @@ function renderCheckout(){
       +'</button>';
   }
 
-  el.innerHTML=
-    '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+  var h='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
       +'<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.6rem">Resumo do pedido</div>'
       +itemsHtml
       +'<div style="display:flex;justify-content:space-between;padding:.5rem 0;margin-top:.3rem"><span style="font-size:.75rem;color:var(--t2)">Subtotal</span><span style="font-size:.8rem;font-weight:700;color:var(--t1)">R$'+subtotal.toFixed(2).replace('.',',')+'</span></div>'
       +(table?'<div style="font-size:.65rem;color:var(--t3);padding:.2rem 0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>Mesa '+esc(table)+'</div>':'')
-    +'</div>'
-    +'<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+    +'</div>';
+
+  // Gorjeta
+  h+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
       +'<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.3rem">Gorjeta para o restaurante</div>'
       +'<div style="font-size:.55rem;color:var(--t3);margin-bottom:.7rem">Opcional - valorize quem prepara seu pedido</div>'
       +'<div style="display:flex;gap:.4rem">'
         +tipBtn(0)+tipBtn(10)+tipBtn(15)+tipBtn(20)
       +'</div>'
-    +'</div>'
-    +'<div style="background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(239,68,68,.08));border:1px solid rgba(249,115,22,.2);border-radius:16px;padding:1rem;margin-bottom:1rem;text-align:center">'
+    +'</div>';
+
+  // Gateway de pagamento profissional
+  h+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:1rem;margin-bottom:1rem">'
+    +'<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin-bottom:.6rem">Forma de pagamento</div>'
+    +'<div style="display:flex;flex-direction:column;gap:.4rem">';
+  h+=getPaymentMethodBtnHTML('pix',{id:'evPayPix',onclick:"selectEvPay('pix')"});
+  h+=getPaymentMethodBtnHTML('mercadopago',{id:'evPayMP',onclick:"selectEvPay('mercadopago')"});
+  h+=getPaymentMethodBtnHTML('stripe',{id:'evPayStripe',onclick:"selectEvPay('stripe')"});
+  h+='</div></div>';
+
+  // Total
+  h+='<div style="background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(239,68,68,.08));border:1px solid rgba(249,115,22,.2);border-radius:16px;padding:1rem;margin-bottom:1rem;text-align:center">'
       +(evSelectedTip>0?'<div style="font-size:.65rem;color:var(--t3)">Subtotal: R$'+subtotal.toFixed(2).replace('.',',')+' + Gorjeta '+evSelectedTip+'%: R$'+tipAmount.toFixed(2).replace('.',',')+'</div>':'')
       +'<div style="font-size:.65rem;color:var(--t3);margin-bottom:.3rem">Total a pagar</div>'
       +'<div style="font-size:1.8rem;font-weight:900;color:#f97316">R$'+grandTotal.toFixed(2).replace('.',',')+'</div>'
-    +'</div>'
-    +'<button onclick="processPayment()" id="evPayBtn" style="width:100%;padding:.8rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;gap:.4rem">'
+    +'</div>';
+
+  // Botao confirmar
+  h+='<button onclick="processPayment()" id="evPayBtn" style="width:100%;padding:.8rem;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;gap:.4rem">'
       +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
       +' Confirmar Pagamento'
     +'</button>'
     +'<div style="text-align:center;margin-top:.6rem;font-size:.55rem;color:var(--t3)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Pagamento seguro e protegido</div>';
+
+  el.innerHTML=h;
+  // Highlight selected pay method
+  selectEvPay(window._evPayMethod||'pix');
+}
+
+function selectEvPay(method){
+  window._evPayMethod=method;
+  var ids=['evPayPix','evPayMP','evPayStripe'];
+  ids.forEach(function(id){
+    var el=$(id);if(!el)return;
+    var map={evPayPix:'pix',evPayMP:'mercadopago',evPayStripe:'stripe'};
+    var isActive=map[id]===method;
+    if(isActive){
+      el.style.border='2px solid #3b82f6';
+      el.style.boxShadow='0 0 12px rgba(59,130,246,.15)';
+    }else{
+      el.style.border='1px solid rgba(255,255,255,.08)';
+      el.style.boxShadow='none';
+    }
+  });
 }
 
 async function processPayment(){
@@ -4952,7 +4988,7 @@ async function processPayment(){
   await new Promise(function(r){setTimeout(r,1500)});
   try{
     var r=await fetch('/api/event/'+evMenuEventId+'/order',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,items:items,table:table,paymentMethod:'card',subtotal:subtotal,tipPercent:evSelectedTip,tipAmount:tipAmount,total:grandTotal})});
+      body:JSON.stringify({userId:state.userId,items:items,table:table,paymentMethod:window._evPayMethod||'pix',subtotal:subtotal,tipPercent:evSelectedTip,tipAmount:tipAmount,total:grandTotal})});
     var d=await r.json();
     if(d.error){if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pagamento';}return showToast(d.error);}
     showReceipt(d.order);
@@ -12738,7 +12774,7 @@ function toggleWaiterStatus(){
 }
 
 // ═══ DELIVERY SYSTEM ═══
-let _delState={eventId:null,menu:[],cart:[],bizProfile:null,step:'menu',orderId:null,deliveryFee:0};
+var _delState={eventId:null,menu:[],cart:[],bizProfile:null,step:'menu',orderId:null,deliveryFee:0,tipPercent:0};
 
 function openDeliveryView(eventId,eventName,bizProfile){
   _delState.eventId=eventId;
@@ -12746,6 +12782,7 @@ function openDeliveryView(eventId,eventName,bizProfile){
   _delState.cart=[];
   _delState.step='menu';
   _delState.orderId=null;
+  _delState.tipPercent=0;
   _delState.deliveryFee=bizProfile&&bizProfile.deliveryFee?parseFloat(bizProfile.deliveryFee):0;
   $('delRestName').textContent=eventName||'Restaurante';
   $('delRestSub').textContent=bizProfile&&bizProfile.address?bizProfile.address:'Delivery';
@@ -12756,18 +12793,17 @@ function openDeliveryView(eventId,eventName,bizProfile){
 
 function closeDeliveryView(){
   $('deliveryView').style.display='none';
-  _delState={eventId:null,menu:[],cart:[],bizProfile:null,step:'menu',orderId:null,deliveryFee:0};
+  if(window._delTrackInterval)clearInterval(window._delTrackInterval);
+  _delState={eventId:null,menu:[],cart:[],bizProfile:null,step:'menu',orderId:null,deliveryFee:0,tipPercent:0};
 }
 
 async function loadDeliveryMenu(eventId){
-  const c=$('delContent');
+  var c=$('delContent');
   c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Carregando cardapio...</div>';
   try{
-    const r=await fetch('/api/operator/event/'+eventId+'/attendees');
-    const d=await r.json();
-    const mr=await fetch('/api/operator/event/'+eventId+'/menu');
-    const md=await mr.json();
-    _delState.menu=md.menu||[];
+    var r=await fetch('/api/event/'+eventId+'/menu');
+    var d=await r.json();
+    _delState.menu=d.menu||[];
     renderDeliveryMenu();
   }catch(e){
     c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Erro ao carregar cardapio</div>';
@@ -12775,24 +12811,25 @@ async function loadDeliveryMenu(eventId){
 }
 
 function renderDeliveryMenu(){
-  const c=$('delContent');
-  const menu=_delState.menu;
+  var c=$('delContent');
+  var menu=_delState.menu;
   if(!menu||menu.length===0){
     c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Cardapio nao disponivel</div>';
     return;
   }
-  const cats={};
-  menu.forEach((item,idx)=>{
-    const cat=item.category||'Geral';
+  var cats={};
+  menu.forEach(function(item,idx){
+    var cat=item.category||'Geral';
     if(!cats[cat])cats[cat]=[];
-    cats[cat].push({...item,_idx:idx});
+    cats[cat].push({name:item.name,description:item.description,price:item.price,photo:item.photo,_idx:idx});
   });
-  let h='';
-  Object.entries(cats).forEach(([cat,items])=>{
+  var h='';
+  Object.entries(cats).forEach(function(entry){
+    var cat=entry[0],items=entry[1];
     h+='<div style="font-size:.7rem;font-weight:600;color:var(--t1);margin:.8rem 0 .4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.04)">'+esc(cat)+'</div>';
-    items.forEach(item=>{
-      const inCart=_delState.cart.find(c=>c._idx===item._idx);
-      const qty=inCart?inCart.qty:0;
+    items.forEach(function(item){
+      var inCart=_delState.cart.find(function(c){return c._idx===item._idx});
+      var qty=inCart?inCart.qty:0;
       h+='<div class="del-menu-item">';
       h+='<div class="del-menu-item-info"><div class="del-menu-item-name">'+esc(item.name)+'</div>';
       if(item.description)h+='<div class="del-menu-item-desc">'+esc(item.description)+'</div>';
@@ -12809,12 +12846,12 @@ function renderDeliveryMenu(){
 }
 
 function delCartQty(idx,delta){
-  const item=_delState.menu[idx];
+  var item=_delState.menu[idx];
   if(!item)return;
-  let existing=_delState.cart.find(c=>c._idx===idx);
+  var existing=_delState.cart.find(function(c){return c._idx===idx});
   if(existing){
     existing.qty+=delta;
-    if(existing.qty<=0)_delState.cart=_delState.cart.filter(c=>c._idx!==idx);
+    if(existing.qty<=0)_delState.cart=_delState.cart.filter(function(c){return c._idx!==idx});
   }else if(delta>0){
     _delState.cart.push({_idx:idx,name:item.name,price:item.price||0,qty:1});
   }
@@ -12823,9 +12860,9 @@ function delCartQty(idx,delta){
 }
 
 function updateDelCartBar(){
-  const bar=$('delCartBar');
-  const total=_delState.cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const count=_delState.cart.reduce((s,i)=>s+i.qty,0);
+  var bar=$('delCartBar');
+  var total=_delState.cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var count=_delState.cart.reduce(function(s,i){return s+i.qty},0);
   if(count>0){
     bar.style.display='flex';
     $('delCartTotal').textContent=count+' ite'+(count>1?'ns':'m')+' - R$'+total.toFixed(2).replace('.',',');
@@ -12834,74 +12871,233 @@ function updateDelCartBar(){
   }
 }
 
+function _getSavedDelAddress(){
+  try{return JSON.parse(localStorage.getItem('touch_del_address')||'null')}catch(e){return null}
+}
+function _saveDelAddress(addr){
+  try{localStorage.setItem('touch_del_address',JSON.stringify(addr))}catch(e){}
+}
+
 function showDeliveryCheckout(){
   if(_delState.cart.length===0){showToast('Carrinho vazio');return}
   _delState.step='checkout';
+  _delState.tipPercent=0;
   $('delCartBar').style.display='none';
-  const c=$('delContent');
-  const subtotal=_delState.cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const fee=_delState.deliveryFee;
-  const total=subtotal+fee;
-  let h='<div class="del-checkout">';
-  h+='<div class="del-checkout-section"><div class="del-checkout-label">Endereco de entrega</div>';
-  h+='<input class="del-checkout-input" id="delAddr" placeholder="Rua, numero">';
-  h+='<div class="del-checkout-row" style="margin-top:.4rem"><input class="del-checkout-input" id="delComp" placeholder="Complemento"><input class="del-checkout-input" id="delNeighb" placeholder="Bairro"></div>';
+  renderDelCheckout();
+}
+
+function renderDelCheckout(){
+  var c=$('delContent');
+  var subtotal=_delState.cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var fee=_delState.deliveryFee;
+  var tipAmt=subtotal*(_delState.tipPercent/100);
+  var total=subtotal+fee+tipAmt;
+  var saved=_getSavedDelAddress();
+
+  function tipBtn(pct){
+    var active=_delState.tipPercent===pct;
+    var label=pct===0?'Sem gorjeta':pct+'%';
+    var tipVal=pct===0?'':'+R$'+(subtotal*(pct/100)).toFixed(2).replace('.',',');
+    return '<button onclick="_delState.tipPercent='+pct+';renderDelCheckout()" style="flex:1;padding:.5rem .2rem;border-radius:10px;border:'+(active?'2px solid #3b82f6':'1px solid rgba(255,255,255,.1)')+';background:'+(active?'rgba(59,130,246,.15)':'rgba(255,255,255,.03)')+';color:'+(active?'#60a5fa':'var(--t2)')+';font-size:.65rem;font-weight:'+(active?'700':'500')+';cursor:pointer;font-family:inherit;text-align:center">'
+      +'<div>'+label+'</div>'
+      +(tipVal?'<div style="font-size:.5rem;margin-top:.1rem;opacity:.7">'+tipVal+'</div>':'')
+      +'</button>';
+  }
+
+  var h='<div class="del-checkout">';
+
+  // Endereco
+  h+='<div class="del-checkout-section">'
+    +'<div class="del-checkout-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Endereco de entrega</div>';
+  if(saved){
+    h+='<div id="delSavedAddr" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:.6rem;margin-bottom:.4rem;cursor:pointer" onclick="fillSavedAddress()">'
+      +'<div style="font-size:.6rem;color:#60a5fa;font-weight:600;margin-bottom:.15rem">Endereco salvo (toque para usar)</div>'
+      +'<div style="font-size:.65rem;color:var(--t1)">'+esc(saved.street||'')+((saved.complement)?(', '+esc(saved.complement)):'')+((saved.neighborhood)?(' - '+esc(saved.neighborhood)):'')+((saved.cep)?(' | CEP: '+esc(saved.cep)):'')+'</div>'
+    +'</div>';
+  }
+  h+='<input class="del-checkout-input" id="delAddr" placeholder="Rua, numero, apartamento" value="'+(saved?esc(saved.street||''):'')+'">';
+  h+='<div class="del-checkout-row" style="margin-top:.4rem">'
+    +'<input class="del-checkout-input" id="delComp" placeholder="Complemento" value="'+(saved?esc(saved.complement||''):'')+'">'
+    +'<input class="del-checkout-input" id="delNeighb" placeholder="Bairro" value="'+(saved?esc(saved.neighborhood||''):'')+'">'
+  +'</div>';
+  h+='<div class="del-checkout-row" style="margin-top:.4rem">'
+    +'<input class="del-checkout-input" id="delCep" placeholder="CEP" maxlength="9" value="'+(saved?esc(saved.cep||''):'')+'" style="flex:.6">'
+    +'<input class="del-checkout-input" id="delCity" placeholder="Cidade" value="'+(saved?esc(saved.city||''):'')+'" style="flex:1">'
+  +'</div>';
+  h+='<label style="display:flex;align-items:center;gap:.3rem;margin-top:.4rem;cursor:pointer"><input type="checkbox" id="delSaveAddr" checked style="accent-color:#3b82f6"><span style="font-size:.55rem;color:var(--t3)">Salvar este endereco para proximos pedidos</span></label>';
   h+='</div>';
-  h+='<div class="del-checkout-section"><div class="del-checkout-label">Telefone</div>';
-  h+='<input class="del-checkout-input" id="delPhone" placeholder="(11) 99999-9999" type="tel"></div>';
-  h+='<div class="del-checkout-section"><div class="del-checkout-label">Pagamento</div>';
-  h+='<div style="display:flex;gap:.4rem">';
-  h+='<button id="delPayCounter" class="del-qty-btn" style="flex:1;border-radius:8px;height:auto;padding:.4rem;width:auto;font-size:.55rem" onclick="selectDelPay(\'counter\')">Na entrega</button>';
-  h+='<button id="delPayCard" class="del-qty-btn" style="flex:1;border-radius:8px;height:auto;padding:.4rem;width:auto;font-size:.55rem" onclick="selectDelPay(\'card\')">Cartao online</button>';
+
+  // Telefone
+  h+='<div class="del-checkout-section"><div class="del-checkout-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>Telefone de contato</div>';
+  h+='<input class="del-checkout-input" id="delPhone" placeholder="(11) 99999-9999" type="tel" value="'+(saved?esc(saved.phone||''):'')+'"></div>';
+
+  // Observacoes
+  h+='<div class="del-checkout-section"><div class="del-checkout-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Observacoes (opcional)</div>';
+  h+='<textarea class="del-checkout-input" id="delNotes" placeholder="Ex: portao preto, tocar interfone 102, sem cebola..." rows="2" style="resize:none"></textarea></div>';
+
+  // Pagamento - gateway profissional
+  h+='<div class="del-checkout-section"><div class="del-checkout-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Forma de pagamento</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:.4rem">';
+  // Na entrega (dinheiro/maquininha)
+  h+='<button id="delPayCounter" onclick="selectDelPay(\'counter\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .8rem;border-radius:14px;border:2px solid #3b82f6;background:rgba(59,130,246,.06);cursor:pointer;font-family:inherit;transition:all .2s">'
+    +'<div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/><circle cx="14" cy="14" r="2"/></svg></div>'
+    +'<div style="flex:1;text-align:left"><div style="font-size:.72rem;font-weight:700;color:#60a5fa">Na entrega</div><div style="font-size:.48rem;color:var(--t3)">Dinheiro ou maquininha</div></div>'
+  +'</button>';
+  // PIX
+  h+=getPaymentMethodBtnHTML('pix',{id:'delPayPix',onclick:"selectDelPay('pix')"});
+  // MercadoPago
+  h+=getPaymentMethodBtnHTML('mercadopago',{id:'delPayMP',onclick:"selectDelPay('mercadopago')"});
+  // Stripe (Cartao / Apple Pay / Link)
+  h+=getPaymentMethodBtnHTML('stripe',{id:'delPayStripe',onclick:"selectDelPay('stripe')"});
   h+='</div></div>';
-  h+='<div class="del-checkout-section"><div class="del-checkout-label">Resumo</div>';
-  _delState.cart.forEach(i=>{h+='<div class="del-summary-row"><span>'+i.qty+'x '+esc(i.name)+'</span><span>R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</span></div>'});
-  h+='<div class="del-summary-row"><span>Taxa de entrega</span><span>R$'+fee.toFixed(2).replace('.',',')+'</span></div>';
+
+  // Gorjeta
+  h+='<div class="del-checkout-section">'
+    +'<div class="del-checkout-label">Gorjeta (opcional)</div>'
+    +'<div style="font-size:.5rem;color:var(--t3);margin-bottom:.4rem">Valorize o trabalho de quem prepara e entrega</div>'
+    +'<div style="display:flex;gap:.3rem">'+tipBtn(0)+tipBtn(10)+tipBtn(15)+tipBtn(20)+'</div>'
+  +'</div>';
+
+  // Resumo
+  h+='<div class="del-checkout-section"><div class="del-checkout-label">Resumo do pedido</div>';
+  _delState.cart.forEach(function(i){h+='<div class="del-summary-row"><span>'+i.qty+'x '+esc(i.name)+'</span><span>R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</span></div>'});
+  h+='<div class="del-summary-row"><span>Subtotal</span><span>R$'+subtotal.toFixed(2).replace('.',',')+'</span></div>';
+  h+='<div class="del-summary-row"><span>Taxa de entrega</span><span>'+(fee>0?'R$'+fee.toFixed(2).replace('.',','):'Gratis')+'</span></div>';
+  if(_delState.tipPercent>0)h+='<div class="del-summary-row"><span>Gorjeta ('+_delState.tipPercent+'%)</span><span style="color:#22c55e">+R$'+tipAmt.toFixed(2).replace('.',',')+'</span></div>';
   h+='<div class="del-summary-row total"><span>Total</span><span>R$'+total.toFixed(2).replace('.',',')+'</span></div>';
   h+='</div>';
-  h+='<button class="del-submit-btn" onclick="submitDeliveryOrder()">Confirmar Pedido</button>';
+
+  h+='<button id="delSubmitBtn" onclick="submitDeliveryOrder()" style="width:100%;padding:.8rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(59,130,246,.3);display:flex;align-items:center;justify-content:center;gap:.4rem"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Confirmar Pedido</button>';
+  h+='<div style="text-align:center;margin-top:.5rem;font-size:.5rem;color:var(--t3)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Seu pedido sera enviado diretamente ao restaurante</div>';
   h+='</div>';
   c.innerHTML=h;
-  window._delPayMethod='counter';
-  selectDelPay('counter');
+  if(!window._delPayMethod)window._delPayMethod='counter';
+  selectDelPay(window._delPayMethod||'counter');
+}
+
+function fillSavedAddress(){
+  var saved=_getSavedDelAddress();
+  if(!saved)return;
+  if($('delAddr'))$('delAddr').value=saved.street||'';
+  if($('delComp'))$('delComp').value=saved.complement||'';
+  if($('delNeighb'))$('delNeighb').value=saved.neighborhood||'';
+  if($('delCep'))$('delCep').value=saved.cep||'';
+  if($('delCity'))$('delCity').value=saved.city||'';
+  if($('delPhone'))$('delPhone').value=saved.phone||'';
+  showToast('Endereco preenchido');
 }
 
 function selectDelPay(method){
   window._delPayMethod=method;
-  const a=$('delPayCounter');const b=$('delPayCard');
-  if(a)a.style.background=method==='counter'?'rgba(59,130,246,.2)':'rgba(255,255,255,.03)';
-  if(a)a.style.borderColor=method==='counter'?'#3b82f6':'rgba(255,255,255,.1)';
-  if(b)b.style.background=method==='card'?'rgba(59,130,246,.2)':'rgba(255,255,255,.03)';
-  if(b)b.style.borderColor=method==='card'?'#3b82f6':'rgba(255,255,255,.1)';
+  var btnMap={
+    delPayCounter:'counter',
+    delPayPix:'pix',
+    delPayMP:'mercadopago',
+    delPayStripe:'stripe'
+  };
+  Object.keys(btnMap).forEach(function(id){
+    var el=$(id);if(!el)return;
+    var isActive=btnMap[id]===method;
+    if(isActive){
+      el.style.border='2px solid #3b82f6';
+      el.style.boxShadow='0 0 12px rgba(59,130,246,.15)';
+    }else{
+      el.style.border='1px solid rgba(255,255,255,.08)';
+      el.style.boxShadow='none';
+    }
+  });
 }
 
 async function submitDeliveryOrder(){
-  const addr=$('delAddr');
-  if(!addr||!addr.value.trim()){showToast('Preencha o endereco');return}
-  const subtotal=_delState.cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const body={
+  var addr=$('delAddr');
+  if(!addr||!addr.value.trim()){showToast('Preencha o endereco de entrega');return}
+  var phone=($('delPhone')||{}).value||'';
+  if(!phone.trim()){showToast('Preencha seu telefone para contato');return}
+  var btn=$('delSubmitBtn');
+  if(btn){btn.disabled=true;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="2.5" fill="none" stroke-dasharray="50 20"/></svg> Enviando...';}
+  var subtotal=_delState.cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var tipAmt=subtotal*(_delState.tipPercent/100);
+  var deliveryAddr={
+    street:addr.value.trim(),
+    complement:($('delComp')||{}).value||'',
+    neighborhood:($('delNeighb')||{}).value||'',
+    cep:($('delCep')||{}).value||'',
+    city:($('delCity')||{}).value||''
+  };
+  // Save address if checkbox checked
+  if($('delSaveAddr')&&$('delSaveAddr').checked){
+    _saveDelAddress({street:deliveryAddr.street,complement:deliveryAddr.complement,neighborhood:deliveryAddr.neighborhood,cep:deliveryAddr.cep,city:deliveryAddr.city,phone:phone.trim()});
+  }
+  var body={
     eventId:_delState.eventId,
     customerId:state.userId,
     customerName:state.userName||state.userNick||'Cliente',
-    customerPhone:($('delPhone')||{}).value||'',
-    items:_delState.cart.map(i=>({name:i.name,price:i.price,qty:i.qty})),
-    subtotal,deliveryFee:_delState.deliveryFee,total:subtotal+_delState.deliveryFee,
-    deliveryAddress:{
-      street:addr.value.trim(),
-      complement:($('delComp')||{}).value||'',
-      neighborhood:($('delNeighb')||{}).value||''
-    },
+    phone:phone.trim(),
+    items:_delState.cart.map(function(i){return {name:i.name,price:i.price,qty:i.qty}}),
+    subtotal:subtotal,
+    deliveryFee:_delState.deliveryFee,
+    tipPercent:_delState.tipPercent,
+    tipAmount:tipAmt,
+    total:subtotal+_delState.deliveryFee+tipAmt,
+    deliveryAddress:deliveryAddr,
+    notes:($('delNotes')||{}).value||'',
     paymentMethod:window._delPayMethod||'counter'
   };
   try{
-    const r=await fetch('/api/delivery/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json();
-    if(d.error){showToast(d.error);return}
-    _delState.orderId=d.orderId;
-    _delState.step='tracking';
-    showDeliveryTracking(d.orderId);
-    showToast('Pedido confirmado!');
-  }catch(e){showToast('Erro ao fazer pedido')}
+    var r=await fetch('/api/delivery/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var d=await r.json();
+    if(d.error){if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pedido';}showToast(d.error);return}
+    var order=d.order;
+    _delState.orderId=order.id;
+    _delState.step='confirmed';
+    showDeliveryConfirmation(order);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.innerHTML='Confirmar Pedido';}
+    showToast('Erro ao fazer pedido');
+  }
+}
+
+function showDeliveryConfirmation(order){
+  var c=$('delContent');
+  $('delCartBar').style.display='none';
+  var date=new Date(order.createdAt||Date.now());
+  var dateStr=date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  var addr=order.deliveryAddress||{};
+  var addrStr=addr.street||'';
+  if(addr.complement)addrStr+=', '+addr.complement;
+  if(addr.neighborhood)addrStr+=' - '+addr.neighborhood;
+  if(addr.cep)addrStr+=' | CEP: '+addr.cep;
+
+  var h='<div style="text-align:center;padding:1rem 0 .8rem">'
+    +'<div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);margin:0 auto .6rem;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>'
+    +'<div style="font-size:1rem;font-weight:800;color:#22c55e">Pedido Confirmado!</div>'
+    +'<div style="font-size:.6rem;color:var(--t3);margin-top:.2rem">Seu pedido foi enviado ao restaurante</div>'
+  +'</div>';
+
+  h+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;margin-bottom:.8rem">';
+  h+='<div style="font-size:.55rem;color:var(--t3);margin-bottom:.5rem">'+dateStr+'</div>';
+  (order.items||[]).forEach(function(i){
+    h+='<div style="display:flex;justify-content:space-between;padding:.25rem 0;font-size:.7rem"><span style="color:var(--t1)">'+i.qty+'x '+esc(i.name)+'</span><span style="color:var(--t1);font-weight:600">R$'+(i.price*i.qty).toFixed(2).replace('.',',')+'</span></div>';
+  });
+  h+='<div style="border-top:1px solid rgba(255,255,255,.06);margin-top:.3rem;padding-top:.3rem">';
+  h+='<div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--t3)">Subtotal</span><span style="color:var(--t1)">R$'+(order.subtotal||0).toFixed(2).replace('.',',')+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--t3)">Entrega</span><span style="color:var(--t1)">'+(order.deliveryFee>0?'R$'+order.deliveryFee.toFixed(2).replace('.',','):'Gratis')+'</span></div>';
+  if(order.tipAmount>0)h+='<div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--t3)">Gorjeta</span><span style="color:#22c55e">+R$'+order.tipAmount.toFixed(2).replace('.',',')+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;margin-top:.3rem;padding-top:.3rem;border-top:1px solid rgba(59,130,246,.2)"><span style="font-size:.75rem;font-weight:700;color:var(--t1)">Total</span><span style="font-size:.85rem;font-weight:900;color:#3b82f6">R$'+(order.total||0).toFixed(2).replace('.',',')+'</span></div>';
+  h+='</div></div>';
+
+  h+='<div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;margin-bottom:.8rem">';
+  h+='<div style="font-size:.6rem;font-weight:600;color:var(--t2);margin-bottom:.3rem"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Entrega em</div>';
+  h+='<div style="font-size:.7rem;color:var(--t1)">'+esc(addrStr)+'</div>';
+  if(order.customerPhone)h+='<div style="font-size:.6rem;color:var(--t3);margin-top:.2rem">Tel: '+esc(order.customerPhone)+'</div>';
+  if(order.notes)h+='<div style="font-size:.6rem;color:var(--t3);margin-top:.2rem;font-style:italic">"'+esc(order.notes)+'"</div>';
+  h+='<div style="font-size:.55rem;color:var(--t3);margin-top:.3rem">Pagamento: '+(order.paymentMethod==='card'?'Cartao':(order.paymentMethod==='pix'?'PIX':'Na entrega'))+'</div>';
+  h+='</div>';
+
+  h+='<button onclick="showDeliveryTracking(\''+order.id+'\')" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit;margin-bottom:.4rem">Acompanhar Pedido</button>';
+  h+='<button onclick="closeDeliveryView()" style="width:100%;padding:.5rem;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--t2);font-size:.7rem;cursor:pointer;font-family:inherit">Voltar</button>';
+  c.innerHTML=h;
+  showToast('Pedido confirmado!');
 }
 
 async function showDeliveryTracking(orderId){

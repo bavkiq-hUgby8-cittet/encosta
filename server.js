@@ -12536,7 +12536,7 @@ app.get('/api/user/:userId/delivery-restaurants', (req, res) => {
 });
 
 app.post('/api/delivery/order', (req, res) => {
-  const { eventId, customerId, items, deliveryAddress, phone, notes, paymentMethod } = req.body;
+  const { eventId, customerId, items, deliveryAddress, phone, notes, paymentMethod, tipPercent, tipAmount, customerName } = req.body;
   const ev = db.operatorEvents[eventId];
   if (!ev) return res.status(404).json({ error: 'Restaurante nao encontrado.' });
   if (!ev.businessProfile || !ev.businessProfile.acceptsDelivery) return res.status(400).json({ error: 'Restaurante nao aceita delivery.' });
@@ -12545,16 +12545,20 @@ app.post('/api/delivery/order', (req, res) => {
   if (!deliveryAddress || !deliveryAddress.street) return res.status(400).json({ error: 'Endereco obrigatorio.' });
   const subtotal = items.reduce((s, i) => s + (i.price * (i.qty || 1)), 0);
   const deliveryFee = ev.businessProfile.deliveryFee || 0;
-  const total = subtotal + deliveryFee;
+  const tip = parseFloat(tipAmount) || 0;
+  const total = subtotal + deliveryFee + tip;
   const order = {
     id: require('uuid').v4(),
     eventId, customerId,
-    customerName: db.users[customerId].nickname || db.users[customerId].name,
+    customerName: customerName || db.users[customerId].nickname || db.users[customerId].name,
     customerPhone: (phone || '').trim(),
-    items, subtotal, deliveryFee, total,
+    items, subtotal, deliveryFee,
+    tipPercent: parseInt(tipPercent) || 0,
+    tipAmount: tip,
+    total,
     deliveryAddress,
     status: 'pending', driverId: null, driverName: null,
-    paymentMethod: paymentMethod || 'pix',
+    paymentMethod: paymentMethod || 'counter',
     paymentStatus: 'pending',
     notes: (notes || '').trim(),
     createdAt: Date.now(), deliveredAt: null
