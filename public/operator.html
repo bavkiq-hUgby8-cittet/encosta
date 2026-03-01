@@ -2057,6 +2057,14 @@ const SONIC_FFT_SIZE=8192,SONIC_DETECT_THRESHOLD=50,SONIC_CONFIRM_COUNT=3;
 
 function $(id){return document.getElementById(id)}
 
+function showToast(msg){
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.8rem;z-index:99999;backdrop-filter:blur(10px)';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){t.remove()},2500);
+}
+
 // ═══ AUTH ═══
 (async function(){
   const r=await fetch('/api/firebase-config');const cfg=await r.json();
@@ -4329,13 +4337,9 @@ async function saveParkConfig(){
 async function loadParkVehicles(){
   if(!S.currentEventId)return;
   try{
-    const r=await fetch('/api/operator/event/'+S.currentEventId+'/orders');
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/vehicles');
     const d=await r.json();
-    // Load vehicles from first fetch to get parking config
-    const parkR=await fetch('/api/event/'+S.currentEventId+'/parking');
-    const parkD=await parkR.json();
-    PARK.config.activeVehicles=parkD.activeVehicles||0;
-    updateParkBadge();
+    PARK.vehicles=d.vehicles||{};
     renderParkVehicles();
   }catch(e){console.error('loadParkVehicles:',e)}
 }
@@ -4346,13 +4350,12 @@ function renderParkVehicles(){
   list.innerHTML='';
 
   if(!S.currentEventId)return;
-  const ev=db.operatorEvents?db.operatorEvents[S.currentEventId]:null;
-  if(!ev||!ev.parking||!ev.parking.vehicles){
+  if(!PARK.vehicles||Object.keys(PARK.vehicles).length===0){
     empty.style.display='block';
     return;
   }
 
-  const vehicles=Object.values(ev.parking.vehicles).filter(v=>v.status==='parked');
+  const vehicles=Object.values(PARK.vehicles).filter(v=>v.status==='parked');
   if(vehicles.length===0){
     empty.style.display='block';
     return;
@@ -4371,7 +4374,7 @@ function renderParkVehicles(){
       '<div class="mod-card-info">'+
         '<div><strong>'+esc(v.nickname)+'</strong></div>'+
         '<div>Entrada: '+new Date(v.entryTime).toLocaleTimeString()+'</div>'+
-        '<div>Tempo: '+elapsed+' hora'+(elapsed!==1?'s':'')+' | Custo: R$ '+(elapsed*ev.parking.hourlyRate).toFixed(2)+'</div>'+
+        '<div>Tempo: '+elapsed+' hora'+(elapsed!==1?'s':'')+' | Custo: R$ '+(elapsed*PARK.config.hourlyRate).toFixed(2)+'</div>'+
       '</div>'+
       '<div class="mod-card-actions">'+
         '<button class="mod-btn primary small" onclick="markParkExit(\''+esc(v.plate)+'\')">Saída</button>'+
@@ -4507,13 +4510,12 @@ function loadParkHistory(){
   list.innerHTML='';
 
   if(!S.currentEventId)return;
-  const ev=db.operatorEvents?db.operatorEvents[S.currentEventId]:null;
-  if(!ev||!ev.parking||!ev.parking.vehicles){
+  if(!PARK.vehicles||Object.keys(PARK.vehicles).length===0){
     empty.style.display='block';
     return;
   }
 
-  const history=Object.values(ev.parking.vehicles).filter(v=>v.status==='exited'||v.status==='paid');
+  const history=Object.values(PARK.vehicles).filter(v=>v.status==='exited'||v.status==='paid');
   if(history.length===0){
     empty.style.display='block';
     return;
@@ -4607,9 +4609,9 @@ function switchGymTab(tab){
 async function loadGymConfig(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.gym)return;
-    GYM.config=ev.gym.config||{enabled:false,maxCapacity:50,openTime:'06:00',closeTime:'22:00'};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
+    const d=await r.json();
+    GYM.config=d.config||{enabled:false,maxCapacity:50,openTime:'06:00',closeTime:'22:00'};
     $('gymEnabled').checked=GYM.config.enabled;
     $('gymMaxCapacity').value=GYM.config.maxCapacity||50;
     $('gymOpenTime').value=GYM.config.openTime||'06:00';
@@ -4636,9 +4638,9 @@ async function saveGymConfig(){
 async function loadGymWorkouts(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.gym)return;
-    GYM.workouts=ev.gym.workouts||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
+    const d=await r.json();
+    GYM.workouts=d.workouts||{};
     renderGymWorkouts();
   }catch(e){console.error('loadGymWorkouts:',e)}
 }
@@ -4687,9 +4689,9 @@ async function gymCheckout(odId){
 async function loadGymClasses(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.gym)return;
-    GYM.classes=ev.gym.classes||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
+    const d=await r.json();
+    GYM.classes=d.classes||{};
     renderGymClasses();
   }catch(e){console.error('loadGymClasses:',e)}
 }
@@ -4761,9 +4763,9 @@ async function deleteGymClass(id){
 async function loadGymPlans(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.gym)return;
-    GYM.plans=ev.gym.plans||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
+    const d=await r.json();
+    GYM.plans=d.plans||{};
     renderGymPlans();
   }catch(e){console.error('loadGymPlans:',e)}
 }
@@ -4819,9 +4821,9 @@ async function deleteGymPlan(id){
 async function loadGymMembers(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.gym)return;
-    GYM.members=ev.gym.members||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
+    const d=await r.json();
+    GYM.members=d.members||{};
     renderGymMembers();
   }catch(e){console.error('loadGymMembers:',e)}
 }
@@ -4916,9 +4918,9 @@ function switchChurchTab(tab){
 async function loadChurchConfig(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.church)return;
-    CHURCH.config=ev.church.config||{enabled:false,churchName:'',pastorName:'',denomination:''};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.config=d.config||{enabled:false,churchName:'',pastorName:'',denomination:''};
     $('churchEnabled').checked=CHURCH.config.enabled;
     $('churchName').value=CHURCH.config.churchName||'';
     $('churchPastor').value=CHURCH.config.pastorName||'';
@@ -4945,9 +4947,9 @@ async function saveChurchConfig(){
 async function loadChurchTithes(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.church)return;
-    CHURCH.tithes=Object.values(ev.church.tithes||{});
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.tithes=Object.values(d.tithes||{});
     renderChurchTithes();
   }catch(e){console.error('loadChurchTithes:',e)}
 }
@@ -4989,9 +4991,9 @@ function renderChurchTithes(){
 async function loadChurchServices(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.church)return;
-    CHURCH.services=ev.church.services||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.services=d.services||{};
     renderChurchServices();
   }catch(e){console.error('loadChurchServices:',e)}
 }
@@ -5037,9 +5039,9 @@ function openChurchServiceModal(){
 async function loadChurchPrayers(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.church)return;
-    CHURCH.prayers=ev.church.prayers||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.prayers=d.prayers||{};
     renderChurchPrayers();
   }catch(e){console.error('loadChurchPrayers:',e)}
 }
@@ -5086,9 +5088,9 @@ async function togglePrayerFor(prayerId){
 async function loadChurchCells(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.church)return;
-    CHURCH.cells=ev.church.cells||{};
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.cells=d.cells||{};
     renderChurchCells();
   }catch(e){console.error('loadChurchCells:',e)}
 }
@@ -5136,9 +5138,9 @@ function openChurchCellModal(){
 async function loadChurchAnnouncements(){
   if(!S.currentEventId)return;
   try{
-    const ev=db.operatorEvents[S.currentEventId];
-    if(!ev||!ev.church)return;
-    CHURCH.announcements=ev.church.announcements||[];
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.announcements=d.announcements||[];
     renderChurchAnnouncements();
   }catch(e){console.error('loadChurchAnnouncements:',e)}
 }

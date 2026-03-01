@@ -12848,6 +12848,31 @@ app.post('/api/operator/event/:eventId/church/service/:serviceId/checkin', (req,
   res.json({ ok: true });
 });
 
+// ═══ OPERATOR FULL DATA ENDPOINTS ═══
+// Full parking data for operator
+app.get('/api/operator/event/:eventId/parking/vehicles', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({error:'Evento nao encontrado'});
+  const vehicles = ev.parking ? ev.parking.vehicles || {} : {};
+  res.json({vehicles});
+});
+
+// Full gym data for operator
+app.get('/api/operator/event/:eventId/gym', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.json({enabled:false, config:{}, classes:{}, plans:{}, workouts:{}, members:{}});
+  const g = ev.gym || {};
+  res.json({enabled:g.enabled, config:g.config||{}, classes:g.classes||{}, plans:g.plans||{}, workouts:g.workouts||{}, members:g.members||{}});
+});
+
+// Full church data for operator
+app.get('/api/operator/event/:eventId/church', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.json({enabled:false, config:{}, tithes:{}, campaigns:{}, services:{}, prayers:{}, cells:{}, announcements:{}});
+  const c = ev.church || {};
+  res.json({enabled:c.enabled, config:c.config||{}, tithes:c.tithes||{}, campaigns:c.campaigns||{}, services:c.services||{}, prayers:c.prayers||{}, cells:c.cells||{}, announcements:c.announcements||{}});
+});
+
 // ═══ STRIPE — Full Payment Integration ═══
 // Payment Element (Card, Link, Apple Pay, Google Pay), Subscriptions, Connect
 // Activates when STRIPE_SECRET_KEY + STRIPE_PUBLIC_KEY are set in environment
