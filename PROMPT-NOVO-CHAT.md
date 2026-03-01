@@ -155,6 +155,7 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 | PROMPT-TRADUTOR.md | Internacionalizar o app (4 idiomas) |
 | PROMPT-FINANCEIRO.md | Stripe Connect + pagamentos US |
 | PROMPT-FISCAL.md | Compliance fiscal US+BR, conciliacao |
+| PROMPT-JURIDICO.md | Termos, LGPD, GDPR, PI, contratos, estrutura societaria |
 
 ## OBSERVACOES TECNICAS IMPORTANTES
 
