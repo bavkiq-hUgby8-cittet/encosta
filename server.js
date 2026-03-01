@@ -287,6 +287,9 @@ function requireAdmin(req, res, next) {
 app.get('/site', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
 app.get('/sobre', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
 app.get('/termos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'termos.html')));
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
+app.get('/privacidade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidade.html')));
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 
 // ── Firebase Admin SDK ──
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -2224,6 +2227,16 @@ app.post('/api/register', (req, res) => {
   const nick = nickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname deve ter 2 a 20 caracteres.' });
   if (!/^[a-zA-Z0-9_.-]+$/.test(nick)) return res.status(400).json({ error: 'Só letras, números, _ . -' });
+
+  // -- Age verification (18+) --
+  const birthParsed = new Date(birthdate + 'T00:00:00Z');
+  if (isNaN(birthParsed.getTime())) return res.status(400).json({ error: 'Data de nascimento invalida.' });
+  const today = new Date();
+  let age = today.getUTCFullYear() - birthParsed.getUTCFullYear();
+  const m = today.getUTCMonth() - birthParsed.getUTCMonth();
+  if (m < 0 || (m === 0 && today.getUTCDate() < birthParsed.getUTCDate())) age--;
+  if (age < 18) return res.status(403).json({ error: 'O Touch? e exclusivo para maiores de 18 anos. Voce nao pode criar uma conta.' });
+  if (age > 120) return res.status(400).json({ error: 'Data de nascimento invalida.' });
 
   // If userId provided, update existing user (from Firebase Auth link)
   if (userId && db.users[userId]) {
@@ -12436,46 +12449,14 @@ app.post('/api/operator/event/:eventId/business-profile', async (req, res) => {
   res.json({ ok: true, event: ev });
 });
 
-// ═══ VERIFIED BADGE (via assinatura touch_selo R$10/mes) ═══
+// ═══ VERIFIED BADGE (R$100 via Stripe Checkout — Apple Pay, Google Pay, cartao, Link) ═══
 
-// Request event verification — uses existing subscription system
+// Create Stripe Checkout Session for badge purchase (R$100.00)
+// Stripe Checkout natively supports Apple Pay, Google Pay, Link, and cards
 app.post('/api/operator/event/:eventId/verify', paymentLimiter, async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
-
-  // Find operator user
-  const operatorId = ev.operatorId || ev.userId;
-  const user = db.users[operatorId];
-  if (!user) return res.status(404).json({ error: 'Operador nao encontrado.' });
-
-  // Check if operator already has active selo subscription
-  const sub = db.subscriptions[operatorId];
-  if (sub && (sub.status === 'authorized' || sub.status === 'active') && sub.planId === 'touch_selo') {
-    // Already subscribed — just verify the event
-    ev.verified = true;
-    ev.verifiedAt = Date.now();
-    ev.verifyMethod = 'subscription';
-    ev.verifySubscriptionId = sub.id || sub.mpPreapprovalId;
-    saveDB('operatorEvents');
-    console.log('[verify] Event verified via existing selo subscription:', ev.name, 'operator:', operatorId);
-    return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
-  }
-
-  // Also check if user already has touch_plus (which includes selo)
-  if (sub && (sub.status === 'authorized' || sub.status === 'active') && sub.planId === 'touch_plus') {
-    ev.verified = true;
-    ev.verifiedAt = Date.now();
-    ev.verifyMethod = 'subscription_plus';
-    ev.verifySubscriptionId = sub.id || sub.mpPreapprovalId;
-    saveDB('operatorEvents');
-    console.log('[verify] Event verified via Plus subscription:', ev.name, 'operator:', operatorId);
-    return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
-  }
-
-  // No active subscription — check payment method and create
-  const { method, cvv } = req.body;
-  const plan = SUBSCRIPTION_PLANS.touch_selo;
 
   // Method: saved card with CVV
   if (method === 'card' && cvv) {

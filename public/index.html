@@ -1984,9 +1984,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="fg"><label data-i18n="profile.nickname_label">Nickname</label><input type="text" id="regNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" oninput="checkNick(this.value)" data-i18n-placeholder="auth.nickname_placeholder"></div>
   <div class="nick-feedback" id="nickFeedback"></div>
   <div class="reg-nick-info" data-i18n="auth.nickname_warning">⚠️ Não coloque seu nome real! O nick protege sua identidade — só você decide quando revelar quem é. Seja criativo!</div>
-  <div class="fg"><label data-i18n="auth.birth_date_label">Data de nascimento</label><input type="date" id="regBirth"></div>
-  <div class="tc"><input type="checkbox" id="regTerms"><span data-i18n="auth.terms_temporary">Entendo e aceito que <strong>todas as relações aqui são temporárias</strong>. Nada persiste sem encontro.</span></div>
-  <div class="tc"><input type="checkbox" id="regTermsUso"><span data-i18n="auth.tos_required">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
+  <div class="fg"><label data-i18n="auth.birth_date_label">Data de nascimento</label><input type="date" id="regBirth" onchange="checkBirthAge(this.value)"></div>
+  <div id="regAgeWarning" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:.6rem .8rem;margin:.3rem 0 .5rem;font-size:.75rem;color:#fca5a5;line-height:1.4"></div>
+  <div style="font-size:.65rem;color:#666;margin:-.2rem 0 .6rem;line-height:1.3" data-i18n="auth.age_notice">O Touch? e exclusivo para maiores de 18 anos. Sua data de nascimento e usada para verificacao de idade e calculo de signo.</div>
+  <div class="tc"><input type="checkbox" id="regTerms"><span data-i18n="auth.terms_temporary">Entendo e aceito que <strong>todas as relacoes aqui sao temporarias</strong>. Nada persiste sem encontro.</span></div>
+  <div class="tc"><input type="checkbox" id="regTermsUso"><span data-i18n="auth.tos_required">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a> e a <a href="/privacidade" target="_blank" style="color:var(--ac);text-decoration:underline">Politica de Privacidade</a></span></div>
   <button class="bp" onclick="doRegister()" data-i18n="common.done">ENTRAR</button>
 </div>
 
@@ -5708,9 +5710,33 @@ function makeAvatar(nick,color,size,photo,verified,accessoryKey){
   if(verified) return '<div class="verified-wrap">'+inner+verifiedBadge(sizeClass)+'</div>';
   return inner;
 }
+function calcAge(birthStr){
+  if(!birthStr)return 0;
+  var b=new Date(birthStr+'T00:00:00');
+  var today=new Date();
+  var age=today.getFullYear()-b.getFullYear();
+  var m=today.getMonth()-b.getMonth();
+  if(m<0||(m===0&&today.getDate()<b.getDate()))age--;
+  return age;
+}
+function checkBirthAge(val){
+  var w=$('regAgeWarning');
+  if(!val){w.style.display='none';return;}
+  var age=calcAge(val);
+  if(age<18){
+    w.innerHTML='<strong>'+t('auth.age_blocked_title','Acesso nao permitido')+'</strong><br>'+t('auth.age_blocked_msg','O Touch? e exclusivo para maiores de 18 anos. Voce nao pode criar uma conta com esta data de nascimento.');
+    w.style.display='block';
+  }else{
+    w.style.display='none';
+  }
+}
 async function doRegister(){
   const nick=$('regNick').value.trim(),birth=$('regBirth').value,terms=$('regTerms').checked,termsUso=$('regTermsUso').checked;
-  if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');if(!terms)return showToast('Aceite os termos.');if(!termsUso)return showToast('Aceite os Termos de Uso.');
+  if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');
+  var age=calcAge(birth);
+  if(age<18)return showToast(t('auth.age_blocked_toast','Voce precisa ter 18 anos ou mais para usar o Touch?.'));
+  if(age>120)return showToast('Data de nascimento invalida.');
+  if(!terms)return showToast('Aceite os termos.');if(!termsUso)return showToast('Aceite os Termos de Uso e Politica de Privacidade.');
   if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return showToast('Nickname: só letras, números, _ . -');
   try{
     // If user already has ID (came from Firebase link), use update; else register new
