@@ -13,227 +13,294 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#050508;--card:#0d0d14;--card2:#111119;--border:rgba(255,255,255,.06);--t1:#f0f0f5;--t2:#a0a0b8;--t3:#606078;--orange:#ff6b35;--orange2:#ff8c5a;--pink:#ff3c6e;--indigo:#818cf8;--gold:#fbbf24;--green:#34d399;--blue:#60a5fa;--cyan:#22d3ee}
+:root{--bg:#050508;--card:#0a0a12;--card2:#111119;--border:rgba(255,255,255,.06);--t1:#f0f0f5;--t2:#a0a0b8;--t3:#606078;--orange:#ff6b35;--orange2:#ff8c5a;--pink:#ff3c6e;--indigo:#818cf8;--gold:#fbbf24;--green:#34d399;--blue:#60a5fa;--cyan:#22d3ee}
 html{scroll-behavior:smooth}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:var(--orange);text-decoration:none}
 a:hover{text-decoration:underline}
 ::selection{background:rgba(255,107,53,.3);color:#fff}
 
-/* NAV */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(5,5,8,.88);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);padding:.7rem 2rem;display:flex;align-items:center;justify-content:space-between}
+/* NAV - glassmorphism */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(5,5,8,.7);backdrop-filter:blur(30px) saturate(1.5);border-bottom:1px solid rgba(255,255,255,.04);padding:.7rem 2rem;display:flex;align-items:center;justify-content:space-between;transition:all .3s}
+.nav.scrolled{background:rgba(5,5,8,.92);border-bottom-color:rgba(255,107,53,.08)}
 .nav-brand{font-weight:900;font-size:1.2rem;color:var(--orange);letter-spacing:-.03em}
 .nav-center{display:flex;gap:2rem;font-size:.78rem;font-weight:500;color:var(--t2)}
-.nav-center a{color:var(--t2);transition:.2s}
+.nav-center a{color:var(--t2);transition:.2s;position:relative}
 .nav-center a:hover{color:var(--t1);text-decoration:none}
+.nav-center a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:2px;background:var(--orange);transition:.3s}
+.nav-center a:hover::after{width:100%}
 .nav-right{display:flex;align-items:center;gap:1rem}
 .lang-switch{display:flex;gap:2px;background:rgba(255,255,255,.04);border-radius:8px;padding:2px;font-size:.7rem;font-weight:600}
 .lang-btn{padding:4px 10px;border-radius:6px;cursor:pointer;color:var(--t3);transition:.2s;border:none;background:none}
 .lang-btn.active{background:rgba(255,107,53,.15);color:var(--orange)}
-.nav-cta{padding:6px 18px;border-radius:8px;font-size:.78rem;font-weight:700;background:var(--orange);color:#fff;border:none;cursor:pointer;transition:.2s}
-.nav-cta:hover{background:var(--orange2);text-decoration:none;color:#fff}
+.nav-cta{padding:6px 18px;border-radius:8px;font-size:.78rem;font-weight:700;background:var(--orange);color:#fff;border:none;cursor:pointer;transition:.25s}
+.nav-cta:hover{background:var(--orange2);text-decoration:none;color:#fff;transform:translateY(-1px);box-shadow:0 4px 15px rgba(255,107,53,.3)}
 @media(max-width:768px){.nav-center{display:none}.nav{padding:.7rem 1.2rem}}
 
-/* HERO */
+/* HERO - fullscreen cinematic */
 .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6rem 1.5rem 4rem;position:relative;overflow:hidden}
-.hero-bg{position:absolute;inset:0;pointer-events:none}
-.hero-bg canvas{width:100%;height:100%}
-.hero-glow{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(255,107,53,.05) 0%,rgba(255,60,110,.02) 40%,transparent 65%);pointer-events:none}
+.hero-video-bg{position:absolute;inset:0;z-index:0}
+.hero-video-bg video{width:100%;height:100%;object-fit:cover;opacity:.12;filter:brightness(.6)}
+.hero-video-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,8,.3) 0%,rgba(5,5,8,.6) 40%,rgba(5,5,8,.95) 85%,var(--bg) 100%)}
+.hero-particles{position:absolute;inset:0;z-index:1;pointer-events:none}
+.hero-glow{position:absolute;top:25%;left:50%;transform:translate(-50%,-50%);width:900px;height:900px;background:radial-gradient(circle,rgba(255,107,53,.06) 0%,rgba(255,60,110,.03) 30%,transparent 60%);pointer-events:none;z-index:1;animation:heroGlowPulse 4s ease-in-out infinite}
+@keyframes heroGlowPulse{0%,100%{opacity:.7;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}}
+.hero-content{position:relative;z-index:2}
 
-/* Phone animation - improved */
-.phones-scene{position:relative;width:280px;height:200px;margin-bottom:2.5rem}
-.phone{position:absolute;width:80px;height:140px;border-radius:18px;border:2px solid rgba(255,255,255,.15);background:linear-gradient(180deg,#14141e,#0d0d16);top:30px;transition:transform .7s cubic-bezier(.34,1.56,.64,1);box-shadow:0 8px 32px rgba(0,0,0,.4)}
-.phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:24px;height:4px;border-radius:3px;background:rgba(255,255,255,.08)}
-.phone-screen{position:absolute;top:16px;left:7px;right:7px;bottom:16px;border-radius:10px;background:rgba(255,107,53,.02);transition:all .5s}
-.phone-speaker{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:14px;height:4px;border-radius:2px;background:rgba(255,255,255,.1);transition:all .4s}
-.phone-l{left:20px;transform:rotate(-10deg)}
-.phone-r{right:20px;transform:rotate(10deg)}
+/* Phones 3D animation - screens face each other (tela contra tela) */
+.phones-scene{position:relative;width:320px;height:220px;margin:0 auto 2.5rem;perspective:1000px;transform-style:preserve-3d}
+.phone{position:absolute;width:90px;height:155px;border-radius:20px;border:2px solid rgba(255,255,255,.12);background:linear-gradient(180deg,#16162a,#0d0d1a);top:30px;transition:all .8s cubic-bezier(.34,1.56,.64,1);box-shadow:0 15px 50px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);transform-style:preserve-3d}
+.phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:26px;height:4px;border-radius:3px;background:rgba(255,255,255,.06)}
+.phone-screen{position:absolute;top:16px;left:7px;right:7px;bottom:16px;border-radius:12px;background:rgba(255,107,53,.02);transition:all .6s;overflow:hidden}
+.phone-screen::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,rgba(255,107,53,.03));opacity:0;transition:.6s}
+.phone-speaker{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:16px;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:all .5s}
+/* Left phone faces RIGHT (screen toward center), right phone faces LEFT (screen toward center) */
+.phone-l{left:20px;transform:rotateY(35deg) rotate(-5deg)}
+.phone-r{right:20px;transform:rotateY(-35deg) rotate(5deg)}
 
-/* Touch state */
-.phones-scene.touching .phone-l{transform:rotate(-3deg) translateX(28px)}
-.phones-scene.touching .phone-r{transform:rotate(3deg) translateX(-28px)}
-.phones-scene.touching .phone-screen{background:rgba(255,107,53,.08);box-shadow:0 0 30px rgba(255,107,53,.1) inset}
-.phones-scene.touching .phone-speaker{background:var(--orange);box-shadow:0 0 8px rgba(255,107,53,.5)}
+/* Touch state - phones come together screen-to-screen */
+.phones-scene.touching .phone-l{transform:rotateY(25deg) rotate(-2deg) translateX(40px)}
+.phones-scene.touching .phone-r{transform:rotateY(-25deg) rotate(2deg) translateX(-40px)}
+.phones-scene.touching .phone-screen{background:rgba(255,107,53,.06);box-shadow:0 0 40px rgba(255,107,53,.08) inset}
+.phones-scene.touching .phone-screen::before{opacity:1}
+.phones-scene.touching .phone-speaker{background:var(--orange);box-shadow:0 0 12px rgba(255,107,53,.6),0 0 30px rgba(255,107,53,.2)}
+.phones-scene.touching .phone{border-color:rgba(255,107,53,.15)}
 
-/* Sound waves between phones */
-.sound-wave{position:absolute;top:50%;left:50%;width:8px;height:8px;border-radius:50%;border:1.5px solid rgba(255,107,53,.4);transform:translate(-50%,-50%);opacity:0;pointer-events:none}
-.phones-scene.touching .sound-wave{animation:soundPulse 1.2s ease-out infinite}
-.phones-scene.touching .sound-wave:nth-child(4){animation-delay:.2s}
-.phones-scene.touching .sound-wave:nth-child(5){animation-delay:.4s}
-.phones-scene.touching .sound-wave:nth-child(6){animation-delay:.6s}
-@keyframes soundPulse{0%{width:8px;height:8px;opacity:.7;border-color:rgba(255,107,53,.6)}100%{width:100px;height:100px;opacity:0;border-color:rgba(255,60,110,.1)}}
+/* Sound waves - concentric rings */
+.sound-wave{position:absolute;top:50%;left:50%;width:8px;height:8px;border-radius:50%;border:1.5px solid rgba(255,107,53,.3);transform:translate(-50%,-50%);opacity:0;pointer-events:none}
+.phones-scene.touching .sound-wave{animation:soundPulse 1.4s ease-out infinite}
+.phones-scene.touching .sound-wave:nth-child(4){animation-delay:.25s}
+.phones-scene.touching .sound-wave:nth-child(5){animation-delay:.5s}
+.phones-scene.touching .sound-wave:nth-child(6){animation-delay:.75s}
+@keyframes soundPulse{0%{width:8px;height:8px;opacity:.8;border-color:rgba(255,107,53,.7)}60%{opacity:.3}100%{width:120px;height:120px;opacity:0;border-color:rgba(255,60,110,0)}}
 
-/* Spark */
-.spark-group{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0;transition:opacity .3s}
+/* Spark - explosive */
+.spark-group{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0;transition:opacity .4s}
 .phones-scene.touching .spark-group{opacity:1}
-.spark-dot{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--orange)}
-.phones-scene.touching .spark-dot{animation:sparkFloat 1s ease-out infinite}
-@keyframes sparkFloat{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0)}}
+.spark-dot{position:absolute;width:3px;height:3px;border-radius:50%;background:var(--orange)}
+.phones-scene.touching .spark-dot{animation:sparkFloat 1.2s ease-out infinite}
+.spark-dot.pink{background:var(--pink)}
+@keyframes sparkFloat{0%{opacity:1;transform:translate(0,0) scale(1)}50%{opacity:.7}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0)}}
 
-.hero h1{font-size:clamp(2.2rem,6vw,4rem);font-weight:900;line-height:1.05;letter-spacing:-.05em;max-width:700px}
-.hero h1 .gradient{background:linear-gradient(135deg,var(--orange),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero-sub{margin-top:1.2rem;font-size:1.1rem;color:var(--t2);max-width:540px;font-weight:300;line-height:1.8}
+/* Connection flash */
+.conn-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:0;height:0;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.4),transparent);opacity:0;pointer-events:none;transition:none}
+.phones-scene.touching .conn-flash{animation:connFlash 2.8s ease-out infinite}
+@keyframes connFlash{0%{width:0;height:0;opacity:.6}15%{width:180px;height:180px;opacity:.2}100%{width:250px;height:250px;opacity:0}}
+
+.hero h1{font-size:clamp(2.5rem,7vw,4.5rem);font-weight:900;line-height:1.02;letter-spacing:-.055em;max-width:750px}
+.hero h1 .gradient{background:linear-gradient(135deg,var(--orange) 0%,var(--pink) 50%,var(--indigo) 100%);background-size:200% 200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:gradientShift 6s ease infinite}
+@keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.hero-sub{margin-top:1.2rem;font-size:1.1rem;color:var(--t2);max-width:560px;font-weight:300;line-height:1.8}
 .hero-tag{margin-top:.8rem;font-size:.75rem;color:var(--t3);font-weight:500;letter-spacing:.05em}
 .hero-cta{margin-top:2.5rem;display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center}
-.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.8rem 2rem;border-radius:14px;font-size:.88rem;font-weight:700;border:none;cursor:pointer;transition:.25s}
-.btn-main{background:linear-gradient(135deg,var(--orange),#e85d2a);color:#fff;box-shadow:0 4px 24px rgba(255,107,53,.2)}
-.btn-main:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,53,.3);text-decoration:none;color:#fff}
-.btn-outline{background:transparent;border:1.5px solid rgba(255,255,255,.12);color:var(--t1)}
-.btn-outline:hover{border-color:rgba(255,107,53,.3);background:rgba(255,107,53,.04);text-decoration:none}
-
-/* FLOATING BADGES */
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.8rem 2rem;border-radius:14px;font-size:.88rem;font-weight:700;border:none;cursor:pointer;transition:.3s}
+.btn-main{background:linear-gradient(135deg,var(--orange),#e85d2a);color:#fff;box-shadow:0 4px 24px rgba(255,107,53,.25)}
+.btn-main:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(255,107,53,.35);text-decoration:none;color:#fff}
+.btn-outline{background:transparent;border:1.5px solid rgba(255,255,255,.1);color:var(--t1)}
+.btn-outline:hover{border-color:rgba(255,107,53,.3);background:rgba(255,107,53,.04);text-decoration:none;transform:translateY(-2px)}
 .hero-badges{display:flex;gap:.6rem;margin-top:1.5rem;flex-wrap:wrap;justify-content:center}
-.badge{padding:5px 14px;border-radius:20px;font-size:.68rem;font-weight:600;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--t2)}
+.badge{padding:5px 14px;border-radius:20px;font-size:.68rem;font-weight:600;background:rgba(255,255,255,.03);border:1px solid var(--border);color:var(--t2);backdrop-filter:blur(10px);transition:.3s}
+.badge:hover{border-color:rgba(255,107,53,.15);background:rgba(255,107,53,.03)}
 
 /* SECTION COMMON */
-section{padding:6rem 1.5rem}
-.container{max-width:1000px;margin:0 auto}
-.section-tag{font-size:.65rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:.6rem}
-.section-h{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:900;letter-spacing:-.04em;line-height:1.1;margin-bottom:.8rem}
-.section-p{font-size:1rem;color:var(--t2);max-width:600px;font-weight:300;line-height:1.9}
+section{padding:7rem 1.5rem;position:relative}
+.container{max-width:1040px;margin:0 auto}
+.section-tag{font-size:.65rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem}
+.section-tag::before{content:'';width:24px;height:1.5px;background:var(--orange);display:inline-block}
+.section-h{font-size:clamp(1.9rem,4.5vw,3rem);font-weight:900;letter-spacing:-.045em;line-height:1.08;margin-bottom:.8rem}
+.section-p{font-size:1rem;color:var(--t2);max-width:620px;font-weight:300;line-height:1.9}
 
-/* HOW IT WORKS */
-.how-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.01),transparent)}
-.how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:3rem;position:relative}
-.how-steps::before{content:'';position:absolute;top:60px;left:15%;right:15%;height:2px;background:linear-gradient(90deg,transparent,rgba(255,107,53,.15),rgba(255,107,53,.15),transparent)}
+/* VIDEO SHOWCASE */
+.video-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.01) 50%,transparent);overflow:hidden}
+.video-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:3rem}
+.video-card{position:relative;border-radius:20px;overflow:hidden;aspect-ratio:9/16;background:var(--card);border:1px solid var(--border);cursor:pointer;transition:.4s;max-height:400px}
+.video-card:hover{transform:translateY(-6px) scale(1.02);border-color:rgba(255,107,53,.2);box-shadow:0 20px 60px rgba(255,107,53,.1)}
+.video-card video{width:100%;height:100%;object-fit:cover;opacity:.85;transition:.3s}
+.video-card:hover video{opacity:1}
+.video-card .video-overlay{position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(5,5,8,.8));display:flex;align-items:flex-end;padding:1.2rem;pointer-events:none}
+.video-card .video-label{font-size:.75rem;font-weight:700;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+.video-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:50px;height:50px;border-radius:50%;background:rgba(255,107,53,.85);display:flex;align-items:center;justify-content:center;opacity:0;transition:.3s;backdrop-filter:blur(10px)}
+.video-card:hover .video-play{opacity:1}
+.video-play::after{content:'';border-left:14px solid #fff;border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:3px}
+@media(max-width:768px){.video-grid{grid-template-columns:1fr;max-width:300px;margin:3rem auto 0}}
+
+/* HOW IT WORKS - timeline style */
+.how-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.008),transparent)}
+.how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2.5rem;margin-top:3rem;position:relative}
+.how-steps::before{content:'';position:absolute;top:55px;left:12%;right:12%;height:2px;background:linear-gradient(90deg,transparent,rgba(255,107,53,.12),rgba(255,107,53,.12),transparent)}
 .how-step{text-align:center;position:relative}
-.how-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--orange),var(--pink));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1rem;margin:0 auto 1.2rem;color:#fff;box-shadow:0 4px 20px rgba(255,107,53,.2)}
-.how-icon{width:100px;height:100px;margin:0 auto 1rem;border-radius:24px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;transition:.3s}
-.how-step:hover .how-icon{border-color:rgba(255,107,53,.2);transform:translateY(-4px)}
-.how-step h3{font-size:1rem;font-weight:700;margin-bottom:.4rem}
-.how-step p{font-size:.82rem;color:var(--t2);line-height:1.7;max-width:260px;margin:0 auto}
-@media(max-width:768px){.how-steps{grid-template-columns:1fr;gap:2.5rem}.how-steps::before{display:none}}
+.how-num{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--orange),var(--pink));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.05rem;margin:0 auto 1.4rem;color:#fff;box-shadow:0 6px 25px rgba(255,107,53,.25);position:relative;z-index:2}
+.how-icon{width:110px;height:110px;margin:0 auto 1.2rem;border-radius:26px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;transition:.4s}
+.how-step:hover .how-icon{border-color:rgba(255,107,53,.2);transform:translateY(-6px);box-shadow:0 12px 40px rgba(255,107,53,.08)}
+.how-step h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
+.how-step p{font-size:.82rem;color:var(--t2);line-height:1.7;max-width:280px;margin:0 auto}
+@media(max-width:768px){.how-steps{grid-template-columns:1fr;gap:3rem}.how-steps::before{display:none}}
 
 /* MAGIC SECTION - Ultrasonic */
 .magic-section{position:relative;overflow:hidden}
-.magic-section::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(255,107,53,.03),transparent 60%);pointer-events:none}
-.magic-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;margin-top:2rem}
-.magic-visual{position:relative;height:360px;display:flex;align-items:center;justify-content:center}
-.magic-phone{width:100px;height:170px;border-radius:22px;border:2px solid rgba(255,255,255,.1);background:linear-gradient(180deg,#14141e,#0d0d16);position:relative;box-shadow:0 12px 40px rgba(0,0,0,.4)}
-.magic-phone .speaker-glow{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:60px;height:30px;border-radius:0 0 20px 20px;background:radial-gradient(ellipse at center bottom,rgba(255,107,53,.3),transparent);animation:speakerPulse 2s ease-in-out infinite}
-@keyframes speakerPulse{0%,100%{opacity:.3}50%{opacity:.8}}
-.magic-waves{position:absolute;bottom:40%;left:50%;transform:translateX(-50%)}
-.magic-wave-ring{position:absolute;left:50%;bottom:0;transform:translateX(-50%);border:1.5px solid rgba(255,107,53,.2);border-radius:50%;animation:magicWave 2s ease-out infinite}
+.magic-section::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;height:700px;background:radial-gradient(circle,rgba(255,107,53,.03),transparent 55%);pointer-events:none}
+.magic-grid{display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;margin-top:2.5rem}
+.magic-visual{position:relative;height:400px;display:flex;align-items:center;justify-content:center}
+.magic-phone{width:110px;height:185px;border-radius:24px;border:2px solid rgba(255,255,255,.08);background:linear-gradient(180deg,#16162a,#0d0d1a);position:relative;box-shadow:0 15px 50px rgba(0,0,0,.5)}
+.magic-phone .speaker-glow{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:70px;height:35px;border-radius:0 0 22px 22px;background:radial-gradient(ellipse at center bottom,rgba(255,107,53,.35),transparent);animation:speakerPulse 2s ease-in-out infinite}
+@keyframes speakerPulse{0%,100%{opacity:.3;transform:translateX(-50%) scale(1)}50%{opacity:.9;transform:translateX(-50%) scale(1.05)}}
+.magic-waves{position:absolute;bottom:35%;left:50%;transform:translateX(-50%)}
+.magic-wave-ring{position:absolute;left:50%;bottom:0;transform:translateX(-50%);border:1.5px solid rgba(255,107,53,.15);border-radius:50%;animation:magicWave 2.5s ease-out infinite}
 .magic-wave-ring:nth-child(1){width:40px;height:40px;animation-delay:0s}
-.magic-wave-ring:nth-child(2){width:80px;height:80px;animation-delay:.4s}
-.magic-wave-ring:nth-child(3){width:120px;height:120px;animation-delay:.8s}
-.magic-wave-ring:nth-child(4){width:160px;height:160px;animation-delay:1.2s}
-@keyframes magicWave{0%{opacity:.6;transform:translateX(-50%) scale(.8)}100%{opacity:0;transform:translateX(-50%) scale(1.3)}}
-.magic-content h3{font-size:1.6rem;font-weight:800;margin-bottom:.8rem;letter-spacing:-.02em}
+.magic-wave-ring:nth-child(2){width:80px;height:80px;animation-delay:.5s}
+.magic-wave-ring:nth-child(3){width:120px;height:120px;animation-delay:1s}
+.magic-wave-ring:nth-child(4){width:160px;height:160px;animation-delay:1.5s}
+.magic-wave-ring:nth-child(5){width:200px;height:200px;animation-delay:2s}
+@keyframes magicWave{0%{opacity:.5;transform:translateX(-50%) scale(.85)}100%{opacity:0;transform:translateX(-50%) scale(1.25)}}
+/* Frequency visualization bars */
+.freq-bars{position:absolute;bottom:28%;left:50%;transform:translateX(-50%);display:flex;gap:3px;align-items:flex-end}
+.freq-bar{width:3px;border-radius:2px;background:var(--orange);animation:freqPulse 1s ease-in-out infinite alternate}
+@keyframes freqPulse{0%{height:var(--h1)}100%{height:var(--h2)}}
+.magic-content h3{font-size:1.7rem;font-weight:800;margin-bottom:.8rem;letter-spacing:-.02em}
 .magic-content p{font-size:.9rem;color:var(--t2);line-height:1.9;margin-bottom:1rem}
-.magic-highlight{padding:1rem 1.2rem;background:rgba(255,107,53,.04);border-left:3px solid var(--orange);border-radius:0 10px 10px 0;font-size:.82rem;color:var(--t2);line-height:1.8}
-@media(max-width:768px){.magic-grid{grid-template-columns:1fr}.magic-visual{height:260px}}
+.magic-highlight{padding:1.2rem 1.4rem;background:rgba(255,107,53,.04);border-left:3px solid var(--orange);border-radius:0 12px 12px 0;font-size:.82rem;color:var(--t2);line-height:1.8}
+@media(max-width:768px){.magic-grid{grid-template-columns:1fr}.magic-visual{height:280px}}
 
-/* FEATURES GRID */
-.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:2.5rem}
-.feat-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.8rem;transition:.25s;position:relative;overflow:hidden}
-.feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--orange),var(--pink));opacity:0;transition:.25s}
-.feat-card:hover{border-color:rgba(255,107,53,.12);transform:translateY(-3px)}
+/* FEATURES GRID - glassmorphism cards */
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.4rem;margin-top:2.5rem}
+.feat-card{background:rgba(10,10,18,.6);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:20px;padding:2rem;transition:.35s;position:relative;overflow:hidden}
+.feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--orange),var(--pink));opacity:0;transition:.35s}
+.feat-card::after{content:'';position:absolute;top:-50%;right:-50%;width:100%;height:100%;background:radial-gradient(circle,rgba(255,107,53,.03),transparent 70%);pointer-events:none;opacity:0;transition:.5s}
+.feat-card:hover{border-color:rgba(255,107,53,.12);transform:translateY(-5px)}
 .feat-card:hover::before{opacity:1}
-.feat-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;font-size:1.4rem}
-.feat-card h3{font-size:1rem;font-weight:700;margin-bottom:.4rem}
-.feat-card p{font-size:.82rem;color:var(--t2);line-height:1.8}
+.feat-card:hover::after{opacity:1}
+.feat-icon{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:1.2rem;font-size:1.4rem}
+.feat-card h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
+.feat-card p{font-size:.84rem;color:var(--t2);line-height:1.8}
 
 /* TIPPING SECTION */
-.tip-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.015),transparent)}
-.tip-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;margin-top:2.5rem}
-.tip-stats{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-.tip-stat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.4rem;text-align:center}
-.tip-stat .num{font-size:1.8rem;font-weight:900;background:linear-gradient(135deg,var(--orange),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.tip-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.012),transparent)}
+.tip-grid{display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;align-items:center;margin-top:2.5rem}
+.tip-stats{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+.tip-stat{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.5rem;text-align:center;transition:.3s}
+.tip-stat:hover{border-color:rgba(255,107,53,.12);transform:translateY(-3px)}
+.tip-stat .num{font-size:2rem;font-weight:900;background:linear-gradient(135deg,var(--orange),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .tip-stat .label{font-size:.72rem;color:var(--t3);margin-top:.3rem;font-weight:500}
-.tip-flow{display:flex;flex-direction:column;gap:1rem}
-.tip-step{display:flex;gap:1rem;align-items:flex-start;padding:1rem 1.2rem;background:var(--card);border:1px solid var(--border);border-radius:14px;transition:.2s}
-.tip-step:hover{border-color:rgba(255,107,53,.15)}
-.tip-step-num{width:32px;height:32px;border-radius:10px;background:rgba(255,107,53,.1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;color:var(--orange);flex-shrink:0}
-.tip-step h4{font-size:.88rem;font-weight:700;margin-bottom:.2rem}
-.tip-step p{font-size:.78rem;color:var(--t2);line-height:1.7}
-@media(max-width:768px){.tip-grid{grid-template-columns:1fr}.tip-stats{grid-template-columns:1fr 1fr}}
+.tip-flow{display:flex;flex-direction:column;gap:1.2rem}
+.tip-step{display:flex;gap:1rem;align-items:flex-start;padding:1.2rem 1.4rem;background:var(--card);border:1px solid var(--border);border-radius:16px;transition:.3s}
+.tip-step:hover{border-color:rgba(255,107,53,.15);transform:translateX(6px)}
+.tip-step-num{width:36px;height:36px;border-radius:12px;background:rgba(255,107,53,.1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:var(--orange);flex-shrink:0}
+.tip-step h4{font-size:.9rem;font-weight:700;margin-bottom:.3rem}
+.tip-step p{font-size:.8rem;color:var(--t2);line-height:1.7}
+@media(max-width:768px){.tip-grid{grid-template-columns:1fr}}
+
+/* IMAGE PLACEHOLDER - for Gemini-generated images */
+.img-placeholder{border-radius:20px;overflow:hidden;background:linear-gradient(135deg,var(--card),rgba(255,107,53,.02));border:1px solid var(--border);position:relative;aspect-ratio:16/10}
+.img-placeholder img{width:100%;height:100%;object-fit:cover}
+.img-placeholder.square{aspect-ratio:1}
+.img-placeholder.portrait{aspect-ratio:9/16}
 
 /* BUSINESS SECTION */
 .biz-section{position:relative}
-.biz-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.2rem;margin-top:2.5rem}
-.biz-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.8rem;transition:.2s}
-.biz-card:hover{border-color:rgba(255,107,53,.12)}
+.biz-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.4rem;margin-top:2.5rem}
+.biz-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem;transition:.35s;position:relative;overflow:hidden}
+.biz-card:hover{border-color:rgba(255,107,53,.12);transform:translateY(-4px)}
+.biz-card .biz-icon{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;font-size:1.6rem}
 .biz-card .biz-type{font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:.6rem}
-.biz-card h3{font-size:1rem;font-weight:700;margin-bottom:.4rem}
-.biz-card p{font-size:.82rem;color:var(--t2);line-height:1.8}
+.biz-card h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
+.biz-card p{font-size:.84rem;color:var(--t2);line-height:1.8}
 
 /* QR SECTION */
-.qr-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.01),transparent)}
-.qr-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;margin-top:2rem}
-.qr-visual{display:flex;align-items:center;justify-content:center;position:relative;height:300px}
-.qr-mock{width:160px;height:160px;border-radius:20px;background:var(--card);border:2px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);gap:4px;padding:16px;position:relative}
-.qr-mock::after{content:'Touch?';position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);font-size:.75rem;font-weight:700;color:var(--orange)}
-.qr-cell{border-radius:3px;background:rgba(255,255,255,.15);transition:.3s}
-.qr-cell.on{background:var(--orange)}
-.qr-arrow{position:absolute;right:-20px;top:50%;transform:translateY(-50%);width:60px}
-.qr-phone{position:absolute;right:0;width:70px;height:120px;border-radius:16px;border:2px solid rgba(255,255,255,.1);background:var(--card);display:flex;align-items:center;justify-content:center}
-.qr-phone-check{color:var(--green);font-size:1.5rem;font-weight:900}
-.qr-content h3{font-size:1.6rem;font-weight:800;margin-bottom:.8rem;letter-spacing:-.02em}
-.qr-content p{font-size:.9rem;color:var(--t2);line-height:1.9;margin-bottom:1rem}
-.qr-steps{display:flex;flex-direction:column;gap:.6rem}
-.qr-step{display:flex;gap:.8rem;align-items:center;font-size:.82rem;color:var(--t2)}
-.qr-step .qr-s-num{width:24px;height:24px;border-radius:8px;background:rgba(255,107,53,.1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;color:var(--orange);flex-shrink:0}
-@media(max-width:768px){.qr-grid{grid-template-columns:1fr}.qr-visual{height:200px}}
+.qr-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.008),transparent)}
+.qr-grid{display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;align-items:center;margin-top:2.5rem}
+.qr-visual{display:flex;align-items:center;justify-content:center;position:relative;height:320px}
+.qr-mock{width:170px;height:170px;border-radius:22px;background:var(--card);border:2px solid rgba(255,107,53,.12);display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);gap:4px;padding:16px;position:relative;box-shadow:0 12px 40px rgba(255,107,53,.05)}
+.qr-mock::after{content:'Touch?';position:absolute;bottom:-36px;left:50%;transform:translateX(-50%);font-size:.8rem;font-weight:800;color:var(--orange)}
+.qr-cell{border-radius:3px;background:rgba(255,255,255,.12);transition:.4s}
+.qr-cell.on{background:var(--orange);box-shadow:0 0 6px rgba(255,107,53,.3)}
+.qr-content h3{font-size:1.7rem;font-weight:800;margin-bottom:.8rem;letter-spacing:-.02em}
+.qr-content p{font-size:.9rem;color:var(--t2);line-height:1.9;margin-bottom:1.2rem}
+.qr-steps{display:flex;flex-direction:column;gap:.7rem}
+.qr-step{display:flex;gap:.8rem;align-items:center;font-size:.84rem;color:var(--t2)}
+.qr-step .qr-s-num{width:26px;height:26px;border-radius:8px;background:rgba(255,107,53,.1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.72rem;color:var(--orange);flex-shrink:0}
+@media(max-width:768px){.qr-grid{grid-template-columns:1fr}.qr-visual{height:220px}}
 
-/* SOCIAL/PRIVACY */
-.priv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.2rem;margin-top:2.5rem}
-.priv-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.8rem}
-.priv-card h3{font-size:1rem;font-weight:700;margin-bottom:.4rem}
-.priv-card p{font-size:.82rem;color:var(--t2);line-height:1.8}
+/* PRIVACY */
+.priv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1.4rem;margin-top:2.5rem}
+.priv-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem;transition:.3s}
+.priv-card:hover{border-color:rgba(255,107,53,.1);transform:translateY(-3px)}
+.priv-icon{font-size:1.8rem;margin-bottom:1rem}
+.priv-card h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
+.priv-card p{font-size:.84rem;color:var(--t2);line-height:1.8}
 
-/* STARS PREVIEW */
-.stars-preview{margin-top:2.5rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.star-badge{padding:.8rem 1.4rem;border-radius:14px;background:var(--card);border:1px solid var(--border);text-align:center;min-width:120px}
-.star-badge .stars{font-size:1.2rem;color:var(--gold);margin-bottom:.3rem}
-.star-badge .sname{font-size:.75rem;font-weight:700}
-.star-badge .sdesc{font-size:.65rem;color:var(--t3);margin-top:.2rem}
+/* SOCIAL PROOF / BUILT WITH AI */
+.proof-section{text-align:center;background:linear-gradient(180deg,transparent,rgba(255,107,53,.015),transparent)}
+.proof-card{max-width:700px;margin:2.5rem auto 0;padding:2.5rem;background:var(--card);border:1px solid var(--border);border-radius:24px;position:relative;overflow:hidden}
+.proof-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--orange),var(--pink),var(--indigo))}
+.proof-quote{font-size:1.15rem;font-weight:400;line-height:1.8;color:var(--t1);font-style:italic;margin-bottom:1.2rem}
+.proof-author{font-size:.82rem;color:var(--t3);font-weight:600}
+.proof-stats{display:flex;gap:2rem;justify-content:center;margin-top:2rem;flex-wrap:wrap}
+.proof-stat{text-align:center}
+.proof-stat .num{font-size:1.6rem;font-weight:900;color:var(--orange)}
+.proof-stat .label{font-size:.68rem;color:var(--t3);margin-top:.2rem}
 
 /* FAQ */
+.faq-list{margin-top:2.5rem;max-width:700px}
 .faq-item{border-bottom:1px solid var(--border);padding:1.2rem 0}
-.faq-q{font-weight:600;font-size:.92rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;transition:.2s}
+.faq-q{font-weight:600;font-size:.95rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;transition:.2s;padding:.2rem 0}
 .faq-q:hover{color:var(--orange)}
-.faq-q::after{content:'+';font-size:1.3rem;color:var(--t3);transition:.3s;flex-shrink:0}
+.faq-q::after{content:'+';font-size:1.4rem;color:var(--t3);transition:.3s;flex-shrink:0;width:24px;text-align:center}
 .faq-item.open .faq-q::after{transform:rotate(45deg);color:var(--orange)}
-.faq-a{max-height:0;overflow:hidden;transition:.4s;font-size:.85rem;color:var(--t2);line-height:1.9}
+.faq-a{max-height:0;overflow:hidden;transition:.5s cubic-bezier(.4,0,.2,1);font-size:.86rem;color:var(--t2);line-height:1.9}
 .faq-item.open .faq-a{max-height:500px;padding-top:.8rem}
 
 /* CTA BOTTOM */
-.cta-section{text-align:center;position:relative;overflow:hidden}
-.cta-section::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:800px;height:400px;background:radial-gradient(ellipse,rgba(255,107,53,.04),transparent 60%);pointer-events:none}
+.cta-section{text-align:center;position:relative;overflow:hidden;padding:8rem 1.5rem}
+.cta-section::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:900px;height:500px;background:radial-gradient(ellipse,rgba(255,107,53,.05),transparent 55%);pointer-events:none}
+.cta-big-text{font-size:clamp(2rem,5vw,3.5rem);font-weight:900;letter-spacing:-.04em;line-height:1.1;max-width:650px;margin:0 auto 1rem}
 
 /* FOOTER */
 .footer{text-align:center;padding:3rem 1.5rem;border-top:1px solid var(--border)}
-.footer-brand{font-size:1.4rem;font-weight:900;color:var(--orange);margin-bottom:.3rem}
+.footer-brand{font-size:1.5rem;font-weight:900;color:var(--orange);margin-bottom:.3rem}
 .footer-tag{font-size:.8rem;color:var(--t3);margin-bottom:1rem}
-.footer-links{display:flex;gap:1.5rem;justify-content:center;font-size:.75rem;margin-bottom:1rem}
-.footer-links a{color:var(--t2)}
+.footer-links{display:flex;gap:1.5rem;justify-content:center;font-size:.78rem;margin-bottom:1rem}
+.footer-links a{color:var(--t2);transition:.2s}
+.footer-links a:hover{color:var(--orange)}
 .footer-copy{font-size:.68rem;color:var(--t3)}
 
-/* SCROLL ANIMATIONS */
-.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+/* SCROLL ANIMATIONS - stagger */
+.reveal{opacity:0;transform:translateY(35px);transition:opacity .8s cubic-bezier(.4,0,.2,1),transform .8s cubic-bezier(.4,0,.2,1)}
 .reveal.visible{opacity:1;transform:translateY(0)}
-.reveal-delay-1{transition-delay:.1s}
-.reveal-delay-2{transition-delay:.2s}
-.reveal-delay-3{transition-delay:.3s}
+.reveal-left{opacity:0;transform:translateX(-40px);transition:opacity .8s cubic-bezier(.4,0,.2,1),transform .8s cubic-bezier(.4,0,.2,1)}
+.reveal-left.visible{opacity:1;transform:translateX(0)}
+.reveal-right{opacity:0;transform:translateX(40px);transition:opacity .8s cubic-bezier(.4,0,.2,1),transform .8s cubic-bezier(.4,0,.2,1)}
+.reveal-right.visible{opacity:1;transform:translateX(0)}
+.reveal-scale{opacity:0;transform:scale(.92);transition:opacity .8s,transform .8s}
+.reveal-scale.visible{opacity:1;transform:scale(1)}
+.delay-1{transition-delay:.1s}
+.delay-2{transition-delay:.2s}
+.delay-3{transition-delay:.3s}
+.delay-4{transition-delay:.4s}
+.delay-5{transition-delay:.5s}
 
 /* RESPONSIVE */
 @media(max-width:600px){
-  section{padding:4rem 1.2rem}
+  section{padding:5rem 1.2rem}
   .feat-grid,.priv-grid,.biz-cards{grid-template-columns:1fr}
+  .hero h1{font-size:2.2rem}
+  .phones-scene{width:260px;height:180px;transform:scale(.85)}
 }
+
+/* Smooth scroll-based parallax */
+.parallax-slow{will-change:transform}
 </style>
 </head>
 <body>
 
 <!-- NAV -->
-<nav class="nav">
+<nav class="nav" id="mainNav">
   <div class="nav-brand">Touch?</div>
   <div class="nav-center">
-    <a href="#how">How it works</a>
-    <a href="#magic">The magic</a>
-    <a href="#tipping">Tipping</a>
-    <a href="#business">For business</a>
+    <a href="#how" data-i="nav-how">How it works</a>
+    <a href="#magic" data-i="nav-magic">The magic</a>
+    <a href="#videos" data-i="nav-videos">See it live</a>
+    <a href="#tipping" data-i="nav-tip">Tipping</a>
+    <a href="#business" data-i="nav-biz">For business</a>
     <a href="#faq">FAQ</a>
   </div>
   <div class="nav-right">
@@ -248,55 +315,66 @@ section{padding:6rem 1.5rem}
 
 <!-- HERO -->
 <section class="hero">
+  <div class="hero-video-bg">
+    <video autoplay muted loop playsinline>
+      <source src="/media/videos/rooftop-connection.mp4" type="video/mp4">
+    </video>
+  </div>
+  <canvas class="hero-particles" id="heroParticles"></canvas>
   <div class="hero-glow"></div>
 
-  <div class="phones-scene" id="phonesAnim">
-    <div class="phone phone-l">
-      <div class="phone-notch"></div>
-      <div class="phone-screen"></div>
-      <div class="phone-speaker"></div>
+  <div class="hero-content">
+    <div class="phones-scene" id="phonesAnim">
+      <div class="phone phone-l">
+        <div class="phone-notch"></div>
+        <div class="phone-screen"></div>
+        <div class="phone-speaker"></div>
+      </div>
+      <div class="phone phone-r">
+        <div class="phone-notch"></div>
+        <div class="phone-screen"></div>
+        <div class="phone-speaker"></div>
+      </div>
+      <div class="sound-wave"></div>
+      <div class="sound-wave"></div>
+      <div class="sound-wave"></div>
+      <div class="sound-wave"></div>
+      <div class="spark-group">
+        <div class="spark-dot" style="--tx:-15px;--ty:-18px"></div>
+        <div class="spark-dot pink" style="--tx:16px;--ty:-12px;animation-delay:.1s"></div>
+        <div class="spark-dot" style="--tx:-10px;--ty:14px;animation-delay:.2s"></div>
+        <div class="spark-dot pink" style="--tx:12px;--ty:16px;animation-delay:.15s"></div>
+        <div class="spark-dot" style="--tx:0px;--ty:-20px;animation-delay:.05s"></div>
+        <div class="spark-dot pink" style="--tx:-18px;--ty:5px;animation-delay:.25s"></div>
+        <div class="spark-dot" style="--tx:18px;--ty:5px;animation-delay:.3s"></div>
+      </div>
+      <div class="conn-flash"></div>
     </div>
-    <div class="phone phone-r">
-      <div class="phone-notch"></div>
-      <div class="phone-screen"></div>
-      <div class="phone-speaker"></div>
+
+    <h1 data-i="hero-h1">Two phones. One gesture.<br><span class="gradient">A real connection.</span></h1>
+    <p class="hero-sub" data-i="hero-sub">Touch? connects people through sound. Bring your phones close, the speakers talk to each other, and something real is born. No follow. No like. A moment that actually happened.</p>
+    <p class="hero-tag" data-i="hero-tag">No app download needed. Works in your browser.</p>
+
+    <div class="hero-cta">
+      <a href="/" class="btn btn-main" data-i="hero-cta1">Try Touch? now</a>
+      <a href="#how" class="btn btn-outline" data-i="hero-cta2">See how it works</a>
     </div>
-    <div class="sound-wave"></div>
-    <div class="sound-wave"></div>
-    <div class="sound-wave"></div>
-    <div class="sound-wave"></div>
-    <div class="spark-group">
-      <div class="spark-dot" style="--tx:-12px;--ty:-15px"></div>
-      <div class="spark-dot" style="--tx:14px;--ty:-10px;animation-delay:.1s"></div>
-      <div class="spark-dot" style="--tx:-8px;--ty:12px;animation-delay:.2s"></div>
-      <div class="spark-dot" style="--tx:10px;--ty:14px;animation-delay:.15s"></div>
-      <div class="spark-dot" style="--tx:0px;--ty:-18px;animation-delay:.05s"></div>
+
+    <div class="hero-badges">
+      <span class="badge" data-i="badge1">Web App</span>
+      <span class="badge" data-i="badge2">Instant sign-up via QR</span>
+      <span class="badge" data-i="badge3">Apple Pay & Google Pay</span>
+      <span class="badge" data-i="badge4">100% private by default</span>
     </div>
-  </div>
-
-  <h1 data-i="hero-h1">Two phones. One gesture.<br><span class="gradient">A real connection.</span></h1>
-  <p class="hero-sub" data-i="hero-sub">Touch? connects people through sound. Bring your phones close, the speakers talk to each other, and something real is born. No follow. No like. A moment that actually happened.</p>
-  <p class="hero-tag" data-i="hero-tag">No app download needed. Works in your browser.</p>
-
-  <div class="hero-cta">
-    <a href="/" class="btn btn-main" data-i="hero-cta1">Try Touch? now</a>
-    <a href="#how" class="btn btn-outline" data-i="hero-cta2">See how it works</a>
-  </div>
-
-  <div class="hero-badges">
-    <span class="badge" data-i="badge1">Web App</span>
-    <span class="badge" data-i="badge2">Instant sign-up via QR</span>
-    <span class="badge" data-i="badge3">Apple Pay & Google Pay</span>
-    <span class="badge" data-i="badge4">100% private by default</span>
   </div>
 </section>
 
 <!-- HOW IT WORKS -->
 <section id="how" class="how-section">
   <div class="container">
-    <div class="section-tag" data-i="how-tag">How it works</div>
-    <div class="section-h" data-i="how-h">Three seconds. That's all it takes.</div>
-    <div class="section-p" data-i="how-p">Touch? uses your phone's speaker and microphone to create connections through ultrasonic sound. No Bluetooth. No NFC. No pairing. Just bring two phones close.</div>
+    <div class="section-tag reveal" data-i="how-tag">How it works</div>
+    <div class="section-h reveal" data-i="how-h">Three seconds. That's all it takes.</div>
+    <div class="section-p reveal" data-i="how-p">Touch? uses your phone's speaker and microphone to create connections through ultrasonic sound. No Bluetooth. No NFC. No pairing. Just bring two phones close.</div>
 
     <div class="how-steps">
       <div class="how-step reveal">
@@ -307,7 +385,7 @@ section{padding:6rem 1.5rem}
         <h3 data-i="step1-h">Open Touch?</h3>
         <p data-i="step1-p">Visit encosta.app on your browser. Create a nickname, birthdate, email and password. Done in 15 seconds.</p>
       </div>
-      <div class="how-step reveal reveal-delay-1">
+      <div class="how-step reveal delay-2">
         <div class="how-num">2</div>
         <div class="how-icon">
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="6" y="10" width="16" height="28" rx="3" stroke="var(--orange)" stroke-width="2" transform="rotate(-5 14 24)"/><rect x="26" y="10" width="16" height="28" rx="3" stroke="var(--pink)" stroke-width="2" transform="rotate(5 34 24)"/><path d="M18 24h12" stroke="var(--orange)" stroke-width="1.5" stroke-dasharray="2 3" opacity=".5"/><circle cx="24" cy="24" r="3" fill="var(--orange)" opacity=".3"/></svg>
@@ -315,7 +393,7 @@ section{padding:6rem 1.5rem}
         <h3 data-i="step2-h">Bring phones close</h3>
         <p data-i="step2-p">Face the speakers toward each other. The phones communicate through ultrasonic sound you can't hear.</p>
       </div>
-      <div class="how-step reveal reveal-delay-2">
+      <div class="how-step reveal delay-4">
         <div class="how-num">3</div>
         <div class="how-icon">
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="14" stroke="var(--orange)" stroke-width="2"/><path d="M18 24l4 4 8-8" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="24" r="18" stroke="var(--orange)" stroke-width="1" opacity=".15"/></svg>
@@ -331,10 +409,10 @@ section{padding:6rem 1.5rem}
 <section id="magic" class="magic-section">
   <div class="container">
     <div class="magic-grid">
-      <div class="magic-visual reveal">
+      <div class="magic-visual reveal-left">
         <div class="magic-phone">
           <div class="phone-notch"></div>
-          <div class="phone-screen" style="background:rgba(255,107,53,.05)"></div>
+          <div class="phone-screen" style="background:rgba(255,107,53,.04)"></div>
           <div class="speaker-glow"></div>
         </div>
         <div class="magic-waves">
@@ -342,9 +420,21 @@ section{padding:6rem 1.5rem}
           <div class="magic-wave-ring"></div>
           <div class="magic-wave-ring"></div>
           <div class="magic-wave-ring"></div>
+          <div class="magic-wave-ring"></div>
+        </div>
+        <div class="freq-bars">
+          <div class="freq-bar" style="--h1:8px;--h2:22px;animation-delay:0s"></div>
+          <div class="freq-bar" style="--h1:14px;--h2:32px;animation-delay:.1s"></div>
+          <div class="freq-bar" style="--h1:6px;--h2:18px;animation-delay:.2s"></div>
+          <div class="freq-bar" style="--h1:18px;--h2:38px;animation-delay:.15s"></div>
+          <div class="freq-bar" style="--h1:10px;--h2:28px;animation-delay:.25s"></div>
+          <div class="freq-bar" style="--h1:12px;--h2:20px;animation-delay:.05s"></div>
+          <div class="freq-bar" style="--h1:16px;--h2:35px;animation-delay:.3s"></div>
+          <div class="freq-bar" style="--h1:8px;--h2:24px;animation-delay:.12s"></div>
+          <div class="freq-bar" style="--h1:14px;--h2:30px;animation-delay:.22s"></div>
         </div>
       </div>
-      <div class="magic-content reveal reveal-delay-1">
+      <div class="magic-content reveal-right">
         <div class="section-tag" data-i="magic-tag">The magic</div>
         <h3 data-i="magic-h">Your speaker is the bridge</h3>
         <p data-i="magic-p1">Touch? emits an ultrasonic signal through your phone's speaker - a frequency humans can't hear but phones detect instantly. When two phones are close enough, the speakers recognize each other and create a cryptographic handshake.</p>
@@ -355,11 +445,50 @@ section{padding:6rem 1.5rem}
   </div>
 </section>
 
+<!-- VIDEO SHOWCASE -->
+<section id="videos" class="video-section">
+  <div class="container" style="text-align:center">
+    <div class="section-tag reveal" style="justify-content:center" data-i="vid-tag">See it live</div>
+    <div class="section-h reveal" data-i="vid-h">Real moments. Real connections.</div>
+    <div class="section-p reveal" style="margin:0 auto" data-i="vid-p">Watch Touch? in action. Every video shows a real connection happening - phones getting close, the ultrasonic handshake, and the moment a bond is created.</div>
+
+    <div class="video-grid">
+      <div class="video-card reveal delay-1" onclick="this.querySelector('video').paused?this.querySelector('video').play():this.querySelector('video').pause()">
+        <video muted loop playsinline poster="">
+          <source src="/media/videos/bar-tipping.mp4" type="video/mp4">
+        </video>
+        <div class="video-overlay">
+          <span class="video-label" data-i="vl1">Tipping at the bar</span>
+        </div>
+        <div class="video-play"></div>
+      </div>
+      <div class="video-card reveal delay-2" onclick="this.querySelector('video').paused?this.querySelector('video').play():this.querySelector('video').pause()">
+        <video muted loop playsinline poster="">
+          <source src="/media/videos/restaurant-checkin.mp4" type="video/mp4">
+        </video>
+        <div class="video-overlay">
+          <span class="video-label" data-i="vl2">Restaurant check-in</span>
+        </div>
+        <div class="video-play"></div>
+      </div>
+      <div class="video-card reveal delay-3" onclick="this.querySelector('video').paused?this.querySelector('video').play():this.querySelector('video').pause()">
+        <video muted loop playsinline poster="">
+          <source src="/media/videos/rooftop-connection.mp4" type="video/mp4">
+        </video>
+        <div class="video-overlay">
+          <span class="video-label" data-i="vl3">Rooftop connection</span>
+        </div>
+        <div class="video-play"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- FEATURES -->
 <section id="features">
   <div class="container">
-    <div class="section-tag" data-i="feat-tag">Everything that happens after the touch</div>
-    <div class="section-h" data-i="feat-h">One gesture. Endless possibilities.</div>
+    <div class="section-tag reveal" data-i="feat-tag">Everything that happens after the touch</div>
+    <div class="section-h reveal" data-i="feat-h">One gesture. Endless possibilities.</div>
 
     <div class="feat-grid">
       <div class="feat-card reveal">
@@ -369,35 +498,35 @@ section{padding:6rem 1.5rem}
         <h3 data-i="f1-h">Social connections</h3>
         <p data-i="f1-p">Every touch creates a connection that lives in your constellation - a visual map of everyone you've met. The more you meet someone, the stronger the bond. Earn stars together.</p>
       </div>
-      <div class="feat-card reveal reveal-delay-1">
+      <div class="feat-card reveal delay-1">
         <div class="feat-icon" style="background:rgba(52,211,153,.08)">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="var(--green)" stroke-width="1.5"/></svg>
         </div>
         <h3 data-i="f2-h">24h chat</h3>
         <p data-i="f2-p">After a touch, you get a 24-hour chat window. Talk, share, get to know each other. If the connection is renewed, the chat stays. If not, it vanishes. No ghosts.</p>
       </div>
-      <div class="feat-card reveal reveal-delay-2">
+      <div class="feat-card reveal delay-2">
         <div class="feat-icon" style="background:rgba(244,114,182,.08)">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="var(--pink)" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="var(--pink)" stroke-width="1.5"/></svg>
         </div>
         <h3 data-i="f3-h">Reveal by choice</h3>
         <p data-i="f3-p">Nobody sees your real name, photo, or socials unless you choose. Tap "Reveal" for someone specific and they see your full profile. Change your mind? Turn it off.</p>
       </div>
-      <div class="feat-card reveal">
+      <div class="feat-card reveal delay-3">
         <div class="feat-icon" style="background:rgba(96,165,250,.08)">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--blue)" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="var(--blue)" opacity=".3"/><circle cx="6" cy="8" r="1.5" fill="var(--blue)" opacity=".4"/><circle cx="18" cy="8" r="1.5" fill="var(--blue)" opacity=".4"/><circle cx="8" cy="17" r="1.5" fill="var(--blue)" opacity=".4"/><circle cx="16" cy="17" r="1.5" fill="var(--blue)" opacity=".4"/></svg>
         </div>
         <h3 data-i="f4-h">Your constellation</h3>
         <p data-i="f4-p">A beautiful animated map of your social universe. Every person you've met orbits around you. More stars = closer to the center. It's the visual proof of your real-world social life.</p>
       </div>
-      <div class="feat-card reveal reveal-delay-1">
+      <div class="feat-card reveal delay-4">
         <div class="feat-icon" style="background:rgba(251,191,36,.08)">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" stroke="var(--gold)" stroke-width="1.5" fill="none"/></svg>
         </div>
         <h3 data-i="f5-h">Star reputation</h3>
         <p data-i="f5-p">Earn up to 10 stars through real connections, achievements, and community recognition. Stars can't be faked - they're proof you went out, met people, and built real relationships.</p>
       </div>
-      <div class="feat-card reveal reveal-delay-2">
+      <div class="feat-card reveal delay-5">
         <div class="feat-icon" style="background:rgba(34,211,238,.08)">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="var(--cyan)" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="var(--cyan)" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="var(--cyan)" stroke-width="1.5"/><path d="M14 17.5h7M17.5 14v7" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/></svg>
         </div>
@@ -411,32 +540,32 @@ section{padding:6rem 1.5rem}
 <!-- TIPPING -->
 <section id="tipping" class="tip-section">
   <div class="container">
-    <div class="section-tag" data-i="tip-tag">Digital tipping</div>
-    <div class="section-h" data-i="tip-h">Tips without the awkward moment</div>
-    <div class="section-p" data-i="tip-p">85% of tips in the US are already digital. But those POS screens feel cold and pressured. Touch? makes tipping personal again - a gesture, not a guilt trip.</div>
+    <div class="section-tag reveal" data-i="tip-tag">Digital tipping</div>
+    <div class="section-h reveal" data-i="tip-h">Tips without the awkward moment</div>
+    <div class="section-p reveal" data-i="tip-p">85% of tips in the US are already digital. But those POS screens feel cold and pressured. Touch? makes tipping personal again - a gesture, not a guilt trip.</div>
 
     <div class="tip-grid">
       <div>
-        <div class="tip-stats reveal">
+        <div class="tip-stats reveal-left">
           <div class="tip-stat">
-            <div class="num">$50B+</div>
-            <div class="label" data-i="ts1">Tips per year in the US</div>
+            <div class="num" data-count="50">0</div>
+            <div class="label" data-i="ts1">$B+ tips per year in the US</div>
           </div>
           <div class="tip-stat">
-            <div class="num">85%</div>
-            <div class="label" data-i="ts2">Already digital</div>
+            <div class="num" data-count="85">0</div>
+            <div class="label" data-i="ts2">% already digital</div>
           </div>
           <div class="tip-stat">
-            <div class="num">+23%</div>
-            <div class="label" data-i="ts3">More earnings vs cash-only</div>
+            <div class="num" data-count="23">0</div>
+            <div class="label" data-i="ts3">% more earnings vs cash-only</div>
           </div>
           <div class="tip-stat">
-            <div class="num">15s</div>
-            <div class="label" data-i="ts4">Sign up, tip, done</div>
+            <div class="num" data-count="15">0</div>
+            <div class="label" data-i="ts4">seconds to sign up, tip, done</div>
           </div>
         </div>
       </div>
-      <div class="tip-flow reveal reveal-delay-1">
+      <div class="tip-flow reveal-right">
         <div class="tip-step">
           <div class="tip-step-num">1</div>
           <div><h4 data-i="tf1-h">Touch or scan QR</h4><p data-i="tf1-p">Bring your phone close to the service provider's phone. Or scan their QR code if they're busy.</p></div>
@@ -458,7 +587,7 @@ section{padding:6rem 1.5rem}
 <section id="qr" class="qr-section">
   <div class="container">
     <div class="qr-grid">
-      <div class="qr-content reveal">
+      <div class="qr-content reveal-left">
         <div class="section-tag" data-i="qr-tag">Zero friction onboarding</div>
         <h3 data-i="qr-h">Don't have Touch? yet? No problem.</h3>
         <p data-i="qr-p">Every Touch? user has a personal QR code. When someone doesn't have an account, they just scan the QR. Sign up takes 15 seconds: nickname, birthdate, email, password. That's it.</p>
@@ -469,7 +598,7 @@ section{padding:6rem 1.5rem}
           <div class="qr-step"><div class="qr-s-num">4</div><span data-i="qs4">Touch, tip, connect. You're in.</span></div>
         </div>
       </div>
-      <div class="qr-visual reveal reveal-delay-1">
+      <div class="qr-visual reveal-right">
         <div class="qr-mock" id="qrMock"></div>
       </div>
     </div>
@@ -479,22 +608,31 @@ section{padding:6rem 1.5rem}
 <!-- FOR BUSINESS -->
 <section id="business" class="biz-section">
   <div class="container">
-    <div class="section-tag" data-i="biz-tag">For businesses & service providers</div>
-    <div class="section-h" data-i="biz-h">Turn every interaction into a connection</div>
-    <div class="section-p" data-i="biz-p">Whether you're a bartender, a barbershop owner, or a restaurant manager - Touch? gives your staff the tools to earn more and your venue a modern edge.</div>
+    <div class="section-tag reveal" data-i="biz-tag">For businesses & service providers</div>
+    <div class="section-h reveal" data-i="biz-h">Turn every interaction into a connection</div>
+    <div class="section-p reveal" data-i="biz-p">Whether you're a bartender, a barbershop owner, or a restaurant manager - Touch? gives your staff the tools to earn more and your venue a modern edge.</div>
 
     <div class="biz-cards">
       <div class="biz-card reveal">
+        <div class="biz-icon" style="background:rgba(255,107,53,.08);border-radius:16px">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2v4m0 12v4M2 12h4m12 0h4" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="6" stroke="var(--orange)" stroke-width="1.5"/></svg>
+        </div>
         <div class="biz-type" data-i="b1-type">Service providers</div>
         <h3 data-i="b1-h">Get every tip you deserve</h3>
         <p data-i="b1-p">Your clients don't carry cash anymore. With Touch?, they tip instantly through their phone's wallet. You get paid directly, no middleman taking a cut. Barbers, bartenders, valets, nail techs, DJs - anyone who earns tips.</p>
       </div>
-      <div class="biz-card reveal reveal-delay-1">
+      <div class="biz-card reveal delay-2">
+        <div class="biz-icon" style="background:rgba(129,140,248,.08);border-radius:16px">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="var(--indigo)" stroke-width="1.5"/><path d="M3 9h18M9 3v18" stroke="var(--indigo)" stroke-width="1.5"/></svg>
+        </div>
         <div class="biz-type" data-i="b2-type">Venue operators</div>
         <h3 data-i="b2-h">Manage your venue from your phone</h3>
         <p data-i="b2-p">Operator mode lets you manage check-ins, split bills, track staff tips, and run events. Set up a speaker device at the entrance for automatic check-in. Your staff gets tipped, your venue gets data.</p>
       </div>
-      <div class="biz-card reveal reveal-delay-2">
+      <div class="biz-card reveal delay-4">
+        <div class="biz-icon" style="background:rgba(251,191,36,.08);border-radius:16px">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M8 21h8m-4-4v4M3 7l9-5 9 5v6c0 3.31-4.03 6.18-9 8-4.97-1.82-9-4.69-9-8V7z" stroke="var(--gold)" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </div>
         <div class="biz-type" data-i="b3-type">Event organizers</div>
         <h3 data-i="b3-h">Events that connect people</h3>
         <p data-i="b3-p">Create events with built-in admission, check-in, and attendee connections. Charge at the door through Touch?, track who's there, and let guests connect with each other. Parties, festivals, conferences.</p>
@@ -506,20 +644,29 @@ section{padding:6rem 1.5rem}
 <!-- PRIVACY -->
 <section id="privacy">
   <div class="container">
-    <div class="section-tag" data-i="priv-tag">Privacy first</div>
-    <div class="section-h" data-i="priv-h">You control everything</div>
-    <div class="section-p" data-i="priv-p">In a world of oversharing, Touch? goes the opposite way. Your identity is hidden by default. You choose who sees what, when, and for how long.</div>
+    <div class="section-tag reveal" data-i="priv-tag">Privacy first</div>
+    <div class="section-h reveal" data-i="priv-h">You control everything</div>
+    <div class="section-p reveal" data-i="priv-p">In a world of oversharing, Touch? goes the opposite way. Your identity is hidden by default. You choose who sees what, when, and for how long.</div>
 
     <div class="priv-grid">
       <div class="priv-card reveal">
+        <div class="priv-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="var(--green)" stroke-width="1.5"/></svg>
+        </div>
         <h3 data-i="p1-h">Anonymous by default</h3>
         <p data-i="p1-p">People only see your nickname and a color. No name, no photo, no social links. You're in control.</p>
       </div>
-      <div class="priv-card reveal reveal-delay-1">
+      <div class="priv-card reveal delay-2">
+        <div class="priv-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="var(--indigo)" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="var(--indigo)" stroke-width="1.5"/></svg>
+        </div>
         <h3 data-i="p2-h">Selective reveal</h3>
         <p data-i="p2-p">Choose specific people to reveal your identity to. Name, photo, Instagram, WhatsApp - person by person. Revoke anytime.</p>
       </div>
-      <div class="priv-card reveal reveal-delay-2">
+      <div class="priv-card reveal delay-4">
+        <div class="priv-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--cyan)" stroke-width="1.5"/><path d="M12 6v6l4 2" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
         <h3 data-i="p3-h">24h expiring chats</h3>
         <p data-i="p3-p">Conversations expire after 24 hours unless both sides renew the connection. No ghosts, no dead DMs. Either it's real or it's gone.</p>
       </div>
@@ -527,38 +674,58 @@ section{padding:6rem 1.5rem}
   </div>
 </section>
 
-<!-- FAQ -->
-<section id="faq" style="background:rgba(255,107,53,.008)">
+<!-- BUILT WITH AI - Social proof -->
+<section class="proof-section">
   <div class="container">
-    <div class="section-tag">FAQ</div>
-    <div class="section-h" data-i="faq-h">Common questions</div>
+    <div class="section-tag reveal" style="justify-content:center" data-i="proof-tag">Built different</div>
+    <div class="section-h reveal" style="text-align:center" data-i="proof-h">One person. One AI. 20 days.</div>
+    <div class="section-p reveal" style="margin:0 auto;text-align:center" data-i="proof-p">Touch? was built by a solo founder with zero coding experience, using only AI as a partner. No team. No investors. No office. Just an idea and the will to make it real.</div>
 
-    <div style="margin-top:2rem">
-      <div class="faq-item">
+    <div class="proof-card reveal-scale">
+      <p class="proof-quote" data-i="proof-quote">"I don't know how to code. But I know what people need. AI handled the technology. I handled the vision. Together we built something that connects humans in the real world."</p>
+      <p class="proof-author" data-i="proof-author">- Zito, founder of Touch?</p>
+      <div class="proof-stats">
+        <div class="proof-stat"><div class="num">20</div><div class="label" data-i="ps1">days to build</div></div>
+        <div class="proof-stat"><div class="num">1</div><div class="label" data-i="ps2">founder</div></div>
+        <div class="proof-stat"><div class="num">0</div><div class="label" data-i="ps3">lines of code written by hand</div></div>
+        <div class="proof-stat"><div class="num">100%</div><div class="label" data-i="ps4">AI-powered development</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="background:rgba(255,107,53,.006)">
+  <div class="container">
+    <div class="section-tag reveal">FAQ</div>
+    <div class="section-h reveal" data-i="faq-h">Common questions</div>
+
+    <div class="faq-list">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq1">Do I need to download an app?</span></div>
         <div class="faq-a" data-i="fa1">No. Touch? works in your browser. Go to encosta.app, create an account, and start connecting. No app store needed.</div>
       </div>
-      <div class="faq-item">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq2">How does the sound connection work?</span></div>
         <div class="faq-a" data-i="fa2">Your phone emits an ultrasonic signal through its speaker - a frequency too high for humans to hear. When another phone is close enough, it detects the signal through its microphone, creating a secure handshake. It takes about 2-3 seconds.</div>
       </div>
-      <div class="faq-item">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq3">Is my data safe?</span></div>
         <div class="faq-a" data-i="fa3">Yes. By default, people only see your nickname and a color. Your real name, photo, and social media are hidden until you explicitly choose to reveal them to specific people.</div>
       </div>
-      <div class="faq-item">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq4">How do tips work?</span></div>
         <div class="faq-a" data-i="fa4">After touching phones (or scanning a QR code), you'll see the option to tip. Choose an amount, pay with Apple Pay, Google Pay, or a saved card. The tip goes directly to the service provider's account.</div>
       </div>
-      <div class="faq-item">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq5">What if the other person doesn't have Touch?</span></div>
         <div class="faq-a" data-i="fa5">Show them your QR code. They scan it with their camera, sign up in 15 seconds (nickname, birthdate, email, password), and they're ready to connect. No app download needed.</div>
       </div>
-      <div class="faq-item">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq6">Can I use Touch? for my business?</span></div>
         <div class="faq-a" data-i="fa6">Yes. Service providers can receive tips, venue operators can manage check-ins and events, and any business can set up operator mode to run their daily routines through Touch?.</div>
       </div>
-      <div class="faq-item">
+      <div class="faq-item reveal">
         <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span data-i="fq7">What are stars?</span></div>
         <div class="faq-a" data-i="fa7">Stars are your physical reputation. You can earn up to 10 through achievements (100, 500, 1000 unique connections), purchases with score points, donations from others, or professional recognition. They're proof you build real relationships.</div>
       </div>
@@ -568,11 +735,11 @@ section{padding:6rem 1.5rem}
 
 <!-- CTA -->
 <section class="cta-section">
-  <div class="container" style="text-align:center">
-    <div class="section-h" data-i="cta-h" style="max-width:600px;margin:0 auto">Everything starts with a gesture</div>
-    <p class="section-p" data-i="cta-p" style="margin:.8rem auto 2rem;text-align:center;max-width:500px">The world doesn't need another social network. It needs a reason to look up from the screen. Touch? is that reason.</p>
-    <a href="/" class="btn btn-main" style="font-size:1rem;padding:1rem 3rem" data-i="cta-btn">Open Touch?</a>
-    <p style="margin-top:1rem;font-size:.75rem;color:var(--t3)" data-i="cta-sub">Free. No download. Works on any phone.</p>
+  <div class="container">
+    <div class="cta-big-text reveal" data-i="cta-h">Everything starts with a gesture</div>
+    <p class="section-p reveal delay-1" data-i="cta-p" style="margin:.8rem auto 2rem;text-align:center;max-width:520px">The world doesn't need another social network. It needs a reason to look up from the screen. Touch? is that reason.</p>
+    <a href="/" class="btn btn-main reveal delay-2" style="font-size:1rem;padding:1rem 3rem" data-i="cta-btn">Open Touch?</a>
+    <p class="reveal delay-3" style="margin-top:1rem;font-size:.75rem;color:var(--t3)" data-i="cta-sub">Free. No download. Works on any phone.</p>
   </div>
 </section>
 
@@ -589,16 +756,85 @@ section{padding:6rem 1.5rem}
 </footer>
 
 <script>
-// Phone animation
+// ============================================================
+// PARTICLE SYSTEM - canvas hero background
+// ============================================================
+(function(){
+  const canvas=document.getElementById('heroParticles');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  let W,H,particles=[];
+  function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight}
+  resize();
+  window.addEventListener('resize',resize);
+  class Particle{
+    constructor(){this.reset()}
+    reset(){
+      this.x=Math.random()*W;
+      this.y=Math.random()*H;
+      this.r=Math.random()*1.5+.5;
+      this.vx=(Math.random()-.5)*.3;
+      this.vy=(Math.random()-.5)*.3;
+      this.alpha=Math.random()*.3+.05;
+      this.color=Math.random()>.7?'255,107,53':'255,255,255';
+    }
+    update(){
+      this.x+=this.vx;this.y+=this.vy;
+      if(this.x<0||this.x>W||this.y<0||this.y>H)this.reset();
+    }
+    draw(){
+      ctx.beginPath();
+      ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${this.color},${this.alpha})`;
+      ctx.fill();
+    }
+  }
+  for(let i=0;i<80;i++)particles.push(new Particle());
+  function animate(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{p.update();p.draw()});
+    // Draw connections
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const dx=particles[i].x-particles[j].x;
+        const dy=particles[i].y-particles[j].y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<120){
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x,particles[i].y);
+          ctx.lineTo(particles[j].x,particles[j].y);
+          ctx.strokeStyle=`rgba(255,107,53,${.03*(1-dist/120)})`;
+          ctx.lineWidth=.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+// ============================================================
+// PHONE ANIMATION - touch cycle
+// ============================================================
 const pa=document.getElementById('phonesAnim');
 function animLoop(){
   pa.classList.add('touching');
-  setTimeout(()=>pa.classList.remove('touching'),2800);
-  setTimeout(animLoop,4500);
+  setTimeout(()=>pa.classList.remove('touching'),3000);
+  setTimeout(animLoop,5000);
 }
-setTimeout(animLoop,600);
+setTimeout(animLoop,800);
 
-// QR mock animation
+// ============================================================
+// NAV SCROLL EFFECT
+// ============================================================
+window.addEventListener('scroll',()=>{
+  document.getElementById('mainNav').classList.toggle('scrolled',window.scrollY>50);
+});
+
+// ============================================================
+// QR MOCK ANIMATION
+// ============================================================
 const qrMock=document.getElementById('qrMock');
 if(qrMock){
   const pattern=[1,1,1,0,1, 1,0,1,1,0, 1,1,0,1,1, 0,1,1,0,1, 1,0,1,1,1];
@@ -607,25 +843,82 @@ if(qrMock){
     c.className='qr-cell'+(pattern[i]?' on':'');
     qrMock.appendChild(c);
   }
-  // Animate cells
   setInterval(()=>{
     const cells=qrMock.querySelectorAll('.qr-cell');
     const idx=Math.floor(Math.random()*25);
     cells[idx].classList.toggle('on');
-    setTimeout(()=>cells[idx].classList.toggle('on'),600);
-  },800);
+    setTimeout(()=>cells[idx].classList.toggle('on'),700);
+  },900);
 }
 
-// Scroll reveal
-const reveals=document.querySelectorAll('.reveal');
+// ============================================================
+// SCROLL REVEAL with stagger
+// ============================================================
+const revealClasses=['.reveal','.reveal-left','.reveal-right','.reveal-scale'];
+const allReveals=document.querySelectorAll(revealClasses.join(','));
 const revealObs=new IntersectionObserver((entries)=>{
-  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');revealObs.unobserve(e.target)}});
-},{threshold:0.15});
-reveals.forEach(el=>revealObs.observe(el));
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.classList.add('visible');
+      revealObs.unobserve(e.target);
+    }
+  });
+},{threshold:0.1,rootMargin:'0px 0px -40px 0px'});
+allReveals.forEach(el=>revealObs.observe(el));
 
-// i18n
+// ============================================================
+// COUNTER ANIMATION for stats
+// ============================================================
+const counters=document.querySelectorAll('[data-count]');
+const counterObs=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      const target=parseInt(e.target.getAttribute('data-count'));
+      let current=0;
+      const step=target/40;
+      const timer=setInterval(()=>{
+        current+=step;
+        if(current>=target){current=target;clearInterval(timer)}
+        e.target.textContent=Math.round(current);
+      },30);
+      counterObs.unobserve(e.target);
+    }
+  });
+},{threshold:0.5});
+counters.forEach(el=>counterObs.observe(el));
+
+// ============================================================
+// VIDEO CARDS - autoplay on hover
+// ============================================================
+document.querySelectorAll('.video-card').forEach(card=>{
+  const vid=card.querySelector('video');
+  if(!vid)return;
+  card.addEventListener('mouseenter',()=>{vid.play().catch(()=>{})});
+  card.addEventListener('mouseleave',()=>{vid.pause()});
+});
+
+// ============================================================
+// SMOOTH PARALLAX on scroll
+// ============================================================
+let ticking=false;
+window.addEventListener('scroll',()=>{
+  if(!ticking){
+    requestAnimationFrame(()=>{
+      const sy=window.scrollY;
+      const glow=document.querySelector('.hero-glow');
+      if(glow)glow.style.transform=`translate(-50%,calc(-50% + ${sy*.15}px))`;
+      ticking=false;
+    });
+    ticking=true;
+  }
+});
+
+// ============================================================
+// i18n - Full trilingual support
+// ============================================================
 const i18n={
   en:{
+    'nav-how':'How it works','nav-magic':'The magic','nav-videos':'See it live','nav-tip':'Tipping','nav-biz':'For business',
     'nav-cta':'Open Touch?',
     'hero-h1':'Two phones. One gesture.<br><span class="gradient">A real connection.</span>',
     'hero-sub':'Touch? connects people through sound. Bring your phones close, the speakers talk to each other, and something real is born. No follow. No like. A moment that actually happened.',
@@ -640,6 +933,8 @@ const i18n={
     'magic-p1':'Touch? emits an ultrasonic signal through your phone\'s speaker - a frequency humans can\'t hear but phones detect instantly. When two phones are close enough, the speakers recognize each other and create a cryptographic handshake.',
     'magic-p2':'No internet needed for the detection. No Bluetooth pairing. No QR scanning between users. Just proximity and sound. The same technology that makes the physical world magical.',
     'magic-hl':'This is why we say "Touch?" - because the gesture of bringing phones close is the most natural, human way to say "I\'m here, and I see you."',
+    'vid-tag':'See it live','vid-h':'Real moments. Real connections.','vid-p':'Watch Touch? in action. Every video shows a real connection happening - phones getting close, the ultrasonic handshake, and the moment a bond is created.',
+    'vl1':'Tipping at the bar','vl2':'Restaurant check-in','vl3':'Rooftop connection',
     'feat-tag':'Everything that happens after the touch','feat-h':'One gesture. Endless possibilities.',
     'f1-h':'Social connections','f1-p':'Every touch creates a connection that lives in your constellation - a visual map of everyone you\'ve met. The more you meet someone, the stronger the bond. Earn stars together.',
     'f2-h':'24h chat','f2-p':'After a touch, you get a 24-hour chat window. Talk, share, get to know each other. If the connection is renewed, the chat stays. If not, it vanishes. No ghosts.',
@@ -648,7 +943,7 @@ const i18n={
     'f5-h':'Star reputation','f5-p':'Earn up to 10 stars through real connections, achievements, and community recognition. Stars can\'t be faked - they\'re proof you went out, met people, and built real relationships.',
     'f6-h':'Events & check-in','f6-p':'Organize events with built-in check-in. Charge admission, track attendance, create group connections. Parties, workshops, meetups - all managed through Touch?.',
     'tip-tag':'Digital tipping','tip-h':'Tips without the awkward moment','tip-p':'85% of tips in the US are already digital. But those POS screens feel cold and pressured. Touch? makes tipping personal again - a gesture, not a guilt trip.',
-    'ts1':'Tips per year in the US','ts2':'Already digital','ts3':'More earnings vs cash-only','ts4':'Sign up, tip, done',
+    'ts1':'$B+ tips per year in the US','ts2':'% already digital','ts3':'% more earnings vs cash-only','ts4':'seconds to sign up, tip, done',
     'tf1-h':'Touch or scan QR','tf1-p':'Bring your phone close to the service provider\'s phone. Or scan their QR code if they\'re busy.',
     'tf2-h':'Choose the amount','tf2-p':'Quick presets or custom amount. No percentages forced on you. No judgmental screen.',
     'tf3-h':'Pay with your wallet','tf3-p':'Apple Pay, Google Pay, or saved card. One tap. The tip goes directly to the worker\'s account. Instantly.',
@@ -663,6 +958,10 @@ const i18n={
     'p1-h':'Anonymous by default','p1-p':'People only see your nickname and a color. No name, no photo, no social links. You\'re in control.',
     'p2-h':'Selective reveal','p2-p':'Choose specific people to reveal your identity to. Name, photo, Instagram, WhatsApp - person by person. Revoke anytime.',
     'p3-h':'24h expiring chats','p3-p':'Conversations expire after 24 hours unless both sides renew the connection. No ghosts, no dead DMs. Either it\'s real or it\'s gone.',
+    'proof-tag':'Built different','proof-h':'One person. One AI. 20 days.','proof-p':'Touch? was built by a solo founder with zero coding experience, using only AI as a partner. No team. No investors. No office. Just an idea and the will to make it real.',
+    'proof-quote':'"I don\'t know how to code. But I know what people need. AI handled the technology. I handled the vision. Together we built something that connects humans in the real world."',
+    'proof-author':'- Zito, founder of Touch?',
+    'ps1':'days to build','ps2':'founder','ps3':'lines of code written by hand','ps4':'AI-powered development',
     'faq-h':'Common questions',
     'fq1':'Do I need to download an app?','fa1':'No. Touch? works in your browser. Go to encosta.app, create an account, and start connecting. No app store needed.',
     'fq2':'How does the sound connection work?','fa2':'Your phone emits an ultrasonic signal through its speaker - a frequency too high for humans to hear. When another phone is close enough, it detects the signal through its microphone, creating a secure handshake. It takes about 2-3 seconds.',
@@ -675,6 +974,7 @@ const i18n={
     'footer-tag':'everything starts with a gesture','fl-open':'Open App','fl-stars':'Star Economy'
   },
   pt:{
+    'nav-how':'Como funciona','nav-magic':'A magia','nav-videos':'Veja ao vivo','nav-tip':'Gorjeta','nav-biz':'Para negocios',
     'nav-cta':'Abrir Touch?',
     'hero-h1':'Dois celulares. Um gesto.<br><span class="gradient">Uma conexao real.</span>',
     'hero-sub':'Touch? conecta pessoas pelo som. Encosta os celulares, os alto-falantes conversam entre si, e algo real nasce. Sem follow. Sem like. Um momento que realmente aconteceu.',
@@ -689,6 +989,8 @@ const i18n={
     'magic-p1':'Touch? emite um sinal ultrassonico pelo alto-falante do celular - uma frequencia que humanos nao ouvem mas celulares detectam instantaneamente. Quando dois celulares estao perto o suficiente, os alto-falantes se reconhecem e criam um handshake criptografico.',
     'magic-p2':'Nao precisa de internet pra deteccao. Sem Bluetooth. Sem QR entre usuarios. So proximidade e som. A mesma tecnologia que torna o mundo fisico magico.',
     'magic-hl':'Por isso dizemos "Touch?" - porque o gesto de encostar os celulares e a forma mais natural e humana de dizer "estou aqui, e te vejo."',
+    'vid-tag':'Veja ao vivo','vid-h':'Momentos reais. Conexoes reais.','vid-p':'Veja o Touch? em acao. Cada video mostra uma conexao real acontecendo - celulares se aproximando, o handshake ultrassonico, e o momento em que um vinculo nasce.',
+    'vl1':'Gorjeta no bar','vl2':'Check-in no restaurante','vl3':'Conexao no rooftop',
     'feat-tag':'Tudo que acontece depois do touch','feat-h':'Um gesto. Possibilidades infinitas.',
     'f1-h':'Conexoes sociais','f1-p':'Cada touch cria uma conexao que vive na sua constelacao - um mapa visual de todos que voce encontrou. Quanto mais encontros, mais forte o vinculo. Ganhem estrelas juntos.',
     'f2-h':'Chat 24h','f2-p':'Depois do touch, voce ganha uma janela de chat de 24 horas. Converse, compartilhe, se conheca. Se a conexao for renovada, o chat fica. Se nao, desaparece. Sem fantasmas.',
@@ -697,7 +999,7 @@ const i18n={
     'f5-h':'Reputacao em estrelas','f5-p':'Ganhe ate 10 estrelas por conexoes reais, conquistas e reconhecimento da comunidade. Estrelas nao podem ser fabricadas - sao prova de que voce saiu, encontrou gente e construiu relacoes reais.',
     'f6-h':'Eventos e check-in','f6-p':'Organize eventos com check-in embutido. Cobre entrada, acompanhe presenca, crie conexoes em grupo. Festas, workshops, encontros - tudo gerenciado pelo Touch?.',
     'tip-tag':'Gorjeta digital','tip-h':'Gorjeta sem o momento constrangedor','tip-p':'85% das gorjetas nos EUA ja sao digitais. Mas aquelas telas de POS sao frias e pressionam. Touch? torna a gorjeta pessoal de novo - um gesto, nao uma cobranca.',
-    'ts1':'Gorjetas por ano nos EUA','ts2':'Ja digitais','ts3':'Mais ganho vs so dinheiro','ts4':'Cadastra, da gorjeta, pronto',
+    'ts1':'$B+ gorjetas/ano nos EUA','ts2':'% ja digitais','ts3':'% mais ganho vs so dinheiro','ts4':'segundos pra cadastrar e dar gorjeta',
     'tf1-h':'Encosta ou escaneia QR','tf1-p':'Encoste seu celular no celular do prestador. Ou escaneie o QR code dele se estiver ocupado.',
     'tf2-h':'Escolha o valor','tf2-p':'Presets rapidos ou valor personalizado. Sem porcentagens forcadas. Sem tela de julgamento.',
     'tf3-h':'Pague com sua carteira','tf3-p':'Apple Pay, Google Pay ou cartao salvo. Um toque. A gorjeta vai direto pra conta do trabalhador. Na hora.',
@@ -712,6 +1014,10 @@ const i18n={
     'p1-h':'Anonimo por padrao','p1-p':'As pessoas so veem seu apelido e uma cor. Sem nome, sem foto, sem links de redes. Voce no controle.',
     'p2-h':'Revelacao seletiva','p2-p':'Escolha pessoas especificas pra revelar sua identidade. Nome, foto, Instagram, WhatsApp - pessoa por pessoa. Revogue quando quiser.',
     'p3-h':'Chats que expiram em 24h','p3-p':'Conversas expiram em 24 horas a menos que ambos renovem a conexao. Sem fantasmas, sem DMs mortas. Ou e real ou acaba.',
+    'proof-tag':'Feito diferente','proof-h':'Uma pessoa. Uma IA. 20 dias.','proof-p':'Touch? foi construido por um fundador solo sem nenhuma experiencia em programacao, usando apenas IA como parceiro. Sem equipe. Sem investidores. Sem escritorio. So uma ideia e a vontade de tornar real.',
+    'proof-quote':'"Eu nao sei programar. Mas sei o que as pessoas precisam. A IA cuidou da tecnologia. Eu cuidei da visao. Juntos construimos algo que conecta humanos no mundo real."',
+    'proof-author':'- Zito, fundador do Touch?',
+    'ps1':'dias pra construir','ps2':'fundador','ps3':'linhas de codigo escritas a mao','ps4':'desenvolvimento 100% IA',
     'faq-h':'Duvidas frequentes',
     'fq1':'Preciso baixar algum app?','fa1':'Nao. Touch? funciona no navegador. Acesse encosta.app, crie uma conta e comece a conectar. Sem app store.',
     'fq2':'Como funciona a conexao por som?','fa2':'Seu celular emite um sinal ultrassonico pelo alto-falante - uma frequencia alta demais pra humanos ouvirem. Quando outro celular esta perto, detecta o sinal pelo microfone, criando um handshake seguro. Leva cerca de 2-3 segundos.',
@@ -724,6 +1030,7 @@ const i18n={
     'footer-tag':'tudo nasce no gesto','fl-open':'Abrir App','fl-stars':'Star Economy'
   },
   es:{
+    'nav-how':'Como funciona','nav-magic':'La magia','nav-videos':'Velo en vivo','nav-tip':'Propinas','nav-biz':'Para negocios',
     'nav-cta':'Abrir Touch?',
     'hero-h1':'Dos telefonos. Un gesto.<br><span class="gradient">Una conexion real.</span>',
     'hero-sub':'Touch? conecta personas a traves del sonido. Acerca tus telefonos, los altavoces hablan entre si, y algo real nace. Sin follow. Sin like. Un momento que realmente sucedio.',
@@ -738,6 +1045,8 @@ const i18n={
     'magic-p1':'Touch? emite una senal ultrasonica por el altavoz de tu telefono - una frecuencia que los humanos no oyen pero los telefonos detectan al instante. Cuando dos telefonos estan lo suficientemente cerca, los altavoces se reconocen y crean un handshake criptografico.',
     'magic-p2':'No necesita internet para la deteccion. Sin Bluetooth. Sin QR entre usuarios. Solo proximidad y sonido. La misma tecnologia que hace magico el mundo fisico.',
     'magic-hl':'Por eso decimos "Touch?" - porque el gesto de acercar telefonos es la forma mas natural y humana de decir "estoy aqui, y te veo."',
+    'vid-tag':'Velo en vivo','vid-h':'Momentos reales. Conexiones reales.','vid-p':'Mira Touch? en accion. Cada video muestra una conexion real sucediendo - telefonos acercandose, el handshake ultrasonico, y el momento en que un vinculo nace.',
+    'vl1':'Propina en el bar','vl2':'Check-in en restaurante','vl3':'Conexion en el rooftop',
     'feat-tag':'Todo lo que pasa despues del touch','feat-h':'Un gesto. Posibilidades infinitas.',
     'f1-h':'Conexiones sociales','f1-p':'Cada touch crea una conexion que vive en tu constelacion - un mapa visual de todos los que conociste. Cuanto mas te encuentras con alguien, mas fuerte el vinculo. Ganen estrellas juntos.',
     'f2-h':'Chat 24h','f2-p':'Despues de un touch, tienes una ventana de chat de 24 horas. Habla, comparte, conoce. Si la conexion se renueva, el chat queda. Si no, desaparece. Sin fantasmas.',
@@ -746,7 +1055,7 @@ const i18n={
     'f5-h':'Reputacion en estrellas','f5-p':'Gana hasta 10 estrellas por conexiones reales, logros y reconocimiento de la comunidad. Las estrellas no se pueden falsificar - son prueba de que saliste, conociste gente y construiste relaciones reales.',
     'f6-h':'Eventos y check-in','f6-p':'Organiza eventos con check-in integrado. Cobra entrada, rastrea asistencia, crea conexiones grupales. Fiestas, talleres, encuentros - todo gestionado por Touch?.',
     'tip-tag':'Propina digital','tip-h':'Propinas sin el momento incomodo','tip-p':'85% de las propinas en EE.UU. ya son digitales. Pero esas pantallas POS son frias y presionan. Touch? hace la propina personal de nuevo - un gesto, no una presion.',
-    'ts1':'Propinas por ano en EE.UU.','ts2':'Ya digitales','ts3':'Mas ganancia vs solo efectivo','ts4':'Registrate, da propina, listo',
+    'ts1':'$B+ propinas/ano en EE.UU.','ts2':'% ya digitales','ts3':'% mas ganancia vs solo efectivo','ts4':'segundos para registrarte y dar propina',
     'tf1-h':'Toca o escanea QR','tf1-p':'Acerca tu telefono al del prestador de servicio. O escanea su codigo QR si esta ocupado.',
     'tf2-h':'Elige el monto','tf2-p':'Presets rapidos o monto personalizado. Sin porcentajes forzados. Sin pantalla que juzga.',
     'tf3-h':'Paga con tu billetera','tf3-p':'Apple Pay, Google Pay o tarjeta guardada. Un toque. La propina va directo a la cuenta del trabajador. Al instante.',
@@ -761,6 +1070,10 @@ const i18n={
     'p1-h':'Anonimo por defecto','p1-p':'Las personas solo ven tu apodo y un color. Sin nombre, sin foto, sin links de redes. Tu tienes el control.',
     'p2-h':'Revelacion selectiva','p2-p':'Elige personas especificas para revelar tu identidad. Nombre, foto, Instagram, WhatsApp - persona por persona. Revoca cuando quieras.',
     'p3-h':'Chats que expiran en 24h','p3-p':'Las conversaciones expiran en 24 horas a menos que ambos renueven la conexion. Sin fantasmas, sin DMs muertos. O es real o se va.',
+    'proof-tag':'Hecho diferente','proof-h':'Una persona. Una IA. 20 dias.','proof-p':'Touch? fue construido por un fundador solo sin experiencia en programacion, usando solo IA como socio. Sin equipo. Sin inversores. Sin oficina. Solo una idea y la voluntad de hacerla real.',
+    'proof-quote':'"No se programar. Pero se lo que la gente necesita. La IA se encargo de la tecnologia. Yo me encargue de la vision. Juntos construimos algo que conecta humanos en el mundo real."',
+    'proof-author':'- Zito, fundador de Touch?',
+    'ps1':'dias para construir','ps2':'fundador','ps3':'lineas de codigo escritas a mano','ps4':'desarrollo 100% IA',
     'faq-h':'Preguntas frecuentes',
     'fq1':'Necesito descargar una app?','fa1':'No. Touch? funciona en tu navegador. Ve a encosta.app, crea una cuenta y empieza a conectar. Sin app store.',
     'fq2':'Como funciona la conexion por sonido?','fa2':'Tu telefono emite una senal ultrasonica por su altavoz - una frecuencia demasiado alta para humanos. Cuando otro telefono esta cerca, detecta la senal por su microfono, creando un handshake seguro. Toma 2-3 segundos.',
@@ -777,7 +1090,9 @@ const i18n={
 let currentLang='en';
 function setLang(lang){
   currentLang=lang;
-  document.querySelectorAll('.lang-btn').forEach(b=>{b.classList.toggle('active',b.textContent.trim().toLowerCase()===lang)});
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active',b.textContent.trim().toLowerCase()===lang);
+  });
   const dict=i18n[lang]||i18n.en;
   document.querySelectorAll('[data-i]').forEach(el=>{
     const key=el.getAttribute('data-i');
