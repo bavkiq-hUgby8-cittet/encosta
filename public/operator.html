@@ -1840,13 +1840,9 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
                 <span>Necessario para emissao de notas fiscais</span>
               </div>
             </div>
-            <button id="verifyBtn" class="mod-btn primary full" onclick="requestVerification()" style="padding:.9rem;font-size:.85rem;font-weight:700;background:linear-gradient(135deg,#1877f2,#42a5f5);border:none;box-shadow:0 4px 20px rgba(24,119,242,.3)">
-              <span style="display:flex;align-items:center;justify-content:center;gap:.5rem">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                Verificar por R$ 100,00
-              </span>
-            </button>
-            <div style="font-size:.55rem;color:var(--t3);text-align:center;margin-top:.5rem">Pagamento unico via Stripe. Apple Pay, Google Pay, cartao ou Link.</div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--t1);text-align:center;margin-bottom:.3rem">R$ 100,00 <span style="font-size:.55rem;font-weight:400;color:var(--t3)">pagamento unico</span></div>
+            <div id="seloPayGateway" style="margin-top:.5rem"></div>
+            <div id="seloPayLoading" style="text-align:center;padding:.5rem;display:none"><div style="font-size:.6rem;color:var(--t3)">Carregando formas de pagamento...</div></div>
           </div>
           <!-- State: VERIFIED -->
           <div id="verifiedAlready" style="display:none">
@@ -2795,6 +2791,8 @@ async function loadProfileData(){
     }else{
       $('verifiedNotYet').style.display='';
       $('verifiedAlready').style.display='none';
+      // Initialize UGW payment gateway for selo
+      setTimeout(initSeloPayment,300);
     }
     onDeliveryToggle();
     updateProfileCompletion();
@@ -3003,41 +3001,60 @@ async function lookupCnpj(){
 }
 
 // ═══ VERIFIED BADGE ═══
-async function requestVerification(){
+function initSeloPayment(){
   if(!S.currentEventId)return;
-  var btn=$('verifyBtn');
-  if(btn){btn.disabled=true;btn.style.opacity='.6'}
-  try{
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/verify',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'request'})
-    });
-    var d=await r.json();
-    if(!r.ok){showToast(d.error||'Erro ao verificar');if(btn){btn.disabled=false;btn.style.opacity='1'}return}
+  // First check if already verified
+  fetch('/api/operator/event/'+S.currentEventId+'/verify',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'check'})
+  }).then(function(r){return r.json()}).then(function(d){
     if(d.alreadyVerified){
       $('verifiedNotYet').style.display='none';
       $('verifiedAlready').style.display='';
-      showToast('Seu evento ja esta verificado!');
       return;
     }
-    // Stripe Checkout: redirect to payment page (Apple Pay, Google Pay, cartao, Link)
-    if(d.checkoutUrl){
-      showToast('Redirecionando para pagamento...');
-      window.location.href=d.checkoutUrl;
-      return;
-    }
-    // No Stripe (dev mode): marked verified directly
-    if(d.verified){
-      $('verifiedNotYet').style.display='none';
-      $('verifiedAlready').style.display='';
-      if($('verifiedDate'))$('verifiedDate').textContent='Verificado em '+new Date().toLocaleDateString('pt-BR');
-      showToast('Selo verificado ativado!');
-    }
-  }catch(e){showToast('Erro de conexao');if(btn){btn.disabled=false;btn.style.opacity='1'}}
+    // Render UGW
+    renderUnifiedPaymentGateway('seloPayGateway',{
+      prefix:'selo',
+      price:100,
+      label:'Selo Verificado',
+      type:'selo',
+      eventId:S.currentEventId,
+      eventName:S.currentEventName||'',
+      showPix:true,
+      showStripe:true,
+      showSaved:true,
+      showNewCard:true,
+      showApplePay:true,
+      showGooglePay:true,
+      onConfirm:function(result){
+        $('verifiedNotYet').style.display='none';
+        $('verifiedAlready').style.display='';
+        if($('verifiedDate'))$('verifiedDate').textContent='Verificado em '+new Date().toLocaleDateString('pt-BR');
+        showToast('Selo verificado ativado!');
+      }
+    });
+  }).catch(function(){
+    // If check fails, still render the gateway
+    renderUnifiedPaymentGateway('seloPayGateway',{
+      prefix:'selo',
+      price:100,
+      label:'Selo Verificado',
+      type:'selo',
+      eventId:S.currentEventId,
+      eventName:S.currentEventName||'',
+      showPix:true,showStripe:true,showSaved:true,showNewCard:true,showApplePay:true,showGooglePay:true,
+      onConfirm:function(result){
+        $('verifiedNotYet').style.display='none';
+        $('verifiedAlready').style.display='';
+        if($('verifiedDate'))$('verifiedDate').textContent='Verificado em '+new Date().toLocaleDateString('pt-BR');
+        showToast('Selo verificado ativado!');
+      }
+    });
+  });
 }
 
-// Check for verify_success URL parameter after Stripe Checkout redirect
+// Legacy: checkVerifyResult kept for backward compatibility with old URL params
 function checkVerifyResult(){
   var params=new URLSearchParams(window.location.search);
   var success=params.get('verify_success');
@@ -3045,18 +3062,13 @@ function checkVerifyResult(){
   var eventId=params.get('eventId');
   var sessionId=params.get('session_id');
   if(success&&eventId&&sessionId){
-    // Confirm payment with backend
     fetch('/api/operator/event/'+eventId+'/verify-confirm',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({sessionId:sessionId})
     }).then(function(r){return r.json()}).then(function(d){
-      if(d.ok&&d.verified){
-        showToast('Selo verificado ativado com sucesso!');
-      }else{
-        showToast(d.error||'Pagamento nao confirmado. Entre em contato.');
-      }
+      if(d.ok&&d.verified){showToast('Selo verificado ativado com sucesso!')}
+      else{showToast(d.error||'Pagamento nao confirmado. Entre em contato.')}
     }).catch(function(){showToast('Erro ao confirmar pagamento.')});
-    // Clean URL
     window.history.replaceState({},'',window.location.pathname);
   }else if(cancelled){
     showToast('Pagamento cancelado. Tente novamente quando quiser.');
@@ -4403,6 +4415,505 @@ function hexA(color,alpha){
   if(color.startsWith('hsl'))return color.replace('hsl','hsla').replace(')',','+alpha+')');
   if(color.startsWith('#')){const h=color.replace('#','');return'rgba('+(parseInt(h.substr(0,2),16)||99)+','+(parseInt(h.substr(2,2),16)||102)+','+(parseInt(h.substr(4,2),16)||241)+','+alpha+')'}
   return'rgba(99,102,241,'+alpha+')';
+}
+
+// ═══ UGW DEPENDENCIES (replicated from index.html for selo payment) ═══
+// LocalStorage helpers
+const _LS_SALT='t0uch_2025_';
+const _LS_SENSITIVE=new Set(['touch_userId','touch_email','touch_userPhoto','touch_savedCard','touch_userName']);
+function lsSet(k,v){
+  if(_LS_SENSITIVE.has(k)){try{localStorage.setItem(k,btoa(_LS_SALT+v))}catch(e){localStorage.setItem(k,v)}}
+  else localStorage.setItem(k,v);
+}
+function lsGet(k){
+  const raw=localStorage.getItem(k);if(!raw)return raw;
+  if(_LS_SENSITIVE.has(k)){try{const dec=atob(raw);return dec.startsWith(_LS_SALT)?dec.slice(_LS_SALT.length):raw}catch(e){return raw}}
+  return raw;
+}
+// Haptic vibration
+let _vibrationTested=false;
+function haptic(p){try{if('vibrate' in navigator){navigator.vibrate(p);_vibrationTested=true}}catch(e){}}
+
+// Region config
+const REGION_CONFIG={
+  BR:{currency:'brl',symbol:'R$',gateway:'mercadopago',locale:'pt-BR'},
+  US:{currency:'usd',symbol:'$',gateway:'stripe',locale:'en-US'},
+  GB:{currency:'gbp',symbol:'\u00a3',gateway:'stripe',locale:'en-GB'},
+  JP:{currency:'jpy',symbol:'\u00a5',gateway:'stripe',locale:'ja-JP'},
+  DE:{currency:'eur',symbol:'\u20ac',gateway:'stripe',locale:'de-DE'},
+  FR:{currency:'eur',symbol:'\u20ac',gateway:'stripe',locale:'fr-FR'},
+  ES:{currency:'eur',symbol:'\u20ac',gateway:'stripe',locale:'es-ES'},
+  IT:{currency:'eur',symbol:'\u20ac',gateway:'stripe',locale:'it-IT'},
+  PT:{currency:'eur',symbol:'\u20ac',gateway:'stripe',locale:'pt-PT'},
+  NL:{currency:'eur',symbol:'\u20ac',gateway:'stripe',locale:'nl-NL'},
+  MX:{currency:'mxn',symbol:'MX$',gateway:'mercadopago',locale:'es-MX'},
+  AR:{currency:'ars',symbol:'AR$',gateway:'mercadopago',locale:'es-AR'},
+  CL:{currency:'clp',symbol:'CL$',gateway:'mercadopago',locale:'es-CL'},
+  CO:{currency:'cop',symbol:'CO$',gateway:'mercadopago',locale:'es-CO'},
+  PE:{currency:'pen',symbol:'S/',gateway:'mercadopago',locale:'es-PE'},
+  UY:{currency:'uyu',symbol:'$U',gateway:'mercadopago',locale:'es-UY'}
+};
+const STRIPE_COUNTRIES=new Set(['US','GB','JP','DE','FR','ES','IT','PT','NL','IE','AT','BE','FI','SE','NO','DK','CH','AU','NZ','CA','SG','HK','KR']);
+const MP_COUNTRIES=new Set(['BR','MX','AR','CL','CO','PE','UY']);
+let _userRegion=null,_userCurrency='brl',_userCurrencySymbol='R$',_userGateway='both';
+function detectUserRegion(){
+  var saved=localStorage.getItem('touch_region');
+  if(saved&&REGION_CONFIG[saved])return applyRegion(saved);
+  var lang=(navigator.language||navigator.userLanguage||'pt-BR');
+  var parts=lang.split('-');var country=(parts[1]||'').toUpperCase();
+  if(country&&REGION_CONFIG[country])return applyRegion(country);
+  try{
+    var tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
+    if(tz.startsWith('America/Sao_Paulo')||tz.startsWith('America/Fortaleza')||tz.startsWith('America/Recife')||tz.startsWith('America/Bahia')||tz.startsWith('America/Belem')||tz.startsWith('America/Manaus')||tz.startsWith('America/Cuiaba')||tz.startsWith('America/Porto_Velho'))return applyRegion('BR');
+    if(tz.startsWith('America/New_York')||tz.startsWith('America/Chicago')||tz.startsWith('America/Denver')||tz.startsWith('America/Los_Angeles')||tz.startsWith('America/Phoenix'))return applyRegion('US');
+    if(tz.startsWith('Europe/London'))return applyRegion('GB');
+    if(tz.startsWith('Asia/Tokyo'))return applyRegion('JP');
+    if(tz.startsWith('Europe/'))return applyRegion('DE');
+  }catch(e){}
+  return applyRegion('BR');
+}
+function applyRegion(countryCode){
+  _userRegion=countryCode;
+  var cfg=REGION_CONFIG[countryCode]||REGION_CONFIG.BR;
+  _userCurrency=cfg.currency;_userCurrencySymbol=cfg.symbol;
+  if(STRIPE_COUNTRIES.has(countryCode))_userGateway='stripe';
+  else if(MP_COUNTRIES.has(countryCode))_userGateway='mercadopago';
+  else _userGateway='stripe';
+  return countryCode;
+}
+function formatPrice(amount,currency,symbol){
+  var c=currency||_userCurrency;var s=symbol||_userCurrencySymbol;
+  if(c==='jpy')return s+Math.round(amount);
+  return s+amount.toFixed(2).replace('.',c==='brl'?',':'.');
+}
+detectUserRegion();
+
+// Stripe loader
+let _stripeReady=false,_stripePublicKey=null;
+function loadStripeJS(){
+  return new Promise(function(resolve){
+    if(window.Stripe)return resolve();
+    fetch('/api/stripe/config').then(function(r){return r.json()}).then(function(d){
+      if(!d.publicKey)return resolve();
+      _stripePublicKey=d.publicKey;
+      if(window.Stripe)return resolve();
+      var s=document.createElement('script');s.src='https://js.stripe.com/v3/';
+      s.onload=function(){_stripeReady=true;resolve()};
+      s.onerror=function(){resolve()};
+      document.head.appendChild(s);
+    }).catch(function(){resolve()});
+  });
+}
+
+// Payment brand SVG logos
+const PAY_LOGOS={
+  pix:'<svg viewBox="0 0 32 32" width="100%" height="100%"><path d="M22.1 25.8l-4.5-4.5c-.6-.6-1.6-.6-2.2 0l-4.5 4.5c-.6.6-1.6.6-2.2 0l-3.1-3.1c-.6-.6-.6-1.6 0-2.2l4.5-4.5c.6-.6.6-1.6 0-2.2l-4.5-4.5c-.6-.6-.6-1.6 0-2.2l3.1-3.1c.6-.6 1.6-.6 2.2 0l4.5 4.5c.6.6 1.6.6 2.2 0l4.5-4.5c.6-.6 1.6-.6 2.2 0l3.1 3.1c.6.6.6 1.6 0 2.2l-4.5 4.5c-.6.6-.6 1.6 0 2.2l4.5 4.5c.6.6.6 1.6 0 2.2l-3.1 3.1c-.6.6-1.6.6-2.2 0z" fill="#32BCAD"/></svg>',
+  mercadopago:'<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#009ee3"/><path d="M9 18.5c0-3 2.5-6 7-6s7 3 7 6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="12.5" cy="13" r="1.8" fill="#fff"/><circle cx="19.5" cy="13" r="1.8" fill="#fff"/></svg>',
+  stripe:'<svg viewBox="0 0 32 32" width="100%" height="100%"><rect width="32" height="32" rx="6" fill="#635BFF"/><path d="M15.2 11.2c0-.9.7-1.2 1.9-1.2 1.7 0 3.8.5 5.5 1.4V7.1C21 6.5 19.3 6 17.1 6c-3.8 0-6.3 2-6.3 5.3 0 5.2 7.1 4.3 7.1 6.6 0 1.1-.9 1.4-2.2 1.4-1.9 0-4.3-.8-6.2-1.8v4.4c2.1.9 4.2 1.3 6.2 1.3 3.9 0 6.5-1.9 6.5-5.3-.1-5.6-7-4.6-7-6.7z" fill="#fff"/></svg>',
+  visa:'<svg viewBox="0 0 48 32" width="100%" height="100%"><rect width="48" height="32" rx="4" fill="#1a1f71"/><path d="M19.5 21h-3l1.9-11.5h3L19.5 21zm8.1-11.5l-2.8 7.9-.3-1.6-1-5.2s-.1-1.1-1.5-1.1h-4.6l-.1.3s1.6.3 3.4 1.4l2.8 10.8h3.1l4.8-12.5h-3.8zm15.3 11.5h2.7l-2.4-11.5h-2.4c-1.1 0-1.3.8-1.3.8L35 21h3.1l.6-1.7h3.8l.4 1.7zM39.3 17l1.6-4.3.9 4.3h-2.5zM29 13l.4-2.5s-1.3-.5-2.7-.5c-1.5 0-5 .7-5 3.6 0 2.7 3.8 2.8 3.8 4.2 0 1.4-3.4 1.2-4.6.3l-.4 2.6s1.4.7 3.5.7c2.1 0 5.2-1.1 5.2-3.8 0-2.7-3.9-3-3.9-4.2 0-1.3 2.7-1.1 3.7-.4z" fill="#fff"/></svg>',
+  master:'<svg viewBox="0 0 48 32" width="100%" height="100%"><rect width="48" height="32" rx="4" fill="#252525"/><circle cx="19" cy="16" r="9" fill="#EB001B"/><circle cx="29" cy="16" r="9" fill="#F79E1B"/><path d="M24 9.3a9 9 0 0 0-3.3 6.7 9 9 0 0 0 3.3 6.7 9 9 0 0 0 3.3-6.7A9 9 0 0 0 24 9.3z" fill="#FF5F00"/></svg>',
+  amex:'<svg viewBox="0 0 48 32" width="100%" height="100%"><rect width="48" height="32" rx="4" fill="#006FCF"/><text x="24" y="19" font-family="Arial,Helvetica,sans-serif" font-size="10" font-weight="800" fill="#fff" text-anchor="middle" letter-spacing="1">AMEX</text></svg>',
+  elo:'<svg viewBox="0 0 48 32" width="100%" height="100%"><rect width="48" height="32" rx="4" fill="#000"/><circle cx="17" cy="16" r="5" fill="#FFCB05"/><circle cx="27" cy="12" r="4" fill="#00A4E0"/><circle cx="27" cy="20" r="4" fill="#EF4123"/><text x="37" y="19" font-family="Arial,Helvetica,sans-serif" font-size="7" font-weight="800" fill="#fff" text-anchor="middle">elo</text></svg>',
+  hipercard:'<svg viewBox="0 0 48 32" width="100%" height="100%"><rect width="48" height="32" rx="4" fill="#822124"/><text x="24" y="19" font-family="Arial,Helvetica,sans-serif" font-size="7" font-weight="700" fill="#fff" text-anchor="middle" letter-spacing=".5">HIPER</text></svg>',
+  diners:'<svg viewBox="0 0 48 32" width="100%" height="100%"><rect width="48" height="32" rx="4" fill="#0079BE"/><circle cx="22" cy="16" r="9" fill="#fff"/><path d="M18 10.5v11A9 9 0 0 1 14 16a9 9 0 0 1 4-5.5zm8 0A9 9 0 0 1 30 16a9 9 0 0 1-4 5.5v-11z" fill="#0079BE"/></svg>',
+  applepay:'<svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.52-3.23 0-1.44.64-2.2.46-3.06-.4C3.79 16.17 4.36 9.02 8.73 8.76c1.26.07 2.14.72 2.88.75.97-.2 1.9-.87 3.04-.79 1.37.1 2.39.65 3.07 1.65-2.67 1.6-2.03 5.12.37 6.1-.5 1.3-.73 1.88-1.38 3.03-.99 1.72-2.38 3.44-4.1 3.5l.44.28zM12.03 8.67c-.16-2.35 1.73-4.35 3.94-4.67.3 2.62-2.34 4.87-3.94 4.67z" fill="currentColor"/></svg>',
+  googlepay:'<svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>'
+};
+const PAY_LOGOS_MINI={
+  visa:'<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#1a1f71"/><path d="M14 16h-2.2l1.4-8.5h2.2L14 16zm5.9-8.5l-2 5.9-.2-1.2-.7-3.8s-.1-.9-1.1-.9H12.6v.2s1.2.2 2.5 1l2 7.8h2.3l3.5-9h-2.8zm11.2 8.5h2l-1.7-8.5h-1.8c-.8 0-1 .6-1 .6L25.7 16h2.3l.4-1.2h2.8l.3 1.2zM29 13l1.2-3.2.6 3.2H29zM21.7 10l.3-1.8s-1-.4-2-.4c-1.1 0-3.7.5-3.7 2.7 0 2 2.8 2 2.8 3.1 0 1.1-2.5.9-3.4.2l-.3 1.9s1 .5 2.6.5c1.5 0 3.8-.8 3.8-2.8 0-2-2.8-2.2-2.8-3.1 0-1 2-.8 2.7-.3z" fill="#fff"/></svg>',
+  master:'<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#252525"/><circle cx="14" cy="12" r="7" fill="#EB001B"/><circle cx="22" cy="12" r="7" fill="#F79E1B"/><path d="M18 7a7 7 0 0 0-2.5 5A7 7 0 0 0 18 17a7 7 0 0 0 2.5-5A7 7 0 0 0 18 7z" fill="#FF5F00"/></svg>',
+  amex:'<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#006FCF"/><text x="18" y="14.5" font-family="Arial,sans-serif" font-size="7.5" font-weight="800" fill="#fff" text-anchor="middle" letter-spacing=".5">AMEX</text></svg>',
+  elo:'<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#000"/><circle cx="12" cy="12" r="4" fill="#FFCB05"/><circle cx="21" cy="9" r="3.2" fill="#00A4E0"/><circle cx="21" cy="15" r="3.2" fill="#EF4123"/></svg>',
+  hipercard:'<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#822124"/><text x="18" y="14.5" font-family="Arial,sans-serif" font-size="6" font-weight="700" fill="#fff" text-anchor="middle">HIPER</text></svg>',
+  diners:'<svg viewBox="0 0 36 24" width="100%" height="100%"><rect width="36" height="24" rx="3" fill="#0079BE"/><circle cx="16" cy="12" r="7" fill="#fff"/><path d="M13 8v8a7 7 0 0 1-3-4 7 7 0 0 1 3-4zm6 0a7 7 0 0 1 3 4 7 7 0 0 1-3 4V8z" fill="#0079BE"/></svg>'
+};
+
+// Card brand detection
+const CARD_BRANDS={
+  visa:{name:'Visa',color:'#1a1f71',icon:'V',svg:PAY_LOGOS_MINI.visa,regex:/^4/,lengths:[16],cvv:3},
+  master:{name:'Mastercard',color:'#eb001b',icon:'M',svg:PAY_LOGOS_MINI.master,regex:/^(5[1-5]|2[2-7])/,lengths:[16],cvv:3},
+  amex:{name:'Amex',color:'#006fcf',icon:'A',svg:PAY_LOGOS_MINI.amex,regex:/^3[47]/,lengths:[15],cvv:4,mask:'amex'},
+  elo:{name:'Elo',color:'#000',icon:'E',svg:PAY_LOGOS_MINI.elo,regex:/^(636368|636297|504175|438935|40117[89]|45763[12]|50904[0-9]|50905[0-9]|50906[0-9]|6277[0-9]{2}|6362[0-9]{2}|6504|6505|6506|6507|6509|6516|6550)/,lengths:[16],cvv:3},
+  hipercard:{name:'Hipercard',color:'#8b2131',icon:'H',svg:PAY_LOGOS_MINI.hipercard,regex:/^(606282|3841)/,lengths:[16],cvv:3},
+  diners:{name:'Diners',color:'#004a97',icon:'D',svg:PAY_LOGOS_MINI.diners,regex:/^3(0[0-5]|[68])/,lengths:[14],cvv:3}
+};
+function detectBrand(num){
+  var clean=num.replace(/\D/g,'');
+  for(var id in CARD_BRANDS){if(CARD_BRANDS[id].regex.test(clean))return{id:id,name:CARD_BRANDS[id].name,svg:CARD_BRANDS[id].svg,color:CARD_BRANDS[id].color,icon:CARD_BRANDS[id].icon,lengths:CARD_BRANDS[id].lengths,cvv:CARD_BRANDS[id].cvv,mask:CARD_BRANDS[id].mask};}
+  return null;
+}
+function getCardBrandSVG(brandId,size){
+  size=size||32;var key=(brandId||'').toLowerCase();if(key==='mastercard')key='master';
+  var svg=PAY_LOGOS[key]||PAY_LOGOS_MINI[key];if(!svg)return null;
+  return'<div style="width:'+size+'px;height:'+Math.round(size*0.67)+'px;border-radius:4px;overflow:hidden">'+svg+'</div>';
+}
+function formatCardNumber(el){
+  var v=el.value.replace(/\D/g,'');var brand=detectBrand(v);
+  var maxLen=brand?Math.max.apply(null,brand.lengths):16;v=v.slice(0,maxLen);
+  if(brand&&brand.mask==='amex'){v=v.replace(/(\d{4})(\d{0,6})(\d{0,5})/,'$1 $2 $3').trim()}
+  else{v=v.replace(/(.{4})/g,'$1 ').trim()}
+  el.value=v;
+  var cvvLen=brand?brand.cvv:4;
+  var parent=el.parentElement;if(parent){var cvvEl=parent.parentElement?parent.parentElement.querySelector('[id*="CVV"]'):null;if(cvvEl)cvvEl.maxLength=cvvLen;}
+}
+function formatExpiry(el){var v=el.value.replace(/\D/g,'').slice(0,4);if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);el.value=v}
+function formatCPF(el){
+  var v=el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>9)v=v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
+  else if(v.length>6)v=v.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3');
+  else if(v.length>3)v=v.replace(/(\d{3})(\d{1,3})/,'$1.$2');
+  el.value=v;
+}
+
+// ═══ UNIFIED PAYMENT GATEWAY (UGW) for operator.html ═══
+var _ugwStripeElements={};
+var _ugwStripePE={};
+
+function renderUnifiedPaymentGateway(containerId,opts){
+  opts=opts||{};
+  var pfx=opts.prefix||containerId;
+  var price=opts.price||0;
+  var priceLabel=formatPrice(price);
+  var label=opts.label||'Pagamento';
+  var showPix=opts.showPix!==false;
+  var showStripe=opts.showStripe!==false;
+  var showSaved=opts.showSaved!==false;
+  var showNewCard=opts.showNewCard!==false;
+  var showApplePay=opts.showApplePay!==false;
+  var showGooglePay=opts.showGooglePay!==false;
+  var container=$(containerId);
+  if(!container)return;
+  var h='';
+  // Express checkout: Apple Pay / Google Pay
+  h+='<div id="'+pfx+'_expressCheckout" style="display:none;margin-bottom:.5rem">'
+    +'<div style="font-size:.5rem;color:var(--t3);text-align:center;margin-bottom:.4rem;font-weight:500">Toque para pagar</div>'
+    +'<button id="'+pfx+'_applePayBtn" onclick="ugwExpressCheckout(\''+pfx+'\')" style="display:none;width:100%;padding:1.2rem 1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,.15);background:#1a1a2e;color:#fff;font-size:1.1rem;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;min-height:64px;box-shadow:0 2px 12px rgba(99,102,241,.15)">'
+    +PAY_LOGOS.applepay.replace('currentColor','#fff').replace('width="100%"','width="22"').replace('height="100%"','height="22"').replace('viewBox','style="vertical-align:middle;margin-right:.5rem;margin-top:-2px" viewBox')
+    +' Apple Pay - '+priceLabel
+    +'</button>'
+    +'<button id="'+pfx+'_googlePayBtn" onclick="ugwExpressCheckout(\''+pfx+'\')" style="display:none;width:100%;padding:1.2rem 1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:#fff;color:#3c4043;font-size:1.1rem;font-weight:600;font-family:Roboto,-apple-system,sans-serif;cursor:pointer;min-height:64px;box-shadow:0 2px 12px rgba(0,0,0,.1)">'
+    +'<svg viewBox="0 0 24 24" width="22" height="22" style="vertical-align:middle;margin-right:.5rem;margin-top:-2px"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>'
+    +' Google Pay - '+priceLabel
+    +'</button>'
+    +'</div>';
+  // Payment methods
+  h+='<div id="'+pfx+'_payMethods" style="display:flex;flex-direction:column;gap:.5rem">';
+  // Other methods toggle
+  h+='<button id="'+pfx+'_otherToggle" onclick="ugwToggleOther(\''+pfx+'\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+    +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>'
+    +'<span style="flex:1;font-size:.6rem;color:var(--t3);text-align:left">Outras formas de pagamento</span>'
+    +'<svg id="'+pfx+'_otherArrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>'
+  +'</button>';
+  h+='<div id="'+pfx+'_otherPanel" style="display:flex;flex-direction:column;gap:.5rem">';
+  // Stripe inline PE
+  if(showStripe){
+    h+='<div id="'+pfx+'_stripeWrapper" style="display:none;background:rgba(99,91,255,.04);border:1px solid rgba(99,91,255,.12);border-radius:16px;padding:.8rem">'
+      +'<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem">'
+      +'<svg viewBox="0 0 32 32" width="18" height="18"><rect width="32" height="32" rx="6" fill="#635BFF"/><path d="M15.2 11.2c0-.9.7-1.2 1.9-1.2 1.7 0 3.8.5 5.5 1.4V7.1C21 6.5 19.3 6 17.1 6c-3.8 0-6.3 2-6.3 5.3 0 5.2 7.1 4.3 7.1 6.6 0 1.1-.9 1.4-2.2 1.4-1.9 0-4.3-.8-6.2-1.8v4.4c2.1.9 4.2 1.3 6.2 1.3 3.9 0 6.5-1.9 6.5-5.3-.1-5.6-7-4.6-7-6.7z" fill="#fff"/></svg>'
+      +'<span style="font-size:.62rem;font-weight:600;color:#a5b4fc">Cartao ou Link</span>'
+      +'</div>'
+      +'<div id="'+pfx+'_stripeInline"></div>'
+    +'</div>';
+  }
+  // PIX
+  if(showPix){
+    h+='<button id="'+pfx+'_pixBtn" onclick="ugwSelectMethod(\''+pfx+'\',\'pix\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.65rem .9rem;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:pointer;font-family:inherit;transition:all .2s">'
+      +'<div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#32BCAD,#2A9D8F);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;padding:4px"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M63.3 36.7L53.5 46.5c-2 2-5.1 2-7.1 0L36.7 36.7c-2-2-5.1-2-7.1 0L20 46.4l9.6 9.6c2 2 2 5.1 0 7.1L20 72.7l9.6 9.6c2 2 5.1 2 7.1 0l9.7-9.7c2-2 5.1-2 7.1 0l9.7 9.7c2 2 5.1 2 7.1 0L80 72.7l-9.6-9.6c-2-2-2-5.1 0-7.1L80 46.4l-9.6-9.6c-2-2-5.2-2-7.1-.1z" fill="#fff"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">PIX</div><div style="font-size:.42rem;color:var(--t3)">Instantaneo, sem taxa</div></div>'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
+    +'</button>';
+  }
+  // Saved card
+  if(showSaved){h+='<div id="'+pfx+'_savedCardSection"></div>';}
+  // New card
+  if(showNewCard){
+    h+='<button id="'+pfx+'_newCardBtn" onclick="ugwShowNewCardForm(\''+pfx+'\')" style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.5rem .9rem;border-radius:12px;border:1px dashed rgba(99,102,241,.12);background:transparent;cursor:pointer;font-family:inherit">'
+      +'<div style="width:24px;height:24px;border-radius:6px;background:rgba(99,102,241,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>'
+      +'<div style="flex:1;text-align:left"><div style="font-size:.62rem;font-weight:600;color:var(--t2)">Novo cartao</div><div style="font-size:.42rem;color:var(--t3)">Visa, Master, Elo</div></div>'
+    +'</button>';
+  }
+  h+='</div>'; // otherPanel
+  h+='</div>'; // payMethods
+  // Security badge
+  h+='<div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-top:.6rem;padding:.3rem;border-radius:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15)">'
+    +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+    +'<span style="font-size:.5rem;color:#22c55e;font-weight:600">Pagamento seguro</span>'
+    +'<span style="font-size:.5rem;color:var(--t3)">|</span>'
+    +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'
+    +'<span style="font-size:.5rem;color:#22c55e;font-weight:600">SSL</span>'
+  +'</div>';
+  container.innerHTML=h;
+  window['_ugwOpts_'+pfx]=opts;
+  if(showSaved)ugwLoadSavedCard(pfx,price);
+  if(showApplePay||showGooglePay)ugwInitExpress(pfx,price);
+  // Auto-expand other panel (no counter mode)
+  var toggle=$(pfx+'_otherToggle');if(toggle)toggle.style.display='none';
+  if(showStripe)ugwMountStripe(pfx,price);
+}
+
+function ugwToggleOther(pfx){
+  var panel=$(pfx+'_otherPanel');var arrow=$(pfx+'_otherArrow');
+  var isHidden=!panel||!panel.style.display||panel.style.display==='none';
+  if(panel)panel.style.display=isHidden?'flex':'none';
+  if(arrow)arrow.style.transform=isHidden?'rotate(180deg)':'';
+  var opts=window['_ugwOpts_'+pfx]||{};
+  if(isHidden&&!_ugwStripePE[pfx]&&opts.showStripe!==false)ugwMountStripe(pfx,opts.price||0);
+}
+
+function ugwSelectMethod(pfx,method){
+  window['_ugwSelectedMethod_'+pfx]=method;
+  var opts=window['_ugwOpts_'+pfx]||{};
+  // PIX: call selo PIX endpoint
+  if(method==='pix'&&opts.type==='selo'){
+    var pixBtn=$(pfx+'_pixBtn');
+    if(pixBtn){pixBtn.style.opacity='.6';pixBtn.style.pointerEvents='none'}
+    fetch('/api/operator/event/'+(opts.eventId||'')+'/verify-pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:S.userId,method:'pix',amount:opts.price||100})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){showToast(d.error);if(pixBtn){pixBtn.style.opacity='1';pixBtn.style.pointerEvents=''}return}
+      if(d.pixQr||d.qr_code){
+        // Show PIX QR modal
+        showPixQrModal(d.pixQr||d.qr_code,d.pixCode||d.qr_code_base64||'',opts);
+      }else if(d.ok&&d.verified){
+        showToast('Selo verificado ativado!');haptic([40,20,40]);
+        if(typeof opts.onConfirm==='function')opts.onConfirm(d);
+      }
+    }).catch(function(){showToast('Erro de conexao.');if(pixBtn){pixBtn.style.opacity='1';pixBtn.style.pointerEvents=''}});
+    return;
+  }
+  if(typeof opts.onMethodSelect==='function')opts.onMethodSelect(method);
+}
+
+function showPixQrModal(qrCode,pixCode,opts){
+  var overlay=document.createElement('div');
+  overlay.id='pixQrOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.innerHTML='<div style="background:var(--card);border-radius:20px;padding:1.5rem;max-width:340px;width:100%;text-align:center">'
+    +'<div style="font-size:.9rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">PIX - Selo Verificado</div>'
+    +'<div style="font-size:.6rem;color:var(--t3);margin-bottom:1rem">Escaneie o QR Code ou copie o codigo</div>'
+    +'<div style="background:#fff;border-radius:12px;padding:1rem;margin-bottom:.8rem;display:inline-block"><img src="data:image/png;base64,'+qrCode+'" style="width:200px;height:200px" alt="PIX QR Code"></div>'
+    +'<div style="margin-bottom:.8rem"><button onclick="navigator.clipboard.writeText(\''+pixCode.replace(/'/g,"\\'")+'\');showToast(\'Codigo PIX copiado!\')" style="width:100%;padding:.7rem;border-radius:12px;border:1px solid rgba(50,188,173,.3);background:rgba(50,188,173,.08);color:#32BCAD;font-size:.7rem;font-weight:600;cursor:pointer;font-family:inherit">Copiar codigo PIX</button></div>'
+    +'<div style="font-size:.5rem;color:var(--t3);margin-bottom:.5rem">Apos o pagamento, o selo sera ativado automaticamente</div>'
+    +'<button onclick="document.getElementById(\'pixQrOverlay\').remove()" style="padding:.5rem 1.5rem;border-radius:10px;border:none;background:rgba(255,255,255,.08);color:var(--t2);font-size:.65rem;cursor:pointer;font-family:inherit">Fechar</button>'
+  +'</div>';
+  document.body.appendChild(overlay);
+}
+
+function ugwLoadSavedCard(pfx,price){
+  var saved=lsGet('touch_savedCard');if(!saved)return;
+  try{var c=JSON.parse(saved);if(!c.lastFour)return}catch(e){return}
+  var sec=$(pfx+'_savedCardSection');if(!sec)return;
+  var priceLabel=formatPrice(price);
+  var bk=(c.brand||'').toLowerCase();var bKey=bk==='mastercard'?'master':bk;
+  var bSvg=getCardBrandSVG(bKey,32);
+  var bIcon=bSvg?'<div style="width:40px;height:26px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">'+bSvg+'</div>':'';
+  sec.innerHTML='<div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);border-radius:14px;padding:.75rem .9rem">'
+    +'<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem">'+bIcon
+    +'<div style="flex:1"><div style="font-size:.68rem;font-weight:600;color:var(--t2)">'+esc(c.brand||'Cartao')+' **** '+esc(c.lastFour)+'</div></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:.4rem;align-items:center">'
+    +'<input type="password" id="'+pfx+'_savedCVV" class="tip-input" placeholder="CVV" inputmode="numeric" maxlength="4" style="flex:.4;text-align:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem;color:var(--t1);font-family:inherit" oninput="var b=$(\''+pfx+'_quickPayBtn\');if(b)b.disabled=this.value.length<3">'
+    +'<button id="'+pfx+'_quickPayBtn" onclick="ugwPaySavedCard(\''+pfx+'\')" disabled style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:.78rem;padding:.6rem;border-radius:12px;border:none;color:#fff;font-weight:700;font-family:inherit;cursor:pointer">Pagar '+priceLabel+'</button>'
+    +'</div></div>';
+}
+
+async function ugwPaySavedCard(pfx){
+  var cvv=($(pfx+'_savedCVV')||{}).value||'';
+  if(cvv.length<3)return showToast('CVV invalido.');
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var btn=$(pfx+'_quickPayBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...'}
+  try{
+    var saved=JSON.parse(lsGet('touch_savedCard')||'{}');
+    var resp=await fetch('/api/operator/event/'+(opts.eventId||'')+'/verify-pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:S.userId,method:'saved_card',cvv:cvv,payerEmail:'',payerCPF:saved.cpf||'',amount:opts.price||100,type:'selo',eventId:opts.eventId})
+    });
+    var result=await resp.json();
+    if(result.error)throw new Error(result.error);
+    showToast('Pagamento confirmado! Selo ativado.');haptic([40,20,40]);
+    if(typeof opts.onConfirm==='function')opts.onConfirm(result);
+  }catch(e){
+    showToast(e.message||'Erro no pagamento.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar '+formatPrice(opts.price||0);}
+  }
+}
+
+function ugwShowNewCardForm(pfx){
+  var sec=$(pfx+'_savedCardSection')||$(pfx+'_newCardBtn');
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var priceLabel=formatPrice(opts.price||0);
+  var target=$(pfx+'_savedCardSection');
+  if(!target){
+    // Create section after newCardBtn
+    var btn=$(pfx+'_newCardBtn');
+    if(btn){var d=document.createElement('div');d.id=pfx+'_newCardForm';btn.parentElement.insertBefore(d,btn.nextSibling);target=d;btn.style.display='none'}
+  }
+  if(!target)return;
+  target.innerHTML='<div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);border-radius:16px;padding:.8rem">'
+    +'<div style="display:flex;align-items:center;margin-bottom:.4rem"><div style="flex:1;font-size:.65rem;font-weight:600;color:var(--t2);text-align:center">Dados do cartao</div></div>'
+    +'<div style="position:relative"><input type="text" id="'+pfx+'_cardNumber" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem;color:var(--t1);font-family:inherit;font-size:.7rem;margin-bottom:.3rem;box-sizing:border-box" placeholder="Numero do cartao" inputmode="numeric" maxlength="19" oninput="formatCardNumber(this)"></div>'
+    +'<div style="display:flex;gap:.3rem;margin-bottom:.3rem"><input type="text" id="'+pfx+'_cardExpiry" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem;color:var(--t1);font-family:inherit;font-size:.7rem;box-sizing:border-box" placeholder="MM/AA" inputmode="numeric" maxlength="5" oninput="formatExpiry(this)"><input type="text" id="'+pfx+'_cardCVV" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem;color:var(--t1);font-family:inherit;font-size:.7rem;box-sizing:border-box" placeholder="CVV" inputmode="numeric" maxlength="4"></div>'
+    +'<input type="text" id="'+pfx+'_cardHolder" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem;color:var(--t1);font-family:inherit;font-size:.7rem;margin-bottom:.3rem;box-sizing:border-box" placeholder="Nome no cartao">'
+    +'<input type="text" id="'+pfx+'_cardCPF" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.5rem;color:var(--t1);font-family:inherit;font-size:.7rem;margin-bottom:.3rem;box-sizing:border-box" placeholder="CPF" inputmode="numeric" maxlength="14" oninput="formatCPF(this)">'
+    +'<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.5rem"><input type="checkbox" id="'+pfx+'_saveCard" checked style="accent-color:#6366f1"><label for="'+pfx+'_saveCard" style="font-size:.55rem;color:var(--t3)">Salvar cartao</label></div>'
+    +'<button onclick="ugwPayNewCard(\''+pfx+'\')" style="width:100%;padding:.65rem;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer" id="'+pfx+'_payNewBtn">Pagar '+priceLabel+'</button>'
+  +'</div>';
+}
+
+async function ugwPayNewCard(pfx){
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var cardNum=($(pfx+'_cardNumber')||{}).value||'';
+  var holder=($(pfx+'_cardHolder')||{}).value||'';
+  var expiry=($(pfx+'_cardExpiry')||{}).value||'';
+  var cvv=($(pfx+'_cardCVV')||{}).value||'';
+  var cpf=($(pfx+'_cardCPF')||{}).value||'';
+  if(!cardNum||cardNum.replace(/\s/g,'').length<13)return showToast('Numero do cartao invalido.');
+  if(!expiry||expiry.length<5)return showToast('Data de validade invalida.');
+  if(!cvv||cvv.length<3)return showToast('CVV invalido.');
+  var btn=$(pfx+'_payNewBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...';}
+  var expParts=expiry.split('/');
+  try{
+    var resp=await fetch('/api/operator/event/'+(opts.eventId||'')+'/verify-pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        userId:S.userId,method:'new_card',payerEmail:'',
+        cardNumber:cardNum.replace(/\s/g,''),cardholderName:holder,
+        expirationMonth:expParts[0],expirationYear:'20'+(expParts[1]||''),
+        securityCode:cvv,identificationType:'CPF',identificationNumber:cpf.replace(/\D/g,''),
+        amount:opts.price||100,type:'selo',eventId:opts.eventId
+      })
+    });
+    var result=await resp.json();
+    if(result.error)throw new Error(result.error);
+    if($(pfx+'_saveCard')&&$(pfx+'_saveCard').checked){
+      var brand=detectBrand(cardNum.replace(/\s/g,''));
+      lsSet('touch_savedCard',JSON.stringify({lastFour:cardNum.replace(/\s/g,'').slice(-4),brand:brand?brand.name:'Card',cpf:cpf}));
+    }
+    showToast('Pagamento confirmado! Selo ativado.');haptic([40,20,40]);
+    if(typeof opts.onConfirm==='function')opts.onConfirm(result);
+  }catch(e){
+    showToast(e.message||'Erro no pagamento.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar '+formatPrice(opts.price||0);}
+  }
+}
+
+function ugwInitExpress(pfx,price){
+  loadStripeJS().then(function(){
+    if(!_stripePublicKey||!window.Stripe)return;
+    try{
+      var stripe=window._stripeInstance||Stripe(_stripePublicKey);
+      window._stripeInstance=stripe;
+      var reqCountry=_userRegion||'BR';
+      if(!STRIPE_COUNTRIES.has(reqCountry))reqCountry='US';
+      var opts=window['_ugwOpts_'+pfx]||{};
+      var paymentRequest=stripe.paymentRequest({country:reqCountry,currency:_userCurrency||'brl',total:{label:opts.label||'Touch?',amount:Math.round(price*100)},requestPayerEmail:true});
+      paymentRequest.canMakePayment().then(function(result){
+        if(!result)return;
+        var container=$(pfx+'_expressCheckout');if(!container)return;
+        container.style.display='';
+        var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+        if(result.applePay){var ab=$(pfx+'_applePayBtn');if(ab)ab.style.display='';}
+        else if(result.googlePay&&!isIOS){var gb=$(pfx+'_googlePayBtn');if(gb)gb.style.display='';}
+        window['_ugwPayReq_'+pfx]=paymentRequest;
+      });
+    }catch(e){console.log('[ugw-express] error:',e)}
+  });
+}
+
+function ugwExpressCheckout(pfx){
+  var payReq=window['_ugwPayReq_'+pfx];
+  var opts=window['_ugwOpts_'+pfx]||{};
+  if(!window._stripeInstance||!payReq)return showToast('Pagamento express indisponivel.');
+  payReq.update({total:{label:opts.label||'Touch?',amount:Math.round((opts.price||0)*100)}});
+  payReq.show();
+  payReq.on('paymentmethod',function(ev){
+    fetch('/api/stripe/pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:S.userId,paymentMethodId:ev.paymentMethod.id,amount:opts.price,payerId:S.userId,type:opts.type||'selo',eventId:opts.eventId,receiverId:''})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.ok){
+        ev.complete('success');showToast('Pagamento confirmado! Selo ativado.');haptic([40,20,40]);
+        // Mark event as verified after express payment
+        fetch('/api/operator/event/'+(opts.eventId||'')+'/verify-pay',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({userId:S.userId,method:'stripe_express',stripePaymentIntentId:d.tipId||'',amount:opts.price||100,type:'selo',eventId:opts.eventId,confirmOnly:true})
+        }).then(function(r2){return r2.json()}).then(function(d2){
+          if(typeof opts.onConfirm==='function')opts.onConfirm(d2);
+        }).catch(function(){});
+      }else{ev.complete('fail');showToast(d.error||'Erro no pagamento')}
+    }).catch(function(){ev.complete('fail');showToast('Erro na conexao')});
+  });
+}
+
+async function ugwMountStripe(pfx,price){
+  if(!price||price<3)return;
+  var wrapper=$(pfx+'_stripeWrapper');if(!wrapper)return;
+  await loadStripeJS();
+  if(!_stripePublicKey||!window.Stripe){wrapper.style.display='none';return}
+  var stripe=window._stripeInstance||Stripe(_stripePublicKey);
+  window._stripeInstance=stripe;
+  wrapper.style.display='';
+  var opts=window['_ugwOpts_'+pfx]||{};
+  var priceLabel=formatPrice(price);
+  try{
+    _ugwStripeElements[pfx]=stripe.elements({
+      mode:'payment',amount:Math.round(price*100),currency:_userCurrency||'brl',
+      appearance:{theme:'night',variables:{colorPrimary:'#635bff',colorBackground:'#1a1a2e',colorText:'#e2e8f0',borderRadius:'12px',fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',colorDanger:'#ef4444',spacingUnit:'4px'}}
+    });
+    var inlineEl=$(pfx+'_stripeInline');if(!inlineEl)return;
+    inlineEl.innerHTML='<div id="'+pfx+'_stripePE" style="margin-bottom:.5rem"></div>'
+      +'<button id="'+pfx+'_stripeConfirmBtn" onclick="ugwConfirmStripe(\''+pfx+'\')" disabled style="width:100%;padding:.75rem;border-radius:14px;border:none;background:linear-gradient(135deg,#635bff,#4f46e5);color:#fff;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;opacity:.5;transition:all .2s">Preencha os dados</button>'
+      +'<div id="'+pfx+'_stripeMsg" style="font-size:.48rem;color:var(--err);margin-top:.3rem;text-align:center;display:none"></div>';
+    _ugwStripePE[pfx]=_ugwStripeElements[pfx].create('payment',{layout:'tabs'});
+    _ugwStripePE[pfx].mount('#'+pfx+'_stripePE');
+    _ugwStripePE[pfx].on('change',function(ev){
+      var btn=$(pfx+'_stripeConfirmBtn');var msgEl=$(pfx+'_stripeMsg');
+      if(ev.error){if(msgEl){msgEl.style.display='';msgEl.textContent=ev.error.message}}
+      else{if(msgEl)msgEl.style.display='none'}
+      if(btn){btn.disabled=!ev.complete;btn.textContent=ev.complete?'Pagar '+priceLabel:'Preencha os dados';btn.style.opacity=ev.complete?'1':'.5'}
+    });
+  }catch(e){console.log('[ugw-stripe] mount error:',e);wrapper.style.display='none'}
+}
+
+async function ugwConfirmStripe(pfx){
+  var elements=_ugwStripeElements[pfx];var opts=window['_ugwOpts_'+pfx]||{};
+  if(!elements)return;
+  var btn=$(pfx+'_stripeConfirmBtn');var priceLabel=formatPrice(opts.price||0);
+  if(btn){btn.disabled=true;btn.textContent='Processando...'}
+  try{
+    var submitResult=await elements.submit();
+    if(submitResult.error){showToast(submitResult.error.message);if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1'}return}
+    var resp=await fetch('/api/stripe/create-payment-intent',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:S.userId,amount:opts.price,currency:_userCurrency||'brl',payerId:S.userId,type:'selo',eventId:opts.eventId})
+    });
+    var data=await resp.json();
+    if(data.error){showToast(data.error);if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1'}return}
+    var confirmResult=await window._stripeInstance.confirmPayment({
+      elements:elements,clientSecret:data.clientSecret,
+      confirmParams:{return_url:window.location.origin+'/operator.html'},
+      redirect:'if_required'
+    });
+    if(confirmResult.error){showToast(confirmResult.error.message);if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1'}return}
+    // Confirm with backend and mark verified
+    fetch('/api/operator/event/'+(opts.eventId||'')+'/verify-pay',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:S.userId,method:'stripe_pe',stripePaymentIntentId:data.paymentIntentId,amount:opts.price||100,type:'selo',eventId:opts.eventId,confirmOnly:true})
+    }).catch(function(){});
+    fetch('/api/stripe/confirm-payment',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:S.userId,paymentIntentId:data.paymentIntentId,tipId:data.tipId})
+    }).catch(function(){});
+    showToast('Pagamento confirmado! Selo ativado.');haptic([40,20,40]);
+    _ugwStripeElements[pfx]=null;_ugwStripePE[pfx]=null;
+    if(typeof opts.onConfirm==='function')opts.onConfirm(data);
+  }catch(e){
+    console.log('[ugw-stripe] confirm error:',e);showToast('Erro na conexao. Tente novamente.');
+    if(btn){btn.disabled=false;btn.textContent='Pagar '+priceLabel;btn.style.opacity='1'}
+  }
 }
 
 // ═══ DELIVERY TOGGLE (Restaurante tab) ═══

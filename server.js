@@ -8429,6 +8429,27 @@ app.post('/mp/webhook', (req, res) => {
   if (req.body.type === 'payment' && req.body.data && req.body.data.id) {
     const paymentId = req.body.data.id;
     // Find tip by mpPaymentId and update status
+    // Check if this is a selo verification PIX payment
+    const seloEvent = Object.values(db.operatorEvents || {}).find(e => String(e.pendingVerifyPaymentId) === String(paymentId) && !e.verified);
+    if (seloEvent) {
+      mpPayment.get({ id: paymentId }).then(p => {
+        if (p.status === 'approved') {
+          seloEvent.verified = true;
+          seloEvent.verifiedAt = Date.now();
+          seloEvent.verifyPaymentId = paymentId;
+          seloEvent.verifyMethod = 'pix';
+          delete seloEvent.pendingVerifyPaymentId;
+          delete seloEvent.pendingVerifyMethod;
+          saveDB('operatorEvents');
+          console.log('[webhook] Selo PIX approved for event:', seloEvent.name);
+          // Notify operator
+          if (seloEvent.creatorId) {
+            io.to('user:' + seloEvent.creatorId).emit('selo-verified', { eventId: seloEvent.id, verified: true });
+          }
+        }
+      }).catch(e => console.error('[webhook] Selo PIX fetch error:', e));
+      return res.sendStatus(200);
+    }
     const tip = Object.values(db.tips).find(t => String(t.mpPaymentId) === String(paymentId));
     if (tip) {
       // Fetch latest status from MP
@@ -12436,6 +12457,12 @@ app.post('/api/operator/event/:eventId/verify', paymentLimiter, async (req, res)
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (ev.verified) return res.json({ ok: true, alreadyVerified: true });
 
+  const { action } = req.body || {};
+  // Just check status (used by UGW init)
+  if (action === 'check') {
+    return res.json({ ok: true, alreadyVerified: false });
+  }
+
   if (stripeInstance) {
     try {
       const baseUrl = process.env.BASE_URL || RENDER_URL || ('https://' + (req.headers.host || 'localhost:3000'));
@@ -12498,6 +12525,185 @@ app.post('/api/operator/event/:eventId/verify-confirm', async (req, res) => {
     console.error('[stripe] Verify confirm error:', e.message);
     res.status(500).json({ error: 'Erro ao confirmar pagamento: ' + e.message });
   }
+});
+
+// ═══ VERIFIED BADGE — UGW Payment (all methods: PIX, saved card, new card, Stripe confirm) ═══
+app.post('/api/operator/event/:eventId/verify-pay', requireAuth, paymentLimiter, async (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (ev.verified) return res.json({ ok: true, alreadyVerified: true, verified: true });
+
+  const { userId, method, amount, cvv, payerEmail, payerCPF, cardNumber, cardholderName,
+    expirationMonth, expirationYear, securityCode, identificationType, identificationNumber,
+    deviceId, stripePaymentIntentId, confirmOnly } = req.body;
+
+  const seloAmount = 100; // R$100.00 fixed
+
+  // If confirmOnly (from Stripe express/PE after payment already done), just mark verified
+  if (confirmOnly && (method === 'stripe_express' || method === 'stripe_pe')) {
+    ev.verified = true;
+    ev.verifiedAt = Date.now();
+    ev.verifyPaymentId = stripePaymentIntentId || '';
+    ev.verifyMethod = method;
+    saveDB('operatorEvents');
+    console.log('[verify-pay] Selo confirmed via', method, 'for event:', ev.name);
+    return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+  }
+
+  // PIX payment via MercadoPago
+  if (method === 'pix') {
+    if (!MP_ACCESS_TOKEN) return res.status(503).json({ error: 'MercadoPago nao configurado.' });
+    try {
+      const paymentData = {
+        transaction_amount: seloAmount,
+        description: 'Selo Verificado Touch? - ' + (ev.name || 'Evento'),
+        payment_method_id: 'pix',
+        payer: {
+          email: payerEmail || 'operador@touch-irl.com',
+          identification: { type: 'CPF', number: (payerCPF || identificationNumber || '').replace(/\D/g, '') || '00000000000' }
+        },
+        statement_descriptor: 'TOUCH SELO',
+        metadata: { event_id: req.params.eventId, type: 'verified_badge', user_id: userId },
+        notification_url: (MP_REDIRECT_URI || '').replace('/mp/callback', '') + '/mp/webhook'
+      };
+      const result = await mpPayment.create({ body: paymentData });
+      const pixData = result.point_of_interaction?.transaction_data;
+      // Store pending verification payment
+      ev.pendingVerifyPaymentId = result.id;
+      ev.pendingVerifyMethod = 'pix';
+      saveDB('operatorEvents');
+      console.log('[verify-pay] PIX generated for selo:', { event: ev.name, mpId: result.id });
+      res.json({
+        ok: true, status: result.status,
+        pixQr: pixData?.qr_code_base64 || '',
+        pixCode: pixData?.qr_code || '',
+        ticketUrl: pixData?.ticket_url || ''
+      });
+    } catch (e) {
+      console.error('[verify-pay] PIX error:', e.message);
+      res.status(500).json({ error: 'Erro ao gerar PIX: ' + (e.message || 'tente novamente') });
+    }
+    return;
+  }
+
+  // Saved card payment via MercadoPago
+  if (method === 'saved_card') {
+    if (!MP_ACCESS_TOKEN) return res.status(503).json({ error: 'MercadoPago nao configurado.' });
+    // Find saved card for this user
+    const user = db.users[userId];
+    if (!user || !user.mpCustomerId || !user.mpCardId) {
+      return res.status(400).json({ error: 'Cartao salvo nao encontrado. Use outro metodo.' });
+    }
+    try {
+      const paymentData = {
+        transaction_amount: seloAmount,
+        description: 'Selo Verificado Touch? - ' + (ev.name || 'Evento'),
+        payment_method_id: user.mpCardPaymentMethodId || 'visa',
+        token: '', // Will use card_id + customer_id
+        payer: {
+          type: 'customer',
+          id: user.mpCustomerId,
+          email: payerEmail || user.email || ''
+        },
+        statement_descriptor: 'TOUCH SELO',
+        metadata: { event_id: req.params.eventId, type: 'verified_badge', user_id: userId },
+        installments: 1
+      };
+      // MP saved card: use card token via customer
+      const { default: fetch2 } = await import('node-fetch');
+      const cardPayResp = await fetch2(`https://api.mercadopago.com/v1/payments`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_amount: seloAmount,
+          token: user.mpCardId,
+          description: 'Selo Verificado Touch?',
+          installments: 1,
+          payer: { type: 'customer', id: user.mpCustomerId },
+          statement_descriptor: 'TOUCH SELO',
+          metadata: { event_id: req.params.eventId, type: 'verified_badge' },
+          additional_info: { payer: { first_name: cardholderName || user.nickname || '' } }
+        })
+      });
+      const result = await cardPayResp.json();
+      if (result.status === 'approved') {
+        ev.verified = true;
+        ev.verifiedAt = Date.now();
+        ev.verifyPaymentId = result.id;
+        ev.verifyMethod = 'mp_saved_card';
+        saveDB('operatorEvents');
+        console.log('[verify-pay] Selo approved via saved card for event:', ev.name);
+        return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+      }
+      res.json({ ok: false, error: 'Pagamento ' + (result.status || 'recusado') + ': ' + (result.status_detail || '') });
+    } catch (e) {
+      console.error('[verify-pay] Saved card error:', e.message);
+      res.status(500).json({ error: 'Erro no pagamento: ' + e.message });
+    }
+    return;
+  }
+
+  // New card payment via MercadoPago tokenization
+  if (method === 'new_card') {
+    if (!MP_ACCESS_TOKEN) return res.status(503).json({ error: 'MercadoPago nao configurado.' });
+    if (!cardNumber) return res.status(400).json({ error: 'Dados do cartao incompletos.' });
+    try {
+      // Create token via MP API
+      const { default: fetch2 } = await import('node-fetch');
+      const tokenResp = await fetch2('https://api.mercadopago.com/v1/card_tokens', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          card_number: cardNumber.replace(/\s/g, ''),
+          cardholder: {
+            name: cardholderName || '',
+            identification: { type: identificationType || 'CPF', number: (identificationNumber || '').replace(/\D/g, '') }
+          },
+          expiration_month: parseInt(expirationMonth) || 1,
+          expiration_year: parseInt(expirationYear) || 2030,
+          security_code: securityCode || cvv || '',
+          device: { fingerprint: deviceId || '' }
+        })
+      });
+      const tokenData = await tokenResp.json();
+      if (!tokenData.id) {
+        return res.status(400).json({ error: 'Erro ao tokenizar cartao: ' + (tokenData.message || JSON.stringify(tokenData.cause || '')) });
+      }
+      // Create payment with token
+      const payResp = await fetch2('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_amount: seloAmount,
+          token: tokenData.id,
+          description: 'Selo Verificado Touch? - ' + (ev.name || 'Evento'),
+          installments: 1,
+          payment_method_id: tokenData.payment_method?.id || 'visa',
+          payer: { email: payerEmail || 'operador@touch-irl.com', identification: { type: identificationType || 'CPF', number: (identificationNumber || '').replace(/\D/g, '') } },
+          statement_descriptor: 'TOUCH SELO',
+          metadata: { event_id: req.params.eventId, type: 'verified_badge', user_id: userId }
+        })
+      });
+      const result = await payResp.json();
+      if (result.status === 'approved') {
+        ev.verified = true;
+        ev.verifiedAt = Date.now();
+        ev.verifyPaymentId = result.id;
+        ev.verifyMethod = 'mp_new_card';
+        saveDB('operatorEvents');
+        console.log('[verify-pay] Selo approved via new card for event:', ev.name);
+        return res.json({ ok: true, verified: true, verifiedAt: ev.verifiedAt });
+      }
+      res.json({ ok: false, error: 'Pagamento ' + (result.status || 'recusado') + ': ' + (result.status_detail || '') });
+    } catch (e) {
+      console.error('[verify-pay] New card error:', e.message);
+      res.status(500).json({ error: 'Erro no pagamento: ' + e.message });
+    }
+    return;
+  }
+
+  // Unknown method
+  res.status(400).json({ error: 'Metodo de pagamento invalido: ' + (method || 'nenhum') });
 });
 
 app.post('/api/operator/event/:eventId/attendee-status', async (req, res) => {
@@ -13343,6 +13549,20 @@ app.post('/api/stripe/pay', requireAuth, async (req, res) => {
     if (paymentIntent.status === 'succeeded') {
       const tipId = uuidv4();
 
+      // Selo verification payment — mark event as verified
+      if (type === 'selo' && eventId) {
+        const seloEv = db.operatorEvents[eventId];
+        if (seloEv && !seloEv.verified) {
+          seloEv.verified = true;
+          seloEv.verifiedAt = Date.now();
+          seloEv.verifyPaymentId = paymentIntent.id;
+          seloEv.verifyMethod = 'stripe-express';
+          saveDB('operatorEvents');
+          console.log('[stripe/pay] Selo verified via express checkout for event:', seloEv.name);
+        }
+        return res.json({ ok: true, tipId, verified: true });
+      }
+
       if (isEntry && ev) {
         // Save as entry payment in eventPayments
         if (!db.eventPayments) db.eventPayments = {};
@@ -13459,6 +13679,19 @@ app.post('/api/stripe/confirm-payment', requireAuth, async (req, res) => {
     const meta = pi.metadata || {};
 
     if (pi.status === 'succeeded') {
+      // Selo verification payment
+      if (meta.type === 'selo' && meta.eventId) {
+        const seloEv = db.operatorEvents[meta.eventId];
+        if (seloEv && !seloEv.verified) {
+          seloEv.verified = true;
+          seloEv.verifiedAt = Date.now();
+          seloEv.verifyPaymentId = paymentIntentId;
+          seloEv.verifyMethod = 'stripe_payment_element';
+          saveDB('operatorEvents');
+          console.log('[stripe/confirm] Selo verified via PE for event:', seloEv.name);
+        }
+        return res.json({ ok: true, status: 'approved', verified: true });
+      }
       if (meta.type === 'entry' && meta.eventId) {
         const ep = db.eventPayments && db.eventPayments[tipId];
         if (ep) { ep.status = 'approved'; saveDB('eventPayments'); }
