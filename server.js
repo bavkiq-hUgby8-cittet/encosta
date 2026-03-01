@@ -1394,6 +1394,12 @@ const MP_APP_ID = process.env.MP_APP_ID || '';
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
 const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://touch-irl.com/mp/callback';
 const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
+// Stripe Tax: enable for product transactions (orders/delivery) in US
+// Set STRIPE_TAX_ENABLED=true in env to activate (requires Stripe Tax setup in dashboard)
+const STRIPE_TAX_ENABLED = process.env.STRIPE_TAX_ENABLED === 'true';
+// Tax codes: https://stripe.com/docs/tax/tax-codes
+const STRIPE_TAX_CODE_FOOD = 'txcd_40060003'; // Prepared food & beverages
+const STRIPE_TAX_CODE_DELIVERY = 'txcd_10000000'; // General delivery/shipping
 
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
 const mpPayment = new Payment(mpClient);
@@ -13511,7 +13517,12 @@ if (STRIPE_SECRET) {
 
 // Config — frontend uses this to know if Stripe is available
 app.get('/api/stripe/config', (req, res) => {
-  res.json({ publicKey: STRIPE_PUBLIC || null, connectClientId: STRIPE_CONNECT_CLIENT_ID || null });
+  res.json({
+    publicKey: STRIPE_PUBLIC || null,
+    connectClientId: STRIPE_CONNECT_CLIENT_ID || null,
+    taxEnabled: STRIPE_TAX_ENABLED,
+    taxCodes: STRIPE_TAX_ENABLED ? { food: STRIPE_TAX_CODE_FOOD, delivery: STRIPE_TAX_CODE_DELIVERY } : null
+  });
 });
 
 // Legacy Express Checkout endpoint (kept for backward compatibility)
@@ -13531,14 +13542,19 @@ app.post('/api/stripe/pay', requireAuth, async (req, res) => {
   }
 
   try {
+    const isProductTx = type === 'order' || type === 'delivery';
     const intentData = {
       amount: Math.round(amount * 100),
       currency: 'brl',
       payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      metadata: { payerId, receiverId: effectiveReceiverId || '', type: type || 'tip', eventId: eventId || '', source: 'touch-express-checkout' }
+      metadata: { payerId, receiverId: effectiveReceiverId || '', type: type || 'tip', eventId: eventId || '', source: 'touch-express-checkout', fiscalType: isProductTx ? 'product' : 'service' }
     };
+    // Stripe Tax for product transactions in USD
+    if (STRIPE_TAX_ENABLED && isProductTx) {
+      intentData.automatic_tax = { enabled: true };
+    }
     const receiver = effectiveReceiverId ? db.users[effectiveReceiverId] : null;
     if (receiver && receiver.stripeConnectId && receiver.stripeConnected) {
       const fee = Math.round(Math.round(amount * 100) * TOUCH_FEE_PERCENT / 100);
@@ -13610,21 +13626,40 @@ app.post('/api/stripe/pay', requireAuth, async (req, res) => {
 // Create PaymentIntent — used by Payment Element (Card + Link + Apple Pay + Google Pay)
 app.post('/api/stripe/create-payment-intent', requireAuth, paymentLimiter, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
-  const { amount, currency, payerId, receiverId, type, eventId } = req.body;
+  const { amount, currency, payerId, receiverId, type, eventId, subtotal, tipAmount: reqTipAmount } = req.body;
   if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
 
   const curr = (currency || 'brl').toLowerCase();
   // Zero-decimal currencies (JPY, KRW, etc.) use whole units
   const ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
   const amountCents = ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
+  const isProductTx = type === 'order' || type === 'delivery';
+  const isUSD = curr === 'usd';
 
   try {
     const intentData = {
       amount: amountCents,
       currency: curr,
       automatic_payment_methods: { enabled: true },
-      metadata: { payerId: payerId || '', receiverId: receiverId || '', type: type || 'tip', eventId: eventId || '', source: 'touch-payment-element' }
+      metadata: {
+        payerId: payerId || '', receiverId: receiverId || '',
+        type: type || 'tip', eventId: eventId || '',
+        source: 'touch-payment-element',
+        // Fiscal metadata for tax reporting
+        subtotal: subtotal || amount,
+        tipAmount: reqTipAmount || 0,
+        fiscalType: isProductTx ? 'product' : 'service'
+      }
     };
+
+    // Stripe Tax: auto-calculate sales tax for product transactions in USD
+    // Tips are exempt from sales tax in the US
+    if (STRIPE_TAX_ENABLED && isUSD && isProductTx) {
+      intentData.automatic_tax = { enabled: true };
+      // Stripe Tax uses the product tax code to determine rates per state
+      // Configure tax codes in Stripe Dashboard > Tax > Tax codes
+      console.log('[stripe-tax] Automatic tax enabled for', type, '| amount:', amount, curr);
+    }
 
     // Split payment if receiver has Stripe Connect
     const receiver = receiverId ? db.users[receiverId] : null;
