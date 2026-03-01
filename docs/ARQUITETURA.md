@@ -1,6 +1,6 @@
 # ARQUITETURA TECNICA -- Touch? (Encosta)
 
-Atualizado: 28/02/2026
+Atualizado: 01/03/2026
 
 ## STACK
 
@@ -18,8 +18,8 @@ Atualizado: 28/02/2026
 
 ## ARQUIVOS PRINCIPAIS
 
-- server.js (~13762 linhas) -- Backend monolito
-- public/index.html (~19581 linhas) -- Frontend SPA (25+ telas)
+- server.js (~14333 linhas) -- Backend monolito
+- public/index.html (~19960 linhas) -- Frontend SPA (25+ telas)
 - public/va-test.html (~1260 linhas) -- Tela de ligacao dos 3 assistentes + Dev Log
 - public/va-admin.html (~501 linhas) -- Painel admin dos assistentes de voz
 - public/admin.html (~989 linhas) -- Painel administrativo (8 abas)
@@ -32,7 +32,7 @@ Atualizado: 28/02/2026
 - simulador-estrelas.html -- Simulador da economia de estrelas
 - package.json -- Dependencias
 
-## MAPA DO SERVER.JS (~13762 linhas)
+## MAPA DO SERVER.JS (~14333 linhas)
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET, vaLimiter)
 Linha ~180-600: Firebase Admin, DB in-memory com dirty tracking, indexes (IDX), top tag calc
@@ -74,7 +74,7 @@ Linha ~12620-12840: Games endpoints (sessions, invite, temp-chat, results)
 Linha ~12840-13100: Mural extended (Radio Touch play/stop)
 Linha ~13100-13762: Server listen, cleanup, error handling
 
-## MAPA DO INDEX.HTML (~19581 linhas)
+## MAPA DO INDEX.HTML (~19960 linhas)
 
 Linha ~1-400: CSS completo (variaveis, telas, componentes, animacoes)
 Linha ~400-1460: CSS Dev Log panel (tema branco/clean, azul #60a5fa)
