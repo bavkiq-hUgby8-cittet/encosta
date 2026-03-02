@@ -8044,7 +8044,7 @@ app.post('/api/tip/checkout', async (req, res) => {
         unit_price: tipAmount,
         currency_id: 'BRL'
       }],
-      payer: { email: payer.email || 'pagamento@encosta.app' },
+      payer: { email: payer.email || 'pagamento@touch-irl.com' },
       back_urls: {
         success: baseUrl + '/tip-result?status=approved&tipId=' + tipId,
         failure: baseUrl + '/tip-result?status=rejected&tipId=' + tipId,
@@ -8536,11 +8536,11 @@ app.post('/api/tip/save-card', paymentLimiter, async (req, res) => {
     if (!customerId) {
       const custResp = await fetch('https://api.mercadopago.com/v1/customers', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email || email || 'pagamento@encosta.app', first_name: user.name || user.nickname || 'Touch User' })
+        body: JSON.stringify({ email: user.email || email || 'pagamento@touch-irl.com', first_name: user.name || user.nickname || 'Touch User' })
       });
       // If email already exists, search for existing customer
       if (custResp.status === 400) {
-        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(user.email || email || 'pagamento@encosta.app'), {
+        const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(user.email || email || 'pagamento@touch-irl.com'), {
           headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
         });
         const searchData = await searchResp.json();
@@ -8610,7 +8610,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
     if (!custCheck.ok) {
       console.log('⚠️ Customer not found, recreating...', customerId);
       // Customer doesn't exist — recreate customer + re-add card
-      const email = payer.email || payer.savedCard?.email || 'pagamento@encosta.app';
+      const email = payer.email || payer.savedCard?.email || 'pagamento@touch-irl.com';
       const newCustResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), {
         headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
       });
@@ -8701,7 +8701,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       payment_method_id: card.payment_method?.id || payer.savedCard.paymentMethodId || 'visa',
       installments: 1,
       payer: {
-        email: payer.email || payer.savedCard?.email || 'pagamento@encosta.app',
+        email: payer.email || payer.savedCard?.email || 'pagamento@touch-irl.com',
         identification: { type: 'CPF', number: (payer.cpf || payer.savedCard?.cpf || '').replace(/\D/g, '') }
       },
       description: 'Gorjeta Touch? — ' + (receiver.serviceLabel || receiver.nickname || receiver.name),
@@ -8790,7 +8790,7 @@ app.post('/api/subscription/create-card', paymentLimiter, async (req, res) => {
     });
     if (!custCheck.ok) {
       console.log('⚠️ Sub: Customer not found, searching by email...');
-      const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
+      const email = user.email || user.savedCard?.email || 'pagamento@touch-irl.com';
       const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), {
         headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
       });
@@ -11933,7 +11933,7 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
           headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
         });
         if (!custCheck.ok) {
-          const email = user.email || user.savedCard?.email || 'pagamento@encosta.app';
+          const email = user.email || user.savedCard?.email || 'pagamento@touch-irl.com';
           const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
           const searchData = await searchResp.json();
           if (searchData.results && searchData.results.length > 0) {
@@ -12161,7 +12161,7 @@ app.post('/api/operator/event/:eventId/pay-entry-checkout', paymentLimiter, asyn
         unit_price: amount,
         currency_id: 'BRL'
       }],
-      payer: { email: user.email || 'pagamento@encosta.app' },
+      payer: { email: user.email || 'pagamento@touch-irl.com' },
       back_urls: {
         success: baseUrl + '/tip-result?status=approved&tipId=' + tipId,
         failure: baseUrl + '/tip-result?status=rejected&tipId=' + tipId,
