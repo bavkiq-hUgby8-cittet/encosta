@@ -14287,8 +14287,12 @@ function appendSystemMsg(text){
 // ═══ BOARDING PASS ═══
 async function showBoardingPassWithQR(){
   await showBoardingPass();
-  // Auto-generate QR code (area is always visible now)
-  setTimeout(()=>showTouchQR(),300);
+  // Wait for touch link data before generating QR
+  if(!touchLinkData){
+    // loadTouchLink was called inside showBoardingPass but not awaited, wait for it
+    await loadTouchLink();
+  }
+  showTouchQR();
 }
 async function showBoardingPass(){
   haptic([30]);
@@ -14308,7 +14312,7 @@ async function showBoardingPass(){
     $('bpLikes').textContent=d.likesCount||0;
     const tagEl=$('bpTag');if(tagEl)tagEl.textContent=d.topTag?d.topTag.replace('top','TOP '):'—';
     const bpvb=$('bpVerifiedBadge');if(bpvb){if(state.userVerified)bpvb.classList.remove('hidden');else bpvb.classList.add('hidden')}
-    loadTouchLink();
+    await loadTouchLink();
     showScreen('boardingPass');
   }catch(e){showToast('Erro ao carregar bilhete.')}
 }
@@ -14550,6 +14554,7 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>'+t('profile.edit_profile_btn')+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>'+t('subscription.touch_plus_title')+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>'+t('home.service_mode_toggle')+'</button>'
+    +(isPrestador?'<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px"><div style="display:flex;align-items:center;gap:.5rem"><span style="font-size:.85rem;color:#22c55e;font-weight:800">$</span><span style="font-size:.72rem;color:var(--t1);font-weight:600">Modo Servico na Home</span></div><div style="position:relative;cursor:pointer" onclick="var cb=this.querySelector(\'input\');cb.checked=!cb.checked;toggleServiceModeEnabled(cb.checked);var tk=this.querySelector(\'.pf-svc-track\');var dt=this.querySelector(\'.pf-svc-dot\');tk.style.background=cb.checked?\'#22c55e\':\'rgba(255,255,255,.12)\';dt.style.left=cb.checked?\'22px\':\'2px\'"><input type="checkbox" style="display:none"'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?' checked':'')+'><div class="pf-svc-track" style="width:42px;height:24px;border-radius:12px;background:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'#22c55e':'rgba(255,255,255,.12)')+';transition:background .2s"></div><div class="pf-svc-dot" style="position:absolute;top:2px;left:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'22px':'2px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div></div></div>':'')
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">&#x2713;</span>'+t('profile.verified_label')+'</button><button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showAdminFinancial()"><span class="my-pf-ico" style="color:#10b981;font-weight:800">$</span>Painel Financeiro Admin</button>':'')
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showLanguageSelector()"><span class="my-pf-ico" style="font-style:normal">'+((I18N_LANGUAGES[window._currentLang]||{}).emoji||'🌐')+'</span>'+(I18N_LANGUAGES[window._currentLang]||{}).name+' <span style="font-size:.5rem;color:var(--t3);margin-left:.3rem">'+t('profile.language_label')+'</span></button>'
     +'<div class="my-pf-divider"></div>'
