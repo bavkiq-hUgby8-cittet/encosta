@@ -4512,20 +4512,9 @@ const MURAL_AGENTS = {
     nick: 'Reporter',
     color: '#e65100',
     label: 'Noticias Gerais',
-    description: 'Noticias locais e do mundo em tempo real',
-    systemPrompt: 'Voce e o Reporter, um jornalista digital serio e objetivo. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo. Va direto ao ponto.',
-    queryTemplate: 'Principal noticia de hoje de {local}. Traga a mais relevante e impactante.',
-    enabled: true
-  },
-  urgente: {
-    id: 'urgente',
-    nick: 'URGENTE',
-    color: '#d50000',
-    label: 'Urgente',
-    description: 'Noticias urgentes de ultima hora',
-    systemPrompt: 'Voce e o alerta Urgente, um sistema de noticias de ULTIMA HORA. APENAS traga noticias se for algo REALMENTE grave e urgente: desastres naturais, atentados, mortes de figuras publicas, crises graves, acidentes com vitimas. Noticias politicas comuns, votacoes, decisoes judiciais rotineiras NAO sao urgentes. Se nao houver algo realmente grave acontecendo AGORA, responda EXATAMENTE: "SEM URGENCIAS". Formato: Uma frase de titulo na primeira linha.\n\nDetalhes em 1-2 frases. Nao use emojis, asteriscos ou formatacao markdown. Seja direto e preciso.',
-    queryTemplate: 'Ha alguma noticia REALMENTE URGENTE acontecendo AGORA em {local} ou no mundo? Apenas desastres, atentados, mortes, crises graves, acidentes com vitimas. Votacoes, decisoes judiciais e politica normal NAO contam. Se nao houver nada GRAVE, responda "SEM URGENCIAS".',
-    isUrgent: true,
+    description: 'Noticias locais, do mundo e urgencias em tempo real',
+    systemPrompt: 'Voce e o Reporter, um jornalista digital serio e objetivo. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave, acidente com vitimas), comece o titulo com "URGENTE:" para destacar. Para noticias normais, va direto ao ponto. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto a palavra URGENTE quando aplicavel). Va direto ao ponto.',
+    queryTemplate: 'Principal noticia de hoje de {local}. Traga a mais relevante e impactante. Se houver algo REALMENTE urgente acontecendo AGORA (desastre, atentado, crise grave, acidente com vitimas), priorize essa noticia.',
     enabled: true
   },
   sport: {
@@ -4610,8 +4599,8 @@ const MURAL_AGENTS = {
   }
 };
 
-// Fila round-robin: agentes de nicho alternam a cada 1h (sem reporter e urgente)
-const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => k !== 'reporter' && !MURAL_AGENTS[k].isUrgent);
+// Fila round-robin: agentes de nicho alternam 2x/dia (sem reporter)
+const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => k !== 'reporter');
 let _agentQueueIndex = 0;
 // Motor de noticias sempre ligado (sem toggle)
 const _newsEngineEnabled = true;
@@ -4639,12 +4628,16 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
   if (!PPLX_API_KEY) return null;
   const agent = MURAL_AGENTS[agentId] || MURAL_AGENTS.reporter;
 
+  // Detectar idioma do canal
+  const lang = _getChannelLang(channelKey);
+  const langInst = _langInstruction(lang);
+
   // Build local name based on channel type
   let localName = channelName || channelKey;
-  if (channelType === 'state') localName = 'estado ' + channelName + ', Brasil';
+  if (channelType === 'state') localName = (lang === 'en' ? 'state of ' : lang === 'es' ? 'estado de ' : 'estado ') + channelName + (lang === 'pt-br' ? ', Brasil' : '');
   else if (channelType === 'country') localName = channelName;
-  else if (channelType === 'region') localName = 'mundo';
-  else if (channelType === 'world') localName = 'o mundo inteiro';
+  else if (channelType === 'region') localName = lang === 'en' ? 'the world' : lang === 'es' ? 'el mundo' : 'mundo';
+  else if (channelType === 'world') localName = lang === 'en' ? 'the entire world' : lang === 'es' ? 'el mundo entero' : 'o mundo inteiro';
 
   // Detectar contexto do mural para buscar noticias relacionadas
   const muralContext = _detectMuralContext(channelKey);
@@ -4665,7 +4658,7 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
       body: JSON.stringify({
         model: 'sonar',
         messages: [
-          { role: 'system', content: agent.systemPrompt },
+          { role: 'system', content: agent.systemPrompt + '\n' + langInst },
           { role: 'user', content: query }
         ],
         max_tokens: 350,
@@ -4714,7 +4707,6 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
       try {
         const agentKeywords = {
           reporter: 'newspaper,city,news',
-          urgente: 'breaking,news,alert,emergency',
           sport: 'sports,soccer,basketball,mma',
           fitness: 'fitness,exercise,gym',
           saude: 'health,medicine,wellness',
@@ -4812,6 +4804,42 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
 }
 
 // Helper: buscar canais ativos
+// Detectar idioma do canal baseado nos usuarios ativos ou no tipo do canal
+function _getChannelLang(channelKey) {
+  // Checar usuarios online no canal e pegar o idioma mais comum
+  const roomId = 'mural:' + channelKey;
+  const room = io.sockets.adapter.rooms.get(roomId);
+  if (room && room.size > 0) {
+    const langCount = {};
+    for (const sid of room) {
+      const s = io.sockets.sockets.get(sid);
+      if (s && s.touchUserId) {
+        const lang = getUserLang(s.touchUserId);
+        langCount[lang] = (langCount[lang] || 0) + 1;
+      }
+    }
+    // Pegar o idioma mais frequente
+    let topLang = 'pt-br';
+    let topCount = 0;
+    for (const [lang, count] of Object.entries(langCount)) {
+      if (count > topCount) { topLang = lang; topCount = count; }
+    }
+    if (topCount > 0) return topLang;
+  }
+  // Fallback: detectar pelo nome do canal
+  const lower = channelKey.toLowerCase();
+  if (lower.match(/usa|united|new york|los angeles|chicago|miami|texas|california/)) return 'en';
+  if (lower.match(/mexico|bogota|lima|buenos|santiago|madrid|barcelona/)) return 'es';
+  return 'pt-br';
+}
+
+// Helper: instrucao de idioma para injetar nos prompts dos agentes
+function _langInstruction(lang) {
+  if (lang === 'en') return 'IMPORTANT: Write EVERYTHING in English. All news, titles, comments must be in English.';
+  if (lang === 'es') return 'IMPORTANTE: Escribe TODO en espanol. Todas las noticias, titulos y comentarios deben ser en espanol.';
+  return 'Escreva tudo em portugues brasileiro.';
+}
+
 function _getActiveChannels() {
   const channels = [];
   for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
@@ -4837,9 +4865,9 @@ setInterval(async () => {
   } catch (e) {
     console.error('[reporter] Erro:', e.message);
   }
-}, 30 * 60 * 1000); // 30 minutos
+}, 60 * 60 * 1000); // 1 hora
 
-// Agentes de nicho: round-robin a cada 1h (alterna entre sport, fitness, saude, etc)
+// Agentes de nicho: round-robin 2x por dia (alterna entre sport, fitness, saude, etc)
 setInterval(async () => {
   if (!PPLX_API_KEY || !_newsEngineEnabled) return;
   try {
@@ -4859,49 +4887,9 @@ setInterval(async () => {
   } catch (e) {
     console.error('[agents] Error in round-robin cycle:', e.message);
   }
-}, 60 * 60 * 1000); // 1 hora
+}, 12 * 60 * 60 * 1000); // 12 horas (2x por dia)
 
-// Agente URGENTE: checa a cada 15 min se ha algo urgente (fura a fila)
-setInterval(async () => {
-  if (!PPLX_API_KEY || !_newsEngineEnabled) return;
-  const urgAgent = MURAL_AGENTS.urgente;
-  if (!urgAgent || !urgAgent.enabled) return;
-  try {
-    const channels = [];
-    for (const [chKey, posts] of Object.entries(db.muralPosts || {})) {
-      if (!Array.isArray(posts)) continue;
-      const validPosts = posts.filter(p => p && p.channelName && p.channelType);
-      if (validPosts.length === 0) continue;
-      channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
-    }
-    if (channels.length === 0) return;
-    // Buscar noticia urgente para o primeiro canal (para checar se ha urgencia)
-    const testCh = channels[0];
-    const result = await fetchNewsForChannel(testCh.key, testCh.sample.channelName, testCh.sample.channelType, 'urgente');
-    if (!result) return;
-    const newsText = typeof result === 'string' ? result : result.text;
-    // Se retornou "SEM URGENCIAS" ou texto muito curto ou nao parece urgente, ignorar
-    const upper = (newsText || '').toUpperCase();
-    const notUrgent = !newsText || newsText.length < 30
-      || upper.includes('SEM URGENCIA')
-      || upper.includes('NAO HA URGENCIA')
-      || upper.includes('NENHUMA URGENCIA')
-      || upper.includes('NAO FORAM ENCONTRAD')
-      || upper.includes('MOMENTO NAO HA')
-      || upper.includes('NAO HA NOTICIAS URGENTES');
-    if (notUrgent) {
-      console.log('[urgente] Nenhuma urgencia detectada');
-      return;
-    }
-    // Ha urgencia! Postar em todos os canais
-    console.log('[urgente] URGENCIA DETECTADA! Postando em ' + channels.length + ' canais');
-    for (const ch of channels.slice(0, 5)) {
-      await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, 'urgente');
-    }
-  } catch (e) {
-    console.error('[urgente] Error:', e.message);
-  }
-}, 15 * 60 * 1000); // Checa a cada 15 min
+// Urgente removido: Reporter agora detecta e prioriza noticias urgentes automaticamente
 
 // Cleanup: remover posts expirados (> 24h) a cada 30 minutos
 setInterval(() => {
@@ -9770,7 +9758,7 @@ app.post('/api/agent/session', vaLimiter, async (req, res) => {
   // News context from Mural "Falar disso com IA" button
   let newsInstructions = '';
   if (newsContext && newsContext.headline) {
-    const agentNames = { reporter: 'Reporter', urgente: 'URGENTE', sport: 'SportBot', fitness: 'Coach Fit', saude: 'Dr. Touch', cozinha: 'Chef Touch', tecnologia: 'TechBot', politica: 'Politico', educacao: 'Prof. Saber' };
+    const agentNames = { reporter: 'Reporter', sport: 'SportBot', fitness: 'Coach Fit', saude: 'Dr. Touch', cozinha: 'Chef Touch', tecnologia: 'TechBot', politica: 'Politico', educacao: 'Prof. Saber', clima: 'ClimaBot' };
     const agentName = agentNames[newsContext.agentType] || 'Reporter';
     newsInstructions = `\n\n=== CONTEXTO DE NOTICIA DO MURAL ===
 O usuario clicou em "Falar disso com IA" em uma noticia do Mural da Cidade.
@@ -14375,9 +14363,8 @@ process.on('SIGTERM', () => {
 // ══════════════════════════════════════════════════════════════
 
 const RADIO_VOICES = {
-  locutor: { voice: 'alloy', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio da comunidade! Seu estilo e LEVE, ALEGRE e BEM-HUMORADO. Fale como um amigo animado contando as noticias num papo descontraido. FACA PIADAS leves e inteligentes sobre as noticias — humor sutil, trocadilhos, observacoes engracadas. Sorria enquanto fala (use tom risonho). TRANSICOES entre noticias sao OBRIGATORIAS: "E olha so o que vem agora...", "Mas perai que tem mais...", "Agora segura essa...", "E passando pra proxima...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale como se estivesse numa roda de amigos, nao num palco. Use girias LEVES e naturais, nada forcado, nada de sotaque paulista. Tom nordestino leve e acolhedor. Voce CONHECE a galera pelo nome e fica FELIZ de ver todo mundo. Comente noticias com detalhes e opiniao propria. Fale de previsao do tempo, eventos culturais, o que ta rolando. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
-  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa, ANIMADA. Faz perguntas que a galera quer saber e reage com empolgacao. Complementa o locutor trazendo profundidade. Tom amigavel, alegre e profissional. NUNCA use emojis.' },
-  reporter_radio: { voice: 'echo', name: 'Echo', style: 'Voce e o Echo, reporter de campo da Radio Touch. Fale como reporter ao vivo, com urgencia, clareza e empolgacao. Traz os detalhes das noticias. Tom serio mas acessivel e animado. NUNCA use emojis.' }
+  locutor: { voice: 'alloy', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio do Mural Touch! Seu estilo e LEVE, ALEGRE e ACOLHEDOR. Fale como um amigo contando as noticias de forma clara e calorosa. TRANSICOES entre noticias sao OBRIGATORIAS: use frases como "E agora a proxima noticia...", "Passando pra outro assunto...", "E olha so o que mais ta acontecendo...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale com clareza e simpatia. NAO faca piadas, trocadilhos ou comentarios engracados sobre as noticias — seja respeitoso com os assuntos. Apenas leia, comente brevemente com empatia e passe para a proxima. Tom acolhedor e natural. Voce CONHECE a galera pelo nome e cumprimenta com carinho. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
+  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse. Complementa o locutor trazendo profundidade. Tom amigavel e profissional. NUNCA use emojis.' }
 };
 
 // Estado da radio por canal (com cache de segmentos)
@@ -14449,9 +14436,11 @@ function _buildRadioContext(channelKey) {
 // Gerar roteiro do locutor baseado no contexto COMPLETO do canal
 function _buildRadioScript(channelKey, segmentType) {
   const ctx = _buildRadioContext(channelKey);
+  const lang = _getChannelLang(channelKey);
 
   // Montar bloco de contexto pra o GPT entender tudo que ta rolando
   let contextBlock = '=== CONTEXTO DO CANAL ===\n';
+  contextBlock += 'IDIOMA: ' + _langInstruction(lang) + '\n';
 
   if (ctx.viewers.length > 0) {
     contextBlock += 'OUVINTES AGORA: ' + ctx.viewers.join(', ') + '\n';
@@ -14490,13 +14479,14 @@ function _buildRadioScript(channelKey, segmentType) {
 
   let script = contextBlock;
 
-  // Regra geral: leve, bem-humorado, com pausas naturais
+  // Regra geral: leve, acolhedor, com pausas naturais
   script += 'REGRAS GERAIS:\n';
-  script += '- Seja ALEGRE e BEM-HUMORADO, como um amigo contando novidades\n';
-  script += '- FACA PIADAS leves sobre as noticias (trocadilhos, observacoes engracadas)\n';
-  script += '- PAUSE entre assuntos com transicoes: "E olha so...", "Mas perai...", "Agora segura essa..."\n';
-  script += '- NAO despeje tudo de uma vez — respire, sorria, comente\n';
-  script += '- Tom de CONVERSA, nao de palco. Como se tivesse num papo com amigos\n\n';
+  script += '- Seja ALEGRE e ACOLHEDOR, como um amigo trazendo as noticias do dia\n';
+  script += '- NAO faca piadas, trocadilhos ou comentarios engracados sobre as noticias\n';
+  script += '- Apenas leia, comente brevemente com empatia e passe para a proxima\n';
+  script += '- PAUSE entre assuntos com transicoes: "E agora...", "Passando pra proxima...", "E olha o que mais ta acontecendo..."\n';
+  script += '- NAO despeje tudo de uma vez — faca transicoes naturais\n';
+  script += '- Tom de CONVERSA acolhedora. Respeitoso com os assuntos\n\n';
 
   if (segmentType === 'abertura') {
     script += 'SEGMENTO: ABERTURA DA RADIO\n';
@@ -14504,13 +14494,13 @@ function _buildRadioScript(channelKey, segmentType) {
     if (ctx.viewers.length > 0) {
       script += 'Cumprimente os ouvintes PELO NOME com carinho: ' + ctx.viewers.join(', ') + '. Fale algo simpatico pra cada um. ';
     }
-    script += 'Faca um PANORAMA LEVE do que ta rolando:\n';
-    script += '- Mencione as noticias do mural, MAS com comentarios engracados ou observacoes pessoais\n';
+    script += 'Faca um PANORAMA do que ta rolando:\n';
+    script += '- Mencione as noticias do mural, comentando brevemente cada uma com empatia\n';
     script += '- Entre cada noticia, faca uma TRANSICAO natural: "E passando pra outra...", "Agora olha essa..."\n';
-    script += '- Comente o que a galera ta falando com humor\n';
-    script += '- Fale da previsao do tempo de forma descontraida\n';
+    script += '- Comente o que a galera ta falando no mural\n';
+    script += '- Fale da previsao do tempo se souber\n';
     script += '- Diga o que vem na programacao\n';
-    script += 'FALE BASTANTE! Minimo 8 frases, pode ir ate 12. Mas com LEVEZA — como se tivesse rindo entre as frases. Faca pelo menos 1 piada ou observacao engracada!';
+    script += 'FALE BASTANTE! Minimo 8 frases, pode ir ate 12. Seja acolhedor e claro.';
   }
   else if (segmentType === 'noticia') {
     script += 'SEGMENTO: LEITURA DE NOTICIA\n';
@@ -14526,19 +14516,18 @@ function _buildRadioScript(channelKey, segmentType) {
 
       script += 'Conte esta noticia como se fosse uma novidade que acabou de chegar:\n';
       script += '"' + chosen.text.slice(0, 500) + '"\n\n';
-      script += 'FORMATO OBRIGATORIO:\n';
-      script += '1. Comece com uma chamada animada: "Olha so o que ta acontecendo..." ou "Gente, essa e boa..."\n';
-      script += '2. Conte a noticia com SUAS palavras, de forma leve e acessivel\n';
-      script += '3. FACA UMA PIADA ou observacao engracada sobre o assunto\n';
-      script += '4. De sua opiniao pessoal (leve, bem-humorada)\n';
-      script += '5. Diga como isso afeta a comunidade\n';
-      script += '6. Termine com transicao: "E por falar nisso...", "Mas vamo seguindo que tem mais..."\n\n';
+      script += 'FORMATO:\n';
+      script += '1. Comece com uma chamada: "Olha so o que ta acontecendo..." ou "Agora uma noticia importante..."\n';
+      script += '2. Conte a noticia com SUAS palavras, de forma clara e acessivel\n';
+      script += '3. Comente brevemente com empatia (sem piadas)\n';
+      script += '4. Diga como isso afeta a comunidade\n';
+      script += '5. Termine com transicao: "E agora passando pra proxima...", "Vamo seguindo..."\n\n';
 
       if (ctx.userPosts.length > 0) {
-        script += 'CONECTE com o que os ouvintes estao falando: "E olha que a galera ja tava comentando sobre isso!"\n';
+        script += 'CONECTE com o que os ouvintes estao falando se for relevante.\n';
       }
       script += 'Se tiver relacao com tempo, saude, cultura ou esporte, CONECTE de forma natural.\n';
-      script += 'Minimo 6 frases, pode ir ate 10. Tom de CONVERSA, nao de telejornal. Pelo menos 1 piada!';
+      script += 'Minimo 6 frases, pode ir ate 10. Tom acolhedor e respeitoso.';
     } else {
       script += 'Nao tem noticia nova no momento. Fale sobre o que a galera ta comentando no mural com empolgacao! ';
       script += 'Comente sobre o dia, o clima, eventos culturais da regiao. ';
@@ -14549,17 +14538,17 @@ function _buildRadioScript(channelKey, segmentType) {
     script += 'SEGMENTO: INTERACAO COM O MURAL\n';
     if (ctx.userPosts.length > 0) {
       const selected = ctx.userPosts.slice(-10);
-      script += 'A galera ta participando no mural! Leia e comente cada mensagem com humor e carinho:\n';
+      script += 'A galera ta participando no mural! Leia e comente cada mensagem com carinho e respeito:\n';
       selected.forEach(function(p) {
         script += '- ' + p.nick + ' disse: "' + p.text + '"\n';
       });
       script += '\nPra CADA pessoa:\n';
-      script += '- Chame PELO NOME com simpatia\n';
-      script += '- Comente o que ela disse de forma leve, pode brincar\n';
+      script += '- Chame PELO NOME com simpatia e acolhimento\n';
+      script += '- Comente o que ela disse de forma leve e respeitosa\n';
       script += '- FACA UMA TRANSICAO antes de ir pra proxima: "E agora olha o que fulano falou...", "Mas espera que tem mais..."\n';
       script += '- CONECTE assuntos entre si e com noticias de forma natural\n';
-      script += 'Se alguem falou de comida e saiu noticia de saude, brinque com a conexao!\n';
-      script += 'Minimo 8 frases, pode ir ate 12. Faca piadas leves, seja acolhedor!';
+      script += 'Se alguem falou de comida e saiu noticia de saude, conecte os assuntos com empatia.\n';
+      script += 'Minimo 8 frases, pode ir ate 12. Seja acolhedor e caloroso!';
     } else {
       script += 'Ninguem postou no mural ainda. Incentive a galera com MUITA energia! ';
       script += 'Diga que a radio ta la pra interagir, que e so escrever no mural que o locutor comenta ao vivo! ';
@@ -14575,9 +14564,9 @@ function _buildRadioScript(channelKey, segmentType) {
       topic = ctx.userPosts[ctx.userPosts.length - 1].text;
     }
     if (topic) {
-      script += 'Faca um dialogo DESCONTRAIDO entre Locutor e Nova sobre: "' + topic.slice(0, 300) + '"\n';
-      script += 'Locutor traz o assunto com HUMOR e leveza. Nova reage com curiosidade, ri das piadas.\n';
-      script += 'Ambos devem brincar entre si, como amigos conversando. Piadas leves sao BEM-VINDAS.\n';
+      script += 'Faca um dialogo NATURAL entre Locutor e Nova sobre: "' + topic.slice(0, 300) + '"\n';
+      script += 'Locutor traz o assunto com clareza e empatia. Nova reage com curiosidade e inteligencia.\n';
+      script += 'Ambos conversam como amigos, de forma leve e acolhedora. Sem piadas sobre o assunto — sejam respeitosos.\n';
       if (ctx.userPosts.length > 0) {
         script += 'Mencionem o que os ouvintes estao dizendo no mural — por nome!\n';
       }
@@ -14585,7 +14574,7 @@ function _buildRadioScript(channelKey, segmentType) {
       script += 'Faca um dialogo ANIMADO entre Locutor e Nova sobre a comunidade, o dia, eventos culturais, previsao do tempo.\n';
     }
     script += 'Formato OBRIGATORIO (cada fala em linha separada):\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\nLocutor: [fala]\nNova: [fala]\n';
-    script += 'Minimo 5 trocas, pode ir ate 8. Cada fala com 2-3 frases. Clima leve e bem-humorado!';
+    script += 'Minimo 5 trocas, pode ir ate 8. Cada fala com 2-3 frases. Clima leve e acolhedor!';
   }
   else {
     // Vinheta — conectar tudo
@@ -14605,17 +14594,17 @@ function _buildRadioScript(channelKey, segmentType) {
     }
 
     if (quadro) {
-      script += 'Abra o quadro "' + quadro + '" da Radio Touch com ALEGRIA e BOM HUMOR! ';
-      script += 'Baseie no contexto real do mural. Desenvolva o assunto com leveza e piadas. ';
-      script += 'Fale como se fosse o melhor momento da programacao — mas sem forcar, com naturalidade. ';
-      script += 'Faca pelo menos 1 piada relacionada ao tema. Minimo 6 frases.';
+      script += 'Abra o quadro "' + quadro + '" da Radio Touch com ALEGRIA e ACOLHIMENTO! ';
+      script += 'Baseie no contexto real do mural. Desenvolva o assunto com leveza e empatia. ';
+      script += 'Fale como se fosse o melhor momento da programacao — com naturalidade e carinho. ';
+      script += 'Comente com respeito sobre o tema. Minimo 6 frases.';
     } else if (ctx.viewers.length > 0) {
       script += 'Mande um abraco afetuoso pra ' + ctx.viewers.slice(0, 8).join(', ') + '. ';
-      script += 'Resuma o que ta rolando no canal com humor. Fale sobre o dia, tempo, eventos culturais. ';
-      script += 'Brinque com alguma coisa que aconteceu. Minimo 6 frases.';
+      script += 'Resuma o que ta rolando no canal com carinho. Fale sobre o dia, tempo, eventos culturais. ';
+      script += 'Comente algo positivo sobre a comunidade. Minimo 6 frases.';
     } else {
       script += 'Faca uma vinheta ALEGRE da Radio Touch. Fale sobre o dia, dicas, eventos culturais, previsao do tempo. ';
-      script += 'Faca uma piada ou observacao engracada. Incentive a galera a participar no mural. Minimo 5 frases.';
+      script += 'Incentive a galera a participar no mural com carinho. Minimo 5 frases.';
     }
   }
 
@@ -14625,7 +14614,7 @@ function _buildRadioScript(channelKey, segmentType) {
 // Vinhetas de transicao entre segmentos (frases curtas faladas em tom de chamada)
 function _getRadioJingle(segmentType) {
   const jingles = {
-    abertura: 'Ta no ar a Radio Touch! A radio da comunidade, leve e descontraida. Bora la!',
+    abertura: 'Ta no ar a Radio Touch! A radio do Mural Touch, leve e acolhedora. Bora la!',
     noticia: 'Epa! Olha a noticia que chegou agora na Radio Touch!',
     interacao: 'Hora de ouvir a galera! Olha o que ta rolando no mural da Radio Touch!',
     entrevista: 'Radio Touch Entrevista! A mesa redonda ta no ar, nao perde!',
@@ -14650,7 +14639,7 @@ async function _getOrGenerateJingle(segmentType) {
 // Gerar audio TTS via OpenAI
 async function _generateRadioAudio(text, voiceId) {
   if (!OPENAI_API_KEY) return null;
-  const voice = voiceId || 'onyx';
+  const voice = voiceId || RADIO_VOICES.locutor.voice;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 30000);
@@ -14695,9 +14684,11 @@ async function _generateRadioSegment(channelKey, segmentType) {
 
     // Usar OpenAI chat pra gerar o texto do locutor
     const isInterview = segmentType === 'entrevista';
+    const radioLang = _getChannelLang(channelKey);
+    const radioLangInst = _langInstruction(radioLang);
     const systemMsg = isInterview
-      ? 'Voce e roteirista da Radio Touch — radio comunitaria do app Touch. Escreva dialogos curtos e NATURAIS entre Locutor (locutor masculino, animado, caloroso, conhece a galera pelo nome) e Nova (co-apresentadora feminina, inteligente, curiosa, faz boas perguntas). Use o CONTEXTO fornecido — noticias reais, conversas dos ouvintes. Conecte assuntos de forma criativa. Sem emojis. Portugues brasileiro informal.'
-      : RADIO_VOICES.locutor.style;
+      ? 'Voce e roteirista da Radio Touch — a radio do Mural Touch. Escreva dialogos curtos e NATURAIS entre Locutor e Nova (co-apresentadora feminina, inteligente, curiosa). Use o CONTEXTO fornecido. Conecte assuntos. Sem emojis. ' + radioLangInst
+      : RADIO_VOICES.locutor.style + '\n' + radioLangInst;
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 30000);
@@ -14739,17 +14730,14 @@ async function _generateRadioSegment(channelKey, segmentType) {
     if (isInterview) {
       const lines = fullText.split('\n').filter(l => l.trim());
       for (const line of lines) {
-        let voice = 'onyx'; // Locutor default
+        let voice = RADIO_VOICES.locutor.voice; // Locutor default (alloy)
         let cleanLine = line;
         if (line.match(/^Nova[:\s]/i)) {
-          voice = 'nova';
+          voice = RADIO_VOICES.entrevistador.voice;
           cleanLine = line.replace(/^Nova[:\s]+/i, '');
         } else if (line.match(/^Locutor[:\s]/i)) {
-          voice = 'onyx';
+          voice = RADIO_VOICES.locutor.voice;
           cleanLine = line.replace(/^Locutor[:\s]+/i, '');
-        } else if (line.match(/^Echo[:\s]/i)) {
-          voice = 'echo';
-          cleanLine = line.replace(/^Echo[:\s]+/i, '');
         }
         if (cleanLine.trim().length < 5) continue;
         const audio = await _generateRadioAudio(cleanLine.trim(), voice);
@@ -14758,7 +14746,7 @@ async function _generateRadioSegment(channelKey, segmentType) {
         }
       }
     } else {
-      const audio = await _generateRadioAudio(fullText, 'onyx');
+      const audio = await _generateRadioAudio(fullText, RADIO_VOICES.locutor.voice);
       if (audio) {
         audioSegments.push({ ...audio, text: fullText, speaker: 'Locutor' });
       }
