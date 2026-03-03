@@ -8925,7 +8925,7 @@ function _muralAgentSvg(agentType, size) {
       + '<path d="M11 29a13 13 0 010-18" stroke="#ffcdd2" stroke-width="1.5" fill="none" stroke-linecap="round"/>'
       + '</svg>';
   }
-  var hasImage = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(agentType) !== -1;
+  var hasImage = ['reporter','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(agentType) !== -1;
   if (hasImage) {
     return '<img src="/img/agents/' + agentType + '.png" width="' + size + '" height="' + size + '" style="border-radius:50%;object-fit:cover" alt="' + agentType + '"/>';
   }
@@ -9145,13 +9145,13 @@ function talkAboutNews(postId) {
 var _newsChatState = { active: false, history: [], ttsEnabled: true, sending: false };
 
 var _ncAgentNicks = {
-  'reporter': 'Reporter', 'urgente': 'URGENTE', 'sport': 'SportBot',
+  'reporter': 'Reporter', 'sport': 'SportBot',
   'fitness': 'Coach Fit', 'saude': 'Dr. Touch', 'cozinha': 'Chef Touch',
   'tecnologia': 'TechBot', 'politica': 'Politico', 'educacao': 'Prof. Saber',
   'clima': 'ClimaBot'
 };
 var _ncAgentColors = {
-  'reporter': '#e65100', 'urgente': '#d50000', 'sport': '#1565c0',
+  'reporter': '#e65100', 'sport': '#1565c0',
   'fitness': '#2e7d32', 'saude': '#00897b', 'cozinha': '#d84315',
   'tecnologia': '#6a1b9a', 'politica': '#37474f', 'educacao': '#f57f17',
   'clima': '#1976d2'
@@ -9161,7 +9161,7 @@ function openNewsChat(postId, headline, fullText, agentType, agentNick) {
   if (_newsChatState.active) return;
   var color = _ncAgentColors[agentType] || '#e65100';
   var nick = _ncAgentNicks[agentType] || agentNick || 'Agente';
-  var imgSrc = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(agentType) !== -1
+  var imgSrc = ['reporter','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(agentType) !== -1
     ? '/img/agents/' + agentType + '.png' : '';
 
   _newsChatState = {
@@ -9258,7 +9258,7 @@ function _ncAddMsg(sender, text, isAI, citations) {
   if (!box) return;
   var color = isAI ? (_ncAgentColors[_newsChatState.agentType] || '#e65100') : '#2563eb';
   var align = isAI ? 'flex-start' : 'flex-end';
-  var imgSrc = isAI && ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(_newsChatState.agentType) !== -1
+  var imgSrc = isAI && ['reporter','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'].indexOf(_newsChatState.agentType) !== -1
     ? '/img/agents/' + _newsChatState.agentType + '.png' : '';
   var avatarHtml = isAI && imgSrc ? '<img src="' + imgSrc + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:2px"/>' : '';
 
@@ -9348,7 +9348,7 @@ function _buildMuralMsgHtml(p) {
   var fadeStyle = '';
   var isNews = p.isNews || false;
   var isRadio = p.isRadio || false;
-  var isUrgent = isNews && p.agentType === 'urgente';
+  var isUrgent = isNews && (p.text || '').toUpperCase().indexOf('URGENTE:') === 0;
   var isRegularPost = !p.isNarrator && !isNews && !isRadio;
   var typeClass = p.isNarrator ? ' narrator' : (isRadio ? ' radio' : (isNews ? ' news' + (isUrgent ? ' urgent' : '') : (isRegularPost ? ' user-post' : '')));
   var likeCount = (p.likes || []).length;
@@ -10117,7 +10117,7 @@ async function triggerMuralNews() {
     var r = await apiFetch('/api/mural/agents/config');
     var d = await r.json();
     var agents = d.agents || {};
-    var agentImgs = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'];
+    var agentImgs = ['reporter','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'];
     var overlay = document.createElement('div');
     overlay.className = 'mural-topics-overlay';
     var sheet = '<div class="mural-topics-sheet">';
@@ -10182,7 +10182,7 @@ async function openAgentPanel() {
     sheet += '<div style="font-size:.85rem;font-weight:700;color:#f0f0ff;text-align:center;margin-bottom:.8rem">Agentes de Noticias</div>';
     // Cards grid 3x3
     sheet += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem">';
-    var agentImgs = ['reporter','urgente','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'];
+    var agentImgs = ['reporter','sport','fitness','saude','cozinha','tecnologia','politica','educacao','clima'];
     for (var id in agents) {
       var ag = agents[id];
       var hasImg = agentImgs.indexOf(id) !== -1;
