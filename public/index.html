@@ -3316,7 +3316,7 @@ async function linkFirebaseToEncosta(user){
     const d=await r.json();
     if(d.matchedBy&&d.matchedBy!=='firebaseUid'&&d.linked){
       console.log('[auth] Account unified by:',d.matchedBy);
-      showToast('Conta encontrada! Conectamos ao seu perfil existente.');
+      showToast(t('auth.account_found'));
     }
     if(d.userId){
       state.userId=d.userId;
@@ -3390,7 +3390,7 @@ async function loginWithGoogle(){
   }catch(e){
     if(e.code==='auth/popup-blocked'){
       // Fallback to redirect
-      try{await firebaseAuthInstance.signInWithRedirect(new firebase.auth.GoogleAuthProvider())}catch(e2){$('loginErr').textContent='Erro ao abrir Google. Tente novamente.'}
+      try{await firebaseAuthInstance.signInWithRedirect(new firebase.auth.GoogleAuthProvider())}catch(e2){$('loginErr').textContent=t('auth.login_error_google')}
     }else if(e.code!=='auth/popup-closed-by-user'){
       $('loginErr').textContent='Erro: '+(e.message||'tente novamente');
     }
@@ -3405,7 +3405,7 @@ async function loginWithApple(){
     $('loginErr').textContent='';
     if(btn){btn.textContent='Conectando...';btn.disabled=true;}
     if(!firebaseAuthInstance){
-      $('loginErr').textContent='Firebase não carregou. Recarregue a página.';
+      $('loginErr').textContent=t('auth.firebase_not_loaded');
       return;
     }
     const provider=new firebase.auth.OAuthProvider('apple.com');
@@ -3422,11 +3422,11 @@ async function loginWithApple(){
         const provider=new firebase.auth.OAuthProvider('apple.com');
         provider.addScope('email');provider.addScope('name');
         await firebaseAuthInstance.signInWithRedirect(provider);
-      }catch(e2){$('loginErr').textContent='Erro ao abrir Apple. Tente novamente.';}
+      }catch(e2){$('loginErr').textContent=t('auth.login_error_apple');}
     }else if(e.code==='auth/operation-not-allowed'){
-      $('loginErr').textContent='Login com Apple não está ativado. Ative no Firebase Console > Authentication > Sign-in method > Apple.';
+      $('loginErr').textContent=t('auth.login_error_apple_not_enabled');
     }else if(e.code==='auth/internal-error'){
-      $('loginErr').textContent='Apple Sign-In não configurado. Configure no Firebase Console.';
+      $('loginErr').textContent=t('auth.login_error_apple_internal');
     }else if(e.code!=='auth/popup-closed-by-user'){
       $('loginErr').textContent='Erro Apple: '+(e.message||'tente novamente');
     }
@@ -3468,14 +3468,14 @@ function setupRecaptcha(){
       size:'normal',
       callback:()=>{console.log('[phone] reCAPTCHA solved')},
       'expired-callback':()=>{
-        $('phoneErr').textContent='reCAPTCHA expirou. Recarregue.';
+        $('phoneErr').textContent=t('auth.recaptcha_expired');
         _recaptchaVerifier=null;
       }
     });
     _recaptchaVerifier.render().then(widgetId=>{_recaptchaWidgetId=widgetId});
   }catch(e){
     console.error('reCAPTCHA setup err:',e);
-    $('phoneErr').textContent='Erro ao configurar verificação. Recarregue a página.';
+    $('phoneErr').textContent=t('auth.recaptcha_setup_error');
   }
 }
 
@@ -3483,14 +3483,14 @@ async function sendSmsCode(){
   const country=$('phoneCountry').value;
   let phone=$('phoneNumber').value.replace(/\D/g,'');
   $('phoneErr').textContent='';
-  if(!phone||phone.length<8)return $('phoneErr').textContent='Digite um número de telefone válido.';
+  if(!phone||phone.length<8)return $('phoneErr').textContent=t('auth.phone_error_invalid');
   const fullPhone=country+phone;
   if(!_recaptchaVerifier){
     setupRecaptcha();
-    return $('phoneErr').textContent='Resolva o reCAPTCHA primeiro.';
+    return $('phoneErr').textContent=t('auth.phone_error_recaptcha_required');
   }
   try{
-    $('phoneSendBtn').textContent='Enviando...';$('phoneSendBtn').disabled=true;
+    $('phoneSendBtn').textContent=t('auth.sending');$('phoneSendBtn').disabled=true;
     _phoneConfirmation=await firebaseAuthInstance.signInWithPhoneNumber(fullPhone,_recaptchaVerifier);
     // Show code input
     $('smsCodeWrap').style.display='block';
@@ -3499,7 +3499,7 @@ async function sendSmsCode(){
     $('smsCode').value='';
     $('smsCode').focus();
   }catch(e){
-    $('phoneSendBtn').textContent='Enviar código SMS';$('phoneSendBtn').disabled=false;
+    $('phoneSendBtn').textContent=t('auth.sms_code_sent');$('phoneSendBtn').disabled=false;
     const msgs={
       'auth/invalid-phone-number':'Número de telefone inválido.',
       'auth/too-many-requests':'Muitas tentativas. Aguarde antes de tentar novamente.',
@@ -3519,8 +3519,8 @@ async function sendSmsCode(){
 async function verifySmsCode(){
   const code=$('smsCode').value.trim();
   $('phoneErr').textContent='';
-  if(!code||code.length<6)return $('phoneErr').textContent='Digite o código de 6 dígitos.';
-  if(!_phoneConfirmation)return $('phoneErr').textContent='Envie o SMS primeiro.';
+  if(!code||code.length<6)return $('phoneErr').textContent=t('auth.phone_error_code_required');
+  if(!_phoneConfirmation)return $('phoneErr').textContent=t('auth.phone_error_send_sms_first');
   try{
     await _phoneConfirmation.confirm(code);
     // onAuthStateChanged will handle the rest (link to ENCOSTA)
@@ -3552,10 +3552,10 @@ async function loginWithEmail(){
   const email=$('loginEmail').value.trim().toLowerCase();
   const pass=$('loginPass').value;
   $('loginErr').textContent='';$('loginErr').style.color='var(--err)';
-  if(!email)return $('loginErr').textContent='Preencha seu e-mail.';
-  if(!pass)return $('loginErr').textContent='Preencha sua senha.';
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('loginErr').textContent='Formato de e-mail inválido.';
-  const btn=$('loginBtn');if(btn){btn.textContent='Entrando...';btn.disabled=true;}
+  if(!email)return $('loginErr').textContent=t('auth.login_error_email_required');
+  if(!pass)return $('loginErr').textContent=t('auth.login_error_password_required');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('loginErr').textContent=t('auth.login_error_invalid_email');
+  const btn=$('loginBtn');if(btn){btn.textContent=t('auth.entering');btn.disabled=true;}
   try{
     await firebaseAuthInstance.signInWithEmailAndPassword(email,pass);
   }catch(e){
@@ -3573,7 +3573,7 @@ async function loginWithEmail(){
     };
     $('loginErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
   }finally{
-    if(btn){btn.textContent='ENTRAR';btn.disabled=false;}
+    if(btn){btn.textContent=t('auth.login_btn');btn.disabled=false;}
   }
 }
 
@@ -3582,14 +3582,14 @@ async function registerWithEmail(){
   const email=$('regEmail').value.trim().toLowerCase();
   const pass=$('regPass').value;
   $('regErr').textContent='';$('regErr').style.color='var(--err)';
-  if(!nick||nick.length<2)return $('regErr').textContent='Escolha um nickname (mín. 2 caracteres).';
-  if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return $('regErr').textContent='Nickname: só letras, números, _ . -';
-  if(!email)return $('regErr').textContent='Preencha seu e-mail.';
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('regErr').textContent='Formato de e-mail inválido. Ex: nome@email.com';
-  if(pass.length<6)return $('regErr').textContent='Senha precisa ter no mínimo 6 caracteres.';
-  if(!$('loginTermsCheck').checked)return $('regErr').textContent='Aceite os Termos de Uso para continuar.';
+  if(!nick||nick.length<2)return $('regErr').textContent=t('auth.nickname_too_short');
+  if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return $('regErr').textContent=t('auth.nickname_invalid');
+  if(!email)return $('regErr').textContent=t('auth.login_error_email_required');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('regErr').textContent=t('auth.email_invalid_ex');
+  if(pass.length<6)return $('regErr').textContent=t('auth.password_min_error');
+  if(!$('loginTermsCheck').checked)return $('regErr').textContent=t('auth.tos_required');
   window._pendingNickname=nick;
-  const btn=$('regBtn');if(btn){btn.textContent='CRIANDO CONTA...';btn.disabled=true;}
+  const btn=$('regBtn');if(btn){btn.textContent=t('auth.creating_account');btn.disabled=true;}
   try{
     const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
     if(cred.user){
@@ -3619,31 +3619,31 @@ async function registerWithEmail(){
     };
     $('regErr').textContent=msgs[e.code]||('Erro: '+(e.message||'tente novamente'));
   }finally{
-    if(btn){btn.textContent='CRIAR CONTA';btn.disabled=false;}
+    if(btn){btn.textContent=t('auth.register_btn');btn.disabled=false;}
   }
 }
 
 // ═══ EMAIL VERIFICATION ═══
 async function resendEmailVerification(){
-  if(!fbUser)return showToast('Faça login primeiro.');
+  if(!fbUser)return showToast(t('auth.login_required'));
   // Reload to get fresh emailVerified status
   try{await fbUser.reload();fbUser=firebaseAuthInstance.currentUser}catch(e){console.warn('API error [email-verify-reload]:', e.message||e)}
   if(fbUser.emailVerified){
-    showToast('Email já verificado! ✅');
+    showToast(t('auth.email_verified'));
     state.emailVerified=true;
-    const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent='✓ verificado';$('cpEmailStatus').style.color='#22c55e'}
+    const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent=t('profile.verified_label');$('cpEmailStatus').style.color='#22c55e'}
     return;
   }
   // Strategy: try Firebase client SDK first (most reliable — Firebase handles the sending)
   // If that fails, try server-side (nodemailer with custom SMTP)
   try{
     await fbUser.sendEmailVerification({url:window.location.origin,handleCodeInApp:false});
-    showToast('✉ Email de verificação enviado! Verifique spam.');
+    showToast(t('auth.email_verify_sent'));
     return;
   }catch(e1){
     console.warn('API error [firebase-sendEmailVerification]:', e1.message||e1);
     console.warn('[email-verify] Client SDK failed:',e1.code,e1.message);
-    if(e1.code==='auth/too-many-requests'){return showToast('⏳ Aguarde um pouco antes de reenviar.')}
+    if(e1.code==='auth/too-many-requests'){return showToast(t('auth.too_many_attempts'))}
   }
   // Fallback: server-side
   try{
@@ -3653,8 +3653,8 @@ async function resendEmailVerification(){
     });
     const d=await resp.json();
     if(d.error)throw new Error(d.error);
-    if(d.sent)showToast('✉ Email de verificação enviado!');
-    else if(d.useClientFallback)showToast('⚠️ Serviço de email indisponível. Tente novamente mais tarde.');
+    if(d.sent)showToast(t('auth.email_verify_sent_alt'));
+    else if(d.useClientFallback)showToast(t('auth.email_service_error'));
     else showToast('✉ Verificação enviada!');
   }catch(e2){
     console.warn('API error [auth/send-verification-fallback]:', e2.message||e2);
@@ -3676,8 +3676,8 @@ function startEmailVerificationPoll(){
       if(fbUser.emailVerified){
         state.emailVerified=true;
         clearInterval(_evPoll);
-        showToast('Email verificado com sucesso! ✅');
-        const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent='✓ verificado';$('cpEmailStatus').style.color='#22c55e'}
+        showToast(t('auth.email_verified'));
+        const c=$('cpEmailCard');if(c){c.classList.add('active');$('cpEmailStatus').textContent=t('profile.verified_label');$('cpEmailStatus').style.color='#22c55e'}
       }
     }catch(e){}
   },10000); // check every 10s
@@ -3702,7 +3702,7 @@ function hideMagicLogin(){
 async function sendMagicLink(){
   const email=$('magicEmail').value.trim();
   $('magicErr').textContent='';$('magicErr').style.color='#f87171';
-  if(!email)return $('magicErr').textContent='Digite seu email.';
+  if(!email)return $('magicErr').textContent=t('auth.email_required');
   try{
     // Try server-side first
     const resp=await fetch('/api/auth/send-magic-link',{
@@ -3718,7 +3718,7 @@ async function sendMagicLink(){
     }
     localStorage.setItem('touch_magicEmail',email);
     $('magicErr').style.color='var(--ok)';
-    $('magicErr').textContent='✉ Link enviado! Verifique seu email (inclusive spam).';
+    $('magicErr').textContent=t('auth.magic_link_sent');
   }catch(e){
     // Direct client-side attempt
     try{
@@ -3726,7 +3726,7 @@ async function sendMagicLink(){
       await firebaseAuthInstance.sendSignInLinkToEmail(email,actionCodeSettings);
       localStorage.setItem('touch_magicEmail',email);
       $('magicErr').style.color='var(--ok)';
-      $('magicErr').textContent='✉ Link enviado! Verifique seu email (inclusive spam).';
+      $('magicErr').textContent=t('auth.magic_link_sent');
     }catch(e2){
       const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não cadastrado.','auth/operation-not-allowed':'Login sem senha não está habilitado. Use email e senha.'};
       $('magicErr').textContent=msgs[e2.code]||('Erro: '+(e2.message||e.message||'tente novamente'));
@@ -3736,7 +3736,7 @@ async function sendMagicLink(){
 async function forgotPassword(){
   const email=$('loginEmail').value.trim();
   $('loginErr').style.color='var(--err)';
-  if(!email)return $('loginErr').textContent='Preencha o email acima primeiro.';
+  if(!email)return $('loginErr').textContent=t('auth.reset_email_required');
   try{
     // Try server-side first
     const resp=await fetch('/api/auth/send-password-reset',{
@@ -3750,13 +3750,13 @@ async function forgotPassword(){
       await firebaseAuthInstance.sendPasswordResetEmail(email);
     }
     $('loginErr').style.color='var(--ok)';
-    $('loginErr').textContent='✉ Email de recuperação enviado! Verifique sua caixa.';
+    $('loginErr').textContent=t('auth.reset_sent');
   }catch(e){
     // Direct client-side attempt
     try{
       await firebaseAuthInstance.sendPasswordResetEmail(email);
       $('loginErr').style.color='var(--ok)';
-      $('loginErr').textContent='✉ Email de recuperação enviado!';
+      $('loginErr').textContent=t('auth.reset_sent');
     }catch(e2){
       $('loginErr').style.color='#f87171';
       const msgs={'auth/invalid-email':'Email inválido.','auth/user-not-found':'Email não cadastrado.'};
@@ -3782,7 +3782,7 @@ async function forgotPassword(){
       console.error('Magic link login failed:',e);
       // Show error to user
       const errEl=$('loginErr')||$('magicErr');
-      if(errEl){errEl.style.color='#f87171';errEl.textContent='Link expirado ou inválido. Tente novamente.'}
+      if(errEl){errEl.style.color='#f87171';errEl.textContent=t('auth.link_expired')}
       window.history.replaceState(null,'',window.location.pathname);
     }
   }
@@ -3830,7 +3830,7 @@ async function doLogout(){
     var floatBtn=document.getElementById('floatingEventBtn');
     if(floatBtn)floatBtn.style.display='none';
     showScreen('login');
-  }catch(e){showToast('Erro ao sair.')}
+  }catch(e){showToast(t('profile.logout_error'))}
 }
 
 // ═══ ONBOARDING ═══
@@ -3850,7 +3850,7 @@ function nextOnbSlide() {
   if (onbSlide >= ONB_TOTAL) { skipOnboarding(); return; }
   $('onbSlides').style.transform = 'translateX(-' + (onbSlide * 100) + '%)';
   updateOnbDots();
-  if (onbSlide === ONB_TOTAL - 1) $('onbNextBtn').textContent = 'Começar';
+  if (onbSlide === ONB_TOTAL - 1) $('onbNextBtn').textContent = t('onboarding.start');
   // Retrigger animations for current slide
   const slides=document.querySelectorAll('.onb-slide');
   if(slides[onbSlide]){
@@ -3872,7 +3872,7 @@ function showManual(){
   onbSlide=0;
   initOnboarding();
   $('onbSlides').style.transform='translateX(0)';
-  $('onbNextBtn').textContent='Próximo';
+  $('onbNextBtn').textContent=t('onboarding.next');
   // Retrigger fade-in animations by resetting them
   document.querySelectorAll('.onb-icon,.onb-title,.onb-desc').forEach(el=>{
     el.style.animation='none';
@@ -3925,11 +3925,11 @@ function initSocket(){
     const txt=$('mainBtnText');
     if(reason==='self'){
       // Own frequency leaked through — show brief message then resume
-      if(sts)sts.textContent='Sinal próprio detectado. Continue encostando...';
+      if(sts)sts.textContent=t('home.own_signal');
     }else{
-      if(sts)sts.textContent='Ninguém encontrado ainda. Continue encostando...';
+      if(sts)sts.textContent=t('home.nobody_found');
     }
-    if(txt)txt.textContent='TOUCHING...';
+    if(txt)txt.textContent=t('home.touch_btn');
   });
 
   socket.on('sonic-retry',({reason})=>{
@@ -3937,7 +3937,7 @@ function initSocket(){
     // Re-enable detection so the phone keeps looking for the operator
     sonicActive=true;
     const sts=document.querySelector('.sonic-status');
-    if(sts)sts.textContent=reason||'Procurando operador...';
+    if(sts)sts.textContent=reason||t('home.searching');
   });
 
   socket.on('checkin-duplicate',d=>{
@@ -3963,7 +3963,7 @@ function initSocket(){
   });
   socket.on('driver-assigned',d=>{
     if(d.order){
-      showToast('Nova entrega!');
+      showToast(t('home.event_new_delivery'));
       haptic([100,50,100,50,100]);
       if($('driverView').style.display!=='none')renderDriverOrder(d.order);
       else{openDriverView();renderDriverOrder(d.order)}
@@ -3975,7 +3975,7 @@ function initSocket(){
   });
   socket.on('staff-connected',d=>{
     if(d.eventId&&d.staffId){
-      showToast('Conectado como '+(d.role==='driver'?'motorista':'garcom')+'!');
+      showToast('Conectado como '+(d.role==='driver'?t('service_provider.driver'):t('service_provider.waiter'))+'!');
       // Skip reveal screen — go directly to staff dashboard
       const co=$('connectingOverlay');
       if(co)co.classList.remove('active','first','renewed');
@@ -3986,7 +3986,7 @@ function initSocket(){
   socket.on('order-ready-for-waiter',d=>{
     if(d.order){
       const notif=document.createElement('div');notif.className='wv-notif';
-      notif.textContent='Pedido pronto! Mesa '+(d.order.table||'?');
+      notif.textContent=t('home.event_order_ready',{table:d.order.table||'?'});
       document.body.appendChild(notif);
       haptic([100,50,100]);
       setTimeout(()=>notif.remove(),4000);
@@ -3996,7 +3996,7 @@ function initSocket(){
   socket.on('staff-tables-updated',d=>{
     if(d.tables&&_waiterState.eventId){
       _waiterState.tables=d.tables;
-      $('wvRole').textContent=(_waiterState.role==='driver'?'Motorista':'Garcom')+' - '+_waiterState.tables.length+' mesas';
+      $('wvRole').textContent=(_waiterState.role==='driver'?t('service_provider.driver'):t('service_provider.waiter'))+' - '+_waiterState.tables.length+' '+t('common.people');
       renderWaiterTab();
     }
   });
@@ -4110,7 +4110,7 @@ function initSocket(){
     if(d.userId===state.userId){
       hideFloatingEventBtn();
       if(evViewEventId===d.eventId){closeEventView()}
-      showToast('Você foi removido do evento.');
+      showToast(t('notifications.removed_from_event'));
       refreshRelations(); // update chat list/badge (event chat removed)
     }
   });
@@ -4119,21 +4119,21 @@ function initSocket(){
     const heartbeat=[120,60,80,300,120,60,80,300,120,60,80];
     if(state.currentRelation?.relationId===relationId){
       haptic(heartbeat);playSound('pulse');
-      showToast('Sentiu um pulso...');
-    }else{haptic(heartbeat);showToast('Alguém pulsou por você')}
+      showToast(t('home.pulse_same_chat'));
+    }else{haptic(heartbeat);showToast(t('home.pulse_received'))}
   });
   socket.on('ephemeral-received',({relationId,message})=>{
     if(state.currentRelation?.relationId===relationId){appendEphemeral(message);playSound('receive')}
-    else showToast('Nova mensagem!');
+    else showToast(t('home.new_message'));
     haptic([50,30,50]);
   });
   socket.on('photo-received',({relationId,message})=>{
     if(state.currentRelation?.relationId===relationId){appendPhoto(message);playSound('receive')}
-    else showToast('Foto recebida!');
+    else showToast(t('home.photo_received'));
     haptic([50,30,50]);
   });
   socket.on('selfie-request',({relationId})=>{
-    if(state.currentRelation?.relationId===relationId)showToast('A outra pessoa quer registrar o encontro!');
+    if(state.currentRelation?.relationId===relationId)showToast(t('home.selfie_request'));
   });
   socket.on('gift-received',({relationId,gift})=>{
     haptic([100,50,100]);playSound('connect');
@@ -4143,10 +4143,10 @@ function initSocket(){
     }else{showToast(gift.fromName+' te enviou '+gift.emoji+' '+gift.giftName+'!')}
   });
   socket.on('declaration-received',({relationId,declaration})=>{
-    haptic([50,30,50]);showToast(declaration.fromName+' escreveu uma declaração para você!');
+    haptic([50,30,50]);showToast(t('home.declaration_received',{name:declaration.fromName}));
   });
-  socket.on('gift-address-accepted',({giftName})=>{showToast('Presente aceito! '+giftName+' será entregue.');haptic([50,30,50])});
-  socket.on('gift-address-declined',({giftName})=>{showToast('Presente recusado: '+giftName);haptic([30])});
+  socket.on('gift-address-accepted',({giftName})=>{showToast(t('home.gift_accepted',{name:giftName}));haptic([50,30,50])});
+  socket.on('gift-address-declined',({giftName})=>{showToast(t('home.gift_declined',{name:giftName}));haptic([30])});
   socket.on('identity-request',({relationId,fromName})=>{
     haptic([60,30,60]);playSound('receive');
     showToast(fromName+' quer ver quem você é de verdade!');
@@ -4173,11 +4173,11 @@ function initSocket(){
     refreshRelations();
     updateNotifBadge();
     if(state.currentPartnerId!==fromUserId){
-      showToast((realName||'Alguém')+' se revelou pra você! 🪪');
+      showToast(t('home.reveal_received',{name:realName||'Alguém'}));
     }
   });
   socket.on('encosta-request',data=>showEncostaRequest(data));
-  socket.on('encosta-declined',()=>{showToast('Pedido de touch recusado.');haptic([30])});
+  socket.on('encosta-declined',()=>{showToast(t('home.touch_declined'));haptic([30])});
   socket.on('contact-request',data=>showContactRequest(data));
   socket.on('contact-shared',({relationId,contactType,value})=>{
     // Save contact info as persistent message in chat
@@ -4190,8 +4190,8 @@ function initSocket(){
     if(relationId)socket.emit('send-message',{relationId,userId:'system',text});
     showToast(contactType+': '+value);haptic([20,40,20]);
   });
-  socket.on('contact-declined',({contactType})=>{showToast('Pedido de '+contactType+' recusado.');haptic([30])});
-  socket.on('selfie-taken',({relationId})=>{showToast('Selfie registrado!');haptic([20,40,20])});
+  socket.on('contact-declined',({contactType})=>{showToast(t('notifications.contact_declined'));haptic([30])});
+  socket.on('selfie-taken',({relationId})=>{showToast('Selfie registrado!');haptic([20,40,20]);});
   // Star earned — MUST donate immediately
   socket.on('star-must-donate',({pendingStarId,reason,context,totalEarned,pendingCount})=>{
     haptic([100,50,100,50,100]);playSound('connect');
@@ -4199,13 +4199,13 @@ function initSocket(){
   });
   // Star donation confirmed
   socket.on('star-donation-confirmed',({toUserId,toName,recipientStars,pendingRemaining})=>{
-    showToast('Estrela doada para '+toName+'!');
+    showToast(t('home.star_sent',{name:toName}));
     // If more pending, next modal will come via star-must-donate
   });
   // Star received from someone
   socket.on('star-received',({fromUserId,fromName,total})=>{
     haptic([80,40,80,40,80]);playSound('connect');
-    showToast(fromName+' te deu uma estrela! (Total: '+total+')');
+    showToast(t('home.star_received',{name:fromName,count:total}));
     updateNotifBadge();
   });
   // Network notification: someone in my network earned a star (privacy: no donor info)
@@ -4215,7 +4215,7 @@ function initSocket(){
   });
   socket.on('like-toggled',({fromUserId,liked})=>{
     haptic([30,20,30]);
-    if(liked)showToast('Alguém curtiu seu perfil! ❤️');
+    if(liked)showToast(t('home.like_received'));
     refreshRelations();
     updateNotifBadge();
   });
@@ -4277,14 +4277,14 @@ function initSocket(){
     }
     haptic([30,20,30,20,60]);
   });
-  socket.on('game-target-busy',function(){showToast('Jogador esta ocupado')});
-  socket.on('game-target-offline',function(){showToast('Jogador esta offline')});
-  socket.on('game-no-relation',function(){showToast('Sem chat ativo com esse jogador')});
-  socket.on('game-declined',function(){showToast('Convite recusado')});
+  socket.on('game-target-busy',function(){showToast(t('home.game_busy'))});
+  socket.on('game-target-offline',function(){showToast(t('home.game_offline'))});
+  socket.on('game-no-relation',function(){showToast(t('home.game_no_chat'))});
+  socket.on('game-declined',function(){showToast(t('home.game_declined'))});
   socket.on('game-ready-cancelled',function(){
     _readyCheckSession=null;
     var ov=document.querySelector('.game-ready-overlay');if(ov)ov.remove();
-    showToast('O outro jogador desistiu');
+    showToast(t('home.game_cancelled'));
   });
   // Sonic game invite — someone touched you while in game lobby
   socket.on('game-sonic-invite',function(data){
@@ -4300,7 +4300,7 @@ function initSocket(){
   });
   // Confirmation for the lobby user that their sonic touch sent a game invite
   socket.on('game-sonic-invite-sent',function(data){
-    showToast('Touch enviado! Convite de jogo enviado');
+    showToast(t('home.game_sonic_invite_sent'));
     haptic([40,20,40]);
   });
 }
@@ -4501,9 +4501,9 @@ async function showEventView(eventId,eventName){
     socket.off('event-attendee-left');
     socket.off('event-ended');
     socket.off('event-match');
-    socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' pessoas'}});
-    socket.on('event-attendee-left',d=>{if(d.eventId===evViewEventId){if(d.userId===state.userId){showToast('Voce foi removido do evento.');hideFloatingEventBtn();closeEventView();return}const idx=evNodes.findIndex(n=>n.userId===d.userId);if(idx>=0)evNodes.splice(idx,1);$('evViewCount').textContent=evNodes.length+' pessoas'}});
-    socket.on('event-ended',d=>{if(d.eventId===evViewEventId){showToast('Evento encerrado: '+(d.name||''));closeEventView();refreshRelations()}});
+    socket.on('event-attendee-joined',d=>{if(d.eventId===evViewEventId){addEvNode(d);$('evViewCount').textContent=evNodes.length+' '+t('common.people')}});
+    socket.on('event-attendee-left',d=>{if(d.eventId===evViewEventId){if(d.userId===state.userId){showToast(t('home.event_removed'));hideFloatingEventBtn();closeEventView();return}const idx=evNodes.findIndex(n=>n.userId===d.userId);if(idx>=0)evNodes.splice(idx,1);$('evViewCount').textContent=evNodes.length+' '+t('common.people')}});
+    socket.on('event-ended',d=>{if(d.eventId===evViewEventId){showToast(t('home.event_ended',{name:d.name||''}));closeEventView();refreshRelations()}});
     socket.on('event-match',d=>{if(d.eventId===evViewEventId&&d.userIdA&&d.userIdB){spawnEvBolt(d.userIdA,d.userIdB);const key=[d.userIdA,d.userIdB].sort().join('_');evConnectedPairs.add(key)}});
   }
   if(evViewAnim)cancelAnimationFrame(evViewAnim);
@@ -4728,7 +4728,7 @@ function showFloatingEventBtn(eventId,eventName){
     socket.on('event-ended',function onEnded(d){
       if(d.eventId===eventId){
         hideFloatingEventBtn();
-        showToast('O evento '+esc(eventName)+' foi encerrado');
+        showToast(t('home.event_ended',{name:esc(eventName)}));
         refreshRelations(); // remove event chat from list
         socket.off('event-ended',onEnded);
       }
@@ -4763,7 +4763,7 @@ async function leaveEvent(){
   if(evViewAnim){cancelAnimationFrame(evViewAnim);evViewAnim=null}
   evViewEventId=null;evNodes.length=0;evBolts.length=0;evViewCtx=null;
   if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended');socket.off('event-match')}
-  showToast('Você saiu do evento');
+  showToast(t('home.event_left'));
   goHome();
 }
 
@@ -4802,7 +4802,7 @@ function openEventMenu(){
 function closeEventMenu(){$('evMenuOverlay').style.display='none'}
 function openCart(){$('evCartOverlay').style.display='';renderCart()}
 function closeCart(){$('evCartOverlay').style.display='none'}
-function clearCart(){evCart=[];updateCartBadge();closeCart();showToast('Carrinho limpo')}
+function clearCart(){evCart=[];updateCartBadge();closeCart();showToast(t('events.cart_cleared'))}
 
 function renderMenuCats(){
   const cats=[...new Set(evMenuData.map(i=>i.category||'Geral'))];
@@ -4887,7 +4887,7 @@ function renderCart(){
 }
 
 function openCheckout(){
-  if(!evCart.length)return showToast('Carrinho vazio');
+  if(!evCart.length)return showToast(t('events.empty_cart_msg'));
   evSelectedTip=0;
   renderCheckout();
   $('evCheckoutOverlay').style.display='';
@@ -5057,7 +5057,7 @@ async function openOrderHistory(){
 function closeOrderHistory(){$('evOrderHistoryOverlay').style.display='none'}
 
 async function submitOrder(method){
-  if(!evCart.length)return showToast('Carrinho vazio');
+  if(!evCart.length)return showToast(t('events.empty_cart_msg'));
   var table=$('evCartTable')?$('evCartTable').value:'';
   var total=evCart.reduce(function(s,c){return s+c.price*c.qty},0);
   var items=evCart.map(function(c){return {menuItemId:c.id,name:c.name,qty:c.qty,price:c.price}});
@@ -5896,7 +5896,7 @@ async function handleMainButton(){
   setTimeout(()=>btn.classList.remove('shake-activate'),700);
   btn.classList.add('energized');
   txt.textContent='ATIVANDO...';
-  sts.textContent='Preparando áudio...';sts.classList.add('active');
+  sts.textContent=t('home.preparing_audio');sts.classList.add('active');
   fb.classList.add('sonic-hidden');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
@@ -5908,10 +5908,10 @@ async function handleMainButton(){
 
   try{
     // 1. Fresh mic permission
-    sts.textContent='Pedindo microfone...';
+    sts.textContent=t('home.microphone_request');
     sonicStream=await requestMic();
     if(!homeSonicActive)return;
-    sts.textContent='Conectando ao servidor...';
+    sts.textContent=t('home.connecting');
 
     // 2. Get frequency from server
     const _activeEvId=localStorage.getItem('activeEventId')||null;
@@ -5974,8 +5974,8 @@ async function handleMainButton(){
       }
     }
 
-    txt.textContent='TOUCHING...';
-    sts.textContent='Emitindo som...';
+    txt.textContent=t('home.touch_btn');
+    sts.textContent=t('home.emitting_sound');
     // Show fallback code option after 8s
     setTimeout(()=>{if(homeSonicActive){fb.classList.add('active')}},8000);
 
@@ -6001,7 +6001,7 @@ async function handleMainButton(){
       }
       // If emit context is running, show friendly message
       if(sonicEmitCtx.state==='running'){
-        sts.textContent='Encoste os alto-falantes';
+        sts.textContent=t('home.touch_speakers');
       }
     },3000);
     // Phase 2: volume check
@@ -6013,7 +6013,7 @@ async function handleMainButton(){
       let _anySignal=false;
       for(let i=_minB;i<=_maxB&&i<testBuf.length;i++){if(testBuf[i]>10){_anySignal=true;break}}
       if(!_anySignal){
-        sts.textContent='Volume no maximo? Encoste os celulares';
+        sts.textContent=t('home.volume_max');
         // Try resuming contexts one more time
         try{sonicEmitCtx.resume();sonicMicCtx.resume()}catch(e){}
       }
@@ -6039,11 +6039,11 @@ async function handleMainButton(){
           g2.gain.setValueAtTime(0.35,sonicEmitCtx.currentTime);
           sonicOsc.connect(g2);g2.connect(sonicEmitCtx.destination);
           sonicOsc.start();
-          sts.textContent='Tentando novamente... encoste os celulares';
+          sts.textContent=t('home.trying_again');
           showToast('Reconectando audio...');
         }catch(e){
           console.error('[sonic] Retry failed:',e);
-          sts.textContent='Use o codigo para conectar';
+          sts.textContent=t('home.use_code');
           fb.classList.add('active');
         }
       }
@@ -6069,13 +6069,13 @@ async function handleMainButton(){
       _dbgFrames++;
       if(_dbgFrames%30===0&&sts){
         if(peakVal>=SONIC_DETECT_THRESHOLD){
-          sts.textContent='Detectando sinal...'+(confirmHits>0?' Confirmando...':'');
+          sts.textContent=t('home.detecting')+(confirmHits>0?' '+t('home.confirming'):'');
         }else if(peakVal>80){
-          sts.textContent='Quase! Encoste mais pertinho';
+          sts.textContent=t('home.almost');
         }else if(peakVal>30){
-          sts.textContent='Sinal fraco... encoste bem mais perto';
+          sts.textContent=t('home.weak_signal');
         }else if(_dbgFrames>180){
-          sts.textContent='Encoste os alto-falantes bem pertinho';
+          sts.textContent=t('home.touch_speakers');
         }
       }
       if(peakVal>=SONIC_DETECT_THRESHOLD){
@@ -6087,17 +6087,17 @@ async function handleMainButton(){
         const distFromOwn=Math.abs(snapped-sonicMyFreq);
         if(distFromOwn>200&&snapped>=18000&&snapped<=19900){
           if(snapped===lastSnapped)confirmHits++;else{confirmHits=1;lastSnapped=snapped}
-          if(sts)sts.textContent='Detectando... quase la!';
+          if(sts)sts.textContent=t('home.detect_almost');
           if(confirmHits>=SONIC_CONFIRM_COUNT){
             haptic([60]);
             // DON'T say "Encontramos alguém" yet — wait for server to confirm
-            txt.textContent='VERIFICANDO...';sts.textContent='Verificando conexão...';
+            txt.textContent='VERIFICANDO...';sts.textContent=t('home.verifying');
             socket.emit('sonic-detected',{userId:state.userId,detectedFreq:snapped});
             _sonicCooldown=180;confirmHits=0;lastSnapped=0;
             // Timeout: if server doesn't confirm in 8s, resume detection
             setTimeout(()=>{
               if(sonicActive&&!state.currentRelation){
-                sts.textContent='Nenhuma conexão. Continue encostando...';
+                sts.textContent=t('home.no_connection_sonic');
                 txt.textContent='TOUCHING...';
                 _sonicCooldown=0;
               }
