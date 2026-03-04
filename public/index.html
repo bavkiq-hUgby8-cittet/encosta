@@ -327,8 +327,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes sbar-right{0%{opacity:.2;transform:translateX(0)}100%{opacity:.7;transform:translateX(6px)}}
 .sonic-status{font-size:.72rem;color:var(--ac2);min-height:1.2em;transition:all .3s;opacity:0}
 .sonic-status.active{opacity:1}
-.sonic-fallback{opacity:1;transition:opacity .3s;pointer-events:auto}
-.sonic-fallback.sonic-hidden{opacity:0;pointer-events:none}
+.sonic-fallback{opacity:0;transition:opacity .3s;pointer-events:none}
+.sonic-fallback.active{opacity:1;pointer-events:auto}
 /* SONIC RECONNECT OVERLAY — appears after screen lock/unlock */
 .sonic-reconnect-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:1rem}
 .sonic-reconnect-overlay.active{display:flex}
@@ -5897,7 +5897,7 @@ async function handleMainButton(){
   btn.classList.add('energized');
   txt.textContent='ATIVANDO...';
   sts.textContent=t('home.preparing_audio');sts.classList.add('active');
-  fb.classList.add('sonic-hidden');
+  fb.classList.remove('active');
   barsL.classList.add('active');barsR.classList.add('active');
   if(fire)fire.classList.add('active');
   const ltLayer=$('lightningLayer');if(ltLayer)ltLayer.classList.add('active');
@@ -6129,7 +6129,7 @@ function stopHomeSonic(){
   btn.classList.remove('energized');
   txt.textContent=t('home.touch_label');
   status.classList.remove('active');
-  fb.classList.remove('sonic-hidden');
+  fb.classList.remove('active');
   barsL.classList.remove('active');barsR.classList.remove('active');
   if(fire)fire.classList.remove('active');
   const ltLayer=$('lightningLayer');if(ltLayer)ltLayer.classList.remove('active');
@@ -6334,7 +6334,7 @@ async function initSonic(label,status,circle){
     }else{
       showToast('Erro no audio. Tente de novo.');
     }
-    const fb=$('sonicFallback');if(fb)fb.classList.remove('sonic-hidden');
+    const fb=$('sonicFallback');if(fb)fb.classList.add('active');
   }
 }
 
