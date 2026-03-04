@@ -291,6 +291,31 @@ app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'ter
 app.get('/privacidade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidade.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 
+// ── Waitlist endpoint (email capture for early access) ──
+app.post('/api/waitlist', express.json(), async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Invalid email' });
+    }
+    // Store in Firebase RTDB
+    const admin = require('firebase-admin');
+    if (admin.apps.length) {
+      const db = admin.database();
+      await db.ref('waitlist').push({
+        email: email.toLowerCase().trim(),
+        source: 'site',
+        createdAt: new Date().toISOString(),
+        ip: req.ip
+      });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Waitlist error:', err.message);
+    res.json({ ok: true }); // Always return success to client
+  }
+});
+
 // ── Firebase Admin SDK ──
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
 const FIREBASE_DB_URL = process.env.FIREBASE_DATABASE_URL || 'https://encosta-f32e7-default-rtdb.firebaseio.com';
