@@ -9144,12 +9144,26 @@ function talkAboutNews(postId) {
 
 var _newsChatState = { active: false, history: [], ttsEnabled: true, sending: false };
 
-var _ncAgentNicks = {
-  'reporter': 'Reporter', 'sport': 'SportBot',
-  'fitness': 'Coach Fit', 'saude': 'Dr. Touch', 'cozinha': 'Chef Touch',
-  'tecnologia': 'TechBot', 'politica': 'Politico', 'educacao': 'Prof. Saber',
-  'clima': 'ClimaBot'
+var _ncAgentNicksByLang = {
+  'reporter': { 'pt-br': 'Noticias', 'en': 'News', 'es': 'Noticias' },
+  'sport': { 'pt-br': 'Esportes', 'en': 'Sports', 'es': 'Deportes' },
+  'fitness': { 'pt-br': 'Fitness', 'en': 'Fitness', 'es': 'Fitness' },
+  'saude': { 'pt-br': 'Saude', 'en': 'Health', 'es': 'Salud' },
+  'cozinha': { 'pt-br': 'Cozinha', 'en': 'Kitchen', 'es': 'Cocina' },
+  'tecnologia': { 'pt-br': 'Tecnologia', 'en': 'Tech', 'es': 'Tecnologia' },
+  'politica': { 'pt-br': 'Politica', 'en': 'Politics', 'es': 'Politica' },
+  'educacao': { 'pt-br': 'Educacao', 'en': 'Education', 'es': 'Educacion' },
+  'clima': { 'pt-br': 'Clima', 'en': 'Weather', 'es': 'Clima' }
 };
+function _getAgentNick(agentType) {
+  var lang = state.userLang || 'pt-br';
+  var baseLang = lang.split('-')[0];
+  var entry = _ncAgentNicksByLang[agentType];
+  if (!entry) return agentType;
+  return entry[lang] || entry[baseLang] || entry['pt-br'] || agentType;
+}
+var _ncAgentNicks = {};
+(function() { for (var k in _ncAgentNicksByLang) { _ncAgentNicks[k] = _getAgentNick(k); } })();
 var _ncAgentColors = {
   'reporter': '#e65100', 'sport': '#1565c0',
   'fitness': '#2e7d32', 'saude': '#00897b', 'cozinha': '#d84315',
