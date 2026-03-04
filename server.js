@@ -2553,6 +2553,20 @@ app.post('/api/session/join', (req, res) => {
       eventId: sessionEventId || null
     });
   }
+  // Broadcast to visitor's network: "fulano fez check-in em [Local]"
+  if (isSessionCheckin && sessionEventId && codeVisitorId) {
+    const evObj2 = db.operatorEvents[sessionEventId];
+    const networkIds = new Set((db.encounters[codeVisitorId] || []).map(e => e.with).filter(w => !w.startsWith('evt:')));
+    networkIds.forEach(uid => {
+      io.to(`user:${uid}`).emit('network-checkin', {
+        userId: codeVisitorId,
+        nickname: userB.nickname || userB.name,
+        eventName: evObj2 ? evObj2.name : 'Evento',
+        eventLogo: evObj2 ? proxyStorageUrl(evObj2.eventLogo || evObj2.logo || null) : null,
+        timestamp: now
+      });
+    });
+  }
   res.json({ sessionId: session.id, ...responseData });
 });
 
@@ -2732,6 +2746,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       touchers: toucherCount,
       likesCount: iCanSeeThem ? (other.likesCount || 0) : 0,
       starsCount: (other && other.stars) ? other.stars.length : 0,
+      lastStarAt: (other && other.stars && other.stars.length) ? Math.max(...other.stars.map(s => s.donatedAt || s.at || 0)) : 0,
       score: other ? calcScore(p.id) : 0,
       uniqueConnections: other ? getUniqueConnections(p.id) : 0,
       likedByMe: !!(IDX.likedBy.get(p.id)?.has(req.params.userId)),
@@ -2805,6 +2820,12 @@ app.get('/api/constellation/:userId', (req, res) => {
   nodes.push(...eventNodes);
   // Sort by most recent encounter
   nodes.sort((a, b) => b.lastDate - a.lastDate);
+  // Add online status to nodes
+  if (!global._onlineUsers) global._onlineUsers = {};
+  const onlineThreshold = Date.now() - 120000; // 2 minutes
+  nodes.forEach(n => {
+    n.isOnline = !!(global._onlineUsers[n.id] && global._onlineUsers[n.id] > onlineThreshold);
+  });
   res.json({ nodes, links: [], total: nodes.length });
 });
 
@@ -3685,6 +3706,8 @@ app.post('/api/identity/reveal', (req, res) => {
     fromUserId: userId, realName: user.realName, profilePhoto: userPhoto,
     instagram: user.instagram, bio: user.bio
   });
+  // Broadcast reveal to target's network for live constellation update
+  io.to(`user:${targetUserId}`).emit('network-reveal', { userId: userId, realName: user.realName, profilePhoto: userPhoto, timestamp: Date.now() });
   io.to(`user:${userId}`).emit('reveal-status-update', { relationId: relId, fromUserId: userId, toUserId: targetUserId, status: 'accepted' });
   res.json({ ok: true, status: 'revealed' });
 });
@@ -3783,6 +3806,8 @@ function acceptRevealInternal(requestId, acceptorUserId, res) {
     fromUserId: rr.toUserId, realName: revealer.realName, profilePhoto: revealerPhoto,
     instagram: revealer.instagram, bio: revealer.bio
   });
+  // Broadcast reveal to requester's network for live constellation update
+  io.to(`user:${rr.fromUserId}`).emit('network-reveal', { userId: rr.toUserId, realName: revealer.realName, profilePhoto: revealerPhoto, timestamp: Date.now() });
   io.to(`user:${rr.fromUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
   io.to(`user:${rr.toUserId}`).emit('reveal-status-update', { relationId: relId, fromUserId: rr.fromUserId, toUserId: rr.toUserId, status: 'accepted' });
   if (res) res.json({ ok: true, status: 'accepted' });
@@ -3990,6 +4015,7 @@ app.post('/api/star/donate', (req, res) => {
     network.delete(toUserId);
     network.forEach(uid => {
       io.to(`user:${uid}`).emit('star-donated-notification', notifPayload);
+      io.to(`user:${uid}`).emit('network-star', { userId: toUserId, nickname: toUser.nickname || toUser.name, starsCount: toUser.stars.length, timestamp: Date.now() });
     });
     // Also notify donor confirmation
     io.to(`user:${fromUserId}`).emit('star-donation-confirmed', { toUserId, toName: toUser.nickname, recipientStars: toUser.stars.length, donorStars: fromUser.stars.length, pendingRemaining: (fromUser.pendingStars || []).length });
@@ -7400,6 +7426,9 @@ io.on('connection', (socket) => {
     currentUserId = userId;
     socket.touchUserId = userId;
     socket.join(`user:${userId}`);
+    // Track online presence
+    if (!global._onlineUsers) global._onlineUsers = {};
+    global._onlineUsers[userId] = Date.now();
     // NAO auto-join em rooms do mural aqui
     // O join acontece via join-mural quando o usuario ABRE o mural
   });
@@ -7794,7 +7823,23 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Heartbeat for online presence
+  socket.on('heartbeat', () => {
+    if (currentUserId) {
+      if (!global._onlineUsers) global._onlineUsers = {};
+      global._onlineUsers[currentUserId] = Date.now();
+    }
+  });
+
   socket.on('disconnect', () => {
+    // Remove from online tracking after a grace period
+    if (currentUserId && global._onlineUsers) {
+      setTimeout(() => {
+        // Only remove if no other socket is connected for this user
+        const room = io.sockets.adapter.rooms.get(`user:${currentUserId}`);
+        if (!room || room.size === 0) delete global._onlineUsers[currentUserId];
+      }, 5000);
+    }
     _socketRates.delete(socket.id);
     // Limpa entradas do sonicQueue deste socket para evitar entradas orfas
     for (const key in sonicQueue) {

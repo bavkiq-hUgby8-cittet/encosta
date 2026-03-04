@@ -481,6 +481,12 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes bk{0%,100%{opacity:1}50%{opacity:.3}}
 .constellation-btn{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;position:relative;color:#fff;box-shadow:0 0 8px rgba(255,255,255,.12),0 0 16px rgba(255,255,255,.06);animation:constGlow 3s ease-in-out infinite;z-index:10}
 .constellation-btn:active{transform:scale(.93)}
+/* Live constellation toasts */
+.const-live-toast{position:absolute;top:60px;left:50%;transform:translateX(-50%) translateY(-20px);opacity:0;z-index:50;background:rgba(10,10,20,.85);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:20px;padding:.4rem .8rem;font-size:.68rem;color:#fff;display:flex;align-items:center;white-space:nowrap;transition:opacity .35s ease,transform .35s ease;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.const-live-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.const-live-toast--star{border-color:rgba(251,191,36,.25)}
+.const-live-toast--checkin{border-color:rgba(96,165,250,.25)}
+.const-live-toast--reveal{border-color:rgba(0,220,130,.25)}
 @keyframes constGlow{0%,100%{box-shadow:0 0 8px rgba(255,255,255,.12),0 0 16px rgba(255,255,255,.06);border-color:rgba(255,255,255,.25)}50%{box-shadow:0 0 12px rgba(255,255,255,.2),0 0 24px rgba(255,255,255,.1);border-color:rgba(255,255,255,.4)}}
 
 /* ENCOUNTER */
@@ -3891,6 +3897,9 @@ function initSocket(){
   socket.on('connect',()=>{
     if(state.userId)socket.emit('identify',state.userId);
     updateConn('online');
+    // Heartbeat for online presence (every 60s)
+    if(window._heartbeatInterval)clearInterval(window._heartbeatInterval);
+    window._heartbeatInterval=setInterval(()=>{if(state.userId)socket.emit('heartbeat')},60000);
     // Init mural socket listeners
     if(typeof _initMuralSocket==='function') _initMuralSocket();
     // Rejoin mural room APENAS se o mural esta aberto (activeChannel != null)
@@ -3908,6 +3917,7 @@ function initSocket(){
   });
   socket.on('disconnect',()=>{
     updateConn('offline');
+    if(window._heartbeatInterval){clearInterval(window._heartbeatInterval);window._heartbeatInterval=null}
     // If sonic is active during disconnect, mark for restart
     if(homeSonicActive){
       _sonicWasActive=true;
@@ -4212,6 +4222,31 @@ function initSocket(){
   socket.on('star-donated-notification',({recipientName,donorName,recipientStars})=>{
     showToast(recipientName+' ganhou uma estrela!');
     updateNotifBadge();
+  });
+  // ── Live constellation events ──
+  socket.on('network-star',({userId,nickname,starsCount,timestamp})=>{
+    // Update node data in real-time
+    if(constState&&constState.nodes){
+      const nd=constState.nodes.find(n=>n.id===userId);
+      if(nd){nd.starsCount=starsCount;nd.lastStarAt=timestamp;nd._recentStar=true;nd._recentStarTime=Date.now()}
+    }
+    if($('history')&&$('history').classList.contains('active'))showConstToast(nickname+' ganhou uma estrela!','star');
+  });
+  socket.on('network-checkin',({userId,nickname,eventName,eventLogo,timestamp})=>{
+    if($('history')&&$('history').classList.contains('active'))showConstToast(nickname+' chegou em '+eventName,'checkin');
+  });
+  socket.on('network-reveal',({userId,realName,profilePhoto,timestamp})=>{
+    // Update constellation node to show revealed photo in real-time
+    if(constState&&constState.nodes){
+      const nd=constState.nodes.find(n=>n.id===userId);
+      if(nd&&profilePhoto){
+        nd._revealed=true;nd.partnerRevealedToMe=true;nd.realName=realName;nd.profilePhoto=profilePhoto;
+        const img=new Image();img.src=profilePhoto;
+        nd._img=img;nd._imgLoaded=false;
+        img.onload=()=>{nd._imgLoaded=true};
+      }
+    }
+    if($('history')&&$('history').classList.contains('active'))showConstToast((realName||'Alguem')+' revelou a identidade!','reveal');
   });
   socket.on('like-toggled',({fromUserId,liked})=>{
     haptic([30,20,30]);
@@ -10727,6 +10762,29 @@ let constState={nodes:[],cam:{x:0,y:0,zoom:1},dragging:false,lastTouch:null,anim
   fpMode:false,fpTransition:0,fpYaw:0,fpPitch:0,_searchQuery:''};
 const CONST_FEEDBACK=['Um novo ponto surgiu.','Sua rede cresceu hoje.','Um encontro deixou rastro.','Um elo foi reforçado.','Algo ficou marcado.','Sua rede se expandiu.'];
 
+// ── Constellation live toast ──
+var _constToastQueue=[];
+var _constToastActive=false;
+function showConstToast(text,type){
+  _constToastQueue.push({text,type});
+  if(!_constToastActive)_popConstToast();
+}
+function _popConstToast(){
+  if(!_constToastQueue.length){_constToastActive=false;return}
+  _constToastActive=true;
+  var item=_constToastQueue.shift();
+  var el=document.createElement('div');
+  el.className='const-live-toast const-live-toast--'+item.type;
+  var icon=item.type==='star'?'<span style="color:#fbbf24;margin-right:.35rem;font-size:.85rem">&#9733;</span>'
+    :item.type==='checkin'?'<span style="color:#60a5fa;margin-right:.35rem;font-size:.75rem">&#9673;</span>'
+    :'<span style="color:#00dc82;margin-right:.35rem;font-size:.75rem">&#10003;</span>';
+  el.innerHTML=icon+'<span>'+item.text+'</span>';
+  var wrap=$('history');
+  if(wrap)wrap.appendChild(el);
+  requestAnimationFrame(function(){el.classList.add('show')});
+  setTimeout(function(){el.classList.remove('show');setTimeout(function(){el.remove();_popConstToast()},400)},3500);
+}
+
 async function showHistory(){
   haptic([30]);
   updateNotifBadge();
@@ -11249,6 +11307,57 @@ function initConstCanvas(){
       ctx.beginPath();ctx.arc(sx,sy,r+1,0,Math.PI*2);
       ctx.strokeStyle=ringColor;ctx.lineWidth=Math.max(0.3,Math.min(1,0.8*scale));
       ctx.shadowColor=ringColor;ctx.shadowBlur=Math.max(1,Math.min(8,6*scale));ctx.stroke();ctx.shadowBlur=0;
+
+      // Online pulse — green breathing ring for users currently online
+      if(n.isOnline&&!n.isEvent&&r>3){
+        var onPulse=0.25+Math.sin(t*2.5+n.pulsePhase)*0.2;
+        var onR=r+3+Math.sin(t*2.5+n.pulsePhase)*1.5;
+        ctx.beginPath();ctx.arc(sx,sy,onR,0,Math.PI*2);
+        ctx.strokeStyle='rgba(34,197,94,'+onPulse.toFixed(2)+')';ctx.lineWidth=Math.max(1,1.5*scale);ctx.stroke();
+        // Small green dot indicator at top-right
+        var dotX=sx+r*0.7;var dotY=sy-r*0.7;var dotR=Math.max(2,r*0.18);
+        ctx.beginPath();ctx.arc(dotX,dotY,dotR,0,Math.PI*2);
+        ctx.fillStyle='#22c55e';ctx.fill();
+        ctx.strokeStyle='#0a0a0f';ctx.lineWidth=Math.max(0.5,dotR*0.3);ctx.stroke();
+      }
+
+      // Recent star glow — golden spinning sparkle for stars received in last 24h
+      var _isRecentStar=false;
+      if(n.lastStarAt&&(Date.now()-n.lastStarAt)<86400000)_isRecentStar=true;
+      if(n._recentStar&&n._recentStarTime&&(Date.now()-n._recentStarTime)<86400000)_isRecentStar=true;
+      if(_isRecentStar&&r>4){
+        // Outer golden glow ring
+        var starGlowR=r+5+Math.sin(t*3)*2;
+        var starAlpha=0.15+Math.sin(t*4)*0.1;
+        var starGrad=ctx.createRadialGradient(sx,sy,r,sx,sy,starGlowR+4);
+        starGrad.addColorStop(0,'rgba(255,215,0,'+starAlpha.toFixed(2)+')');
+        starGrad.addColorStop(0.5,'rgba(255,180,0,'+(starAlpha*0.5).toFixed(2)+')');
+        starGrad.addColorStop(1,'transparent');
+        ctx.beginPath();ctx.arc(sx,sy,starGlowR+4,0,Math.PI*2);ctx.fillStyle=starGrad;ctx.fill();
+        // Spinning sparkle particles (4 points rotating)
+        var sparkCount=4;
+        var sparkAngle=(t*1.5)%(Math.PI*2);
+        for(var si2=0;si2<sparkCount;si2++){
+          var sa2=sparkAngle+si2*(Math.PI*2/sparkCount);
+          var sparkR=r+4+Math.sin(t*5+si2)*2;
+          var spkX=sx+Math.cos(sa2)*sparkR;
+          var spkY=sy+Math.sin(sa2)*sparkR;
+          var spkSize=Math.max(1.5,Math.min(3,r*0.14));
+          var spkAlpha=0.6+Math.sin(t*6+si2*1.5)*0.3;
+          // Draw 4-point star shape
+          ctx.save();ctx.translate(spkX,spkY);ctx.rotate(sa2+t*2);
+          ctx.beginPath();
+          for(var sp=0;sp<8;sp++){
+            var sAngle=sp*Math.PI/4;
+            var sR=sp%2===0?spkSize:spkSize*0.4;
+            if(sp===0)ctx.moveTo(Math.cos(sAngle)*sR,Math.sin(sAngle)*sR);
+            else ctx.lineTo(Math.cos(sAngle)*sR,Math.sin(sAngle)*sR);
+          }
+          ctx.closePath();
+          ctx.fillStyle='rgba(255,215,0,'+spkAlpha.toFixed(2)+')';ctx.fill();
+          ctx.restore();
+        }
+      }
 
       // Rotating scan arc for selected node
       if(constState.selectedNode&&constState.selectedNode.id===n.id){
