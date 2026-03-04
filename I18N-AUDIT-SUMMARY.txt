@@ -1,0 +1,252 @@
+═══════════════════════════════════════════════════════════════════════════════
+                     TOUCH? APP - i18n AUDIT EXECUTIVE SUMMARY
+                              Date: 2026-03-04
+═══════════════════════════════════════════════════════════════════════════════
+
+CRITICAL ISSUES FOUND: 5
+HIGH PRIORITY ISSUES: 3
+MEDIUM PRIORITY ISSUES: 4
+────────────────────────────────────────────────────────────────────────────────
+
+ISSUE #1: ZODIAC SIGN KEYS MISMATCH ⚠️
+─────────────────────────────────────────────────────────────────────────────
+File: /i18n/zodiac-pt-br.json (and possibly other languages)
+Problem: Sign keys use Portuguese names instead of English
+  - EN:    aries, taurus, gemini, cancer, leo, virgo, libra, scorpio,
+           sagittarius, capricorn, aquarius, pisces
+  - PT-BR: aries, touro, gemeos, cancer, leao, virgem, libra, escorpiao,
+           sagitario, capricornio, aquario, peixes
+Impact: Any code trying to look up zodiac signs will FAIL for PT-BR
+Status: 9 sign keys broken (9 out of 12)
+Severity: CRITICAL
+
+
+ISSUE #2: HARDCODED AUTH ERROR MESSAGES (25+ strings)
+─────────────────────────────────────────────────────────────────────────────
+File: /public/index.html (lines 3393-3763)
+Problem: All authentication error messages are hardcoded in Portuguese
+  - Google login errors
+  - Apple login errors
+  - Phone verification errors
+  - Email/password validation
+  - SMS code errors
+  - Recovery email errors
+Examples:
+  'Erro ao abrir Google. Tente novamente.'
+  'Preencha seu e-mail.'
+  'Senha precisa ter no mínimo 6 caracteres.'
+Impact: LOGIN FLOW BROKEN for non-Portuguese users
+Severity: CRITICAL
+
+
+ISSUE #3: HARDCODED NOTIFICATION TOASTS (20+ strings)
+─────────────────────────────────────────────────────────────────────────────
+File: /public/index.html (throughout)
+Problem: All real-time notifications use hardcoded Portuguese
+  - 'Conta encontrada! Conectamos ao seu perfil existente.'
+  - 'Você foi removido do evento.'
+  - 'Sentiu um pulso...'
+  - 'Alguém se revelou pra você! 🪪'
+  - 'Presente aceito! Nome será entregue.'
+  - 'Gorjeta recebida! R$amount'
+Impact: USERS CAN'T SEE REAL-TIME ALERTS in their language
+Severity: CRITICAL
+
+
+ISSUE #4: RADIO FEATURE ENTIRELY HARDCODED
+─────────────────────────────────────────────────────────────────────────────
+File: /server.js (line 14366) + /public/index.html (lines 9003-9080)
+Problem:
+  1. Radio messages hardcoded in Portuguese (5 strings)
+  2. Locutor system prompt is MASSIVE hardcoded Portuguese block
+     Cannot be translated via i18n - needs redesign
+Examples:
+  'Sintonizando Radio Touch...'
+  'Radio desligada.'
+  Locutor style: 'Voce e o locutor da Radio Touch — a radio do Mural
+                  Touch! Seu estilo e LEVE, ALEGRE e ACOLHEDOR...'
+Impact: RADIO FEATURE LOCKED TO PORTUGUESE SPEAKERS ONLY
+Severity: CRITICAL
+
+
+ISSUE #5: PAYMENT & FINANCIAL MESSAGES HARDCODED (15+ strings)
+─────────────────────────────────────────────────────────────────────────────
+File: /server.js (lines 8005, 8861, 9188, 12121, 12578)
+Problem: All payment errors hardcoded in Portuguese
+  - PIX errors: 'Erro ao gerar PIX: ' + error (4 locations)
+  - Credit card errors: 12 hardcoded error messages
+Examples:
+  'Número do cartão inválido'
+  'Data de validade incorreta'
+  'Saldo insuficiente'
+  'Cartão bloqueado'
+Impact: PAYMENT FLOW BROKEN for non-Portuguese users
+Severity: CRITICAL
+
+
+ISSUE #6: TOUCH/REVEAL STATUS MESSAGES (4 strings)
+─────────────────────────────────────────────────────────────────────────────
+File: /public/index.html (lines 3928-4293)
+Problem: Touch detection messages hardcoded in Portuguese
+  - 'Sinal próprio detectado. Continue encostando...'
+  - 'Ninguém encontrado ainda. Continue encostando...'
+  - 'Sentiu um pulso...'
+  - 'encostou e quer jogar!'
+Impact: CORE TOUCH MECHANIC broken for non-Portuguese users
+Severity: HIGH
+
+
+ISSUE #7: EVENT & WAITER MESSAGES (5+ strings)
+─────────────────────────────────────────────────────────────────────────────
+File: /public/index.html (lines 3989-4722)
+Problem: Event/waiter app messages hardcoded
+  - 'Pedido pronto! Mesa X'
+  - 'Motorista' / 'Garcom'
+  - ' pessoas' (attendee count)
+Impact: EVENT FEATURE broken for non-Portuguese users
+Severity: HIGH
+
+
+ISSUE #8: AGENT/VA MESSAGES (3 strings)
+─────────────────────────────────────────────────────────────────────────────
+File: /public/index.html (lines 10032-10241)
+Problem: Agent query messages hardcoded
+  - 'Consultando agentType...'
+  - 'Erro ao consultar agente.'
+  - 'Buscando com reporter...'
+Impact: AGENT FEATURE broken for non-Portuguese users
+Severity: MEDIUM
+
+
+ISSUE #9: MISSING i18n KEY STRUCTURE (60+ keys)
+─────────────────────────────────────────────────────────────────────────────
+Problem: No i18n keys defined for:
+  - Authentication errors (17 keys)
+  - Touch/reveal messages (6 keys)
+  - Event messages (4 keys)
+  - Radio system (5 keys)
+  - Agent/VA system (4 keys)
+  - Notifications (18 keys)
+  - Payment errors (5+ keys)
+Impact: Features cannot be localized
+Severity: CRITICAL
+
+
+ISSUE #10: LOCALE DETECTION INCOMPLETE
+─────────────────────────────────────────────────────────────────────────────
+File: /public/index.html (lines 128-140)
+Problem:
+  - No mapping from 'es-MX' → 'es'
+  - No mapping from 'pt' → 'pt-br'
+  - Falls back to English (harsh for Portuguese users)
+Impact: Some users won't get their preferred language
+Severity: MEDIUM
+
+
+═══════════════════════════════════════════════════════════════════════════════
+DETAILED BREAKDOWN BY FEATURE
+═══════════════════════════════════════════════════════════════════════════════
+
+AUTHENTICATION:      ✗ CRITICAL (25+ hardcoded strings)
+NOTIFICATIONS:       ✗ CRITICAL (20+ hardcoded strings)
+PAYMENT:             ✗ CRITICAL (15+ hardcoded strings)
+RADIO:               ✗ CRITICAL (5+ strings + non-translatable prompt)
+ZODIAC:              ✗ CRITICAL (9 sign key mismatches)
+TOUCH/REVEAL:        ✗ HIGH (4 hardcoded strings)
+EVENTS:              ✗ HIGH (5+ hardcoded strings)
+WAITER APP:          ✗ HIGH (role + count messages)
+AGENT/VA:            ✗ MEDIUM (3 hardcoded strings)
+MURAL:               ⚠️ MEDIUM (unknown count)
+LOCALE DETECTION:    ✗ MEDIUM (incomplete mapping)
+BUTTON TEXT:         ✗ MEDIUM (Começar, Próximo)
+
+═══════════════════════════════════════════════════════════════════════════════
+STATISTICS
+═══════════════════════════════════════════════════════════════════════════════
+
+HARDCODED STRINGS:
+  Frontend (index.html):      50+ strings
+  Backend (server.js):        25+ strings
+  ──────────────────────────
+  TOTAL:                      75+ strings
+
+MISSING i18n KEYS:            60+ keys
+
+ZODIAC KEY MISMATCHES:        9 keys (PT-BR only)
+
+PHRASE JSON STRUCTURE:        ✓ Perfect (256 keys × 5 languages)
+
+═══════════════════════════════════════════════════════════════════════════════
+RECOMMENDED ACTION PLAN
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: UNBLOCK CRITICAL FEATURES (Estimated: 4-6 hours)
+─────────────────────────────────────────────────────────────────────────────
+1. [ ] Fix zodiac-pt-br.json sign keys to match English keys
+2. [ ] Extract auth error messages (25 keys) into i18n JSON
+3. [ ] Extract notification toasts (20 keys) into i18n JSON
+4. [ ] Create server-side i18n endpoint for shared messages
+5. [ ] Redesign radio locutor (use template with i18n, not hardcoded)
+6. [ ] Extract payment error messages (15 keys) to i18n JSON
+
+PHASE 2: FIX MAJOR FEATURES (Estimated: 3-4 hours)
+─────────────────────────────────────────────────────────────────────────────
+1. [ ] Extract touch/reveal messages (4 keys)
+2. [ ] Extract event messages (5 keys)
+3. [ ] Extract agent/VA messages (3 keys)
+4. [ ] Fix waiter app strings (motorista/garcom)
+
+PHASE 3: POLISH (Estimated: 2-3 hours)
+─────────────────────────────────────────────────────────────────────────────
+1. [ ] Improve locale detection (add es-MX → es, pt → pt-br)
+2. [ ] Extract button text (Começar, Próximo)
+3. [ ] Add fallback for missing translations
+4. [ ] Extract mural messages
+
+TOTAL ESTIMATED TIME: 9-13 hours of work
+
+═══════════════════════════════════════════════════════════════════════════════
+CURRENT STATE
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ GOOD:
+  - Phrase JSON structure is perfect (256 keys, all aligned)
+  - 5 languages supported (EN, PT-BR, ES, JA, RU)
+  - i18n system exists and works
+  - Translation infrastructure is solid
+
+✗ BROKEN:
+  - 75+ hardcoded strings make app unusable for non-Portuguese speakers
+  - Radio feature cannot be translated at all
+  - Zodiac sign keys don't match across languages
+  - Server messages have no i18n at all
+  - Payment flows completely broken for non-Portuguese users
+
+═══════════════════════════════════════════════════════════════════════════════
+OVERALL ASSESSMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+STATUS: ⚠️  MAJOR i18n FAILURES
+
+The app is NOT PRODUCTION-READY for non-English users. While the translation
+infrastructure exists and is well-structured, the implementation is incomplete:
+
+1. Half of the app's text is hardcoded (frontend + backend)
+2. Payment flows are completely broken for non-Portuguese speakers
+3. Radio feature is permanently locked to Portuguese
+4. Zodiac features have structural issues
+
+This needs to be fixed before international launch.
+
+═══════════════════════════════════════════════════════════════════════════════
+FULL REPORT AVAILABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+See: /sessions/inspiring-stoic-hopper/mnt/encosta/I18N-AUDIT-REPORT.md
+
+This file contains:
+- Detailed JSON structure analysis
+- Complete list of all hardcoded strings with line numbers
+- Missing i18n key specifications
+- Priority-based fix recommendations
+- Statistics and severity breakdown

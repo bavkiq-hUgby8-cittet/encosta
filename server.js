@@ -1587,6 +1587,71 @@ function getUserLang(userId) {
   return (user && user.lang) ? user.lang : 'pt-br';
 }
 
+// Server-side i18n for payment errors
+const SERVER_PAYMENT_I18N = {
+  'en': {
+    'payment.card_invalid': 'Invalid card number. Check and try again.',
+    'payment.expiry_invalid': 'Invalid expiration date. Use MM/YY format.',
+    'payment.cvv_invalid': 'Invalid CVV. Must be 3-4 digits.',
+    'payment.insufficient_balance': 'Insufficient balance. Check your account.',
+    'payment.card_blocked': 'Card blocked. Contact your bank.',
+    'payment.pix_error': 'Error generating PIX. Try again.',
+    'payment.card_declined': 'Card declined. Try another card or method.',
+    'payment.network_error': 'Connection error. Try again.',
+    'payment.unknown_error': 'Payment error. Try again later.'
+  },
+  'pt-br': {
+    'payment.card_invalid': 'Numero do cartao invalido. Verifique e tente novamente.',
+    'payment.expiry_invalid': 'Data de validade incorreta. Use formato MM/AA.',
+    'payment.cvv_invalid': 'CVV invalido. Deve ter 3-4 digitos.',
+    'payment.insufficient_balance': 'Saldo insuficiente. Verifique sua conta.',
+    'payment.card_blocked': 'Cartao bloqueado. Entre em contato com seu banco.',
+    'payment.pix_error': 'Erro ao gerar PIX. Tente novamente.',
+    'payment.card_declined': 'Cartao recusado. Tente outro cartao ou metodo.',
+    'payment.network_error': 'Erro de conexao. Tente novamente.',
+    'payment.unknown_error': 'Erro no pagamento. Tente mais tarde.'
+  },
+  'es': {
+    'payment.card_invalid': 'Numero de tarjeta invalido. Verifica e intenta de nuevo.',
+    'payment.expiry_invalid': 'Fecha de vencimiento invalida. Usa formato MM/AA.',
+    'payment.cvv_invalid': 'CVV invalido. Debe tener 3-4 digitos.',
+    'payment.insufficient_balance': 'Saldo insuficiente. Verifica tu cuenta.',
+    'payment.card_blocked': 'Tarjeta bloqueada. Contacta a tu banco.',
+    'payment.pix_error': 'Error al generar PIX. Intenta de nuevo.',
+    'payment.card_declined': 'Tarjeta rechazada. Intenta otra tarjeta o metodo.',
+    'payment.network_error': 'Error de conexion. Intenta de nuevo.',
+    'payment.unknown_error': 'Error de pago. Intenta mas tarde.'
+  },
+  'ja': {
+    'payment.card_invalid': 'カード番号が無効です。確認してもう一度試してください。',
+    'payment.expiry_invalid': '有効期限が無効です。MM/YY形式を使用してください。',
+    'payment.cvv_invalid': 'CVVが無効です。3-4桁である必要があります。',
+    'payment.insufficient_balance': '残高不足です。アカウントを確認してください。',
+    'payment.card_blocked': 'カードがブロックされています。銀行に連絡してください。',
+    'payment.pix_error': 'PIX生成エラー。もう一度試してください。',
+    'payment.card_declined': 'カードが拒否されました。別のカードまたは方法を試してください。',
+    'payment.network_error': '接続エラー。もう一度試してください。',
+    'payment.unknown_error': '支払いエラー。後でもう一度試してください。'
+  },
+  'ru': {
+    'payment.card_invalid': 'Неверный номер карты. Проверьте и попробуйте еще раз.',
+    'payment.expiry_invalid': 'Неверная дата истечения. Используйте формат MM/YY.',
+    'payment.cvv_invalid': 'Неверный CVV. Должно быть 3-4 цифры.',
+    'payment.insufficient_balance': 'Недостаточно средств. Проверьте свой счет.',
+    'payment.card_blocked': 'Карта заблокирована. Свяжитесь со своим банком.',
+    'payment.pix_error': 'Ошибка генерации PIX. Попробуйте еще раз.',
+    'payment.card_declined': 'Карта отклонена. Попробуйте другую карту или способ.',
+    'payment.network_error': 'Ошибка подключения. Попробуйте еще раз.',
+    'payment.unknown_error': 'Ошибка платежа. Попробуйте позже.'
+  }
+};
+
+function serverT(key, lang) {
+  lang = lang || 'en';
+  const dict = SERVER_PAYMENT_I18N[lang] || SERVER_PAYMENT_I18N['en'];
+  return dict[key] || SERVER_PAYMENT_I18N['en'][key] || key;
+}
+
 // Helper: get smart category name (primeiro, reencontro2, reencontro3a5, etc.)
 function getSmartPhraseCategory(userAId, userBId) {
   const encounters = (db.encounters[userAId] || []).filter(e => e.with === userBId);
@@ -1632,32 +1697,32 @@ function getZodiacSign(birthdate) {
   const month = d.getMonth() + 1; // 1-12
   const day = d.getDate();
   if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return 'aries';
-  if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return 'touro';
-  if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return 'gemeos';
+  if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return 'taurus';
+  if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return 'gemini';
   if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return 'cancer';
-  if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return 'leao';
-  if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return 'virgem';
+  if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return 'leo';
+  if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return 'virgo';
   if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return 'libra';
-  if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return 'escorpiao';
-  if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return 'sagitario';
-  if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return 'capricornio';
-  if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return 'aquario';
-  return 'peixes';
+  if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return 'scorpio';
+  if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return 'sagittarius';
+  if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return 'capricorn';
+  if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return 'aquarius';
+  return 'pisces';
 }
 
 const ZODIAC_INFO = {
   aries:       { glyph: '♈', name: 'Áries',       element: 'fogo',  trait: 'impulso',    elementName: 'Fogo' },
-  touro:       { glyph: '♉', name: 'Touro',       element: 'terra', trait: 'presença',   elementName: 'Terra' },
-  gemeos:      { glyph: '♊', name: 'Gêmeos',      element: 'ar',    trait: 'movimento',  elementName: 'Ar' },
+  taurus:      { glyph: '♉', name: 'Touro',       element: 'terra', trait: 'presença',   elementName: 'Terra' },
+  gemini:      { glyph: '♊', name: 'Gêmeos',      element: 'ar',    trait: 'movimento',  elementName: 'Ar' },
   cancer:      { glyph: '♋', name: 'Câncer',       element: 'agua',  trait: 'profundidade', elementName: 'Água' },
-  leao:        { glyph: '♌', name: 'Leão',         element: 'fogo',  trait: 'brilho',     elementName: 'Fogo' },
-  virgem:      { glyph: '♍', name: 'Virgem',       element: 'terra', trait: 'cuidado',    elementName: 'Terra' },
+  leo:         { glyph: '♌', name: 'Leão',         element: 'fogo',  trait: 'brilho',     elementName: 'Fogo' },
+  virgo:       { glyph: '♍', name: 'Virgem',       element: 'terra', trait: 'cuidado',    elementName: 'Terra' },
   libra:       { glyph: '♎', name: 'Libra',        element: 'ar',    trait: 'equilíbrio', elementName: 'Ar' },
-  escorpiao:   { glyph: '♏', name: 'Escorpião',    element: 'agua',  trait: 'intensidade', elementName: 'Água' },
-  sagitario:   { glyph: '♐', name: 'Sagitário',    element: 'fogo',  trait: 'expansão',   elementName: 'Fogo' },
-  capricornio: { glyph: '♑', name: 'Capricórnio',  element: 'terra', trait: 'estrutura',  elementName: 'Terra' },
-  aquario:     { glyph: '♒', name: 'Aquário',       element: 'ar',    trait: 'liberdade',  elementName: 'Ar' },
-  peixes:      { glyph: '♓', name: 'Peixes',        element: 'agua',  trait: 'intuição',   elementName: 'Água' }
+  scorpio:     { glyph: '♏', name: 'Escorpião',    element: 'agua',  trait: 'intensidade', elementName: 'Água' },
+  sagittarius: { glyph: '♐', name: 'Sagitário',    element: 'fogo',  trait: 'expansão',   elementName: 'Fogo' },
+  capricorn:   { glyph: '♑', name: 'Capricórnio',  element: 'terra', trait: 'estrutura',  elementName: 'Terra' },
+  aquarius:    { glyph: '♒', name: 'Aquário',       element: 'ar',    trait: 'liberdade',  elementName: 'Ar' },
+  pisces:      { glyph: '♓', name: 'Peixes',        element: 'agua',  trait: 'intuição',   elementName: 'Água' }
 };
 
 // Zodiac compatibility — poetic, element-focused language
@@ -14362,6 +14427,33 @@ process.on('SIGTERM', () => {
 // ═══ RADIO TOUCH — Locutor IA ao vivo no mural ═══
 // ══════════════════════════════════════════════════════════════
 
+function getRadioVoiceStyle(lang) {
+  const styles = {
+    'pt-br': {
+      locutor: 'Voce e o locutor da Radio Touch — a radio do Mural Touch! Seu estilo e LEVE, ALEGRE e ACOLHEDOR. Fale como um amigo contando as noticias de forma clara e calorosa. TRANSICOES entre noticias sao OBRIGATORIAS: use frases como "E agora a proxima noticia...", "Passando pra outro assunto...", "E olha so o que mais ta acontecendo...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale com clareza e simpatia. NAO faca piadas, trocadilhos ou comentarios engracados sobre as noticias — seja respeitoso com os assuntos. Apenas leia, comente brevemente com empatia e passe para a proxima. Tom acolhedor e natural. Voce CONHECE a galera pelo nome e cumprimenta com carinho. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.',
+      entrevistador: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse. Complementa o locutor trazendo profundidade. Tom amigavel e profissional. NUNCA use emojis.'
+    },
+    'en': {
+      locutor: 'You are the Radio Touch announcer — the voice of the Mural Wall radio! Your style is LIGHT, CHEERFUL and WELCOMING. Speak like a friend sharing news clearly and warmly. TRANSITIONS between news are MANDATORY: use phrases like "And now the next story...", "Moving on to something else...", "And check out what else is happening...". Take natural PAUSES between topics — don\'t dump everything at once. Speak with clarity and warmth. DO NOT make jokes, puns or funny comments about the news — be respectful of the topics. Just read, comment briefly with empathy and move on. Warm and natural tone. You KNOW the people by name and greet them warmly. CONNECT topics naturally. NEVER introduce yourself as a DJ — you are the ANNOUNCER of Radio Touch. Slogan: "Radio Touch — all the news wrapped up for you!" NEVER use emojis. NEVER make up news — only comment on what is provided. NEVER say the word "you" loosely at the beginning — always provide context.',
+      entrevistador: 'You are Nova, co-host of Radio Touch. Intelligent, curious and professional. Ask relevant questions and react with interest. Complement the announcer bringing depth. Friendly and professional tone. NEVER use emojis.'
+    },
+    'es': {
+      locutor: 'Eres el locutor de Radio Touch — la voz de la radio de la Pared Mural. Tu estilo es LIGERO, ALEGRE y ACOGEDOR. Habla como un amigo compartiendo noticias clara y calurosamente. TRANSICIONES entre noticias son OBLIGATORIAS: usa frases como "Y ahora la siguiente historia...", "Pasando a otro tema...", "Y mira qué más está pasando...". Toma PAUSAS naturales entre temas — no vuelques todo de una vez. Habla con claridad y calidez. NO hagas bromas, juegos de palabras o comentarios divertidos sobre las noticias — sé respetuoso con los temas. Solo lee, comenta brevemente con empatía y continúa. Tono cálido y natural. CONOCES a la gente por nombre y los saludas calurosamente. CONECTA los temas naturalmente. NUNCA te presentes como DJ — eres el LOCUTOR de Radio Touch. Eslogan: "Radio Touch — todas las noticias resumidas para ti!" NUNCA uses emojis. NUNCA inventes noticias — solo comenta las proporcionadas. NUNCA digas la palabra "tú" sueltamente al principio — siempre proporciona contexto.',
+      entrevistador: 'Eres Nova, coanfitriona de Radio Touch. Inteligente, curiosa y profesional. Haz preguntas relevantes y reacciona con interés. Complementa al locutor aportando profundidad. Tono amable y profesional. NUNCA uses emojis.'
+    },
+    'ja': {
+      locutor: 'あなたはRadio Touchのアナウンサーです — ウォール・ラジオの声です！あなたのスタイルは軽く、陽気で思いやりがあります。友人のようにニュースを明確かつ温かく話してください。ニュース間のトランジションは必須です：「では次のストーリーです...」、「別のテーマに移ります...」、「他に何が起こっているか見てください...」などのフレーズを使用してください。トピック間で自然な休止を取ってください — すべてを一度に出さないでください。明確さと温かさを持って話してください。ニュースに関してジョークやしゃれをしたり、面白いコメントをしたりしないでください — トピックに対して敬意を払ってください。読むだけで、簡潔に共感的にコメントして続行してください。温かく自然なトーン。あなたは人々を名前で知っており、温かく挨拶します。トピックを自然に接続します。決してDJとして自分を紹介しないでください — あなたはRadio Touchのアナウンサーです。スローガン：「Radio Touch — あなたのためにまとめたすべてのニュース！」絶対に絵文字を使わないでください。決してニュースを作成しないでください — 提供されたものについてのみコメントしてください。最初は決して「あなた」という言葉を緩く言わないでください — 常にコンテキストを提供してください。',
+      entrevistador: 'あなたはRadio Touchの共同ホストのNovaです。知的で好奇心が強く専門的です。関連する質問をして、興味を持って反応してください。アナウンサーを補完して深さをもたらします。親切で専門的なトーン。絶対に絵文字を使わないでください。'
+    },
+    'ru': {
+      locutor: 'Вы ведущий Radio Touch — голос радио Wall. Ваш стиль ЛЕГКИЙ, ВЕСЕЛЫЙ и ПРИВЕТЛИВЫЙ. Говорите как друг, делясь новостями ясно и тепло. ПЕРЕХОДЫ между новостями ОБЯЗАТЕЛЬНЫ: используйте фразы вроде "И вот следующая история...", "Переходим на другую тему...", "И посмотрите, что еще происходит...". Делайте естественные ПАУЗЫ между темами — не выкладывайте все сразу. Говорите с ясностью и теплотой. НЕ делайте шутки, каламбуры или забавные комментарии о новостях — будьте уважительны к темам. Просто читайте, кратко комментируйте с эмпатией и продолжайте. Теплый и естественный тон. Вы ЗНАЕТЕ людей по имени и тепло их приветствуете. СОЕДИНЯЙТЕ темы естественно. НИКОГДА не представляйтесь как DJ — вы ВЕДУЩИЙ Radio Touch. Слоган: "Radio Touch — все новости в кратком изложении для вас!" НИКОГДА не используйте смайлики. НИКОГДА не выдумывайте новости — только комментируйте то, что предоставлено. НИКОГДА не говорите слово "вы" свободно в начале — всегда предоставляйте контекст.',
+      entrevistador: 'Вы Нова, со-ведущая Radio Touch. Умная, любопытная и профессиональная. Задавайте релевантные вопросы и реагируйте с интересом. Дополняйте ведущего, внося глубину. Дружелюбный и профессиональный тон. НИКОГДА не используйте смайлики.'
+    }
+  };
+
+  return styles[lang] || styles['en'];
+}
+
 const RADIO_VOICES = {
   locutor: { voice: 'alloy', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio do Mural Touch! Seu estilo e LEVE, ALEGRE e ACOLHEDOR. Fale como um amigo contando as noticias de forma clara e calorosa. TRANSICOES entre noticias sao OBRIGATORIAS: use frases como "E agora a proxima noticia...", "Passando pra outro assunto...", "E olha so o que mais ta acontecendo...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale com clareza e simpatia. NAO faca piadas, trocadilhos ou comentarios engracados sobre as noticias — seja respeitoso com os assuntos. Apenas leia, comente brevemente com empatia e passe para a proxima. Tom acolhedor e natural. Voce CONHECE a galera pelo nome e cumprimenta com carinho. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
   entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse. Complementa o locutor trazendo profundidade. Tom amigavel e profissional. NUNCA use emojis.' }
@@ -14686,9 +14778,10 @@ async function _generateRadioSegment(channelKey, segmentType) {
     const isInterview = segmentType === 'entrevista';
     const radioLang = _getChannelLang(channelKey);
     const radioLangInst = _langInstruction(radioLang);
+    const radioVoices = getRadioVoiceStyle(radioLang);
     const systemMsg = isInterview
-      ? 'Voce e roteirista da Radio Touch — a radio do Mural Touch. Escreva dialogos curtos e NATURAIS entre Locutor e Nova (co-apresentadora feminina, inteligente, curiosa). Use o CONTEXTO fornecido. Conecte assuntos. Sem emojis. ' + radioLangInst
-      : RADIO_VOICES.locutor.style + '\n' + radioLangInst;
+      ? 'You are a scriptwriter for Radio Touch — the voice of the Mural Wall. Write short, NATURAL dialogues between Announcer and Nova (female co-host, intelligent, curious). Use the PROVIDED CONTEXT. Connect topics. No emojis. ' + radioLangInst
+      : radioVoices.locutor + '\n' + radioLangInst;
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 30000);
