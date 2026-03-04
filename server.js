@@ -4574,95 +4574,114 @@ const _newsLastPosted = {}; // agentId:channelKey -> timestamp
 const MURAL_AGENTS = {
   reporter: {
     id: 'reporter',
-    nick: 'Reporter',
+    nick: 'Noticias',
+    nickByLang: { 'pt-br': 'Noticias', en: 'News', es: 'Noticias' },
     color: '#e65100',
     label: 'Noticias Gerais',
     description: 'Noticias locais, do mundo e urgencias em tempo real',
-    systemPrompt: 'Voce e o Reporter, um jornalista digital serio e objetivo. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave, acidente com vitimas), comece o titulo com "URGENTE:" para destacar. Para noticias normais, va direto ao ponto. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto a palavra URGENTE quando aplicavel). Va direto ao ponto.',
+    systemPrompt: 'Voce e um jornalista digital serio e objetivo. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave, acidente com vitimas), comece o titulo com "URGENTE:" para destacar. Para noticias normais, va direto ao ponto. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto a palavra URGENTE quando aplicavel). Va direto ao ponto.',
     queryTemplate: 'Principal noticia de hoje de {local}. Traga a mais relevante e impactante. Se houver algo REALMENTE urgente acontecendo AGORA (desastre, atentado, crise grave, acidente com vitimas), priorize essa noticia.',
     enabled: true
   },
   sport: {
     id: 'sport',
-    nick: 'SportBot',
+    nick: 'Esportes',
+    nickByLang: { 'pt-br': 'Esportes', en: 'Sports', es: 'Deportes' },
     color: '#1565c0',
     label: 'Esporte',
     description: 'Noticias de todos os esportes',
-    systemPrompt: 'Voce e o SportBot, um comentarista esportivo apaixonado que cobre todos os esportes. Futebol, basquete, MMA, F1, tenis, volei, olimpiadas e mais. Fale com paixao e opiniao. Formato: Uma frase de titulo na primeira linha.\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    systemPrompt: 'Voce e um comentarista esportivo apaixonado que cobre todos os esportes. Futebol, basquete, MMA, F1, tenis, volei, olimpiadas e mais. Fale com paixao e opiniao. Formato: Uma frase de titulo na primeira linha.\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Principal noticia de esporte de hoje no Brasil e no mundo. Pode ser futebol, basquete, MMA, F1, tenis ou qualquer esporte. Foco em resultados, transferencias ou polemicas.',
     enabled: true
   },
   fitness: {
     id: 'fitness',
-    nick: 'Coach Fit',
+    nick: 'Fitness',
+    nickByLang: { 'pt-br': 'Fitness', en: 'Fitness', es: 'Fitness' },
     color: '#2e7d32',
     label: 'Fitness',
     description: 'Dicas de exercicio e motivacao',
-    systemPrompt: 'Voce e o Coach Fit, um personal trainer digital animado e motivador. Fale como um coach que incentiva as pessoas. Traga dicas de exercicio e treino. Formato: Uma frase de titulo motivacional na primeira linha.\n\nDica pratica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    systemPrompt: 'Voce e um personal trainer digital animado e motivador. Fale como um coach que incentiva as pessoas. Traga dicas de exercicio e treino. Formato: Uma frase de titulo motivacional na primeira linha.\n\nDica pratica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Dica de exercicio ou treino do dia. Algo pratico que qualquer pessoa pode fazer em casa ou na rua em {local}.',
     enabled: true
   },
   saude: {
     id: 'saude',
-    nick: 'Dr. Touch',
+    nick: 'Saude',
+    nickByLang: { 'pt-br': 'Saude', en: 'Health', es: 'Salud' },
     color: '#00897b',
     label: 'Saude',
     description: 'Dicas de saude e bem-estar',
-    systemPrompt: 'Voce e o Dr. Touch, um medico digital acessivel e confiavel. Traga dicas de saude, prevencao, bem-estar, alimentacao saudavel e saude mental. Nao faca diagnosticos. Formato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases claras e uteis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Cite fontes confiaveis quando possivel.',
+    systemPrompt: 'Voce e um especialista em saude digital acessivel e confiavel. Traga dicas de saude, prevencao, bem-estar, alimentacao saudavel e saude mental. Nao faca diagnosticos. Formato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases claras e uteis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Cite fontes confiaveis quando possivel.',
     queryTemplate: 'Dica de saude, prevencao ou bem-estar do dia. Algo pratico e acessivel para a populacao de {local}.',
     enabled: true
   },
   cozinha: {
     id: 'cozinha',
-    nick: 'Chef Touch',
+    nick: 'Cozinha',
+    nickByLang: { 'pt-br': 'Cozinha', en: 'Kitchen', es: 'Cocina' },
     color: '#d84315',
     label: 'Cozinha',
     description: 'Receitas e dicas culinarias',
-    systemPrompt: 'Voce e o Chef Touch, um chef de cozinha carismatico. Fale como um chef que ensina com carinho e simplicidade. Traga receitas faceis e dicas culinarias. Formato: Nome da receita ou dica na primeira linha.\n\nInstrucoes em 2-3 frases simples. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    systemPrompt: 'Voce e um chef de cozinha carismatico. Fale como um chef que ensina com carinho e simplicidade. Traga receitas faceis e dicas culinarias. Formato: Nome da receita ou dica na primeira linha.\n\nInstrucoes em 2-3 frases simples. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Receita facil e rapida ou dica culinaria do dia. Algo acessivel para cozinhar em {local}.',
     enabled: true
   },
   tecnologia: {
     id: 'tecnologia',
-    nick: 'TechBot',
+    nick: 'Tecnologia',
+    nickByLang: { 'pt-br': 'Tecnologia', en: 'Tech', es: 'Tecnologia' },
     color: '#6a1b9a',
     label: 'Tecnologia',
     description: 'Novidades tech e inovacao',
-    systemPrompt: 'Voce e o TechBot, um especialista em tecnologia e inovacao. Fale de forma clara e acessivel sobre tech. Traga novidades de tecnologia, apps, gadgets e IA. Formato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases acessiveis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    systemPrompt: 'Voce e um especialista em tecnologia e inovacao. Fale de forma clara e acessivel sobre tech. Traga novidades de tecnologia, apps, gadgets e IA. Formato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases acessiveis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Principal novidade de tecnologia de hoje no mundo. Foco em lancamentos, IA, apps ou gadgets.',
     enabled: true
   },
   politica: {
     id: 'politica',
-    nick: 'Politico',
+    nick: 'Politica',
+    nickByLang: { 'pt-br': 'Politica', en: 'Politics', es: 'Politica' },
     color: '#37474f',
     label: 'Politica',
     description: 'Noticias politicas com analise',
-    systemPrompt: 'Voce e o Politico, um analista politico imparcial e direto. Traga noticias de politica sem tomar lado, mas com analise critica. Formato: Uma frase de titulo na primeira linha.\n\nAnalise equilibrada em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Seja imparcial.',
+    systemPrompt: 'Voce e um analista politico imparcial e direto. Traga noticias de politica sem tomar lado, mas com analise critica. Formato: Uma frase de titulo na primeira linha.\n\nAnalise equilibrada em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Seja imparcial.',
     queryTemplate: 'Principal noticia de politica de hoje no Brasil e no mundo. Foco em decisoes que afetam a populacao.',
     enabled: true
   },
   educacao: {
     id: 'educacao',
-    nick: 'Prof. Saber',
+    nick: 'Educacao',
+    nickByLang: { 'pt-br': 'Educacao', en: 'Education', es: 'Educacion' },
     color: '#f57f17',
     label: 'Educacao',
     description: 'Curiosidades e aprendizado',
-    systemPrompt: 'Voce e o Prof. Saber, um professor curioso e didatico. Traga curiosidades, fatos interessantes e conteudo educativo. Formato: Uma frase de titulo curiosa na primeira linha.\n\nExplicacao didatica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Ensine algo novo.',
+    systemPrompt: 'Voce e um professor curioso e didatico. Traga curiosidades, fatos interessantes e conteudo educativo. Formato: Uma frase de titulo curiosa na primeira linha.\n\nExplicacao didatica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Ensine algo novo.',
     queryTemplate: 'Curiosidade interessante ou fato educativo do dia. Algo surpreendente que as pessoas nao sabem.',
     enabled: true
   },
   clima: {
     id: 'clima',
-    nick: 'ClimaBot',
+    nick: 'Clima',
+    nickByLang: { 'pt-br': 'Clima', en: 'Weather', es: 'Clima' },
     color: '#1976d2',
     label: 'Clima e Tempo',
     description: 'Previsao do tempo e alertas climaticos',
-    systemPrompt: 'Voce e o ClimaBot, um meteorologista digital confiavel. Traga a previsao do tempo atual, alertas climaticos e informacoes uteis sobre o clima. Fale de forma clara e pratica, como um apresentador de previsao do tempo. Formato: Uma frase de titulo sobre o clima na primeira linha.\n\nPrevisao detalhada em 2-3 frases com temperatura, chuva e dicas praticas. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    systemPrompt: 'Voce e um meteorologista digital confiavel. Traga a previsao do tempo atual, alertas climaticos e informacoes uteis sobre o clima. Fale de forma clara e pratica. Formato: Uma frase de titulo sobre o clima na primeira linha.\n\nPrevisao detalhada em 2-3 frases com temperatura, chuva e dicas praticas. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Previsao do tempo de hoje e amanha para {local}. Inclua temperatura, chance de chuva, umidade e se ha alertas meteorologicos. Foque no que as pessoas precisam saber para sair de casa.',
     enabled: true
   }
 };
+
+// Helper: pega nick do agente no idioma do canal
+function _agentNick(agentId, channelKey) {
+  var agent = MURAL_AGENTS[agentId];
+  if (!agent) return agentId;
+  if (!channelKey || !agent.nickByLang) return agent.nick;
+  var lang = _getChannelLang(channelKey);
+  var baseLang = lang.split('-')[0]; // pt-br -> pt
+  return agent.nickByLang[lang] || agent.nickByLang[baseLang] || agent.nick;
+}
 
 // Fila round-robin: agentes de nicho alternam 2x/dia (sem reporter)
 const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => k !== 'reporter');
@@ -4826,7 +4845,7 @@ async function postNewsToChannel(channelKey, channelName, channelType, agentId) 
     channelName,
     channelType,
     userId: 'news-agent',
-    nick: agent.nick,
+    nick: _agentNick(agentId, channelKey),
     color: agent.color,
     agentType: agentId,
     stars: 0,
@@ -5006,7 +5025,7 @@ app.post('/api/mural/:channelKey/news', requireAuth, async (req, res) => {
     channelName: sample.channelName,
     channelType: sample.channelType,
     userId: 'news-agent',
-    nick: agent.nick,
+    nick: _agentNick(agentId, channelKey),
     color: agent.color,
     agentType: agentId,
     stars: 0,
@@ -5101,7 +5120,7 @@ app.post('/api/mural/:postId/comment', requireAuth, async (req, res) => {
         body: JSON.stringify({
           model: 'sonar',
           messages: [
-            { role: 'system', content: 'Voce e ' + agent.nick + ', um bot de noticias em um mural comunitario. Responda ao ultimo comentario do usuario de forma curta (max 2 frases), informativa e conversacional, em portugues BR. Voce tem acesso a noticia completa e ao historico de comentarios.\n\nNoticia completa:\n' + fullNews },
+            { role: 'system', content: 'Voce e ' + _agentNick(agentId, foundChannel) + ', um bot de noticias em um mural comunitario. Responda ao ultimo comentario do usuario de forma curta (max 2 frases), informativa e conversacional. ' + _langInstruction(_getChannelLang(foundChannel)) + ' Voce tem acesso a noticia completa e ao historico de comentarios.\n\nNoticia completa:\n' + fullNews },
             { role: 'user', content: (userCmts ? 'Comentarios anteriores:\n' + userCmts + '\n\n' : '') + 'Ultimo comentario de ' + userName + ':\n' + lastUserComment }
           ],
           max_tokens: 150,
@@ -5115,7 +5134,7 @@ app.post('/api/mural/:postId/comment', requireAuth, async (req, res) => {
         const agentComment = {
           id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
           userId: 'agent-' + agentId,
-          nick: agent.nick,
+          nick: _agentNick(agentId, foundChannel),
           color: agent.color,
           text: answer,
           likes: [],
@@ -5125,7 +5144,7 @@ app.post('/api/mural/:postId/comment', requireAuth, async (req, res) => {
         foundPost.comments.push(agentComment);
         saveDBNow('muralPosts');
         io.to('mural:' + foundChannel).emit('mural-new-comment', { postId, comment: agentComment });
-        console.log('[agent-reply] ' + agent.nick + ' respondeu comentario em #' + foundChannel);
+        console.log('[agent-reply] ' + _agentNick(agentId, foundChannel) + ' respondeu comentario em #' + foundChannel);
       }
     } catch (e) {
       console.error('[agent-reply] Erro:', e.message);
@@ -5181,7 +5200,7 @@ app.post('/api/mural/:postId/ask-agent', requireAuth, async (req, res) => {
       body: JSON.stringify({
         model: 'sonar',
         messages: [
-          { role: 'system', content: 'Voce e ' + agent.nick + ', um bot de noticias. Responda a pergunta do usuario sobre esta noticia de forma curta (max 150 palavras), informativa e em portugues BR. Noticia: ' + headline },
+          { role: 'system', content: 'Voce e ' + _agentNick(agentId, foundChannel) + ', um bot de noticias. Responda a pergunta do usuario sobre esta noticia de forma curta (max 150 palavras), informativa. ' + _langInstruction(_getChannelLang(foundChannel)) + ' Noticia: ' + headline },
           { role: 'user', content: question.trim() }
         ],
         max_tokens: 300
@@ -5194,7 +5213,7 @@ app.post('/api/mural/:postId/ask-agent', requireAuth, async (req, res) => {
     const agentComment = {
       id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
       userId: 'agent-' + agentId,
-      nick: agent.nick,
+      nick: _agentNick(agentId, foundChannel),
       color: agent.color,
       text: answer.trim(),
       likes: [],
@@ -5231,6 +5250,7 @@ app.get('/api/mural/agents/config', (req, res) => {
     config[id] = {
       id: agent.id,
       nick: agent.nick,
+      nickByLang: agent.nickByLang || {},
       color: agent.color,
       label: agent.label,
       description: agent.description,
@@ -9823,7 +9843,7 @@ app.post('/api/agent/session', vaLimiter, async (req, res) => {
   // News context from Mural "Falar disso com IA" button
   let newsInstructions = '';
   if (newsContext && newsContext.headline) {
-    const agentNames = { reporter: 'Reporter', sport: 'SportBot', fitness: 'Coach Fit', saude: 'Dr. Touch', cozinha: 'Chef Touch', tecnologia: 'TechBot', politica: 'Politico', educacao: 'Prof. Saber', clima: 'ClimaBot' };
+    const agentNames = { reporter: 'Noticias', sport: 'Esportes', fitness: 'Fitness', saude: 'Saude', cozinha: 'Cozinha', tecnologia: 'Tecnologia', politica: 'Politica', educacao: 'Educacao', clima: 'Clima' };
     const agentName = agentNames[newsContext.agentType] || 'Reporter';
     newsInstructions = `\n\n=== CONTEXTO DE NOTICIA DO MURAL ===
 O usuario clicou em "Falar disso com IA" em uma noticia do Mural da Cidade.
