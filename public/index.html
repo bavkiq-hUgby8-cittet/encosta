@@ -2648,17 +2648,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <div style="flex:1;padding:.3rem;border-radius:8px;background:rgba(255,255,255,.04);text-align:center"><div style="font-size:.7rem;margin-bottom:.1rem">3</div><div style="font-size:.42rem;color:var(--t2)">Pronto! Receba direto</div></div>
       </div>
 
-      <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" style="width:100%;margin-bottom:.3rem;padding:.5rem;border-radius:12px;border:none;background:linear-gradient(135deg,#00b1ea,#009ee3);color:#fff;font-size:.65rem;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(0,177,234,.2)">Conectar Mercado Pago (Brasil)</button>
-      <div style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.4rem">Ja tem conta? So autorizar. Nao tem? Cria na hora, gratis.</div>
+      <button class="bs" id="pregMpBtn" onclick="connectMercadoPago()" data-i18n="service_provider.connect_mp_label" style="width:100%;margin-bottom:.3rem;padding:.5rem;border-radius:12px;border:none;background:linear-gradient(135deg,#00b1ea,#009ee3);color:#fff;font-size:.65rem;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(0,177,234,.2)">Conectar Mercado Pago (Brasil)</button>
+      <div data-i18n="service_provider.mp_hint" style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.4rem">Ja tem conta? So autorizar. Nao tem? Cria na hora, gratis.</div>
 
-      <button class="bs" id="pregStripeBtn" onclick="connectStripe()" style="width:100%;margin-bottom:.2rem;padding:.45rem;border-radius:12px;border:1px solid rgba(99,91,255,.25);background:rgba(99,91,255,.08);color:#a5b4fc;font-size:.6rem;font-weight:700;cursor:pointer;font-family:inherit">Conectar Stripe (Internacional)</button>
-      <div id="pregStripeStatus" style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.3rem">Para receber de qualquer pais do mundo</div>
+      <button class="bs" id="pregStripeBtn" onclick="connectStripe()" data-i18n="service_provider.connect_stripe_label" style="width:100%;margin-bottom:.2rem;padding:.45rem;border-radius:12px;border:1px solid rgba(99,91,255,.25);background:rgba(99,91,255,.08);color:#a5b4fc;font-size:.6rem;font-weight:700;cursor:pointer;font-family:inherit">Conectar Stripe (Internacional)</button>
+      <div id="pregStripeStatus" data-i18n="service_provider.stripe_hint" style="font-size:.42rem;color:var(--t3);text-align:center;margin-bottom:.3rem">Para receber de qualquer pais do mundo</div>
 
-      <div style="text-align:center;margin-top:.3rem"><button onclick="showPrestadorDash()" style="padding:4px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--t3);font-size:.48rem;cursor:pointer;font-family:inherit">Pular por agora (voce pode conectar depois)</button></div>
+      <div style="text-align:center;margin-top:.3rem"><button onclick="showPrestadorDash()" data-i18n="service_provider.skip_for_now" style="padding:4px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--t3);font-size:.48rem;cursor:pointer;font-family:inherit">Pular por agora (voce pode conectar depois)</button></div>
     </div>
   </div>
 
-  <button class="bs" onclick="goHome()" style="width:100%;margin-bottom:2rem;opacity:.6">Voltar</button>
+  <button class="bs" onclick="goHome()" data-i18n="common.back" style="width:100%;margin-bottom:2rem;opacity:.6">Voltar</button>
 </div>
 
 <div id="encounterLog" class="screen">
@@ -6870,9 +6870,9 @@ function doReveal(data){
   if(isService){
     // SERVICE: gorjeta principal, chat, pular
     let h='';
-    h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
-    h+=_rvBtn(_rvIco.chat,'Chat',"enterChat()",'primary');
-    h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
+    h+=_rvBtn(_rvIco.tip,t('reveal.tip_btn'),"openTipFromReveal()",'tip');
+    h+=_rvBtn(_rvIco.chat,t('reveal.chat_btn'),"enterChat()",'primary');
+    h+=_rvBtn(_rvIco.skip,t('reveal.skip_btn'),"goHome()",'skip');
     iconRow.innerHTML=h;
     // Set receiverId on the NEW tip button (iconRow.innerHTML destroyed the old one)
     const newTipBtn=iconRow.querySelector('.rv-icon-btn.tip');
@@ -6888,31 +6888,31 @@ function doReveal(data){
       const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
       let h='';
       var evLogo=(them.eventLogo||'').replace(/'/g,"\\'");
-      h+=_rvBtn(_rvIco.ticket,'Pagar '+priceLabel,"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+opId+"','"+evLogo+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,'Pular',"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"')",'skip');
+      h+=_rvBtn(_rvIco.ticket,t('reveal.pay_btn',{price:priceLabel}),"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+opId+"','"+evLogo+"')",'primary');
+      h+=_rvBtn(_rvIco.skip,t('reveal.skip_btn'),"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"')",'skip');
       iconRow.innerHTML=h;
-      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">Este evento cobra '+priceLabel+' de ingresso.</div>';
+      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">'+t('reveal.entry_price_info',{price:priceLabel})+'</div>';
     }else if(data.requireReveal){
       let h='';
-      h+=_rvBtn(_rvIco.reveal,'Revelar',"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,'Anônimo',"showEventView('"+evId+"','"+esc(evName)+"')",'skip');
+      h+=_rvBtn(_rvIco.reveal,t('reveal.reveal_btn'),"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
+      h+=_rvBtn(_rvIco.skip,t('reveal.anonymous_btn'),"showEventView('"+evId+"','"+esc(evName)+"')",'skip');
       iconRow.innerHTML=h;
-      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">Este estabelecimento solicita identificação.</div>';
+      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">'+t('reveal.id_required_note')+'</div>';
     }else{
       let h='';
-      h+=_rvBtn(_rvIco.reveal,'Revelar',"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,'Só check-in',evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()",'skip');
+      h+=_rvBtn(_rvIco.reveal,t('reveal.reveal_btn'),"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
+      h+=_rvBtn(_rvIco.skip,t('reveal.checkin_only_btn'),evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()",'skip');
       iconRow.innerHTML=h;
       if(secRow)secRow.style.display='none';
     }
   }else{
     // NORMAL: chat + selfie + share + conexão + pular
     let h='';
-    h+=_rvBtn(_rvIco.chat,'Chat 24h',"enterChat()",'primary');
-    h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>','Conexão',"goToConnectionFromReveal()",'');
-    h+=_rvBtn(_rvIco.cam,'Selfie',"revealCaptureSelfie()",'');
-    h+=_rvBtn(_rvIco.share,'Compartilhar',"shareConnectionChoice()",'');
-    h+=_rvBtn(_rvIco.skip,'Pular',"goHome()",'skip');
+    h+=_rvBtn(_rvIco.chat,t('reveal.chat_24h_btn'),"enterChat()",'primary');
+    h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',t('reveal.connection_btn'),"goToConnectionFromReveal()",'');
+    h+=_rvBtn(_rvIco.cam,t('reveal.selfie_btn'),"revealCaptureSelfie()",'');
+    h+=_rvBtn(_rvIco.share,t('reveal.share_btn'),"shareConnectionChoice()",'');
+    h+=_rvBtn(_rvIco.skip,t('reveal.skip_btn'),"goHome()",'skip');
     iconRow.innerHTML=h;
   }
 
@@ -18990,31 +18990,31 @@ window.addEventListener('message',function(e){
     <div class="onb-invite-orb">
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
     </div>
-    <h2>Posso te ensinar a conectar com algu&eacute;m?</h2>
-    <button class="onb-invite-btn" onclick="acceptGuidedOnboarding()">Vamos l&aacute;!</button>
-    <button class="onb-invite-skip" onclick="skipGuidedOnboarding()">Pular</button>
+    <h2 data-i18n="onboarding.guided_invite">Posso te ensinar a conectar com alguém?</h2>
+    <button class="onb-invite-btn" data-i18n="onboarding.guided_accept" onclick="acceptGuidedOnboarding()">Vamos lá!</button>
+    <button class="onb-invite-skip" data-i18n="onboarding.skip" onclick="skipGuidedOnboarding()">Pular</button>
     <div class="onb-invite-check">
       <input type="checkbox" id="onbDontShowAgain">
-      <label for="onbDontShowAgain">N&atilde;o mostrar novamente</label>
+      <label data-i18n="onboarding.dont_show_again" for="onbDontShowAgain">Não mostrar novamente</label>
     </div>
   </div>
 </div>
 <div class="onb-loading" id="onbLoading">
   <div class="onb-loading-spinner"></div>
-  <div class="onb-loading-text">Preparando assistente<span class="onb-loading-dots"></span></div>
+  <div class="onb-loading-text" id="onbLoadingText" data-i18n="onboarding.preparing_assistant">Preparando assistente<span class="onb-loading-dots"></span></div>
 </div>
 <div class="onb-finish" id="onbFinish">
   <div class="onb-finish-card">
     <div style="font-size:2.2rem">&#x1F91D;</div>
-    <h2>Seja bem-vindo!</h2>
-    <p>Agora aperta o bot&atilde;o TOUCH e come&ccedil;a a se conectar com pessoas e locais. Aproveite!</p>
-    <button class="onb-finish-btn" onclick="closeOnbFinish()">Come&ccedil;ar!</button>
+    <h2 data-i18n="onboarding.welcome">Seja bem-vindo!</h2>
+    <p data-i18n="onboarding.welcome_desc">Agora aperta o botão TOUCH e comeca a se conectar com pessoas e locais. Aproveite!</p>
+    <button class="onb-finish-btn" data-i18n="onboarding.start" onclick="closeOnbFinish()">Começar!</button>
   </div>
 </div>
 <div class="onb-guide-bubble" id="onbGuideBubble">
   <div class="onb-bubble-text" id="onbBubbleText"></div>
-  <button class="onb-bubble-action" id="onbBubbleAction" style="display:none" onclick="onbBubbleActionClick()">Começar</button>
-  <button class="onb-bubble-skip" onclick="skipGuidedOnboarding()">Pular</button>
+  <button class="onb-bubble-action" id="onbBubbleAction" data-i18n="onboarding.start" style="display:none" onclick="onbBubbleActionClick()">Começar</button>
+  <button class="onb-bubble-skip" data-i18n="onboarding.skip" onclick="skipGuidedOnboarding()">Pular</button>
 </div>
 <div class="onb-guide-highlight" id="onbHighlight"></div>
 <div class="onb-spark" id="onbSpark">
