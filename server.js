@@ -4571,6 +4571,14 @@ app.post('/api/mural/:channelKey/narrate', requireAuth, async (req, res) => {
 const PPLX_API_KEY = process.env.PPLX_API_KEY || '';
 const _newsLastPosted = {}; // agentId:channelKey -> timestamp
 
+// ── Cache de noticias por regiao (otimizacao: mesma cidade = 1 chamada API) ──
+const _newsRegionCache = {}; // 'agentId:channelName:channelType' -> { result, ts }
+const NEWS_REGION_CACHE_TTL = 50 * 60 * 1000; // 50 min (reporter roda a cada 1h)
+const MAX_CHANNELS_PER_CYCLE = 20; // Limite de canais por ciclo de noticias
+const MAX_API_CALLS_PER_HOUR = 60; // Limite de chamadas Perplexity por hora
+let _apiCallsThisHour = 0;
+setInterval(() => { _apiCallsThisHour = 0; }, 60 * 60 * 1000); // Reset a cada hora
+
 const MURAL_AGENTS = {
   reporter: {
     id: 'reporter',
@@ -4578,9 +4586,9 @@ const MURAL_AGENTS = {
     nickByLang: { 'pt-br': 'Noticias', en: 'News', es: 'Noticias' },
     color: '#e65100',
     label: 'Noticias Gerais',
-    description: 'Noticias locais, do mundo e urgencias em tempo real',
-    systemPrompt: 'Voce e um jornalista digital serio e objetivo. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave, acidente com vitimas), comece o titulo com "URGENTE:" para destacar. Para noticias normais, va direto ao ponto. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo da noticia em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto a palavra URGENTE quando aplicavel). Va direto ao ponto.',
-    queryTemplate: 'Principal noticia de hoje de {local}. Traga a mais relevante e impactante. Se houver algo REALMENTE urgente acontecendo AGORA (desastre, atentado, crise grave, acidente com vitimas), priorize essa noticia.',
+    description: 'Noticias locais, agenda cultural, eventos e urgencias',
+    systemPrompt: 'Voce e um jornalista digital serio e objetivo que tambem cobre a cena cultural e de entretenimento local. ALTERNE entre noticias gerais e agenda cultural/eventos a cada postagem. Para agenda cultural: traga programacao de shows, bares, restaurantes, festivais, exposicoes, teatro, cinema, musica ao vivo e eventos da cidade — busque em fontes locais e redes sociais da regiao. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave), comece com "URGENTE:". Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo ou perfil. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto URGENTE). Va direto ao ponto.',
+    queryTemplate: 'Traga UMA das opcoes abaixo sobre {local} (alterne entre elas): 1) Principal noticia relevante de hoje. 2) Agenda cultural: shows, eventos, festivais, programacao de bares e restaurantes, musica ao vivo, teatro, cinema acontecendo hoje ou nesta semana. 3) Se houver algo REALMENTE urgente (desastre, atentado, crise grave), priorize. Busque em fontes locais, Instagram de bares e casas de show da regiao, guias culturais e sites de eventos.',
     enabled: true
   },
   sport: {
@@ -4723,6 +4731,20 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
   else if (channelType === 'region') localName = lang === 'en' ? 'the world' : lang === 'es' ? 'el mundo' : 'mundo';
   else if (channelType === 'world') localName = lang === 'en' ? 'the entire world' : lang === 'es' ? 'el mundo entero' : 'o mundo inteiro';
 
+  // ── Cache por regiao: mesma cidade/estado/pais = reusa resultado ──
+  const regionKey = agentId + ':' + (channelName || 'unknown') + ':' + (channelType || 'city');
+  const cached = _newsRegionCache[regionKey];
+  if (cached && (Date.now() - cached.ts) < NEWS_REGION_CACHE_TTL) {
+    console.log('[MURAL] Cache hit for region:', regionKey);
+    return cached.result;
+  }
+
+  // ── Rate limit: proteger contra excesso de chamadas API ──
+  if (_apiCallsThisHour >= MAX_API_CALLS_PER_HOUR) {
+    console.log('[MURAL] Rate limit reached (' + MAX_API_CALLS_PER_HOUR + '/h). Skipping fetch for:', channelKey);
+    return cached ? cached.result : null; // retorna cache expirado se tiver
+  }
+
   // Detectar contexto do mural para buscar noticias relacionadas
   const muralContext = _detectMuralContext(channelKey);
   let query = agent.queryTemplate.replace('{local}', localName);
@@ -4730,6 +4752,7 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
     query += '\n\nContexto: as pessoas estao conversando sobre: ' + muralContext.slice(0, 300) + '\nSe possivel, traga uma noticia relacionada a esse assunto.';
   }
 
+  _apiCallsThisHour++;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20000);
@@ -4790,7 +4813,7 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
     if (images.length === 0 && text) {
       try {
         const agentKeywords = {
-          reporter: 'newspaper,city,news',
+          reporter: 'newspaper,city,news,concert,culture',
           sport: 'sports,soccer,basketball,mma',
           fitness: 'fitness,exercise,gym',
           saude: 'health,medicine,wellness',
@@ -4822,7 +4845,10 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
     }
 
     // Retornar objeto rico em vez de string simples
-    return { text, citations, images, muralRelated: !!muralContext };
+    const result = { text, citations, images, muralRelated: !!muralContext };
+    // Salvar no cache por regiao
+    _newsRegionCache[regionKey] = { result, ts: Date.now() };
+    return result;
   } catch (e) {
     return null;
   }
@@ -4930,22 +4956,27 @@ function _getActiveChannels() {
     if (!Array.isArray(posts)) continue;
     const validPosts = posts.filter(p => p && p.channelName && p.channelType);
     if (validPosts.length === 0) continue;
-    channels.push({ key: chKey, sample: validPosts[validPosts.length - 1] });
+    // Contar usuarios online no canal pra priorizar
+    const room = io.sockets.adapter.rooms.get('mural:' + chKey);
+    const onlineCount = room ? room.size : 0;
+    channels.push({ key: chKey, sample: validPosts[validPosts.length - 1], online: onlineCount });
   }
+  // Priorizar canais com mais usuarios online
+  channels.sort((a, b) => b.online - a.online);
   return channels;
 }
 
-// Reporter: posta a cada 30 min (noticias gerais do local)
+// Reporter: posta a cada 1h (noticias gerais + agenda cultural)
 setInterval(async () => {
   if (!PPLX_API_KEY || !_newsEngineEnabled) return;
   try {
     const now = Date.now();
-    const channels = _getActiveChannels();
+    const channels = _getActiveChannels().slice(0, MAX_CHANNELS_PER_CYCLE);
     for (const ch of channels) {
       await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, 'reporter');
       _newsLastPosted['reporter:' + ch.key] = now;
     }
-    console.log('[reporter] Noticia geral postada em ' + channels.length + ' canais');
+    console.log('[reporter] Postado em ' + channels.length + ' canais (limite: ' + MAX_CHANNELS_PER_CYCLE + ', API calls/h: ' + _apiCallsThisHour + '/' + MAX_API_CALLS_PER_HOUR + ')');
   } catch (e) {
     console.error('[reporter] Erro:', e.message);
   }
@@ -4961,13 +4992,13 @@ setInterval(async () => {
     const agent = MURAL_AGENTS[agentId];
     if (!agent || !agent.enabled) return;
 
-    const channels = _getActiveChannels();
+    const channels = _getActiveChannels().slice(0, MAX_CHANNELS_PER_CYCLE);
     for (const ch of channels) {
       await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
       _newsLastPosted[agentId + ':' + ch.key] = now;
     }
     _newsLastPosted[agentId + ':global'] = now;
-    console.log('[agents] Round-robin posted: ' + agentId + ' (next: ' + _agentQueue[_agentQueueIndex % _agentQueue.length] + ')');
+    console.log('[agents] Round-robin: ' + agentId + ' em ' + channels.length + ' canais (API calls/h: ' + _apiCallsThisHour + '/' + MAX_API_CALLS_PER_HOUR + ')');
   } catch (e) {
     console.error('[agents] Error in round-robin cycle:', e.message);
   }
@@ -4993,6 +5024,12 @@ setInterval(() => {
   if (totalRemoved > 0) {
     console.log('[mural-cleanup] Removidos ' + totalRemoved + ' posts expirados/ocultos');
     saveDBNow('muralPosts');
+  }
+  // Cleanup do cache de noticias por regiao (remover entradas expiradas)
+  for (const key of Object.keys(_newsRegionCache)) {
+    if ((now - _newsRegionCache[key].ts) > NEWS_REGION_CACHE_TTL * 2) {
+      delete _newsRegionCache[key];
+    }
   }
 }, 30 * 60 * 1000); // cada 30min
 
@@ -5241,6 +5278,23 @@ app.post('/api/mural/:postId/ask-agent', requireAuth, async (req, res) => {
     console.error('[ask-agent] Error:', e.message);
     res.status(500).json({ error: 'Erro ao consultar agente.' });
   }
+});
+
+// GET /api/mural/agents/stats — monitorar consumo de API e cache
+app.get('/api/mural/agents/stats', (req, res) => {
+  const activeChannels = _getActiveChannels();
+  const regionCacheSize = Object.keys(_newsRegionCache).length;
+  const onlineTotal = activeChannels.reduce((sum, ch) => sum + ch.online, 0);
+  res.json({
+    apiCallsThisHour: _apiCallsThisHour,
+    maxApiCallsPerHour: MAX_API_CALLS_PER_HOUR,
+    maxChannelsPerCycle: MAX_CHANNELS_PER_CYCLE,
+    activeChannels: activeChannels.length,
+    channelsWithUsers: activeChannels.filter(ch => ch.online > 0).length,
+    totalOnlineUsers: onlineTotal,
+    regionCacheEntries: regionCacheSize,
+    regionCacheTTLmin: Math.round(NEWS_REGION_CACHE_TTL / 60000)
+  });
 });
 
 // GET /api/mural/agents/config — get agent configuration
