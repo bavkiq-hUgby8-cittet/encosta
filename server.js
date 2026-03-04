@@ -2969,12 +2969,13 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
     const giver = db.users[star.from];
     const ts = star.donatedAt || star.at || 0;
     if (!ts) return; // skip if no timestamp
+    const giverRevealed = giver ? isRevealedTo(star.from, user, null) : null;
     notifs.push({
       type: 'star',
       fromId: star.from,
       nickname: giver ? (giver.nickname || giver.name) : 'Alguem',
-      realName: null,
-      profilePhoto: null,
+      realName: giverRevealed ? (giver.realName || null) : null,
+      profilePhoto: giverRevealed ? (giver.profilePhoto || giver.photoURL || null) : null,
       color: giver ? giver.color : '#fbbf24',
       avatarAccessory: giver ? (giver.avatarAccessory || null) : null,
       timestamp: ts,
@@ -2988,10 +2989,13 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       if (!from) return;
       const ts = rr.createdAt || 0;
       if (!ts) return;
+      const rrRevealed = isRevealedTo(rr.fromUserId, user, null);
       notifs.push({
         type: 'reveal-request',
         fromId: rr.fromUserId,
         nickname: from.nickname || from.name,
+        realName: rrRevealed ? (from.realName || null) : null,
+        profilePhoto: rrRevealed ? (from.profilePhoto || from.photoURL || null) : null,
         color: from.color,
         avatarAccessory: from.avatarAccessory || null,
         requestId: rr.id,
@@ -3006,8 +3010,10 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
   myFriendIds.forEach(fid => {
     const friend = db.users[fid];
     if (!friend || !friend.stars || !friend.stars.length) return;
-    // Show last 3 stars from each friend (recent ones)
-    friend.stars.slice(-3).forEach(star => {
+    const friendRevealed = isRevealedTo(fid, user, null);
+    // Show last 5 stars from each friend (recent ones, last 30 days)
+    const thirtyDaysAgo = Date.now() - 30 * 86400000;
+    friend.stars.filter(s => (s.donatedAt || s.at || 0) > thirtyDaysAgo).slice(-5).forEach(star => {
       if (star.from === userId) return; // skip my own stars to them
       const ts = star.donatedAt || star.at || 0;
       if (!ts) return; // skip if no timestamp
@@ -3015,6 +3021,8 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
         type: 'friend-star',
         fromId: fid,
         nickname: friend.nickname || friend.name,
+        realName: friendRevealed ? (friend.realName || null) : null,
+        profilePhoto: friendRevealed ? (friend.profilePhoto || friend.photoURL || null) : null,
         color: friend.color,
         avatarAccessory: friend.avatarAccessory || null,
         topTag: friend.topTag || null,
@@ -3057,10 +3065,13 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       if (!sender) return;
       const ts = m.timestamp || 0;
       if (!ts) return;
+      const giRevealed = isRevealedTo(m.userId, user, null);
       notifs.push({
         type: 'game-invite',
         fromId: m.userId,
         nickname: sender.nickname || sender.name,
+        realName: giRevealed ? (sender.realName || null) : null,
+        profilePhoto: giRevealed ? (sender.profilePhoto || sender.photoURL || null) : null,
         color: sender.color,
         avatarAccessory: sender.avatarAccessory || null,
         gameName: gameName,
@@ -3075,10 +3086,13 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
     const partner = db.users[e.with];
     if (!partner) return;
     const ts = e.timestamp || 0;
+    const connRevealed = isRevealedTo(e.with, user, null);
     notifs.push({
       type: 'new-connection',
       fromId: e.with,
       nickname: partner.nickname || partner.name,
+      realName: connRevealed ? (partner.realName || null) : null,
+      profilePhoto: connRevealed ? (partner.profilePhoto || partner.photoURL || null) : null,
       color: partner.color,
       avatarAccessory: partner.avatarAccessory || null,
       encounterCount: e.encounterCount || 1,
@@ -3104,10 +3118,13 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
     if (unreadMsgs.length > 0) {
       const lastUnread = unreadMsgs[unreadMsgs.length - 1];
       const ts = lastUnread.timestamp || 0;
+      const msgRevealed = isRevealedTo(partnerId, user, null);
       notifs.push({
         type: 'unread-message',
         fromId: partnerId,
         nickname: partner.nickname || partner.name,
+        realName: msgRevealed ? (partner.realName || null) : null,
+        profilePhoto: msgRevealed ? (partner.profilePhoto || partner.photoURL || null) : null,
         color: partner.color,
         avatarAccessory: partner.avatarAccessory || null,
         unreadCount: unreadMsgs.length,
