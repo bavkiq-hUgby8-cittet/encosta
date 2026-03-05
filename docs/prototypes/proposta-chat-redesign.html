@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Touch? Chat Redesign - Proposta</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; font-family: 'Inter', -apple-system, sans-serif; background: #0a0a12; color: #f5f5f7; overflow: hidden; }
+
+/* ===== TABS DE NAVEGACAO ===== */
+.demo-tabs {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; background: rgba(10,10,18,.95); backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding-top: env(safe-area-inset-top, 8px);
+}
+.demo-tab {
+  flex: 1; padding: 12px 8px; text-align: center; font-size: 13px; font-weight: 600;
+  color: rgba(255,255,255,.4); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .2s;
+}
+.demo-tab.active { color: #ff6b35; border-bottom-color: #ff6b35; }
+.demo-tab:hover { color: rgba(255,255,255,.7); }
+
+.demo-label {
+  position: fixed; top: 52px; left: 0; right: 0; z-index: 99;
+  text-align: center; padding: 6px; font-size: 11px; font-weight: 600;
+  color: #ff6b35; background: rgba(255,107,53,.06); border-bottom: 1px solid rgba(255,107,53,.1);
+  letter-spacing: .05em;
+}
+
+.screen-wrap {
+  position: absolute; top: 78px; left: 0; right: 0; bottom: 0;
+  display: none; flex-direction: column; overflow: hidden;
+}
+.screen-wrap.active { display: flex; }
+
+/* ================================================================
+   TELA 1: LISTA DE CONVERSAS - ESTILO MSN/WHATSAPP MODERNO
+   ================================================================ */
+
+.conv-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+  background: linear-gradient(180deg, #111120 0%, #0d0d18 100%);
+}
+.conv-header h1 {
+  font-size: 22px; font-weight: 800; letter-spacing: -.02em;
+  background: linear-gradient(135deg, #ff6b35, #ff3d71);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.conv-header-right {
+  display: flex; align-items: center; gap: 6px;
+}
+.conv-count {
+  font-size: 12px; color: rgba(255,255,255,.35); font-weight: 500;
+}
+.conv-search-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.04); color: rgba(255,255,255,.5);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.conv-search-btn:active { background: rgba(255,255,255,.08); transform: scale(.92); }
+
+/* Status bar - inspirado MSN */
+.conv-status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px 12px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.conv-status-bar::-webkit-scrollbar { display: none; }
+.status-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  white-space: nowrap; flex-shrink: 0; cursor: pointer; transition: all .2s;
+}
+.status-chip.all {
+  background: rgba(255,107,53,.12); color: #ff6b35; border: 1px solid rgba(255,107,53,.2);
+}
+.status-chip.expiring {
+  background: rgba(248,113,113,.08); color: #f87171; border: 1px solid rgba(248,113,113,.15);
+}
+.status-chip.revealed {
+  background: rgba(52,211,153,.08); color: #34d399; border: 1px solid rgba(52,211,153,.15);
+}
+.status-chip .chip-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.status-chip.all .chip-dot { background: #ff6b35; }
+.status-chip.expiring .chip-dot { background: #f87171; animation: blink 1.5s ease infinite; }
+.status-chip.revealed .chip-dot { background: #34d399; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* Lista de conversas */
+.conv-list {
+  flex: 1; overflow-y: auto; padding: 0 12px 80px;
+}
+
+.conv-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 12px; margin-bottom: 2px;
+  border-radius: 16px; cursor: pointer;
+  transition: all .15s ease;
+  position: relative;
+}
+.conv-card:active {
+  background: rgba(255,255,255,.04); transform: scale(.985);
+}
+
+/* Avatar com indicador online */
+.conv-avatar-wrap {
+  position: relative; flex-shrink: 0;
+}
+.conv-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 800; color: #fff;
+  border: 2px solid rgba(255,255,255,.08);
+  overflow: hidden;
+}
+.conv-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.conv-online-dot {
+  position: absolute; bottom: 1px; right: 1px;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #34d399; border: 2.5px solid #0d0d18;
+}
+
+/* Info central */
+.conv-info { flex: 1; min-width: 0; }
+.conv-name-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
+}
+.conv-name {
+  font-size: 15px; font-weight: 700; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conv-badge-verified {
+  display: inline-flex; align-items: center;
+  padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 700;
+  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  color: #fff; letter-spacing: .03em;
+}
+.conv-badge-id {
+  font-size: 9px; font-weight: 700; color: #34d399;
+  background: rgba(52,211,153,.1); padding: 1px 5px; border-radius: 4px;
+}
+.conv-nick {
+  font-size: 11px; color: rgba(255,255,255,.3); margin-bottom: 3px;
+}
+.conv-preview {
+  font-size: 13px; color: rgba(255,255,255,.4); line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conv-preview.unread { color: rgba(255,255,255,.7); font-weight: 500; }
+
+/* Lado direito: timer + unread + game */
+.conv-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;
+}
+.conv-time-pill {
+  font-size: 11px; font-weight: 700; font-family: 'SF Mono', 'Courier New', monospace;
+  padding: 3px 8px; border-radius: 8px; letter-spacing: .03em;
+}
+.conv-time-pill.ok { color: #34d399; background: rgba(52,211,153,.08); }
+.conv-time-pill.med { color: #fbbf24; background: rgba(251,191,36,.08); }
+.conv-time-pill.low { color: #f87171; background: rgba(248,113,113,.08); animation: blink 1.5s ease infinite; }
+.conv-time-label {
+  font-size: 9px; color: rgba(255,255,255,.2); text-transform: uppercase;
+  letter-spacing: .08em; font-weight: 500;
+}
+.conv-unread-badge {
+  min-width: 20px; height: 20px; border-radius: 10px;
+  background: linear-gradient(135deg, #ff6b35, #ff3d71);
+  color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 6px; box-shadow: 0 2px 8px rgba(255,107,53,.4);
+}
+
+/* Separador de data entre cards */
+.conv-date-sep {
+  text-align: center; padding: 12px 0 8px;
+  font-size: 10px; color: rgba(255,255,255,.2);
+  font-weight: 500; letter-spacing: .04em;
+}
+
+/* ================================================================
+   TELA 2: CHAT INDIVIDUAL - ESTILO WHATSAPP/MSN
+   ================================================================ */
+
+.chat-screen { display: flex; flex-direction: column; height: 100%; }
+
+/* Header do chat */
+.chat-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #111120, #0d0d18);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  flex-shrink: 0;
+}
+.chat-back-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.04); color: #fff; font-size: 16px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+}
+.chat-back-btn:active { transform: scale(.9); background: rgba(255,255,255,.08); }
+
+.chat-header-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: #fff;
+  border: 1.5px solid rgba(255,255,255,.1); flex-shrink: 0;
+  cursor: pointer; transition: .15s; overflow: hidden;
+}
+.chat-header-avatar:active { transform: scale(.92); }
+
+.chat-header-info { flex: 1; min-width: 0; cursor: pointer; }
+.chat-header-name {
+  font-size: 15px; font-weight: 700; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-header-status {
+  font-size: 11px; color: rgba(255,255,255,.35); display: flex; align-items: center; gap: 5px;
+}
+.chat-header-status .online-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #34d399;
+}
+
+/* Timer no header - mais proeminente */
+.chat-timer-pill {
+  padding: 5px 10px; border-radius: 10px;
+  font-size: 13px; font-weight: 700;
+  font-family: 'SF Mono', 'Courier New', monospace;
+  letter-spacing: .04em; flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px;
+}
+.chat-timer-pill.ok { color: #34d399; background: rgba(52,211,153,.06); border: 1px solid rgba(52,211,153,.12); }
+.chat-timer-pill.low { color: #f87171; background: rgba(248,113,113,.06); border: 1px solid rgba(248,113,113,.12); animation: blink 1.5s ease infinite; }
+.chat-timer-icon { width: 14px; height: 14px; opacity: .7; }
+
+/* Barra de conexao (phrase + streak) */
+.chat-connection-bar {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 8px 16px;
+  background: rgba(255,255,255,.015);
+  border-bottom: 1px solid rgba(255,255,255,.03);
+  flex-shrink: 0;
+}
+.chat-phrase {
+  font-size: 12px; color: rgba(255,255,255,.25); font-style: italic;
+}
+.chat-streak-mini {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: rgba(251,191,36,.7); font-weight: 600;
+}
+.chat-streak-mini svg { width: 12px; height: 12px; }
+
+/* Area de mensagens */
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 3px;
+  scroll-behavior: smooth;
+  background:
+    radial-gradient(ellipse at 20% 80%, rgba(255,107,53,.02), transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255,61,113,.015), transparent 50%);
+}
+
+/* Mensagens - ESTILO WHATSAPP */
+.msg-wrap { display: flex; flex-direction: column; max-width: 78%; }
+.msg-wrap.mine { align-self: flex-end; }
+.msg-wrap.theirs { align-self: flex-start; }
+
+.msg-bubble {
+  padding: 8px 12px; border-radius: 18px;
+  font-size: 14px; line-height: 1.5; word-break: break-word;
+  position: relative;
+}
+/* Minha msg - gradiente laranja sutil */
+.msg-wrap.mine .msg-bubble {
+  background: linear-gradient(135deg, rgba(255,107,53,.15), rgba(255,61,113,.08));
+  color: rgba(255,255,255,.92);
+  border-bottom-right-radius: 6px;
+  border: 1px solid rgba(255,107,53,.12);
+}
+/* Msg deles - cinza escuro */
+.msg-wrap.theirs .msg-bubble {
+  background: rgba(255,255,255,.06);
+  color: #f0f0f5;
+  border-bottom-left-radius: 6px;
+  border: 1px solid rgba(255,255,255,.04);
+}
+
+.msg-time {
+  font-size: 10px; color: rgba(255,255,255,.2); margin-top: 2px;
+  padding: 0 4px;
+}
+.msg-wrap.mine .msg-time { text-align: right; }
+
+/* Mensagem efemera */
+.msg-ephemeral {
+  align-self: center; max-width: 85%;
+  padding: 6px 14px; border-radius: 20px;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  font-size: 12px; color: rgba(255,255,255,.4); font-style: italic;
+  text-align: center;
+}
+
+/* Mensagem de sistema */
+.msg-system-bubble {
+  align-self: center; padding: 4px 12px;
+  font-size: 11px; color: rgba(255,255,255,.2);
+  background: rgba(255,255,255,.02); border-radius: 12px;
+}
+
+/* Foto mensagem */
+.msg-photo { padding: 3px; background: transparent !important; border: none !important; }
+.msg-photo img {
+  border-radius: 14px; max-width: 240px; max-height: 240px;
+  display: block; object-fit: cover; border: 1px solid rgba(255,255,255,.06);
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 14px; align-self: flex-start;
+  background: rgba(255,255,255,.04); border-radius: 18px;
+  border-bottom-left-radius: 6px;
+}
+.typing-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,.3);
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: .15s; }
+.typing-dot:nth-child(3) { animation-delay: .3s; }
+@keyframes typing-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+/* Quick phrases - estilo mais vivo */
+.chat-quick-bar {
+  display: flex; gap: 6px; padding: 8px 12px;
+  overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+}
+.chat-quick-bar::-webkit-scrollbar { display: none; }
+.quick-chip {
+  padding: 6px 14px; border-radius: 20px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; flex-shrink: 0;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06);
+  color: rgba(255,255,255,.45); cursor: pointer; transition: all .2s;
+  font-family: inherit;
+}
+.quick-chip:active {
+  background: rgba(255,107,53,.12); color: rgba(255,255,255,.8);
+  border-color: rgba(255,107,53,.2); transform: scale(.95);
+}
+
+/* ===== BOTTOM BAR DO CHAT - TOTALMENTE NOVO ===== */
+.chat-bottom-bar {
+  background: rgba(14,14,22,.98);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255,255,255,.04);
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+}
+
+/* Action pills - reveal/request/more INLINE */
+.chat-action-pills {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 8px 12px 4px;
+}
+.action-pill {
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  transition: all .2s; border: none; font-family: inherit;
+}
+.action-pill.reveal {
+  background: rgba(52,211,153,.06); color: #34d399;
+  border: 1px solid rgba(52,211,153,.12);
+}
+.action-pill.request {
+  background: rgba(163,113,247,.06); color: #a371f7;
+  border: 1px solid rgba(163,113,247,.12);
+}
+.action-pill:active { transform: scale(.95); }
+.action-pill svg { width: 13px; height: 13px; }
+
+/* Input area */
+.chat-input-row {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 6px 12px 8px;
+}
+.chat-attach-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.04); color: rgba(255,255,255,.4);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+}
+.chat-attach-btn:active { background: rgba(255,255,255,.08); transform: scale(.92); }
+
+.chat-input-wrap {
+  flex: 1; display: flex; align-items: flex-end;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.06);
+  border-radius: 22px; overflow: hidden; transition: border-color .25s;
+}
+.chat-input-wrap:focus-within { border-color: rgba(255,107,53,.25); }
+.chat-input-wrap input {
+  flex: 1; padding: 10px 16px; background: transparent; border: none;
+  color: #f5f5f7; font-size: 14px; font-family: inherit; outline: none;
+}
+.chat-input-wrap input::placeholder { color: rgba(255,255,255,.2); }
+
+.chat-send-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: none;
+  background: linear-gradient(135deg, #ff6b35, #ff3d71);
+  color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .2s; flex-shrink: 0;
+  box-shadow: 0 2px 12px rgba(255,107,53,.3);
+  opacity: 0; transform: scale(.3); pointer-events: none;
+}
+.chat-send-btn.active {
+  opacity: 1; transform: scale(1); pointer-events: auto;
+}
+.chat-send-btn:active { transform: scale(.88); }
+
+/* Attach menu (plus menu redesenhado) */
+.attach-menu {
+  position: absolute; bottom: 100%; left: 8px; right: 8px;
+  background: rgba(16,16,28,.97); backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,.06); border-radius: 20px;
+  padding: 16px 12px; display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 4px; margin-bottom: 8px;
+  transform: translateY(8px); opacity: 0; pointer-events: none;
+  transition: all .2s ease; z-index: 10;
+}
+.attach-menu.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+.attach-item {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 10px 4px; border-radius: 14px; cursor: pointer;
+  transition: .15s; border: none; background: transparent; font-family: inherit;
+}
+.attach-item:active { background: rgba(255,255,255,.04); transform: scale(.95); }
+.attach-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.attach-label {
+  font-size: 10px; color: rgba(255,255,255,.4); font-weight: 500;
+}
+
+/* ================================================================
+   TELA 3: ANTES/DEPOIS COMPARACAO
+   ================================================================ */
+.compare-wrap {
+  flex: 1; overflow-y: auto; padding: 20px 16px;
+}
+.compare-section {
+  margin-bottom: 32px;
+}
+.compare-title {
+  font-size: 16px; font-weight: 700; color: #ff6b35; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.compare-title .tag {
+  font-size: 10px; padding: 2px 8px; border-radius: 6px;
+  font-weight: 600;
+}
+.compare-title .tag.old { background: rgba(248,113,113,.1); color: #f87171; }
+.compare-title .tag.new { background: rgba(52,211,153,.1); color: #34d399; }
+
+.change-item {
+  padding: 12px 16px; margin-bottom: 8px; border-radius: 12px;
+  background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.04);
+  font-size: 13px; color: rgba(255,255,255,.7); line-height: 1.6;
+}
+.change-item strong { color: #fff; font-weight: 600; }
+.change-item .highlight { color: #ff6b35; font-weight: 600; }
+
+</style>
+</head>
+<body>
+
+<!-- TABS -->
+<div class="demo-tabs">
+  <div class="demo-tab active" onclick="showDemo('conversations')">Conversas</div>
+  <div class="demo-tab" onclick="showDemo('chat')">Chat</div>
+  <div class="demo-tab" onclick="showDemo('changes')">Mudancas</div>
+</div>
+<div class="demo-label">PROPOSTA DE REDESIGN - Touch? Chat</div>
+
+<!-- ================================================================
+     TELA 1: LISTA DE CONVERSAS
+     ================================================================ -->
+<div class="screen-wrap active" id="demo-conversations">
+
+  <div class="conv-header">
+    <h1>Conversas</h1>
+    <div class="conv-header-right">
+      <span class="conv-count">4 ativas</span>
+      <button class="conv-search-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Status chips -->
+  <div class="conv-status-bar">
+    <div class="status-chip all"><span class="chip-dot"></span> Todas (4)</div>
+    <div class="status-chip expiring"><span class="chip-dot"></span> Expirando (1)</div>
+    <div class="status-chip revealed"><span class="chip-dot"></span> Reveladas (2)</div>
+  </div>
+
+  <div class="conv-list">
+
+    <!-- Card 1 - Com foto revelada, unread, expirando -->
+    <div class="conv-card" onclick="showDemo('chat')">
+      <div class="conv-avatar-wrap">
+        <div class="conv-avatar" style="background:linear-gradient(135deg,#ff6b35,#ff3d71)">LV</div>
+        <div class="conv-online-dot"></div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name-row">
+          <span class="conv-name">Lais Veloso</span>
+          <span class="conv-badge-verified">ID</span>
+        </div>
+        <div class="conv-nick">@Lalaaa</div>
+        <div class="conv-preview unread">"Esses sao chegados."</div>
+      </div>
+      <div class="conv-right">
+        <div class="conv-unread-badge">2</div>
+        <div class="conv-time-pill low">0h 55m</div>
+        <div class="conv-time-label">expirando</div>
+      </div>
+    </div>
+
+    <!-- Card 2 - Normal, com preview da frase -->
+    <div class="conv-card">
+      <div class="conv-avatar-wrap">
+        <div class="conv-avatar" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)">EF</div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name-row">
+          <span class="conv-name">Edesio Feitosa</span>
+          <span class="conv-badge-verified">ID</span>
+        </div>
+        <div class="conv-nick">@Tohful</div>
+        <div class="conv-preview">"O vinculo fortaleceu."</div>
+      </div>
+      <div class="conv-right">
+        <div class="conv-time-pill ok">18h 8m</div>
+        <div class="conv-time-label">restante</div>
+      </div>
+    </div>
+
+    <!-- Card 3 - Anonimo, sem reveal -->
+    <div class="conv-card">
+      <div class="conv-avatar-wrap">
+        <div class="conv-avatar" style="background:linear-gradient(135deg,#fbbf24,#f59e0b)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name-row">
+          <span class="conv-name">Jovem-senhora</span>
+        </div>
+        <div class="conv-preview">Convite para jogar</div>
+      </div>
+      <div class="conv-right">
+        <div class="conv-time-pill ok">14h 18m</div>
+        <div class="conv-time-label">restante</div>
+      </div>
+    </div>
+
+    <!-- Card 4 - Verificado + revelado -->
+    <div class="conv-card">
+      <div class="conv-avatar-wrap">
+        <div class="conv-avatar" style="background:linear-gradient(135deg,#ef4444,#f97316)">SS</div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name-row">
+          <span class="conv-name">Santos dos santos</span>
+          <span class="conv-badge-verified">ID</span>
+        </div>
+        <div class="conv-nick">@Darkblood</div>
+        <div class="conv-preview">"Voces sao prova de que presenca importa."</div>
+      </div>
+      <div class="conv-right">
+        <div class="conv-time-pill ok">23h 57m</div>
+        <div class="conv-time-label">restante</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TELA 2: CHAT INDIVIDUAL
+     ================================================================ -->
+<div class="screen-wrap" id="demo-chat">
+  <div class="chat-screen">
+
+    <!-- Header -->
+    <div class="chat-header">
+      <button class="chat-back-btn" onclick="showDemo('conversations')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="chat-header-avatar" style="background:linear-gradient(135deg,#ff6b35,#ff3d71)">LV</div>
+      <div class="chat-header-info">
+        <div class="chat-header-name">Lais Veloso</div>
+        <div class="chat-header-status">
+          <span class="online-dot"></span>
+          online agora
+        </div>
+      </div>
+      <div class="chat-timer-pill ok">
+        <svg class="chat-timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        0:55:30
+      </div>
+    </div>
+
+    <!-- Connection bar -->
+    <div class="chat-connection-bar">
+      <span class="chat-phrase">"Esses sao chegados."</span>
+      <span class="chat-streak-mini">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2"/><path d="M12 6v6l4 2"/></svg>
+        1 dia seguido
+      </span>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages">
+
+      <div class="msg-system-bubble">Encontro que ja valeu.</div>
+
+      <div class="msg-wrap theirs">
+        <div class="msg-bubble">Oi! Que coincidencia a gente se encontrar aqui</div>
+        <div class="msg-time">20:15</div>
+      </div>
+
+      <div class="msg-wrap mine">
+        <div class="msg-bubble">Sim! O mundo e pequeno demais haha</div>
+        <div class="msg-time">20:16</div>
+      </div>
+
+      <div class="msg-wrap theirs">
+        <div class="msg-bubble">Voce vem sempre nesse lugar? Eu adoro esse ambiente</div>
+        <div class="msg-time">20:18</div>
+      </div>
+
+      <div class="msg-wrap mine">
+        <div class="msg-bubble">E a primeira vez! Uma amiga me trouxe. E realmente muito bom aqui</div>
+        <div class="msg-time">20:19</div>
+      </div>
+
+      <div class="msg-ephemeral">Gostei de te conhecer... (8s)</div>
+
+      <div class="msg-wrap theirs">
+        <div class="msg-bubble">Voce parece ser muito gente boa. Bora trocar ideia mais?</div>
+        <div class="msg-time">20:22</div>
+      </div>
+
+      <div class="msg-wrap mine">
+        <div class="msg-bubble">Com certeza! Temos quase 1 hora ainda pra conversar</div>
+        <div class="msg-time">20:23</div>
+      </div>
+
+      <div class="typing-indicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+
+    </div>
+
+    <!-- Quick phrases -->
+    <div class="chat-quick-bar">
+      <button class="quick-chip">Observei</button>
+      <button class="quick-chip">Gostei</button>
+      <button class="quick-chip">Algo ficou</button>
+      <button class="quick-chip">Curioso</button>
+      <button class="quick-chip">Queria te ver</button>
+    </div>
+
+    <!-- Bottom bar -->
+    <div class="chat-bottom-bar" style="position:relative;">
+      <!-- Attach menu (hidden by default) -->
+      <div class="attach-menu" id="attachMenu">
+        <button class="attach-item">
+          <div class="attach-icon" style="background:rgba(88,166,255,.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </div>
+          <span class="attach-label">Foto</span>
+        </button>
+        <button class="attach-item">
+          <div class="attach-icon" style="background:rgba(163,113,247,.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a371f7" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+          </div>
+          <span class="attach-label">Contato</span>
+        </button>
+        <button class="attach-item">
+          <div class="attach-icon" style="background:rgba(255,107,53,.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" stroke-width="1.8"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+          </div>
+          <span class="attach-label">Presente</span>
+        </button>
+        <button class="attach-item">
+          <div class="attach-icon" style="background:rgba(255,61,113,.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff3d71" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          </div>
+          <span class="attach-label">Pulsar</span>
+        </button>
+        <button class="attach-item">
+          <div class="attach-icon" style="background:rgba(251,191,36,.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg>
+          </div>
+          <span class="attach-label">Astral</span>
+        </button>
+        <button class="attach-item">
+          <div class="attach-icon" style="background:rgba(255,107,53,.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="14.5" cy="10.5" r=".5" fill="#ff6b35"/><circle cx="18.5" cy="10.5" r=".5" fill="#ff6b35"/></svg>
+          </div>
+          <span class="attach-label">Jogar</span>
+        </button>
+      </div>
+
+      <!-- Action pills -->
+      <div class="chat-action-pills">
+        <button class="action-pill reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Revelar
+        </button>
+        <button class="action-pill request">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          Pedir ID
+        </button>
+      </div>
+
+      <!-- Input row -->
+      <div class="chat-input-row">
+        <button class="chat-attach-btn" id="attachBtn" onclick="toggleAttach()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <div class="chat-input-wrap">
+          <input type="text" placeholder="Mensagem..." oninput="toggleSend(this)">
+        </div>
+        <button class="chat-send-btn" id="sendBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TELA 3: LISTA DE MUDANCAS
+     ================================================================ -->
+<div class="screen-wrap" id="demo-changes">
+  <div class="compare-wrap">
+
+    <div class="compare-section">
+      <div class="compare-title">Lista de Conversas <span class="tag new">NOVO</span></div>
+
+      <div class="change-item">
+        <strong>Header mais limpo:</strong> Titulo "Conversas" com gradiente da marca, contador discreto, botao de busca redondo.
+      </div>
+      <div class="change-item">
+        <strong>Filtros por status:</strong> Chips de <span class="highlight">Todas / Expirando / Reveladas</span> com dots animados. Facil de filtrar conversas urgentes.
+      </div>
+      <div class="change-item">
+        <strong>Cards de conversa redesenhados:</strong> Layout mais limpo estilo WhatsApp. Avatar maior (52px), nome em destaque, nick abaixo, preview da ultima msg. <span class="highlight">Sem aquela borda lateral que ficava pesada.</span>
+      </div>
+      <div class="change-item">
+        <strong>Badge de unread:</strong> Bolinha com gradiente laranja/rosa com numero de mensagens nao lidas. <span class="highlight">Muito mais visivel</span> que o ponto simples anterior.
+      </div>
+      <div class="change-item">
+        <strong>Online indicator:</strong> Bolinha verde no avatar mostrando quem esta online agora.
+      </div>
+      <div class="change-item">
+        <strong>Timer reorganizado:</strong> Pill de tempo alinhada a direita com cores mais claras (verde/amarelo/vermelho piscando).
+      </div>
+    </div>
+
+    <div class="compare-section">
+      <div class="compare-title">Tela de Chat <span class="tag new">NOVO</span></div>
+
+      <div class="change-item">
+        <strong>Header compacto:</strong> Botao voltar (chevron), avatar, nome + status online, timer com icone de relogio. <span class="highlight">Removido o botao circular gigante de voltar</span> (era 52x52, agora e 36x36 com chevron).
+      </div>
+      <div class="change-item">
+        <strong>Barra de conexao:</strong> Frase do encontro + streak resumido numa barra discreta. Nao ocupa espaco visual desnecessario.
+      </div>
+      <div class="change-item">
+        <strong>Mensagens estilo WhatsApp:</strong> Baloes mais arredondados (18px radius), gradiente sutil nas msgs enviadas (laranja->rosa), msgs recebidas em cinza escuro. <span class="highlight">Mais contraste e legibilidade.</span>
+      </div>
+      <div class="change-item">
+        <strong>Typing indicator redesenhado:</strong> Balao com dots bouncing mais suave. Aparece como se fosse uma mensagem do outro lado.
+      </div>
+      <div class="change-item">
+        <strong>Quick phrases:</strong> Chips arredondados (pill shape) mais tappable, scroll horizontal suave. <span class="highlight">Estilo stories do Instagram.</span>
+      </div>
+      <div class="change-item">
+        <strong>Bottom bar totalmente novo:</strong> Botao de attach (+ redondo), input com border-radius 22px, botao de enviar com gradiente e animacao de aparecer. <span class="highlight">Reveal e Pedir ID como pills acima do input</span> - sempre visiveis sem precisar abrir menu.
+      </div>
+      <div class="change-item">
+        <strong>Menu de acoes (Foto, Presente, etc):</strong> Grid 4 colunas com icones maiores (44px), labels, bordas arredondadas. Abre pra cima com animacao suave.
+      </div>
+      <div class="change-item">
+        <strong>Background sutil:</strong> Radial gradients muito sutis (laranja/rosa) pra dar profundidade sem poluir.
+      </div>
+    </div>
+
+    <div class="compare-section">
+      <div class="compare-title">O que NAO muda</div>
+
+      <div class="change-item">
+        Toda a <strong>logica de JavaScript</strong> continua igual: Socket.IO, envio de msgs, ephemeral, typing, pulse, streak, timer, etc. <span class="highlight">So muda CSS + estrutura HTML.</span>
+      </div>
+      <div class="change-item">
+        As <strong>funcoes onclick</strong> continuam chamando as mesmas funcoes: openChat(), sendMessage(), sendPulse(), getHoroscope(), togglePlusMenu(), etc.
+      </div>
+      <div class="change-item">
+        <strong>Cores da marca</strong> continuam: laranja #ff6b35, rosa #ff3d71, verde #34d399, fundo escuro. Apenas mais vibrante e organizado.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showDemo(tab) {
+  document.querySelectorAll('.screen-wrap').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('demo-' + tab).classList.add('active');
+  document.querySelectorAll('.demo-tab').forEach(t => {
+    if (t.textContent.toLowerCase().includes(tab.substring(0,4))) t.classList.add('active');
+  });
+}
+
+function toggleAttach() {
+  const m = document.getElementById('attachMenu');
+  m.classList.toggle('open');
+}
+
+function toggleSend(input) {
+  const btn = document.getElementById('sendBtn');
+  if (input.value.trim()) btn.classList.add('active');
+  else btn.classList.remove('active');
+}
+
+// Click outside to close attach menu
+document.addEventListener('click', function(e) {
+  const m = document.getElementById('attachMenu');
+  const b = document.getElementById('attachBtn');
+  if (m && m.classList.contains('open') && !m.contains(e.target) && !b.contains(e.target)) {
+    m.classList.remove('open');
+  }
+});
+</script>
+
+</body>
+</html>
