@@ -2987,6 +2987,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       whatsapp: iCanSeeThem ? (p.whatsapp || null) : null,
       giftsReceived: (db.gifts[p.id] || []).length,
       avatarAccessory: (other && other.avatarAccessory) || null,
+      country: (other && other.showCountry && other.country) ? other.country : null,
       // About me — public profile tags
       profession: (other && other.profession) || null,
       sports: (other && other.sports) || [],
@@ -3134,13 +3135,13 @@ function _buildRankingCache() {
         userId: u.id,
         nickname: u.nickname || u.name || '?',
         color: u.color,
-        photoURL: u.photoURL || null,
         avatarAccessory: u.avatarAccessory || null,
         stars: bd.profileTotal,
         breakdown: bd,
         topTag: u.topTag || null,
         isSubscriber: !!u.isSubscriber,
-        verified: !!u.verified
+        verified: !!u.verified,
+        country: (u.showCountry && u.country) ? u.country : null
       };
     })
     .sort((a, b) => b.stars - a.stars);
@@ -3173,18 +3174,23 @@ app.get('/api/stars/friends-ranking', (req, res) => {
     .map(fid => {
       const u = db.users[fid];
       const bd = getStarBreakdown(fid);
+      // Check if this friend revealed to the requester
+      const theyRevealed = (u.revealedTo || []).includes(userId);
       return {
         userId: fid,
         nickname: u.nickname || u.name || '?',
+        realName: theyRevealed ? (u.name || null) : null,
         color: u.color,
-        photoURL: u.photoURL || null,
+        photoURL: theyRevealed ? (u.profilePhoto || u.photoURL || null) : null,
         avatarAccessory: u.avatarAccessory || null,
         stars: bd.profileTotal,
         breakdown: bd,
         topTag: u.topTag || null,
         isSubscriber: !!u.isSubscriber,
         verified: !!u.verified,
-        isMe: fid === userId
+        isMe: fid === userId,
+        revealed: theyRevealed,
+        country: (u.showCountry && u.country) ? u.country : null
       };
     })
     .filter(u => u.stars > 0)
