@@ -1737,7 +1737,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-close svg{width:22px;height:22px}
 .va-center{display:flex;flex-direction:column;align-items:center;gap:28px;z-index:1;position:relative}
 /* ── Neural Orb ── */
-.va-orb-wrapper{position:relative;width:340px;height:420px;display:flex;align-items:center;justify-content:center;perspective:800px}
+.va-orb-wrapper{position:relative;width:75vw;max-width:420px;height:85vw;max-height:520px;display:flex;align-items:center;justify-content:center;perspective:600px}
 .va-orb-ring{position:absolute;border-radius:50%;border:1px solid transparent;animation:va-ring-spin 6s linear infinite}
 .va-orb-ring:nth-child(1){inset:10px -20px -20px -20px;border-color:rgba(139,92,246,.12);animation-duration:8s;border-style:dashed}
 .va-orb-ring:nth-child(2){inset:-15px -40px -40px -40px;border-color:rgba(80,200,240,.08);animation-duration:14s;animation-direction:reverse;border-style:dotted}
@@ -1747,7 +1747,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-orb-wrapper::before{top:8%;left:10%;animation-delay:-1s;background:rgba(80,200,240,.5)}
 .va-orb-wrapper::after{bottom:10%;right:8%;animation-delay:-2.5s;background:rgba(236,72,153,.4)}
 @keyframes va-particle{0%,100%{opacity:.3;transform:translateY(0) scale(1)}50%{opacity:.8;transform:translateY(-8px) scale(1.5)}}
-.va-orb{width:320px;height:400px;border-radius:20px;background:transparent;border:none;display:flex;align-items:center;justify-content:center;position:relative;transition:all .6s cubic-bezier(.22,1,.36,1);cursor:pointer;overflow:visible;transform-style:preserve-3d;will-change:transform}
+.va-orb{width:70vw;max-width:400px;height:80vw;max-height:500px;border-radius:20px;background:transparent;border:none;display:flex;align-items:center;justify-content:center;position:relative;transition:transform .15s ease-out;cursor:pointer;overflow:visible;transform-style:preserve-3d;will-change:transform}
 .va-orb .va-avatar-img{width:100%;height:100%;object-fit:contain;transition:filter .5s;filter:brightness(.35) saturate(0) drop-shadow(0 0 0 transparent)}
 .va-orb.idle .va-avatar-img{filter:brightness(.35) saturate(0) drop-shadow(0 0 0 transparent)}
 .va-orb.listening .va-avatar-img{filter:brightness(1) saturate(1.1) drop-shadow(0 0 15px rgba(139,92,246,.3))}
@@ -20054,22 +20054,32 @@ const VA = (function(){
   const UNMUTE_DELAY_MS = 2500;   // delay to let WebRTC audio fully drain from speaker (prevents echo loop)
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
-  // ── Gyroscope / Accelerometer parallax ──
+  // ── Gyroscope / Accelerometer parallax — VERY sensitive 3D ──
   let _gyroActive = false;
   let _gyroBaseAlpha = null, _gyroBaseBeta = null, _gyroBaseGamma = null;
+  let _gyroCurrentX = 0, _gyroCurrentY = 0, _gyroTargetX = 0, _gyroTargetY = 0;
+  let _gyroRAF = null;
+  function _gyroAnimate(){
+    _gyroCurrentX += (_gyroTargetX - _gyroCurrentX) * 0.15;
+    _gyroCurrentY += (_gyroTargetY - _gyroCurrentY) * 0.15;
+    var orb = $('vaOrb');
+    if(orb){
+      orb.style.transform = 'rotateX(' + _gyroCurrentX.toFixed(1) + 'deg) rotateY(' + _gyroCurrentY.toFixed(1) + 'deg) scale3d(1,1,1)';
+    }
+    _gyroRAF = requestAnimationFrame(_gyroAnimate);
+  }
   function _initGyro(){
     if(_gyroActive) return;
+    if(!_gyroRAF) _gyroRAF = requestAnimationFrame(_gyroAnimate);
     function handleOrientation(e){
-      var orb = $('vaOrb');
-      if(!orb) return;
-      var beta = e.beta || 0;   // front-back tilt (-180 to 180)
-      var gamma = e.gamma || 0; // left-right tilt (-90 to 90)
+      var beta = e.beta || 0;
+      var gamma = e.gamma || 0;
       if(_gyroBaseBeta === null){ _gyroBaseBeta = beta; _gyroBaseGamma = gamma; }
-      var dBeta = Math.max(-20, Math.min(20, beta - _gyroBaseBeta));
-      var dGamma = Math.max(-20, Math.min(20, gamma - _gyroBaseGamma));
-      var rotX = (dBeta * 0.6).toFixed(1);
-      var rotY = (dGamma * 0.8).toFixed(1);
-      orb.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg)';
+      var dBeta = beta - _gyroBaseBeta;
+      var dGamma = gamma - _gyroBaseGamma;
+      // Very high sensitivity: clamp at 45 deg, multiply by 2.5
+      _gyroTargetX = Math.max(-45, Math.min(45, dBeta * 2.5));
+      _gyroTargetY = Math.max(-45, Math.min(45, dGamma * 3.0));
     }
     if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
       DeviceOrientationEvent.requestPermission().then(function(perm){
@@ -20082,17 +20092,14 @@ const VA = (function(){
       window.addEventListener('deviceorientation', handleOrientation, true);
       _gyroActive = true;
     }
-    // Fallback: mouse parallax on desktop
+    // Desktop: mouse moves the avatar a LOT
     if(!('ontouchstart' in window)){
       document.addEventListener('mousemove', function(e){
-        var orb = $('vaOrb');
-        if(!orb) return;
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
         var dx = (e.clientX - cx) / cx;
         var dy = (e.clientY - cy) / cy;
-        var rotY = (dx * 12).toFixed(1);
-        var rotX = (-dy * 8).toFixed(1);
-        orb.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg)';
+        _gyroTargetY = dx * 35;
+        _gyroTargetX = -dy * 25;
       });
     }
   }
