@@ -14271,20 +14271,145 @@ async function buyStarForPerson(targetUserId){
   }catch(e){showToast('Erro ao comprar.')}
 }
 
-// Buy star for yourself
-async function buyStarSelf(){
+// Buy star for yourself (slot-based)
+async function buyStarSelf(slotIndex){
   if(!state.userId)return;
   try{
     const shop=await(await fetch('/api/star/shop/'+state.userId)).json();
-    const cost=shop.selfCost;
-    if(shop.spendablePoints<cost)return showToast('Pontos insuficientes. Custo: '+cost+', Disponível: '+shop.spendablePoints);
-    if(!confirm('Comprar ★ estrela para você?\nCusto: '+cost+' pontos (Disponível: '+shop.spendablePoints+')'))return;
+    const cost=shop.fixedPrice||shop.selfCost||100;
+    const score=shop.spendablePoints||0;
+    if(score<cost)return showToast('Score insuficiente. Custo: '+cost+' sc, Disponivel: '+score+' sc');
+    const bd=shop.breakdown||{};
+    if((bd.temporary||0)>=(shop.maxTempStars||5))return showToast('Limite de estrelas temporarias atingido (max '+(shop.maxTempStars||5)+')');
+    if(!confirm('Comprar estrela temporaria (30 dias)?\nCusto: '+cost+' sc\nSeu score: '+score+' sc'))return;
     const r=await fetch('/api/star/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,target:'self'})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
     haptic([60,30,60,30,100]);
-    showToast('★ Estrela adquirida! (-'+d.cost+' pts)');
+    showToast('Estrela adquirida! (-'+cost+' sc)');
+    // Refresh profile if open
+    if($('pfScroll'))showProfile(state.userId);
+    // Refresh my profile overlay if open
+    const myOv=document.querySelector('.my-profile-overlay');
+    if(myOv){myOv.remove();showMyProfile();}
   }catch(e){showToast('Erro ao comprar.')}
+}
+
+// Render 10 star slots for profile
+function renderStarSlots(profileData,isOwnProfile){
+  const stars=profileData.starDetails||[];
+  const totalStars=profileData.stars||stars.length||0;
+  const MAX=10;
+  // Categorize existing stars
+  let conquest=[],permanent=[],temporary=[],professional=[];
+  stars.forEach(function(s){
+    if(s.category==='conquest')conquest.push(s);
+    else if(s.category==='permanent')permanent.push(s);
+    else if(s.category==='professional')professional.push(s);
+    else temporary.push(s);
+  });
+  // Build 10 slots: [conquest x2][permanent x1][temporary x5][professional x2]
+  var slots=[];
+  // Slot 0-1: Conquest
+  for(var i=0;i<2;i++){
+    var milestone=i===0?100:500;
+    if(conquest[i]){
+      slots.push({filled:true,category:'conquest',label:milestone+' conexoes',color:'#f59e0b',star:conquest[i]});
+    }else{
+      slots.push({filled:false,category:'conquest',label:milestone+' conexoes',color:'#f59e0b',locked:true});
+    }
+  }
+  // Slot 2: Permanent
+  if(permanent[0]){
+    slots.push({filled:true,category:'permanent',label:'1000 conexoes',color:'#ef4444',star:permanent[0]});
+  }else{
+    slots.push({filled:false,category:'permanent',label:'1000 conexoes',color:'#ef4444',locked:true});
+  }
+  // Slots 3-7: Temporary (buyable)
+  for(var j=0;j<5;j++){
+    if(temporary[j]){
+      var daysLeft='';
+      if(temporary[j].expiresAt){
+        var dl=Math.ceil((temporary[j].expiresAt-Date.now())/(86400000));
+        daysLeft=dl>0?dl+'d':'exp';
+      }
+      slots.push({filled:true,category:'temporary',label:daysLeft||'30d',color:'#fbbf24',star:temporary[j],daysLeft:daysLeft});
+    }else{
+      slots.push({filled:false,category:'temporary',label:'100 sc',color:'#fbbf24',buyable:isOwnProfile,slotIndex:3+j});
+    }
+  }
+  // Slots 8-9: Professional
+  for(var k=0;k<2;k++){
+    if(professional[k]){
+      slots.push({filled:true,category:'professional',label:'Pro',color:'#e2e8f0',star:professional[k]});
+    }else{
+      slots.push({filled:false,category:'professional',label:'Em breve',color:'#e2e8f0',locked:true});
+    }
+  }
+  // Render HTML
+  var h='<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:.6rem 0;padding:.5rem;background:rgba(255,255,255,.02);border-radius:12px;border:1px solid rgba(255,255,255,.04)">';
+  // Title
+  h+='<div style="width:100%;text-align:center;font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem">Estrelas ('+totalStars+'/'+MAX+')</div>';
+  slots.forEach(function(sl,idx){
+    var starSvg='<svg width="22" height="22" viewBox="0 0 24 24" fill="'+(sl.filled?sl.color:'none')+'" stroke="'+(sl.filled?'none':sl.color)+'" stroke-width="1.5" opacity="'+(sl.filled?'1':sl.locked?'0.2':'0.4')+'"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    var cursor=sl.buyable?'pointer':'default';
+    var onclick=sl.buyable?'onclick="buyStarSelf('+sl.slotIndex+')"':'';
+    var tooltip='';
+    if(sl.filled){
+      tooltip=sl.category==='conquest'?'Conquista: '+sl.label:sl.category==='permanent'?'Permanente: '+sl.label:sl.category==='professional'?'Profissional':('Temporaria'+(sl.daysLeft?' ('+sl.daysLeft+')':''));
+    }else{
+      tooltip=sl.buyable?'Comprar estrela (100 sc)':sl.category==='conquest'?'Desbloq. com '+sl.label:sl.category==='permanent'?'Desbloq. com '+sl.label:'Em breve';
+    }
+    h+='<div title="'+tooltip+'" style="display:flex;flex-direction:column;align-items:center;cursor:'+cursor+';transition:.15s;position:relative" '+onclick+' onmouseenter="this.style.transform=\'scale(1.15)\'" onmouseleave="this.style.transform=\'none\'">';
+    h+=starSvg;
+    // Small label below
+    var lblColor=sl.filled?sl.color:'var(--t3)';
+    var lblOpacity=sl.filled?'0.8':'0.3';
+    h+='<div style="font-size:.35rem;color:'+lblColor+';opacity:'+lblOpacity+';margin-top:1px;white-space:nowrap">';
+    if(sl.filled&&sl.category==='temporary'&&sl.daysLeft)h+=sl.daysLeft;
+    else if(!sl.filled&&sl.buyable)h+='<span style="color:#fbbf24;opacity:.6">+ comprar</span>';
+    else if(!sl.filled&&sl.category==='conquest')h+=(idx===0?'100':'500');
+    else if(!sl.filled&&sl.category==='permanent')h+='1000';
+    else if(!sl.filled&&sl.category==='professional')h+='pro';
+    else if(sl.filled)h+=(sl.category==='conquest'?'conquista':sl.category==='permanent'?'permanente':sl.category==='professional'?'pro':'temp');
+    h+='</div></div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+// Show star ranking screen
+async function showStarRanking(){
+  var overlay=document.createElement('div');
+  overlay.className='pf-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;animation:fadeIn .25s ease';
+  overlay.innerHTML='<div style="display:flex;align-items:center;padding:.8rem 1rem;border-bottom:1px solid rgba(255,255,255,.06)"><button onclick="this.closest(\'.pf-overlay\').remove()" style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--t2);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">&larr;</button><div style="flex:1;text-align:center;font-size:.85rem;font-weight:700;color:var(--t1)">Ranking de Estrelas</div><div style="width:32px"></div></div><div id="starRankList" style="flex:1;overflow-y:auto;padding:1rem;-webkit-overflow-scrolling:touch"><div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Carregando...</div></div>';
+  document.body.appendChild(overlay);
+  try{
+    var r=await fetch('/api/stars/ranking');
+    var data=await r.json();
+    var list=data.ranking||[];
+    var el=overlay.querySelector('#starRankList');
+    if(!list.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Nenhuma estrela no mundo ainda. Seja o primeiro!</div>';return;}
+    var html='';
+    list.forEach(function(u,i){
+      var medal=i===0?'<span style="font-size:1rem">&#x1f947;</span>':i===1?'<span style="font-size:1rem">&#x1f948;</span>':i===2?'<span style="font-size:1rem">&#x1f949;</span>':'<span style="font-size:.75rem;color:var(--t3);font-weight:600;min-width:1.5rem;display:inline-block;text-align:center">'+(i+1)+'</span>';
+      var starIcons='';
+      for(var s=0;s<Math.min(u.stars,10);s++){
+        starIcons+='<svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+      }
+      var isMe=u.userId===state.userId;
+      html+='<div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .5rem;border-bottom:1px solid rgba(255,255,255,.04);'+(isMe?'background:rgba(251,191,36,.06);border-radius:8px;border:1px solid rgba(251,191,36,.1)':'')+'">';
+      html+=medal;
+      html+='<div style="flex:1;min-width:0"><div style="font-size:.75rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(u.nickname||'???')+(isMe?' <span style="font-size:.5rem;color:var(--ac)">(voce)</span>':'')+'</div>';
+      html+='<div style="display:flex;gap:1px;margin-top:2px">'+starIcons+'</div></div>';
+      html+='<div style="text-align:right"><div style="font-size:.85rem;font-weight:800;color:#fbbf24">'+u.stars+'</div><div style="font-size:.4rem;color:var(--t3)">estrelas</div></div>';
+      html+='</div>';
+    });
+    el.innerHTML=html;
+  }catch(e){
+    overlay.querySelector('#starRankList').innerHTML='<div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro ao carregar ranking.</div>';
+  }
 }
 
 // Render reveal messages in chat
@@ -14538,24 +14663,12 @@ function renderProfile(d,userId){
   if(d.phone)socials.push('<span style="color:var(--t2)">'+esc(d.phone)+'</span>');
   if(socials.length)html+='<div style="font-size:.68rem;margin-top:.3rem;display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center">'+socials.join('')+'</div>';
   html+='<div class="pf-stats">';
-  html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#fbbf24">'+(d.stars||0)+'</div><div class="pf-stat-lbl">estrelas</div></div>';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#60a5fa">'+(d.score||0)+'</div><div class="pf-stat-lbl">score</div></div>';
-  html+='<div class="pf-stat"><div class="pf-stat-num">'+d.uniquePeople+'</div><div class="pf-stat-lbl">conexões</div></div>';
+  html+='<div class="pf-stat"><div class="pf-stat-num">'+d.uniquePeople+'</div><div class="pf-stat-lbl">conexoes</div></div>';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#ff6b8a">'+(d.likesCount||0)+'</div><div class="pf-stat-lbl">curtidas</div></div>';
   html+='</div>';
-  // Buy star for self button (on own profile)
-  if(userId===state.userId){
-    html+='<button onclick="buyStarSelf()" style="margin:.4rem auto 0;display:block;padding:.35rem .8rem;font-size:.65rem;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:16px;color:#fbbf24;cursor:pointer">★ Comprar estrela</button>';
-  }
-  // Star details
-  if(d.starDetails&&d.starDetails.length>0){
-    html+='<div style="display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center;margin:.5rem 0">';
-    d.starDetails.forEach(s=>{
-      const tip=s.reason==='gift'?'Presente de '+(s.fromName||'?'):s.reason==='organic'?'Orgânica ('+s.milestone+'x com '+(s.withName||'?')+')':'Marco';
-      html+='<div title="'+tip+'" style="cursor:help;transition:.15s" onmouseenter="this.style.transform=\'scale(1.3)\'" onmouseleave="this.style.transform=\'none\'"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>';
-    });
-    html+='</div>';
-  }
+  // 10 Star Slots visual
+  html+=renderStarSlots(d,userId===state.userId);
   html+='</div>';
   // Actions if active connection
   if(d.canInteract){
@@ -14665,14 +14778,16 @@ function showMyProfileSheet(){
     +(state.userTopTag?'<span style="font-size:.5rem;color:'+(state.userTopTag==='top1'?'#FFD700':state.userTopTag==='top5'?'#C0C0C0':'#CD7F32')+';background:rgba(255,215,0,.1);padding:1px 6px;border-radius:6px;font-weight:700">'+(state.userTopTag==='top1'?'TOP 1':state.userTopTag==='top5'?'TOP 5':state.userTopTag==='top50'?'TOP 50':'')+'</span>':'')
     +'</div>'
     // Stats row
-    +'<div style="display:flex;gap:1rem;justify-content:center;margin-bottom:.6rem">'
+    +'<div style="display:flex;gap:1rem;justify-content:center;margin-bottom:.4rem">'
     +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#60a5fa">'+(state.userScore||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.score_label')+'</div></div>'
     +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--t1)">'+(state.userUniqueConnections||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.connections_label')+'</div></div>'
-    +(state.userStarsCount>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#fbbf24">'+state.userStarsCount+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.stars_label')+'</div></div>':'')
     +(state.userGiftsReceived>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#f472b6">'+state.userGiftsReceived+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.gifts_label')+'</div></div>':'')
     +'</div>'
+    // Star slots in my profile
+    +'<div id="myProfileStarSlots" style="margin-bottom:.4rem"></div>'
     // Menu buttons — clean
     +'<div style="display:flex;flex-direction:column;gap:.4rem">'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showStarRanking()"><span class="my-pf-ico" style="color:#fbbf24;font-style:normal">&#9733;</span>Ranking de Estrelas</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>'+t('profile.edit_profile_btn')+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>'+t('subscription.touch_plus_title')+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
@@ -14686,6 +14801,24 @@ function showMyProfileSheet(){
     +'<button class="my-pf-btn my-pf-danger" onclick="this.closest(\'.my-profile-overlay\').remove();doLogout()"><span class="my-pf-ico">x</span>'+t('profile.logout_btn')+'</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
+  // Populate star slots in my profile
+  (async function(){
+    try{
+      var slotsEl=overlay.querySelector('#myProfileStarSlots');
+      if(!slotsEl)return;
+      var pRes=await fetch('/api/stars/profile/'+state.userId);
+      var pData=await pRes.json();
+      if(pData.error){slotsEl.innerHTML='';return;}
+      // Build starDetails from slots for renderStarSlots
+      var fakeProfile={stars:pData.totalStars||state.userStarsCount||0,starDetails:[]};
+      (pData.slots||[]).forEach(function(sl){
+        if(sl.filled){
+          fakeProfile.starDetails.push({category:sl.category,expiresAt:sl.expiresAt||null,reason:sl.category});
+        }
+      });
+      slotsEl.innerHTML=renderStarSlots(fakeProfile,true);
+    }catch(e){}
+  })();
   // Swipe-down to dismiss
   const sheet=overlay.querySelector('.more-menu-sheet');
   let _pfTouchY=0,_pfDelta=0;

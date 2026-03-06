@@ -1886,15 +1886,20 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId
   if (db.encounters[userAId].length > 1000) db.encounters[userAId] = db.encounters[userAId].slice(-1000);
   db.encounters[userBId].push(traceB);
   if (db.encounters[userBId].length > 1000) db.encounters[userBId] = db.encounters[userBId].slice(-1000);
-  // Award score points (uses classification)
+  // Award score points (uses classification + star bonus multiplier)
   if (!db.users[userAId].pointLog) db.users[userAId].pointLog = [];
   if (!db.users[userBId].pointLog) db.users[userBId].pointLog = [];
-  if (classA.points > 0) {
-    db.users[userAId].pointLog.push({ value: classA.points, type: classA.type, with: userBId, timestamp: now });
+  // Star bonus: connecting with someone who has N stars = Nx multiplier
+  const bonusA = getStarBonusMultiplier(userBId);
+  const bonusB = getStarBonusMultiplier(userAId);
+  const pointsA = classA.points * bonusA;
+  const pointsB = classB.points * bonusB;
+  if (pointsA > 0) {
+    db.users[userAId].pointLog.push({ value: pointsA, type: classA.type, with: userBId, timestamp: now, bonus: bonusA > 1 ? bonusA : undefined });
     if (db.users[userAId].pointLog.length > 500) db.users[userAId].pointLog = db.users[userAId].pointLog.slice(-500);
   }
-  if (classB.points > 0) {
-    db.users[userBId].pointLog.push({ value: classB.points, type: classB.type, with: userAId, timestamp: now });
+  if (pointsB > 0) {
+    db.users[userBId].pointLog.push({ value: pointsB, type: classB.type, with: userAId, timestamp: now, bonus: bonusB > 1 ? bonusB : undefined });
     if (db.users[userBId].pointLog.length > 500) db.users[userBId].pointLog = db.users[userBId].pointLog.slice(-500);
   }
   // Update streaks
@@ -1908,47 +1913,62 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId
 // ══════════════════════════════════════════════════════════
 if (!db.gameConfig) db.gameConfig = {};
 const DEFAULT_GAME_CONFIG = {
-  // Points per connection type
+  // Points per connection type (Star Economy v1 — final model)
   pointsFirstEncounter: 10,       // First time meeting someone
-  pointsReEncounterDiffDay: 8,    // Re-encounter on a different day
-  pointsReEncounterSameDay: 4,    // Re-encounter within 24h (2nd time)
+  pointsReEncounterDiffDay: 5,    // Re-encounter on a different day
+  pointsReEncounterSameDay: 2,    // Re-encounter within 24h (2nd time)
   pointsReEncounterSpam: 0,       // 3rd+ encounter within 24h
   pointsCheckin: 2,               // Event check-in
   pointsGift: 1,                  // Gift/declaration
   pointsDeclaration: 2,           // Declaration
 
-  // Anti-farm
+  // Anti-farm — cooldown 24h per pair, no daily cap
   maxScoringPerPair24h: 2,        // Max scoring events per pair within 24h
 
-  // Point decay
-  pointDecayDays: 30,             // Points decay to 0 over N days
+  // Score is a CURRENCY (no decay) — spent to buy stars
+  pointDecayDays: 0,              // 0 = no decay, score accumulates forever
 
-  // Star earning — milestone
-  uniqueConnectionsPerStar: 100,  // Every N unique connections = 1 star earned
+  // Star earning — milestones (conquest stars)
+  milestoneStars: [100, 500],     // Unique connections that earn conquest stars
+  permanentStarMilestone: 1000,   // Unique connections for permanent star
 
   // Star earning — streak (different days with same person)
-  daysTogetherPerStar: 5,         // Every N different days with same person = 1 star earned
+  daysTogetherPerStar: 5,         // Every N different days with same person = 1 star to donate
 
   // Star earning — score conversion (star shop)
-  pointsPerStarSelf: 120,         // Buy a star for yourself costs N points
-  pointsPerStarGift: 100,         // Buy a star to gift costs N points
+  starPriceFixed: 100,            // Fixed price per temporary star (no escalation)
 
-  // Star rarity escalation — each successive star costs more
-  starRarityMultiplier: 1.15,     // Each star costs 15% more points than the last
+  // Star limits
+  maxStarsTotal: 10,              // Max total stars per person (except Top 1)
+  maxTempStars: 5,                // Max temporary stars (slots 4-8)
+  maxConquestStars: 2,            // Slots 1-2 (100 and 500 connections)
+  maxPermanentStars: 1,           // Slot 3 (1000 connections)
+  maxProfessionalStars: 2,        // Slots 9-10 (ouro branco, professional recognition)
+  tempStarDurationDays: 30,       // Temporary stars expire after N days
+
+  // Star bonus multiplier — connecting with someone who has N stars = Nx score
+  starBonusEnabled: true,         // Enable star bonus multiplier
 
   // Max stars one person can give to another
   maxStarsPerPersonToPerson: 10,  // A can give max N stars to B
 
   // Top 1 creator privileges
   top1CanSetConfig: true,         // Top 1 user can adjust these parameters
+
+  // Legacy (kept for backward compatibility, unused)
+  uniqueConnectionsPerStar: 100,
+  pointsPerStarSelf: 100,
+  pointsPerStarGift: 100,
+  starRarityMultiplier: 1.0,
 };
 
 function getGameConfig() {
   return { ...DEFAULT_GAME_CONFIG, ...(db.gameConfig || {}) };
 }
 
-// ══ SCORING SYSTEM v2 ══
-// Points decay over N days. Anti-farm: max 2 scoring events per pair in 24h.
+// ══ SCORING SYSTEM v3 — Star Economy ══
+// Score is a permanent currency (no decay). Anti-farm: cooldown 24h per pair.
+// Star bonus: connecting with someone who has N stars = Nx multiplier.
 // Score types: first_encounter, re_encounter_diff_day, re_encounter_same_day, spam
 
 function classifyEncounter(userAId, userBId) {
@@ -2007,9 +2027,18 @@ function awardPoints(userAId, userBId, type, overridePoints = null) {
 }
 
 function calcScore(userId) {
+  // Score is now a permanent currency (no decay)
+  // Available score = total earned - total spent
   const user = db.users[userId];
   if (!user || !user.pointLog) return 0;
   const cfg = getGameConfig();
+  if (cfg.pointDecayDays === 0) {
+    // No decay mode — score = raw total - spent
+    let total = 0;
+    for (const p of user.pointLog) total += p.value;
+    return Math.round((total - (user.pointsSpent || 0)) * 10) / 10;
+  }
+  // Legacy decay mode (kept for backward compatibility)
   const now = Date.now();
   const decayMs = cfg.pointDecayDays * 86400000;
   let total = 0;
@@ -2020,6 +2049,31 @@ function calcScore(userId) {
     total += p.value * weight;
   }
   return Math.round(total * 10) / 10;
+}
+
+// Calculate star bonus multiplier for connecting with someone
+function getStarBonusMultiplier(otherUserId) {
+  const cfg = getGameConfig();
+  if (!cfg.starBonusEnabled) return 1;
+  const other = db.users[otherUserId];
+  if (!other) return 1;
+  const starCount = (other.stars || []).length;
+  return starCount === 0 ? 1 : starCount; // 0 stars = 1x, N stars = Nx
+}
+
+// Count stars by category for a user
+function getStarBreakdown(userId) {
+  const user = db.users[userId];
+  if (!user) return { conquest: 0, permanent: 0, temporary: 0, professional: 0, total: 0 };
+  const stars = user.stars || [];
+  let conquest = 0, permanent = 0, temporary = 0, professional = 0;
+  for (const s of stars) {
+    if (s.category === 'conquest') conquest++;
+    else if (s.category === 'permanent') permanent++;
+    else if (s.category === 'professional') professional++;
+    else temporary++; // default category for existing/purchased/donated stars
+  }
+  return { conquest, permanent, temporary, professional, total: stars.length };
 }
 
 function calcRawScore(userId) {
@@ -2037,11 +2091,31 @@ function getUniqueConnections(userId) {
 
 function cleanExpiredPoints() {
   const cfg = getGameConfig();
-  const cutoff = Date.now() - (cfg.pointDecayDays * 86400000);
-  for (const user of Object.values(db.users)) {
-    if (user.pointLog) {
-      user.pointLog = user.pointLog.filter(p => p.timestamp > cutoff);
+  // Clean old point logs if decay is active (legacy)
+  if (cfg.pointDecayDays > 0) {
+    const cutoff = Date.now() - (cfg.pointDecayDays * 86400000);
+    for (const user of Object.values(db.users)) {
+      if (user.pointLog) {
+        user.pointLog = user.pointLog.filter(p => p.timestamp > cutoff);
+      }
     }
+  }
+  // Clean expired temporary stars
+  const now = Date.now();
+  let changed = false;
+  for (const user of Object.values(db.users)) {
+    if (user.stars && user.stars.length > 0) {
+      const before = user.stars.length;
+      user.stars = user.stars.filter(s => {
+        if (s.category === 'temporary' && s.expiresAt && s.expiresAt < now) return false;
+        return true;
+      });
+      if (user.stars.length < before) changed = true;
+    }
+  }
+  if (changed) {
+    recalcAllTopTags();
+    saveDB('users');
   }
 }
 
@@ -2075,10 +2149,11 @@ function earnStarForUser(userId, reason, context = '') {
   saveDB('users');
 }
 
-// Calculate how many points the Nth star costs (rarity escalation)
+// Calculate star cost — now fixed price (no escalation)
 function starCost(starNumber, basePrice) {
   const cfg = getGameConfig();
-  // Star 1 = basePrice, Star 2 = basePrice * 1.15, Star 3 = basePrice * 1.15^2, etc.
+  if (cfg.starRarityMultiplier <= 1) return basePrice; // Fixed price
+  // Legacy escalation mode
   return Math.round(basePrice * Math.pow(cfg.starRarityMultiplier, Math.max(0, starNumber - 1)));
 }
 
@@ -2088,39 +2163,73 @@ function checkStarEligibility(userAId, userBId) {
   const userB = db.users[userBId];
   if (!userA || !userB) return;
 
-  // 1. Streak-based: every N different days with same person
+  // 1. Streak-based: every N different days with same person = 1 star to donate
   const key = [userAId, userBId].sort().join('_');
   const streak = db.streaks[key];
   if (streak) {
-    // Count different days they met (from streak history)
     const uniqueDays = new Set((streak.history || []).map(h => h.date)).size;
     const starsFromDays = Math.floor(uniqueDays / cfg.daysTogetherPerStar);
     const prevStars = streak._starsAwarded || 0;
     if (starsFromDays > prevStars) {
       for (let i = prevStars; i < starsFromDays; i++) {
-        earnStarForUser(userAId, 'streak', `${uniqueDays} dias com ${userB.nickname}`);
-        earnStarForUser(userBId, 'streak', `${uniqueDays} dias com ${userA.nickname}`);
+        earnStarForUser(userAId, 'streak', uniqueDays + ' dias com ' + (userB.nickname || '?'));
+        earnStarForUser(userBId, 'streak', uniqueDays + ' dias com ' + (userA.nickname || '?'));
       }
       streak._starsAwarded = starsFromDays;
       const payload = {
         streakDays: uniqueDays, starsTotal: starsFromDays, newStar: true,
-        unlock: { label: 'Nova estrela!', description: uniqueDays + ' dias juntos = ' + starsFromDays + ' estrela' + (starsFromDays > 1 ? 's' : '') }
+        unlock: { label: 'Nova estrela!', description: uniqueDays + ' dias juntos = estrela pra doar!' }
       };
       io.to(`user:${userAId}`).emit('streak-unlock', payload);
       io.to(`user:${userBId}`).emit('streak-unlock', payload);
     }
   }
 
-  // 2. Milestone: every N unique connections
+  // 2. Conquest stars (automatic, not donated) — 100 and 500 unique connections
+  const milestones = cfg.milestoneStars || [100, 500];
   [userAId, userBId].forEach(uid => {
     const u = db.users[uid];
     const uniqueConns = getUniqueConnections(uid);
     u.touchers = uniqueConns;
-    const milestonesHit = Math.floor(uniqueConns / cfg.uniqueConnectionsPerStar);
-    const currentMilestoneStars = (u._milestone100Stars || 0);
-    if (milestonesHit > currentMilestoneStars) {
-      u._milestone100Stars = milestonesHit;
-      earnStarForUser(uid, 'milestone', `${uniqueConns} conexões únicas`);
+    if (!u.stars) u.stars = [];
+
+    // Check each conquest milestone
+    if (!u._conquestMilestones) u._conquestMilestones = [];
+    for (const milestone of milestones) {
+      if (uniqueConns >= milestone && !u._conquestMilestones.includes(milestone)) {
+        u._conquestMilestones.push(milestone);
+        // Auto-award conquest star (not donated, kept by user)
+        const starId = uuidv4();
+        u.stars.push({
+          id: starId, from: 'system', fromName: 'Conquista',
+          donatedAt: Date.now(), type: 'conquest', category: 'conquest',
+          milestone: milestone, reason: milestone + ' conexoes unicas'
+        });
+        io.to('user:' + uid).emit('star-earned', {
+          reason: 'conquest', context: milestone + ' conexoes unicas!',
+          totalEarned: u.stars.length
+        });
+        recalcAllTopTags();
+        saveDB('users');
+      }
+    }
+
+    // 3. Permanent star — 1000 unique connections
+    const permMilestone = cfg.permanentStarMilestone || 1000;
+    if (uniqueConns >= permMilestone && !u._permanentStarAwarded) {
+      u._permanentStarAwarded = true;
+      const starId = uuidv4();
+      u.stars.push({
+        id: starId, from: 'system', fromName: 'Permanente',
+        donatedAt: Date.now(), type: 'permanent', category: 'permanent',
+        reason: permMilestone + ' conexoes unicas'
+      });
+      io.to('user:' + uid).emit('star-earned', {
+        reason: 'permanent', context: permMilestone + ' conexoes unicas! Estrela permanente!',
+        totalEarned: u.stars.length
+      });
+      recalcAllTopTags();
+      saveDB('users');
     }
   });
 }
@@ -4078,47 +4187,59 @@ app.post('/api/star/donate', (req, res) => {
   }
 });
 
-// ══ STAR SHOP — Buy stars with score points ══
+// ══ STAR SHOP v2 — Buy temporary stars with fixed price ══
 app.post('/api/star/buy', (req, res) => {
   const { userId, target } = req.body; // target: 'self' or a userId to gift
   const cfg = getGameConfig();
-  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
   const user = db.users[userId];
   const isSelf = !target || target === 'self' || target === userId;
   const recipientId = isSelf ? userId : target;
-  if (!db.users[recipientId]) return res.status(400).json({ error: 'Destinatário inválido.' });
+  if (!db.users[recipientId]) return res.status(400).json({ error: 'Destinatario invalido.' });
 
-  // Calculate cost with rarity escalation
   const recipientUser = db.users[recipientId];
-  const currentStars = (recipientUser.stars || []).length;
-  const basePrice = isSelf ? cfg.pointsPerStarSelf : cfg.pointsPerStarGift;
-  const cost = starCost(currentStars + 1, basePrice);
+  if (!recipientUser.stars) recipientUser.stars = [];
 
-  // Check if user has enough raw score
+  // Check max 10 stars total
+  if (recipientUser.stars.length >= cfg.maxStarsTotal) {
+    return res.status(400).json({ error: 'Limite de ' + cfg.maxStarsTotal + ' estrelas atingido.' });
+  }
+
+  // Check max temporary stars (5)
+  const breakdown = getStarBreakdown(recipientId);
+  if (breakdown.temporary >= cfg.maxTempStars) {
+    return res.status(400).json({ error: 'Limite de ' + cfg.maxTempStars + ' estrelas temporarias atingido.' });
+  }
+
+  // Fixed price (no escalation)
+  const cost = cfg.starPriceFixed;
+
+  // Check if user has enough score
   const rawScore = calcRawScore(userId);
   const alreadySpent = user.pointsSpent || 0;
   const spendable = rawScore - alreadySpent;
 
   if (spendable < cost) {
-    return res.status(400).json({ error: `Pontos insuficientes. Custo: ${cost}, Disponível: ${Math.round(spendable)}` });
-  }
-
-  // Check max per person if gifting
-  if (!isSelf) {
-    const existingCount = countDonationsPair(userId, recipientId);
-    if (existingCount >= cfg.maxStarsPerPersonToPerson) {
-      return res.status(400).json({ error: `Máximo de ${cfg.maxStarsPerPersonToPerson} estrela(s) por pessoa.` });
-    }
+    return res.status(400).json({ error: 'Score insuficiente. Custo: ' + cost + ', Disponivel: ' + Math.round(spendable) });
   }
 
   // Deduct points
   user.pointsSpent = (user.pointsSpent || 0) + cost;
 
-  // Award star
+  // Award temporary star with expiration
   const starId = uuidv4();
-  if (!recipientUser.stars) recipientUser.stars = [];
-  recipientUser.stars.push({ id: starId, from: isSelf ? 'shop_self' : userId, fromName: isSelf ? 'Loja' : user.nickname, donatedAt: Date.now(), type: 'purchased', cost });
-  recalcAllTopTags(); // re-rank after star purchase
+  const expiresAt = Date.now() + (cfg.tempStarDurationDays * 86400000);
+  recipientUser.stars.push({
+    id: starId,
+    from: isSelf ? 'shop_self' : userId,
+    fromName: isSelf ? 'Loja' : user.nickname,
+    donatedAt: Date.now(),
+    type: 'purchased',
+    category: 'temporary',
+    cost,
+    expiresAt
+  });
+  recalcAllTopTags();
 
   if (!isSelf) {
     db.starDonations[starId] = { id: starId, fromUserId: userId, toUserId: recipientId, timestamp: Date.now(), type: 'purchased', cost };
@@ -4126,29 +4247,138 @@ app.post('/api/star/buy', (req, res) => {
   }
 
   saveDB('users');
-  io.to(`user:${recipientId}`).emit('star-earned', { reason: 'purchased', context: isSelf ? 'Comprou na loja' : `Presente de ${user.nickname}`, totalEarned: recipientUser.stars.length });
-  res.json({ ok: true, starId, cost, recipientStars: recipientUser.stars.length, pointsRemaining: Math.round(rawScore - (user.pointsSpent || 0)) });
+  io.to(`user:${recipientId}`).emit('star-earned', { reason: 'purchased', context: isSelf ? 'Comprou na loja' : 'Presente de ' + user.nickname, totalEarned: recipientUser.stars.length });
+  res.json({ ok: true, starId, cost, recipientStars: recipientUser.stars.length, pointsRemaining: Math.round(rawScore - (user.pointsSpent || 0)), expiresAt });
 });
 
-// Star shop info — prices, available points
+// Star shop info — prices, available points, breakdown
 app.get('/api/star/shop/:userId', (req, res) => {
   const cfg = getGameConfig();
   const user = db.users[req.params.userId];
-  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  if (!user) return res.status(404).json({ error: 'Nao encontrado.' });
   const rawScore = calcRawScore(req.params.userId);
   const spendable = rawScore - (user.pointsSpent || 0);
-  const currentStars = (user.stars || []).length;
-  const selfCost = starCost(currentStars + 1, cfg.pointsPerStarSelf);
-  const giftCost = starCost(1, cfg.pointsPerStarGift); // base for gifting
-  res.json({ spendablePoints: Math.round(spendable), selfCost, giftCost, currentStars, config: { pointsPerStarSelf: cfg.pointsPerStarSelf, pointsPerStarGift: cfg.pointsPerStarGift, starRarityMultiplier: cfg.starRarityMultiplier } });
+  const breakdown = getStarBreakdown(req.params.userId);
+  const uniqueConns = getUniqueConnections(req.params.userId);
+  const canBuyTemp = breakdown.temporary < cfg.maxTempStars && breakdown.total < cfg.maxStarsTotal;
+  res.json({
+    spendablePoints: Math.round(spendable),
+    cost: cfg.starPriceFixed,
+    canBuy: canBuyTemp && spendable >= cfg.starPriceFixed,
+    canBuyTemp,
+    breakdown,
+    uniqueConnections: uniqueConns,
+    milestones: cfg.milestoneStars,
+    permanentMilestone: cfg.permanentStarMilestone,
+    maxTotal: cfg.maxStarsTotal,
+    maxTemp: cfg.maxTempStars,
+    tempDurationDays: cfg.tempStarDurationDays
+  });
 });
 
 app.get('/api/stars/available/:userId', (req, res) => {
   const user = db.users[req.params.userId];
-  if (!user) return res.status(404).json({ error: 'Não encontrado.' });
+  if (!user) return res.status(404).json({ error: 'Nao encontrado.' });
   const stars = (user.stars || []).length;
   const pending = (user.pendingStars || []).length;
   res.json({ total: stars, pending, available: stars + pending });
+});
+
+// ══ STAR RANKING — Global leaderboard ══
+app.get('/api/stars/ranking', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const users = Object.values(db.users)
+    .filter(u => (u.stars || []).length > 0)
+    .map(u => ({
+      id: u.id,
+      nickname: u.nickname || u.name || '?',
+      color: u.color,
+      photoURL: u.photoURL || null,
+      avatarAccessory: u.avatarAccessory || null,
+      stars: (u.stars || []).length,
+      breakdown: getStarBreakdown(u.id),
+      topTag: u.topTag || null,
+      isSubscriber: !!u.isSubscriber,
+      verified: !!u.verified
+    }))
+    .sort((a, b) => b.stars - a.stars)
+    .slice(0, limit);
+  const total = Object.values(db.users).length;
+  const withStars = Object.values(db.users).filter(u => (u.stars || []).length > 0).length;
+  res.json({ ranking: users, totalUsers: total, usersWithStars: withStars });
+});
+
+// ══ STAR PROFILE — Detailed star breakdown for profile view ══
+app.get('/api/stars/profile/:userId', (req, res) => {
+  const cfg = getGameConfig();
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Nao encontrado.' });
+  const breakdown = getStarBreakdown(req.params.userId);
+  const uniqueConns = getUniqueConnections(req.params.userId);
+  const rawScore = calcRawScore(req.params.userId);
+  const spendable = rawScore - (user.pointsSpent || 0);
+
+  // Build 10 slots with status
+  const slots = [];
+  const stars = user.stars || [];
+  const conquestStars = stars.filter(s => s.category === 'conquest').sort((a, b) => (a.milestone || 0) - (b.milestone || 0));
+  const permanentStars = stars.filter(s => s.category === 'permanent');
+  const tempStars = stars.filter(s => !s.category || s.category === 'temporary').sort((a, b) => (a.donatedAt || 0) - (b.donatedAt || 0));
+  const profStars = stars.filter(s => s.category === 'professional');
+
+  // Slot 1-2: Conquest (100, 500)
+  const milestones = cfg.milestoneStars || [100, 500];
+  for (let i = 0; i < 2; i++) {
+    const star = conquestStars[i];
+    slots.push({
+      index: i, category: 'conquest', color: 'gold',
+      filled: !!star, milestone: milestones[i] || (i + 1) * 100,
+      progress: Math.min(uniqueConns, milestones[i] || 100),
+      star: star || null
+    });
+  }
+
+  // Slot 3: Permanent (1000)
+  const permStar = permanentStars[0];
+  slots.push({
+    index: 2, category: 'permanent', color: 'gold',
+    filled: !!permStar, milestone: cfg.permanentStarMilestone || 1000,
+    progress: Math.min(uniqueConns, cfg.permanentStarMilestone || 1000),
+    star: permStar || null
+  });
+
+  // Slots 4-8: Temporary (buyable)
+  for (let i = 0; i < 5; i++) {
+    const star = tempStars[i];
+    slots.push({
+      index: 3 + i, category: 'temporary', color: 'gold',
+      filled: !!star, cost: cfg.starPriceFixed, canBuy: !star && spendable >= cfg.starPriceFixed,
+      expiresAt: star ? star.expiresAt : null,
+      daysLeft: star && star.expiresAt ? Math.max(0, Math.ceil((star.expiresAt - Date.now()) / 86400000)) : null,
+      star: star || null
+    });
+  }
+
+  // Slots 9-10: Professional recognition (ouro branco)
+  for (let i = 0; i < 2; i++) {
+    const star = profStars[i];
+    slots.push({
+      index: 8 + i, category: 'professional', color: 'white_gold',
+      filled: !!star, star: star || null
+    });
+  }
+
+  res.json({
+    userId: req.params.userId,
+    slots,
+    breakdown,
+    uniqueConnections: uniqueConns,
+    score: Math.round(spendable),
+    totalScore: Math.round(rawScore),
+    spent: user.pointsSpent || 0,
+    starPriceFixed: cfg.starPriceFixed,
+    maxTotal: cfg.maxStarsTotal
+  });
 });
 
 // ══ GAME CONFIG — Admin endpoints ══
