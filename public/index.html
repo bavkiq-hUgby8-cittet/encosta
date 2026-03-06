@@ -1724,9 +1724,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-tier-chip.active-dev{background:rgba(33,37,41,.12);border-color:rgba(33,37,41,.4);color:#212529;text-shadow:none}
 /* Dev tools bar (camera/screen) — only UltimateDEV */
 .va-dev-tools{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2}
-.va-dev-btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,0,0,.12);background:rgba(0,0,0,.04);color:rgba(0,0,0,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
-.va-dev-btn:hover{background:rgba(0,0,0,.08);color:#212529}
-.va-dev-btn.active{background:rgba(33,37,41,.15);border-color:rgba(33,37,41,.4);color:#212529;box-shadow:0 0 12px rgba(0,0,0,.1)}
+.va-dev-btn{width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.va-dev-btn:hover{background:rgba(255,255,255,.15);color:#fff}
+.va-dev-btn.active{background:rgba(139,92,246,.3);border-color:rgba(139,92,246,.6);color:#fff;box-shadow:0 0 15px rgba(139,92,246,.3)}
+.va-video-preview{position:fixed;bottom:120px;right:16px;width:120px;height:90px;border-radius:12px;overflow:hidden;z-index:10002;display:none;border:2px solid rgba(139,92,246,.5);box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.va-video-preview.active{display:block}
+.va-video-preview video{width:100%;height:100%;object-fit:cover}
+.va-video-preview .va-video-close{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 #vaMiniStatus{transition:background .3s,box-shadow .3s}
 .va-overlay:not(.mini) #vaMiniStatus{display:none!important}
 .va-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;z-index:2}
@@ -1795,8 +1799,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes va-wave-anim{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
 .va-status-text{font-size:.82rem;color:rgba(255,255,255,.35);font-weight:500;min-height:20px;text-align:center;letter-spacing:.03em}
 /* Activity indicator bar — prominent feedback during thinking/tool calls */
-.va-activity-bar{display:none;flex-direction:column;align-items:center;gap:6px;margin-top:4px;padding:10px 20px;border-radius:16px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15);max-width:300px;width:100%;transition:all .3s}
-.va-activity-bar.active{display:flex}
+.va-activity-bar{display:none;flex-direction:column;align-items:center;gap:6px;padding:10px 20px;border-radius:16px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15);max-width:300px;width:100%;transition:opacity .3s;position:absolute;left:50%;transform:translateX(-50%);z-index:3;pointer-events:none;opacity:0}
+.va-activity-bar.active{display:flex;opacity:1}
 .va-activity-bar .va-act-label{font-size:.78rem;color:rgba(255,255,255,.6);font-weight:600;letter-spacing:.03em;text-align:center}
 .va-activity-bar .va-act-detail{font-size:.7rem;color:rgba(255,255,255,.3);text-align:center}
 .va-activity-bar .va-act-dots{display:flex;gap:6px;align-items:center;justify-content:center}
@@ -1855,8 +1859,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-audio-mode-label{font-size:.6rem;color:rgba(255,255,255,.35);letter-spacing:.04em;font-weight:500;white-space:nowrap;transition:color .3s}
 .va-earpiece-btn.active~.va-audio-mode-label{color:rgba(139,92,246,.6)}
 /* ── Earpiece blackout — simulates real phone call ── */
-.va-earpiece-blackout{position:fixed;inset:0;background:#000;z-index:9998;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.va-earpiece-blackout{position:fixed;inset:0;background:#000;z-index:9998;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 .va-earpiece-blackout.active{display:flex}
+.va-earpiece-blackout *{pointer-events:none}
 .va-earpiece-blackout-text{color:rgba(255,255,255,.2);font-size:.8rem;letter-spacing:.05em}
 .va-earpiece-blackout-timer{color:rgba(255,255,255,.15);font-size:.7rem;font-variant-numeric:tabular-nums}
 .va-actions{display:flex;gap:24px;margin-top:8px;align-items:center;justify-content:center}
@@ -19990,11 +19995,15 @@ window.addEventListener('message',function(e){
     <button class="va-send-btn" onclick="VA.sendText()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
   </div>
 </div>
+<div class="va-video-preview" id="vaVideoPreview">
+  <video id="vaVideoEl" autoplay muted playsinline></video>
+  <button class="va-video-close" onclick="VA.stopVideo()">X</button>
+</div>
 <div class="va-proximity-overlay" id="vaProximityOverlay"></div>
-<div class="va-earpiece-blackout" id="vaEarpieceBlackout" onclick="VA.toggleEarpiece()">
+<div class="va-earpiece-blackout" id="vaEarpieceBlackout">
   <div class="va-earpiece-blackout-text" id="vaBlackoutText">No ouvido</div>
   <div class="va-earpiece-blackout-timer" id="vaBlackoutTimer">00:00</div>
-  <div class="va-earpiece-blackout-text" style="font-size:.65rem;margin-top:20px">Toque para voltar ao viva-voz</div>
+  <div class="va-earpiece-blackout-text" style="font-size:.65rem;margin-top:20px">Afaste do ouvido e toque 2x rapido para viva-voz</div>
 </div>
 <!-- Dev Log FAB + Panel (UltimateDEV only) -->
 <button class="dev-log-fab" id="devLogFab" onclick="toggleDevLogPanel()">
@@ -20104,12 +20113,12 @@ const VA = (function(){
   // back(-60..-35), profile(-35..-18), qleft(-18..-6), front(-6..6), qright(6..18)
   // Beyond 18 right: profile mirrored, beyond 35: back mirrored
   function _getViewForAngle(gammaY){
-    if(gammaY < -35) return {view:'back', flip:true};
-    if(gammaY < -18) return {view:'profile', flip:false};
-    if(gammaY < -6)  return {view:'qleft', flip:false};
-    if(gammaY <= 6)  return {view:'front', flip:false};
-    if(gammaY <= 18) return {view:'qright', flip:false};
-    if(gammaY <= 35) return {view:'profile', flip:true};
+    if(gammaY < -22) return {view:'back', flip:true};
+    if(gammaY < -13) return {view:'profile', flip:false};
+    if(gammaY < -5)  return {view:'qleft', flip:false};
+    if(gammaY <= 5)  return {view:'front', flip:false};
+    if(gammaY <= 13) return {view:'qright', flip:false};
+    if(gammaY <= 22) return {view:'profile', flip:true};
     return {view:'back', flip:false};
   }
   function _switchView(newView, flip){
@@ -20161,8 +20170,8 @@ const VA = (function(){
       if(_gyroBaseBeta === null){ _gyroBaseBeta = beta; _gyroBaseGamma = gamma; }
       var dBeta = beta - _gyroBaseBeta;
       var dGamma = gamma - _gyroBaseGamma;
-      _gyroTargetX = Math.max(-30, Math.min(30, dBeta * 1.0));
-      _gyroTargetY = Math.max(-40, Math.min(40, dGamma * 1.75));
+      _gyroTargetX = Math.max(-20, Math.min(20, dBeta * 0.5));
+      _gyroTargetY = Math.max(-25, Math.min(25, dGamma * 0.9));
     }
     if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
       DeviceOrientationEvent.requestPermission().then(function(perm){
@@ -20181,8 +20190,8 @@ const VA = (function(){
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
         var dx = (e.clientX - cx) / cx;
         var dy = (e.clientY - cy) / cy;
-        _gyroTargetY = dx * 22;
-        _gyroTargetX = -dy * 10;
+        _gyroTargetY = dx * 12;
+        _gyroTargetX = -dy * 5;
       });
     }
   }
@@ -20279,6 +20288,32 @@ const VA = (function(){
       bt.textContent = _formatTime(elapsed);
     }
   }
+
+  // ── BLACKOUT TOUCH BLOCKER — prevent ear/face accidental taps ──
+  (function(){
+    var bl = document.getElementById('vaEarpieceBlackout');
+    if(!bl) return;
+    var _lastTap = 0;
+    // Block ALL touch events on the blackout screen
+    ['touchstart','touchmove','touchend','touchcancel','mousedown','mouseup','click','contextmenu'].forEach(function(evt){
+      bl.addEventListener(evt, function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        // Only respond to deliberate DOUBLE-TAP (2 taps within 400ms)
+        if(evt === 'touchend' && e.touches.length === 0){
+          var now = Date.now();
+          if(now - _lastTap < 400){
+            _lastTap = 0;
+            VA.toggleEarpiece();
+          } else {
+            _lastTap = now;
+          }
+        }
+        return false;
+      }, {passive: false, capture: true});
+    });
+  })();
 
   // ── AUTO-HANGUP — agent says goodbye ──
   var _goodbyePhrases = ['tchau','bye','adeus','ate logo','ate mais','goodbye','see you','take care','foi um prazer','nos vemos'];
@@ -21418,34 +21453,55 @@ const VA = (function(){
     _devLogOpen = false;
   }
 
-  // ── CÂMERA / TELA — Video track for UltimateDEV ──
+  // ── CAMERA / TELA — Video com preview local ──
   let _videoStream=null;
+  let _videoSnapshotInterval=null;
+  function _showVideoPreview(stream){
+    var preview=$('vaVideoPreview');
+    var videoEl=$('vaVideoEl');
+    if(preview&&videoEl&&stream){
+      videoEl.srcObject=stream;
+      preview.classList.add('active');
+    }
+  }
+  function _hideVideoPreview(){
+    var preview=$('vaVideoPreview');
+    var videoEl=$('vaVideoEl');
+    if(preview) preview.classList.remove('active');
+    if(videoEl) videoEl.srcObject=null;
+  }
+  function _notifyAgentVideo(source){
+    if(!dc||dc.readyState!=='open') return;
+    dc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'[SISTEMA: O usuario ativou '+source+'. O video esta sendo exibido na tela. Pergunte o que ele quer mostrar ou comente.]'}]}}));
+    dc.send(JSON.stringify({type:'response.create'}));
+  }
   async function _startCamera(){
     try{
-      _videoStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,frameRate:2}});
-      if(pc&&_videoStream){
-        _videoStream.getVideoTracks().forEach(t=>pc.addTrack(t,_videoStream));
-        console.log('[VA] Camera track added to WebRTC');
-      }
+      _videoStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,frameRate:5}});
+      _showVideoPreview(_videoStream);
       const btn=$('vaDevCameraBtn');
       if(btn) btn.classList.add('active');
+      _notifyAgentVideo('a camera frontal');
+      console.log('[VA] Camera started with preview');
       return true;
     }catch(e){console.error('[VA] Camera error:',e);return false;}
   }
   async function _startScreenShare(){
     try{
-      _videoStream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:2}});
-      if(pc&&_videoStream){
-        _videoStream.getVideoTracks().forEach(t=>pc.addTrack(t,_videoStream));
-        console.log('[VA] Screen share track added to WebRTC');
-      }
+      _videoStream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:3}});
+      _showVideoPreview(_videoStream);
       const btn=$('vaDevScreenBtn');
       if(btn) btn.classList.add('active');
+      _videoStream.getVideoTracks()[0].onended=function(){_stopVideo()};
+      _notifyAgentVideo('o compartilhamento de tela');
+      console.log('[VA] Screen share started with preview');
       return true;
     }catch(e){console.error('[VA] Screen share error:',e);return false;}
   }
   function _stopVideo(){
+    if(_videoSnapshotInterval){clearInterval(_videoSnapshotInterval);_videoSnapshotInterval=null;}
     if(_videoStream){_videoStream.getTracks().forEach(t=>t.stop());_videoStream=null;}
+    _hideVideoPreview();
     const camBtn=$('vaDevCameraBtn');if(camBtn)camBtn.classList.remove('active');
     const scrBtn=$('vaDevScreenBtn');if(scrBtn)scrBtn.classList.remove('active');
   }
@@ -21491,7 +21547,7 @@ const VA = (function(){
       if(tierSel) tierSel.style.display = (vaTier==='ultimatedev' || window._vaCanUltimate) ? 'flex' : 'none';
       // Show dev tools (camera/screen) only for UltimateDEV
       const devTools=$('vaDevTools');
-      if(devTools) devTools.style.display = vaTier==='ultimatedev' ? 'flex' : 'none';
+      if(devTools) devTools.style.display = 'flex';
       // Show dev log FAB for UltimateDEV
       _showDevLogFab();
       if(tierSel) updateTierChips();
@@ -21600,6 +21656,7 @@ const VA = (function(){
       if(_videoStream&&_videoStream.getVideoTracks().some(t=>t.readyState==='live')){_stopVideo();return;}
       _startScreenShare();
     },
+    stopVideo: _stopVideo,
     stop: cleanup
   };
 })();
