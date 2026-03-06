@@ -1737,7 +1737,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-close svg{width:22px;height:22px}
 .va-center{display:flex;flex-direction:column;align-items:center;gap:28px;z-index:1;position:relative}
 /* ── Neural Orb ── */
-.va-orb-wrapper{position:relative;width:75vw;max-width:420px;height:85vw;max-height:520px;display:flex;align-items:center;justify-content:center;perspective:600px}
+.va-orb-wrapper{position:relative;width:75vw;max-width:420px;height:85vw;max-height:520px;display:flex;align-items:center;justify-content:center;perspective:800px}
 .va-orb-ring{position:absolute;border-radius:50%;border:1px solid transparent;animation:va-ring-spin 6s linear infinite}
 .va-orb-ring:nth-child(1){inset:10px -20px -20px -20px;border-color:rgba(139,92,246,.12);animation-duration:8s;border-style:dashed}
 .va-orb-ring:nth-child(2){inset:-15px -40px -40px -40px;border-color:rgba(80,200,240,.08);animation-duration:14s;animation-direction:reverse;border-style:dotted}
@@ -1748,11 +1748,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-orb-wrapper::after{bottom:10%;right:8%;animation-delay:-2.5s;background:rgba(236,72,153,.4)}
 @keyframes va-particle{0%,100%{opacity:.3;transform:translateY(0) scale(1)}50%{opacity:.8;transform:translateY(-8px) scale(1.5)}}
 .va-orb{width:70vw;max-width:400px;height:80vw;max-height:500px;border-radius:20px;background:transparent;border:none;display:flex;align-items:center;justify-content:center;position:relative;transition:transform .15s ease-out;cursor:pointer;overflow:visible;transform-style:preserve-3d;will-change:transform}
-.va-orb .va-avatar-img{width:100%;height:100%;object-fit:contain;transition:filter .5s;filter:brightness(.35) saturate(0) drop-shadow(0 0 0 transparent)}
+.va-orb .va-avatar-img{position:absolute;width:100%;height:100%;object-fit:contain;transition:filter .5s,opacity .2s;filter:brightness(.35) saturate(0) drop-shadow(0 0 0 transparent);top:0;left:0}
+.va-orb .va-avatar-img.va-view-hidden{opacity:0;pointer-events:none}
+.va-orb .va-avatar-img.va-view-active{opacity:1}
 .va-orb.idle .va-avatar-img{filter:brightness(.35) saturate(0) drop-shadow(0 0 0 transparent)}
 .va-orb.listening .va-avatar-img{filter:brightness(1) saturate(1.1) drop-shadow(0 0 15px rgba(139,92,246,.3))}
 .va-orb.speaking .va-avatar-img{filter:brightness(1.2) saturate(1.3) drop-shadow(0 0 25px rgba(245,130,32,.5))}
 .va-orb.connecting .va-avatar-img{filter:brightness(.3) saturate(0);opacity:.6}
+.va-orb.connecting .va-avatar-img.va-view-hidden{opacity:0}
 /* ── Eye overlays (glow on/off when speaking) ── */
 .va-eye-overlay{position:absolute;width:22px;height:10px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .3s;z-index:2}
 .va-eye-overlay.left{top:26%;left:32%}
@@ -1849,15 +1852,32 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-earpiece-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .25s;margin-right:8px}
 .va-earpiece-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
 .va-earpiece-btn.active{color:#8b5cf6;border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.1)}
-.va-actions{display:flex;gap:16px;margin-top:8px}
+.va-actions{display:flex;gap:24px;margin-top:8px;align-items:center;justify-content:center}
 .va-btn{padding:14px 32px;border-radius:28px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .25s;font-family:inherit;letter-spacing:.02em}
 .va-btn:hover{background:rgba(255,255,255,.08);color:#fff}
-.va-btn.primary{background:linear-gradient(135deg,rgba(139,92,246,.3),rgba(80,200,240,.2));border-color:rgba(139,92,246,.3);color:#c4b5fd;box-shadow:0 0 20px rgba(139,92,246,.1)}
-.va-btn.primary:hover{background:linear-gradient(135deg,rgba(139,92,246,.45),rgba(80,200,240,.3));color:#fff;box-shadow:0 0 30px rgba(139,92,246,.2)}
+.va-btn.primary{background:transparent;border:none;padding:0;box-shadow:none;color:transparent}
 .va-btn.danger{color:#f87171;border-color:rgba(248,113,113,.15)}
 .va-btn.danger:hover{background:rgba(248,113,113,.1)}
-#vaStopBtn{display:none;margin-top:20px;width:auto;min-width:180px;padding:14px 28px;border-radius:28px;border:2px solid rgba(239,68,68,.5);background:rgba(239,68,68,.15);color:#ef4444;font-size:.9rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.03em;transition:all .25s;min-height:48px;z-index:1;box-shadow:0 0 20px rgba(239,68,68,.1)}
-#vaStopBtn:hover{background:rgba(239,68,68,.25);border-color:rgba(239,68,68,.7);color:#fff;box-shadow:0 0 30px rgba(239,68,68,.2)}
+/* ── Phone call buttons ── */
+.va-call-btn{width:68px;height:68px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s;position:relative;overflow:hidden}
+.va-call-btn svg{width:28px;height:28px;position:relative;z-index:1}
+.va-call-btn.answer{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 0 30px rgba(34,197,94,.4),0 4px 15px rgba(0,0,0,.3);color:#fff}
+.va-call-btn.answer:hover{box-shadow:0 0 45px rgba(34,197,94,.6),0 4px 20px rgba(0,0,0,.4);transform:scale(1.08)}
+.va-call-btn.answer:active{transform:scale(.95)}
+.va-call-btn.answer::before{content:'';position:absolute;inset:0;border-radius:50%;animation:va-call-ring 2s ease-out infinite;border:3px solid rgba(34,197,94,.5)}
+@keyframes va-call-ring{0%{transform:scale(1);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+.va-call-btn.hangup{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 0 25px rgba(239,68,68,.4),0 4px 15px rgba(0,0,0,.3);color:#fff}
+.va-call-btn.hangup:hover{box-shadow:0 0 40px rgba(239,68,68,.6),0 4px 20px rgba(0,0,0,.4);transform:scale(1.08)}
+.va-call-btn.hangup:active{transform:scale(.95)}
+.va-call-btn.hangup svg{transform:rotate(135deg)}
+#vaStopBtn{display:none;margin-top:20px;width:68px;height:68px;min-width:unset;padding:0;border-radius:50%;border:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-size:0;font-weight:700;font-family:inherit;cursor:pointer;transition:all .25s;min-height:unset;z-index:1;box-shadow:0 0 25px rgba(239,68,68,.4),0 4px 15px rgba(0,0,0,.3);display:none;align-items:center;justify-content:center}
+#vaStopBtn:hover{background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 0 40px rgba(239,68,68,.6);transform:scale(1.08)}
+#vaStopBtn svg{transform:rotate(135deg)}
+/* ── Proximity sensor overlay (screen goes dark when near ear) ── */
+.va-proximity-overlay{position:fixed;inset:0;background:#000;z-index:9999;opacity:0;pointer-events:none;transition:opacity .3s}
+.va-proximity-overlay.near{opacity:1;pointer-events:auto}
+/* ── Call timer ── */
+.va-call-timer{font-size:.75rem;color:rgba(255,255,255,.35);font-weight:500;letter-spacing:.08em;font-variant-numeric:tabular-nums}
 .va-text-row{position:absolute;bottom:0;left:0;right:0;padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;gap:8px;align-items:center;background:linear-gradient(transparent,rgba(5,5,16,.98));z-index:2}
 .va-text-input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:24px;padding:12px 18px;color:#e4e4e7;font-size:.85rem;font-family:inherit;outline:none;transition:border-color .2s}
 .va-text-input:focus{border-color:rgba(139,92,246,.35)}
@@ -19928,7 +19948,10 @@ window.addEventListener('message',function(e){
       <div class="va-orb-ring"></div>
       <div class="va-orb-ring"></div>
       <div class="va-orb" id="vaOrb" onclick="VA.toggleVoice()">
-        <img class="va-avatar-img" id="vaAvatarImg" src="/img/va/avatar-plus.png" alt="Touch? AI" draggable="false">
+        <img class="va-avatar-img va-view-active" id="vaViewFront" src="/img/va/front-plus.png?v=3d1" alt="Touch? AI" draggable="false" data-view="front">
+        <img class="va-avatar-img va-view-hidden" id="vaViewQLeft" src="/img/va/qleft-plus.png?v=3d1" alt="" draggable="false" data-view="qleft">
+        <img class="va-avatar-img va-view-hidden" id="vaViewProfile" src="/img/va/profile-plus.png?v=3d1" alt="" draggable="false" data-view="profile">
+        <img class="va-avatar-img va-view-hidden" id="vaViewQRight" src="/img/va/qright-plus.png?v=3d1" alt="" draggable="false" data-view="qright">
         <div class="va-eye-overlay left"><div class="va-eye-overlay-inner"></div></div>
         <div class="va-eye-overlay right"><div class="va-eye-overlay-inner"></div></div>
         <div class="va-mouth-overlay"></div>
@@ -19936,17 +19959,18 @@ window.addEventListener('message',function(e){
       </div>
       <div class="va-wave"><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div><div class="va-wave-bar"></div></div>
     </div>
-    <div class="va-status-text" id="vaStatus">Toque para conversar</div>
+    <div class="va-status-text" id="vaStatus">Toque para atender</div>
     <div class="va-activity-bar" id="vaActivityBar">
       <div class="va-act-dots"><span></span><span></span><span></span></div>
       <div class="va-act-label" id="vaActLabel">Pensando...</div>
       <div class="va-act-detail" id="vaActDetail"></div>
     </div>
     <div class="va-transcript" id="vaTranscript"></div>
+    <div class="va-call-timer" id="vaCallTimer" style="display:none">00:00</div>
     <div class="va-actions">
-      <button class="va-btn primary" id="vaMainBtn" onclick="VA.toggleVoice()">Iniciar conversa</button>
+      <button class="va-call-btn answer" id="vaMainBtn" onclick="VA.toggleVoice()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
     </div>
-    <button id="vaStopBtn" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:16px;height:16px;margin-right:6px;vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Encerrar</button>
+    <button class="va-call-btn hangup" id="vaStopBtn" style="display:none" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
   </div>
   <div class="va-dev-tools" id="vaDevTools" style="display:none">
     <button class="va-dev-btn" id="vaDevCameraBtn" onclick="VA.toggleCamera()" title="Câmera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></button>
@@ -19957,6 +19981,7 @@ window.addEventListener('message',function(e){
     <button class="va-send-btn" onclick="VA.sendText()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
   </div>
 </div>
+<div class="va-proximity-overlay" id="vaProximityOverlay"></div>
 <!-- Dev Log FAB + Panel (UltimateDEV only) -->
 <button class="dev-log-fab" id="devLogFab" onclick="toggleDevLogPanel()">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
@@ -20055,16 +20080,60 @@ const VA = (function(){
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
   // ── Gyroscope / Accelerometer parallax — VERY sensitive 3D ──
+  // ── 3D MULTI-VIEW SYSTEM — switches between 4 pre-rendered angles ──
   let _gyroActive = false;
   let _gyroBaseAlpha = null, _gyroBaseBeta = null, _gyroBaseGamma = null;
   let _gyroCurrentX = 0, _gyroCurrentY = 0, _gyroTargetX = 0, _gyroTargetY = 0;
   let _gyroRAF = null;
+  let _currentView = 'front';
+  var _vaViews = ['profile', 'qleft', 'front', 'qright'];
+  // View thresholds: gamma angle ranges mapped to views
+  // profile(-90..-25), qleft(-25..-8), front(-8..8), qright(8..25)
+  // Beyond 25 we show profile mirrored (via CSS scaleX)
+  function _getViewForAngle(gammaY){
+    if(gammaY < -25) return {view:'qright', flip:true};   // far left = mirror of qright
+    if(gammaY < -8)  return {view:'qleft', flip:false};
+    if(gammaY <= 8)  return {view:'front', flip:false};
+    if(gammaY <= 25) return {view:'qright', flip:false};
+    return {view:'qleft', flip:true};                       // far right = mirror of qleft
+  }
+  function _switchView(newView, flip){
+    if(newView === _currentView) {
+      // Just update flip state
+      var imgs = document.querySelectorAll('#vaOrb .va-avatar-img');
+      imgs.forEach(function(img){
+        if(img.dataset.view === _currentView){
+          img.style.transform = flip ? 'scaleX(-1)' : '';
+        }
+      });
+      return;
+    }
+    _currentView = newView;
+    var imgs = document.querySelectorAll('#vaOrb .va-avatar-img');
+    imgs.forEach(function(img){
+      if(img.dataset.view === newView){
+        img.classList.remove('va-view-hidden');
+        img.classList.add('va-view-active');
+        img.style.transform = flip ? 'scaleX(-1)' : '';
+      } else {
+        img.classList.remove('va-view-active');
+        img.classList.add('va-view-hidden');
+        img.style.transform = '';
+      }
+    });
+  }
   function _gyroAnimate(){
-    _gyroCurrentX += (_gyroTargetX - _gyroCurrentX) * 0.15;
-    _gyroCurrentY += (_gyroTargetY - _gyroCurrentY) * 0.15;
+    _gyroCurrentX += (_gyroTargetX - _gyroCurrentX) * 0.12;
+    _gyroCurrentY += (_gyroTargetY - _gyroCurrentY) * 0.12;
     var orb = $('vaOrb');
     if(orb){
-      orb.style.transform = 'rotateX(' + _gyroCurrentX.toFixed(1) + 'deg) rotateY(' + _gyroCurrentY.toFixed(1) + 'deg) scale3d(1,1,1)';
+      // Apply subtle CSS rotation for smoothness between view switches
+      var subtleX = _gyroCurrentX * 0.15;
+      var subtleY = (_gyroCurrentY % 8) * 0.3;
+      orb.style.transform = 'rotateX(' + subtleX.toFixed(1) + 'deg) rotateY(' + subtleY.toFixed(1) + 'deg) scale3d(1,1,1)';
+      // Switch view based on Y angle (gamma)
+      var vInfo = _getViewForAngle(_gyroCurrentY);
+      _switchView(vInfo.view, vInfo.flip);
     }
     _gyroRAF = requestAnimationFrame(_gyroAnimate);
   }
@@ -20077,9 +20146,8 @@ const VA = (function(){
       if(_gyroBaseBeta === null){ _gyroBaseBeta = beta; _gyroBaseGamma = gamma; }
       var dBeta = beta - _gyroBaseBeta;
       var dGamma = gamma - _gyroBaseGamma;
-      // Very high sensitivity: clamp at 45 deg, multiply by 2.5
-      _gyroTargetX = Math.max(-45, Math.min(45, dBeta * 2.5));
-      _gyroTargetY = Math.max(-45, Math.min(45, dGamma * 3.0));
+      _gyroTargetX = Math.max(-45, Math.min(45, dBeta * 2.0));
+      _gyroTargetY = Math.max(-60, Math.min(60, dGamma * 3.5));
     }
     if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
       DeviceOrientationEvent.requestPermission().then(function(perm){
@@ -20092,15 +20160,110 @@ const VA = (function(){
       window.addEventListener('deviceorientation', handleOrientation, true);
       _gyroActive = true;
     }
-    // Desktop: mouse moves the avatar a LOT
+    // Desktop: mouse moves the avatar
     if(!('ontouchstart' in window)){
       document.addEventListener('mousemove', function(e){
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
         var dx = (e.clientX - cx) / cx;
         var dy = (e.clientY - cy) / cy;
-        _gyroTargetY = dx * 35;
-        _gyroTargetX = -dy * 25;
+        _gyroTargetY = dx * 45;
+        _gyroTargetX = -dy * 20;
       });
+    }
+  }
+
+  // ── PROXIMITY SENSOR — screen goes dark when near ear ──
+  let _proximityActive = false;
+  function _initProximity(){
+    if(_proximityActive) return;
+    var overlay = $('vaProximityOverlay');
+    if(!overlay) return;
+    // Try modern Proximity Sensor API
+    if('ProximitySensor' in window){
+      try{
+        var sensor = new ProximitySensor();
+        sensor.addEventListener('reading', function(){
+          if(sensor.near){
+            overlay.classList.add('near');
+          } else {
+            overlay.classList.remove('near');
+          }
+        });
+        sensor.start();
+        _proximityActive = true;
+        console.log('[VA] ProximitySensor started');
+      }catch(err){console.log('[VA] ProximitySensor error:', err.message)}
+    }
+    // Fallback: deviceproximity event (Firefox)
+    if(!_proximityActive && 'ondeviceproximity' in window){
+      window.addEventListener('deviceproximity', function(e){
+        if(e.value < 5){
+          overlay.classList.add('near');
+        } else {
+          overlay.classList.remove('near');
+        }
+      });
+      _proximityActive = true;
+      console.log('[VA] deviceproximity listener attached');
+    }
+    // Fallback: use ambient light sensor as proxy
+    if(!_proximityActive && 'AmbientLightSensor' in window){
+      try{
+        var als = new AmbientLightSensor();
+        als.addEventListener('reading', function(){
+          if(als.illuminance < 10){
+            overlay.classList.add('near');
+          } else {
+            overlay.classList.remove('near');
+          }
+        });
+        als.start();
+        _proximityActive = true;
+        console.log('[VA] AmbientLightSensor started (proxy for proximity)');
+      }catch(err){}
+    }
+  }
+  function _stopProximity(){
+    var overlay = $('vaProximityOverlay');
+    if(overlay) overlay.classList.remove('near');
+  }
+
+  // ── CALL TIMER ──
+  let _callTimerInterval = null;
+  let _callStartTime = 0;
+  function _startCallTimer(){
+    _callStartTime = Date.now();
+    var timerEl = $('vaCallTimer');
+    if(timerEl) timerEl.style.display = '';
+    _callTimerInterval = setInterval(function(){
+      var elapsed = Math.floor((Date.now() - _callStartTime) / 1000);
+      var mins = Math.floor(elapsed / 60);
+      var secs = elapsed % 60;
+      if(timerEl) timerEl.textContent = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }, 1000);
+  }
+  function _stopCallTimer(){
+    if(_callTimerInterval){ clearInterval(_callTimerInterval); _callTimerInterval = null; }
+    var timerEl = $('vaCallTimer');
+    if(timerEl){ timerEl.style.display = 'none'; timerEl.textContent = '00:00'; }
+  }
+
+  // ── AUTO-HANGUP — agent says goodbye ──
+  var _goodbyePhrases = ['tchau','bye','adeus','ate logo','ate mais','goodbye','see you','take care','foi um prazer','nos vemos'];
+  function _checkAutoHangup(text){
+    if(!text || !active) return;
+    var lower = text.toLowerCase();
+    for(var i = 0; i < _goodbyePhrases.length; i++){
+      if(lower.indexOf(_goodbyePhrases[i]) >= 0){
+        console.log('[VA] Auto-hangup detected goodbye:', _goodbyePhrases[i]);
+        setTimeout(function(){
+          if(active){
+            setStatus('Ligacao encerrada');
+            setTimeout(function(){ VA.close(); }, 1500);
+          }
+        }, 2000);
+        return;
+      }
     }
   }
 
@@ -20200,7 +20363,7 @@ const VA = (function(){
     busy = true;
     _initGyro();
     _gyroBaseBeta = null; _gyroBaseGamma = null;
-    setStatus('Conectando...'); setOrb('connecting');
+    setStatus('Chamando...'); setOrb('connecting');
     try {
       // 1. Token — premium or standard endpoint
       const sessionUrl = vaTier === 'ultimatedev' ? '/api/agent/ultimate-session' : vaTier === 'pro' ? '/api/agent/premium-session' : '/api/agent/session';
@@ -20259,7 +20422,9 @@ const VA = (function(){
         setOrb('speaking'); setStatus('');
         _updateMiniStatus('speaking');
         $('vaMainBtn').style.display = 'none';
-        $('vaStopBtn').style.display = '';
+        $('vaStopBtn').style.display = 'flex';
+        _startCallTimer();
+        _initProximity();
         _resetInactivityTimer();
         // Log session start to dev panel
         if(vaTier==='ultimatedev'){
@@ -20333,10 +20498,11 @@ const VA = (function(){
           const mainBtn=$('vaMainBtn');
           if(mainBtn){
             mainBtn.style.display='';
-            mainBtn.textContent='🔄 Reconectar';
+            mainBtn.className='va-call-btn answer';
+            mainBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
             mainBtn.onclick=function(){
               mainBtn.onclick=function(){VA.toggleVoice()};
-              mainBtn.textContent= savedTier==='ultimatedev'?'⚡ Iniciar UltimateDEV' : savedTier==='pro'?'✦ Iniciar assistente Pro':'🎙️ Iniciar conversa';
+              mainBtn.className='va-call-btn answer';
               vaTier=savedTier;
               connect();
             };
@@ -20388,10 +20554,28 @@ const VA = (function(){
     vaTier = 'plus';
     const overlay=$('vaOverlay');
     if(overlay){overlay.classList.remove('mini','pro','premium','ultimatedev');overlay.onclick=null;}
-    var avImg=$('vaAvatarImg');if(avImg)avImg.src='/img/va/avatar-plus.png';
+    // Reset 3D views to front-plus
+    var views3d = ['front','qleft','profile','qright'];
+    var v3d = '?v=3d1';
+    views3d.forEach(function(view){
+      var altIds = {front:'vaViewFront',qleft:'vaViewQLeft',profile:'vaViewProfile',qright:'vaViewQRight'};
+      var el = $(altIds[view]);
+      if(el){
+        el.src = '/img/va/' + view + '-plus.png' + v3d;
+        if(view === 'front'){ el.classList.remove('va-view-hidden'); el.classList.add('va-view-active'); }
+        else { el.classList.remove('va-view-active'); el.classList.add('va-view-hidden'); }
+        el.style.transform = '';
+      }
+    });
+    _currentView = 'front';
+    _stopCallTimer();
+    _stopProximity();
     setOrb(''); setStatus(''); setTranscript('');
-    $('vaMainBtn').style.display='';
-    $('vaMainBtn').textContent='Iniciar conversa';
+    var mainBtn=$('vaMainBtn');
+    if(mainBtn){
+      mainBtn.style.display='';
+      mainBtn.className='va-call-btn answer';
+    }
     $('vaStopBtn').style.display='none';
     try{localStorage.setItem(VA_LAST_KEY,String(Date.now()))}catch(e){}
   }
@@ -20446,6 +20630,8 @@ const VA = (function(){
         if(evt.transcript) fetch('/api/va/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,tier:vaTier,role:'assistant',content:evt.transcript})}).catch(()=>{});
         // Legacy: also save to ultimateBank for backward compat
         if(vaTier==='ultimatedev'&&evt.transcript) fetch('/api/dev/conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,role:'assistant',content:evt.transcript})}).catch(()=>{});
+        // Check if agent said goodbye — auto-hangup
+        if(evt.transcript) _checkAutoHangup(evt.transcript);
         // NOTE: do NOT set _agentSpeaking=false here -- audio buffer may still be playing
         // Only response.done should clear this flag
         break;
@@ -21256,10 +21442,10 @@ const VA = (function(){
       ov.classList.remove('pro','premium','ultimatedev');
       if(vaTier==='pro') ov.classList.add('pro');
       else if(vaTier==='ultimatedev') ov.classList.add('ultimatedev');
-      $('vaMainBtn').style.display='';
-      $('vaMainBtn').textContent= vaTier==='ultimatedev'?'⚡ Iniciar UltimateDEV' : vaTier==='pro'?'✦ Iniciar assistente Pro':'🎙️ Iniciar conversa';
+      var mb=$('vaMainBtn');
+      if(mb){ mb.style.display=''; mb.className='va-call-btn answer'; }
       $('vaStopBtn').style.display='none';
-      setStatus(vaTier==='ultimatedev'?'UltimateDEV — modo desenvolvedor' : vaTier==='pro'?'Modo Pro — fale qualquer comando':'Toque para começar');
+      setStatus(vaTier==='ultimatedev'?'UltimateDEV' : vaTier==='pro'?'Modo Pro':'Toque para atender');
       setOrb('');
       // Show tier selector for ultimate users
       const tierSel=$('vaTierSelector');
@@ -21295,14 +21481,21 @@ const VA = (function(){
       ov.classList.remove('pro','premium','ultimatedev');
       if(vaTier==='pro') ov.classList.add('pro');
       else if(vaTier==='ultimatedev') ov.classList.add('ultimatedev');
-      var avatarImg=$('vaAvatarImg');
-      if(avatarImg){
-        var avatarMap={plus:'/img/va/avatar-plus.png',pro:'/img/va/avatar-pro.png',ultimatedev:'/img/va/avatar-ultimate.png'};
-        avatarImg.src=avatarMap[vaTier]||avatarMap.plus;
-      }
-      $('vaMainBtn').style.display='';
-      $('vaMainBtn').textContent= vaTier==='ultimatedev'?'Iniciar UltimateDEV' : vaTier==='pro'?'Iniciar assistente Pro':'Iniciar conversa';
-      setStatus(vaTier==='ultimatedev'?'UltimateDEV — modo desenvolvedor' : vaTier==='pro'?'Modo Pro — fale qualquer comando':'Toque para comecar');
+      var tierKey = vaTier === 'ultimatedev' ? 'ultimate' : vaTier;
+      var views = ['front','qleft','profile','qright'];
+      var v3d = '?v=3d1';
+      views.forEach(function(view){
+        var el = $('vaView' + view.charAt(0).toUpperCase() + view.slice(1));
+        if(!el){
+          // Try alternate ID format
+          var altIds = {front:'vaViewFront',qleft:'vaViewQLeft',profile:'vaViewProfile',qright:'vaViewQRight'};
+          el = $(altIds[view]);
+        }
+        if(el) el.src = '/img/va/' + view + '-' + tierKey + '.png' + v3d;
+      });
+      var stBtn=$('vaMainBtn');
+      if(stBtn){ stBtn.style.display=''; stBtn.className='va-call-btn answer'; }
+      setStatus(vaTier==='ultimatedev'?'UltimateDEV' : vaTier==='pro'?'Modo Pro':'Toque para atender');
       setOrb('');
       _showDevLogFab();
       updateTierChips();
@@ -21488,7 +21681,7 @@ const GuidedOnboarding=(function(){
         $('vaOverlay').classList.add('active');
         var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
         var st=$('vaStatus');if(st)st.textContent='';
-        $('vaStopBtn').style.display='';
+        $('vaStopBtn').style.display='flex';
         // Agente fala Step 1
         _ldc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale a ETAPA 1 — boas-vindas. Se apresente e peça pro usuário fechar essa tela no X lá em cima.'}}));
       };
@@ -21633,7 +21826,7 @@ const GuidedOnboarding=(function(){
     active=true;busy=false;step=1;
     var ld2=$('onbLoading');if(ld2)ld2.classList.remove('active');
     $('vaOverlay').classList.add('active');
-    $('vaStopBtn').style.display='';
+    $('vaStopBtn').style.display='flex';
     // Step 1: mostra texto + botão Começar
     bubble(_preSteps.step1.text);
     setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},500);
