@@ -10307,7 +10307,7 @@ ${pendingStars.length ? '\nESTRELAS PENDENTES (precisa doar pra alguem!):\n' + p
 ${pendingReveals.length ? '\nPEDIDOS DE REVELACAO PENDENTES (essas pessoas querem saber quem voce e!):\n- ' + pendingReveals.join(', ') : ''}
 ${declarations.length ? '\nDECLARAÇOES RECEBIDAS (o que as pessoas disseram sobre voce):\n' + declarations.map(d => '- ' + d).join('\n') : ''}
 ${recentTips.length ? '\nGORJETAS RECEBIDAS (7 dias):\n' + recentTips.join('\n') : ''}
-${revealedPeople.length ? '\nIDENTIDADES REVELADAS (voce sabe o nome real de):\n- ' + revealedPeople.join(', ') : ''}
+${revealedPeople.length ? '\nIDENTIDADES REVELADAS (voce sabe o nome real dessas pessoas — USE o nome real delas ao falar sobre elas!):\n- ' + revealedPeople.join('\n- ') + '\nIMPORTANTE: Quando falar sobre uma pessoa revelada, SEMPRE use o nome real dela (ex: "O João" em vez do apelido). Voce SABE quem sao essas pessoas!' : ''}
 ${whoKnowsMe.length ? '\nQUEM SABE SEU NOME REAL: ' + whoKnowsMe.join(', ') : ''}
 ${(user.agentNotes && user.agentNotes.length) ? '\nNOTAS PESSOAIS (coisas que voce ja aprendeu sobre as pessoas):\n' + user.agentNotes.slice(-20).map(n => '- ' + (n.about ? n.about + ': ' : '') + n.note).join('\n') : ''}
 ${connectionsWithoutNotes.length ? '\nCONEXOES SEM NOTAS (pergunte sobre essas pessoas quando tiver oportunidade!):\n' + connectionsWithoutNotes.slice(0, 8).join(', ') : ''}
@@ -10655,6 +10655,14 @@ A ferramenta consultar_rede retorna o estado REAL e ATUALIZADO do banco agora.
 PRIVACIDADE:
 ${tierCfg.privacyRules}
 
+IDENTIDADES REVELADAS:
+Nas conexoes do usuario, algumas pessoas ja se revelaram (marcadas com [revelado] ou NOME REAL).
+Quando uma pessoa foi revelada, voce DEVE usar o nome real dela na conversa, NAO o apelido.
+Exemplo: se "CoolNick123" revelou ser "Joao", diga "o Joao" em vez de "o CoolNick123".
+Se o usuario perguntar "quem e tal pessoa?", e ela ja foi revelada, diga o nome real.
+Se o usuario perguntar sobre alguem pelo apelido E voce sabe o nome real, use o nome real.
+Isso vale tanto para os dados iniciais quanto para os dados de consultar_rede.
+
 ${context}
 
 NOME DO USUARIO: ${(user.name || user.nickname || '').split(' ')[0] || user.nickname || ''}
@@ -11001,6 +11009,20 @@ app.get('/api/agent/context/:userId', (req, res) => {
     freshContext += '\n\nNenhuma novidade recente.';
   }
 
+  // Revealed identities (explicit section)
+  const revealedNames = [];
+  Object.entries(user.canSee || {}).forEach(([pid, data]) => {
+    if (data && data.name) {
+      const p = db.users[pid];
+      const nick = p ? (p.nickname || '?') : '?';
+      const realName = p ? (p.name || data.name) : data.name;
+      if (nick !== realName) revealedNames.push(nick + ' = ' + realName);
+    }
+  });
+  if (revealedNames.length) {
+    freshContext += '\n\nIDENTIDADES REVELADAS (USE o nome real ao falar sobre essas pessoas!):\n- ' + revealedNames.join('\n- ');
+  }
+
   // Stats summary
   const totalStars = (user.stars || []).length;
   const totalLikes = user.likesCount || 0;
@@ -11170,6 +11192,12 @@ Voce tem ferramentas para navegar o app pelo usuario. Use-as!
 
 PRIVACIDADE:
 ${proCfg.privacyRules}
+
+IDENTIDADES REVELADAS:
+Nas conexoes do usuario, algumas pessoas ja se revelaram (marcadas com [revelado] ou NOME REAL).
+Quando uma pessoa foi revelada, voce DEVE usar o nome real dela na conversa, NAO o apelido.
+Exemplo: se "CoolNick123" revelou ser "Joao", diga "o Joao" em vez de "o CoolNick123".
+Se o usuario perguntar sobre alguem pelo apelido E voce sabe o nome real, use o nome real.
 
 ${context}
 
@@ -11414,6 +11442,11 @@ ${profileContext}${vocabContext}${screenContext}${topicsContext}${pendingContext
 
 PRIVACIDADE:
 ${devCfg.privacyRules}
+
+IDENTIDADES REVELADAS:
+Nas conexoes do usuario, algumas pessoas ja se revelaram (marcadas com [revelado] ou NOME REAL).
+Quando uma pessoa foi revelada, voce DEVE usar o nome real dela na conversa, NAO o apelido.
+Se o usuario perguntar sobre alguem pelo apelido E voce sabe o nome real, use o nome real.
 
 ${devCfg.extraInstructions ? 'INSTRUCOES EXTRAS:\n' + devCfg.extraInstructions : ''}
 
