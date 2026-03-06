@@ -1849,9 +1849,16 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-overlay.pro .va-activity-bar .va-act-label{color:rgba(245,158,11,.7)}
 .va-overlay.pro .va-activity-bar .va-act-dots span{background:rgba(245,158,11,.7)}
 .va-transcript{font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;max-width:320px;line-height:1.6;min-height:40px;max-height:120px;overflow-y:auto;font-weight:400;display:none}
-.va-earpiece-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .25s;margin-right:8px}
+.va-earpiece-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);transition:all .25s;margin-right:4px}
 .va-earpiece-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
 .va-earpiece-btn.active{color:#8b5cf6;border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.1)}
+.va-audio-mode-label{font-size:.6rem;color:rgba(255,255,255,.35);letter-spacing:.04em;font-weight:500;white-space:nowrap;transition:color .3s}
+.va-earpiece-btn.active~.va-audio-mode-label{color:rgba(139,92,246,.6)}
+/* ── Earpiece blackout — simulates real phone call ── */
+.va-earpiece-blackout{position:fixed;inset:0;background:#000;z-index:9998;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.va-earpiece-blackout.active{display:flex}
+.va-earpiece-blackout-text{color:rgba(255,255,255,.2);font-size:.8rem;letter-spacing:.05em}
+.va-earpiece-blackout-timer{color:rgba(255,255,255,.15);font-size:.7rem;font-variant-numeric:tabular-nums}
 .va-actions{display:flex;gap:24px;margin-top:8px;align-items:center;justify-content:center}
 .va-btn{padding:14px 32px;border-radius:28px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .25s;font-family:inherit;letter-spacing:.02em}
 .va-btn:hover{background:rgba(255,255,255,.08);color:#fff}
@@ -19934,6 +19941,7 @@ window.addEventListener('message',function(e){
 <div class="va-overlay" id="vaOverlay">
   <div class="va-header">
     <button class="va-earpiece-btn" id="vaEarpieceBtn" onclick="VA.toggleEarpiece()" title="Alto-falante"><svg id="vaEarpieceIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
+    <span class="va-audio-mode-label" id="vaAudioModeLabel">Viva-voz</span>
     <div class="va-title"><span>Touch</span> AI</div>
     <button class="va-close" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -19948,10 +19956,11 @@ window.addEventListener('message',function(e){
       <div class="va-orb-ring"></div>
       <div class="va-orb-ring"></div>
       <div class="va-orb" id="vaOrb" onclick="VA.toggleVoice()">
-        <img class="va-avatar-img va-view-active" id="vaViewFront" src="/img/va/front-plus.png?v=3d1" alt="Touch? AI" draggable="false" data-view="front">
-        <img class="va-avatar-img va-view-hidden" id="vaViewQLeft" src="/img/va/qleft-plus.png?v=3d1" alt="" draggable="false" data-view="qleft">
-        <img class="va-avatar-img va-view-hidden" id="vaViewProfile" src="/img/va/profile-plus.png?v=3d1" alt="" draggable="false" data-view="profile">
-        <img class="va-avatar-img va-view-hidden" id="vaViewQRight" src="/img/va/qright-plus.png?v=3d1" alt="" draggable="false" data-view="qright">
+        <img class="va-avatar-img va-view-active" id="vaViewFront" src="/img/va/front-plus.png?v=3d2" alt="Touch? AI" draggable="false" data-view="front">
+        <img class="va-avatar-img va-view-hidden" id="vaViewQLeft" src="/img/va/qleft-plus.png?v=3d2" alt="" draggable="false" data-view="qleft">
+        <img class="va-avatar-img va-view-hidden" id="vaViewProfile" src="/img/va/profile-plus.png?v=3d2" alt="" draggable="false" data-view="profile">
+        <img class="va-avatar-img va-view-hidden" id="vaViewQRight" src="/img/va/qright-plus.png?v=3d2" alt="" draggable="false" data-view="qright">
+        <img class="va-avatar-img va-view-hidden" id="vaViewBack" src="/img/va/back-plus.png?v=3d2" alt="" draggable="false" data-view="back">
         <div class="va-eye-overlay left"><div class="va-eye-overlay-inner"></div></div>
         <div class="va-eye-overlay right"><div class="va-eye-overlay-inner"></div></div>
         <div class="va-mouth-overlay"></div>
@@ -19982,6 +19991,11 @@ window.addEventListener('message',function(e){
   </div>
 </div>
 <div class="va-proximity-overlay" id="vaProximityOverlay"></div>
+<div class="va-earpiece-blackout" id="vaEarpieceBlackout" onclick="VA.toggleEarpiece()">
+  <div class="va-earpiece-blackout-text" id="vaBlackoutText">No ouvido</div>
+  <div class="va-earpiece-blackout-timer" id="vaBlackoutTimer">00:00</div>
+  <div class="va-earpiece-blackout-text" style="font-size:.65rem;margin-top:20px">Toque para voltar ao viva-voz</div>
+</div>
 <!-- Dev Log FAB + Panel (UltimateDEV only) -->
 <button class="dev-log-fab" id="devLogFab" onclick="toggleDevLogPanel()">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
@@ -20079,23 +20093,24 @@ const VA = (function(){
   const UNMUTE_DELAY_MS = 2500;   // delay to let WebRTC audio fully drain from speaker (prevents echo loop)
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
-  // ── Gyroscope / Accelerometer parallax — VERY sensitive 3D ──
-  // ── 3D MULTI-VIEW SYSTEM — switches between 4 pre-rendered angles ──
+  // ── 3D MULTI-VIEW SYSTEM — switches between 5 pre-rendered angles ──
   let _gyroActive = false;
   let _gyroBaseAlpha = null, _gyroBaseBeta = null, _gyroBaseGamma = null;
   let _gyroCurrentX = 0, _gyroCurrentY = 0, _gyroTargetX = 0, _gyroTargetY = 0;
   let _gyroRAF = null;
   let _currentView = 'front';
-  var _vaViews = ['profile', 'qleft', 'front', 'qright'];
-  // View thresholds: gamma angle ranges mapped to views
-  // profile(-90..-25), qleft(-25..-8), front(-8..8), qright(8..25)
-  // Beyond 25 we show profile mirrored (via CSS scaleX)
+  var _vaViews = ['back', 'profile', 'qleft', 'front', 'qright'];
+  // View thresholds: gamma angle ranges mapped to 5 views
+  // back(-60..-35), profile(-35..-18), qleft(-18..-6), front(-6..6), qright(6..18)
+  // Beyond 18 right: profile mirrored, beyond 35: back mirrored
   function _getViewForAngle(gammaY){
-    if(gammaY < -25) return {view:'qright', flip:true};   // far left = mirror of qright
-    if(gammaY < -8)  return {view:'qleft', flip:false};
-    if(gammaY <= 8)  return {view:'front', flip:false};
-    if(gammaY <= 25) return {view:'qright', flip:false};
-    return {view:'qleft', flip:true};                       // far right = mirror of qleft
+    if(gammaY < -35) return {view:'back', flip:true};
+    if(gammaY < -18) return {view:'profile', flip:false};
+    if(gammaY < -6)  return {view:'qleft', flip:false};
+    if(gammaY <= 6)  return {view:'front', flip:false};
+    if(gammaY <= 18) return {view:'qright', flip:false};
+    if(gammaY <= 35) return {view:'profile', flip:true};
+    return {view:'back', flip:false};
   }
   function _switchView(newView, flip){
     if(newView === _currentView) {
@@ -20146,8 +20161,8 @@ const VA = (function(){
       if(_gyroBaseBeta === null){ _gyroBaseBeta = beta; _gyroBaseGamma = gamma; }
       var dBeta = beta - _gyroBaseBeta;
       var dGamma = gamma - _gyroBaseGamma;
-      _gyroTargetX = Math.max(-45, Math.min(45, dBeta * 2.0));
-      _gyroTargetY = Math.max(-60, Math.min(60, dGamma * 3.5));
+      _gyroTargetX = Math.max(-30, Math.min(30, dBeta * 1.0));
+      _gyroTargetY = Math.max(-40, Math.min(40, dGamma * 1.75));
     }
     if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
       DeviceOrientationEvent.requestPermission().then(function(perm){
@@ -20166,8 +20181,8 @@ const VA = (function(){
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
         var dx = (e.clientX - cx) / cx;
         var dy = (e.clientY - cy) / cy;
-        _gyroTargetY = dx * 45;
-        _gyroTargetX = -dy * 20;
+        _gyroTargetY = dx * 22;
+        _gyroTargetX = -dy * 10;
       });
     }
   }
@@ -20231,21 +20246,38 @@ const VA = (function(){
   // ── CALL TIMER ──
   let _callTimerInterval = null;
   let _callStartTime = 0;
+  function _formatTime(secs){
+    var m = Math.floor(secs / 60);
+    var s = secs % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
   function _startCallTimer(){
     _callStartTime = Date.now();
     var timerEl = $('vaCallTimer');
     if(timerEl) timerEl.style.display = '';
     _callTimerInterval = setInterval(function(){
       var elapsed = Math.floor((Date.now() - _callStartTime) / 1000);
-      var mins = Math.floor(elapsed / 60);
-      var secs = elapsed % 60;
-      if(timerEl) timerEl.textContent = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+      var timeStr = _formatTime(elapsed);
+      if(timerEl) timerEl.textContent = timeStr;
+      // Also update blackout timer if visible
+      var bt = $('vaBlackoutTimer');
+      if(bt) bt.textContent = timeStr;
     }, 1000);
   }
   function _stopCallTimer(){
     if(_callTimerInterval){ clearInterval(_callTimerInterval); _callTimerInterval = null; }
     var timerEl = $('vaCallTimer');
     if(timerEl){ timerEl.style.display = 'none'; timerEl.textContent = '00:00'; }
+    // Also hide blackout
+    var blackout = $('vaEarpieceBlackout');
+    if(blackout) blackout.classList.remove('active');
+  }
+  function _syncBlackoutTimer(){
+    var bt = $('vaBlackoutTimer');
+    if(bt && _callStartTime){
+      var elapsed = Math.floor((Date.now() - _callStartTime) / 1000);
+      bt.textContent = _formatTime(elapsed);
+    }
   }
 
   // ── AUTO-HANGUP — agent says goodbye ──
@@ -20555,10 +20587,10 @@ const VA = (function(){
     const overlay=$('vaOverlay');
     if(overlay){overlay.classList.remove('mini','pro','premium','ultimatedev');overlay.onclick=null;}
     // Reset 3D views to front-plus
-    var views3d = ['front','qleft','profile','qright'];
-    var v3d = '?v=3d1';
+    var views3d = ['front','qleft','profile','qright','back'];
+    var v3d = '?v=3d2';
     views3d.forEach(function(view){
-      var altIds = {front:'vaViewFront',qleft:'vaViewQLeft',profile:'vaViewProfile',qright:'vaViewQRight'};
+      var altIds = {front:'vaViewFront',qleft:'vaViewQLeft',profile:'vaViewProfile',qright:'vaViewQRight',back:'vaViewBack'};
       var el = $(altIds[view]);
       if(el){
         el.src = '/img/va/' + view + '-plus.png' + v3d;
@@ -20570,6 +20602,13 @@ const VA = (function(){
     _currentView = 'front';
     _stopCallTimer();
     _stopProximity();
+    // Reset earpiece state
+    var eBtn=$('vaEarpieceBtn');
+    if(eBtn) eBtn.classList.remove('active');
+    var eLabel=$('vaAudioModeLabel');
+    if(eLabel) eLabel.textContent='Viva-voz';
+    var eBlackout=$('vaEarpieceBlackout');
+    if(eBlackout) eBlackout.classList.remove('active');
     setOrb(''); setStatus(''); setTranscript('');
     var mainBtn=$('vaMainBtn');
     if(mainBtn){
@@ -21482,13 +21521,13 @@ const VA = (function(){
       if(vaTier==='pro') ov.classList.add('pro');
       else if(vaTier==='ultimatedev') ov.classList.add('ultimatedev');
       var tierKey = vaTier === 'ultimatedev' ? 'ultimate' : vaTier;
-      var views = ['front','qleft','profile','qright'];
-      var v3d = '?v=3d1';
+      var views = ['front','qleft','profile','qright','back'];
+      var v3d = '?v=3d2';
       views.forEach(function(view){
         var el = $('vaView' + view.charAt(0).toUpperCase() + view.slice(1));
         if(!el){
           // Try alternate ID format
-          var altIds = {front:'vaViewFront',qleft:'vaViewQLeft',profile:'vaViewProfile',qright:'vaViewQRight'};
+          var altIds = {front:'vaViewFront',qleft:'vaViewQLeft',profile:'vaViewProfile',qright:'vaViewQRight',back:'vaViewBack'};
           el = $(altIds[view]);
         }
         if(el) el.src = '/img/va/' + view + '-' + tierKey + '.png' + v3d;
@@ -21510,30 +21549,45 @@ const VA = (function(){
       if(inp&&inp.value.trim()) sendText(inp.value.trim());
     },
     toggleEarpiece(){
-      if(!audioEl){console.warn('[VA] audioEl nao inicializado');return}
       var btn=$('vaEarpieceBtn');
       var icon=$('vaEarpieceIcon');
+      var label=$('vaAudioModeLabel');
+      var blackout=$('vaEarpieceBlackout');
       if(!btn) return;
       var isEarpiece=btn.classList.toggle('active');
       if(isEarpiece){
-        // Earpiece mode — baixa volume
-        audioEl.volume=0.3;
+        // Earpiece mode — baixa volume + tela preta
+        if(audioEl) audioEl.volume=0.3;
         btn.title='No ouvido';
+        if(label) label.textContent='No ouvido';
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        // Show blackout screen (simulates real phone call)
+        if(blackout && active) blackout.classList.add('active');
+        // Update blackout timer sync
+        _syncBlackoutTimer();
         // Tentar setSinkId para earpiece se disponivel
-        if(typeof audioEl.setSinkId==='function'){
+        if(audioEl && typeof audioEl.setSinkId==='function'){
           navigator.mediaDevices.enumerateDevices().then(function(devs){
-            var ear=devs.find(function(d){return d.kind==='audiooutput'&&(d.label.toLowerCase().indexOf('ear')>=0||d.label.toLowerCase().indexOf('phone')>=0||d.label.toLowerCase().indexOf('receiver')>=0)});
-            if(ear){audioEl.setSinkId(ear.deviceId).catch(function(e){console.log('[VA] setSinkId earpiece:',e.message)})}
+            var ear=devs.find(function(d){return d.kind==='audiooutput'&&(d.label.toLowerCase().indexOf('ear')>=0||d.label.toLowerCase().indexOf('phone')>=0||d.label.toLowerCase().indexOf('receiver')>=0||d.label.toLowerCase().indexOf('fone')>=0||d.label.toLowerCase().indexOf('handset')>=0)});
+            if(ear){
+              audioEl.setSinkId(ear.deviceId).then(function(){
+                console.log('[VA] Audio routed to earpiece:', ear.label);
+              }).catch(function(e){console.log('[VA] setSinkId earpiece:',e.message)});
+            } else {
+              console.log('[VA] No earpiece device found, using low volume');
+            }
           }).catch(function(){});
         }
       }else{
-        // Speaker mode — volume maximo
-        audioEl.volume=1.0;
-        btn.title='Alto-falante';
+        // Speaker mode — volume maximo + tela normal
+        if(audioEl) audioEl.volume=1.0;
+        btn.title='Viva-voz';
+        if(label) label.textContent='Viva-voz';
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        // Hide blackout screen
+        if(blackout) blackout.classList.remove('active');
         // Volta pro speaker padrao
-        if(typeof audioEl.setSinkId==='function'){
+        if(audioEl && typeof audioEl.setSinkId==='function'){
           audioEl.setSinkId('').catch(function(e){console.log('[VA] setSinkId default:',e.message)});
         }
       }
