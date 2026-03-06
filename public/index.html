@@ -20186,22 +20186,33 @@ const VA = (function(){
   }
   let _gyroPermissionGranted = false; // cached iOS permission
   // Request gyro permission from a user gesture — must be called in click handler
+  // On iOS, requestPermission MUST be in a user gesture (click/tap) context
   function _requestGyroPermission(){
     if(_gyroPermissionGranted) return;
     if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
       DeviceOrientationEvent.requestPermission().then(function(perm){
         console.log('[VA] Gyro permission:', perm);
-        if(perm === 'granted') _gyroPermissionGranted = true;
+        _gyroPermissionGranted = (perm === 'granted');
+        // If permission was just granted and gyro hasn't started yet, start it now
+        if(_gyroPermissionGranted && !_gyroActive && active){
+          _attachGyroListener();
+        }
       }).catch(function(err){ console.log('[VA] Gyro permission err:', err); });
     } else {
       // Android / desktop — no permission needed
       _gyroPermissionGranted = true;
     }
   }
+  function _attachGyroListener(){
+    if(!_gyroOrientHandler) return;
+    window.addEventListener('deviceorientation', _gyroOrientHandler, true);
+    _gyroActive = true;
+    console.log('[VA] Gyro deviceorientation listener attached');
+  }
   function _initGyro(){
     if(_gyroActive) return;
-    console.log('[VA] _initGyro called, permission:', _gyroPermissionGranted);
-    // Always show front view only — no image switching
+    console.log('[VA] _initGyro called, permission:', _gyroPermissionGranted, 'touch:', ('ontouchstart' in window));
+    // Always show front view only
     var imgs = document.querySelectorAll('#vaOrb .va-avatar-img');
     imgs.forEach(function(img){
       if(img.dataset.view === 'front'){
@@ -20223,15 +20234,16 @@ const VA = (function(){
       _gyroTargetX = Math.max(-_gyroMaxX, Math.min(_gyroMaxX, dBeta * 0.18));
       _gyroTargetY = Math.max(-_gyroMaxY, Math.min(_gyroMaxY, dGamma * 0.25));
     };
-    if(_gyroPermissionGranted || !('ontouchstart' in window)){
-      // Permission already granted (from click handler) or desktop
-      if('DeviceOrientationEvent' in window && ('ontouchstart' in window)){
-        window.addEventListener('deviceorientation', _gyroOrientHandler, true);
-        _gyroActive = true;
-        console.log('[VA] Gyro deviceorientation listener added');
+    // Mobile: attach listener if permission already granted
+    if('ontouchstart' in window){
+      if(_gyroPermissionGranted){
+        _attachGyroListener();
+      } else {
+        console.log('[VA] Gyro: waiting for permission callback...');
+        // Permission callback will call _attachGyroListener when ready
       }
     }
-    // Desktop: mouse parallax — robot follows cursor gently
+    // Desktop: mouse parallax
     if(!('ontouchstart' in window)){
       _gyroMouseHandler = function(e){
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
@@ -20588,26 +20600,26 @@ const VA = (function(){
       // 5. Data channel
       dc = pc.createDataChannel('oai-events');
       dc.onopen = () => {
+        try{
         console.log('[VA] DataChannel OPEN! Tier:', vaTier);
         active = true; busy = false;
         setOrb('speaking'); setStatus('');
         _updateMiniStatus('speaking');
-        $('vaMainBtn').style.display = 'none';
-        $('vaCallControls').style.display = 'flex';
+        var mb=$('vaMainBtn'); if(mb) mb.style.display = 'none';
+        var cc=$('vaCallControls'); if(cc) cc.style.display = 'flex';
         _startCallTimer();
         _initProximity();
         _resetInactivityTimer();
-        // Init gyroscope AFTER connection is active — safe from blocking audio setup
+        // Init gyroscope AFTER connection is active
         try{ _initGyro(); }catch(ge){ console.log('[VA] Gyro init err:', ge.message); }
         // Log session start to dev panel
         if(vaTier==='ultimatedev'){
-          window._devLiveLog = []; // Clear previous session logs (global)
+          window._devLiveLog = [];
           _devAddLiveLog('info', 'Sessao UltimateDEV conectada', 'DataChannel aberto. Tools no servidor: '+(td.toolCount||'?')+'. Tier: '+vaTier);
           _devAddLiveLog('info', 'INTERCEPTOR ATIVO', 'Pedidos de mudanca serao enviados automaticamente pro Claude, mesmo se a tool nao for chamada pela OpenAI.');
           _devAddLiveLog('info', 'Aguardando session.created da OpenAI...', 'Se nao aparecer em 5s, a sessao pode ter falhado.');
         }
         // CRITICO: Mutar mic ANTES da saudacao para evitar eco/feedback
-        // O agente vai falar e o mic captaria a propria voz dele
         _muteMic();
         _agentSpeaking = true;
         // Agent speaks first — use exact opening text from server
@@ -20619,13 +20631,39 @@ const VA = (function(){
           openingInstr = 'Fale isso de forma direta, SEM PAUSAS no meio, como uma amiga que ja chega contando a fofoca: "' + openingText.replace(/"/g, '\\"') + '" -- MAXIMO 2 frases. NUNCA comece com saudacao vazia tipo "E ai". Va DIRETO ao assunto.';
         }
         dc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:openingInstr}}));
+        console.log('[VA] Greeting sent OK');
+        // Safety net: if after 12s the mic is still muted and no response came, force unmute
+        setTimeout(function(){
+          if(active && _agentSpeaking && !_userMuted){
+            console.log('[VA] SAFETY: Force unmute after 12s timeout');
+            _agentSpeaking = false;
+            _pendingToolCall = false;
+            if(micStream) micStream.getAudioTracks().forEach(function(t){t.enabled=true});
+            setOrb('listening');setStatus('Fale agora');
+          }
+        }, 12000);
+        }catch(onOpenErr){ console.error('[VA] dc.onopen ERROR:', onOpenErr); }
       };
       dc.onmessage = e => { try{
         var parsed=JSON.parse(e.data);
-        // Log important events to dev panel for debugging
+        // Log ALL non-audio events to console for diagnostics
+        if(parsed.type && parsed.type.indexOf('audio.delta')<0 && parsed.type.indexOf('audio_transcript.delta')<0){
+          console.log('[VA] evt:', parsed.type, parsed.error ? JSON.stringify(parsed.error).slice(0,100) : '');
+        }
+        // Show OpenAI errors on screen (including billing/quota)
+        if(parsed.type==='error'){
+          var errMsg = parsed.error?.message || 'Erro desconhecido';
+          var errCode = parsed.error?.code || '';
+          console.error('[VA] OpenAI error:', errCode, errMsg);
+          setStatus('Erro: ' + errMsg.slice(0,60));
+          // If billing/quota error, show clearly
+          if(errCode.indexOf('billing')>=0 || errCode.indexOf('quota')>=0 || errCode.indexOf('rate')>=0 || errMsg.indexOf('quota')>=0 || errMsg.indexOf('billing')>=0 || errMsg.indexOf('credit')>=0){
+            setTranscript('API sem credito ou limite atingido. Verifique billing na OpenAI.');
+          }
+        }
+        // Log to dev panel for ultimatedev
         if(vaTier==='ultimatedev' && parsed.type){
           var t=parsed.type;
-          // Log ALL event types except high-frequency audio deltas
           if(t.indexOf('function_call')>=0){
             _devAddLiveLog('tool', 'TOOL: '+t, parsed.name ? ('Tool: '+parsed.name+' | Args: '+(parsed.arguments||'').slice(0,100)) : (parsed.call_id ? 'call_id: '+parsed.call_id : ''));
           } else if(t==='error'){
@@ -20642,20 +20680,27 @@ const VA = (function(){
         }
         handleEvent(parsed);
       }catch(x){
+        console.error('[VA] DC message parse error:', x.message);
         if(vaTier==='ultimatedev') _devAddLiveLog('error','Erro ao parsear evento DC', x.message);
       } };
-      dc.onclose = () => { if(active) cleanup(); };
+      dc.onclose = () => { console.log('[VA] DataChannel CLOSED'); if(active) cleanup(); };
 
       // 6. SDP
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      console.log('[VA] SDP offer created, sending to OpenAI...');
       const sr = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',{
         method:'POST',
         headers:{'Authorization':'Bearer '+td.client_secret,'Content-Type':'application/sdp'},
         body: offer.sdp
       });
-      if(!sr.ok) throw new Error('SDP falhou: '+sr.status);
-      await pc.setRemoteDescription({type:'answer', sdp: await sr.text()});
+      var sdpText = await sr.text();
+      if(!sr.ok){
+        console.error('[VA] SDP failed:', sr.status, sdpText.slice(0,200));
+        throw new Error('SDP falhou: '+sr.status+' — '+sdpText.slice(0,80));
+      }
+      console.log('[VA] SDP answer received, length:', sdpText.length);
+      await pc.setRemoteDescription({type:'answer', sdp: sdpText});
 
       pc.onconnectionstatechange = () => {
         if(pc&&(pc.connectionState==='disconnected'||pc.connectionState==='failed')){
@@ -20823,6 +20868,7 @@ const VA = (function(){
         // Only response.done should clear this flag
         break;
       case 'response.done':
+        console.log('[VA] response.done — agentSpeaking was:',_agentSpeaking,' pendingTool:',_pendingToolCall,' userMuted:',_userMuted);
         _agentSpeaking=false;
         // If a tool call is pending, DON'T unmute — keep mic muted until next response
         if(!_pendingToolCall){
