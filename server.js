@@ -3117,6 +3117,82 @@ app.get('/api/chat-init/:relationId/:userId', (req, res) => {
   res.json({ messages, partnerScore, streak });
 });
 
+// ── Ranking cache: recomputed every 2 min (not on every request) ──
+let _rankingCache = null;
+let _rankingCacheTime = 0;
+const RANKING_CACHE_TTL = 2 * 60 * 1000; // 2 min
+
+function _buildRankingCache() {
+  _rankingCache = Object.values(db.users)
+    .filter(u => {
+      const bd = getStarBreakdown(u.id);
+      return bd.profileTotal > 0;
+    })
+    .map(u => {
+      const bd = getStarBreakdown(u.id);
+      return {
+        userId: u.id,
+        nickname: u.nickname || u.name || '?',
+        color: u.color,
+        photoURL: u.photoURL || null,
+        avatarAccessory: u.avatarAccessory || null,
+        stars: bd.profileTotal,
+        breakdown: bd,
+        topTag: u.topTag || null,
+        isSubscriber: !!u.isSubscriber,
+        verified: !!u.verified
+      };
+    })
+    .sort((a, b) => b.stars - a.stars);
+  _rankingCacheTime = Date.now();
+}
+
+// ══ STAR RANKING — Global leaderboard (MUST be before /api/stars/:userId) ══
+app.get('/api/stars/ranking', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const now = Date.now();
+  if (!_rankingCache || now - _rankingCacheTime > RANKING_CACHE_TTL) {
+    _buildRankingCache();
+  }
+  const users = _rankingCache.slice(0, limit);
+  const total = Object.keys(db.users).length;
+  res.json({ ranking: users, totalUsers: total, usersWithStars: _rankingCache.length });
+});
+
+// ══ STAR RANKING — Friends only (MUST be before /api/stars/:userId) ══
+app.get('/api/stars/friends-ranking', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'userId obrigatorio.' });
+  // Get all encounters (friends) of this user
+  const encounters = db.encounters[userId] || [];
+  const friendIds = new Set(encounters.map(e => e.with));
+  friendIds.add(userId); // include self in friends ranking
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const friends = Array.from(friendIds)
+    .filter(fid => db.users[fid])
+    .map(fid => {
+      const u = db.users[fid];
+      const bd = getStarBreakdown(fid);
+      return {
+        userId: fid,
+        nickname: u.nickname || u.name || '?',
+        color: u.color,
+        photoURL: u.photoURL || null,
+        avatarAccessory: u.avatarAccessory || null,
+        stars: bd.profileTotal,
+        breakdown: bd,
+        topTag: u.topTag || null,
+        isSubscriber: !!u.isSubscriber,
+        verified: !!u.verified,
+        isMe: fid === userId
+      };
+    })
+    .filter(u => u.stars > 0)
+    .sort((a, b) => b.stars - a.stars)
+    .slice(0, limit);
+  res.json({ ranking: friends, totalFriends: friendIds.size });
+});
+
 // Stars detail
 app.get('/api/stars/:userId', (req, res) => {
   const user = db.users[req.params.userId];
@@ -4393,45 +4469,9 @@ app.get('/api/stars/available/:userId', (req, res) => {
   res.json({ total: stars, pending, available: stars + pending });
 });
 
-// ── Ranking cache: recomputed every 2 min (not on every request) ──
-let _rankingCache = null;
-let _rankingCacheTime = 0;
-const RANKING_CACHE_TTL = 2 * 60 * 1000; // 2 min
-
-// ══ STAR RANKING — Global leaderboard ══
-app.get('/api/stars/ranking', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
-  const now = Date.now();
-  if (!_rankingCache || now - _rankingCacheTime > RANKING_CACHE_TTL) {
-    _rankingCache = Object.values(db.users)
-      .filter(u => {
-        const bd = getStarBreakdown(u.id);
-        return bd.profileTotal > 0;
-      })
-      .map(u => {
-        const bd = getStarBreakdown(u.id);
-        return {
-          userId: u.id,
-          nickname: u.nickname || u.name || '?',
-          color: u.color,
-          photoURL: u.photoURL || null,
-          avatarAccessory: u.avatarAccessory || null,
-          stars: bd.profileTotal,
-          breakdown: bd,
-          topTag: u.topTag || null,
-          isSubscriber: !!u.isSubscriber,
-          verified: !!u.verified
-        };
-      })
-      .sort((a, b) => b.stars - a.stars);
-    _rankingCacheTime = now;
-  }
-  const users = _rankingCache.slice(0, limit);
-  const total = Object.keys(db.users).length;
-  res.json({ ranking: users, totalUsers: total, usersWithStars: _rankingCache.length });
-});
-
 // ══ STAR PROFILE — Detailed star breakdown for profile view ══
+// NOTE: /api/stars/ranking and /api/stars/friends-ranking were moved ABOVE /api/stars/:userId
+// to avoid Express matching "ranking" as a :userId param
 app.get('/api/stars/profile/:userId', (req, res) => {
   const cfg = getGameConfig();
   const user = db.users[req.params.userId];

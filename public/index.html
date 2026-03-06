@@ -14623,44 +14623,88 @@ function renderStarSlots(profileData,isOwnProfile){
 }
 
 // Show star ranking screen
+var _starRankTab='world';
 async function showStarRanking(){
   try{
+    var existing=document.getElementById('starRankOverlay');
+    if(existing)existing.remove();
     var overlay=document.createElement('div');
     overlay.id='starRankOverlay';
     overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg,#020205);display:flex;flex-direction:column;animation:fadeIn .25s ease';
-    overlay.innerHTML='<div style="display:flex;align-items:center;padding:.8rem 1rem;padding-top:max(env(safe-area-inset-top),.8rem);border-bottom:1px solid rgba(255,255,255,.06)"><button onclick="var o=document.getElementById(\'starRankOverlay\');if(o)o.remove()" style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--t2);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">&larr;</button><div style="flex:1;text-align:center"><div style="font-size:.85rem;font-weight:700;color:var(--t1)">Ranking Mundial</div><div style="font-size:.5rem;color:var(--t3);margin-top:2px">Stars World Ranking</div></div><div style="width:32px"></div></div><div id="starRankList" style="flex:1;overflow-y:auto;padding:1rem;-webkit-overflow-scrolling:touch"><div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Carregando...</div></div>';
+    overlay.innerHTML=''
+      +'<div style="display:flex;align-items:center;padding:.8rem 1rem;padding-top:max(env(safe-area-inset-top),.8rem);border-bottom:1px solid rgba(255,255,255,.06)">'
+      +'<button onclick="var o=document.getElementById(\'starRankOverlay\');if(o)o.remove()" style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--t2);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">&larr;</button>'
+      +'<div style="flex:1;text-align:center"><div style="font-size:.85rem;font-weight:700;color:var(--t1)">Ranking de Estrelas</div></div>'
+      +'<div style="width:32px"></div></div>'
+      +'<div style="display:flex;border-bottom:1px solid rgba(255,255,255,.06)">'
+      +'<button id="rankTabWorld" onclick="switchRankTab(\'world\')" style="flex:1;padding:.5rem;font-size:.65rem;font-weight:700;font-family:inherit;cursor:pointer;border:none;border-bottom:2px solid #fbbf24;background:rgba(251,191,36,.06);color:#fbbf24;transition:.2s">Mundial</button>'
+      +'<button id="rankTabFriends" onclick="switchRankTab(\'friends\')" style="flex:1;padding:.5rem;font-size:.65rem;font-weight:700;font-family:inherit;cursor:pointer;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--t3);transition:.2s">Amigos</button>'
+      +'</div>'
+      +'<div id="starRankList" style="flex:1;overflow-y:auto;padding:1rem;-webkit-overflow-scrolling:touch"><div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Carregando...</div></div>';
     document.body.appendChild(overlay);
-    var r=await fetch('/api/stars/ranking');
+    _starRankTab='world';
+    loadRankTab('world');
+  }catch(e){
+    console.error('showStarRanking error:',e);
+  }
+}
+function switchRankTab(tab){
+  _starRankTab=tab;
+  var wBtn=document.getElementById('rankTabWorld');
+  var fBtn=document.getElementById('rankTabFriends');
+  if(wBtn){wBtn.style.borderBottom=tab==='world'?'2px solid #fbbf24':'2px solid transparent';wBtn.style.background=tab==='world'?'rgba(251,191,36,.06)':'transparent';wBtn.style.color=tab==='world'?'#fbbf24':'var(--t3)';}
+  if(fBtn){fBtn.style.borderBottom=tab==='friends'?'2px solid #fbbf24':'2px solid transparent';fBtn.style.background=tab==='friends'?'rgba(251,191,36,.06)':'transparent';fBtn.style.color=tab==='friends'?'#fbbf24':'var(--t3)';}
+  var el=document.getElementById('starRankList');
+  if(el)el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Carregando...</div>';
+  loadRankTab(tab);
+}
+async function loadRankTab(tab){
+  try{
+    var url=tab==='friends'?'/api/stars/friends-ranking?userId='+(typeof state!=='undefined'?state.userId:''):'/api/stars/ranking';
+    var r=await fetch(url);
     if(!r.ok){
-      document.getElementById('starRankList').innerHTML='<div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro '+r.status+' ao carregar ranking.</div>';
+      var el=document.getElementById('starRankList');
+      if(el)el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro '+r.status+'</div>';
       return;
     }
     var data=await r.json();
     var list=data.ranking||[];
     var el=document.getElementById('starRankList');
     if(!el)return;
-    if(!list.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">Nenhuma estrela no mundo ainda. Seja o primeiro!</div>';return;}
+    if(!list.length){
+      el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.7rem">'+(tab==='friends'?'Nenhum amigo com estrelas ainda.':'Nenhuma estrela no mundo ainda.')+'</div>';
+      return;
+    }
     var html='';
+    if(tab==='world'){
+      html+='<div style="font-size:.5rem;color:var(--t3);text-align:center;margin-bottom:.8rem">'+(data.usersWithStars||0)+' pessoas com estrelas de '+(data.totalUsers||0)+' no mundo</div>';
+    }else{
+      html+='<div style="font-size:.5rem;color:var(--t3);text-align:center;margin-bottom:.8rem">Ranking entre seus '+(data.totalFriends||0)+' contatos</div>';
+    }
     list.forEach(function(u,i){
       var medal=i===0?'<span style="font-size:1rem">&#x1f947;</span>':i===1?'<span style="font-size:1rem">&#x1f948;</span>':i===2?'<span style="font-size:1rem">&#x1f949;</span>':'<span style="font-size:.75rem;color:var(--t3);font-weight:600;min-width:1.5rem;display:inline-block;text-align:center">'+(i+1)+'</span>';
       var starIcons='';
       for(var s=0;s<Math.min(u.stars,10);s++){
-        starIcons+='<svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+        starIcons+='<svg width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
       }
-      var topLabel=u.topTag?'<span style="font-size:.45rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:1px 4px;border-radius:4px;margin-left:4px">'+u.topTag.toUpperCase()+'</span>':'';
-      var isMe=u.userId===(typeof state!=='undefined'?state.userId:'');
-      html+='<div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .5rem;border-bottom:1px solid rgba(255,255,255,.04);'+(isMe?'background:rgba(251,191,36,.06);border-radius:8px;border:1px solid rgba(251,191,36,.1)':'')+'">';
+      var topLabel=u.topTag?'<span style="font-size:.42rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:1px 3px;border-radius:3px;margin-left:3px">'+u.topTag.toUpperCase()+'</span>':'';
+      var isMe=u.userId===(typeof state!=='undefined'?state.userId:'')||u.isMe;
+      html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .4rem;border-bottom:1px solid rgba(255,255,255,.04);'+(isMe?'background:rgba(251,191,36,.06);border-radius:8px;border:1px solid rgba(251,191,36,.1)':'')+'">';
       html+=medal;
-      html+='<div style="flex:1;min-width:0"><div style="font-size:.75rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(u.nickname||'???')+topLabel+(isMe?' <span style="font-size:.5rem;color:var(--ac)">(voce)</span>':'')+'</div>';
+      var avHtml='';
+      if(u.photoURL){avHtml='<img src="'+u.photoURL+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,.1)" onerror="this.style.display=\'none\'">';}
+      else{avHtml='<div style="width:28px;height:28px;border-radius:50%;background:'+(u.color||'var(--ac)')+';display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff">'+((u.nickname||'?')[0].toUpperCase())+'</div>';}
+      html+=avHtml;
+      html+='<div style="flex:1;min-width:0"><div style="font-size:.7rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(u.nickname||'???')+topLabel+(isMe?' <span style="font-size:.45rem;color:var(--ac)">(voce)</span>':'')+'</div>';
       html+='<div style="display:flex;gap:1px;margin-top:2px">'+starIcons+'</div></div>';
-      html+='<div style="text-align:right"><div style="font-size:.85rem;font-weight:800;color:#fbbf24">'+u.stars+'</div><div style="font-size:.4rem;color:var(--t3)">estrelas</div></div>';
+      html+='<div style="text-align:right"><div style="font-size:.8rem;font-weight:800;color:#fbbf24">'+u.stars+'</div></div>';
       html+='</div>';
     });
     el.innerHTML=html;
   }catch(e){
-    console.error('showStarRanking error:',e);
+    console.error('loadRankTab error:',e);
     var el=document.getElementById('starRankList');
-    if(el)el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro ao carregar ranking: '+(e.message||e)+'</div>';
+    if(el)el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--err);font-size:.7rem">Erro: '+(e.message||e)+'</div>';
   }
 }
 
