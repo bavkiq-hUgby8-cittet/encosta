@@ -2609,15 +2609,15 @@ app.post('/api/user/:userId/lang', requireAuth, async (req, res) => {
 app.post('/api/user/:userId/country', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { country, city, showCountry } = req.body;
+    const { country, city } = req.body;
     const u = db.users[userId];
     if (!u) return res.status(404).json({ error: 'User not found.' });
-    if (country) u.country = String(country).substring(0, 3).toUpperCase();
+    if (country === null || country === '') { u.country = null; } // clear country
+    else if (country) u.country = String(country).substring(0, 3).toUpperCase();
     if (typeof city === 'string') u.city = city.substring(0, 30);
-    if (typeof showCountry === 'boolean') u.showCountry = showCountry;
     u.updatedAt = Date.now();
     saveDB('users');
-    res.json({ ok: true, country: u.country, city: u.city, showCountry: u.showCountry });
+    res.json({ ok: true, country: u.country, city: u.city });
   } catch (e) {
     res.status(500).json({ error: 'Failed to save country.' });
   }
@@ -2987,7 +2987,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       whatsapp: iCanSeeThem ? (p.whatsapp || null) : null,
       giftsReceived: (db.gifts[p.id] || []).length,
       avatarAccessory: (other && other.avatarAccessory) || null,
-      country: (other && other.showCountry && other.country) ? other.country : null,
+      country: (other && other.country) ? other.country : null,
       // About me — public profile tags
       profession: (other && other.profession) || null,
       sports: (other && other.sports) || [],
@@ -3141,7 +3141,7 @@ function _buildRankingCache() {
         topTag: u.topTag || null,
         isSubscriber: !!u.isSubscriber,
         verified: !!u.verified,
-        country: (u.showCountry && u.country) ? u.country : null
+        country: u.country || null
       };
     })
     .sort((a, b) => b.stars - a.stars);
@@ -3190,7 +3190,7 @@ app.get('/api/stars/friends-ranking', (req, res) => {
         verified: !!u.verified,
         isMe: fid === userId,
         revealed: theyRevealed,
-        country: (u.showCountry && u.country) ? u.country : null
+        country: u.country || null
       };
     })
     .filter(u => u.stars > 0)
@@ -3768,8 +3768,8 @@ app.get('/api/profile/:userId', (req, res) => {
     isSubscriber: !!user.isSubscriber,
     isPrestador: !!user.isPrestador,
     lang: user.lang || 'pt-br',
-    country: (user.showCountry && user.country) ? user.country : null,
-    city: (user.showCountry && user.city) ? user.city : null,
+    country: user.country || null,
+    city: user.city || null,
     declarations: decls.slice(-30),
     gifts: gifts.slice(-30)
   });
@@ -3809,8 +3809,8 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
     isSubscriber: !!user.isSubscriber,
     isPrestador: !!user.isPrestador,
     lang: user.lang || 'pt-br',
-    country: (user.showCountry && user.country) ? user.country : null,
-    city: (user.showCountry && user.city) ? user.city : null,
+    country: user.country || null,
+    city: user.city || null,
     // Real identity if revealed (respecting privacy flags)
     realName: isRevealed ? (user.realName || null) : null,
     profilePhoto: isRevealed ? (user.profilePhoto || user.photoURL || null) : null,
@@ -3827,7 +3827,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', requireAuth, async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city, showCountry } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -3885,9 +3885,8 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
   if (profession !== undefined) user.profession = sanitizeStr(profession, 100);
   if (sports !== undefined) user.sports = Array.isArray(sports) ? sports.slice(0, 2) : [];
   if (hobbies !== undefined) user.hobbies = Array.isArray(hobbies) ? hobbies.slice(0, 2) : [];
-  if (country !== undefined) user.country = country;
+  if (country !== undefined) user.country = country || null;
   if (city !== undefined) user.city = sanitizeStr(city, 60);
-  if (showCountry !== undefined) user.showCountry = !!showCountry;
   if (profilePhoto !== undefined && profilePhoto) {
     // Only update profilePhoto if a real value is provided (ignore empty string to avoid clearing)
     if (profilePhoto.length > 2000000) return res.status(400).json({ error: 'Foto muito grande (máx 2MB).' });

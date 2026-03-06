@@ -35,6 +35,12 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
 - ZERO emojis no codigo -- usamos SVGs vetoriais para icones
 - Valide JS com node -e antes de cada commit
 
+## REGRAS DE NEGOCIO
+
+- VERIFICACAO: Para dar o selo de verificado a alguem, DEVE ter validacao de documento (identidade/passaporte). Nao basta email ou face ID. O selo de verificado significa que a pessoa provou quem ela e.
+- BANDEIRA/NACIONALIDADE: Aparece automaticamente se o usuario escolheu um pais. Nao existe toggle separado de "mostrar/esconder". Para remover, o usuario vai la e desmarca o pais.
+- PRIVACIDADE DO RANKING: Ranking mundial mostra apenas nick + silhueta (com acessorio). Foto e nome real so aparecem no ranking de amigos e SOMENTE se a pessoa se revelou para quem esta vendo.
+
 ## CONTEXTO DO APP
 
 Touch? e um app de conexao por proximidade. Pessoas se aproximam fisicamente,
