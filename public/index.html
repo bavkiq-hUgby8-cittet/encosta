@@ -1685,7 +1685,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-overlay.active{display:flex;opacity:1}
 .va-overlay.mini{inset:auto 16px 90px auto;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,rgba(139,92,246,.95),rgba(109,40,217,.9));backdrop-filter:blur(10px);justify-content:center;align-items:center;box-shadow:0 4px 24px rgba(139,92,246,.5),0 0 50px rgba(167,139,250,.25);border:2px solid rgba(167,139,250,.6);cursor:pointer;overflow:visible;animation:va-mini-pulse 2s ease-in-out infinite}
 @keyframes va-mini-pulse{0%,100%{box-shadow:0 4px 24px rgba(139,92,246,.5),0 0 50px rgba(167,139,250,.25)}50%{box-shadow:0 4px 30px rgba(139,92,246,.7),0 0 60px rgba(167,139,250,.35)}}
-.va-overlay.mini .va-header,.va-overlay.mini .va-transcript,.va-overlay.mini #vaMainBtn,.va-overlay.mini #vaStopBtn,.va-overlay.mini .va-text-input,.va-overlay.mini #vaStatus,.va-overlay.mini .va-text-row,.va-overlay.mini .va-center,.va-overlay.mini .va-tier-selector{display:none!important}
+.va-overlay.mini .va-header,.va-overlay.mini .va-transcript,.va-overlay.mini #vaMainBtn,.va-overlay.mini .va-call-controls,.va-overlay.mini .va-text-input,.va-overlay.mini #vaStatus,.va-overlay.mini .va-text-row,.va-overlay.mini .va-center,.va-overlay.mini .va-tier-selector{display:none!important}
 .va-overlay.mini .va-orb-container{transform:scale(.45)}
 .va-overlay.mini::after,.va-overlay.mini::before{display:none}
 /* Pro (antigo premium) — sutil label no header */
@@ -1911,9 +1911,15 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .va-call-btn.hangup:hover{box-shadow:0 0 40px rgba(239,68,68,.6),0 4px 20px rgba(0,0,0,.4);transform:scale(1.08)}
 .va-call-btn.hangup:active{transform:scale(.95)}
 .va-call-btn.hangup svg{transform:rotate(135deg)}
-#vaStopBtn{display:none;margin-top:20px;width:68px;height:68px;min-width:unset;padding:0;border-radius:50%;border:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-size:0;font-weight:700;font-family:inherit;cursor:pointer;transition:all .25s;min-height:unset;z-index:1;box-shadow:0 0 25px rgba(239,68,68,.4),0 4px 15px rgba(0,0,0,.3);display:none;align-items:center;justify-content:center}
+#vaStopBtn{width:68px;height:68px;min-width:unset;padding:0;border-radius:50%;border:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-size:0;cursor:pointer;transition:all .25s;z-index:1;box-shadow:0 0 25px rgba(239,68,68,.4),0 4px 15px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center}
 #vaStopBtn:hover{background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 0 40px rgba(239,68,68,.6);transform:scale(1.08)}
 #vaStopBtn svg{transform:rotate(135deg)}
+/* ── Call controls row (mute + hangup during active call) ── */
+.va-call-controls{display:flex;gap:28px;align-items:center;justify-content:center;margin-top:8px}
+.va-ctrl-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:50%;width:52px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.6);transition:all .25s;position:relative;gap:2px}
+.va-ctrl-btn:hover{color:#fff;border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.05)}
+.va-ctrl-btn.active{color:#ef4444;border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.1)}
+.va-ctrl-label{font-size:.55rem;font-weight:600;letter-spacing:.03em;white-space:nowrap;margin-top:1px}
 /* ── Proximity sensor overlay (screen goes dark when near ear) ── */
 .va-proximity-overlay{position:fixed;inset:0;background:#000;z-index:9999;opacity:0;pointer-events:none;transition:opacity .3s}
 .va-proximity-overlay.near{opacity:1;pointer-events:auto}
@@ -20013,7 +20019,10 @@ window.addEventListener('message',function(e){
     <div class="va-actions">
       <button class="va-call-btn answer" id="vaMainBtn" onclick="VA.toggleVoice()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
     </div>
-    <button class="va-call-btn hangup" id="vaStopBtn" style="display:none" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
+    <div class="va-call-controls" id="vaCallControls" style="display:none">
+      <button class="va-ctrl-btn" id="vaMuteBtn" onclick="VA.toggleMute()"><svg id="vaMuteIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg><span class="va-ctrl-label" id="vaMuteLabel">Mudo</span></button>
+      <button class="va-call-btn hangup" id="vaStopBtn" onclick="VA.close()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
+    </div>
   </div>
   <div class="va-dev-tools" id="vaDevTools" style="display:none">
     <button class="va-dev-btn" id="vaDevCameraBtn" onclick="VA.toggleCamera()" title="Câmera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></button>
@@ -20120,6 +20129,7 @@ function showVAUpgradeModal(mode, usageInfo) {
 const VA = (function(){
   let pc = null, dc = null, audioEl = null, micStream = null;
   let active = false, busy = false, vaTier = 'plus'; // 'plus' | 'pro' | 'ultimatedev'
+  let _userMuted = false; // user-initiated mute (manual mute button)
   let _inactivityTimer = null;
   const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
   let _transcriptHistory = []; // últimas trocas de mensagens
@@ -20491,19 +20501,18 @@ const VA = (function(){
   function _scheduleUnmute(){
     // Cancel any pending unmute
     if(_unmuteTimer){clearTimeout(_unmuteTimer);_unmuteTimer=null;}
-    // Don't unmute if agent is still speaking or a tool call is pending
-    if(_agentSpeaking||_pendingToolCall){
-      console.log('[VA] Unmute skipped: agentSpeaking='+_agentSpeaking+' pendingTool='+_pendingToolCall);
+    // Don't unmute if user manually muted, agent speaking, or tool pending
+    if(_userMuted||_agentSpeaking||_pendingToolCall){
+      console.log('[VA] Unmute skipped: userMuted='+_userMuted+' agentSpeaking='+_agentSpeaking+' pendingTool='+_pendingToolCall);
       return;
     }
     _unmuteTimer=setTimeout(()=>{
       _unmuteTimer=null;
-      // Double-check: still safe to unmute?
-      if(!_agentSpeaking&&!_pendingToolCall&&active){
+      if(!_userMuted&&!_agentSpeaking&&!_pendingToolCall&&active){
         if(micStream) micStream.getAudioTracks().forEach(t=>{t.enabled=true});
         console.log('[VA] Mic unmuted (safe)');
       } else {
-        console.log('[VA] Unmute cancelled: agentSpeaking='+_agentSpeaking+' pendingTool='+_pendingToolCall+' active='+active);
+        console.log('[VA] Unmute cancelled: userMuted='+_userMuted+' agentSpeaking='+_agentSpeaking+' pendingTool='+_pendingToolCall+' active='+active);
       }
     }, UNMUTE_DELAY_MS);
   }
@@ -20584,7 +20593,7 @@ const VA = (function(){
         setOrb('speaking'); setStatus('');
         _updateMiniStatus('speaking');
         $('vaMainBtn').style.display = 'none';
-        $('vaStopBtn').style.display = 'flex';
+        $('vaCallControls').style.display = 'flex';
         _startCallTimer();
         _initProximity();
         _resetInactivityTimer();
@@ -20750,7 +20759,11 @@ const VA = (function(){
       mainBtn.style.display='';
       mainBtn.className='va-call-btn answer';
     }
-    $('vaStopBtn').style.display='none';
+    var cc=$('vaCallControls'); if(cc) cc.style.display='none';
+    // Reset mute button state
+    var mb=$('vaMuteBtn'); if(mb) mb.classList.remove('active');
+    var ml=$('vaMuteLabel'); if(ml) ml.textContent='Mudo';
+    _userMuted = false;
     try{localStorage.setItem(VA_LAST_KEY,String(Date.now()))}catch(e){}
   }
 
@@ -21639,7 +21652,7 @@ const VA = (function(){
       else if(vaTier==='ultimatedev') ov.classList.add('ultimatedev');
       var mb=$('vaMainBtn');
       if(mb){ mb.style.display=''; mb.className='va-call-btn answer'; }
-      $('vaStopBtn').style.display='none';
+      var cc=$('vaCallControls'); if(cc) cc.style.display='none';
       setStatus(vaTier==='ultimatedev'?'UltimateDEV' : vaTier==='pro'?'Modo Pro':'Toque para atender');
       setOrb('');
       // Show tier selector for ultimate users
@@ -21705,6 +21718,27 @@ const VA = (function(){
     sendText(){
       const inp=$('vaTextInput');
       if(inp&&inp.value.trim()) sendText(inp.value.trim());
+    },
+    toggleMute(){
+      _userMuted = !_userMuted;
+      var btn=$('vaMuteBtn');
+      var label=$('vaMuteLabel');
+      var icon=$('vaMuteIcon');
+      if(_userMuted){
+        if(btn) btn.classList.add('active');
+        if(label) label.textContent='Mutado';
+        if(micStream) micStream.getAudioTracks().forEach(t=>{t.enabled=false});
+        // Update icon to show muted mic (with line through)
+        if(icon) icon.innerHTML='<path d="M1 1l22 22"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>';
+      } else {
+        if(btn) btn.classList.remove('active');
+        if(label) label.textContent='Mudo';
+        // Only unmute if agent isn't speaking
+        if(!_agentSpeaking&&!_pendingToolCall&&active){
+          if(micStream) micStream.getAudioTracks().forEach(t=>{t.enabled=true});
+        }
+        if(icon) icon.innerHTML='<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>';
+      }
     },
     toggleEarpiece(){
       var btn=$('vaEarpieceBtn');
@@ -21894,7 +21928,7 @@ const GuidedOnboarding=(function(){
         $('vaOverlay').classList.add('active');
         var orb=$('vaOrb');if(orb)orb.className='va-orb speaking';
         var st=$('vaStatus');if(st)st.textContent='';
-        $('vaStopBtn').style.display='flex';
+        var cc=$('vaCallControls'); if(cc) cc.style.display='flex';
         // Agente fala Step 1
         _ldc.send(JSON.stringify({type:'response.create',response:{modalities:['audio','text'],instructions:'Fale a ETAPA 1 — boas-vindas. Se apresente e peça pro usuário fechar essa tela no X lá em cima.'}}));
       };
@@ -22039,7 +22073,7 @@ const GuidedOnboarding=(function(){
     active=true;busy=false;step=1;
     var ld2=$('onbLoading');if(ld2)ld2.classList.remove('active');
     $('vaOverlay').classList.add('active');
-    $('vaStopBtn').style.display='flex';
+    var cc=$('vaCallControls'); if(cc) cc.style.display='flex';
     // Step 1: mostra texto + botão Começar
     bubble(_preSteps.step1.text);
     setTimeout(function(){var btn=$('onbBubbleAction');if(btn)btn.style.display='';},500);
@@ -22059,7 +22093,7 @@ const GuidedOnboarding=(function(){
       if(busy||active)return;
       busy=true;
       $('vaMainBtn').style.display='none';
-      $('vaStopBtn').style.display='none';
+      var cc=$('vaCallControls'); if(cc) cc.style.display='none';
 
       // Busca modo do server
       try{
