@@ -232,10 +232,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
         <div>
-          <div class="tbl-wrap"><div class="tbl-head"><h3>Config do Algoritmo</h3></div><div style="padding:16px" id="starCfg"></div></div>
+          <div class="tbl-wrap"><div class="tbl-head"><h3>Config Star Economy v1</h3></div><div style="padding:16px" id="starCfg"></div></div>
         </div>
         <div>
-          <div class="tbl-wrap"><div class="tbl-head"><h3>Simulador de Custo</h3></div>
+          <div class="tbl-wrap"><div class="tbl-head"><h3>Top Tiers</h3><span class="tbl-info">Liga/Desliga cada tier</span></div>
+            <div style="padding:16px" id="topTiersCfg"></div>
+          </div>
+          <div class="tbl-wrap" style="margin-top:16px"><div class="tbl-head"><h3>Simulador de Custo</h3></div>
             <div style="padding:16px">
               <div class="fg"><label>Numero da estrela</label><input type="number" id="simIn" min="1" placeholder="Ex: 50" oninput="simStar()"></div>
               <div style="background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.15);border-radius:10px;padding:12px">
@@ -661,18 +664,34 @@ async function uAct(uid,act){
 
 // ═══════ STARS ═══════
 let _starCfg={};
+const ALL_TOP_TIERS=[
+  {tag:'top1',label:'Top 1',desc:'O numero 1 em estrelas'},
+  {tag:'top5',label:'Top 5',desc:'Top 5 no mundo (min 50 usuarios)'},
+  {tag:'top50',label:'Top 50',desc:'Top 50 (min 100 usuarios)'},
+  {tag:'top100',label:'Top 100',desc:'Top 100 (min 1000 usuarios)'},
+  {tag:'top1000',label:'Top 1.000',desc:'Top 1000 (min 5000 usuarios)'},
+  {tag:'top5000',label:'Top 5.000',desc:'Top 5000 (min 10000 usuarios)'},
+  {tag:'top10000',label:'Top 10.000',desc:'Top 10000 (min 100000 usuarios)'},
+  {tag:'top100000',label:'Top 100.000',desc:'Top 100000 (min 200000 usuarios)'}
+];
 async function loadStars(){
   try{
     const cfg=await api('GET','/api/admin/game-config');
     _starCfg=cfg.config||cfg||{};
+    // Star Economy v1 config fields
     const fields=[
-      ['pointsPerStarSelf','Pontos por Estrela (proprio)',10],
-      ['pointsPerStarGift','Pontos por Estrela (presente)',5],
-      ['starRarityMultiplier','Multiplicador de Raridade',1.5],
-      ['daysTogetherPerStar','Dias juntos por Estrela',7],
-      ['maxStarsPerPersonToPerson','Max Estrelas Pessoa-Pessoa',5],
-      ['firstEncounterPoints','Pontos 1o Encontro',25],
-      ['renewalPoints','Pontos Reencontro',10]
+      ['pointsFirstEncounter','Pontos 1o Encontro',10],
+      ['pointsReEncounterDiffDay','Pontos Reencontro (outro dia)',5],
+      ['pointsReEncounterSameDay','Pontos Reencontro (mesmo dia)',2],
+      ['starPriceFixed','Preco Estrela (pontos)',100],
+      ['maxStarsTotal','Max Estrelas Total',10],
+      ['maxTempStars','Max Estrelas Temporarias',5],
+      ['maxPermanentStars','Max Estrelas Permanentes',3],
+      ['maxProfessionalStars','Max Estrelas Profissionais',2],
+      ['tempStarDurationDays','Duracao Estrela Temp (dias)',30],
+      ['daysTogetherPerStar','Dias juntos por Estrela',5],
+      ['maxStarsPerPersonToPerson','Max Estrelas Pessoa-Pessoa',10],
+      ['maxScoringPerPair24h','Max Pontos por Par/24h',2]
     ];
     let fh='';
     fields.forEach(([k,label,def])=>{
@@ -680,6 +699,22 @@ async function loadStars(){
       fh+='<div class="fg"><label>'+label+'</label><input type="number" step="any" value="'+v+'" onchange="saveCfg(\''+k+'\',this.value)"></div>';
     });
     $('starCfg').innerHTML=fh;
+    // Top Tiers toggles
+    const enabled=_starCfg.topTiersEnabled||['top1'];
+    let th='<div style="display:flex;flex-direction:column;gap:8px">';
+    ALL_TOP_TIERS.forEach(t=>{
+      const on=enabled.includes(t.tag);
+      th+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.06)">';
+      th+='<div><div style="font-size:.75rem;font-weight:600;color:'+(on?'var(--yellow)':'var(--t3)')+'">'+esc(t.label)+'</div>';
+      th+='<div style="font-size:.6rem;color:var(--t3)">'+esc(t.desc)+'</div></div>';
+      th+='<label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer">';
+      th+='<input type="checkbox" '+(on?'checked':'')+' onchange="toggleTier(\''+t.tag+'\',this.checked)" style="opacity:0;width:0;height:0">';
+      th+='<span style="position:absolute;inset:0;background:'+(on?'var(--yellow)':'rgba(255,255,255,.1)')+';border-radius:22px;transition:.3s"></span>';
+      th+='<span style="position:absolute;top:2px;left:'+(on?'20':'2')+'px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.3s"></span>';
+      th+='</label></div>';
+    });
+    th+='</div>';
+    $('topTiersCfg').innerHTML=th;
     // Ranking
     const ru=await api('GET','/api/admin/users?limit=20');
     const sorted=(ru.users||[]).sort((a,b)=>b.stars-a.stars);
@@ -691,9 +726,25 @@ async function loadStars(){
     initAquarium();
   }catch(e){console.error(e)}
 }
+async function toggleTier(tag,on){
+  try{
+    const enabled=_starCfg.topTiersEnabled||['top1'];
+    let updated;
+    if(on){
+      updated=[...new Set([...enabled,tag])];
+    }else{
+      updated=enabled.filter(t=>t!==tag);
+    }
+    _starCfg.topTiersEnabled=updated;
+    await api('POST','/api/admin/game-config',{config:{topTiersEnabled:updated}});
+    toast((on?'Ativado':'Desativado')+': '+tag,true);
+    loadStars();
+  }catch(e){toast('Erro ao salvar tier',false)}
+}
 async function saveCfg(k,v){
   try{
-    const cfg={};cfg[k]=k.includes('Multiplier')?parseFloat(v):parseInt(v);
+    const cfg={};cfg[k]=k.includes('Duration')||k.includes('days')||k.includes('Days')?parseInt(v):parseFloat(v);
+    if(Number.isInteger(cfg[k])===false&&k!=='starRarityMultiplier')cfg[k]=parseInt(v);
     _starCfg[k]=cfg[k];
     await api('POST','/api/admin/game-config',{config:cfg});
     toast('Config salva: '+k,true);
@@ -701,10 +752,9 @@ async function saveCfg(k,v){
 }
 function simStar(){
   const n=parseInt($('simIn').value)||0;
-  const mult=_starCfg.starRarityMultiplier||1.5;
-  const base=_starCfg.pointsPerStarSelf||10;
-  let total=0;for(let i=1;i<=n;i++)total+=Math.ceil(base*Math.pow(mult,Math.floor(i/10)));
-  $('simOut').textContent=total+' pontos';
+  const price=_starCfg.starPriceFixed||100;
+  const total=n*price;
+  $('simOut').textContent=total+' pontos ('+n+' estrelas x '+price+' pts)';
 }
 
 // ═══════ EVENTS ═══════
