@@ -454,10 +454,11 @@ let saveTimer = null;
 let registrationCounter = 0; // global signup order
 
 // ── Top Tag Calculation ──
-// calculateTopTag — now based on stars ranking, not registration order
+// calculateTopTag — based on stars ranking, respects enabled tiers from config
 // 'rank' = position in stars-sorted list (1 = most stars)
-function calculateTopTag(rank, totalUsers) {
-  const tiers = [
+// 'enabledTiers' = array of tier tags that are currently active (e.g. ['top1','top5'])
+function calculateTopTag(rank, totalUsers, enabledTiers) {
+  const allTiers = [
     { max: 1, tag: 'top1', needTotal: 5 },
     { max: 5, tag: 'top5', needTotal: 50 },
     { max: 50, tag: 'top50', needTotal: 100 },
@@ -467,11 +468,14 @@ function calculateTopTag(rank, totalUsers) {
     { max: 10000, tag: 'top10000', needTotal: 100000 },
     { max: 100000, tag: 'top100000', needTotal: 200000 }
   ];
-  for (const t of tiers) {
+  // Only consider tiers that are enabled in config
+  const enabled = enabledTiers || ['top1'];
+  for (const t of allTiers) {
+    if (!enabled.includes(t.tag)) continue; // skip disabled tiers
     if (rank <= t.max && totalUsers >= t.needTotal) return t.tag;
   }
-  // Always show top1 for rank 1 even with few users
-  if (rank === 1) return 'top1';
+  // Always show top1 for rank 1 if top1 is enabled, even with few users
+  if (rank === 1 && enabled.includes('top1')) return 'top1';
   return null;
 }
 
@@ -482,15 +486,21 @@ let _topTagLastRun = 0;
 const TOP_TAG_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 
 function _doRecalcAllTopTags() {
+  const cfg = getGameConfig();
+  const enabledTiers = cfg.topTiersEnabled || ['top1'];
   const users = Object.values(db.users);
   const totalUsers = users.length;
+  // Use profileTotal (exclude donation_pool stars) for ranking
   const sorted = users
-    .map(u => ({ id: u.id, stars: (u.stars || []).length, regOrder: u.registrationOrder || 9999 }))
+    .map(u => {
+      const profileStars = (u.stars || []).filter(s => s.category !== 'donation_pool').length;
+      return { id: u.id, stars: profileStars, regOrder: u.registrationOrder || 9999 };
+    })
     .sort((a, b) => b.stars - a.stars || a.regOrder - b.regOrder);
   sorted.forEach((s, idx) => {
     const rank = idx + 1;
     const user = db.users[s.id];
-    if (user) user.topTag = calculateTopTag(rank, totalUsers);
+    if (user) user.topTag = calculateTopTag(rank, totalUsers, enabledTiers);
   });
   _topTagLastRun = Date.now();
 }
@@ -1990,6 +2000,10 @@ const DEFAULT_GAME_CONFIG = {
 
   // Top 1 creator privileges
   top1CanSetConfig: true,         // Top 1 user can adjust these parameters
+
+  // Top tier visibility — array of enabled tier tags (only these are assigned to users)
+  // Default: only top1 active. Admin can enable more via admin panel.
+  topTiersEnabled: ['top1'],
 
   // Legacy (kept for backward compatibility, unused)
   uniqueConnectionsPerStar: 100,
@@ -4449,15 +4463,17 @@ app.get('/api/admin/game-config', (req, res) => {
   res.json(getGameConfig());
 });
 
-// Update config (Top 1 or admin)
+// Update config (Top 1 or admin, or admin panel direct)
 app.post('/api/admin/game-config', adminLimiter, (req, res) => {
-  const { userId, changes } = req.body;
-  if (!userId || !changes) return res.status(400).json({ error: 'userId e changes obrigatórios.' });
+  // Support both formats: {userId, changes} and {config} (from admin panel)
+  let userId = req.body.userId || 'admin';
+  let changes = req.body.changes || req.body.config;
+  if (!changes) return res.status(400).json({ error: 'changes ou config obrigatorio.' });
   const cfg = getGameConfig();
   // Check if user is Top 1 (most stars) or has admin flag
+  // userId='admin' is always authorized (admin panel direct access)
   const user = db.users[userId];
-  if (!user) return res.status(403).json({ error: 'Usuário não encontrado.' });
-  const isAdmin = user.isAdmin === true;
+  const isAdmin = userId === 'admin' || (user && user.isAdmin === true);
   let isTop1 = false;
   if (cfg.top1CanSetConfig) {
     // Find user with most stars
@@ -4473,7 +4489,11 @@ app.post('/api/admin/game-config', adminLimiter, (req, res) => {
   const allowed = Object.keys(DEFAULT_GAME_CONFIG);
   const applied = {};
   for (const [key, val] of Object.entries(changes)) {
-    if (allowed.includes(key) && typeof val === typeof DEFAULT_GAME_CONFIG[key]) {
+    if (!allowed.includes(key)) continue;
+    const defVal = DEFAULT_GAME_CONFIG[key];
+    // Type check: arrays must match arrays, primitives must match type
+    const isArray = Array.isArray(defVal);
+    if (isArray ? Array.isArray(val) : typeof val === typeof defVal) {
       db.gameConfig[key] = val;
       applied[key] = val;
     }
