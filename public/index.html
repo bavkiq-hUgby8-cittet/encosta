@@ -19624,33 +19624,41 @@ async function showAdminAgents(){
       h+='<div style="padding:.5rem .7rem;border-radius:10px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.12);margin-bottom:.8rem;font-size:.6rem;color:#10b981;text-align:center">';
       h+='Cache economizou ~'+(saved>0?saved:d.regionCacheEntries)+' chamadas API neste ciclo</div>';
     }
-    // Agents list
+    // Agents list with schedule info
     h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)">Assistentes</div>';
     h+='<div style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.8rem">';
     var agents=cfg.agents||{};
+    // Build schedule count per agent from API data
+    var schedArr=d.schedule||[];
+    var agentSlots={};
+    schedArr.forEach(function(s){var parts=s.split(' ');if(parts.length===2){var aid2=parts[1];if(!agentSlots[aid2])agentSlots[aid2]=[];agentSlots[aid2].push(parts[0])}});
     for(var aid in agents){
       var ag=agents[aid];
-      var isReporter=aid==='reporter';
-      var freq=isReporter?'1h':'12h';
+      var slots=agentSlots[aid]||[];
+      var slotsText=slots.length>0?slots.join(', '):'sem horario';
       h+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem;border-radius:12px;background:rgba(255,255,255,.03)">';
       h+='<div style="width:28px;height:28px;border-radius:8px;background:'+ag.color+';display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#fff;font-weight:800">'+ag.nick.charAt(0)+'</div>';
       h+='<div style="flex:1;min-width:0">';
       h+='<div style="font-size:.65rem;font-weight:700;color:var(--t1)">'+ag.nick+'</div>';
-      h+='<div style="font-size:.45rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ag.description+'</div></div>';
+      h+='<div style="font-size:.45rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ag.description+'</div>';
+      h+='<div style="font-size:.4rem;color:#818cf8;margin-top:.1rem">'+slotsText+'</div></div>';
       h+='<div style="text-align:right">';
       h+='<div style="font-size:.55rem;font-weight:600;color:'+(ag.enabled?'#22c55e':'#ef4444')+'">'+(ag.enabled?'Ativo':'Off')+'</div>';
-      h+='<div style="font-size:.42rem;color:var(--t3)">a cada '+freq+'</div></div>';
+      h+='<div style="font-size:.42rem;color:var(--t3)">'+slots.length+'x/dia</div></div>';
       h+='</div>';
     }
     h+='</div>';
-    // Frequency config explanation
+    // Schedule info + config
     h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)">Configuracao</div>';
     h+='<div style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:.6rem">';
-    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Noticias (Reporter)</span><span style="color:var(--t1);font-weight:600">A cada 1 hora</span></div>';
-    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Agentes de nicho</span><span style="color:var(--t1);font-weight:600">2x por dia (12h)</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Modo</span><span style="color:var(--t1);font-weight:600">Grade de horarios locais</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Slots por dia</span><span style="color:var(--t1);font-weight:600">'+(d.scheduleSlotsPerDay||18)+' horarios</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Slots executados</span><span style="color:var(--t1);font-weight:600">'+(d.scheduleSlotsExecuted||0)+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Canais com mensagens</span><span style="color:var(--t1);font-weight:600">'+(d.activeChannelsWithMessages||0)+'</span></div>';
     h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Limite API Perplexity</span><span style="color:var(--t1);font-weight:600">'+d.maxApiCallsPerHour+'/hora</span></div>';
     h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Max canais/ciclo</span><span style="color:var(--t1);font-weight:600">'+d.maxChannelsPerCycle+'</span></div>';
     h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Cache regiao TTL</span><span style="color:var(--t1);font-weight:600">'+d.regionCacheTTLmin+' min</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Condicao p/ postar</span><span style="color:var(--t1);font-weight:600">Mural ativo (msgs 6h)</span></div>';
     h+='<div style="display:flex;justify-content:space-between;padding:.3rem .5rem;background:rgba(255,255,255,.02);border-radius:8px;font-size:.55rem"><span style="color:var(--t3)">Radio</span><span style="color:var(--t1);font-weight:600">Sob demanda + cache 5min</span></div>';
     h+='</div>';
     // Idioma info
