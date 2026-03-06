@@ -6747,6 +6747,38 @@ function createSonicConnection(userIdA, userIdB) {
     const staffUser = db.users[staffUserId];
     const ev = db.operatorEvents[eventId];
     if (ev && staffUser) {
+      // Special handling for barber role: add to barber module team
+      if (staffRole === 'barber') {
+        const barber = ensureBarber(ev);
+        // Remove existing entry for this user
+        barber.barbers = barber.barbers.filter(b => b.userId !== staffUserId);
+        const bbMember = {
+          id: 'bb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          userId: staffUserId,
+          name: staffUser.realName || staffUser.nickname || staffUser.name || 'Barbeiro',
+          type: 'linked',
+          services: [
+            { id: 'bsvc_' + Date.now() + '_c', name: 'Corte', price: 35, duration: 30, createdAt: Date.now() },
+            { id: 'bsvc_' + Date.now() + '_b', name: 'Barba', price: 25, duration: 20, createdAt: Date.now() },
+            { id: 'bsvc_' + Date.now() + '_cb', name: 'Corte + Barba', price: 50, duration: 45, createdAt: Date.now() }
+          ],
+          slots: [],
+          status: 'active',
+          createdAt: Date.now()
+        };
+        barber.barbers.push(bbMember);
+        saveDB('operatorEvents');
+        io.to(`user:${ev.operatorId}`).emit('barber-team-joined', { eventId, barber: bbMember });
+        io.to(`user:${staffUserId}`).emit('staff-connected', {
+          eventId, eventName: ev.name, staffId: bbMember.id, role: 'barber',
+          tables: [], menu: []
+        });
+        delete sonicQueue[staffUserId];
+        if (sonicQueue['evt:' + eventId]) sonicQueue['evt:' + eventId].joinedAt = Date.now();
+        if (opEntry) opEntry.pendingStaffRole = null;
+        console.log('[createSonicConnection] BARBER connected:', staffUserId.slice(0,8), 'to event:', eventId.slice(0,8));
+        return;
+      }
       const staffId = uuidv4();
       const staffMember = {
         id: staffId, userId: staffUserId,
@@ -12341,12 +12373,7 @@ app.post('/api/operator/event/create', async (req, res) => {
     barber: {
       enabled: false,
       config: { barberName: '', welcomeMessage: '' },
-      services: [
-        { id: 'bsvc_default_corte', name: 'Corte', price: 35, duration: 30, createdAt: Date.now() },
-        { id: 'bsvc_default_barba', name: 'Barba', price: 25, duration: 20, createdAt: Date.now() },
-        { id: 'bsvc_default_combo', name: 'Corte + Barba', price: 50, duration: 45, createdAt: Date.now() }
-      ],
-      slots: [],
+      barbers: [],
       appointments: []
     },
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
@@ -13971,30 +13998,109 @@ app.get('/api/operator/event/:eventId/church', (req, res) => {
 });
 
 // ═══ BARBER MODULE API ═══
+// Supports: solo barber (operator is the barber) OR team (multiple barbers under one shop)
+// Each barber has own services + slots. Appointments are global per event.
 
-// Helper to init barber data on event
 function ensureBarber(ev) {
-  if (!ev.barber) ev.barber = { enabled: false, config: { barberName: '', welcomeMessage: '' }, services: [], slots: [], appointments: [] };
-  if (!ev.barber.services) ev.barber.services = [];
-  if (!ev.barber.slots) ev.barber.slots = [];
+  if (!ev.barber) ev.barber = { enabled: false, config: { barberName: '', welcomeMessage: '' }, barbers: [], appointments: [] };
+  if (!ev.barber.barbers) ev.barber.barbers = [];
   if (!ev.barber.appointments) ev.barber.appointments = [];
   return ev.barber;
 }
 
-// --- Services CRUD ---
-app.get('/api/operator/event/:eventId/barber/services', (req, res) => {
+function findBarberMember(barberData, barberId) {
+  return barberData.barbers.find(b => b.id === barberId);
+}
+
+function getDefaultBarber(ev) {
+  const barber = ensureBarber(ev);
+  if (barber.barbers.length === 0) {
+    // Auto-create owner as default barber
+    const owner = db.users[ev.creatorId || ev.operatorId];
+    const defaultBarber = {
+      id: 'bb_owner',
+      userId: ev.creatorId || ev.operatorId || null,
+      name: owner ? (owner.realName || owner.nickname || owner.name || 'Barbeiro') : 'Barbeiro',
+      type: 'owner',
+      services: [
+        { id: 'bsvc_default_corte', name: 'Corte', price: 35, duration: 30, createdAt: Date.now() },
+        { id: 'bsvc_default_barba', name: 'Barba', price: 25, duration: 20, createdAt: Date.now() },
+        { id: 'bsvc_default_combo', name: 'Corte + Barba', price: 50, duration: 45, createdAt: Date.now() }
+      ],
+      slots: [],
+      status: 'active',
+      createdAt: Date.now()
+    };
+    barber.barbers.push(defaultBarber);
+    saveDB('operatorEvents');
+  }
+  return barber;
+}
+
+// --- Barbers (team) CRUD ---
+app.get('/api/operator/event/:eventId/barber/team', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const barber = ensureBarber(ev);
-  res.json({ services: barber.services });
+  const barber = getDefaultBarber(ev);
+  res.json({ barbers: barber.barbers });
 });
 
-app.post('/api/operator/event/:eventId/barber/services', (req, res) => {
+app.post('/api/operator/event/:eventId/barber/team', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const barber = ensureBarber(ev);
+  const { name, userId } = req.body;
+  if (!name) return res.status(400).json({ error: 'Nome do barbeiro obrigatorio.' });
+  const member = {
+    id: 'bb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    userId: userId || null,
+    name: name.trim(),
+    type: userId ? 'linked' : 'manual',
+    services: [
+      { id: 'bsvc_' + Date.now() + '_c', name: 'Corte', price: 35, duration: 30, createdAt: Date.now() },
+      { id: 'bsvc_' + Date.now() + '_b', name: 'Barba', price: 25, duration: 20, createdAt: Date.now() },
+      { id: 'bsvc_' + Date.now() + '_cb', name: 'Corte + Barba', price: 50, duration: 45, createdAt: Date.now() }
+    ],
+    slots: [],
+    status: 'active',
+    createdAt: Date.now()
+  };
+  barber.barbers.push(member);
+  saveDB('operatorEvents');
+  res.json({ ok: true, barber: member });
+});
+
+app.delete('/api/operator/event/:eventId/barber/team/:barberId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
+  if (member.type === 'owner' && barber.barbers.length === 1) return res.status(400).json({ error: 'Nao pode remover o unico barbeiro.' });
+  barber.barbers = barber.barbers.filter(b => b.id !== req.params.barberId);
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+// --- Services CRUD (per barber) ---
+app.get('/api/operator/event/:eventId/barber/:barberId/services', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = getDefaultBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
+  res.json({ services: member.services || [] });
+});
+
+app.post('/api/operator/event/:eventId/barber/:barberId/services', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = getDefaultBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
   const { name, price, duration } = req.body;
   if (!name || !price) return res.status(400).json({ error: 'Nome e preco sao obrigatorios.' });
+  if (!member.services) member.services = [];
   const service = {
     id: 'bsvc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
     name: name.trim(),
@@ -14002,34 +14108,41 @@ app.post('/api/operator/event/:eventId/barber/services', (req, res) => {
     duration: parseInt(duration) || 30,
     createdAt: Date.now()
   };
-  barber.services.push(service);
+  member.services.push(service);
   saveDB('operatorEvents');
   res.json({ ok: true, service });
 });
 
-app.delete('/api/operator/event/:eventId/barber/services/:serviceId', (req, res) => {
+app.delete('/api/operator/event/:eventId/barber/:barberId/services/:serviceId', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const barber = ensureBarber(ev);
-  barber.services = barber.services.filter(s => s.id !== req.params.serviceId);
+  const barber = getDefaultBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
+  member.services = (member.services || []).filter(s => s.id !== req.params.serviceId);
   saveDB('operatorEvents');
   res.json({ ok: true });
 });
 
-// --- Slots CRUD ---
-app.get('/api/operator/event/:eventId/barber/slots', (req, res) => {
+// --- Slots CRUD (per barber) ---
+app.get('/api/operator/event/:eventId/barber/:barberId/slots', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const barber = ensureBarber(ev);
-  res.json({ slots: barber.slots });
+  const barber = getDefaultBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
+  res.json({ slots: member.slots || [] });
 });
 
-app.post('/api/operator/event/:eventId/barber/slots', (req, res) => {
+app.post('/api/operator/event/:eventId/barber/:barberId/slots', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const barber = ensureBarber(ev);
+  const barber = getDefaultBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
   const { date, timeStart, timeEnd } = req.body;
   if (!date || !timeStart || !timeEnd) return res.status(400).json({ error: 'Preencha todos os campos.' });
+  if (!member.slots) member.slots = [];
   const slot = {
     id: 'bslot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
     date, timeStart, timeEnd,
@@ -14038,23 +14151,25 @@ app.post('/api/operator/event/:eventId/barber/slots', (req, res) => {
     bookedByUserId: null,
     createdAt: Date.now()
   };
-  barber.slots.push(slot);
+  member.slots.push(slot);
   saveDB('operatorEvents');
   res.json({ ok: true, slot });
 });
 
-app.delete('/api/operator/event/:eventId/barber/slots/:slotId', (req, res) => {
+app.delete('/api/operator/event/:eventId/barber/:barberId/slots/:slotId', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const barber = ensureBarber(ev);
-  const slot = barber.slots.find(s => s.id === req.params.slotId);
+  const barber = getDefaultBarber(ev);
+  const member = findBarberMember(barber, req.params.barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
+  const slot = (member.slots || []).find(s => s.id === req.params.slotId);
   if (slot && slot.status === 'booked') return res.status(400).json({ error: 'Slot ja reservado.' });
-  barber.slots = barber.slots.filter(s => s.id !== req.params.slotId);
+  member.slots = (member.slots || []).filter(s => s.id !== req.params.slotId);
   saveDB('operatorEvents');
   res.json({ ok: true });
 });
 
-// --- Appointments ---
+// --- Appointments (global per event) ---
 app.get('/api/operator/event/:eventId/barber/appointments', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
@@ -14071,10 +14186,13 @@ app.put('/api/operator/event/:eventId/barber/appointments/:appointmentId/status'
   const { status } = req.body;
   if (!['confirmed', 'cancelled', 'completed', 'pending'].includes(status)) return res.status(400).json({ error: 'Status invalido.' });
   apt.status = status;
-  // If cancelled, free the slot
-  if (status === 'cancelled' && apt.slotId) {
-    const slot = barber.slots.find(s => s.id === apt.slotId);
-    if (slot) { slot.status = 'available'; slot.bookedBy = null; slot.bookedByUserId = null; }
+  // If cancelled, free the slot on the specific barber
+  if (status === 'cancelled' && apt.slotId && apt.barberId) {
+    const member = findBarberMember(barber, apt.barberId);
+    if (member) {
+      const slot = (member.slots || []).find(s => s.id === apt.slotId);
+      if (slot) { slot.status = 'available'; slot.bookedBy = null; slot.bookedByUserId = null; }
+    }
   }
   saveDB('operatorEvents');
   res.json({ ok: true, appointment: apt });
@@ -14085,7 +14203,7 @@ app.get('/api/operator/event/:eventId/barber/config', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const barber = ensureBarber(ev);
-  res.json({ config: barber.config });
+  res.json({ config: barber.config || {} });
 });
 
 app.put('/api/operator/event/:eventId/barber/config', (req, res) => {
@@ -14098,24 +14216,31 @@ app.put('/api/operator/event/:eventId/barber/config', (req, res) => {
   res.json({ ok: true, config: barber.config });
 });
 
-// --- User-facing: list available slots and book ---
+// --- User-facing: list barbers with available slots and book ---
 app.get('/api/event/:eventId/barber', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.json({ enabled: false, services: [], slots: [] });
-  const barber = ensureBarber(ev);
-  const availableSlots = barber.slots.filter(s => s.status === 'available');
-  res.json({ enabled: ev.modules?.barber || false, config: barber.config, services: barber.services, slots: availableSlots });
+  if (!ev) return res.json({ enabled: false, barbers: [] });
+  const barber = getDefaultBarber(ev);
+  // Build public view: each barber with services + available slots only
+  const publicBarbers = barber.barbers.filter(b => b.status === 'active').map(b => ({
+    id: b.id, name: b.name,
+    services: b.services || [],
+    slots: (b.slots || []).filter(s => s.status === 'available')
+  }));
+  res.json({ enabled: ev.modules?.barber || false, config: barber.config, barbers: publicBarbers });
 });
 
 app.post('/api/event/:eventId/barber/book', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const barber = ensureBarber(ev);
-  const { slotId, serviceId, userId, customerName } = req.body;
-  if (!slotId || !serviceId) return res.status(400).json({ error: 'Slot e servico obrigatorios.' });
-  const slot = barber.slots.find(s => s.id === slotId);
+  const { barberId, slotId, serviceId, userId, customerName } = req.body;
+  if (!barberId || !slotId || !serviceId) return res.status(400).json({ error: 'Barbeiro, slot e servico obrigatorios.' });
+  const member = findBarberMember(barber, barberId);
+  if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
+  const slot = (member.slots || []).find(s => s.id === slotId);
   if (!slot || slot.status !== 'available') return res.status(400).json({ error: 'Horario indisponivel.' });
-  const service = barber.services.find(s => s.id === serviceId);
+  const service = (member.services || []).find(s => s.id === serviceId);
   if (!service) return res.status(400).json({ error: 'Servico nao encontrado.' });
   // Book the slot
   slot.status = 'booked';
@@ -14124,6 +14249,8 @@ app.post('/api/event/:eventId/barber/book', (req, res) => {
   // Create appointment
   const appointment = {
     id: 'bapt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    barberId: member.id,
+    barberName: member.name,
     slotId: slot.id,
     serviceId: service.id,
     serviceName: service.name,
@@ -14141,6 +14268,10 @@ app.post('/api/event/:eventId/barber/book', (req, res) => {
   // Notify operator
   if (ev.creatorId) {
     io.to('user:' + ev.creatorId).emit('barber-appointment-new', { eventId: ev.id, appointment });
+  }
+  // Notify the barber if linked
+  if (member.userId && member.userId !== ev.creatorId) {
+    io.to('user:' + member.userId).emit('barber-appointment-new', { eventId: ev.id, appointment });
   }
   res.json({ ok: true, appointment });
 });
