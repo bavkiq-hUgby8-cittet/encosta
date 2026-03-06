@@ -2805,9 +2805,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div id="cpCountryGrid" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem"></div>
     </div>
     <div class="cp-field"><label>Cidade</label><input type="text" id="cpCity" placeholder="Ex: Sao Paulo, New York..." maxlength="30"></div>
-    <div class="cp-field" style="display:flex;align-items:center;gap:.5rem;padding:.5rem 0">
-      <span style="font-size:.72rem;color:var(--t2);flex:1">Mostrar nacionalidade no perfil</span>
-      <label style="position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0"><input type="checkbox" id="cpShowCountry" style="opacity:0;width:0;height:0"><span id="cpShowCountryTrack" style="position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:10px;transition:.2s"></span><span id="cpShowCountryThumb" style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s"></span></label>
+    <div class="cp-field" style="padding:.2rem 0">
+      <span style="font-size:.6rem;color:var(--t3)">Escolha um pais e a bandeira aparece automaticamente. Para remover, desmarque o pais.</span>
     </div>
 
     <!-- Verification -->
@@ -3291,7 +3290,7 @@ function lsGet(k){
   return raw;
 }
 function lsRemove(k){localStorage.removeItem(k)}
-let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null,userCountry:null,userCity:'',userShowCountry:false,userLang:'pt-br'};
+let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null,userCountry:null,userCity:'',userLang:'pt-br'};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ AUTH FETCH HELPER: automaticamente inclui Firebase token em todas as chamadas API ═══
@@ -14071,19 +14070,8 @@ async function openCompleteProfile(){
     // Nacionalidade
     if(d.country)state.userCountry=d.country;
     if(d.city)state.userCity=d.city;
-    if(d.showCountry!==undefined)state.userShowCountry=d.showCountry;
     if($('cpCity'))$('cpCity').value=state.userCity||'';
     renderCpCountryGrid();
-    var _scToggle=$('cpShowCountry');
-    if(_scToggle){
-      _scToggle.checked=!!state.userShowCountry;
-      $('cpShowCountryTrack').style.background=state.userShowCountry?'var(--ac)':'rgba(255,255,255,.1)';
-      $('cpShowCountryThumb').style.left=state.userShowCountry?'18px':'2px';
-      _scToggle.onchange=function(){
-        $('cpShowCountryTrack').style.background=this.checked?'var(--ac)':'rgba(255,255,255,.1)';
-        $('cpShowCountryThumb').style.left=this.checked?'18px':'2px';
-      };
-    }
   }catch(e){}
 }
 // ═══ COUNTRY GRID IN CADASTRO ═══
@@ -14246,7 +14234,6 @@ async function saveCompleteProfile(){
     avatarAccessory:state._selectedAccessory||null,
     country:state.userCountry||null,
     city:$('cpCity')?$('cpCity').value.trim():'',
-    showCountry:$('cpShowCountry')?$('cpShowCountry').checked:false,
     privacy:{
       instagram:privBtn('Instagram')?privBtn('Instagram').classList.contains('priv-on'):true,
       tiktok:privBtn('Tiktok')?privBtn('Tiktok').classList.contains('priv-on'):true,
@@ -15432,14 +15419,9 @@ function showCountrySelector() {
   let html = '<div class="more-menu-sheet" style="padding:1.4rem;max-height:75vh;overflow-y:auto">'
     + '<div class="more-menu-handle"></div>'
     + '<div style="font-size:.9rem;font-weight:700;margin-bottom:.4rem;text-align:center">'+t('profile.country_flag')+'</div>'
-    + '<div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:1rem">'+t('profile.flag_privacy_note')+'</div>';
+    + '<div style="font-size:.6rem;color:var(--t3);text-align:center;margin-bottom:1rem">Escolha seu pais e a bandeira aparece automaticamente. Para remover, desmarque.</div>';
 
   html += '<div style="margin-bottom:1rem"><input type="text" id="countryCity" placeholder="Cidade" value="' + (state.userCity || '') + '" style="width:100%;padding:.6rem .8rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t1);font-size:.78rem;font-family:inherit;outline:none" maxlength="30"></div>';
-
-  html += '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;padding:.5rem .8rem;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.06)">'
-    + '<span style="font-size:.72rem;color:var(--t2);flex:1">Mostrar bandeira no perfil</span>'
-    + '<label style="position:relative;width:36px;height:20px;cursor:pointer"><input type="checkbox" id="showFlagToggle" ' + (state.userShowCountry ? 'checked' : '') + ' style="opacity:0;width:0;height:0"><span style="position:absolute;inset:0;background:' + (state.userShowCountry ? 'var(--ac)' : 'rgba(255,255,255,.1)') + ';border-radius:10px;transition:.2s"></span><span style="position:absolute;top:2px;left:' + (state.userShowCountry ? '18px' : '2px') + ';width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s"></span></label>'
-    + '</div>';
 
   Object.keys(regions).forEach(function(region) {
     html += '<div style="font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin:.6rem 0 .3rem;font-weight:600">' + region + '</div>';
@@ -15459,10 +15441,15 @@ function showCountrySelector() {
 }
 
 function selectCountry(code) {
-  state.userCountry = code;
+  // Toggle: click same country again to deselect
+  if (state.userCountry === code) {
+    state.userCountry = null;
+  } else {
+    state.userCountry = code;
+  }
   const btns = document.querySelectorAll('.more-menu-overlay button[title]');
   btns.forEach(function(b) {
-    if (b.title === code) {
+    if (b.title === state.userCountry) {
       b.style.borderColor = 'var(--ac)';
       b.style.background = 'rgba(255,107,53,.1)';
     } else {
@@ -15474,17 +15461,19 @@ function selectCountry(code) {
 
 async function saveCountrySelection() {
   const city = (document.getElementById('countryCity') || {}).value || '';
-  const show = (document.getElementById('showFlagToggle') || {}).checked || false;
   state.userCity = city;
-  state.userShowCountry = show;
   if (state.userId) {
     try {
       await fetch('/api/user/' + state.userId + '/country', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ country: state.userCountry, city: city, showCountry: show })
+        body: JSON.stringify({ country: state.userCountry || null, city: city })
       });
-      showToast((COUNTRY_FLAGS[state.userCountry] || '') + ' ' + (city || state.userCountry));
+      if (state.userCountry) {
+        showToast((COUNTRY_FLAGS[state.userCountry] || '') + ' ' + (city || state.userCountry));
+      } else {
+        showToast('Bandeira removida');
+      }
     } catch (e) { showToast(t('errors.save_error')); }
   }
 }
