@@ -6718,8 +6718,17 @@ app.post('/api/event/create', (req, res) => {
     active: true, participants: [userId], checkinCount: 0,
     acceptsTips: false, serviceLabel: '',
     entryPrice: 0, revenue: 0, paidCheckins: 0,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false },
+    staff: [], menu: [], tables: 0, orders: [],
+    parking: { enabled: false, mode: 'postpaid', hourlyRate: 10.00, fixedRate: 0, maxHours: 24, vehicles: {} },
+    gym: { enabled: false, config: { maxCapacity: 50, openTime: '06:00', closeTime: '22:00' }, classes: {}, plans: {}, members: {}, workouts: {} },
+    church: { enabled: false, config: { churchName: '', pastorName: '', denomination: '' }, tithes: {}, campaigns: {}, services: {}, prayers: {}, cells: {}, announcements: [] },
+    barber: { enabled: false, config: { barberName: '', welcomeMessage: '' }, barbers: [], appointments: [] }
   };
+  // Add to index so it shows in operator's event list
+  if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
+  IDX.operatorByCreator.get(userId).push(id);
   saveDB('events', 'operatorEvents');
   res.json({ event: eventData });
 });
@@ -6746,7 +6755,7 @@ app.get('/api/events/nearby', (req, res) => {
     return dist <= radius;
   }).map(e => {
     // Enrich with operator event data (modules, logo, tips)
-    const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.eventId === e.id) : null;
+    const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.id === e.id) : null;
     return {
       ...e, distance: Math.round(haversine(lat, lng, e.lat, e.lng)),
       participantCount: e.participants.length,
@@ -6787,7 +6796,7 @@ app.get('/api/event/:eventId', (req, res) => {
     return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length, verified: !!u.verified } : null;
   }).filter(Boolean);
   // Include operator event data (modules, logo, etc) for enriched detail
-  const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.eventId === req.params.eventId) : null;
+  const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.id === req.params.eventId) : null;
   const enriched = { ...ev, participantsData: participants };
   if (opEv) {
     enriched.modules = opEv.modules || {};
@@ -7647,7 +7656,7 @@ app.post('/api/admin/toggle-admin', adminLimiter, requireAdmin, (req, res) => {
 app.get('/api/admin/events', adminLimiter, requireAdmin, (req, res) => {
   try {
     const events = Object.values(db.events).map(e => {
-      const op = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.eventId === e.id) : null;
+      const op = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.id === e.id) : null;
       return { id: e.id, name: e.name, code: e.code, creatorId: e.creatorId, creatorName: e.creatorName, startsAt: e.startsAt, endsAt: e.endsAt, endedAt: e.endedAt, active: !e.endedAt && (!e.endsAt || new Date(e.endsAt) > new Date()), participants: (e.participants||[]).length, checkins: op?(op.checkinCount||0):0, revenue: op?(op.revenue||0):0, createdAt: e.createdAt };
     });
     events.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -13181,7 +13190,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -13207,7 +13216,7 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
     eventLogo: proxyStorageUrl(ev.eventLogo || null),
-    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false }
+    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }
   });
 });
 
