@@ -1497,15 +1497,47 @@ const SERVICE_TYPES = [
 // Cleanup expired relations + expired points every 60s
 const _cleanupInterval = setInterval(() => {
   const now = Date.now();
+  let cleaned = 0;
   for (const [id, rel] of Object.entries(db.relations)) {
     if (rel.expiresAt && now > rel.expiresAt) {
       delete db.messages[id];
       delete db.relations[id];
+      cleaned++;
     }
   }
   cleanExpiredPoints();
+  // Archive starDonations older than 90 days (prevent unbounded growth)
+  const donationCutoff = now - (90 * 24 * 60 * 60 * 1000);
+  let donationsArchived = 0;
+  for (const [id, d] of Object.entries(db.starDonations || {})) {
+    if (d.timestamp && d.timestamp < donationCutoff) {
+      delete db.starDonations[id];
+      donationsArchived++;
+    }
+  }
+  if (donationsArchived > 0) {
+    console.log('[cleanup] Archived ' + donationsArchived + ' star donations older than 90 days');
+    saveDB('starDonations');
+  }
   saveDB('relations', 'messages');
 }, 60000);
+
+// Cleanup barber appointments older than 30 days (hourly)
+setInterval(() => {
+  const cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+  let total = 0;
+  for (const [evId, ev] of Object.entries(db.operatorEvents || {})) {
+    if (ev && ev.barber && Array.isArray(ev.barber.appointments)) {
+      const before = ev.barber.appointments.length;
+      ev.barber.appointments = ev.barber.appointments.filter(a => !a.date || new Date(a.date).getTime() > cutoff);
+      total += before - ev.barber.appointments.length;
+    }
+  }
+  if (total > 0) {
+    console.log('[cleanup] Removed ' + total + ' barber appointments older than 30 days');
+    saveDB('operatorEvents');
+  }
+}, 60 * 60 * 1000);
 
 // ── PHRASES BANK v2 ── Hundreds of phrases by category + re-encounter tiers
 const PHRASES = {
@@ -4354,34 +4386,42 @@ app.get('/api/stars/available/:userId', (req, res) => {
   res.json({ total: stars, pending, available: stars + pending });
 });
 
+// ── Ranking cache: recomputed every 2 min (not on every request) ──
+let _rankingCache = null;
+let _rankingCacheTime = 0;
+const RANKING_CACHE_TTL = 2 * 60 * 1000; // 2 min
+
 // ══ STAR RANKING — Global leaderboard ══
 app.get('/api/stars/ranking', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
-  const users = Object.values(db.users)
-    .filter(u => {
-      const bd = getStarBreakdown(u.id);
-      return bd.profileTotal > 0;
-    })
-    .map(u => {
-      const bd = getStarBreakdown(u.id);
-      return {
-        userId: u.id,
-        nickname: u.nickname || u.name || '?',
-        color: u.color,
-        photoURL: u.photoURL || null,
-        avatarAccessory: u.avatarAccessory || null,
-        stars: bd.profileTotal, // Only profile stars (not donation pool)
-        breakdown: bd,
-        topTag: u.topTag || null,
-        isSubscriber: !!u.isSubscriber,
-        verified: !!u.verified
-      };
-    })
-    .sort((a, b) => b.stars - a.stars)
-    .slice(0, limit);
-  const total = Object.values(db.users).length;
-  const withStars = users.length;
-  res.json({ ranking: users, totalUsers: total, usersWithStars: withStars });
+  const now = Date.now();
+  if (!_rankingCache || now - _rankingCacheTime > RANKING_CACHE_TTL) {
+    _rankingCache = Object.values(db.users)
+      .filter(u => {
+        const bd = getStarBreakdown(u.id);
+        return bd.profileTotal > 0;
+      })
+      .map(u => {
+        const bd = getStarBreakdown(u.id);
+        return {
+          userId: u.id,
+          nickname: u.nickname || u.name || '?',
+          color: u.color,
+          photoURL: u.photoURL || null,
+          avatarAccessory: u.avatarAccessory || null,
+          stars: bd.profileTotal,
+          breakdown: bd,
+          topTag: u.topTag || null,
+          isSubscriber: !!u.isSubscriber,
+          verified: !!u.verified
+        };
+      })
+      .sort((a, b) => b.stars - a.stars);
+    _rankingCacheTime = now;
+  }
+  const users = _rankingCache.slice(0, limit);
+  const total = Object.keys(db.users).length;
+  res.json({ ranking: users, totalUsers: total, usersWithStars: _rankingCache.length });
 });
 
 // ══ STAR PROFILE — Detailed star breakdown for profile view ══
