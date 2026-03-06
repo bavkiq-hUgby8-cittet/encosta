@@ -11576,42 +11576,20 @@ function initConstCanvas(){
         ctx.strokeStyle='#0a0a0f';ctx.lineWidth=Math.max(0.5,dotR*0.3);ctx.stroke();
       }
 
-      // Recent star glow — golden spinning sparkle for stars received in last 24h
+      // Recent star glow — soft golden pulse on the node for 24h
       var _isRecentStar=false;
       if(n.lastStarAt&&(Date.now()-n.lastStarAt)<86400000)_isRecentStar=true;
       if(n._recentStar&&n._recentStarTime&&(Date.now()-n._recentStarTime)<86400000)_isRecentStar=true;
       if(_isRecentStar&&r>4){
-        // Outer golden glow ring
-        var starGlowR=r+5+Math.sin(t*3)*2;
-        var starAlpha=0.15+Math.sin(t*4)*0.1;
-        var starGrad=ctx.createRadialGradient(sx,sy,r,sx,sy,starGlowR+4);
-        starGrad.addColorStop(0,'rgba(255,215,0,'+starAlpha.toFixed(2)+')');
-        starGrad.addColorStop(0.5,'rgba(255,180,0,'+(starAlpha*0.5).toFixed(2)+')');
+        // Soft pulsing golden glow on the node itself
+        var pulsePhase=Math.sin(t*2.5)*0.5+0.5;// 0 to 1
+        var glowR=r+3+pulsePhase*4;
+        var glowAlpha=0.12+pulsePhase*0.15;
+        var starGrad=ctx.createRadialGradient(sx,sy,r*0.8,sx,sy,glowR+3);
+        starGrad.addColorStop(0,'rgba(255,215,0,'+glowAlpha.toFixed(2)+')');
+        starGrad.addColorStop(0.6,'rgba(255,180,0,'+(glowAlpha*0.4).toFixed(2)+')');
         starGrad.addColorStop(1,'transparent');
-        ctx.beginPath();ctx.arc(sx,sy,starGlowR+4,0,Math.PI*2);ctx.fillStyle=starGrad;ctx.fill();
-        // Spinning sparkle particles (4 points rotating)
-        var sparkCount=4;
-        var sparkAngle=(t*1.5)%(Math.PI*2);
-        for(var si2=0;si2<sparkCount;si2++){
-          var sa2=sparkAngle+si2*(Math.PI*2/sparkCount);
-          var sparkR=r+4+Math.sin(t*5+si2)*2;
-          var spkX=sx+Math.cos(sa2)*sparkR;
-          var spkY=sy+Math.sin(sa2)*sparkR;
-          var spkSize=Math.max(1.5,Math.min(3,r*0.14));
-          var spkAlpha=0.6+Math.sin(t*6+si2*1.5)*0.3;
-          // Draw 4-point star shape
-          ctx.save();ctx.translate(spkX,spkY);ctx.rotate(sa2+t*2);
-          ctx.beginPath();
-          for(var sp=0;sp<8;sp++){
-            var sAngle=sp*Math.PI/4;
-            var sR=sp%2===0?spkSize:spkSize*0.4;
-            if(sp===0)ctx.moveTo(Math.cos(sAngle)*sR,Math.sin(sAngle)*sR);
-            else ctx.lineTo(Math.cos(sAngle)*sR,Math.sin(sAngle)*sR);
-          }
-          ctx.closePath();
-          ctx.fillStyle='rgba(255,215,0,'+spkAlpha.toFixed(2)+')';ctx.fill();
-          ctx.restore();
-        }
+        ctx.beginPath();ctx.arc(sx,sy,glowR+3,0,Math.PI*2);ctx.fillStyle=starGrad;ctx.fill();
       }
 
       // Rotating scan arc for selected node
@@ -11627,24 +11605,37 @@ function initConstCanvas(){
         ctx.strokeStyle='rgba(255,255,255,'+sp.toFixed(2)+')';ctx.lineWidth=2;ctx.stroke();
       }
 
-      // Stars around the ring — small dots filling the orbit
+      // Stars orbiting the node — show actual star count, last one bigger if recent
       if(n.starsCount&&n.starsCount>0&&r>3){
-        const starR=r+3;// orbit radius
-        const maxStars=Math.min(n.starsCount,20);// cap at 20 visual stars
-        const starSize=Math.max(1,Math.min(2.5,r*0.12));
-        for(let si=0;si<maxStars;si++){
-          const sa=(si/Math.max(maxStars,12))*Math.PI*2-Math.PI/2;
-          const sSx=sx+Math.cos(sa)*starR;
-          const sSy=sy+Math.sin(sa)*starR;
-          const flicker=0.5+Math.sin(t*3+si*0.7)*0.3;
-          ctx.beginPath();ctx.arc(sSx,sSy,starSize,0,Math.PI*2);
-          ctx.fillStyle='rgba(255,215,0,'+flicker.toFixed(2)+')';ctx.fill();
+        var orbitR=r+3.5;
+        var totalStarsVis=Math.min(n.starsCount,10);// max 10 visual stars
+        var baseSize=Math.max(1.2,Math.min(2.2,r*0.11));
+        var slowSpin=(t*0.3)%(Math.PI*2);// slow rotation
+        for(var si=0;si<totalStarsVis;si++){
+          var sa=(si/Math.max(totalStarsVis,8))*Math.PI*2-Math.PI/2+slowSpin;
+          var sSx=sx+Math.cos(sa)*orbitR;
+          var sSy=sy+Math.sin(sa)*orbitR;
+          var isLast=(si===totalStarsVis-1)&&_isRecentStar;
+          var sSize=isLast?baseSize*1.8+Math.sin(t*4)*0.5:baseSize;
+          var sAlpha=isLast?0.85+Math.sin(t*5)*0.15:0.55+Math.sin(t*2+si*0.9)*0.2;
+          // Draw mini 5-point star shape
+          ctx.save();ctx.translate(sSx,sSy);ctx.rotate(isLast?t*2:0);
+          ctx.beginPath();
+          for(var sp=0;sp<10;sp++){
+            var sAngle=sp*Math.PI/5-Math.PI/2;
+            var sR2=sp%2===0?sSize:sSize*0.45;
+            if(sp===0)ctx.moveTo(Math.cos(sAngle)*sR2,Math.sin(sAngle)*sR2);
+            else ctx.lineTo(Math.cos(sAngle)*sR2,Math.sin(sAngle)*sR2);
+          }
+          ctx.closePath();
+          ctx.fillStyle='rgba(255,215,0,'+sAlpha.toFixed(2)+')';ctx.fill();
+          ctx.restore();
         }
-        // Count label if many stars
-        if(n.starsCount>3&&r>5){
-          ctx.font='bold '+Math.max(4,Math.min(7,r*0.35))+'px Inter,sans-serif';
-          ctx.fillStyle='rgba(255,215,0,.6)';ctx.textAlign='center';ctx.textBaseline='middle';
-          ctx.fillText('★'+n.starsCount,sx,sy-r-8);
+        // Star count label
+        if(n.starsCount>0&&r>5){
+          ctx.font='bold '+Math.max(4,Math.min(7,r*0.32))+'px Inter,sans-serif';
+          ctx.fillStyle='rgba(255,215,0,.55)';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(''+n.starsCount,sx,sy-r-7);
         }
       }
       // Top tag badge above node

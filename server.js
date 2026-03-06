@@ -2246,6 +2246,20 @@ function checkStarEligibility(userAId, userBId) {
           reason: 'permanent', context: milestone + ' conexoes unicas! Estrela permanente!',
           totalEarned: u.stars.length
         });
+        // Notify network
+        const milestoneEnc = new Set((db.encounters[uid] || []).map(e => e.with));
+        milestoneEnc.delete(uid);
+        const milBd = getStarBreakdown(uid);
+        milestoneEnc.forEach(nid => {
+          io.to('user:' + nid).emit('star-donated-notification', {
+            recipientName: u.nickname || u.name,
+            recipientStars: milBd.profileTotal
+          });
+          io.to('user:' + nid).emit('network-star', {
+            userId: uid, nickname: u.nickname || u.name,
+            starsCount: milBd.profileTotal, timestamp: Date.now()
+          });
+        });
         recalcAllTopTags();
         saveDB('users');
       }
@@ -4270,7 +4284,26 @@ app.post('/api/star/buy', (req, res) => {
 
   saveDB('users');
   io.to(`user:${recipientId}`).emit('star-earned', { reason: 'purchased', context: isSelf ? 'Comprou na loja' : 'Presente de ' + user.nickname, totalEarned: recipientUser.stars.length });
-  res.json({ ok: true, starId, cost, recipientStars: recipientUser.stars.length, pointsRemaining: Math.round(rawScore - (user.pointsSpent || 0)), expiresAt });
+
+  // Notify network that someone earned a star (privacy: no info about how)
+  const recipientEnc = new Set((db.encounters[recipientId] || []).map(e => e.with));
+  recipientEnc.delete(recipientId);
+  if (!isSelf) recipientEnc.delete(userId);
+  const bd = getStarBreakdown(recipientId);
+  recipientEnc.forEach(uid => {
+    io.to('user:' + uid).emit('star-donated-notification', {
+      recipientName: recipientUser.nickname || recipientUser.name,
+      recipientStars: bd.profileTotal
+    });
+    io.to('user:' + uid).emit('network-star', {
+      userId: recipientId,
+      nickname: recipientUser.nickname || recipientUser.name,
+      starsCount: bd.profileTotal,
+      timestamp: Date.now()
+    });
+  });
+
+  res.json({ ok: true, starId, cost, recipientStars: bd.profileTotal, pointsRemaining: Math.round(rawScore - (user.pointsSpent || 0)), expiresAt });
 });
 
 // Star shop info — prices, available points, breakdown
