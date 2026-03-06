@@ -2992,7 +2992,9 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <!-- Gym FAB (only if event has gym) -->
     <button id="evGymBtn" onclick="openEventGym()" style="display:none;position:absolute;bottom:190px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#10b981,#34d399);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(16,185,129,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">💪 Academia</button>
     <!-- Church FAB (only if event has church) -->
-    <button id="evChurchBtn" onclick="openEventChurch()" style="display:none;position:absolute;bottom:250px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#8b5cf6,#a78bfa);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(139,92,246,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">⛪ Igreja</button>
+    <button id="evChurchBtn" onclick="openEventChurch()" style="display:none;position:absolute;bottom:250px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#8b5cf6,#a78bfa);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(139,92,246,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">Igreja</button>
+    <!-- Barber FAB (only if event has barber) -->
+    <button id="evBarberBtn" onclick="openEventBarber()" style="display:none;position:absolute;bottom:310px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#d4a745,#e6c06e);border:none;color:#1a1a2e;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(212,167,69,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em">Barbearia</button>
     <div id="evCartBadge" style="display:none;position:absolute;bottom:102px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.55rem;font-weight:700;text-align:center;line-height:20px;z-index:6;pointer-events:none">0</div>
     <!-- Order history FAB -->
     <button id="evOrderHistoryBtn" onclick="openOrderHistory()" style="display:none;position:absolute;bottom:70px;left:16px;padding:.5rem .8rem;border-radius:14px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);color:#f97316;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;z-index:5;backdrop-filter:blur(8px);display:none;align-items:center;gap:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg> Pedidos</button>
@@ -3061,9 +3063,17 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div id="evChurchOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
     <div style="position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(255,255,255,.06)">
       <button onclick="closeEventChurch()" style="background:none;border:none;color:#fff;font-size:1.2rem;padding:0;cursor:pointer">←</button>
-      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">⛪ Igreja</div>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem">Igreja</div>
     </div>
     <div id="evChurchContent" style="padding:.8rem"></div>
+  </div>
+  <!-- BARBER BOOKING OVERLAY -->
+  <div id="evBarberOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:linear-gradient(135deg,rgba(26,26,46,.98),rgba(212,167,69,.08));backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(212,167,69,.2)">
+      <button onclick="closeEventBarber()" style="background:none;border:none;color:#d4a745;font-size:1.2rem;padding:0;cursor:pointer">&#8592;</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem;color:#d4a745">Barbearia</div>
+    </div>
+    <div id="evBarberContent" style="padding:.8rem"></div>
   </div>
 </div>
 
@@ -4531,6 +4541,7 @@ async function showEventView(eventId,eventName){
   loadParkingConfig(eventId);
   loadGymConfig(eventId);
   loadChurchConfig(eventId);
+  loadBarberConfig(eventId);
   if(socket){
     socket.off('event-attendee-joined');
     socket.off('event-attendee-left');
@@ -4738,8 +4749,8 @@ function closeEventView(){
   const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evBolts.length=0;evViewCtx=null;
   // Close menu/cart/parking/gym/church/checkout/receipt/history overlays
-  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evCheckoutOverlay').style.display='none';$('evReceiptOverlay').style.display='none';$('evOrderHistoryOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';
-  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evOrderHistoryBtn').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';
+  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evCheckoutOverlay').style.display='none';$('evReceiptOverlay').style.display='none';$('evOrderHistoryOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';if($('evBarberOverlay'))$('evBarberOverlay').style.display='none';
+  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evOrderHistoryBtn').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';if($('evBarberBtn'))$('evBarberBtn').style.display='none';
   if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended');socket.off('event-match')}
   // Persist active event in localStorage for floating button
   if(savedId){
@@ -5415,6 +5426,155 @@ async function submitTitheOffering(){
     }
   }catch(e){
     console.error('submitTitheOffering:',e);
+  }
+}
+
+// ═══ BARBER USER VIEW ═══
+// ═══════════════════════════════════════════════════
+
+async function loadBarberConfig(eventId){
+  try{
+    const r=await fetch('/api/event/'+eventId+'/barber');const d=await r.json();
+    if(d.enabled&&$('evBarberBtn'))$('evBarberBtn').style.display='';
+    else if($('evBarberBtn'))$('evBarberBtn').style.display='none';
+  }catch(e){if($('evBarberBtn'))$('evBarberBtn').style.display='none';}
+}
+
+async function openEventBarber(){
+  if($('evBarberOverlay'))$('evBarberOverlay').style.display='';
+  renderBarberUI();
+}
+
+function closeEventBarber(){if($('evBarberOverlay'))$('evBarberOverlay').style.display='none'}
+
+let _barberSelectedService=null;
+let _barberSelectedSlot=null;
+
+async function renderBarberUI(){
+  if(!evViewEventId)return;
+  const el=$('evBarberContent');
+  if(!el)return;
+  try{
+    const r=await fetch('/api/event/'+evViewEventId+'/barber');
+    const d=await r.json();
+    if(!d.enabled){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Barbearia nao esta disponivel neste evento</div>';return}
+    const services=d.services||[];
+    const slots=d.slots||[];
+    const config=d.config||{};
+    _barberSelectedService=null;
+    _barberSelectedSlot=null;
+    let h='';
+    // Header
+    if(config.barberName){
+      h+='<div style="text-align:center;margin-bottom:1rem"><div style="font-size:1rem;font-weight:800;color:#d4a745">'+esc(config.barberName)+'</div>';
+      if(config.welcomeMessage)h+='<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem">'+esc(config.welcomeMessage)+'</div>';
+      h+='</div>';
+    }
+    // Step 1: Choose service
+    h+='<div style="margin-bottom:1.2rem"><div style="font-size:.8rem;font-weight:700;color:#d4a745;margin-bottom:.6rem">1. Escolha o servico</div>';
+    if(services.length>0){
+      services.forEach(s=>{
+        h+='<button onclick="selectBarberService(\''+s.id+'\')" id="bsvc_btn_'+s.id+'" style="display:block;width:100%;text-align:left;padding:.8rem;margin-bottom:.4rem;border-radius:12px;background:rgba(212,167,69,.06);border:1px solid rgba(212,167,69,.15);color:var(--t1);cursor:pointer;font-family:inherit;transition:all .2s">'
+          +'<div style="font-weight:700;font-size:.75rem">'+esc(s.name)+'</div>'
+          +'<div style="font-size:.6rem;color:var(--t3);margin-top:.2rem">'+s.duration+'min - R$ '+(s.price||0).toFixed(2).replace('.',',')+'</div>'
+          +'</button>';
+      });
+    }else{
+      h+='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem;background:rgba(212,167,69,.04);border-radius:12px">Nenhum servico disponivel</div>';
+    }
+    h+='</div>';
+    // Step 2: Choose time slot
+    h+='<div style="margin-bottom:1.2rem"><div style="font-size:.8rem;font-weight:700;color:#d4a745;margin-bottom:.6rem">2. Escolha o horario</div>';
+    if(slots.length>0){
+      // Group by date
+      const grouped={};
+      slots.forEach(s=>{if(!grouped[s.date])grouped[s.date]=[];grouped[s.date].push(s)});
+      Object.keys(grouped).sort().forEach(date=>{
+        const dateStr=date.split('-').reverse().join('/');
+        h+='<div style="font-size:.65rem;font-weight:600;color:var(--t2);margin-bottom:.3rem;margin-top:.5rem">'+dateStr+'</div>';
+        h+='<div style="display:flex;flex-wrap:wrap;gap:.3rem">';
+        grouped[date].forEach(s=>{
+          h+='<button onclick="selectBarberSlot(\''+s.id+'\')" id="bslot_btn_'+s.id+'" style="padding:.4rem .7rem;border-radius:8px;background:rgba(212,167,69,.08);border:1px solid rgba(212,167,69,.2);color:var(--t1);font-size:.65rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s">'+s.timeStart+' - '+s.timeEnd+'</button>';
+        });
+        h+='</div>';
+      });
+    }else{
+      h+='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem;background:rgba(212,167,69,.04);border-radius:12px">Nenhum horario disponivel</div>';
+    }
+    h+='</div>';
+    // Step 3: Confirm
+    h+='<div style="padding:1rem;background:rgba(212,167,69,.06);border:1px solid rgba(212,167,69,.15);border-radius:14px">';
+    h+='<div id="barberBookingSummary" style="font-size:.7rem;color:var(--t3);text-align:center;margin-bottom:.6rem">Selecione servico e horario</div>';
+    h+='<button id="barberBookBtn" onclick="confirmBarberBooking()" style="width:100%;padding:.7rem;border-radius:10px;border:none;background:linear-gradient(135deg,#d4a745,#e6c06e);color:#1a1a2e;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;opacity:.4;pointer-events:none">Agendar</button>';
+    h+='</div>';
+    el.innerHTML=h;
+  }catch(e){
+    console.error('renderBarberUI:',e);
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Erro ao carregar barbearia</div>';
+  }
+}
+
+function selectBarberService(id){
+  _barberSelectedService=id;
+  document.querySelectorAll('[id^="bsvc_btn_"]').forEach(b=>{
+    b.style.background=b.id==='bsvc_btn_'+id?'rgba(212,167,69,.2)':'rgba(212,167,69,.06)';
+    b.style.borderColor=b.id==='bsvc_btn_'+id?'rgba(212,167,69,.5)':'rgba(212,167,69,.15)';
+  });
+  updateBarberBookingSummary();
+}
+
+function selectBarberSlot(id){
+  _barberSelectedSlot=id;
+  document.querySelectorAll('[id^="bslot_btn_"]').forEach(b=>{
+    b.style.background=b.id==='bslot_btn_'+id?'rgba(212,167,69,.3)':'rgba(212,167,69,.08)';
+    b.style.borderColor=b.id==='bslot_btn_'+id?'rgba(212,167,69,.6)':'rgba(212,167,69,.2)';
+  });
+  updateBarberBookingSummary();
+}
+
+function updateBarberBookingSummary(){
+  const sum=$('barberBookingSummary');
+  const btn=$('barberBookBtn');
+  if(!sum||!btn)return;
+  if(_barberSelectedService&&_barberSelectedSlot){
+    const svcBtn=document.getElementById('bsvc_btn_'+_barberSelectedService);
+    const slotBtn=document.getElementById('bslot_btn_'+_barberSelectedSlot);
+    const svcName=svcBtn?svcBtn.querySelector('div').textContent:'Servico';
+    const slotTime=slotBtn?slotBtn.textContent:'Horario';
+    sum.innerHTML='<span style="color:#d4a745;font-weight:700">'+esc(svcName)+'</span> - '+esc(slotTime);
+    btn.style.opacity='1';btn.style.pointerEvents='';
+  }else{
+    sum.textContent='Selecione servico e horario';
+    btn.style.opacity='.4';btn.style.pointerEvents='none';
+  }
+}
+
+async function confirmBarberBooking(){
+  if(!_barberSelectedService||!_barberSelectedSlot||!evViewEventId)return;
+  const btn=$('barberBookBtn');
+  if(btn){btn.textContent='Agendando...';btn.style.pointerEvents='none'}
+  try{
+    const r=await fetch('/api/event/'+evViewEventId+'/barber/book',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        slotId:_barberSelectedSlot,
+        serviceId:_barberSelectedService,
+        userId:state.userId,
+        customerName:state.userName||'Cliente'
+      })
+    });
+    const d=await r.json();
+    if(d.ok){
+      showToast('Agendamento confirmado!');
+      closeEventBarber();
+    }else{
+      alert(d.error||'Erro ao agendar');
+      if(btn){btn.textContent='Agendar';btn.style.pointerEvents=''}
+    }
+  }catch(e){
+    console.error('confirmBarberBooking:',e);
+    alert('Erro de rede');
+    if(btn){btn.textContent='Agendar';btn.style.pointerEvents=''}
   }
 }
 

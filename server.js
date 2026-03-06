@@ -7013,6 +7013,17 @@ function createSonicConnection(userIdA, userIdB) {
           icon: 'church'
         });
       }
+      if (ev.modules.barber) {
+        moduleWelcome.push({
+          key: 'barber',
+          label: 'Barbearia',
+          message: ev.barber?.config?.welcomeMessage || 'Agende seu horario!',
+          action: 'barber',
+          actionLabel: 'Agendar',
+          color: '#d4a745',
+          icon: 'barber'
+        });
+      }
     }
 
     const checkinData = {
@@ -12327,6 +12338,17 @@ app.post('/api/operator/event/create', async (req, res) => {
       cells: {},
       announcements: []
     },
+    barber: {
+      enabled: false,
+      config: { barberName: '', welcomeMessage: '' },
+      services: [
+        { id: 'bsvc_default_corte', name: 'Corte', price: 35, duration: 30, createdAt: Date.now() },
+        { id: 'bsvc_default_barba', name: 'Barba', price: 25, duration: 20, createdAt: Date.now() },
+        { id: 'bsvc_default_combo', name: 'Corte + Barba', price: 50, duration: 45, createdAt: Date.now() }
+      ],
+      slots: [],
+      appointments: []
+    },
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
     paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
@@ -12335,8 +12357,9 @@ app.post('/api/operator/event/create', async (req, res) => {
       restaurant: !!modules.restaurant,
       parking: !!modules.parking,
       gym: !!modules.gym,
-      church: !!modules.church
-    } : { restaurant: true, parking: false, gym: false, church: false }
+      church: !!modules.church,
+      barber: !!modules.barber
+    } : { restaurant: true, parking: false, gym: false, church: false, barber: false }
   };
   // Add to index so it shows in operator's event list immediately
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
@@ -12748,7 +12771,8 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       restaurant: !!modules.restaurant,
       parking: !!modules.parking,
       gym: !!modules.gym,
-      church: !!modules.church
+      church: !!modules.church,
+      barber: !!modules.barber
     };
   }
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
@@ -13944,6 +13968,181 @@ app.get('/api/operator/event/:eventId/church', (req, res) => {
   if (!ev) return res.json({enabled:false, config:{}, tithes:{}, campaigns:{}, services:{}, prayers:{}, cells:{}, announcements:{}});
   const c = ev.church || {};
   res.json({enabled:c.enabled, config:c.config||{}, tithes:c.tithes||{}, campaigns:c.campaigns||{}, services:c.services||{}, prayers:c.prayers||{}, cells:c.cells||{}, announcements:c.announcements||{}});
+});
+
+// ═══ BARBER MODULE API ═══
+
+// Helper to init barber data on event
+function ensureBarber(ev) {
+  if (!ev.barber) ev.barber = { enabled: false, config: { barberName: '', welcomeMessage: '' }, services: [], slots: [], appointments: [] };
+  if (!ev.barber.services) ev.barber.services = [];
+  if (!ev.barber.slots) ev.barber.slots = [];
+  if (!ev.barber.appointments) ev.barber.appointments = [];
+  return ev.barber;
+}
+
+// --- Services CRUD ---
+app.get('/api/operator/event/:eventId/barber/services', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  res.json({ services: barber.services });
+});
+
+app.post('/api/operator/event/:eventId/barber/services', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const { name, price, duration } = req.body;
+  if (!name || !price) return res.status(400).json({ error: 'Nome e preco sao obrigatorios.' });
+  const service = {
+    id: 'bsvc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    name: name.trim(),
+    price: parseFloat(price) || 0,
+    duration: parseInt(duration) || 30,
+    createdAt: Date.now()
+  };
+  barber.services.push(service);
+  saveDB('operatorEvents');
+  res.json({ ok: true, service });
+});
+
+app.delete('/api/operator/event/:eventId/barber/services/:serviceId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  barber.services = barber.services.filter(s => s.id !== req.params.serviceId);
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+// --- Slots CRUD ---
+app.get('/api/operator/event/:eventId/barber/slots', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  res.json({ slots: barber.slots });
+});
+
+app.post('/api/operator/event/:eventId/barber/slots', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const { date, timeStart, timeEnd } = req.body;
+  if (!date || !timeStart || !timeEnd) return res.status(400).json({ error: 'Preencha todos os campos.' });
+  const slot = {
+    id: 'bslot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    date, timeStart, timeEnd,
+    status: 'available',
+    bookedBy: null,
+    bookedByUserId: null,
+    createdAt: Date.now()
+  };
+  barber.slots.push(slot);
+  saveDB('operatorEvents');
+  res.json({ ok: true, slot });
+});
+
+app.delete('/api/operator/event/:eventId/barber/slots/:slotId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const slot = barber.slots.find(s => s.id === req.params.slotId);
+  if (slot && slot.status === 'booked') return res.status(400).json({ error: 'Slot ja reservado.' });
+  barber.slots = barber.slots.filter(s => s.id !== req.params.slotId);
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+// --- Appointments ---
+app.get('/api/operator/event/:eventId/barber/appointments', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  res.json({ appointments: barber.appointments });
+});
+
+app.put('/api/operator/event/:eventId/barber/appointments/:appointmentId/status', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const apt = barber.appointments.find(a => a.id === req.params.appointmentId);
+  if (!apt) return res.status(404).json({ error: 'Agendamento nao encontrado.' });
+  const { status } = req.body;
+  if (!['confirmed', 'cancelled', 'completed', 'pending'].includes(status)) return res.status(400).json({ error: 'Status invalido.' });
+  apt.status = status;
+  // If cancelled, free the slot
+  if (status === 'cancelled' && apt.slotId) {
+    const slot = barber.slots.find(s => s.id === apt.slotId);
+    if (slot) { slot.status = 'available'; slot.bookedBy = null; slot.bookedByUserId = null; }
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true, appointment: apt });
+});
+
+// --- Config ---
+app.get('/api/operator/event/:eventId/barber/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  res.json({ config: barber.config });
+});
+
+app.put('/api/operator/event/:eventId/barber/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const { barberName, welcomeMessage } = req.body;
+  barber.config = { barberName: barberName || '', welcomeMessage: welcomeMessage || '' };
+  saveDB('operatorEvents');
+  res.json({ ok: true, config: barber.config });
+});
+
+// --- User-facing: list available slots and book ---
+app.get('/api/event/:eventId/barber', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.json({ enabled: false, services: [], slots: [] });
+  const barber = ensureBarber(ev);
+  const availableSlots = barber.slots.filter(s => s.status === 'available');
+  res.json({ enabled: ev.modules?.barber || false, config: barber.config, services: barber.services, slots: availableSlots });
+});
+
+app.post('/api/event/:eventId/barber/book', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const { slotId, serviceId, userId, customerName } = req.body;
+  if (!slotId || !serviceId) return res.status(400).json({ error: 'Slot e servico obrigatorios.' });
+  const slot = barber.slots.find(s => s.id === slotId);
+  if (!slot || slot.status !== 'available') return res.status(400).json({ error: 'Horario indisponivel.' });
+  const service = barber.services.find(s => s.id === serviceId);
+  if (!service) return res.status(400).json({ error: 'Servico nao encontrado.' });
+  // Book the slot
+  slot.status = 'booked';
+  slot.bookedBy = customerName || 'Cliente';
+  slot.bookedByUserId = userId || null;
+  // Create appointment
+  const appointment = {
+    id: 'bapt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    slotId: slot.id,
+    serviceId: service.id,
+    serviceName: service.name,
+    servicePrice: service.price,
+    date: slot.date,
+    timeStart: slot.timeStart,
+    timeEnd: slot.timeEnd,
+    userId: userId || null,
+    customerName: customerName || 'Cliente',
+    status: 'confirmed',
+    createdAt: Date.now()
+  };
+  barber.appointments.push(appointment);
+  saveDB('operatorEvents');
+  // Notify operator
+  if (ev.creatorId) {
+    io.to('user:' + ev.creatorId).emit('barber-appointment-new', { eventId: ev.id, appointment });
+  }
+  res.json({ ok: true, appointment });
 });
 
 // ═══ STRIPE — Full Payment Integration ═══
