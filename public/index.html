@@ -20129,7 +20129,7 @@ const VA = (function(){
   let _pendingToolCall = false;  // true between function_call and next response
   let _pendingAgentTranscript = ''; // partial agent transcript being built
   let _unmuteTimer = null;       // delayed unmute after response.done
-  const UNMUTE_DELAY_MS = 2500;   // delay to let WebRTC audio fully drain from speaker (prevents echo loop)
+  const UNMUTE_DELAY_MS = 1200;   // delay to let WebRTC audio fully drain from speaker (prevents echo loop)
   const $ = id => document.getElementById(id);
   const VA_LAST_KEY = 'va_last_interaction';
   // ── 3D SMOOTH PARALLAX — subtle rotation as if robot is looking at you ──
@@ -20174,8 +20174,23 @@ const VA = (function(){
     var orb = $('vaOrb');
     if(orb) orb.style.transform = '';
   }
+  let _gyroPermissionGranted = false; // cached iOS permission
+  // Request gyro permission from a user gesture — must be called in click handler
+  function _requestGyroPermission(){
+    if(_gyroPermissionGranted) return;
+    if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      DeviceOrientationEvent.requestPermission().then(function(perm){
+        console.log('[VA] Gyro permission:', perm);
+        if(perm === 'granted') _gyroPermissionGranted = true;
+      }).catch(function(err){ console.log('[VA] Gyro permission err:', err); });
+    } else {
+      // Android / desktop — no permission needed
+      _gyroPermissionGranted = true;
+    }
+  }
   function _initGyro(){
     if(_gyroActive) return;
+    console.log('[VA] _initGyro called, permission:', _gyroPermissionGranted);
     // Always show front view only — no image switching
     var imgs = document.querySelectorAll('#vaOrb .va-avatar-img');
     imgs.forEach(function(img){
@@ -20187,6 +20202,7 @@ const VA = (function(){
         img.classList.add('va-view-hidden');
       }
     });
+    _gyroBaseBeta = null; _gyroBaseGamma = null;
     _gyroRAF = requestAnimationFrame(_gyroAnimate);
     _gyroOrientHandler = function(e){
       var beta = e.beta || 0;
@@ -20194,20 +20210,16 @@ const VA = (function(){
       if(_gyroBaseBeta === null){ _gyroBaseBeta = beta; _gyroBaseGamma = gamma; }
       var dBeta = beta - _gyroBaseBeta;
       var dGamma = gamma - _gyroBaseGamma;
-      // Very gentle mapping — max 8deg vertical, 12deg horizontal
       _gyroTargetX = Math.max(-_gyroMaxX, Math.min(_gyroMaxX, dBeta * 0.18));
       _gyroTargetY = Math.max(-_gyroMaxY, Math.min(_gyroMaxY, dGamma * 0.25));
     };
-    if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
-      DeviceOrientationEvent.requestPermission().then(function(perm){
-        if(perm === 'granted'){
-          window.addEventListener('deviceorientation', _gyroOrientHandler, true);
-          _gyroActive = true;
-        }
-      }).catch(function(err){ console.log('[VA] Gyro permission denied:', err); });
-    } else if('DeviceOrientationEvent' in window){
-      window.addEventListener('deviceorientation', _gyroOrientHandler, true);
-      _gyroActive = true;
+    if(_gyroPermissionGranted || !('ontouchstart' in window)){
+      // Permission already granted (from click handler) or desktop
+      if('DeviceOrientationEvent' in window && ('ontouchstart' in window)){
+        window.addEventListener('deviceorientation', _gyroOrientHandler, true);
+        _gyroActive = true;
+        console.log('[VA] Gyro deviceorientation listener added');
+      }
     }
     // Desktop: mouse parallax — robot follows cursor gently
     if(!('ontouchstart' in window)){
@@ -20219,6 +20231,8 @@ const VA = (function(){
         _gyroTargetX = dy * _gyroMaxX * 0.6;
       };
       document.addEventListener('mousemove', _gyroMouseHandler);
+      _gyroActive = true;
+      console.log('[VA] Gyro mouse parallax active');
     }
   }
 
@@ -20478,13 +20492,18 @@ const VA = (function(){
     // Cancel any pending unmute
     if(_unmuteTimer){clearTimeout(_unmuteTimer);_unmuteTimer=null;}
     // Don't unmute if agent is still speaking or a tool call is pending
-    if(_agentSpeaking||_pendingToolCall) return;
+    if(_agentSpeaking||_pendingToolCall){
+      console.log('[VA] Unmute skipped: agentSpeaking='+_agentSpeaking+' pendingTool='+_pendingToolCall);
+      return;
+    }
     _unmuteTimer=setTimeout(()=>{
       _unmuteTimer=null;
       // Double-check: still safe to unmute?
       if(!_agentSpeaking&&!_pendingToolCall&&active){
         if(micStream) micStream.getAudioTracks().forEach(t=>{t.enabled=true});
         console.log('[VA] Mic unmuted (safe)');
+      } else {
+        console.log('[VA] Unmute cancelled: agentSpeaking='+_agentSpeaking+' pendingTool='+_pendingToolCall+' active='+active);
       }
     }, UNMUTE_DELAY_MS);
   }
@@ -20493,8 +20512,6 @@ const VA = (function(){
   async function connect(){
     if(busy||active) return;
     busy = true;
-    _initGyro();
-    _gyroBaseBeta = null; _gyroBaseGamma = null;
     setStatus('Chamando...'); setOrb('connecting');
     try {
       // 1. Token — premium or standard endpoint
@@ -20571,6 +20588,8 @@ const VA = (function(){
         _startCallTimer();
         _initProximity();
         _resetInactivityTimer();
+        // Init gyroscope AFTER connection is active — safe from blocking audio setup
+        try{ _initGyro(); }catch(ge){ console.log('[VA] Gyro init err:', ge.message); }
         // Log session start to dev panel
         if(vaTier==='ultimatedev'){
           window._devLiveLog = []; // Clear previous session logs (global)
@@ -20649,6 +20668,7 @@ const VA = (function(){
               mainBtn.onclick=function(){VA.toggleVoice()};
               mainBtn.className='va-call-btn answer';
               vaTier=savedTier;
+              try{ _requestGyroPermission(); }catch(e){}
               connect();
             };
           }
@@ -21674,10 +21694,12 @@ const VA = (function(){
       setOrb('');
       _showDevLogFab();
       updateTierChips();
-      if(wasActive) connect();
+      if(wasActive){ try{ _requestGyroPermission(); }catch(e){} connect(); }
     },
     toggleVoice(){
       if(active){cleanup();return;}
+      // Request gyro permission from user gesture BEFORE async connect
+      try{ _requestGyroPermission(); }catch(e){}
       connect();
     },
     sendText(){
