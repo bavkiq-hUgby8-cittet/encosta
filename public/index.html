@@ -14555,32 +14555,25 @@ function renderStarSlots(profileData,isOwnProfile){
   const stars=profileData.starDetails||[];
   const totalStars=profileData.stars||stars.length||0;
   const MAX=10;
-  // Categorize existing stars
-  let conquest=[],permanent=[],temporary=[],professional=[];
+  // Categorize existing stars (conquest + permanent = all permanent now)
+  let perm=[],temporary=[],professional=[];
   stars.forEach(function(s){
-    if(s.category==='conquest')conquest.push(s);
-    else if(s.category==='permanent')permanent.push(s);
+    if(s.category==='conquest'||s.category==='permanent')perm.push(s);
     else if(s.category==='professional')professional.push(s);
-    else temporary.push(s);
+    else if(s.category!=='donation_pool')temporary.push(s);
   });
-  // Build 10 slots: [conquest x2][permanent x1][temporary x5][professional x2]
+  // Build 10 slots: [permanent x3][temporary x5][professional x2]
   var slots=[];
-  // Slot 0-1: Conquest
-  for(var i=0;i<2;i++){
-    var milestone=i===0?100:500;
-    if(conquest[i]){
-      slots.push({filled:true,category:'conquest',label:milestone+' conexoes',color:'#f59e0b',star:conquest[i]});
+  // Slots 0-2: Permanent (100, 500, 1000 connections) — all equal
+  var milestones=[100,500,1000];
+  for(var i=0;i<3;i++){
+    if(perm[i]){
+      slots.push({filled:true,category:'permanent',color:'#fbbf24'});
     }else{
-      slots.push({filled:false,category:'conquest',label:milestone+' conexoes',color:'#f59e0b',locked:true});
+      slots.push({filled:false,category:'permanent',color:'#fbbf24',locked:true,milestone:milestones[i]});
     }
   }
-  // Slot 2: Permanent
-  if(permanent[0]){
-    slots.push({filled:true,category:'permanent',label:'1000 conexoes',color:'#ef4444',star:permanent[0]});
-  }else{
-    slots.push({filled:false,category:'permanent',label:'1000 conexoes',color:'#ef4444',locked:true});
-  }
-  // Slots 3-7: Temporary (buyable)
+  // Slots 3-7: Temporary (buyable, 30-day expiry)
   for(var j=0;j<5;j++){
     if(temporary[j]){
       var daysLeft='';
@@ -14588,17 +14581,17 @@ function renderStarSlots(profileData,isOwnProfile){
         var dl=Math.ceil((temporary[j].expiresAt-Date.now())/(86400000));
         daysLeft=dl>0?dl+'d':'exp';
       }
-      slots.push({filled:true,category:'temporary',label:daysLeft||'30d',color:'#fbbf24',star:temporary[j],daysLeft:daysLeft});
+      slots.push({filled:true,category:'temporary',color:'#fbbf24',daysLeft:daysLeft});
     }else{
-      slots.push({filled:false,category:'temporary',label:'100 sc',color:'#fbbf24',buyable:isOwnProfile,slotIndex:3+j});
+      slots.push({filled:false,category:'temporary',color:'#fbbf24',buyable:isOwnProfile,slotIndex:3+j});
     }
   }
-  // Slots 8-9: Professional
+  // Slots 8-9: Professional recognition
   for(var k=0;k<2;k++){
     if(professional[k]){
-      slots.push({filled:true,category:'professional',label:'Pro',color:'#e2e8f0',star:professional[k]});
+      slots.push({filled:true,category:'professional',color:'#e2e8f0'});
     }else{
-      slots.push({filled:false,category:'professional',label:'Em breve',color:'#e2e8f0',locked:true});
+      slots.push({filled:false,category:'professional',color:'#e2e8f0',locked:true});
     }
   }
   // Render HTML — compact inline layout
@@ -14612,9 +14605,9 @@ function renderStarSlots(profileData,isOwnProfile){
     var onclick=sl.buyable?'onclick="buyStarSelf('+sl.slotIndex+')"':'';
     var tooltip='';
     if(sl.filled){
-      tooltip=sl.category==='conquest'?'Conquista: '+sl.label:sl.category==='permanent'?'Permanente: '+sl.label:sl.category==='professional'?'Profissional':('Temp'+(sl.daysLeft?' '+sl.daysLeft:''));
+      tooltip=sl.category==='permanent'?'Permanente':sl.category==='professional'?'Profissional':('Temporaria'+(sl.daysLeft?' ('+sl.daysLeft+')':''));
     }else{
-      tooltip=sl.buyable?'Comprar (100 sc)':sl.category==='conquest'?(idx===0?'100':'500')+' conexoes':sl.category==='permanent'?'1000 conexoes':'Em breve';
+      tooltip=sl.buyable?'Comprar (100 sc)':sl.category==='permanent'?(sl.milestone||'?')+' conexoes':sl.category==='professional'?'Em breve':'';
     }
     h+='<div title="'+tooltip+'" style="cursor:'+cursor+';transition:.12s;line-height:0" '+onclick+' onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'none\'">';
     h+=starSvg;
