@@ -924,14 +924,52 @@ function ensureTop1Perks() {
     db.verifications[top1.id] = { userId: top1.id, verifiedAt: Date.now(), by: 'system', type: 'top1', note: 'Auto-verified as Top 1' };
     console.log(`⭐ Top 1 auto-verified: ${top1.nickname}`);
   }
-  // Grant 50 stars if they don't have them yet
+  // Top 1 special: 10 permanent profile stars + 50 donation pool
   if (!top1.stars) top1.stars = [];
-  if (top1.stars.length < 50) {
-    const needed = 50 - top1.stars.length;
+  // Ensure 10 permanent profile stars (3 permanent + 5 temp-as-permanent + 2 professional)
+  const profileStars = top1.stars.filter(s => s.category && s.category !== 'donation_pool');
+  if (profileStars.length < 10) {
+    // Clear and rebuild profile stars
+    top1.stars = top1.stars.filter(s => s.category === 'donation_pool');
+    const categories = [
+      { category: 'permanent', label: '100 conexoes' },
+      { category: 'permanent', label: '500 conexoes' },
+      { category: 'permanent', label: '1000 conexoes' },
+      { category: 'temporary', label: 'top1' },
+      { category: 'temporary', label: 'top1' },
+      { category: 'temporary', label: 'top1' },
+      { category: 'temporary', label: 'top1' },
+      { category: 'temporary', label: 'top1' },
+      { category: 'professional', label: 'top1' },
+      { category: 'professional', label: 'top1' },
+    ];
+    categories.forEach((c, i) => {
+      top1.stars.push({
+        id: 'top1_profile_' + i,
+        from: 'system',
+        reason: 'top1_perk',
+        category: c.category,
+        label: c.label,
+        permanent: true, // Top 1 stars never expire
+        timestamp: Date.now() - i * 1000
+      });
+    });
+    console.log('Top 1 profile stars set to 10: ' + top1.nickname);
+  }
+  // Ensure donation pool of 50
+  const donationPool = top1.stars.filter(s => s.category === 'donation_pool');
+  if (donationPool.length < 50) {
+    const needed = 50 - donationPool.length;
     for (let i = 0; i < needed; i++) {
-      top1.stars.push({ from: 'system', reason: 'top1_perk', timestamp: Date.now() - i * 1000 });
+      top1.stars.push({
+        id: 'top1_pool_' + Date.now() + '_' + i,
+        from: 'system',
+        reason: 'top1_perk',
+        category: 'donation_pool',
+        timestamp: Date.now() - i * 1000
+      });
     }
-    console.log(`⭐ Top 1 granted ${needed} stars (total: 50): ${top1.nickname}`);
+    console.log('Top 1 donation pool replenished (+' + needed + '): ' + top1.nickname);
   }
   // Also set isAdmin for Top 1
   if (!top1.isAdmin) {
@@ -1928,9 +1966,8 @@ const DEFAULT_GAME_CONFIG = {
   // Score is a CURRENCY (no decay) — spent to buy stars
   pointDecayDays: 0,              // 0 = no decay, score accumulates forever
 
-  // Star earning — milestones (conquest stars)
-  milestoneStars: [100, 500],     // Unique connections that earn conquest stars
-  permanentStarMilestone: 1000,   // Unique connections for permanent star
+  // Star earning — milestones (all 3 are permanent, equal)
+  milestoneStars: [100, 500, 1000], // Unique connections that earn permanent stars
 
   // Star earning — streak (different days with same person)
   daysTogetherPerStar: 5,         // Every N different days with same person = 1 star to donate
@@ -1940,9 +1977,8 @@ const DEFAULT_GAME_CONFIG = {
 
   // Star limits
   maxStarsTotal: 10,              // Max total stars per person (except Top 1)
-  maxTempStars: 5,                // Max temporary stars (slots 4-8)
-  maxConquestStars: 2,            // Slots 1-2 (100 and 500 connections)
-  maxPermanentStars: 1,           // Slot 3 (1000 connections)
+  maxTempStars: 5,                // Max temporary (buyable) stars (slots 4-8)
+  maxPermanentStars: 3,           // Slots 1-3 (100, 500, 1000 connections) — all equal, all permanent
   maxProfessionalStars: 2,        // Slots 9-10 (ouro branco, professional recognition)
   tempStarDurationDays: 30,       // Temporary stars expire after N days
 
@@ -2062,18 +2098,20 @@ function getStarBonusMultiplier(otherUserId) {
 }
 
 // Count stars by category for a user
+// conquest and permanent are now unified as "permanent" (all milestone stars are equal)
 function getStarBreakdown(userId) {
   const user = db.users[userId];
-  if (!user) return { conquest: 0, permanent: 0, temporary: 0, professional: 0, total: 0 };
+  if (!user) return { permanent: 0, temporary: 0, professional: 0, total: 0, profileTotal: 0 };
   const stars = user.stars || [];
-  let conquest = 0, permanent = 0, temporary = 0, professional = 0;
+  let permanent = 0, temporary = 0, professional = 0;
   for (const s of stars) {
-    if (s.category === 'conquest') conquest++;
-    else if (s.category === 'permanent') permanent++;
+    if (s.category === 'donation_pool') continue; // Top 1 donation pool, not counted in profile
+    if (s.category === 'conquest' || s.category === 'permanent') permanent++;
     else if (s.category === 'professional') professional++;
-    else temporary++; // default category for existing/purchased/donated stars
+    else temporary++;
   }
-  return { conquest, permanent, temporary, professional, total: stars.length };
+  const profileTotal = permanent + temporary + professional;
+  return { permanent, temporary, professional, total: stars.length, profileTotal };
 }
 
 function calcRawScore(userId) {
@@ -2185,51 +2223,32 @@ function checkStarEligibility(userAId, userBId) {
     }
   }
 
-  // 2. Conquest stars (automatic, not donated) — 100 and 500 unique connections
-  const milestones = cfg.milestoneStars || [100, 500];
+  // 2. Permanent stars — auto-awarded at 100, 500, 1000 unique connections (all equal, all permanent)
+  const milestones = cfg.milestoneStars || [100, 500, 1000];
   [userAId, userBId].forEach(uid => {
     const u = db.users[uid];
     const uniqueConns = getUniqueConnections(uid);
     u.touchers = uniqueConns;
     if (!u.stars) u.stars = [];
 
-    // Check each conquest milestone
+    // Check each milestone (all grant permanent stars, no distinction)
     if (!u._conquestMilestones) u._conquestMilestones = [];
     for (const milestone of milestones) {
       if (uniqueConns >= milestone && !u._conquestMilestones.includes(milestone)) {
         u._conquestMilestones.push(milestone);
-        // Auto-award conquest star (not donated, kept by user)
         const starId = uuidv4();
         u.stars.push({
-          id: starId, from: 'system', fromName: 'Conquista',
-          donatedAt: Date.now(), type: 'conquest', category: 'conquest',
+          id: starId, from: 'system', fromName: 'Permanente',
+          donatedAt: Date.now(), type: 'permanent', category: 'permanent',
           milestone: milestone, reason: milestone + ' conexoes unicas'
         });
         io.to('user:' + uid).emit('star-earned', {
-          reason: 'conquest', context: milestone + ' conexoes unicas!',
+          reason: 'permanent', context: milestone + ' conexoes unicas! Estrela permanente!',
           totalEarned: u.stars.length
         });
         recalcAllTopTags();
         saveDB('users');
       }
-    }
-
-    // 3. Permanent star — 1000 unique connections
-    const permMilestone = cfg.permanentStarMilestone || 1000;
-    if (uniqueConns >= permMilestone && !u._permanentStarAwarded) {
-      u._permanentStarAwarded = true;
-      const starId = uuidv4();
-      u.stars.push({
-        id: starId, from: 'system', fromName: 'Permanente',
-        donatedAt: Date.now(), type: 'permanent', category: 'permanent',
-        reason: permMilestone + ' conexoes unicas'
-      });
-      io.to('user:' + uid).emit('star-earned', {
-        reason: 'permanent', context: permMilestone + ' conexoes unicas! Estrela permanente!',
-        totalEarned: u.stars.length
-      });
-      recalcAllTopTags();
-      saveDB('users');
     }
   });
 }
@@ -4203,13 +4222,13 @@ app.post('/api/star/buy', (req, res) => {
   const recipientUser = db.users[recipientId];
   if (!recipientUser.stars) recipientUser.stars = [];
 
-  // Check max 10 stars total
-  if (recipientUser.stars.length >= cfg.maxStarsTotal) {
+  // Check max 10 profile stars total (excludes Top 1 donation pool)
+  const breakdown = getStarBreakdown(recipientId);
+  if (breakdown.profileTotal >= cfg.maxStarsTotal) {
     return res.status(400).json({ error: 'Limite de ' + cfg.maxStarsTotal + ' estrelas atingido.' });
   }
 
   // Check max temporary stars (5)
-  const breakdown = getStarBreakdown(recipientId);
   if (breakdown.temporary >= cfg.maxTempStars) {
     return res.status(400).json({ error: 'Limite de ' + cfg.maxTempStars + ' estrelas temporarias atingido.' });
   }
@@ -4263,18 +4282,19 @@ app.get('/api/star/shop/:userId', (req, res) => {
   const spendable = rawScore - (user.pointsSpent || 0);
   const breakdown = getStarBreakdown(req.params.userId);
   const uniqueConns = getUniqueConnections(req.params.userId);
-  const canBuyTemp = breakdown.temporary < cfg.maxTempStars && breakdown.total < cfg.maxStarsTotal;
+  const canBuyTemp = breakdown.temporary < cfg.maxTempStars && breakdown.profileTotal < cfg.maxStarsTotal;
   res.json({
     spendablePoints: Math.round(spendable),
+    fixedPrice: cfg.starPriceFixed,
     cost: cfg.starPriceFixed,
     canBuy: canBuyTemp && spendable >= cfg.starPriceFixed,
     canBuyTemp,
     breakdown,
     uniqueConnections: uniqueConns,
     milestones: cfg.milestoneStars,
-    permanentMilestone: cfg.permanentStarMilestone,
     maxTotal: cfg.maxStarsTotal,
     maxTemp: cfg.maxTempStars,
+    maxTempStars: cfg.maxTempStars,
     tempDurationDays: cfg.tempStarDurationDays
   });
 });
@@ -4291,23 +4311,29 @@ app.get('/api/stars/available/:userId', (req, res) => {
 app.get('/api/stars/ranking', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
   const users = Object.values(db.users)
-    .filter(u => (u.stars || []).length > 0)
-    .map(u => ({
-      id: u.id,
-      nickname: u.nickname || u.name || '?',
-      color: u.color,
-      photoURL: u.photoURL || null,
-      avatarAccessory: u.avatarAccessory || null,
-      stars: (u.stars || []).length,
-      breakdown: getStarBreakdown(u.id),
-      topTag: u.topTag || null,
-      isSubscriber: !!u.isSubscriber,
-      verified: !!u.verified
-    }))
+    .filter(u => {
+      const bd = getStarBreakdown(u.id);
+      return bd.profileTotal > 0;
+    })
+    .map(u => {
+      const bd = getStarBreakdown(u.id);
+      return {
+        userId: u.id,
+        nickname: u.nickname || u.name || '?',
+        color: u.color,
+        photoURL: u.photoURL || null,
+        avatarAccessory: u.avatarAccessory || null,
+        stars: bd.profileTotal, // Only profile stars (not donation pool)
+        breakdown: bd,
+        topTag: u.topTag || null,
+        isSubscriber: !!u.isSubscriber,
+        verified: !!u.verified
+      };
+    })
     .sort((a, b) => b.stars - a.stars)
     .slice(0, limit);
   const total = Object.values(db.users).length;
-  const withStars = Object.values(db.users).filter(u => (u.stars || []).length > 0).length;
+  const withStars = users.length;
   res.json({ ranking: users, totalUsers: total, usersWithStars: withStars });
 });
 
@@ -4322,47 +4348,46 @@ app.get('/api/stars/profile/:userId', (req, res) => {
   const spendable = rawScore - (user.pointsSpent || 0);
 
   // Build 10 slots with status
+  // All milestone stars (conquest + permanent) are now unified as "permanent"
   const slots = [];
-  const stars = user.stars || [];
-  const conquestStars = stars.filter(s => s.category === 'conquest').sort((a, b) => (a.milestone || 0) - (b.milestone || 0));
-  const permanentStars = stars.filter(s => s.category === 'permanent');
-  const tempStars = stars.filter(s => !s.category || s.category === 'temporary').sort((a, b) => (a.donatedAt || 0) - (b.donatedAt || 0));
+  const stars = (user.stars || []).filter(s => s.category !== 'donation_pool');
+  const permStars = stars.filter(s => s.category === 'conquest' || s.category === 'permanent')
+    .sort((a, b) => (a.milestone || 0) - (b.milestone || 0));
+  const tempStars = stars.filter(s => !s.category || s.category === 'temporary')
+    .filter(s => !s.permanent) // Exclude Top 1 permanent-temp stars for sorting
+    .sort((a, b) => (a.donatedAt || 0) - (b.donatedAt || 0));
+  // Top 1 permanent "temporary" stars (they never expire)
+  const top1TempStars = stars.filter(s => s.category === 'temporary' && s.permanent);
+  const allTempStars = [...top1TempStars, ...tempStars];
   const profStars = stars.filter(s => s.category === 'professional');
 
-  // Slot 1-2: Conquest (100, 500)
-  const milestones = cfg.milestoneStars || [100, 500];
-  for (let i = 0; i < 2; i++) {
-    const star = conquestStars[i];
+  // Slots 0-2: Permanent (100, 500, 1000 connections) — all equal
+  const milestones = cfg.milestoneStars || [100, 500, 1000];
+  for (let i = 0; i < 3; i++) {
+    const star = permStars[i];
     slots.push({
-      index: i, category: 'conquest', color: 'gold',
+      index: i, category: 'permanent', color: 'gold',
       filled: !!star, milestone: milestones[i] || (i + 1) * 100,
       progress: Math.min(uniqueConns, milestones[i] || 100),
       star: star || null
     });
   }
 
-  // Slot 3: Permanent (1000)
-  const permStar = permanentStars[0];
-  slots.push({
-    index: 2, category: 'permanent', color: 'gold',
-    filled: !!permStar, milestone: cfg.permanentStarMilestone || 1000,
-    progress: Math.min(uniqueConns, cfg.permanentStarMilestone || 1000),
-    star: permStar || null
-  });
-
-  // Slots 4-8: Temporary (buyable)
+  // Slots 3-7: Temporary (buyable, 30-day expiry)
   for (let i = 0; i < 5; i++) {
-    const star = tempStars[i];
+    const star = allTempStars[i];
+    const isPermanentTemp = star && star.permanent; // Top 1 temp stars never expire
     slots.push({
       index: 3 + i, category: 'temporary', color: 'gold',
-      filled: !!star, cost: cfg.starPriceFixed, canBuy: !star && spendable >= cfg.starPriceFixed,
-      expiresAt: star ? star.expiresAt : null,
-      daysLeft: star && star.expiresAt ? Math.max(0, Math.ceil((star.expiresAt - Date.now()) / 86400000)) : null,
+      filled: !!star, cost: cfg.starPriceFixed,
+      canBuy: !star && spendable >= cfg.starPriceFixed,
+      expiresAt: star && !isPermanentTemp ? star.expiresAt : null,
+      daysLeft: star && star.expiresAt && !isPermanentTemp ? Math.max(0, Math.ceil((star.expiresAt - Date.now()) / 86400000)) : null,
       star: star || null
     });
   }
 
-  // Slots 9-10: Professional recognition (ouro branco)
+  // Slots 8-9: Professional recognition (ouro branco)
   for (let i = 0; i < 2; i++) {
     const star = profStars[i];
     slots.push({
@@ -4375,6 +4400,7 @@ app.get('/api/stars/profile/:userId', (req, res) => {
     userId: req.params.userId,
     slots,
     breakdown,
+    totalStars: breakdown.profileTotal,
     uniqueConnections: uniqueConns,
     score: Math.round(spendable),
     totalScore: Math.round(rawScore),
