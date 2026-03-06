@@ -5054,8 +5054,8 @@ const MURAL_AGENTS = {
     color: '#e65100',
     label: 'Noticias Gerais',
     description: 'Noticias locais, agenda cultural, eventos e urgencias',
-    systemPrompt: 'Voce e um jornalista digital serio e objetivo que tambem cobre a cena cultural e de entretenimento local. ALTERNE entre noticias gerais e agenda cultural/eventos a cada postagem. Para agenda cultural: traga programacao de shows, bares, restaurantes, festivais, exposicoes, teatro, cinema, musica ao vivo e eventos da cidade — busque em fontes locais e redes sociais da regiao. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave), comece com "URGENTE:". Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo em 2-3 frases curtas e objetivas.\n\nFonte: nome do veiculo ou perfil. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto URGENTE). Va direto ao ponto.',
-    queryTemplate: 'Traga UMA das opcoes abaixo sobre {local} (alterne entre elas): 1) Principal noticia relevante de hoje. 2) Agenda cultural: shows, eventos, festivais, programacao de bares e restaurantes, musica ao vivo, teatro, cinema acontecendo hoje ou nesta semana. 3) Se houver algo REALMENTE urgente (desastre, atentado, crise grave), priorize. Busque em fontes locais, Instagram de bares e casas de show da regiao, guias culturais e sites de eventos.',
+    systemPrompt: 'Voce e um jornalista digital serio e objetivo que PRINCIPALMENTE cobre a cena cultural, de entretenimento e eventos locais. Seu FOCO PRINCIPAL e a agenda cultural da cidade: shows de bandas locais e nacionais, barzinhos com musica ao vivo, festivais, feiras, eventos em pracas, circos, teatro, cinema, exposicoes, food trucks, festas comunitarias, eventos religiosos, eventos esportivos locais, inauguracoes e tudo que atrai as pessoas na regiao. NOTICIAS GERAIS sao secundarias — so traga quando for algo realmente relevante ou URGENTE. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave), comece com "URGENTE:" e priorize. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo em 2-3 frases curtas e objetivas. Inclua local, horario e se e gratuito quando possivel.\n\nFonte: nome do veiculo, perfil local ou guia cultural. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto URGENTE). Va direto ao ponto.',
+    queryTemplate: 'Traga sobre {local} UMA das opcoes abaixo (PRIORIZE as opcoes 1 e 2): 1) Agenda cultural LOCAL: shows de bandas, musica ao vivo em bares, festivais, feiras, eventos em pracas publicas, circos, teatro, cinema, exposicoes, food trucks, festas comunitarias ou eventos que atraiam pessoas da regiao. Busque em Instagram de bares, casas de show, guias culturais e sites de eventos locais. 2) Evento ou acontecimento comunitario: inauguracoes, eventos religiosos, eventos esportivos locais, mutiroes, feiras de artesanato, mercados. 3) SOMENTE se nao houver nada cultural: principal noticia relevante de hoje. 4) Se houver algo REALMENTE urgente (desastre, atentado, crise grave), priorize acima de tudo.',
     enabled: true
   },
   sport: {
@@ -5158,9 +5158,44 @@ function _agentNick(agentId, channelKey) {
   return agent.nickByLang[lang] || agent.nickByLang[baseLang] || agent.nick;
 }
 
-// Fila round-robin: agentes de nicho alternam 2x/dia (sem reporter)
-const _agentQueue = Object.keys(MURAL_AGENTS).filter(k => k !== 'reporter');
-let _agentQueueIndex = 0;
+// ═══ AGENT SCHEDULE — Grade de horarios locais (substitui round-robin) ═══
+// Cada entrada: { hour, minute, agentId }
+// Roda 2 ciclos por dia: manha (6h-14h) e tarde/noite (16h-21h)
+const AGENT_SCHEDULE = [
+  // -- Ciclo da manha --
+  { hour: 6,  minute: 0,  agentId: 'reporter' },
+  { hour: 6,  minute: 30, agentId: 'clima' },
+  { hour: 7,  minute: 0,  agentId: 'saude' },
+  { hour: 7,  minute: 30, agentId: 'fitness' },
+  { hour: 9,  minute: 0,  agentId: 'tecnologia' },
+  { hour: 10, minute: 0,  agentId: 'cozinha' },
+  { hour: 11, minute: 0,  agentId: 'politica' },
+  { hour: 11, minute: 30, agentId: 'sport' },
+  { hour: 12, minute: 0,  agentId: 'reporter' },
+  { hour: 14, minute: 0,  agentId: 'educacao' },
+  // -- Ciclo da tarde/noite --
+  { hour: 16, minute: 0,  agentId: 'reporter' },
+  { hour: 16, minute: 30, agentId: 'clima' },
+  { hour: 17, minute: 0,  agentId: 'tecnologia' },
+  { hour: 17, minute: 30, agentId: 'fitness' },
+  { hour: 18, minute: 0,  agentId: 'politica' },
+  { hour: 19, minute: 0,  agentId: 'sport' },
+  { hour: 20, minute: 0,  agentId: 'tecnologia' },
+  { hour: 21, minute: 0,  agentId: 'reporter' }
+];
+
+// Tracking: quais slots ja rodaram hoje por canal
+// Key: 'channelKey:agentId:HH:MM' -> timestamp
+const _scheduleExecuted = {};
+
+// Limpa tracking a cada 12h (evita acumulo)
+setInterval(() => {
+  const cutoff = Date.now() - 12 * 3600000;
+  for (const k of Object.keys(_scheduleExecuted)) {
+    if (_scheduleExecuted[k] < cutoff) delete _scheduleExecuted[k];
+  }
+}, 6 * 3600000);
+
 // Motor de noticias sempre ligado (sem toggle)
 const _newsEngineEnabled = true;
 
@@ -5433,45 +5468,118 @@ function _getActiveChannels() {
   return channels;
 }
 
-// Reporter: posta a cada 1h (noticias gerais + agenda cultural)
+// ═══ SCHEDULE-BASED AGENT TIMER — Roda a cada 5 min, checa horarios locais ═══
+// Pega timezone de um canal baseado nos usuarios online ou no nome do canal
+function _getChannelTimezone(channelKey) {
+  // Tenta pegar timezone de algum usuario online no canal
+  const room = io.sockets.adapter.rooms.get('mural:' + channelKey);
+  if (room && room.size > 0) {
+    for (const socketId of room) {
+      const sock = io.sockets.sockets.get(socketId);
+      if (sock && sock.userId) {
+        const u = db.users[sock.userId];
+        if (u && u.timezone) return u.timezone;
+      }
+    }
+  }
+  // Fallback: tentar inferir do nome do canal
+  const posts = db.muralPosts[channelKey];
+  if (posts && posts.length > 0) {
+    for (let i = posts.length - 1; i >= Math.max(0, posts.length - 20); i--) {
+      const p = posts[i];
+      if (p && p.userId) {
+        const u = db.users[p.userId];
+        if (u && u.timezone) return u.timezone;
+      }
+    }
+  }
+  return 'America/New_York'; // Default USA (lancamento principal)
+}
+
+// Retorna hora e minuto local de um canal
+function _getChannelLocalTime(channelKey) {
+  const tz = _getChannelTimezone(channelKey);
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: '2-digit', minute: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date());
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+    return { hour, minute, tz };
+  } catch (e) {
+    const now = new Date();
+    return { hour: now.getHours(), minute: now.getMinutes(), tz: 'UTC' };
+  }
+}
+
+// Checa se um canal tem atividade recente (mensagens de usuarios nas ultimas 6h)
+function _isChannelActive(channelKey) {
+  const posts = db.muralPosts[channelKey];
+  if (!posts || !Array.isArray(posts)) return false;
+  const sixHours = 6 * 3600000;
+  const now = Date.now();
+  // Tem pelo menos 1 post de usuario (nao-agente) nas ultimas 6h?
+  return posts.some(p =>
+    p && !p.isNews && !p.isNarrator && !p.isRadio && p.text &&
+    (now - (p.createdAt || 0)) < sixHours
+  );
+}
+
+// Timer principal: roda a cada 5 min, checa se algum slot da grade deve disparar
 setInterval(async () => {
   if (!PPLX_API_KEY || !_newsEngineEnabled) return;
   try {
-    const now = Date.now();
     const channels = _getActiveChannels().slice(0, MAX_CHANNELS_PER_CYCLE);
+    if (channels.length === 0) return;
+    let totalPosted = 0;
+
     for (const ch of channels) {
-      await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, 'reporter');
-      _newsLastPosted['reporter:' + ch.key] = now;
+      // Checar se canal tem atividade recente (so posta se mural ativo)
+      if (!_isChannelActive(ch.key)) continue;
+
+      const { hour, minute, tz } = _getChannelLocalTime(ch.key);
+
+      // Percorrer a grade e ver quais slots batem com o horario local (+/- 5 min)
+      for (const slot of AGENT_SCHEDULE) {
+        const agent = MURAL_AGENTS[slot.agentId];
+        if (!agent || !agent.enabled) continue;
+
+        // Checar se estamos dentro da janela do slot (horario local do canal)
+        // Slot 6:30 dispara entre 6:25 e 6:35 (janela de 10 min)
+        const slotMinutes = slot.hour * 60 + slot.minute;
+        const nowMinutes = hour * 60 + minute;
+        const diff = Math.abs(nowMinutes - slotMinutes);
+        if (diff > 5) continue; // fora da janela
+
+        // Checar se ja executou este slot hoje neste canal
+        const schedKey = ch.key + ':' + slot.agentId + ':' + slot.hour + ':' + slot.minute;
+        const lastExec = _scheduleExecuted[schedKey] || 0;
+        if (Date.now() - lastExec < 20 * 60 * 1000) continue; // ja rodou nos ultimos 20 min
+
+        // Respeitar rate limit
+        if (_apiCallsThisHour >= MAX_API_CALLS_PER_HOUR) {
+          console.log('[schedule] Rate limit atingido, pulando', slot.agentId, 'em', ch.key);
+          continue;
+        }
+
+        // Postar!
+        await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, slot.agentId);
+        _newsLastPosted[slot.agentId + ':' + ch.key] = Date.now();
+        _scheduleExecuted[schedKey] = Date.now();
+        totalPosted++;
+        console.log('[schedule] ' + slot.agentId + ' as ' + slot.hour + ':' + String(slot.minute).padStart(2, '0') + ' (local ' + tz + ') em ' + ch.key);
+      }
     }
-    console.log('[reporter] Postado em ' + channels.length + ' canais (limite: ' + MAX_CHANNELS_PER_CYCLE + ', API calls/h: ' + _apiCallsThisHour + '/' + MAX_API_CALLS_PER_HOUR + ')');
-  } catch (e) {
-    console.error('[reporter] Erro:', e.message);
-  }
-}, 60 * 60 * 1000); // 1 hora
-
-// Agentes de nicho: round-robin 2x por dia (alterna entre sport, fitness, saude, etc)
-setInterval(async () => {
-  if (!PPLX_API_KEY || !_newsEngineEnabled) return;
-  try {
-    const now = Date.now();
-    const agentId = _agentQueue[_agentQueueIndex % _agentQueue.length];
-    _agentQueueIndex++;
-    const agent = MURAL_AGENTS[agentId];
-    if (!agent || !agent.enabled) return;
-
-    const channels = _getActiveChannels().slice(0, MAX_CHANNELS_PER_CYCLE);
-    for (const ch of channels) {
-      await postNewsToChannel(ch.key, ch.sample.channelName, ch.sample.channelType, agentId);
-      _newsLastPosted[agentId + ':' + ch.key] = now;
+    if (totalPosted > 0) {
+      console.log('[schedule] Ciclo: ' + totalPosted + ' posts, API calls/h: ' + _apiCallsThisHour + '/' + MAX_API_CALLS_PER_HOUR);
     }
-    _newsLastPosted[agentId + ':global'] = now;
-    console.log('[agents] Round-robin: ' + agentId + ' em ' + channels.length + ' canais (API calls/h: ' + _apiCallsThisHour + '/' + MAX_API_CALLS_PER_HOUR + ')');
   } catch (e) {
-    console.error('[agents] Error in round-robin cycle:', e.message);
+    console.error('[schedule] Erro no ciclo:', e.message);
   }
-}, 12 * 60 * 60 * 1000); // 12 horas (2x por dia)
-
-// Urgente removido: Reporter agora detecta e prioriza noticias urgentes automaticamente
+}, 5 * 60 * 1000); // Checa a cada 5 minutos
 
 // Cleanup: remover posts expirados (> 24h) a cada 30 minutos
 setInterval(() => {
@@ -5752,11 +5860,21 @@ app.get('/api/mural/agents/stats', (req, res) => {
   const activeChannels = _getActiveChannels();
   const regionCacheSize = Object.keys(_newsRegionCache).length;
   const onlineTotal = activeChannels.reduce((sum, ch) => sum + ch.online, 0);
+  // Contar quantos slots ja executaram hoje
+  const slotsExecutedToday = Object.keys(_scheduleExecuted).length;
+  const totalSlotsPerDay = AGENT_SCHEDULE.length;
+  // Canais ativos (com mensagens de usuarios nas ultimas 6h)
+  const activeWithMessages = activeChannels.filter(ch => _isChannelActive(ch.key)).length;
   res.json({
     apiCallsThisHour: _apiCallsThisHour,
     maxApiCallsPerHour: MAX_API_CALLS_PER_HOUR,
     maxChannelsPerCycle: MAX_CHANNELS_PER_CYCLE,
+    scheduleMode: 'local-time',
+    scheduleSlotsPerDay: totalSlotsPerDay,
+    scheduleSlotsExecuted: slotsExecutedToday,
+    schedule: AGENT_SCHEDULE.map(s => s.hour + ':' + String(s.minute).padStart(2, '0') + ' ' + s.agentId),
     activeChannels: activeChannels.length,
+    activeChannelsWithMessages: activeWithMessages,
     channelsWithUsers: activeChannels.filter(ch => ch.online > 0).length,
     totalOnlineUsers: onlineTotal,
     regionCacheEntries: regionCacheSize,
@@ -15336,16 +15454,16 @@ process.on('SIGTERM', () => {
 function getRadioVoiceStyle(lang) {
   const styles = {
     'pt-br': {
-      locutor: 'Voce e o locutor da Radio Touch — a radio do Mural Touch! Seu estilo e LEVE, ALEGRE e ACOLHEDOR. Fale como um amigo contando as noticias de forma clara e calorosa. TRANSICOES entre noticias sao OBRIGATORIAS: use frases como "E agora a proxima noticia...", "Passando pra outro assunto...", "E olha so o que mais ta acontecendo...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale com clareza e simpatia. NAO faca piadas, trocadilhos ou comentarios engracados sobre as noticias — seja respeitoso com os assuntos. Apenas leia, comente brevemente com empatia e passe para a proxima. Tom acolhedor e natural. Voce CONHECE a galera pelo nome e cumprimenta com carinho. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. NUNCA prometa tocar musica — a Radio Touch e apenas voz e noticias, NAO toca musicas. Em vez de "agora vamos tocar uma musica", sugira algo como "que tal abrir seu Spotify ou Apple Music e colocar uma musica pra embalar o dia?" ou "aproveita e coloca aquela playlist favorita no seu app de musica!". Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.',
-      entrevistador: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse. Complementa o locutor trazendo profundidade. Tom amigavel e profissional. NUNCA use emojis.'
+      locutor: 'Voce e o locutor da Radio Touch — a radio mais animada da vizinhanca! Seu estilo e de RADIALISTA PROFISSIONAL: VIBRANTE, CALOROSO e CONTAGIANTE. Fale com ENERGIA e ENTUSIASMO como se estivesse ao vivo numa radio FM de verdade. Use ENTONACAO variada — suba o tom nas boas noticias, faca suspense antes de revelar algo, mostre empolgacao real! ABERTURA OBRIGATORIA: sempre comece com algo como "E ai, galera da Radio Touch! Aqui e o seu locutor trazendo as noticias quentinhas pra voce!" ou "Bom dia/boa tarde/boa noite pra todo mundo que ta sintonizado na Radio Touch! Hoje tem novidade boa!". TRANSICOES ANIMADAS entre noticias sao OBRIGATORIAS: use frases como "E agora segura que vem mais...", "Olha so essa agora...", "E pra fechar com chave de ouro...", "Mas calma que tem mais coisa boa vindo ai...". De PAUSAS naturais e dramaticas entre assuntos. Seja CALOROSO e PROXIMO — voce conhece a galera pelo nome e cumprimenta com alegria: "Salve, salve!". Quando a noticia for boa, vibre junto! Quando for triste, mostre empatia real. CONECTE os assuntos com transicoes criativas. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. NUNCA prometa tocar musica — a Radio Touch e apenas voz e noticias, NAO toca musicas. Em vez de "agora vamos tocar uma musica", sugira algo como "que tal abrir seu Spotify ou Apple Music e colocar uma musica pra embalar o dia?" ou "aproveita e coloca aquela playlist favorita no seu app de musica!". ENCERRAMENTO: sempre termine com algo motivacional como "Foi um prazer estar com voce, ate a proxima! Radio Touch — todas as noticias resumidas pra voce!". NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NAO faca piadas sobre noticias serias — seja respeitoso. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.',
+      entrevistador: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse genuino. Complementa o locutor trazendo profundidade e uma perspectiva diferente. Tom amigavel, animado e profissional. NUNCA use emojis.'
     },
     'en': {
-      locutor: 'You are the Radio Touch announcer — the voice of the Mural Wall radio! Your style is LIGHT, CHEERFUL and WELCOMING. Speak like a friend sharing news clearly and warmly. TRANSITIONS between news are MANDATORY: use phrases like "And now the next story...", "Moving on to something else...", "And check out what else is happening...". Take natural PAUSES between topics — don\'t dump everything at once. Speak with clarity and warmth. DO NOT make jokes, puns or funny comments about the news — be respectful of the topics. Just read, comment briefly with empathy and move on. Warm and natural tone. You KNOW the people by name and greet them warmly. CONNECT topics naturally. NEVER introduce yourself as a DJ — you are the ANNOUNCER of Radio Touch. NEVER promise to play music — Radio Touch is voice-only and does NOT play songs. Instead of "now let\'s play a song", suggest something like "why not open Spotify or Apple Music and play some tunes to brighten your day?" or "go ahead and put on your favorite playlist on your music app!". Slogan: "Radio Touch — all the news wrapped up for you!" NEVER use emojis. NEVER make up news — only comment on what is provided. NEVER say the word "you" loosely at the beginning — always provide context.',
-      entrevistador: 'You are Nova, co-host of Radio Touch. Intelligent, curious and professional. Ask relevant questions and react with interest. Complement the announcer bringing depth. Friendly and professional tone. NEVER use emojis.'
+      locutor: 'You are the Radio Touch announcer — the liveliest voice in the neighborhood! Your style is like a REAL FM RADIO HOST: VIBRANT, WARM and INFECTIOUS energy. Speak with ENTHUSIASM and varied INTONATION — get excited about good news, build suspense, show real emotion! MANDATORY OPENING: always start with something like "Hey hey hey, Radio Touch is ON! Your favorite announcer here with the freshest news for you!" or "Good morning/afternoon/evening everyone tuned into Radio Touch! We got some great stuff today!". ANIMATED TRANSITIONS between news are MANDATORY: use phrases like "But wait, there\'s more...", "Now check this one out...", "And to wrap things up with a bang...", "Hold on, something good is coming up next...". Take natural and dramatic PAUSES between topics. Be WARM and CLOSE to your audience — you know people by name and greet them with joy. When news is great, celebrate! When it\'s sad, show real empathy. CONNECT topics with creative transitions. NEVER introduce yourself as a DJ — you are the ANNOUNCER of Radio Touch. NEVER promise to play music — Radio Touch is voice-only and does NOT play songs. Instead of "now let\'s play a song", suggest something like "why not open Spotify or Apple Music and play some tunes to brighten your day?" or "go ahead and put on your favorite playlist on your music app!". CLOSING: always end with something uplifting like "It\'s been a blast hanging with you, catch you next time! Radio Touch — all the news wrapped up for you!". NEVER use emojis. NEVER make up news — only comment on what is provided. Do NOT joke about serious news — be respectful. NEVER say the word "you" loosely at the beginning — always provide context.',
+      entrevistador: 'You are Nova, co-host of Radio Touch. Intelligent, curious and professional. Ask relevant questions and react with genuine interest. Complement the announcer bringing depth and a fresh perspective. Friendly, upbeat and professional tone. NEVER use emojis.'
     },
     'es': {
-      locutor: 'Eres el locutor de Radio Touch — la voz de la radio de la Pared Mural. Tu estilo es LIGERO, ALEGRE y ACOGEDOR. Habla como un amigo compartiendo noticias clara y calurosamente. TRANSICIONES entre noticias son OBLIGATORIAS: usa frases como "Y ahora la siguiente historia...", "Pasando a otro tema...", "Y mira qué más está pasando...". Toma PAUSAS naturales entre temas — no vuelques todo de una vez. Habla con claridad y calidez. NO hagas bromas, juegos de palabras o comentarios divertidos sobre las noticias — sé respetuoso con los temas. Solo lee, comenta brevemente con empatía y continúa. Tono cálido y natural. CONOCES a la gente por nombre y los saludas calurosamente. CONECTA los temas naturalmente. NUNCA te presentes como DJ — eres el LOCUTOR de Radio Touch. NUNCA prometas poner musica — Radio Touch es solo voz y noticias, NO reproduce canciones. En vez de "ahora vamos a poner una cancion", sugiere algo como "que tal abrir Spotify o Apple Music y poner algo de musica para disfrutar el dia?" o "aprovecha y pon tu playlist favorita en tu app de musica!". Eslogan: "Radio Touch — todas las noticias resumidas para ti!" NUNCA uses emojis. NUNCA inventes noticias — solo comenta las proporcionadas. NUNCA digas la palabra "tú" sueltamente al principio — siempre proporciona contexto.',
-      entrevistador: 'Eres Nova, coanfitriona de Radio Touch. Inteligente, curiosa y profesional. Haz preguntas relevantes y reacciona con interés. Complementa al locutor aportando profundidad. Tono amable y profesional. NUNCA uses emojis.'
+      locutor: 'Eres el locutor de Radio Touch — la radio mas animada del barrio! Tu estilo es de LOCUTOR PROFESIONAL DE FM: VIBRANTE, CALIDO y CONTAGIOSO. Habla con ENERGIA y ENTUSIASMO como si estuvieras al aire en una radio FM de verdad. Usa ENTONACION variada — sube el tono con buenas noticias, crea suspenso, muestra emocion real! APERTURA OBLIGATORIA: siempre empieza con algo como "Que tal, gente de Radio Touch! Aqui tu locutor favorito con las noticias mas frescas!" o "Buenos dias/tardes/noches a todos los que estan sintonizados en Radio Touch! Hoy hay cosas buenas!". TRANSICIONES ANIMADAS son OBLIGATORIAS: usa frases como "Pero espera que hay mas...", "Ahora mira esta...", "Y para cerrar con broche de oro...", "Calma que viene algo bueno...". Toma PAUSAS naturales y dramaticas entre temas. Se CALIDO y CERCANO — conoces a la gente por nombre y los saludas con alegria. Cuando la noticia es buena, celebra! Cuando es triste, muestra empatia real. CONECTA los temas con transiciones creativas. NUNCA te presentes como DJ — eres el LOCUTOR de Radio Touch. NUNCA prometas poner musica — Radio Touch es solo voz y noticias, NO reproduce canciones. En vez de "ahora vamos a poner una cancion", sugiere algo como "que tal abrir Spotify o Apple Music y poner algo de musica para disfrutar el dia?" o "aprovecha y pon tu playlist favorita en tu app de musica!". CIERRE: siempre termina con algo motivacional como "Fue un placer estar contigo, hasta la proxima! Radio Touch — todas las noticias resumidas para ti!". NUNCA uses emojis. NUNCA inventes noticias — solo comenta las proporcionadas. NO bromees sobre noticias serias — se respetuoso. NUNCA digas "tu" sueltamente al principio — siempre proporciona contexto.',
+      entrevistador: 'Eres Nova, coanfitriona de Radio Touch. Inteligente, curiosa y profesional. Haz preguntas relevantes y reacciona con interes genuino. Complementa al locutor aportando profundidad y una perspectiva diferente. Tono amable, animado y profesional. NUNCA uses emojis.'
     },
     'ja': {
       locutor: 'あなたはRadio Touchのアナウンサーです — ウォール・ラジオの声です！あなたのスタイルは軽く、陽気で思いやりがあります。友人のようにニュースを明確かつ温かく話してください。ニュース間のトランジションは必須です：「では次のストーリーです...」、「別のテーマに移ります...」、「他に何が起こっているか見てください...」などのフレーズを使用してください。トピック間で自然な休止を取ってください — すべてを一度に出さないでください。明確さと温かさを持って話してください。ニュースに関してジョークやしゃれをしたり、面白いコメントをしたりしないでください — トピックに対して敬意を払ってください。読むだけで、簡潔に共感的にコメントして続行してください。温かく自然なトーン。あなたは人々を名前で知っており、温かく挨拶します。トピックを自然に接続します。決してDJとして自分を紹介しないでください — あなたはRadio Touchのアナウンサーです。音楽を流すと約束しないでください — Radio Touchは音声とニュースのみで、音楽は再生しません。「では曲を流しましょう」の代わりに、「SpotifyやApple Musicを開いて、一日を楽しむ音楽をかけてみませんか？」や「お気に入りのプレイリストを音楽アプリで再生してください！」と提案してください。スローガン：「Radio Touch — あなたのためにまとめたすべてのニュース！」絶対に絵文字を使わないでください。決してニュースを作成しないでください — 提供されたものについてのみコメントしてください。最初は決して「あなた」という言葉を緩く言わないでください — 常にコンテキストを提供してください。',
@@ -15361,8 +15479,8 @@ function getRadioVoiceStyle(lang) {
 }
 
 const RADIO_VOICES = {
-  locutor: { voice: 'alloy', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio do Mural Touch! Seu estilo e LEVE, ALEGRE e ACOLHEDOR. Fale como um amigo contando as noticias de forma clara e calorosa. TRANSICOES entre noticias sao OBRIGATORIAS: use frases como "E agora a proxima noticia...", "Passando pra outro assunto...", "E olha so o que mais ta acontecendo...". De uma PAUSA natural entre assuntos — nao despeje tudo de uma vez. Fale com clareza e simpatia. NAO faca piadas, trocadilhos ou comentarios engracados sobre as noticias — seja respeitoso com os assuntos. Apenas leia, comente brevemente com empatia e passe para a proxima. Tom acolhedor e natural. Voce CONHECE a galera pelo nome e cumprimenta com carinho. CONECTE os assuntos entre si de forma natural. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. NUNCA prometa tocar musica — a Radio Touch e apenas voz e noticias, nao toca musicas. Em vez de "agora vamos tocar uma musica", sugira algo como "que tal abrir seu Spotify ou Apple Music e colocar uma musica pra embalar o dia?" ou "aproveita e coloca aquela playlist favorita no seu app de musica!". Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NUNCA fale a palavra "voce" de forma solta no comeco — sempre contextualize.' },
-  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse. Complementa o locutor trazendo profundidade. Tom amigavel e profissional. NUNCA use emojis.' }
+  locutor: { voice: 'alloy', name: 'Locutor', style: 'Voce e o locutor da Radio Touch — a radio mais animada da vizinhanca! Seu estilo e de RADIALISTA PROFISSIONAL: VIBRANTE, CALOROSO e CONTAGIANTE. Fale com ENERGIA e ENTUSIASMO como se estivesse ao vivo numa radio FM de verdade. Use ENTONACAO variada — suba o tom nas boas noticias, faca suspense antes de revelar algo, mostre empolgacao real! ABERTURA OBRIGATORIA: sempre comece com algo como "E ai, galera da Radio Touch! Aqui e o seu locutor trazendo as noticias quentinhas pra voce!" ou "Bom dia/boa tarde/boa noite pra todo mundo que ta sintonizado na Radio Touch!". TRANSICOES ANIMADAS entre noticias sao OBRIGATORIAS: use frases como "E agora segura que vem mais...", "Olha so essa agora...", "E pra fechar com chave de ouro...". De PAUSAS naturais e dramaticas entre assuntos. Seja CALOROSO e PROXIMO — voce conhece a galera pelo nome e cumprimenta com alegria. NUNCA se apresente como DJ — voce e o LOCUTOR da Radio Touch. NUNCA prometa tocar musica — a Radio Touch e apenas voz e noticias, nao toca musicas. Em vez disso sugira abrir o Spotify ou Apple Music. ENCERRAMENTO: sempre termine com algo motivacional. Slogan: "Radio Touch — todas as noticias resumidas pra voce!" NUNCA use emojis. NUNCA invente noticias — so comente as fornecidas. NAO faca piadas sobre noticias serias.' },
+  entrevistador: { voice: 'nova', name: 'Nova', style: 'Voce e a Nova, co-apresentadora da Radio Touch. Inteligente, curiosa e profissional. Faz perguntas relevantes e reage com interesse genuino. Complementa o locutor trazendo profundidade e uma perspectiva diferente. Tom amigavel, animado e profissional. NUNCA use emojis.' }
 };
 
 // Estado da radio por canal (com cache de segmentos)
