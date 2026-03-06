@@ -2737,7 +2737,10 @@ app.get('/api/relations/:userId', (req, res) => {
       lastMessagePreview: lastMsg ? (lastMsg.type === 'ephemeral' ? '✨ ' + (lastMsg.text || '').slice(0, 40) : (lastMsg.text || '').startsWith('[game-invite:') ? 'Convite para jogar' : (lastMsg.text || '').slice(0, 40)) : null,
       lastMessageUserId: lastMsg ? lastMsg.userId : null,
       partnerVerified: isEvent ? !!(evObj && evObj.verified) : !!(p && p.verified),
-      partnerAccessory: isEvent ? null : (p?.avatarAccessory || null)
+      partnerAccessory: isEvent ? null : (p?.avatarAccessory || null),
+      eventLogo: isEvent && evObj ? proxyStorageUrl(evObj.eventLogo || null) : null,
+      eventModules: isEvent && evObj ? (evObj.modules || null) : null,
+      eventAcceptsTips: isEvent && evObj ? !!evObj.acceptsTips : false
     };
   });
   // Sort by last message time descending (most recent first)
@@ -6452,10 +6455,17 @@ app.get('/api/events/nearby', (req, res) => {
     if (e.endsAt < now) return false;
     const dist = haversine(lat, lng, e.lat, e.lng);
     return dist <= radius;
-  }).map(e => ({
-    ...e, distance: Math.round(haversine(lat, lng, e.lat, e.lng)),
-    participantCount: e.participants.length
-  })).sort((a, b) => a.distance - b.distance);
+  }).map(e => {
+    // Enrich with operator event data (modules, logo, tips)
+    const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.eventId === e.id) : null;
+    return {
+      ...e, distance: Math.round(haversine(lat, lng, e.lat, e.lng)),
+      participantCount: e.participants.length,
+      modules: opEv ? (opEv.modules || {}) : {},
+      eventLogo: opEv ? proxyStorageUrl(opEv.eventLogo || null) : null,
+      acceptsTips: opEv ? !!opEv.acceptsTips : false
+    };
+  }).sort((a, b) => a.distance - b.distance);
   res.json(events);
 });
 
@@ -6487,7 +6497,16 @@ app.get('/api/event/:eventId', (req, res) => {
     const u = db.users[pid];
     return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length, verified: !!u.verified } : null;
   }).filter(Boolean);
-  res.json({ ...ev, participantsData: participants });
+  // Include operator event data (modules, logo, etc) for enriched detail
+  const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.eventId === req.params.eventId) : null;
+  const enriched = { ...ev, participantsData: participants };
+  if (opEv) {
+    enriched.modules = opEv.modules || {};
+    enriched.eventLogo = proxyStorageUrl(opEv.eventLogo || null);
+    enriched.acceptsTips = !!opEv.acceptsTips;
+    enriched.businessProfile = opEv.businessProfile || null;
+  }
+  res.json(enriched);
 });
 
 // Digital encosta REQUEST — needs acceptance from the other person
