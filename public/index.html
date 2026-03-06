@@ -11712,13 +11712,15 @@ function initConstCanvas(){
         ctx.fillText('Vamos jogar?',ix+is+3,iy+.5);
         ctx.restore();
       }
-      // Label — show nickname only (real name only if revealed)
+      // Label — show nickname only (real name only if revealed) + country flag
       if(r>3){
         const label=n._revealed?(n.realName||n.nickname):n.nickname;
+        const flagPfx=(n.country&&COUNTRY_FLAGS[n.country])?COUNTRY_FLAGS[n.country]+' ':'';
+        const fullLabel=flagPfx+(label.length>12?label.slice(0,11)+'…':label);
         const fontSize=Math.max(6,Math.min(11,8*scale));
         ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*(0.35+n.intensity*0.35)).toFixed(2)+')';
         ctx.font='500 '+fontSize+'px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-        ctx.fillText(label.length>12?label.slice(0,11)+'…':label,sx,sy+r+4);
+        ctx.fillText(fullLabel,sx,sy+r+4);
         if(n.encounters>1&&r>6){
           ctx.fillStyle='rgba(255,255,255,'+(depthAlpha*0.2).toFixed(2)+')';ctx.font=(Math.max(5,Math.min(9,6*scale)))+'px Inter,sans-serif';
           ctx.fillText(n.encounters+'x',sx,sy+r+4+fontSize+2);
@@ -14706,14 +14708,20 @@ async function loadRankTab(tab){
     var data=await r.json();
     _rankData=data;
     var list=data.ranking||[];
-    // Privacy: for friends tab, show real name if revealed; world tab always nickname
-    var myRevealed=(typeof state!=='undefined'&&state.revealedIds)?state.revealedIds:{};
+    // Privacy: world = always nick + silhouette; friends = real name + photo only if revealed
     list.forEach(function(u){
       u._displayName=u.nickname||'???';
-      if(tab==='friends'&&myRevealed[u.userId]){
-        var rv=myRevealed[u.userId];
-        if(rv.realName||rv.name)u._displayName=rv.realName||rv.name;
+      u._showPhoto=false;
+      u._photoURL=null;
+      if(tab==='friends'){
+        // Server already sends realName/photoURL only for revealed friends
+        if(u.revealed&&u.realName)u._displayName=u.realName;
+        if(u.revealed&&u.photoURL){u._showPhoto=true;u._photoURL=u.photoURL;}
+        // Self always shows own photo
+        if(u.isMe&&state.userPhoto){u._showPhoto=true;u._photoURL=state.userPhoto;}
       }
+      // Flag emoji
+      u._flag=(u.country&&COUNTRY_FLAGS[u.country])?COUNTRY_FLAGS[u.country]:null;
     });
     // Build stats: count per star level
     var levelCounts={};
@@ -14753,10 +14761,11 @@ async function loadRankTab(tab){
         starIcons+='<svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
       }
       var topLabel=u.topTag?'<span style="font-size:.55rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:2px 4px;border-radius:3px;margin-left:4px">'+u.topTag.toUpperCase()+'</span>':'';
+      var flagHtml=u._flag?'<span style="font-size:.7rem;margin-right:2px">'+u._flag+'</span>':'';
       var isMe=u.userId===(typeof state!=='undefined'?state.userId:'')||u.isMe;
       html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.45rem .4rem;border-bottom:1px solid rgba(255,255,255,.03);'+(isMe?'background:rgba(251,191,36,.05);border-radius:6px;border:1px solid rgba(251,191,36,.08)':'')+'">';
       html+=medal;
-      html+='<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+u._displayName+topLabel+(isMe?' <span style="font-size:.55rem;color:var(--ac)">(voce)</span>':'')+'</div>';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+flagHtml+u._displayName+topLabel+(isMe?' <span style="font-size:.55rem;color:var(--ac)">(voce)</span>':'')+'</div>';
       html+='<div style="display:flex;gap:1px;margin-top:2px">'+starIcons+'</div></div>';
       html+='<div style="font-size:.9rem;font-weight:800;color:#fbbf24">'+u.stars+'</div>';
       html+='</div>';
@@ -14795,11 +14804,12 @@ function initRankCanvas(list,tab){
       orbits.push({u:u,lv:lv,orbitR:orbitR,angle:angle,speed:0.08+Math.random()*0.04,people:people.length});
     });
   }
-  // Preload images
+  // Preload images — only for revealed friends (privacy)
   orbits.forEach(function(o){
-    if(o.u.photoURL){
+    if(o.u._showPhoto&&o.u._photoURL){
       var img=new Image();
-      img.src=o.u.photoURL;
+      img.crossOrigin='anonymous';
+      img.src=o.u._photoURL;
       o._img=img;o._imgLoaded=false;
       img.onload=function(){o._imgLoaded=true;};
       img.onerror=function(){o._img=null;};
@@ -14853,7 +14863,7 @@ function initRankCanvas(list,tab){
         ctx.fillStyle=ng;
         ctx.beginPath();ctx.arc(px,py,nodeR*2.5,0,Math.PI*2);ctx.fill();
       }
-      // Node circle
+      // Node circle — photo only for revealed friends, otherwise anon silhouette
       ctx.beginPath();ctx.arc(px,py,nodeR,0,Math.PI*2);
       if(o._img&&o._imgLoaded){
         ctx.save();ctx.clip();
@@ -14862,6 +14872,26 @@ function initRankCanvas(list,tab){
         ctx.beginPath();ctx.arc(px,py,nodeR,0,Math.PI*2);
         ctx.strokeStyle=isMe?'rgba(255,107,53,.8)':'rgba(251,191,36,'+(0.2+o.lv*0.06)+')';
         ctx.lineWidth=isMe?1.5:0.8;ctx.stroke();
+      }else if(_anonImgReady&&nodeR>4){
+        // Anonymous silhouette
+        var silG=ctx.createLinearGradient(px,py-nodeR,px,py+nodeR);
+        silG.addColorStop(0,'#2a2a3e');silG.addColorStop(1,'#1a1a2e');
+        ctx.fillStyle=silG;ctx.fill();
+        ctx.save();ctx.beginPath();ctx.arc(px,py,nodeR,0,Math.PI*2);ctx.clip();
+        ctx.drawImage(_anonImg,px-nodeR,py-nodeR,nodeR*2,nodeR*2);
+        ctx.restore();
+        // Accessory overlay
+        if(o.u.avatarAccessory){
+          var accD=getAccessoryImg(o.u.avatarAccessory);
+          if(accD&&accD.ready&&accD.img){
+            ctx.save();ctx.beginPath();ctx.arc(px,py,nodeR,0,Math.PI*2);ctx.clip();
+            ctx.drawImage(accD.img,px-nodeR,py-nodeR,nodeR*2,nodeR*2);
+            ctx.restore();
+          }
+        }
+        ctx.beginPath();ctx.arc(px,py,nodeR,0,Math.PI*2);
+        ctx.strokeStyle=isMe?'rgba(255,107,53,.8)':'rgba(251,191,36,'+(0.15+o.lv*0.05)+')';
+        ctx.lineWidth=isMe?1.5:0.5;ctx.stroke();
       }else{
         var col=o.u.color||'#fbbf24';
         ctx.fillStyle=isMe?'rgba(255,107,53,.9)':col;
@@ -14878,10 +14908,11 @@ function initRankCanvas(list,tab){
       if(showLabel){
         var name=o.u._displayName||o.u.nickname||'?';
         if(name.length>10)name=name.substring(0,9)+'..';
+        var labelText=(o.u._flag?o.u._flag+' ':'')+name;
         ctx.fillStyle=isMe?'rgba(255,107,53,.9)':'rgba(255,255,255,'+(0.45+o.lv*0.04)+')';
         ctx.font=(isMe?'700':'500')+' '+(isMe?10:8.5)+'px system-ui';
         ctx.textAlign='center';ctx.textBaseline='top';
-        ctx.fillText(name,px,py+nodeR+3);
+        ctx.fillText(labelText,px,py+nodeR+3);
       }
       // Star count mini badge
       ctx.fillStyle='rgba(251,191,36,.85)';
