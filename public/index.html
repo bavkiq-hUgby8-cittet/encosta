@@ -14601,8 +14601,15 @@ function renderStarSlots(profileData,isOwnProfile){
   slots.forEach(function(sl,idx){
     var sz=18;
     var starSvg='<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="'+(sl.filled?sl.color:'none')+'" stroke="'+(sl.filled?'none':sl.color)+'" stroke-width="1.5" opacity="'+(sl.filled?'1':sl.locked?'0.15':'0.35')+'"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-    var cursor=sl.buyable?'pointer':'default';
-    var onclick=sl.buyable?'onclick="buyStarSelf('+sl.slotIndex+')"':'';
+    var cursor=(!sl.filled)?'pointer':'default';
+    var onclick='';
+    if(!sl.filled&&sl.buyable){
+      onclick='onclick="buyStarSelf('+sl.slotIndex+')"';
+    }else if(!sl.filled&&sl.category==='permanent'){
+      onclick='onclick="showToast(\'Estrela permanente: desbloqueada automaticamente ao atingir '+(sl.milestone||'?')+' conexoes unicas. Nunca expira!\')"';
+    }else if(!sl.filled&&sl.category==='professional'){
+      onclick='onclick="showToast(\'Estrela profissional: concedida por reconhecimento de servico. Em breve!\')"';
+    }
     var tooltip='';
     if(sl.filled){
       tooltip=sl.category==='permanent'?'Permanente':sl.category==='professional'?'Profissional':('Temporaria'+(sl.daysLeft?' ('+sl.daysLeft+')':''));
