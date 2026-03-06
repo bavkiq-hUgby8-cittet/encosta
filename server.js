@@ -486,8 +486,15 @@ let _topTagLastRun = 0;
 const TOP_TAG_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
 
 function _doRecalcAllTopTags() {
-  const cfg = getGameConfig();
-  const enabledTiers = cfg.topTiersEnabled || ['top1'];
+  // Safe access: getGameConfig depends on DEFAULT_GAME_CONFIG (const, not hoisted)
+  // During early init (before DEFAULT_GAME_CONFIG is defined), use fallback
+  var enabledTiers;
+  try {
+    var cfg = getGameConfig();
+    enabledTiers = cfg.topTiersEnabled || ['top1'];
+  } catch(e) {
+    enabledTiers = ['top1'];
+  }
   const users = Object.values(db.users);
   const totalUsers = users.length;
   // Use profileTotal (exclude donation_pool stars) for ranking
