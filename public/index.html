@@ -1263,7 +1263,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .more-menu-item:active{transform:scale(.95);background:var(--s3)}
 .more-menu-item .mm-ico{font-size:1.4rem}
 .more-menu-item .mm-lbl{font-size:.68rem;color:var(--t2);font-weight:500;text-align:center}
-.my-pf-btn{display:flex;align-items:center;gap:.7rem;width:100%;padding:.65rem .9rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;color:var(--t1);font-size:.8rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;text-align:left}
+.my-pf-btn{display:flex;align-items:center;gap:.6rem;width:100%;padding:.5rem .75rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;color:var(--t1);font-size:.75rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;text-align:left}
 .my-pf-btn:active{transform:scale(.98);background:rgba(255,255,255,.06)}
 .my-pf-ico{font-size:.7rem;flex-shrink:0;width:20px;text-align:center;color:var(--t3);font-weight:600;letter-spacing:.03em}
 .my-pf-tag{margin-left:auto;font-size:.55rem;color:var(--ac);font-weight:600;white-space:nowrap;padding:.15rem .4rem;background:rgba(255,107,53,.1);border-radius:8px}
@@ -2261,7 +2261,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="const-header">
     <button class="chb" onclick="goHome()">&#x2190;</button>
     <h2 data-i18n="home.constellation_title">Minha Rede</h2>
-    
+    <div style="flex:1"></div>
+    <button onclick="showStarRanking()" style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.15);border-radius:10px;color:#fbbf24;font-size:.55rem;font-weight:700;padding:.25rem .5rem;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:.25rem"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Ranking</button>
   </div>
   <div id="constSearchOverlay" class="const-search-overlay hidden">
     <div style="display:flex;align-items:center;gap:.4rem;background:rgba(10,10,25,.85);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:.35rem .6rem;max-width:280px;width:90%;backdrop-filter:blur(12px)">
@@ -14600,34 +14601,32 @@ function renderStarSlots(profileData,isOwnProfile){
       slots.push({filled:false,category:'professional',label:'Em breve',color:'#e2e8f0',locked:true});
     }
   }
-  // Render HTML
-  var h='<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:.6rem 0;padding:.5rem;background:rgba(255,255,255,.02);border-radius:12px;border:1px solid rgba(255,255,255,.04)">';
-  // Title
-  h+='<div style="width:100%;text-align:center;font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem">Estrelas ('+totalStars+'/'+MAX+')</div>';
+  // Render HTML — compact inline layout
+  var h='<div style="display:flex;align-items:center;justify-content:center;gap:3px;margin:.3rem 0;padding:.35rem .4rem;background:rgba(255,255,255,.02);border-radius:10px;border:1px solid rgba(255,255,255,.04)">';
+  // Small count label on left
+  h+='<div style="font-size:.4rem;color:var(--t3);margin-right:4px;white-space:nowrap;font-weight:600">'+totalStars+'/'+MAX+'</div>';
   slots.forEach(function(sl,idx){
-    var starSvg='<svg width="22" height="22" viewBox="0 0 24 24" fill="'+(sl.filled?sl.color:'none')+'" stroke="'+(sl.filled?'none':sl.color)+'" stroke-width="1.5" opacity="'+(sl.filled?'1':sl.locked?'0.2':'0.4')+'"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    var sz=18;
+    var starSvg='<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="'+(sl.filled?sl.color:'none')+'" stroke="'+(sl.filled?'none':sl.color)+'" stroke-width="1.5" opacity="'+(sl.filled?'1':sl.locked?'0.15':'0.35')+'"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
     var cursor=sl.buyable?'pointer':'default';
     var onclick=sl.buyable?'onclick="buyStarSelf('+sl.slotIndex+')"':'';
     var tooltip='';
     if(sl.filled){
-      tooltip=sl.category==='conquest'?'Conquista: '+sl.label:sl.category==='permanent'?'Permanente: '+sl.label:sl.category==='professional'?'Profissional':('Temporaria'+(sl.daysLeft?' ('+sl.daysLeft+')':''));
+      tooltip=sl.category==='conquest'?'Conquista: '+sl.label:sl.category==='permanent'?'Permanente: '+sl.label:sl.category==='professional'?'Profissional':('Temp'+(sl.daysLeft?' '+sl.daysLeft:''));
     }else{
-      tooltip=sl.buyable?'Comprar estrela (100 sc)':sl.category==='conquest'?'Desbloq. com '+sl.label:sl.category==='permanent'?'Desbloq. com '+sl.label:'Em breve';
+      tooltip=sl.buyable?'Comprar (100 sc)':sl.category==='conquest'?(idx===0?'100':'500')+' conexoes':sl.category==='permanent'?'1000 conexoes':'Em breve';
     }
-    h+='<div title="'+tooltip+'" style="display:flex;flex-direction:column;align-items:center;cursor:'+cursor+';transition:.15s;position:relative" '+onclick+' onmouseenter="this.style.transform=\'scale(1.15)\'" onmouseleave="this.style.transform=\'none\'">';
+    h+='<div title="'+tooltip+'" style="cursor:'+cursor+';transition:.12s;line-height:0" '+onclick+' onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'none\'">';
     h+=starSvg;
-    // Small label below
-    var lblColor=sl.filled?sl.color:'var(--t3)';
-    var lblOpacity=sl.filled?'0.8':'0.3';
-    h+='<div style="font-size:.35rem;color:'+lblColor+';opacity:'+lblOpacity+';margin-top:1px;white-space:nowrap">';
-    if(sl.filled&&sl.category==='temporary'&&sl.daysLeft)h+=sl.daysLeft;
-    else if(!sl.filled&&sl.buyable)h+='<span style="color:#fbbf24;opacity:.6">+ comprar</span>';
-    else if(!sl.filled&&sl.category==='conquest')h+=(idx===0?'100':'500');
-    else if(!sl.filled&&sl.category==='permanent')h+='1000';
-    else if(!sl.filled&&sl.category==='professional')h+='pro';
-    else if(sl.filled)h+=(sl.category==='conquest'?'conquista':sl.category==='permanent'?'permanente':sl.category==='professional'?'pro':'temp');
-    h+='</div></div>';
+    h+='</div>';
   });
+  // Buy hint if own profile and has empty temp slots
+  if(isOwnProfile){
+    var emptyTemp=slots.filter(function(s){return s.buyable});
+    if(emptyTemp.length>0){
+      h+='<div style="font-size:.35rem;color:rgba(251,191,36,.4);margin-left:4px;white-space:nowrap">tap + para comprar</div>';
+    }
+  }
   h+='</div>';
   return h;
 }
@@ -15000,7 +14999,7 @@ function showMyProfileSheet(){
   const hasEmailVerified=!!(fbUser&&fbUser.emailVerified);
   const hasFace=!!state.userFaceEnrolled;
   const hasDoc=!!state.userDocVerified;
-  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.6rem 1.4rem;position:relative;overflow:visible" id="profileSheet">'
+  overlay.innerHTML='<div class="more-menu-sheet" style="padding:1.2rem 1.2rem 1rem;position:relative;overflow:visible;max-height:85vh;overflow-y:auto;border-radius:24px 24px 0 0" id="profileSheet">'
     +'<div class="more-menu-handle"></div>'
     +'<div style="display:flex;justify-content:flex-end;margin-bottom:.3rem;margin-top:-.4rem"><button onclick="this.closest(\'.my-profile-overlay\').remove()" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--t2);font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1;flex-shrink:0">&times;</button></div>'
     // Header: two identity columns (revealed vs anonymous)
@@ -15039,14 +15038,12 @@ function showMyProfileSheet(){
     +'</div>'
     // Star slots in my profile
     +'<div id="myProfileStarSlots" style="margin-bottom:.4rem"></div>'
-    // Menu buttons — clean
-    +'<div style="display:flex;flex-direction:column;gap:.4rem">'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showStarRanking()"><span class="my-pf-ico" style="color:#fbbf24;font-style:normal">&#9733;</span>Ranking de Estrelas</button>'
+    // Menu buttons — compact
+    +'<div style="display:flex;flex-direction:column;gap:.3rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>'+t('profile.edit_profile_btn')+cadastroTag+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>'+t('subscription.touch_plus_title')+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
-    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showServicosScreen()"><span class="my-pf-ico" style="font-style:normal">◈</span>'+t('home.service_mode_toggle')+'</button>'
-    +(isPrestador?'<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px"><div style="display:flex;align-items:center;gap:.5rem"><span style="font-size:.85rem;color:#22c55e;font-weight:800">$</span><span style="font-size:.72rem;color:var(--t1);font-weight:600">Modo Servico na Home</span></div><div style="position:relative;cursor:pointer" onclick="var cb=this.querySelector(\'input\');cb.checked=!cb.checked;toggleServiceModeEnabled(cb.checked);var tk=this.querySelector(\'.pf-svc-track\');var dt=this.querySelector(\'.pf-svc-dot\');tk.style.background=cb.checked?\'#22c55e\':\'rgba(255,255,255,.12)\';dt.style.left=cb.checked?\'22px\':\'2px\'"><input type="checkbox" style="display:none"'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?' checked':'')+'><div class="pf-svc-track" style="width:42px;height:24px;border-radius:12px;background:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'#22c55e':'rgba(255,255,255,.12)')+';transition:background .2s"></div><div class="pf-svc-dot" style="position:absolute;top:2px;left:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'22px':'2px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div></div></div>':'')
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:.45rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;cursor:pointer" onclick="if(!event.target.closest(\'.pf-svc-toggle\')){this.closest(\'.my-profile-overlay\').remove();showServicosScreen()}"><div style="display:flex;align-items:center;gap:.5rem"><span style="font-size:.85rem;font-weight:800;font-style:normal;color:#22c55e">◈</span><span style="font-size:.72rem;color:var(--t1);font-weight:600">'+t('home.service_mode_toggle')+'</span></div>'+(isPrestador?'<div class="pf-svc-toggle" style="position:relative;cursor:pointer" onclick="event.stopPropagation();var cb=this.querySelector(\'input\');cb.checked=!cb.checked;toggleServiceModeEnabled(cb.checked);var tk=this.querySelector(\'.pf-svc-track\');var dt=this.querySelector(\'.pf-svc-dot\');tk.style.background=cb.checked?\'#22c55e\':\'rgba(255,255,255,.12)\';dt.style.left=cb.checked?\'22px\':\'2px\'"><input type="checkbox" style="display:none"'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?' checked':'')+'><div class="pf-svc-track" style="width:38px;height:22px;border-radius:11px;background:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'#22c55e':'rgba(255,255,255,.12)')+';transition:background .2s"></div><div class="pf-svc-dot" style="position:absolute;top:1px;left:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'18px':'2px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div></div>':'')+'</div>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">&#x2713;</span>'+t('profile.verified_label')+'</button><button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showAdminFinancial()"><span class="my-pf-ico" style="color:#10b981;font-weight:800">$</span>Painel Financeiro Admin</button><button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showAdminAgents()"><span class="my-pf-ico" style="color:#f59e0b;font-weight:800">&#x2699;</span>Agentes & API</button>':'')
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showLanguageSelector()"><span class="my-pf-ico" style="font-style:normal">'+((I18N_LANGUAGES[window._currentLang]||{}).emoji||'🌐')+'</span>'+(I18N_LANGUAGES[window._currentLang]||{}).name+' <span style="font-size:.5rem;color:var(--t3);margin-left:.3rem">'+t('profile.language_label')+'</span></button>'
     +'<div class="my-pf-divider"></div>'
