@@ -2919,14 +2919,23 @@ var _paymentMode='manual'; // 'manual' or 'auto'
 
 function switchView(mode){
   _currentView=mode;
-  var canvasArea=$('opCanvasArea');
+  var canvasEl=$('opCanvas');
+  var touchArea=document.querySelector('.op-btn-area');
+  var fabCascade=$('opFabCascade');
+  var sonicInstruct=$('sonicInstruct');
+  var fireOverlay=$('fireOverlay');
   var dashboard=$('opDashboard');
   var tabBar=$('opTabBar');
   var mainEl=$('opMain');
   var btnAquarium=$('opViewAquarium');
   var btnDash=$('opViewDash');
   if(mode==='dashboard'){
-    if(canvasArea)canvasArea.style.display='none';
+    // Hide aquarium elements individually — keep canvas-area visible because module panels live inside it
+    if(canvasEl)canvasEl.style.display='none';
+    if(touchArea)touchArea.style.display='none';
+    if(fabCascade)fabCascade.style.display='none';
+    if(sonicInstruct)sonicInstruct.style.display='none';
+    if(fireOverlay)fireOverlay.style.display='none';
     if(dashboard){dashboard.style.display='block';dashboard.classList.add('visible')}
     if(tabBar)tabBar.style.display='block';
     if(mainEl)mainEl.classList.add('has-tabs');
@@ -2935,12 +2944,19 @@ function switchView(mode){
     renderDashboard();
     switchToTab('aquarium');
   }else{
-    if(canvasArea)canvasArea.style.display='';
+    // Restore aquarium elements
+    if(canvasEl)canvasEl.style.display='';
+    if(touchArea)touchArea.style.display='';
+    if(fabCascade)fabCascade.style.display='';
+    if(sonicInstruct)sonicInstruct.style.display='';
+    if(fireOverlay)fireOverlay.style.display='';
     if(dashboard){dashboard.style.display='none';dashboard.classList.remove('visible')}
     if(tabBar)tabBar.style.display='none';
     if(mainEl)mainEl.classList.remove('has-tabs');
     if(btnAquarium)btnAquarium.classList.add('active');
     if(btnDash)btnDash.classList.remove('active');
+    // Re-init canvas since it was hidden
+    if($('opApp').style.display!=='none')initCanvas();
   }
 }
 
