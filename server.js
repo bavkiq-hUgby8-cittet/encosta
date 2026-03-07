@@ -13857,12 +13857,27 @@ app.get('/api/event/:eventId/menu', (req, res) => {
   res.json({ menu: ev.menu || [], eventName: ev.name, tables: ev.tables || 0 });
 });
 
-// Save/update menu (operator)
-app.post('/api/operator/event/:eventId/menu', (req, res) => {
+// Save/update menu (operator) - with base64 photo upload support
+app.post('/api/operator/event/:eventId/menu', async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   const { items, tables } = req.body;
-  if (items) ev.menu = items; // [{id,name,description,price,photo,category,available}]
+  if (items) {
+    // Process each item: upload base64 photos to Firebase Storage
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.photo && item.photo.startsWith('data:image')) {
+        try {
+          const uploadUrl = await uploadBase64ToStorage(item.photo, `photos/menu/${req.params.eventId}/${item.id}_${Date.now()}.jpg`);
+          if (uploadUrl) item.photo = uploadUrl;
+        } catch (e) {
+          console.error('Menu photo upload error:', e.message);
+          // Keep base64 as fallback
+        }
+      }
+    }
+    ev.menu = items; // [{id,name,description,price,photo,category,available,stockEnabled,stockQty,stockAlert,stockUnit}]
+  }
   if (tables !== undefined) ev.tables = parseInt(tables) || 0;
   saveDB('operatorEvents');
   res.json({ ok: true, menu: ev.menu, tables: ev.tables });

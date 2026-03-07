@@ -1068,6 +1068,30 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .menu-field textarea{resize:vertical;min-height:60px}
 .menu-save-btn{width:100%;padding:.7rem;background:linear-gradient(135deg,#f97316,#fb923c);border:none;border-radius:12px;color:#fff;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .2s}
 .menu-save-btn:active{transform:scale(.96)}
+.menu-photo-upload{position:relative;width:100%;height:160px;border:2px dashed var(--b2);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .3s;background:var(--bg);overflow:hidden;margin-bottom:.7rem}
+.menu-photo-upload:hover{border-color:#f97316;background:rgba(249,115,22,.04)}
+.menu-photo-upload.has-photo{border-style:solid;border-color:rgba(249,115,22,.3)}
+.menu-photo-upload input[type=file]{display:none}
+.menu-photo-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px}
+.menu-photo-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;background:rgba(12,12,20,.6);opacity:0;transition:opacity .3s;border-radius:12px}
+.menu-photo-upload:hover .menu-photo-overlay,.menu-photo-upload:not(.has-photo) .menu-photo-overlay{opacity:1}
+.menu-photo-hint{font-size:.65rem;color:var(--t3);text-align:center;line-height:1.4}
+.menu-photo-quality{display:flex;align-items:center;gap:.5rem;margin-bottom:.7rem}
+.menu-photo-quality label{font-size:.6rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.menu-photo-quality select{padding:.35rem .5rem;background:var(--bg);border:1px solid var(--b1);border-radius:8px;color:var(--t1);font-size:.72rem;font-family:inherit}
+.menu-stock-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.7rem}
+.menu-stock-toggle{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.menu-stock-toggle label{font-size:.6rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.stock-badge{font-size:.5rem;padding:.15rem .4rem;border-radius:6px;font-weight:700;display:inline-flex;align-items:center;gap:.2rem}
+.stock-ok{background:rgba(45,212,160,.15);color:#2dd4a0}
+.stock-low{background:rgba(251,191,36,.15);color:#fbbf24}
+.stock-out{background:rgba(239,68,68,.15);color:#ef4444}
+.img-viewer-bg{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;align-items:center;justify-content:center;cursor:zoom-out;animation:fadeIn .2s}
+.img-viewer-bg img{max-width:92vw;max-height:88vh;object-fit:contain;border-radius:12px;box-shadow:0 8px 60px rgba(0,0,0,.5)}
+.img-viewer-close{position:fixed;top:1rem;right:1rem;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);border:none;color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:201;backdrop-filter:blur(8px)}
+.img-viewer-close:hover{background:rgba(255,255,255,.2)}
+.menu-card-img{cursor:pointer;transition:transform .2s}
+.menu-card-img:hover{transform:scale(1.02)}
 
 /* Category filter pills */
 .menu-cats{display:flex;gap:.3rem;margin-bottom:.8rem;overflow-x:auto;padding-bottom:.3rem}
@@ -1398,7 +1422,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <label class="op-login-label">Tipo de Local</label>
         <select class="op-login-input" id="opLocationType">
           <option value="">Selecione o tipo</option>
-          <option value="restaurante">Restaurante</option>
+          <option value="restaurante">Cardapio</option>
           <option value="bar">Bar</option>
           <option value="balada">Balada</option>
           <option value="cafe">Cafe</option>
@@ -1418,7 +1442,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
           <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
             <input type="checkbox" id="opModuleRestaurant" checked style="width:18px;height:18px;cursor:pointer">
             <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Restaurante</div>
+              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Cardapio</div>
               <div style="font-size:.6rem;color:var(--t3)">Pedidos, menu</div>
             </span>
           </label>
@@ -1457,7 +1481,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <!-- Welcome Phrase -->
       <div class="op-login-field" style="margin-bottom:.8rem">
         <label class="op-login-label">Frase de boas-vindas (opcional)</label>
-        <input class="op-login-input" id="opWelcomePhrase" type="text" placeholder="Ex: Bem-vindo ao nosso restaurante!" maxlength="120" style="font-size:.8rem">
+        <input class="op-login-input" id="opWelcomePhrase" type="text" placeholder="Ex: Bem-vindo ao nosso evento!" maxlength="120" style="font-size:.8rem">
         <div style="font-size:.55rem;color:var(--t3);margin-top:.15rem">Aparece quando alguem faz check-in no seu evento.</div>
       </div>
 
@@ -1647,7 +1671,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <button id="fabProfile" class="op-fab" onclick="openProfilePanel()" title="Perfil" style="--fab-color:#1877f2"><span class="op-fab-label">Perfil</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg></button>
         <button class="op-fab" onclick="showFinancialPanel()" title="Financeiro"><span class="op-fab-label">Financeiro</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></button>
         <button class="op-fab" onclick="openRaffleModal()" title="Sorteio"><span class="op-fab-label">Sorteio</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></button>
-        <button id="fabRestaurant" class="op-fab" onclick="openRestPanel()" title="Restaurante" style="--fab-color:#f97316"><span class="op-fab-label">Restaurante</span><span style="font-size:1rem">R</span><span class="badge" id="fabOrdersBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
+        <button id="fabRestaurant" class="op-fab" onclick="openRestPanel()" title="Cardapio" style="--fab-color:#f97316"><span class="op-fab-label">Cardapio</span><span style="font-size:1rem">R</span><span class="badge" id="fabOrdersBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
         <button id="fabParking" class="op-fab" onclick="openParkPanel()" title="Estacionamento" style="--fab-color:#3b82f6"><span class="op-fab-label">Estacionamento</span><span style="font-size:1rem">P</span><span class="badge" id="fabParkBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
         <button id="fabGym" class="op-fab" onclick="openGymPanel()" title="Academia" style="--fab-color:#10b981"><span class="op-fab-label">Academia</span><span style="font-size:1rem">G</span><span class="badge" id="fabGymBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
         <button id="fabChurch" class="op-fab" onclick="openChurchPanel()" title="Igreja" style="--fab-color:#8b5cf6"><span class="op-fab-label">Igreja</span><span style="font-size:1rem">I</span><span class="badge" id="fabChurchBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
@@ -1752,13 +1776,13 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         </div>
         <div class="mod-field">
           <label class="mod-label">Nome do Local</label>
-          <input id="profileName" class="mod-input" type="text" maxlength="60" placeholder="Ex: Meu Restaurante">
+          <input id="profileName" class="mod-input" type="text" maxlength="60" placeholder="Ex: Meu Negocio">
         </div>
         <div class="mod-field">
           <label class="mod-label">Tipo de Local</label>
           <select id="profileType" class="mod-input" style="cursor:pointer">
             <option value="">Selecione um tipo</option>
-            <option value="restaurante">Restaurante</option>
+            <option value="restaurante">Cardapio</option>
             <option value="bar">Bar</option>
             <option value="balada">Balada</option>
             <option value="cafe">Cafe</option>
@@ -1882,7 +1906,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
             <input type="checkbox" id="profileModuleRestaurant" style="display:none">
             <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#f97316,#fb923c);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
             <div style="flex:1">
-              <div style="font-weight:700;color:var(--t1);font-size:.8rem">Restaurante</div>
+              <div style="font-weight:700;color:var(--t1);font-size:.8rem">Cardapio</div>
               <div style="font-size:.6rem;color:var(--t3)">Cardapio, pedidos e mesas</div>
             </div>
             <div class="profile-mod-check" style="width:22px;height:22px;border-radius:6px;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"></div>
@@ -2091,7 +2115,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
   <!-- ═══ RESTAURANT PANEL ═══ -->
   <div class="op-rest-panel" id="opRestPanel">
     <div class="op-rest-head">
-      <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.578 4.657A2 2 0 006.47 8H21"/><path d="M6 8v13a1 1 0 001 1h10a1 1 0 001-1V8"/><path d="M3 2h18"/><line x1="10" y1="12" x2="10" y2="17"/><line x1="14" y1="12" x2="14" y2="17"/></svg> Restaurante</h2>
+      <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.578 4.657A2 2 0 006.47 8H21"/><path d="M6 8v13a1 1 0 001 1h10a1 1 0 001-1V8"/><path d="M3 2h18"/><line x1="10" y1="12" x2="10" y2="17"/><line x1="14" y1="12" x2="14" y2="17"/></svg> Cardapio</h2>
       <button class="op-rest-close" onclick="closeRestPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="op-rest-tabs" id="opRestTabs">
@@ -2108,7 +2132,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <div class="menu-config">
         <label>Mesas:</label>
         <input type="number" id="restTableCount" value="10" min="1" max="100" onchange="saveRestMenu()">
-        <button class="menu-card-btn" onclick="openMenuModal()" style="margin-left:auto;background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.3);color:#f97316;padding:.4rem .8rem;font-size:.7rem">+ Novo Item</button>
+        <button class="menu-card-btn" onclick="openMenuModal()" style="margin-left:auto;background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.3);color:#f97316;padding:.4rem .8rem;font-size:.7rem">+ Novo Produto</button>
         <button class="menu-card-btn" onclick="populateTestMenu()" style="background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.2);color:#34d399;padding:.4rem .8rem;font-size:.65rem">Carregar Teste</button>
       </div>
       <div class="menu-cats" id="menuCats"></div>
@@ -2211,27 +2235,82 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
     <div class="menu-modal">
       <h3 id="menuModalTitle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Novo Item</h3>
       <input type="hidden" id="menuItemId">
-      <div class="menu-field"><label>Nome</label><input id="menuItemName" placeholder="Ex: Filé Mignon ao Molho Madeira"></div>
-      <div class="menu-field"><label>Descrição</label><textarea id="menuItemDesc" placeholder="Descrição do prato..."></textarea></div>
-      <div class="menu-field"><label>Preço (R$)</label><input id="menuItemPrice" type="number" step="0.10" min="0" placeholder="0.00"></div>
-      <div class="menu-field"><label>Foto (URL)</label><input id="menuItemPhoto" placeholder="https://images.unsplash.com/..."></div>
-      <div class="menu-field"><label>Categoria</label>
-        <select id="menuItemCat">
-          <option value="Entradas">Entradas</option>
-          <option value="Pratos Principais">Pratos Principais</option>
-          <option value="Bebidas">Bebidas</option>
-          <option value="Sobremesas">Sobremesas</option>
-          <option value="Porções">Porções</option>
-          <option value="__custom">+ Nova categoria...</option>
+
+      <!-- Photo Upload -->
+      <div class="menu-field"><label>Foto do Produto</label></div>
+      <div class="menu-photo-upload" id="menuPhotoUpload" onclick="$('menuItemFileInput').click()">
+        <img class="menu-photo-preview" id="menuPhotoPreview" style="display:none">
+        <div class="menu-photo-overlay">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <div class="menu-photo-hint">Clique para enviar foto<br>ou arraste uma imagem aqui</div>
+        </div>
+        <input type="file" id="menuItemFileInput" accept="image/*" onchange="handleMenuPhotoSelect(this)">
+      </div>
+      <div class="menu-photo-quality">
+        <label>Qualidade</label>
+        <select id="menuPhotoQuality">
+          <option value="0.5">Economica (menor tamanho)</option>
+          <option value="0.7" selected>Boa (recomendada)</option>
+          <option value="0.85">Alta (maior tamanho)</option>
+          <option value="1">Maxima (original)</option>
         </select>
       </div>
-      <div class="menu-field" id="menuCustomCatWrap" style="display:none"><label>Nova Categoria</label><input id="menuCustomCat" placeholder="Ex: Combos, Infantil..."></div>
-      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem">
-        <input type="checkbox" id="menuItemAvail" checked style="accent-color:#f97316;width:18px;height:18px">
-        <label for="menuItemAvail" style="font-size:.72rem;color:var(--t2)">Disponível</label>
+      <input type="hidden" id="menuItemPhoto">
+
+      <div class="menu-field"><label>Nome do Produto</label><input id="menuItemName" placeholder="Ex: Hamburguer Artesanal, Corte Degradê..."></div>
+      <div class="menu-field"><label>Descricao</label><textarea id="menuItemDesc" placeholder="Descreva o produto, ingredientes, detalhes..."></textarea></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+        <div class="menu-field"><label>Preco (R$)</label><input id="menuItemPrice" type="number" step="0.10" min="0" placeholder="0.00"></div>
+        <div class="menu-field"><label>Categoria</label>
+          <select id="menuItemCat">
+            <option value="Entradas">Entradas</option>
+            <option value="Pratos Principais">Pratos Principais</option>
+            <option value="Bebidas">Bebidas</option>
+            <option value="Sobremesas">Sobremesas</option>
+            <option value="Porcoes">Porcoes</option>
+            <option value="Servicos">Servicos</option>
+            <option value="Combos">Combos</option>
+            <option value="__custom">+ Nova categoria...</option>
+          </select>
+        </div>
       </div>
-      <button class="menu-save-btn" onclick="saveMenuItem()">Salvar Item</button>
+      <div class="menu-field" id="menuCustomCatWrap" style="display:none"><label>Nova Categoria</label><input id="menuCustomCat" placeholder="Ex: Combos, Infantil, Cortes..."></div>
+
+      <!-- Stock Control -->
+      <div style="border-top:1px solid var(--b1);padding-top:.7rem;margin-top:.3rem">
+        <div class="menu-stock-toggle">
+          <input type="checkbox" id="menuItemStockEnabled" style="accent-color:#f97316;width:16px;height:16px" onchange="toggleStockFields()">
+          <label for="menuItemStockEnabled" style="font-size:.72rem;color:var(--t1);font-weight:600;cursor:pointer">Controle de Estoque</label>
+        </div>
+        <div id="menuStockFields" style="display:none">
+          <div class="menu-stock-row">
+            <div class="menu-field"><label>Qtd em Estoque</label><input id="menuItemStockQty" type="number" min="0" placeholder="0" style="text-align:center"></div>
+            <div class="menu-field"><label>Alerta Minimo</label><input id="menuItemStockAlert" type="number" min="0" placeholder="5" style="text-align:center"></div>
+          </div>
+          <div class="menu-field"><label>Unidade</label>
+            <select id="menuItemStockUnit">
+              <option value="un">Unidades (un)</option>
+              <option value="kg">Quilogramas (kg)</option>
+              <option value="L">Litros (L)</option>
+              <option value="porcao">Porcoes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:.5rem;margin:.6rem 0">
+        <input type="checkbox" id="menuItemAvail" checked style="accent-color:#f97316;width:18px;height:18px">
+        <label for="menuItemAvail" style="font-size:.72rem;color:var(--t2)">Disponivel para venda</label>
+      </div>
+      <button class="menu-save-btn" onclick="saveMenuItem()">Salvar Produto</button>
     </div>
+  </div>
+
+  <!-- IMAGE VIEWER OVERLAY -->
+  <div class="img-viewer-bg" id="imgViewerBg" style="display:none" onclick="closeImgViewer()">
+    <button class="img-viewer-close" onclick="closeImgViewer()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <img id="imgViewerImg" src="" alt="Produto">
   </div>
 
   <!-- PARKING PANEL -->
@@ -5555,10 +5634,15 @@ async function saveRestMenu(){
   if(!S.currentEventId)return;
   REST.tables=parseInt($('restTableCount').value)||10;
   try{
-    await fetch('/api/operator/event/'+S.currentEventId+'/menu',{
+    const resp=await fetch('/api/operator/event/'+S.currentEventId+'/menu',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({items:REST.menu,tables:REST.tables})
     });
+    if(resp.ok){
+      const data=await resp.json();
+      // Update local menu with server-side URLs (base64 converted to storage URLs)
+      if(data.menu)REST.menu=data.menu;
+    }
   }catch(e){console.error('saveRestMenu:',e)}
 }
 
@@ -5584,18 +5668,19 @@ function renderMenuGrid(filterCat){
   const grid=$('menuGrid');grid.innerHTML='';
   const items=filterCat?REST.menu.filter(i=>i.category===filterCat):REST.menu;
   if(!items.length){
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Nenhum item no cardápio.<br>Clique em "+ Novo Item" ou "Carregar Teste" para começar.</div>';
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Nenhum produto no cardapio.<br>Clique em "+ Novo Produto" ou "Carregar Teste" para comecar.</div>';
     return;
   }
   items.forEach(item=>{
     const card=document.createElement('div');
     card.className='menu-card'+(item.available?'':' menu-unavail');
-    card.innerHTML=
-      (item.photo?'<img class="menu-card-img" src="'+esc(item.photo)+'" onerror="this.style.display=\'none\'" loading="lazy">':'<div class="menu-card-img" style="display:flex;align-items:center;justify-content:center;color:var(--t3)"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2l1.578 4.657A2 2 0 006.47 8H21"/><path d="M6 8v13a1 1 0 001 1h10a1 1 0 001-1V8"/><path d="M3 2h18"/></svg></div>')+
+    const photoHtml=item.photo?'<img class="menu-card-img" src="'+esc(item.photo)+'" onclick="openImgViewer(\''+esc(item.photo).replace(/'/g,"\\'")+'\')" onerror="this.style.display=\'none\'" loading="lazy" title="Clique para ampliar">':'<div class="menu-card-img" style="display:flex;align-items:center;justify-content:center;color:var(--t3)"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>';
+    const stockHtml=getStockBadge(item);
+    card.innerHTML=photoHtml+
       '<div class="menu-card-body">'+
         '<div class="menu-card-name">'+esc(item.name)+'</div>'+
         '<div class="menu-card-desc">'+esc(item.description||'')+'</div>'+
-        '<div style="font-size:.55rem;color:var(--t3);margin-bottom:.3rem">'+esc(item.category||'')+'</div>'+
+        '<div style="display:flex;align-items:center;gap:.3rem;font-size:.55rem;color:var(--t3);margin-bottom:.3rem">'+esc(item.category||'')+stockHtml+'</div>'+
         '<div class="menu-card-footer">'+
           '<div class="menu-card-price">R$ '+(item.price||0).toFixed(2).replace('.',',')+'</div>'+
           '<div class="menu-card-actions">'+
@@ -5609,30 +5694,121 @@ function renderMenuGrid(filterCat){
   });
 }
 
+// ── Photo upload / Image viewer / Stock toggle ──
+function handleMenuPhotoSelect(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const maxW=1200,maxH=1200;
+      let w=img.width,h=img.height;
+      if(w>maxW){h=h*(maxW/w);w=maxW}
+      if(h>maxH){w=w*(maxH/h);h=maxH}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      const quality=parseFloat($('menuPhotoQuality').value)||0.7;
+      const dataUrl=canvas.toDataURL('image/jpeg',quality);
+      $('menuItemPhoto').value=dataUrl;
+      $('menuPhotoPreview').src=dataUrl;
+      $('menuPhotoPreview').style.display='block';
+      $('menuPhotoUpload').classList.add('has-photo');
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+// Drag & drop support
+(function(){
+  var el=$('menuPhotoUpload');
+  if(!el)return;
+  el.addEventListener('dragover',function(e){e.preventDefault();e.stopPropagation();el.style.borderColor='#f97316'});
+  el.addEventListener('dragleave',function(e){e.preventDefault();e.stopPropagation();el.style.borderColor=''});
+  el.addEventListener('drop',function(e){
+    e.preventDefault();e.stopPropagation();el.style.borderColor='';
+    var file=e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(file&&file.type.startsWith('image/')){
+      var dt=new DataTransfer();dt.items.add(file);
+      $('menuItemFileInput').files=dt.files;
+      handleMenuPhotoSelect($('menuItemFileInput'));
+    }
+  });
+})();
+
+function openImgViewer(src){
+  if(!src)return;
+  $('imgViewerImg').src=src;
+  $('imgViewerBg').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function closeImgViewer(){
+  $('imgViewerBg').style.display='none';
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('imgViewerBg').style.display==='flex')closeImgViewer()});
+
+function toggleStockFields(){
+  var checked=$('menuItemStockEnabled').checked;
+  $('menuStockFields').style.display=checked?'':'none';
+}
+
+function getStockBadge(item){
+  if(!item.stockEnabled)return '';
+  var qty=item.stockQty||0;
+  var alert=item.stockAlert||5;
+  if(qty<=0)return '<span class="stock-badge stock-out">ESGOTADO</span>';
+  if(qty<=alert)return '<span class="stock-badge stock-low">Baixo: '+qty+(item.stockUnit||'un')+'</span>';
+  return '<span class="stock-badge stock-ok">'+qty+(item.stockUnit||'un')+'</span>';
+}
+
 // ── Menu item modal ──
 $('menuItemCat').onchange=function(){$('menuCustomCatWrap').style.display=this.value==='__custom'?'':'none'};
 
 function openMenuModal(itemId){
   REST.editingItemId=itemId||null;
+  // Reset photo upload
+  $('menuItemFileInput').value='';
   if(itemId){
     const item=REST.menu.find(i=>i.id===itemId);
     if(!item)return;
-    $('menuModalTitle').textContent='✏️ Editar Item';
+    $('menuModalTitle').textContent='Editar Produto';
     $('menuItemId').value=item.id;
     $('menuItemName').value=item.name;
     $('menuItemDesc').value=item.description||'';
     $('menuItemPrice').value=item.price;
     $('menuItemPhoto').value=item.photo||'';
+    // Show photo preview if exists
+    if(item.photo){
+      $('menuPhotoPreview').src=item.photo;
+      $('menuPhotoPreview').style.display='block';
+      $('menuPhotoUpload').classList.add('has-photo');
+    }else{
+      $('menuPhotoPreview').style.display='none';
+      $('menuPhotoUpload').classList.remove('has-photo');
+    }
     // Set category
-    const cats=['Entradas','Pratos Principais','Bebidas','Sobremesas','Porções'];
+    const cats=['Entradas','Pratos Principais','Bebidas','Sobremesas','Porcoes','Servicos','Combos'];
     if(cats.includes(item.category)){$('menuItemCat').value=item.category;$('menuCustomCatWrap').style.display='none'}
     else{$('menuItemCat').value='__custom';$('menuCustomCat').value=item.category;$('menuCustomCatWrap').style.display=''}
     $('menuItemAvail').checked=item.available!==false;
+    // Stock fields
+    $('menuItemStockEnabled').checked=!!item.stockEnabled;
+    $('menuStockFields').style.display=item.stockEnabled?'':'none';
+    $('menuItemStockQty').value=item.stockQty||'';
+    $('menuItemStockAlert').value=item.stockAlert||'';
+    $('menuItemStockUnit').value=item.stockUnit||'un';
   }else{
-    $('menuModalTitle').textContent='+ Novo Item';
+    $('menuModalTitle').textContent='+ Novo Produto';
     $('menuItemId').value='';
     $('menuItemName').value='';$('menuItemDesc').value='';$('menuItemPrice').value='';$('menuItemPhoto').value='';
+    $('menuPhotoPreview').style.display='none';
+    $('menuPhotoUpload').classList.remove('has-photo');
     $('menuItemCat').value='Pratos Principais';$('menuCustomCatWrap').style.display='none';$('menuItemAvail').checked=true;
+    $('menuItemStockEnabled').checked=false;$('menuStockFields').style.display='none';
+    $('menuItemStockQty').value='';$('menuItemStockAlert').value='';$('menuItemStockUnit').value='un';
   }
   $('menuModalBg').style.display='flex';
 }
@@ -5641,9 +5817,10 @@ function editMenuItem(id){openMenuModal(id)}
 
 function saveMenuItem(){
   const name=$('menuItemName').value.trim();
-  if(!name)return alert('Nome é obrigatório');
+  if(!name)return alert('Nome e obrigatorio');
   const price=parseFloat($('menuItemPrice').value)||0;
   const cat=$('menuItemCat').value==='__custom'?($('menuCustomCat').value.trim()||'Outros'):$('menuItemCat').value;
+  const stockEnabled=$('menuItemStockEnabled').checked;
   const item={
     id:REST.editingItemId||('mi_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)),
     name:name,
@@ -5651,8 +5828,14 @@ function saveMenuItem(){
     price:price,
     photo:$('menuItemPhoto').value.trim(),
     category:cat,
-    available:$('menuItemAvail').checked
+    available:$('menuItemAvail').checked,
+    stockEnabled:stockEnabled,
+    stockQty:stockEnabled?parseInt($('menuItemStockQty').value)||0:null,
+    stockAlert:stockEnabled?parseInt($('menuItemStockAlert').value)||5:null,
+    stockUnit:stockEnabled?$('menuItemStockUnit').value:'un'
   };
+  // Auto-mark unavailable if stock is 0
+  if(stockEnabled&&item.stockQty<=0){item.available=false}
   if(REST.editingItemId){
     const idx=REST.menu.findIndex(i=>i.id===REST.editingItemId);
     if(idx>=0)REST.menu[idx]=item;
@@ -5916,7 +6099,7 @@ function printOrder(orderId){
   const dt=new Date(o.createdAt);
   const time=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   const date=dt.toLocaleDateString('pt-BR');
-  let html='<div class="print-header">'+(S.currentEventName||'Restaurante')+'</div>';
+  let html='<div class="print-header">'+(S.currentEventName||'Cardapio')+'</div>';
   html+='<div style="text-align:center;font-size:16px;font-weight:bold;margin-bottom:2mm">PEDIDO #'+num+'</div>';
   html+='<div style="text-align:center;font-size:10px;margin-bottom:2mm">'+date+' '+time+'</div>';
   if(o.table)html+='<div style="text-align:center;font-size:13px;font-weight:bold;margin-bottom:2mm">MESA '+o.table+'</div>';
@@ -5929,7 +6112,7 @@ function printOrder(orderId){
   html+='<div class="print-total">TOTAL: R$ '+(o.total||0).toFixed(2).replace('.',',')+'</div>';
   html+='<div class="print-line"></div>';
   html+='<div style="text-align:center;font-size:10px;margin-top:2mm">'+(o.paymentMethod==='card'?'PAGO - CARTAO':'PAGAMENTO NO BALCAO')+'</div>';
-  html+='<div class="print-footer">'+o.userName+' - Touch? Restaurant</div>';
+  html+='<div class="print-footer">'+o.userName+' - Touch? Cardapio</div>';
   $('printArea').innerHTML=html;
   window.print();
 }
