@@ -20128,6 +20128,7 @@ function showVAUpgradeModal(mode, usageInfo) {
 // ═══ VOICE AGENT — OpenAI Realtime WebRTC ═══
 const VA = (function(){
   let pc = null, dc = null, audioEl = null, micStream = null;
+  let _vaAudioCtx = null, _vaGainNode = null; // Web Audio gain for earpiece volume control
   let active = false, busy = false, vaTier = 'plus'; // 'plus' | 'pro' | 'ultimatedev'
   let _userMuted = false; // user-initiated mute (manual mute button)
   let _inactivityTimer = null;
@@ -20297,6 +20298,16 @@ const VA = (function(){
     bars.forEach(function(b){ b.style.height = ''; b.style.opacity = ''; });
   }
 
+  // ── VOLUME CONTROL — earpiece (low) vs speaker (full) ──
+  const EARPIECE_GAIN = 0.15;  // ~15% for ear
+  const SPEAKER_GAIN  = 1.0;   // 100% for speaker
+  function _setVolume(level){
+    if(_vaGainNode && _vaAudioCtx){
+      _vaGainNode.gain.setTargetAtTime(level, _vaAudioCtx.currentTime, 0.08);
+    }
+    if(audioEl) audioEl.volume = level; // fallback
+  }
+
   // ── PROXIMITY SENSOR — screen goes dark when near ear ──
   let _proximityActive = false;
   function _initProximity(){
@@ -20310,8 +20321,12 @@ const VA = (function(){
         sensor.addEventListener('reading', function(){
           if(sensor.near){
             overlay.classList.add('near');
+            _setVolume(EARPIECE_GAIN);
           } else {
             overlay.classList.remove('near');
+            // Only restore full volume if earpiece mode is not manually active
+            var eBtn=$('vaEarpieceBtn');
+            if(!eBtn || !eBtn.classList.contains('active')) _setVolume(SPEAKER_GAIN);
           }
         });
         sensor.start();
@@ -20324,8 +20339,11 @@ const VA = (function(){
       window.addEventListener('deviceproximity', function(e){
         if(e.value < 5){
           overlay.classList.add('near');
+          _setVolume(EARPIECE_GAIN);
         } else {
           overlay.classList.remove('near');
+          var eBtn=$('vaEarpieceBtn');
+          if(!eBtn || !eBtn.classList.contains('active')) _setVolume(SPEAKER_GAIN);
         }
       });
       _proximityActive = true;
@@ -20338,8 +20356,11 @@ const VA = (function(){
         als.addEventListener('reading', function(){
           if(als.illuminance < 10){
             overlay.classList.add('near');
+            _setVolume(EARPIECE_GAIN);
           } else {
             overlay.classList.remove('near');
+            var eBtn=$('vaEarpieceBtn');
+            if(!eBtn || !eBtn.classList.contains('active')) _setVolume(SPEAKER_GAIN);
           }
         });
         als.start();
@@ -20574,21 +20595,35 @@ const VA = (function(){
       audioEl.style.display = 'none';
       document.body.appendChild(audioEl);
       pc.ontrack = e => {
-        audioEl.srcObject = e.streams[0];
-        audioEl.play().catch(()=>{});
-        // Connect audio analyser for visualizer
+        // Route audio through Web Audio API GainNode for programmatic volume control
+        // (audioEl.volume is read-only on iOS, so we need GainNode)
         try{
           var actx = new (window.AudioContext||window.webkitAudioContext)();
+          _vaAudioCtx = actx;
           var src = actx.createMediaStreamSource(e.streams[0]);
+          // GainNode for earpiece/speaker volume control
+          var gain = actx.createGain();
+          gain.gain.value = 1.0; // start at full volume (speaker mode)
+          _vaGainNode = gain;
+          src.connect(gain);
+          gain.connect(actx.destination); // plays through Web Audio
+          // Analyser for visualizer (taps the signal without affecting playback)
           var analyser = actx.createAnalyser();
           analyser.fftSize = 64;
           analyser.smoothingTimeConstant = 0.75;
           src.connect(analyser);
-          // Don't disconnect from speakers — audio plays via audioEl
           _vaAnalyser = analyser;
           _vaFreqData = new Uint8Array(analyser.frequencyBinCount);
           _startAudioViz();
-        }catch(ae){console.log('[VA] Analyser setup err:',ae.message)}
+          // audioEl not needed for playback anymore, but keep as fallback
+          audioEl.srcObject = null;
+          console.log('[VA] Audio routed via GainNode (volume control ready)');
+        }catch(ae){
+          // Fallback: use audioEl directly if Web Audio fails
+          console.log('[VA] GainNode setup failed, using audioEl:', ae.message);
+          audioEl.srcObject = e.streams[0];
+          audioEl.play().catch(()=>{});
+        }
       };
 
       // 4. Mic — echo cancellation ON to prevent agent hearing itself
@@ -20769,6 +20804,8 @@ const VA = (function(){
       if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
     }
     audioEl=null;
+    // Clean Web Audio gain/context
+    if(_vaAudioCtx){try{_vaAudioCtx.close()}catch(e){}} _vaAudioCtx=null; _vaGainNode=null;
     // Hide dev log panel + FAB
     _hideDevLogFab();
     // UI — restore from mini/tier mode if needed
@@ -21795,7 +21832,7 @@ const VA = (function(){
       var isEarpiece=btn.classList.toggle('active');
       if(isEarpiece){
         // Earpiece mode — baixa volume + tela preta
-        if(audioEl) audioEl.volume=0.3;
+        _setVolume(EARPIECE_GAIN);
         btn.title='No ouvido';
         if(label) label.textContent='No ouvido';
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
@@ -21818,7 +21855,7 @@ const VA = (function(){
         }
       }else{
         // Speaker mode — volume maximo + tela normal
-        if(audioEl) audioEl.volume=1.0;
+        _setVolume(SPEAKER_GAIN);
         btn.title='Viva-voz';
         if(label) label.textContent='Viva-voz';
         if(icon) icon.innerHTML='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
