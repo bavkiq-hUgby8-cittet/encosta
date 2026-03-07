@@ -14363,9 +14363,9 @@ app.get('/api/event/:eventId/parking/receipt/:plate', (req, res) => {
 app.post('/api/operator/event/:eventId/gym/config', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
-  const { enabled, maxCapacity, openTime, closeTime } = req.body;
+  const { enabled, maxCapacity, openTime, closeTime, wifiName, wifiPassword } = req.body;
   if (!ev.gym) ev.gym = { enabled: false, config: {}, classes: {}, plans: {}, members: {}, workouts: {} };
-  ev.gym.config = { enabled: !!enabled, maxCapacity: parseInt(maxCapacity) || 50, openTime: openTime || '06:00', closeTime: closeTime || '22:00' };
+  ev.gym.config = { enabled: !!enabled, maxCapacity: parseInt(maxCapacity) || 50, openTime: openTime || '06:00', closeTime: closeTime || '22:00', wifiName: wifiName || '', wifiPassword: wifiPassword || '' };
   ev.gym.enabled = !!enabled;
   saveDB('operatorEvents');
   res.json({ ok: true, config: ev.gym.config });
@@ -14438,6 +14438,49 @@ app.post('/api/event/:eventId/gym/checkout', (req, res) => {
   }
   saveDB('operatorEvents');
   res.json({ ok: true });
+});
+
+// Gym mural (announcements board)
+app.post('/api/operator/event/:eventId/gym/mural', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const { message, priority, expiresAt } = req.body;
+  if (!ev.gym.mural) ev.gym.mural = {};
+  const muralId = 'mur_' + Date.now();
+  ev.gym.mural[muralId] = { id: muralId, message, priority: priority || 'normal', createdAt: Date.now(), expiresAt: expiresAt || null, active: true };
+  saveDB('operatorEvents');
+  res.json({ ok: true, post: ev.gym.mural[muralId] });
+});
+
+app.delete('/api/operator/event/:eventId/gym/mural/:muralId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  if (ev.gym.mural) delete ev.gym.mural[req.params.muralId];
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
+// Gym info (WiFi, shared info for connected members)
+app.post('/api/operator/event/:eventId/gym/info', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.status(404).json({ error: 'Evento ou modulo nao encontrado.' });
+  const { wifiName, wifiPassword, infoItems } = req.body;
+  if (!ev.gym.info) ev.gym.info = {};
+  ev.gym.info.wifiName = wifiName || '';
+  ev.gym.info.wifiPassword = wifiPassword || '';
+  ev.gym.info.infoItems = infoItems || [];
+  ev.gym.info.updatedAt = Date.now();
+  saveDB('operatorEvents');
+  res.json({ ok: true, info: ev.gym.info });
+});
+
+// Public endpoint for connected members to get info
+app.get('/api/event/:eventId/gym/info', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev || !ev.gym) return res.json({ wifiName: '', wifiPassword: '', infoItems: [], mural: [] });
+  const info = ev.gym.info || {};
+  const mural = Object.values(ev.gym.mural || {}).filter(m => m.active && (!m.expiresAt || m.expiresAt > Date.now())).sort((a, b) => b.createdAt - a.createdAt);
+  res.json({ wifiName: info.wifiName || '', wifiPassword: info.wifiPassword || '', infoItems: info.infoItems || [], mural });
 });
 
 app.get('/api/event/:eventId/gym/my-status', (req, res) => {
@@ -14564,9 +14607,9 @@ app.get('/api/operator/event/:eventId/parking/vehicles', (req, res) => {
 // Full gym data for operator
 app.get('/api/operator/event/:eventId/gym', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.json({enabled:false, config:{}, classes:{}, plans:{}, workouts:{}, members:{}});
+  if (!ev) return res.json({enabled:false, config:{}, classes:{}, plans:{}, workouts:{}, members:{}, mural:{}, info:{}});
   const g = ev.gym || {};
-  res.json({enabled:g.enabled, config:g.config||{}, classes:g.classes||{}, plans:g.plans||{}, workouts:g.workouts||{}, members:g.members||{}});
+  res.json({enabled:g.enabled, config:g.config||{}, classes:g.classes||{}, plans:g.plans||{}, workouts:g.workouts||{}, members:g.members||{}, mural:g.mural||{}, info:g.info||{}});
 });
 
 // Full church data for operator
