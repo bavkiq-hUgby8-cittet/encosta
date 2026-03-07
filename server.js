@@ -14629,6 +14629,73 @@ app.post('/api/operator/event/:eventId/church/service/:serviceId/checkin', (req,
   res.json({ ok: true });
 });
 
+// ═══ CHURCH CRUD (service/cell/announcement/prayer toggle) ═══
+
+app.post('/api/operator/event/:eventId/church/service', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  if (!ev.church) ev.church = { enabled: false, config: {}, tithes: {}, services: {}, prayers: {}, cells: {}, announcements: [] };
+  if (!ev.church.services) ev.church.services = {};
+  const { id, name, dayOfWeek, time, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'Nome obrigatorio' });
+  const serviceId = id || ('srv_' + Date.now());
+  ev.church.services[serviceId] = { id: serviceId, name, dayOfWeek: dayOfWeek || '', time: time || '', type: type || 'regular', attendance: {} };
+  saveDB('operatorEvents');
+  res.json({ ok: true, service: ev.church.services[serviceId] });
+});
+
+app.post('/api/operator/event/:eventId/church/cell', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  if (!ev.church) ev.church = { enabled: false, config: {}, tithes: {}, services: {}, prayers: {}, cells: {}, announcements: [] };
+  if (!ev.church.cells) ev.church.cells = {};
+  const { id, name, leader, meetingDay, meetingTime, location } = req.body;
+  if (!name) return res.status(400).json({ error: 'Nome obrigatorio' });
+  const cellId = id || ('cell_' + Date.now());
+  ev.church.cells[cellId] = { id: cellId, name, leader: leader || '', meetingDay: meetingDay || '', meetingTime: meetingTime || '', location: location || '', members: [] };
+  saveDB('operatorEvents');
+  res.json({ ok: true, cell: ev.church.cells[cellId] });
+});
+
+app.post('/api/operator/event/:eventId/church/announcement', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  if (!ev.church) ev.church = { enabled: false, config: {}, tithes: {}, services: {}, prayers: {}, cells: {}, announcements: [] };
+  if (!Array.isArray(ev.church.announcements)) ev.church.announcements = [];
+  const { id, title, message, priority } = req.body;
+  if (!title || !message) return res.status(400).json({ error: 'Titulo e mensagem obrigatorios' });
+  const ann = { id: id || ('ann_' + Date.now()), title, message, date: Date.now(), priority: priority || 'normal' };
+  ev.church.announcements.push(ann);
+  saveDB('operatorEvents');
+  res.json({ ok: true, announcement: ann });
+});
+
+app.post('/api/operator/event/:eventId/church/prayer/:prayerId/toggle', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  if (!ev.church || !ev.church.prayers) return res.status(404).json({ error: 'Modulo igreja nao encontrado' });
+  const prayer = ev.church.prayers[req.params.prayerId];
+  if (!prayer) return res.status(404).json({ error: 'Oracao nao encontrada' });
+  const { prayedFor } = req.body;
+  prayer.prayedFor = !!prayedFor;
+  saveDB('operatorEvents');
+  res.json({ ok: true, prayedFor: prayer.prayedFor });
+});
+
+// ═══ PARKING DELETE VEHICLE ═══
+
+app.delete('/api/operator/event/:eventId/parking/vehicle/:plate', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  if (!ev.parking || !ev.parking.vehicles) return res.status(404).json({ error: 'Modulo parking nao encontrado' });
+  const plate = decodeURIComponent(req.params.plate);
+  const vehicle = ev.parking.vehicles[plate];
+  if (!vehicle) return res.status(404).json({ error: 'Veiculo nao encontrado' });
+  delete ev.parking.vehicles[plate];
+  saveDB('operatorEvents');
+  res.json({ ok: true });
+});
+
 // ═══ OPERATOR FULL DATA ENDPOINTS ═══
 // Full parking data for operator
 app.get('/api/operator/event/:eventId/parking/vehicles', (req, res) => {
