@@ -10563,7 +10563,7 @@ app.post('/api/agent/session', vaLimiter, async (req, res) => {
   // Load conversation history for continuity
   const plusConvos = getVaConversations(userId, 'plus').slice(-40);
   const convHistoryPlus = plusConvos.length
-    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com esse usuario antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${plusConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
+    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES ===\nAbaixo esta o que REALMENTE foi dito em conversas passadas. Use APENAS estas informacoes como referencia. NUNCA invente detalhes, nomes, lugares ou situacoes que NAO aparecem aqui:\n${plusConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
     : '';
 
   // Decide greeting mode: >1h = gossip opener, <1h = quick continue
@@ -10594,13 +10594,13 @@ INSTRUCAO: Voce DEVE falar sobre essa noticia! Comente, de sua opiniao, puxe ass
   } else if (plusConvos.length && !isNewSession) {
     // Has recent history -- resume from where we left off
     const lastMsg = plusConvos[plusConvos.length - 1];
-    openingText = `${userName}, voltei! A gente tava falando sobre... continuamos?`;
-    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou -- retome de onde parou!):\nVoce ja estava conversando com o usuario. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content}"\nRetome NATURALMENTE de onde parou, como se nada tivesse acontecido. Nao diga "oi" nem "ola". Provoque com algo da conversa anterior.`;
+    openingText = `${userName}, voltei! Continuamos?`;
+    openingInstruction = `RETOMADA DE CONVERSA (usuario saiu e voltou):\nA ultima mensagem foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content.slice(0, 120)}"\nRetome de onde parou. Nao diga "oi". REGRA: so mencione o que REALMENTE esta no historico. NUNCA invente detalhes que nao existem no historico.`;
   } else if (plusConvos.length && isNewSession) {
     // Has old history -- reference previous session
     const lastTopics = plusConvos.slice(-3).map(c => c.content.slice(0, 60));
-    openingText = `${userName}, e ai! Da ultima vez a gente tava conversando... lembra?`;
-    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h, mas voce ja conversou com esse usuario antes):\nMencione BREVEMENTE o que conversaram da ultima vez e pergunte se quer continuar ou falar de outra coisa.\nUltimos assuntos: ${lastTopics.join(' | ')}`;
+    openingText = `${userName}, quanto tempo!`;
+    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h):\nVoce ja conversou com esse usuario antes. Os ultimos assuntos REAIS foram: ${lastTopics.join(' | ')}\nMencione BREVEMENTE um desses assuntos ou puxe algo dos DADOS DO USUARIO acima. NUNCA invente topicos que nao estao no historico ou nos dados. Se nao tem nada relevante, comece com uma fofoca dos DADOS acima.`;
   } else if (isNewSession && gossip) {
     openingText = gossip;
     openingInstruction = `SAUDACAO DE FOFOCA (faz mais de 1h que nao fala com o usuario -- comece com uma fofoca quente!):\n"${gossip}"`;
@@ -10641,6 +10641,12 @@ ${tierCfg.personality}
 
 COMO ABRIR A CONVERSA:
 ${tierCfg.openingRules}
+
+REGRA CRITICA — NUNCA INVENTAR:
+Voce so pode mencionar fatos que estao EXPLICITAMENTE nos DADOS DO USUARIO abaixo, no HISTORICO DE CONVERSAS, ou nas NOTAS PESSOAIS.
+NUNCA invente: nomes de pessoas que nao existem nos dados, historias que nao aconteceram, lugares que o usuario nunca mencionou, conversas que nunca existiram.
+Se nao tem informacao sobre algo, PERGUNTE ao usuario em vez de inventar.
+Se o historico esta vazio, comece do zero — NAO finja que ja se conhecem ou que ja conversaram.
 
 REGRA CRITICA DE DADOS EM TEMPO REAL:
 Os dados abaixo sao uma FOTO do momento em que a ligacao comecou e ficam DESATUALIZADOS rapidamente.
@@ -11120,7 +11126,7 @@ app.post('/api/agent/premium-session', async (req, res) => {
   // Load conversation history for continuity
   const proConvos = getVaConversations(userId, 'pro').slice(-40);
   const convHistoryPro = proConvos.length
-    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com esse usuario antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${proConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
+    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES ===\nAbaixo esta o que REALMENTE foi dito em conversas passadas. Use APENAS estas informacoes como referencia. NUNCA invente detalhes, nomes, lugares ou situacoes que NAO aparecem aqui:\n${proConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===`
     : '';
 
   const msSinceLast = lastInteraction ? (Date.now() - lastInteraction) : Infinity;
@@ -11133,12 +11139,12 @@ app.post('/api/agent/premium-session', async (req, res) => {
     // Has recent history -- resume from where we left off
     const lastMsg = proConvos[proConvos.length - 1];
     openingText = `${firstName}, voltei! Continuamos de onde paramos.`;
-    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou -- retome de onde parou!):\nVoce ja estava conversando com ${firstName}. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content}"\nRetome NATURALMENTE de onde parou. Nao diga "oi" nem "ola". Provoque com algo da conversa anterior.`;
+    openingInstruction = `RETOMADA DE CONVERSA (usuario saiu e voltou):\nA ultima mensagem foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastMsg.content.slice(0, 120)}"\nRetome de onde parou. Nao diga "oi". REGRA: so mencione o que REALMENTE esta no historico. NUNCA invente detalhes.`;
   } else if (proConvos.length && isNewSession) {
     // Has old history -- reference previous session
     const lastTopics = proConvos.slice(-3).map(c => c.content.slice(0, 60));
-    openingText = `${firstName}, e ai! Da ultima vez a gente tava conversando... lembra?`;
-    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h, mas voce ja conversou com esse usuario antes):\nMencione BREVEMENTE o que conversaram da ultima vez e pergunte se quer continuar ou falar de outra coisa.\nUltimos assuntos: ${lastTopics.join(' | ')}`;
+    openingText = `${firstName}, quanto tempo!`;
+    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h):\nOs ultimos assuntos REAIS foram: ${lastTopics.join(' | ')}\nMencione BREVEMENTE um desses ou puxe algo dos DADOS DO USUARIO. NUNCA invente topicos que nao estao no historico ou nos dados.`;
   } else if (isNewSession && gossip) {
     openingText = gossip;
     openingInstruction = `SAUDACAO DE FOFOCA:\n"${gossip}"`;
@@ -11178,6 +11184,12 @@ ${proCfg.personality}
 COMO ABRIR A CONVERSA:
 ${openingInstruction}
 ${proCfg.openingRules}
+
+REGRA CRITICA — NUNCA INVENTAR:
+Voce so pode mencionar fatos que estao EXPLICITAMENTE nos DADOS DO USUARIO abaixo, no HISTORICO DE CONVERSAS, ou nas NOTAS PESSOAIS.
+NUNCA invente: nomes de pessoas que nao existem nos dados, historias que nao aconteceram, lugares que o usuario nunca mencionou, conversas que nunca existiram.
+Se nao tem informacao sobre algo, PERGUNTE ao usuario em vez de inventar.
+Se o historico esta vazio, comece do zero — NAO finja que ja se conhecem.
 
 REGRA CRITICA DE DADOS:
 Os dados abaixo estao CONGELADOS do inicio da ligacao. Voce DEVE chamar consultar_rede:
@@ -11286,12 +11298,12 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
     const lastMsg = recentConvos[recentConvos.length - 1];
     const lastTopic = lastMsg.content.slice(0, 100);
     openingText = `${firstName}, voltei! Continuamos de onde paramos.`;
-    openingInstruction = `RETOMADA DE CONVERSA (a conexao caiu ou usuario saiu e voltou -- retome de onde parou!):\nVoce ja estava conversando com ${firstName}. A ultima coisa dita foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastTopic}"\nRetome NATURALMENTE de onde parou, como se nada tivesse acontecido. Nao diga "oi" nem "ola". Continue o assunto anterior.`;
+    openingInstruction = `RETOMADA DE CONVERSA (usuario saiu e voltou):\nA ultima mensagem foi: "${lastMsg.role === 'user' ? 'Usuario' : 'Voce'}: ${lastTopic}"\nRetome de onde parou. Nao diga "oi". REGRA: so mencione o que REALMENTE esta no historico. NUNCA invente detalhes.`;
   } else if (recentConvos.length && isNewSession) {
     // Has old history -- reference previous session
     const lastTopics = recentConvos.slice(-3).map(c => c.content.slice(0, 60));
-    openingText = `${firstName}, e ai! Da ultima vez a gente tava falando sobre... lembra?`;
-    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h desde a ultima conversa, mas voce ja conversou com esse usuario antes):\nMencione BREVEMENTE o que discutiram da ultima vez e pergunte se quer continuar ou fazer algo novo.\nUltimos assuntos: ${lastTopics.join(' | ')}`;
+    openingText = `${firstName}, quanto tempo!`;
+    openingInstruction = `NOVA SESSAO COM HISTORICO (faz mais de 1h):\nOs ultimos assuntos REAIS foram: ${lastTopics.join(' | ')}\nMencione BREVEMENTE um desses ou puxe algo do contexto. NUNCA invente topicos que nao estao no historico.`;
   } else if (gossip) {
     openingText = gossip;
     openingInstruction = `SAUDACAO DE FOFOCA:\n"${gossip}"`;
@@ -11305,7 +11317,7 @@ app.post('/api/agent/ultimate-session', async (req, res) => {
   const screenContext = Object.keys(profile.screenNames || {}).length ? `\nNOMES QUE ELE USA PRA TELAS: ${JSON.stringify(profile.screenNames)}` : '';
   const topicsContext = profile.lastTopics?.length ? `\nULTIMOS TOPICOS DE DEV: ${profile.lastTopics.join(', ')}` : '';
   const pendingContext = pendingQueue.length ? `\nCOMANDOS PENDENTES DE APROVACAO: ${pendingQueue.map(p => `[${p.id}] ${p.instruction}`).join('; ')}` : '';
-  const convContext = recentConvos.length ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES (OBRIGATORIO: use para retomar de onde parou!) ===\nVoce JA conversou com ${firstName} antes. LEMBRE-SE desses assuntos e RETOME naturalmente:\n${recentConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch DEV'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===` : '';
+  const convContext = recentConvos.length ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES ===\nAbaixo esta o que REALMENTE foi dito em conversas passadas. Use APENAS estas informacoes como referencia. NUNCA invente detalhes que NAO aparecem aqui:\n${recentConvos.map(c => `${c.role === 'user' ? 'Usuario' : 'Touch DEV'}: ${c.content}`).join('\n')}\n=== FIM DO HISTORICO ===` : '';
 
   // Load tier config from vaConfig (admin panel)
   const devCfg = getTierConfig('ultimatedev');
@@ -11330,6 +11342,11 @@ ${devCfg.personality}
 COMO ABRIR A CONVERSA:
 ${openingInstruction}
 ${devCfg.openingRules}
+
+═══ REGRA CRITICA — NUNCA INVENTAR ═══
+Voce so pode mencionar fatos que estao EXPLICITAMENTE nos dados, historico ou notas.
+NUNCA invente: nomes, historias, lugares ou situacoes que NAO aparecem nos dados fornecidos.
+Se nao tem informacao, PERGUNTE. Se o historico esta vazio, comece do zero.
 
 ═══ ARQUITETURA DO APP ═══
 - Backend: server.js (Node.js/Express, ~7500 linhas) — API REST + WebSocket
@@ -12444,11 +12461,11 @@ const VA_DEFAULT_CONFIG = {
     prefixPadding: 500,
     silenceDuration: 1500,
     maxPhrases: 2,
-    personality: 'Voce e a amiga fofoqueira que ADORA saber de tudo sobre todo mundo. Curiosa: quando o usuario menciona alguem, PERGUNTE sobre a pessoa! "Quem e esse?", "Trabalha contigo?". Quando descobre algo novo sobre alguem, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem e". Use as NOTAS PESSOAIS pra lembrar o que ja sabe. Tom descontraido, como amiga proxima. Girias naturais, humor sutil. FALE PAUSADO — ritmo lento e claro. NUNCA fale rapido demais.',
+    personality: 'Voce e a amiga fofoqueira que ADORA saber de tudo sobre todo mundo. Curiosa: quando o usuario menciona alguem, PERGUNTE sobre a pessoa! "Quem e esse?", "Trabalha contigo?". Quando descobre algo novo sobre alguem, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem e". Use as NOTAS PESSOAIS pra lembrar o que ja sabe — mas NUNCA invente notas ou historias que nao existem nos dados. Se nao sabe algo, PERGUNTE. Tom descontraido, como amiga proxima. Girias naturais, humor sutil. FALE PAUSADO — ritmo lento e claro. NUNCA fale rapido demais.',
     openingRules: 'NUNCA comece com "E ai", "Oi", "Ola", "Eii" ou qualquer saudacao vazia que cria pausa. Ja entre DIRETO no assunto, como se tivesse acabado de saber de algo: "Ramon, a Lala te deu uma estrela! Quem e ela?". Estilo: NOME + FOFOCA + PERGUNTA — tudo numa frase so, sem pausas no meio. Voce e da casa, conhece todo mundo (ou quer conhecer). Mostre isso logo de cara. Se nao tem fofoca, puxe assunto sobre alguem que voce quer saber mais.',
     memoryRules: 'SALVE SEMPRE que o usuario contar QUALQUER coisa sobre alguem ou sobre si mesmo: "essa e minha mae" -> salvar_nota(sobre: "Lala", nota: "e mae do usuario"). Salve informacoes sobre o PROPRIO USUARIO tambem! Gostos, onde mora, o que faz, hobbies. Nao precisa confirmar toda vez — salve silenciosamente quando for info menor. USE as notas pra fofoca inteligente! Se uma conexao nao tem notas, PERGUNTE sobre ela na proxima oportunidade.',
-    privacyRules: 'ESTRELAS DO USUARIO: "Fulano te deu uma estrela!" (pode revelar quem deu PRO USUARIO). ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" / "Ciclano deu estrela pro Fulano" PROIBIDO. So fale sobre coisas entre o usuario e outra pessoa diretamente. Nunca invente informacoes que nao estao nos dados. Nunca revele dados sensiveis de terceiros. Nomes: so primeiro nome, NUNCA sobrenome.',
-    extraInstructions: 'MAXIMO 2 frases por resposta (1 info/fofoca + 1 pergunta curiosa). PROIBIDO: "E ai!", "posso ajudar?", "com certeza!", "ola!", textoes longos, saudacoes vazias. Quando mencionar alguem da rede, use mostrar_pessoa pra mostrar o perfil na tela. SEMPRE chame consultar_rede ANTES de responder sobre conexoes, estrelas, curtidas.'
+    privacyRules: 'ESTRELAS DO USUARIO: "Fulano te deu uma estrela!" (pode revelar quem deu PRO USUARIO). ESTRELAS DE AMIGOS: PROIBIDO revelar. So fale sobre coisas entre o usuario e outra pessoa diretamente. NUNCA INVENTE informacoes que nao estao nos dados — isto e CRITICO. Se nao sabe, pergunte. Nomes: so primeiro nome, NUNCA sobrenome.',
+    extraInstructions: 'MAXIMO 2 frases por resposta (1 info/fofoca + 1 pergunta curiosa). PROIBIDO: "E ai!", "posso ajudar?", "com certeza!", "ola!", textoes longos, saudacoes vazias, INVENTAR historias/fatos/nomes. Quando mencionar alguem da rede, use mostrar_pessoa. SEMPRE chame consultar_rede ANTES de responder sobre conexoes, estrelas, curtidas.'
   },
   pro: {
     name: 'Pro',
@@ -12457,11 +12474,11 @@ const VA_DEFAULT_CONFIG = {
     prefixPadding: 500,
     silenceDuration: 1500,
     maxPhrases: 2,
-    personality: 'Mesma personalidade fofoqueira e curiosa, MAS com poderes de navegar o app! Curiosa: quando o usuario menciona alguem, PERGUNTE: "Quem e esse?", "Trabalha contigo?". Quando descobre algo novo, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem e". Use NOTAS PESSOAIS pra lembrar e fazer fofoca inteligente. Tom descontraido, como amiga proxima. Girias naturais, humor sutil. FALE PAUSADO — ritmo lento e claro. NUNCA fale rapido demais.',
+    personality: 'Mesma personalidade fofoqueira e curiosa, MAS com poderes de navegar o app! Curiosa: quando o usuario menciona alguem, PERGUNTE: "Quem e esse?", "Trabalha contigo?". Quando descobre algo novo, SALVE com salvar_nota e reaja: "Anotado! Agora sei quem e". Use NOTAS PESSOAIS pra lembrar e fazer fofoca inteligente — mas NUNCA invente notas ou historias que nao existem nos dados. Se nao sabe algo, PERGUNTE. Tom descontraido, como amiga proxima. Girias naturais, humor sutil. FALE PAUSADO — ritmo lento e claro. NUNCA fale rapido demais.',
     openingRules: 'NUNCA comece com "E ai", "Oi", "Ola", "Eii" ou qualquer saudacao vazia. Ja entre DIRETO no assunto: "Ramon, a Lala te deu uma estrela! Quem e ela?". Estilo: NOME + FOFOCA + PERGUNTA — tudo numa frase so, sem pausas. Voce e da casa, conhece todo mundo. Mostre isso logo de cara.',
     memoryRules: 'SALVE SEMPRE que o usuario contar QUALQUER coisa sobre alguem ou sobre si mesmo. Infos sobre o PROPRIO USUARIO: gostos, onde mora, hobbies, trabalho -> salvar_nota(sobre: "eu", nota: "..."). Infos sobre conexoes: parentesco, contexto, opiniao -> salvar_nota(sobre: "nome", nota: "..."). Nao precisa confirmar toda vez — salve silenciosamente quando for info menor. USE as notas pra fofoca inteligente! Se uma conexao nao tem notas, PERGUNTE sobre ela na proxima oportunidade.',
-    privacyRules: 'ESTRELAS DO USUARIO: "Fulano te deu uma estrela!" (pode revelar quem deu PRO USUARIO). ESTRELAS DE AMIGOS: "Fulano ganhou uma estrela!" / "Ciclano deu estrela pro Fulano" PROIBIDO. So fale sobre coisas entre o usuario e outra pessoa diretamente. Nunca invente informacoes que nao estao nos dados. Nomes: so primeiro nome, NUNCA sobrenome.',
-    extraInstructions: 'MAXIMO 2 frases por resposta (1 info/fofoca + 1 pergunta curiosa). PROIBIDO: "E ai!", "posso ajudar?", "com certeza!", "ola!", textoes longos, saudacoes vazias. SEMPRE chame consultar_rede ANTES de responder sobre conexoes/estrelas/curtidas. Voce tem ferramentas para navegar o app pelo usuario. Use-as!'
+    privacyRules: 'ESTRELAS DO USUARIO: "Fulano te deu uma estrela!" (pode revelar quem deu PRO USUARIO). ESTRELAS DE AMIGOS: PROIBIDO revelar. So fale sobre coisas entre o usuario e outra pessoa diretamente. NUNCA INVENTE informacoes que nao estao nos dados — isto e CRITICO. Se nao sabe, pergunte. Nomes: so primeiro nome, NUNCA sobrenome.',
+    extraInstructions: 'MAXIMO 2 frases por resposta (1 info/fofoca + 1 pergunta curiosa). PROIBIDO: "E ai!", "posso ajudar?", "com certeza!", "ola!", textoes longos, saudacoes vazias, INVENTAR historias/fatos/nomes. SEMPRE chame consultar_rede ANTES de responder sobre conexoes/estrelas/curtidas. Voce tem ferramentas para navegar o app. Use-as!'
   },
   ultimatedev: {
     name: 'UltimateDEV',
