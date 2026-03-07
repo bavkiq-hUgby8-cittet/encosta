@@ -20192,21 +20192,68 @@ const VA = (function(){
   let _gyroMouseHandler = null;
   // Smooth interpolation factor — lower = smoother/slower (0.04 = very fluid)
   var _gyroSmooth = 0.06;
-  // Max rotation degrees — keep subtle for realism
-  var _gyroMaxX = 8;   // tilt up/down (nod)
-  var _gyroMaxY = 12;  // turn left/right
+  // Max raw rotation degrees (full range for view switching)
+  var _gyroMaxX = 12;   // tilt up/down (nod)
+  var _gyroMaxY = 35;   // turn left/right (enough to trigger all views)
+  // Max CSS rotation per view (subtle parallax within each view)
+  var _gyroViewRotX = 6;
+  var _gyroViewRotY = 8;
+  // View switching thresholds (in degrees of _gyroTargetY)
+  // front: -8 to 8, qleft: -8 to -18, qright: 8 to 18, profile: < -18, back: > 18
+  var _gyroViewZones = [
+    { view: 'profile', minY: -Infinity, maxY: -18 },
+    { view: 'qleft',   minY: -18,       maxY: -8 },
+    { view: 'front',   minY: -8,        maxY: 8 },
+    { view: 'qright',  minY: 8,         maxY: 18 },
+    { view: 'back',    minY: 18,        maxY: Infinity }
+  ];
   // Idle "breathing" micro-movement
   var _gyroIdlePhase = 0;
+  function _switchView(newView){
+    if(newView === _currentView) return;
+    var imgs = document.querySelectorAll('#vaOrb .va-avatar-img');
+    imgs.forEach(function(img){
+      if(img.dataset.view === newView){
+        img.classList.remove('va-view-hidden');
+        img.classList.add('va-view-active');
+      } else {
+        img.classList.remove('va-view-active');
+        img.classList.add('va-view-hidden');
+      }
+    });
+    _currentView = newView;
+  }
   function _gyroAnimate(){
     // Smooth lerp toward target
     _gyroCurrentX += (_gyroTargetX - _gyroCurrentX) * _gyroSmooth;
     _gyroCurrentY += (_gyroTargetY - _gyroCurrentY) * _gyroSmooth;
+    // Determine which view to show based on Y rotation
+    for(var i = 0; i < _gyroViewZones.length; i++){
+      var z = _gyroViewZones[i];
+      if(_gyroCurrentY >= z.minY && _gyroCurrentY < z.maxY){
+        _switchView(z.view);
+        break;
+      }
+    }
+    // Calculate parallax within the current view zone
+    // Find center of current zone and compute local offset
+    var zone = _gyroViewZones.find(function(z){ return z.view === _currentView; });
+    var zoneCenter = 0;
+    if(zone){
+      var lo = Math.max(zone.minY, -35);
+      var hi = Math.min(zone.maxY, 35);
+      zoneCenter = (lo + hi) / 2;
+    }
+    var localY = _gyroCurrentY - zoneCenter;
+    // Clamp to subtle parallax range
+    var rotY = Math.max(-_gyroViewRotY, Math.min(_gyroViewRotY, localY));
+    var rotX = Math.max(-_gyroViewRotX, Math.min(_gyroViewRotX, _gyroCurrentX));
     // Add subtle idle micro-movement (like breathing/living)
     _gyroIdlePhase += 0.008;
     var idleX = Math.sin(_gyroIdlePhase * 0.7) * 0.4;
     var idleY = Math.sin(_gyroIdlePhase) * 0.6;
-    var finalX = _gyroCurrentX + idleX;
-    var finalY = _gyroCurrentY + idleY;
+    var finalX = rotX + idleX;
+    var finalY = rotY + idleY;
     var orb = $('vaOrb');
     if(orb){
       orb.style.transform = 'perspective(800px) rotateX(' + (-finalX).toFixed(2) + 'deg) rotateY(' + finalY.toFixed(2) + 'deg)';
@@ -20222,6 +20269,7 @@ const VA = (function(){
     _gyroBaseBeta = null; _gyroBaseGamma = null;
     _gyroCurrentX = 0; _gyroCurrentY = 0; _gyroTargetX = 0; _gyroTargetY = 0;
     _gyroIdlePhase = 0;
+    _currentView = 'front';
     var orb = $('vaOrb');
     if(orb) orb.style.transform = '';
     // Note: _gyroPermissionGranted is NOT reset — permission persists across calls
@@ -20287,8 +20335,8 @@ const VA = (function(){
       if(_gyroBaseBeta === null){ _gyroBaseBeta = beta; _gyroBaseGamma = gamma; }
       var dBeta = beta - _gyroBaseBeta;
       var dGamma = gamma - _gyroBaseGamma;
-      _gyroTargetX = Math.max(-_gyroMaxX, Math.min(_gyroMaxX, dBeta * 0.18));
-      _gyroTargetY = Math.max(-_gyroMaxY, Math.min(_gyroMaxY, dGamma * 0.25));
+      _gyroTargetX = Math.max(-_gyroMaxX, Math.min(_gyroMaxX, dBeta * 0.2));
+      _gyroTargetY = Math.max(-_gyroMaxY, Math.min(_gyroMaxY, dGamma * 0.7));
     };
     _gyroHandlerReady = true;
     // Mobile: try to attach (works if permission already granted)
@@ -20301,8 +20349,8 @@ const VA = (function(){
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
         var dx = (e.clientX - cx) / cx;
         var dy = (e.clientY - cy) / cy;
-        _gyroTargetY = dx * _gyroMaxY * 0.8;
-        _gyroTargetX = dy * _gyroMaxX * 0.6;
+        _gyroTargetY = dx * _gyroMaxY;
+        _gyroTargetX = dy * _gyroMaxX * 0.5;
       };
       document.addEventListener('mousemove', _gyroMouseHandler);
       _gyroActive = true;
