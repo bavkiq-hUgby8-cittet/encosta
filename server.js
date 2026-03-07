@@ -8077,6 +8077,14 @@ io.on('connection', (socket) => {
 
   socket.on('join-session', (sessionId) => { socket.join(`session:${sessionId}`); });
 
+  // Operator joins event room for targeted order/payment notifications
+  socket.on('join-event-room', (eventId) => {
+    if (!eventId || typeof eventId !== 'string') return;
+    // Verify event exists
+    if (!db.operatorEvents[eventId]) return;
+    socket.join('event:' + eventId);
+  });
+
   // Mural rooms
   // Mural: join = usuario esta VENDO este canal agora
   // Entra em 2 rooms: mural:X (broadcast de posts) e mural-view:X (presenca/online)
@@ -13784,7 +13792,19 @@ app.post('/api/delivery/order', (req, res) => {
   };
   db.deliveryOrders[order.id] = order;
   saveDB('deliveryOrders');
+  // Notify operator: targeted + event room + global fallback
   io.to(`user:${ev.creatorId}`).emit('delivery-order-new', { order });
+  io.to('event:' + ev.id).emit('delivery-order-new', { order });
+  io.emit('delivery-order-new', { order, eventId: ev.id });
+  // Payment notification for paid delivery orders
+  if (paymentMethod === 'paid' || paymentMethod === 'card') {
+    io.to(`user:${ev.creatorId}`).emit('payment-received', {
+      eventId: ev.id, orderId: order.id,
+      amount: order.total, tipAmount: order.tipAmount || 0,
+      userName: order.customerName, method: paymentMethod,
+      type: 'delivery', timestamp: order.createdAt
+    });
+  }
   res.json({ ok: true, order });
 });
 
@@ -13924,8 +13944,19 @@ app.post('/api/event/:eventId/order', (req, res) => {
   };
   ev.orders.push(order);
   saveDB('operatorEvents');
-  // Notify operator via socket
+  // Notify operator via socket (global + targeted for reliability)
   io.emit('new-order', { eventId: ev.id, order });
+  io.to(`user:${ev.creatorId}`).emit('new-order', { eventId: ev.id, order });
+  io.to('event:' + ev.id).emit('new-order', { eventId: ev.id, order });
+  // Payment notification if order is paid
+  if (order.status === 'paid' || order.paymentMethod === 'paid' || order.paymentMethod === 'card') {
+    io.to(`user:${ev.creatorId}`).emit('payment-received', {
+      eventId: ev.id, orderId: order.id,
+      amount: order.total, tipAmount: order.tipAmount || 0,
+      userName: order.userName, method: order.paymentMethod,
+      timestamp: order.createdAt
+    });
+  }
   res.json({ ok: true, order });
 });
 
@@ -13953,8 +13984,11 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
   order.status = req.body.status || order.status; // 'pending','preparing','ready','delivered','cancelled'
   saveDB('operatorEvents');
-  // Notify client
-  io.emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
+  // Notify client (global + targeted for reliability)
+  const updateData = { eventId: ev.id, orderId: order.id, status: order.status };
+  io.emit('order-update', updateData);
+  if (order.userId) io.to(`user:${order.userId}`).emit('order-update', updateData);
+  io.to('event:' + ev.id).emit('order-update', updateData);
   res.json({ ok: true, order });
 });
 
