@@ -5045,7 +5045,24 @@ const _newsLastPosted = {}; // agentId:channelKey -> timestamp
 
 // ── Cache de noticias por regiao (otimizacao: mesma cidade = 1 chamada API) ──
 const _newsRegionCache = {}; // 'agentId:channelName:channelType' -> { result, ts }
-const NEWS_REGION_CACHE_TTL = 50 * 60 * 1000; // 50 min (reporter roda a cada 1h)
+const NEWS_REGION_CACHE_TTL = 50 * 60 * 1000; // 50 min (evergreen agents)
+const NEWS_REGION_CACHE_TTL_FACTUAL = 20 * 60 * 1000; // 20 min (factual agents — noticias envelhecem rapido)
+
+// Helper: formata data atual no formato legivel para injetar nos prompts dos agentes
+function _getTodayDateStr(lang) {
+  const now = new Date();
+  const day = now.getDate();
+  const months = {
+    'pt-br': ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'],
+    'en': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    'es': ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  };
+  var baseLang = (lang || 'pt-br').split('-')[0];
+  var monthList = months[lang] || months[baseLang] || months['pt-br'];
+  var month = monthList[now.getMonth()];
+  var year = now.getFullYear();
+  return day + '/' + month + '/' + year;
+}
 const MAX_CHANNELS_PER_CYCLE = 20; // Limite de canais por ciclo de noticias
 const MAX_API_CALLS_PER_HOUR = 60; // Limite de chamadas Perplexity por hora
 let _apiCallsThisHour = 0;
@@ -5059,8 +5076,9 @@ const MURAL_AGENTS = {
     color: '#e65100',
     label: 'Noticias Gerais',
     description: 'Noticias locais, agenda cultural, eventos e urgencias',
-    systemPrompt: 'Voce e um jornalista digital serio e objetivo que PRINCIPALMENTE cobre a cena cultural, de entretenimento e eventos locais. Seu FOCO PRINCIPAL e a agenda cultural da cidade: shows de bandas locais e nacionais, barzinhos com musica ao vivo, festivais, feiras, eventos em pracas, circos, teatro, cinema, exposicoes, food trucks, festas comunitarias, eventos religiosos, eventos esportivos locais, inauguracoes e tudo que atrai as pessoas na regiao. NOTICIAS GERAIS sao secundarias — so traga quando for algo realmente relevante ou URGENTE. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave), comece com "URGENTE:" e priorize. Formato: Uma frase de titulo impactante na primeira linha.\n\nCorpo em 2-3 frases curtas e objetivas. Inclua local, horario e se e gratuito quando possivel.\n\nFonte: nome do veiculo, perfil local ou guia cultural. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto URGENTE). Va direto ao ponto.',
-    queryTemplate: 'Traga sobre {local} UMA das opcoes abaixo (PRIORIZE as opcoes 1 e 2): 1) Agenda cultural LOCAL: shows de bandas, musica ao vivo em bares, festivais, feiras, eventos em pracas publicas, circos, teatro, cinema, exposicoes, food trucks, festas comunitarias ou eventos que atraiam pessoas da regiao. Busque em Instagram de bares, casas de show, guias culturais e sites de eventos locais. 2) Evento ou acontecimento comunitario: inauguracoes, eventos religiosos, eventos esportivos locais, mutiroes, feiras de artesanato, mercados. 3) SOMENTE se nao houver nada cultural: principal noticia relevante de hoje. 4) Se houver algo REALMENTE urgente (desastre, atentado, crise grave), priorize acima de tudo.',
+    factual: true,
+    systemPrompt: 'Voce e um jornalista digital serio e objetivo que PRINCIPALMENTE cobre a cena cultural, de entretenimento e eventos locais. Seu FOCO PRINCIPAL e a agenda cultural da cidade: shows de bandas locais e nacionais, barzinhos com musica ao vivo, festivais, feiras, eventos em pracas, circos, teatro, cinema, exposicoes, food trucks, festas comunitarias, eventos religiosos, eventos esportivos locais, inauguracoes e tudo que atrai as pessoas na regiao. NOTICIAS GERAIS sao secundarias -- so traga quando for algo realmente relevante ou URGENTE. Se a noticia for URGENTE (desastre, atentado, morte de figura publica, crise grave), comece com "URGENTE:" e priorize.\n\nREGRA OBRIGATORIA DE DATA: SEMPRE inclua a data do evento ou da publicacao da noticia no formato "dia/mes" (ex: "05/mar", "12/mar"). Se for hoje, escreva "hoje, dia/mes". Se for amanha, escreva "amanha, dia/mes". NUNCA publique uma noticia sem data.\n\nFormato: Uma frase de titulo impactante na primeira linha.\n\nCorpo em 2-3 frases curtas e objetivas. Inclua local, horario, data e se e gratuito quando possivel.\n\nFonte: nome do veiculo, perfil local ou guia cultural. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta no titulo (exceto URGENTE). Va direto ao ponto.',
+    queryTemplate: 'Data de HOJE: {date}. Traga sobre {local} UMA das opcoes abaixo (PRIORIZE as opcoes 1 e 2). IMPORTANTE: so traga eventos e noticias de HOJE ({date}) ou dos proximos dias. NUNCA traga noticias antigas ou eventos que ja passaram. 1) Agenda cultural LOCAL para HOJE ou proximos dias: shows de bandas, musica ao vivo em bares, festivais, feiras, eventos em pracas publicas, circos, teatro, cinema, exposicoes, food trucks, festas comunitarias ou eventos que atraiam pessoas da regiao. Busque em Instagram de bares, casas de show, guias culturais e sites de eventos locais. 2) Evento ou acontecimento comunitario: inauguracoes, eventos religiosos, eventos esportivos locais, mutiroes, feiras de artesanato, mercados. 3) SOMENTE se nao houver nada cultural: principal noticia relevante de HOJE ({date}). 4) Se houver algo REALMENTE urgente (desastre, atentado, crise grave), priorize acima de tudo. SEMPRE inclua a data do evento/noticia.',
     enabled: true
   },
   sport: {
@@ -5070,8 +5088,9 @@ const MURAL_AGENTS = {
     color: '#1565c0',
     label: 'Esporte',
     description: 'Noticias de todos os esportes',
-    systemPrompt: 'Voce e um comentarista esportivo apaixonado que cobre todos os esportes. Futebol, basquete, MMA, F1, tenis, volei, olimpiadas e mais. Fale com paixao e opiniao. Formato: Uma frase de titulo na primeira linha.\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
-    queryTemplate: 'Principal noticia de esporte de hoje no Brasil e no mundo. Pode ser futebol, basquete, MMA, F1, tenis ou qualquer esporte. Foco em resultados, transferencias ou polemicas.',
+    factual: true,
+    systemPrompt: 'Voce e um comentarista esportivo apaixonado que cobre todos os esportes. Futebol, basquete, MMA, F1, tenis, volei, olimpiadas e mais. Fale com paixao e opiniao.\n\nREGRA OBRIGATORIA DE DATA: SEMPRE inclua a data do jogo, resultado ou acontecimento no formato "dia/mes" (ex: "05/mar"). Se foi hoje, escreva "hoje, dia/mes". Se e amanha, escreva "amanha, dia/mes". NUNCA publique noticia esportiva sem data.\n\nFormato: Uma frase de titulo na primeira linha.\n\nComentario com opiniao em 2-3 frases. Use linguagem de torcedor. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    queryTemplate: 'Data de HOJE: {date}. Principal noticia de esporte de HOJE ({date}) no Brasil e no mundo. IMPORTANTE: so traga resultados, jogos ou noticias de HOJE ou de ontem. NUNCA traga noticias de semanas atras. Pode ser futebol, basquete, MMA, F1, tenis ou qualquer esporte. Foco em resultados, transferencias ou polemicas. Inclua a data do acontecimento.',
     enabled: true
   },
   fitness: {
@@ -5081,6 +5100,7 @@ const MURAL_AGENTS = {
     color: '#2e7d32',
     label: 'Fitness',
     description: 'Dicas de exercicio e motivacao',
+    factual: false,
     systemPrompt: 'Voce e um personal trainer digital animado e motivador. Fale como um coach que incentiva as pessoas. Traga dicas de exercicio e treino. Formato: Uma frase de titulo motivacional na primeira linha.\n\nDica pratica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Dica de exercicio ou treino do dia. Algo pratico que qualquer pessoa pode fazer em casa ou na rua em {local}.',
     enabled: true
@@ -5092,6 +5112,7 @@ const MURAL_AGENTS = {
     color: '#00897b',
     label: 'Saude',
     description: 'Dicas de saude e bem-estar',
+    factual: false,
     systemPrompt: 'Voce e um especialista em saude digital acessivel e confiavel. Traga dicas de saude, prevencao, bem-estar, alimentacao saudavel e saude mental. Nao faca diagnosticos. Formato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases claras e uteis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Cite fontes confiaveis quando possivel.',
     queryTemplate: 'Dica de saude, prevencao ou bem-estar do dia. Algo pratico e acessivel para a populacao de {local}.',
     enabled: true
@@ -5103,6 +5124,7 @@ const MURAL_AGENTS = {
     color: '#d84315',
     label: 'Cozinha',
     description: 'Receitas e dicas culinarias',
+    factual: false,
     systemPrompt: 'Voce e um chef de cozinha carismatico. Fale como um chef que ensina com carinho e simplicidade. Traga receitas faceis e dicas culinarias. Formato: Nome da receita ou dica na primeira linha.\n\nInstrucoes em 2-3 frases simples. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
     queryTemplate: 'Receita facil e rapida ou dica culinaria do dia. Algo acessivel para cozinhar em {local}.',
     enabled: true
@@ -5114,8 +5136,9 @@ const MURAL_AGENTS = {
     color: '#6a1b9a',
     label: 'Tecnologia',
     description: 'Novidades tech e inovacao',
-    systemPrompt: 'Voce e um especialista em tecnologia e inovacao. Fale de forma clara e acessivel sobre tech. Traga novidades de tecnologia, apps, gadgets e IA. Formato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases acessiveis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
-    queryTemplate: 'Principal novidade de tecnologia de hoje no mundo. Foco em lancamentos, IA, apps ou gadgets.',
+    factual: true,
+    systemPrompt: 'Voce e um especialista em tecnologia e inovacao. Fale de forma clara e acessivel sobre tech. Traga novidades de tecnologia, apps, gadgets e IA.\n\nREGRA OBRIGATORIA DE DATA: SEMPRE inclua a data do lancamento ou anuncio no formato "dia/mes" (ex: "05/mar"). Se foi hoje, escreva "hoje, dia/mes". NUNCA publique noticia de tech sem data.\n\nFormato: Uma frase de titulo na primeira linha.\n\nExplicacao em 2-3 frases acessiveis. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    queryTemplate: 'Data de HOJE: {date}. Principal novidade de tecnologia de HOJE ({date}) no mundo. IMPORTANTE: so traga noticias publicadas HOJE ou ontem. NUNCA traga noticias antigas. Foco em lancamentos, IA, apps ou gadgets. Inclua a data do anuncio.',
     enabled: true
   },
   politica: {
@@ -5125,8 +5148,9 @@ const MURAL_AGENTS = {
     color: '#37474f',
     label: 'Politica',
     description: 'Noticias politicas com analise',
-    systemPrompt: 'Voce e um analista politico imparcial e direto. Traga noticias de politica sem tomar lado, mas com analise critica. Formato: Uma frase de titulo na primeira linha.\n\nAnalise equilibrada em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Seja imparcial.',
-    queryTemplate: 'Principal noticia de politica de hoje no Brasil e no mundo. Foco em decisoes que afetam a populacao.',
+    factual: true,
+    systemPrompt: 'Voce e um analista politico imparcial e direto. Traga noticias de politica sem tomar lado, mas com analise critica.\n\nREGRA OBRIGATORIA DE DATA: SEMPRE inclua a data do acontecimento politico no formato "dia/mes" (ex: "05/mar"). Se foi hoje, escreva "hoje, dia/mes". NUNCA publique noticia politica sem data.\n\nFormato: Uma frase de titulo na primeira linha.\n\nAnalise equilibrada em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Seja imparcial.',
+    queryTemplate: 'Data de HOJE: {date}. Principal noticia de politica de HOJE ({date}) no Brasil e no mundo. IMPORTANTE: so traga noticias de HOJE ou de ontem. NUNCA traga noticias de semanas atras. Foco em decisoes que afetam a populacao. Inclua a data do acontecimento.',
     enabled: true
   },
   educacao: {
@@ -5136,6 +5160,7 @@ const MURAL_AGENTS = {
     color: '#f57f17',
     label: 'Educacao',
     description: 'Curiosidades e aprendizado',
+    factual: false,
     systemPrompt: 'Voce e um professor curioso e didatico. Traga curiosidades, fatos interessantes e conteudo educativo. Formato: Uma frase de titulo curiosa na primeira linha.\n\nExplicacao didatica em 2-3 frases. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta. Ensine algo novo.',
     queryTemplate: 'Curiosidade interessante ou fato educativo do dia. Algo surpreendente que as pessoas nao sabem.',
     enabled: true
@@ -5147,8 +5172,9 @@ const MURAL_AGENTS = {
     color: '#1976d2',
     label: 'Clima e Tempo',
     description: 'Previsao do tempo e alertas climaticos',
-    systemPrompt: 'Voce e um meteorologista digital confiavel. Traga a previsao do tempo atual, alertas climaticos e informacoes uteis sobre o clima. Fale de forma clara e pratica. Formato: Uma frase de titulo sobre o clima na primeira linha.\n\nPrevisao detalhada em 2-3 frases com temperatura, chuva e dicas praticas. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
-    queryTemplate: 'Previsao do tempo de hoje e amanha para {local}. Inclua temperatura, chance de chuva, umidade e se ha alertas meteorologicos. Foque no que as pessoas precisam saber para sair de casa.',
+    factual: true,
+    systemPrompt: 'Voce e um meteorologista digital confiavel. Traga a previsao do tempo atual, alertas climaticos e informacoes uteis sobre o clima. Fale de forma clara e pratica.\n\nREGRA OBRIGATORIA DE DATA: SEMPRE inclua a data da previsao no formato "dia/mes" (ex: "hoje, 05/mar" ou "amanha, 06/mar"). NUNCA publique previsao sem data.\n\nFormato: Uma frase de titulo sobre o clima na primeira linha.\n\nPrevisao detalhada em 2-3 frases com temperatura, chuva e dicas praticas. Nao use emojis, asteriscos ou formatacao markdown. Nao use caixa alta.',
+    queryTemplate: 'Data de HOJE: {date}. Previsao do tempo de HOJE ({date}) e amanha para {local}. IMPORTANTE: a previsao deve ser para a data de HOJE, nao de dias passados. Inclua temperatura, chance de chuva, umidade e se ha alertas meteorologicos. Foque no que as pessoas precisam saber para sair de casa.',
     enabled: true
   }
 };
@@ -5241,8 +5267,9 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
   // ── Cache por regiao: mesma cidade/estado/pais = reusa resultado ──
   const regionKey = agentId + ':' + (channelName || 'unknown') + ':' + (channelType || 'city');
   const cached = _newsRegionCache[regionKey];
-  if (cached && (Date.now() - cached.ts) < NEWS_REGION_CACHE_TTL) {
-    console.log('[MURAL] Cache hit for region:', regionKey);
+  const cacheTTL = agent.factual ? NEWS_REGION_CACHE_TTL_FACTUAL : NEWS_REGION_CACHE_TTL;
+  if (cached && (Date.now() - cached.ts) < cacheTTL) {
+    console.log('[MURAL] Cache hit for region:', regionKey, '(ttl:', Math.round(cacheTTL / 60000) + 'min)');
     return cached.result;
   }
 
@@ -5254,7 +5281,9 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
 
   // Detectar contexto do mural para buscar noticias relacionadas
   const muralContext = _detectMuralContext(channelKey);
-  let query = agent.queryTemplate.replace('{local}', localName);
+  // Injetar data real do dia nos queryTemplates que usam {date}
+  const todayStr = _getTodayDateStr(lang);
+  let query = agent.queryTemplate.replace('{local}', localName).replace(/\{date\}/g, todayStr);
   if (muralContext) {
     query += '\n\nContexto: as pessoas estao conversando sobre: ' + muralContext.slice(0, 300) + '\nSe possivel, traga uma noticia relacionada a esse assunto.';
   }
@@ -5263,23 +5292,29 @@ async function fetchNewsForChannel(channelKey, channelName, channelType, agentId
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20000);
+    // Montar body da requisicao -- agentes factuais usam search_recency_filter
+    const pplxBody = {
+      model: 'sonar',
+      messages: [
+        { role: 'system', content: agent.systemPrompt + '\n' + langInst },
+        { role: 'user', content: query }
+      ],
+      max_tokens: 350,
+      temperature: 0.3,
+      return_images: true,
+      return_related_questions: false
+    };
+    // Filtro de recencia: so para agentes factuais (reporter, sport, tech, politica, clima)
+    if (agent.factual) {
+      pplxBody.search_recency_filter = 'day';
+    }
     const resp = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + PPLX_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: 'sonar',
-        messages: [
-          { role: 'system', content: agent.systemPrompt + '\n' + langInst },
-          { role: 'user', content: query }
-        ],
-        max_tokens: 350,
-        temperature: 0.3,
-        return_images: true,
-        return_related_questions: false
-      }),
+      body: JSON.stringify(pplxBody),
       signal: ctrl.signal
     });
     clearTimeout(timer);
