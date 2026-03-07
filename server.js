@@ -14022,9 +14022,13 @@ app.get('/api/event/:eventId/parking', (req, res) => {
   res.json({
     enabled: parking.enabled,
     mode: parking.mode,
+    pricingMode: parking.pricingMode || 'hourly',
     hourlyRate: parking.hourlyRate,
     fixedRate: parking.fixedRate,
     maxHours: parking.maxHours,
+    tolerance: parking.tolerance || 10,
+    totalSpots: parking.totalSpots || 50,
+    periods: parking.periods || [],
     activeVehicles: activeVehicles.length
   });
 });
@@ -14034,7 +14038,7 @@ app.post('/api/operator/event/:eventId/parking/config', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   const { enabled, mode, hourlyRate, fixedRate, maxHours } = req.body;
-  if (!ev.parking) ev.parking = { enabled: false, mode: 'postpaid', hourlyRate: 10, fixedRate: 0, maxHours: 24, vehicles: {} };
+  if (!ev.parking) ev.parking = { enabled: false, mode: 'postpaid', pricingMode: 'hourly', hourlyRate: 10, fixedRate: 0, maxHours: 24, tolerance: 10, totalSpots: 50, periods: [], vehicles: {} };
   ev.parking.enabled = !!enabled;
   ev.parking.mode = ['prepaid', 'postpaid', 'both'].includes(mode) ? mode : 'postpaid';
   ev.parking.hourlyRate = Math.max(0, parseFloat(hourlyRate) || 10);
@@ -14087,10 +14091,53 @@ app.post('/api/operator/event/:eventId/parking/exit', (req, res) => {
   if (!vehicle) return res.status(404).json({ error: 'Veículo não encontrado.' });
   vehicle.exitTime = Date.now();
   vehicle.status = 'exited';
-  const hoursParked = Math.ceil((vehicle.exitTime - vehicle.entryTime) / 3600000);
-  if (ev.parking.mode === 'postpaid') {
-    vehicle.amountDue = hoursParked * ev.parking.hourlyRate;
+  const elapsedMs = vehicle.exitTime - vehicle.entryTime;
+  const hoursParked = Math.ceil(elapsedMs / 3600000);
+  const minutesParked = Math.ceil(elapsedMs / 60000);
+  // Calculate cost based on pricing mode
+  if (ev.parking.pricingMode === 'periods' && ev.parking.periods && ev.parking.periods.length > 0) {
+    // Period-based pricing
+    let remainingHours = hoursParked;
+    let totalCost = 0;
+    const periods = ev.parking.periods.sort((a, b) => a.hours - b.hours);
+    // Apply tolerance (free minutes)
+    const tolerance = ev.parking.tolerance || 0;
+    if (minutesParked <= tolerance) {
+      totalCost = 0;
+    } else {
+      for (const period of periods) {
+        if (remainingHours <= 0) break;
+        if (period.hours >= 24) {
+          // Daily rate: check if cheaper than remaining hours
+          const dailyCost = period.price;
+          const hoursCost = remainingHours * (periods.find(p => p.hours === 1)?.price || ev.parking.hourlyRate);
+          if (dailyCost < hoursCost) {
+            totalCost += Math.floor(remainingHours / 24) * dailyCost;
+            remainingHours = remainingHours % 24;
+          }
+        } else {
+          totalCost += period.price;
+          remainingHours -= period.hours;
+        }
+      }
+      // Remaining hours at last period rate or hourly rate
+      if (remainingHours > 0) {
+        const additionalRate = periods.length > 1 ? periods[periods.length - 1].price / (periods[periods.length - 1].hours || 1) : ev.parking.hourlyRate;
+        totalCost += remainingHours * additionalRate;
+      }
+    }
+    vehicle.amountDue = totalCost;
+  } else {
+    // Simple hourly rate
+    const tolerance = ev.parking.tolerance || 0;
+    if (minutesParked <= tolerance) {
+      vehicle.amountDue = 0;
+    } else {
+      vehicle.amountDue = hoursParked * (ev.parking.hourlyRate || 10);
+    }
   }
+  // Add fixed rate if configured
+  if (ev.parking.fixedRate > 0) vehicle.amountDue += ev.parking.fixedRate;
   saveDB('operatorEvents');
   io.emit('parking-vehicle-exited', { eventId: ev.id, plate: plateTrimmed, amountDue: vehicle.amountDue });
   res.json({ ok: true, vehicle, hoursParked, amountDue: vehicle.amountDue });
@@ -14133,18 +14180,30 @@ app.get('/api/event/:eventId/parking/vehicle/:plate', (req, res) => {
 // Manual vehicle entry (operator)
 app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (!ev.parking || !ev.parking.enabled) return res.status(400).json({ error: 'Estacionamento desativado.' });
-  const { plate, nickname, notes } = req.body;
-  const plateTrimmed = (plate || '').toUpperCase().trim();
-  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatória.' });
+  const { plate, nickname, notes, userId, vehicleModel, vehicleBrand, vehicleColor } = req.body;
+  const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatoria.' });
   if (!ev.parking.vehicles) ev.parking.vehicles = {};
   const existing = ev.parking.vehicles[plateTrimmed];
-  if (existing && existing.status === 'parked') return res.status(400).json({ error: 'Veículo já estacionado.' });
+  if (existing && existing.status === 'parked') return res.status(400).json({ error: 'Veiculo ja estacionado.' });
+  // If userId provided, save plate to user profile (shared vehicle support)
+  if (userId && db.users[userId]) {
+    const user = db.users[userId];
+    if (!user.vehicles) user.vehicles = [];
+    if (!user.vehicles.some(v => v.plate === plateTrimmed)) {
+      user.vehicles.push({ plate: plateTrimmed, model: vehicleModel || '', brand: vehicleBrand || '', color: vehicleColor || '', addedAt: Date.now() });
+      saveDB('users');
+    }
+  }
   ev.parking.vehicles[plateTrimmed] = {
     plate: plateTrimmed,
-    userId: 'operador',
+    userId: userId || 'operador',
     nickname: nickname || 'Manual',
+    vehicleModel: vehicleModel || '',
+    vehicleBrand: vehicleBrand || '',
+    vehicleColor: vehicleColor || '',
     entryTime: Date.now(),
     exitTime: null,
     status: 'parked',
@@ -14155,7 +14214,146 @@ app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
     notes: notes || ''
   };
   saveDB('operatorEvents');
+  io.emit('parking-vehicle-registered', { eventId: ev.id, plate: plateTrimmed, nickname: ev.parking.vehicles[plateTrimmed].nickname });
   res.json({ ok: true, vehicle: ev.parking.vehicles[plateTrimmed] });
+});
+
+// Plate lookup API (consulta placa)
+const PLATE_API_TOKEN = process.env.PLATE_API_TOKEN || '';
+app.get('/api/plate-lookup/:plate', async (req, res) => {
+  const plate = (req.params.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!plate || plate.length < 7) return res.status(400).json({ error: 'Placa invalida.' });
+  // Check if we have it cached in any user's vehicles
+  for (const uid of Object.keys(db.users)) {
+    const u = db.users[uid];
+    if (u.vehicles) {
+      const v = u.vehicles.find(v => v.plate === plate);
+      if (v && v.model) return res.json({ plate, model: v.model, brand: v.brand || '', year: v.year || '', color: v.color || '', source: 'cache', owners: getPlateOwners(plate) });
+    }
+  }
+  // Try external API if token configured
+  if (PLATE_API_TOKEN) {
+    try {
+      const https = require('https');
+      const apiUrl = `https://wdapi2.com.br/consulta/${plate}/${PLATE_API_TOKEN}`;
+      const data = await new Promise((resolve, reject) => {
+        https.get(apiUrl, { timeout: 5000 }, (resp) => {
+          let d = '';
+          resp.on('data', c => d += c);
+          resp.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
+        }).on('error', reject);
+      });
+      if (data && data.MARCA) {
+        return res.json({
+          plate, model: data.MODELO || '', brand: data.MARCA || '',
+          year: (data.ano || data.anoModelo || '').toString(), color: data.cor || '',
+          fuel: data.combustivel || '', city: data.MUNICIPIO || '', state: data.uf || '',
+          source: 'api', owners: getPlateOwners(plate)
+        });
+      }
+    } catch (e) {
+      console.error('Plate API error:', e.message);
+    }
+  }
+  // Fallback: return empty (user fills manually)
+  res.json({ plate, model: '', brand: '', year: '', color: '', source: 'manual', owners: getPlateOwners(plate) });
+});
+
+function getPlateOwners(plate) {
+  const owners = [];
+  for (const uid of Object.keys(db.users)) {
+    const u = db.users[uid];
+    if (u.vehicles && u.vehicles.some(v => v.plate === plate)) {
+      owners.push({ userId: uid, nickname: u.nickname || u.name || '?' });
+    }
+  }
+  return owners;
+}
+
+// Save vehicle to user profile
+app.post('/api/user/:userId/vehicle', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const { plate, model, brand, year, color } = req.body;
+  const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatoria.' });
+  if (!user.vehicles) user.vehicles = [];
+  // Check if already registered for this user
+  const existing = user.vehicles.findIndex(v => v.plate === plateTrimmed);
+  if (existing >= 0) {
+    user.vehicles[existing] = { plate: plateTrimmed, model: model || '', brand: brand || '', year: year || '', color: color || '', updatedAt: Date.now() };
+  } else {
+    user.vehicles.push({ plate: plateTrimmed, model: model || '', brand: brand || '', year: year || '', color: color || '', addedAt: Date.now() });
+  }
+  saveDB('users');
+  res.json({ ok: true, vehicles: user.vehicles });
+});
+
+// Get user vehicles
+app.get('/api/user/:userId/vehicles', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  res.json({ vehicles: user.vehicles || [] });
+});
+
+// Remove vehicle from user profile
+app.delete('/api/user/:userId/vehicle/:plate', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const plateTrimmed = (req.params.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!user.vehicles) return res.json({ ok: true, vehicles: [] });
+  user.vehicles = user.vehicles.filter(v => v.plate !== plateTrimmed);
+  saveDB('users');
+  res.json({ ok: true, vehicles: user.vehicles });
+});
+
+// ═══ ENHANCED PARKING ENDPOINTS ═══
+
+// Update parking config with period pricing
+app.post('/api/operator/event/:eventId/parking/pricing', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (!ev.parking) ev.parking = { enabled: false, mode: 'postpaid', hourlyRate: 10, fixedRate: 0, maxHours: 24, vehicles: {} };
+  const { pricingMode, hourlyRate, periods, maxHours, tolerance } = req.body;
+  ev.parking.pricingMode = pricingMode || 'hourly'; // 'hourly' or 'periods'
+  ev.parking.hourlyRate = Math.max(0, parseFloat(hourlyRate) || 10);
+  ev.parking.maxHours = Math.max(1, parseInt(maxHours) || 24);
+  ev.parking.tolerance = Math.max(0, parseInt(tolerance) || 10); // minutes tolerance
+  if (periods && Array.isArray(periods)) {
+    ev.parking.periods = periods; // [{label:'1a hora', hours:1, price:10}, {label:'Hora adicional', hours:1, price:5}, {label:'Diaria', hours:24, price:30}]
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true, parking: ev.parking });
+});
+
+// Generate parking receipt
+app.get('/api/event/:eventId/parking/receipt/:plate', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const plateTrimmed = (req.params.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!ev.parking || !ev.parking.vehicles) return res.status(404).json({ error: 'Veiculo nao encontrado.' });
+  const vehicle = ev.parking.vehicles[plateTrimmed];
+  if (!vehicle) return res.status(404).json({ error: 'Veiculo nao encontrado.' });
+  const elapsedMs = (vehicle.exitTime || Date.now()) - vehicle.entryTime;
+  const hoursParked = Math.ceil(elapsedMs / 3600000);
+  const minutesParked = Math.ceil(elapsedMs / 60000);
+  res.json({
+    receipt: {
+      plate: vehicle.plate,
+      nickname: vehicle.nickname,
+      vehicleModel: vehicle.vehicleModel || '',
+      eventName: ev.name || 'Estacionamento',
+      entryTime: vehicle.entryTime,
+      exitTime: vehicle.exitTime || null,
+      hoursParked,
+      minutesParked,
+      amountDue: vehicle.amountDue || 0,
+      amountPaid: vehicle.amountPaid || 0,
+      paymentMode: vehicle.paymentMode,
+      status: vehicle.status,
+      receiptId: 'PKG-' + Date.now().toString(36).toUpperCase()
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════

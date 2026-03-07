@@ -1296,6 +1296,21 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 
 /* ═══ PARKING MODULE VARS ═══ */
 .op-park-panel{--mod-accent:#3b82f6;--mod-accent2:#60a5fa;--mod-accent-30:rgba(59,130,246,.3);--mod-shadow:rgba(59,130,246,.2);--mod-glow:rgba(59,130,246,.08);--mod-glow2:rgba(96,165,250,.06);--mod-bg1:rgba(59,130,246,.1);--mod-bg2:rgba(96,165,250,.06);--mod-tab-bg:rgba(59,130,246,.12);--mod-tab-border:rgba(59,130,246,.3)}
+.park-vcard{background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:.6rem;transition:all .3s}
+.park-vcard:hover{border-color:rgba(59,130,246,.25)}
+.park-vcard-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;flex-wrap:wrap;gap:.3rem}
+.park-vcard-plate{font-size:1rem;font-weight:800;letter-spacing:.12em;color:var(--t1);font-family:var(--font-display)}
+.park-vcard-timer{font-size:.7rem;font-weight:700;color:#60a5fa;background:rgba(59,130,246,.1);padding:.2rem .5rem;border-radius:8px;font-variant-numeric:tabular-nums}
+.park-vcard-info{font-size:.65rem;color:var(--t3);line-height:1.6;margin-bottom:.4rem}
+.park-vcard-info strong{color:var(--t2)}
+.park-vcard-model{font-size:.7rem;color:var(--t2);font-weight:600}
+.park-vcard-cost{font-size:.85rem;font-weight:800;color:#2dd4a0}
+.park-vcard-actions{display:flex;gap:.3rem;flex-wrap:wrap}
+.park-vcard-actions button{flex:1;min-width:0;font-size:.7rem;padding:.4rem .5rem}
+.park-period-row{display:flex;gap:.3rem;align-items:center;background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:.3rem .4rem}
+.park-period-row input{background:var(--bg);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:.7rem;padding:.25rem .3rem;font-family:inherit}
+.park-period-row label{font-size:.6rem;color:var(--t3);white-space:nowrap}
+@media(max-width:500px){.op-park-panel .mod-tabs{font-size:.6rem}.park-vcard-actions{flex-direction:column}.park-vcard-actions button{flex:auto}}
 
 /* ═══ GYM MODULE VARS ═══ */
 .op-gym-panel{--mod-accent:#10b981;--mod-accent2:#34d399;--mod-accent-30:rgba(16,185,129,.3);--mod-shadow:rgba(16,185,129,.2);--mod-glow:rgba(16,185,129,.08);--mod-glow2:rgba(52,211,153,.06);--mod-bg1:rgba(16,185,129,.1);--mod-bg2:rgba(52,211,153,.06);--mod-tab-bg:rgba(16,185,129,.12);--mod-tab-border:rgba(16,185,129,.3)}
@@ -2317,43 +2332,83 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
   <div class="op-park-panel mod-panel" id="opParkPanel">
     <div class="mod-head">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-        <h2><span class="mod-icon">🅿</span>Estacionamento</h2>
-        <button class="mod-close" onclick="closeParkPanel()">✕</button>
+        <h2><span class="mod-icon" style="font-size:1.1rem">P</span>Estacionamento</h2>
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <span id="parkActiveCount" style="font-size:.65rem;background:rgba(59,130,246,.15);color:#60a5fa;padding:.2rem .5rem;border-radius:8px;font-weight:700">0 veiculos</span>
+          <button class="mod-close" onclick="closeParkPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
       </div>
     </div>
-    <div class="mod-tabs" id="opParkTabs">
-      <button class="mod-tab active" onclick="switchParkTab('vehicles')">Veículos <span class="badge" id="parkVehiclesBadge" style="display:none">0</span></button>
-      <button class="mod-tab" onclick="switchParkTab('register')">Registrar</button>
-      <button class="mod-tab" onclick="switchParkTab('config')">Config</button>
-      <button class="mod-tab" onclick="switchParkTab('history')">Histórico</button>
+    <div class="mod-tabs" id="opParkTabs" style="flex-wrap:wrap;gap:.25rem">
+      <button class="mod-tab active" onclick="switchParkTab('vehicles')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Ativos <span class="badge" id="parkVehiclesBadge" style="display:none">0</span></button>
+      <button class="mod-tab" onclick="switchParkTab('register')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Entrada</button>
+      <button class="mod-tab" onclick="switchParkTab('config')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Config</button>
+      <button class="mod-tab" onclick="switchParkTab('history')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Historico</button>
       <button class="mod-test-btn" onclick="populateTestParking()" style="margin-left:auto">Teste</button>
     </div>
-    <div class="mod-content">
-      <!-- VEHICLES TAB -->
+    <div class="mod-content" style="padding:.6rem">
+      <!-- VEHICLES TAB (Active) -->
       <div id="parkTabVehicles">
-        <div id="parkVehiclesList" style="display:flex;flex-direction:column;gap:.4rem"></div>
-        <div id="parkEmpty" class="mod-empty">Nenhum veículo estacionado</div>
+        <!-- Quick entry bar for mobile -->
+        <div style="display:flex;gap:.3rem;margin-bottom:.6rem">
+          <input id="parkQuickPlate" class="mod-input" placeholder="Placa..." style="text-transform:uppercase;flex:1;font-size:.85rem;letter-spacing:.1em;font-weight:700;padding:.6rem" onkeyup="if(event.key==='Enter')parkQuickEntry()">
+          <button class="mod-btn primary" onclick="parkQuickEntry()" style="white-space:nowrap;padding:.6rem .8rem;font-size:.8rem">Entrada</button>
+        </div>
+        <div id="parkVehiclesList" style="display:flex;flex-direction:column;gap:.5rem"></div>
+        <div id="parkEmpty" class="mod-empty" style="padding:2rem">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.2" style="margin-bottom:.5rem"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <div>Nenhum veiculo estacionado</div>
+          <div style="font-size:.6rem;margin-top:.3rem;color:var(--t3)">Use o campo acima ou a aba "Entrada" para registrar</div>
+        </div>
       </div>
 
       <!-- REGISTER TAB -->
       <div id="parkTabRegister" style="display:none">
-        <div class="mod-field">
-          <label class="mod-label">Placa (Operador)</label>
-          <input id="parkManualPlate" class="mod-input" placeholder="ABC1D23" style="text-transform:uppercase">
+        <div style="background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:.8rem;margin-bottom:.6rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Registrar Veiculo</div>
+          <div class="mod-field">
+            <label class="mod-label">Placa</label>
+            <div style="display:flex;gap:.3rem">
+              <input id="parkManualPlate" class="mod-input" placeholder="ABC1D23" style="text-transform:uppercase;flex:1;font-size:.9rem;letter-spacing:.12em;font-weight:700" oninput="parkAutoLookup(this.value)">
+              <button class="mod-btn primary" onclick="parkLookupPlate()" style="white-space:nowrap">Consultar</button>
+            </div>
+          </div>
+          <div id="parkLookupResult" style="display:none;background:var(--s1);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:.5rem;margin:.4rem 0;font-size:.7rem">
+            <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.3rem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span style="color:#60a5fa;font-weight:700">Veiculo Encontrado</span>
+            </div>
+            <div id="parkLookupInfo" style="color:var(--t2);line-height:1.6"></div>
+          </div>
+          <div id="parkLookupOwners" style="display:none;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:.4rem;margin:.3rem 0;font-size:.6rem;color:#fbbf24"></div>
+          <button class="mod-btn primary full" onclick="parkCapturePhoto()" style="margin:.4rem 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto da Placa (OCR)</button>
+          <div id="parkPhotoPreview" style="margin:.3rem 0"></div>
+          <div id="parkOCRStatus" style="font-size:.6rem;text-align:center;min-height:1em"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-top:.4rem">
+            <div class="mod-field"><label class="mod-label">Modelo</label><input id="parkManualModel" class="mod-input" placeholder="Ex: Onix, Civic..." style="font-size:.8rem"></div>
+            <div class="mod-field"><label class="mod-label">Cor</label><input id="parkManualColor" class="mod-input" placeholder="Ex: Preto, Branco..." style="font-size:.8rem"></div>
+          </div>
+          <div class="mod-field">
+            <label class="mod-label">Nome do Motorista</label>
+            <input id="parkManualName" class="mod-input" placeholder="Nome ou apelido">
+          </div>
+          <div class="mod-field">
+            <label class="mod-label">Observacoes</label>
+            <input id="parkManualNotes" class="mod-input" placeholder="Ex: vaga 15, perto da entrada">
+          </div>
+          <button class="mod-btn primary full" onclick="saveParkManualEntry()" style="font-size:.85rem;padding:.65rem">Registrar Entrada</button>
+          <div id="parkManualStatus" style="font-size:.65rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>
         </div>
-        <button class="mod-btn primary full" onclick="parkCapturePhoto()">Foto da Placa</button>
-        <div id="parkPhotoPreview" style="margin-top:.4rem"></div>
-        <div id="parkOCRStatus" style="font-size:.6rem;text-align:center;min-height:1em;margin-top:.2rem"></div>
-        <div class="mod-field">
-          <label class="mod-label">Nome/Apelido</label>
-          <input id="parkManualName" class="mod-input" placeholder="Nome do proprietário">
+
+        <!-- Touch Mode Button -->
+        <div style="background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(96,165,250,.05));border:1px solid rgba(59,130,246,.2);border-radius:14px;padding:.8rem;text-align:center">
+          <div style="font-size:.7rem;font-weight:700;color:#60a5fa;margin-bottom:.4rem">Modo Touch</div>
+          <div style="font-size:.6rem;color:var(--t3);margin-bottom:.5rem;line-height:1.4">O motorista abre o Touch no celular. Encoste os celulares pra registrar automaticamente.</div>
+          <button class="mod-btn" onclick="parkTouchMode()" style="background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.3);color:#60a5fa;padding:.5rem 1.2rem;font-size:.8rem;border-radius:12px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            Ativar Touch Estacionamento
+          </button>
         </div>
-        <div class="mod-field">
-          <label class="mod-label">Observações</label>
-          <input id="parkManualNotes" class="mod-input" placeholder="Ex: perto da entrada">
-        </div>
-        <button class="mod-btn primary full" onclick="saveParkManualEntry()">Registrar Veículo</button>
-        <div id="parkManualStatus" style="font-size:.6rem;color:var(--ok);text-align:center;min-height:1.2em;margin-top:.3rem"></div>
       </div>
 
       <!-- CONFIG TAB -->
@@ -2371,36 +2426,76 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <div class="mod-config">
           <div class="mod-config-title">Modo de Pagamento</div>
           <div class="mod-config-row">
-            <label><input type="radio" name="parkMode" value="prepaid" onchange="saveParkConfig()"> Pré-pago</label>
+            <label><input type="radio" name="parkMode" value="prepaid" onchange="saveParkConfig()"> Pre-pago (paga na entrada)</label>
           </div>
           <div class="mod-config-row">
-            <label><input type="radio" name="parkMode" value="postpaid" checked onchange="saveParkConfig()"> Pós-pago</label>
+            <label><input type="radio" name="parkMode" value="postpaid" checked onchange="saveParkConfig()"> Pos-pago (paga na saida)</label>
           </div>
           <div class="mod-config-row">
             <label><input type="radio" name="parkMode" value="both" onchange="saveParkConfig()"> Ambos</label>
           </div>
         </div>
         <div class="mod-config">
-          <div class="mod-config-title">Tarifas</div>
+          <div class="mod-config-title">Tipo de Tarifa</div>
           <div class="mod-config-row">
-            <label>Taxa por Hora (R$)</label>
-            <input type="number" id="parkHourlyRate" value="10.00" step="0.50" min="0" onchange="saveParkConfig()">
+            <label><input type="radio" name="parkPricing" value="hourly" checked onchange="toggleParkPricing()"> Preco por Hora</label>
           </div>
           <div class="mod-config-row">
-            <label>Taxa Fixa (R$)</label>
-            <input type="number" id="parkFixedRate" value="0" step="0.50" min="0" onchange="saveParkConfig()">
+            <label><input type="radio" name="parkPricing" value="periods" onchange="toggleParkPricing()"> Tabela de Periodos</label>
+          </div>
+        </div>
+        <div class="mod-config" id="parkHourlyConfig">
+          <div class="mod-config-title">Preco por Hora</div>
+          <div class="mod-config-row">
+            <label>Valor/Hora (R$)</label>
+            <input type="number" id="parkHourlyRate" value="10.00" step="0.50" min="0" style="width:80px;text-align:center" onchange="saveParkConfig()">
+          </div>
+        </div>
+        <div class="mod-config" id="parkPeriodsConfig" style="display:none">
+          <div class="mod-config-title">Tabela de Periodos</div>
+          <div id="parkPeriodsList" style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.4rem"></div>
+          <button class="mod-btn primary" onclick="addParkPeriod()" style="font-size:.7rem;padding:.35rem .6rem">+ Adicionar Periodo</button>
+        </div>
+        <div class="mod-config">
+          <div class="mod-config-title">Configuracoes Gerais</div>
+          <div class="mod-config-row">
+            <label>Taxa Fixa Adicional (R$)</label>
+            <input type="number" id="parkFixedRate" value="0" step="0.50" min="0" style="width:80px;text-align:center" onchange="saveParkConfig()">
           </div>
           <div class="mod-config-row">
-            <label>Máximo de Horas</label>
-            <input type="number" id="parkMaxHours" value="24" step="1" min="1" max="72" onchange="saveParkConfig()">
+            <label>Tolerancia (min)</label>
+            <input type="number" id="parkTolerance" value="10" step="5" min="0" max="60" style="width:80px;text-align:center" onchange="saveParkConfig()">
+          </div>
+          <div class="mod-config-row">
+            <label>Maximo de Horas</label>
+            <input type="number" id="parkMaxHours" value="24" step="1" min="1" max="72" style="width:80px;text-align:center" onchange="saveParkConfig()">
+          </div>
+          <div class="mod-config-row">
+            <label>Total de Vagas</label>
+            <input type="number" id="parkTotalSpots" value="50" step="1" min="1" style="width:80px;text-align:center" onchange="saveParkConfig()">
           </div>
         </div>
       </div>
 
       <!-- HISTORY TAB -->
       <div id="parkTabHistory" style="display:none">
+        <div style="display:flex;gap:.3rem;margin-bottom:.5rem">
+          <input id="parkHistorySearch" class="mod-input" placeholder="Buscar por placa ou nome..." oninput="filterParkHistory(this.value)" style="flex:1;font-size:.8rem">
+        </div>
         <div id="parkHistoryList" style="display:flex;flex-direction:column;gap:.4rem"></div>
-        <div id="parkHistoryEmpty" class="mod-empty">Nenhum histórico de estacionamento</div>
+        <div id="parkHistoryEmpty" class="mod-empty">Nenhum historico de estacionamento</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARKING RECEIPT MODAL -->
+  <div class="menu-modal-bg" id="parkReceiptBg" style="display:none" onclick="if(event.target===this)closeParkReceipt()">
+    <div class="menu-modal" style="max-width:360px;text-align:center">
+      <div style="font-size:1.2rem;font-weight:800;color:var(--t1);margin-bottom:.2rem">COMPROVANTE</div>
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.8rem" id="parkReceiptEventName">Estacionamento</div>
+      <div style="border-top:1px dashed var(--b2);border-bottom:1px dashed var(--b2);padding:.6rem 0;margin-bottom:.6rem" id="parkReceiptBody"></div>
+      <div style="display:flex;gap:.3rem;justify-content:center">
+        <button class="mod-btn primary" onclick="closeParkReceipt()">Fechar</button>
       </div>
     </div>
   </div>
@@ -6254,25 +6349,36 @@ function playOrderBeep(){
 })();
 
 // ═══ PARKING MODULE JAVASCRIPT ═══
-const PARK={activeTab:'vehicles',config:{enabled:false,mode:'postpaid',hourlyRate:10,fixedRate:0,maxHours:24},vehicles:{}};
+const PARK={activeTab:'vehicles',config:{enabled:false,mode:'postpaid',pricingMode:'hourly',hourlyRate:10,fixedRate:0,maxHours:24,tolerance:10,totalSpots:50,periods:[]},vehicles:{},timerInterval:null};
 
 function openParkPanel(){
   $('opParkPanel').style.display='block';
   loadParkConfig();
   loadParkVehicles();
   switchParkTab('vehicles');
+  startParkTimer();
 }
 
-function closeParkPanel(){$('opParkPanel').style.display='none'}
+function closeParkPanel(){
+  $('opParkPanel').style.display='none';
+  if(PARK.timerInterval){clearInterval(PARK.timerInterval);PARK.timerInterval=null}
+}
+
+function startParkTimer(){
+  if(PARK.timerInterval)clearInterval(PARK.timerInterval);
+  PARK.timerInterval=setInterval(function(){
+    if(PARK.activeTab==='vehicles')renderParkVehicles();
+  },30000); // Update timers every 30s
+}
 
 function switchParkTab(tab){
   PARK.activeTab=tab;
   ['vehicles','register','config','history'].forEach(t=>{
-    const el=$('parkTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    var el=$('parkTab'+t.charAt(0).toUpperCase()+t.slice(1));
     if(el)el.style.display=t===tab?'':'none';
   });
-  document.querySelectorAll('#opParkPanel .mod-tab').forEach((b,i)=>{
-    const tabs=['vehicles','register','config','history'];
+  var tabs=['vehicles','register','config','history'];
+  document.querySelectorAll('#opParkPanel .mod-tab').forEach(function(b,i){
     b.classList.toggle('active',tabs[i]===tab);
   });
   if(tab==='vehicles')loadParkVehicles();
@@ -6283,110 +6389,293 @@ function switchParkTab(tab){
 async function loadParkConfig(){
   if(!S.currentEventId)return;
   try{
-    const r=await fetch('/api/event/'+S.currentEventId+'/parking');
-    const d=await r.json();
-    PARK.config={enabled:d.enabled||false,mode:d.mode||'postpaid',hourlyRate:d.hourlyRate||10,fixedRate:d.fixedRate||0,maxHours:d.maxHours||24};
+    var r=await fetch('/api/event/'+S.currentEventId+'/parking');
+    var d=await r.json();
+    PARK.config={enabled:d.enabled||false,mode:d.mode||'postpaid',pricingMode:d.pricingMode||'hourly',hourlyRate:d.hourlyRate||10,fixedRate:d.fixedRate||0,maxHours:d.maxHours||24,tolerance:d.tolerance||10,totalSpots:d.totalSpots||50,periods:d.periods||[]};
     $('parkEnabled').checked=PARK.config.enabled;
-    document.querySelector('input[name="parkMode"][value="'+PARK.config.mode+'"]').checked=true;
+    var modeEl=document.querySelector('input[name="parkMode"][value="'+PARK.config.mode+'"]');
+    if(modeEl)modeEl.checked=true;
+    var pricingEl=document.querySelector('input[name="parkPricing"][value="'+PARK.config.pricingMode+'"]');
+    if(pricingEl)pricingEl.checked=true;
     $('parkHourlyRate').value=PARK.config.hourlyRate.toFixed(2);
     $('parkFixedRate').value=PARK.config.fixedRate.toFixed(2);
     $('parkMaxHours').value=PARK.config.maxHours;
+    $('parkTolerance').value=PARK.config.tolerance;
+    if($('parkTotalSpots'))$('parkTotalSpots').value=PARK.config.totalSpots;
+    toggleParkPricing();
+    renderParkPeriods();
   }catch(e){console.error('loadParkConfig:',e)}
+}
+
+function toggleParkPricing(){
+  var mode=document.querySelector('input[name="parkPricing"]:checked');
+  var isHourly=!mode||mode.value==='hourly';
+  $('parkHourlyConfig').style.display=isHourly?'':'none';
+  $('parkPeriodsConfig').style.display=isHourly?'none':'';
+}
+
+function renderParkPeriods(){
+  var list=$('parkPeriodsList');if(!list)return;
+  list.innerHTML='';
+  if(!PARK.config.periods||PARK.config.periods.length===0){
+    PARK.config.periods=[{label:'1a hora',hours:1,price:10},{label:'Hora adicional',hours:1,price:5},{label:'Diaria',hours:24,price:30}];
+  }
+  PARK.config.periods.forEach(function(p,i){
+    var row=document.createElement('div');
+    row.className='park-period-row';
+    row.innerHTML='<input type="text" value="'+esc(p.label)+'" placeholder="Nome" style="flex:1;min-width:0" onchange="updateParkPeriod('+i+',\'label\',this.value)">'+
+      '<label>H:</label><input type="number" value="'+p.hours+'" min="1" max="24" style="width:40px" onchange="updateParkPeriod('+i+',\'hours\',this.value)">'+
+      '<label>R$:</label><input type="number" value="'+p.price.toFixed(2)+'" min="0" step="0.50" style="width:60px" onchange="updateParkPeriod('+i+',\'price\',this.value)">'+
+      '<button onclick="removeParkPeriod('+i+')" style="background:none;border:none;color:#ef4444;cursor:pointer;padding:.2rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+    list.appendChild(row);
+  });
+}
+
+function updateParkPeriod(i,field,val){
+  if(!PARK.config.periods[i])return;
+  if(field==='hours')PARK.config.periods[i].hours=parseInt(val)||1;
+  else if(field==='price')PARK.config.periods[i].price=parseFloat(val)||0;
+  else PARK.config.periods[i][field]=val;
+  saveParkConfig();
+}
+function addParkPeriod(){
+  PARK.config.periods.push({label:'Periodo '+(PARK.config.periods.length+1),hours:1,price:5});
+  renderParkPeriods();saveParkConfig();
+}
+function removeParkPeriod(i){
+  PARK.config.periods.splice(i,1);
+  renderParkPeriods();saveParkConfig();
 }
 
 async function saveParkConfig(){
   if(!S.currentEventId)return;
-  const enabled=$('parkEnabled').checked;
-  const mode=document.querySelector('input[name="parkMode"]:checked').value;
-  const hourlyRate=parseFloat($('parkHourlyRate').value)||10;
-  const fixedRate=parseFloat($('parkFixedRate').value)||0;
-  const maxHours=parseInt($('parkMaxHours').value)||24;
+  var enabled=$('parkEnabled').checked;
+  var modeEl=document.querySelector('input[name="parkMode"]:checked');
+  var mode=modeEl?modeEl.value:'postpaid';
+  var pricingEl=document.querySelector('input[name="parkPricing"]:checked');
+  var pricingMode=pricingEl?pricingEl.value:'hourly';
+  var hourlyRate=parseFloat($('parkHourlyRate').value)||10;
+  var fixedRate=parseFloat($('parkFixedRate').value)||0;
+  var maxHours=parseInt($('parkMaxHours').value)||24;
+  var tolerance=parseInt($('parkTolerance').value)||10;
+  var totalSpots=$('parkTotalSpots')?parseInt($('parkTotalSpots').value)||50:50;
   try{
     await fetch('/api/operator/event/'+S.currentEventId+'/parking/config',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({enabled,mode,hourlyRate,fixedRate,maxHours})
     });
-    PARK.config={enabled,mode,hourlyRate,fixedRate,maxHours};
+    // Save pricing separately
+    await fetch('/api/operator/event/'+S.currentEventId+'/parking/pricing',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pricingMode,hourlyRate,periods:PARK.config.periods,maxHours,tolerance})
+    });
+    PARK.config={enabled,mode,pricingMode,hourlyRate,fixedRate,maxHours,tolerance,totalSpots,periods:PARK.config.periods};
   }catch(e){console.error('saveParkConfig:',e)}
 }
 
 async function loadParkVehicles(){
   if(!S.currentEventId)return;
   try{
-    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/vehicles');
-    const d=await r.json();
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/vehicles');
+    var d=await r.json();
     PARK.vehicles=d.vehicles||{};
     renderParkVehicles();
+    updateParkBadge();
   }catch(e){console.error('loadParkVehicles:',e)}
 }
 
+function formatParkTime(ms){
+  var totalMin=Math.floor(ms/60000);
+  var h=Math.floor(totalMin/60);
+  var m=totalMin%60;
+  if(h>0)return h+'h '+m+'min';
+  return m+'min';
+}
+
+function estimateParkCost(entryTime){
+  var elapsed=Date.now()-entryTime;
+  var hours=Math.ceil(elapsed/3600000);
+  var minutes=Math.ceil(elapsed/60000);
+  if(PARK.config.tolerance&&minutes<=PARK.config.tolerance)return 0;
+  if(PARK.config.pricingMode==='periods'&&PARK.config.periods&&PARK.config.periods.length>0){
+    var remaining=hours;var total=0;
+    var periods=PARK.config.periods.slice().sort(function(a,b){return a.hours-b.hours});
+    for(var i=0;i<periods.length&&remaining>0;i++){
+      total+=periods[i].price;remaining-=periods[i].hours;
+    }
+    if(remaining>0){
+      var lastRate=periods.length>1?periods[periods.length-1].price/(periods[periods.length-1].hours||1):PARK.config.hourlyRate;
+      total+=remaining*lastRate;
+    }
+    return total+(PARK.config.fixedRate||0);
+  }
+  return hours*(PARK.config.hourlyRate||10)+(PARK.config.fixedRate||0);
+}
+
 function renderParkVehicles(){
-  const list=$('parkVehiclesList');
-  const empty=$('parkEmpty');
+  var list=$('parkVehiclesList');
+  var empty=$('parkEmpty');
+  var countEl=$('parkActiveCount');
   list.innerHTML='';
 
-  if(!S.currentEventId)return;
+  if(!S.currentEventId){empty.style.display='block';return}
   if(!PARK.vehicles||Object.keys(PARK.vehicles).length===0){
     empty.style.display='block';
+    if(countEl)countEl.textContent='0 veiculos';
     return;
   }
 
-  const vehicles=Object.values(PARK.vehicles).filter(v=>v.status==='parked');
+  var vehicles=Object.values(PARK.vehicles).filter(function(v){return v.status==='parked'});
   if(vehicles.length===0){
     empty.style.display='block';
+    if(countEl)countEl.textContent='0 veiculos';
     return;
   }
   empty.style.display='none';
+  if(countEl)countEl.textContent=vehicles.length+' veiculo'+(vehicles.length!==1?'s':'');
 
-  vehicles.forEach(v=>{
-    const elapsed=Math.ceil((Date.now()-v.entryTime)/3600000);
-    const card=document.createElement('div');
-    card.className='mod-card';
+  // Sort by entry time (newest first)
+  vehicles.sort(function(a,b){return b.entryTime-a.entryTime});
+
+  vehicles.forEach(function(v){
+    var elapsed=Date.now()-v.entryTime;
+    var cost=estimateParkCost(v.entryTime);
+    var card=document.createElement('div');
+    card.className='park-vcard';
+    var modelStr=v.vehicleModel?esc(v.vehicleModel)+(v.vehicleColor?' - '+esc(v.vehicleColor):''):'';
     card.innerHTML=
-      '<div class="mod-card-head">'+
-        '<span class="mod-plate">'+esc(v.plate)+'</span>'+
-        '<span class="mod-badge blue">ESTACIONADO</span>'+
+      '<div class="park-vcard-head">'+
+        '<div>'+
+          '<div class="park-vcard-plate">'+esc(v.plate)+'</div>'+
+          (modelStr?'<div class="park-vcard-model">'+modelStr+'</div>':'')+
+        '</div>'+
+        '<div class="park-vcard-timer">'+formatParkTime(elapsed)+'</div>'+
       '</div>'+
-      '<div class="mod-card-info">'+
-        '<div><strong>'+esc(v.nickname)+'</strong></div>'+
-        '<div>Entrada: '+new Date(v.entryTime).toLocaleTimeString()+'</div>'+
-        '<div>Tempo: '+elapsed+' hora'+(elapsed!==1?'s':'')+' | Custo: R$ '+(elapsed*PARK.config.hourlyRate).toFixed(2)+'</div>'+
+      '<div class="park-vcard-info">'+
+        '<strong>'+esc(v.nickname||'Visitante')+'</strong> &middot; Entrada: '+new Date(v.entryTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+
+        (v.notes?' &middot; '+esc(v.notes):'')+
       '</div>'+
-      '<div class="mod-card-actions">'+
-        '<button class="mod-btn primary small" onclick="markParkExit(\''+esc(v.plate)+'\')">Saída</button>'+
-        '<button class="mod-btn danger small" onclick="if(confirm(\'Remover veículo?\'))removeParkVehicle(\''+esc(v.plate)+'\')">Remover</button>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem">'+
+        '<div class="park-vcard-cost">R$ '+cost.toFixed(2).replace('.',',')+'</div>'+
+        '<div class="park-vcard-actions">'+
+          '<button class="mod-btn primary small" onclick="markParkExit(\''+esc(v.plate)+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Saida</button>'+
+          '<button class="mod-btn danger small" onclick="if(confirm(\'Remover veiculo?\'))removeParkVehicle(\''+esc(v.plate)+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
+        '</div>'+
       '</div>';
     list.appendChild(card);
   });
 }
 
+// Quick entry from vehicles tab
+async function parkQuickEntry(){
+  var plate=($('parkQuickPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!plate||plate.length<7){alert('Placa invalida. Use formato ABC1D23');return}
+  if(!S.currentEventId)return;
+  // Check if plate lookup has info
+  try{
+    var lr=await fetch('/api/plate-lookup/'+plate);
+    var ld=await lr.json();
+    var nickname=(ld.owners&&ld.owners.length>0)?ld.owners[0].nickname:'Visitante';
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({plate:plate,nickname:nickname,vehicleModel:ld.model||'',vehicleBrand:ld.brand||'',vehicleColor:ld.color||'',notes:'',userId:ld.owners&&ld.owners[0]?ld.owners[0].userId:null})
+    });
+    var d=await r.json();
+    if(d.ok){
+      $('parkQuickPlate').value='';
+      loadParkVehicles();
+    }else{
+      alert(d.error||'Erro ao registrar');
+    }
+  }catch(e){console.error('parkQuickEntry:',e);alert('Erro ao registrar veiculo')}
+}
+
+// Plate lookup from register tab
+var _parkLookupTimeout=null;
+function parkAutoLookup(val){
+  clearTimeout(_parkLookupTimeout);
+  var plate=val.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(plate.length>=7){
+    _parkLookupTimeout=setTimeout(function(){parkLookupPlate()},500);
+  }else{
+    $('parkLookupResult').style.display='none';
+    $('parkLookupOwners').style.display='none';
+  }
+}
+
+async function parkLookupPlate(){
+  var plate=($('parkManualPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(plate.length<7)return;
+  try{
+    var r=await fetch('/api/plate-lookup/'+plate);
+    var d=await r.json();
+    if(d.model||d.brand){
+      $('parkLookupResult').style.display='block';
+      $('parkLookupInfo').innerHTML='<strong>'+esc(d.brand||'')+' '+esc(d.model||'')+'</strong>'+(d.year?' &middot; '+esc(d.year):'')+(d.color?' &middot; '+esc(d.color):'')+(d.city?' &middot; '+esc(d.city)+'/'+esc(d.state):'')+'<br><span style="color:var(--t3)">Fonte: '+esc(d.source)+'</span>';
+      if(d.model)$('parkManualModel').value=d.model;
+      if(d.color)$('parkManualColor').value=d.color;
+    }else{
+      $('parkLookupResult').style.display='none';
+    }
+    // Show owners if shared vehicle
+    if(d.owners&&d.owners.length>0){
+      $('parkLookupOwners').style.display='block';
+      var ownerNames=d.owners.map(function(o){return esc(o.nickname)}).join(', ');
+      $('parkLookupOwners').innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Veiculo cadastrado para: <strong>'+ownerNames+'</strong> (veiculo compartilhado OK)';
+      if(d.owners[0]&&!$('parkManualName').value)$('parkManualName').value=d.owners[0].nickname;
+    }else{
+      $('parkLookupOwners').style.display='none';
+    }
+  }catch(e){console.error('parkLookupPlate:',e)}
+}
+
 async function markParkExit(plate){
   if(!S.currentEventId)return;
   try{
-    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({plate})
+      body:JSON.stringify({plate:plate})
     });
-    const d=await r.json();
+    var d=await r.json();
     if(d.ok){
+      // Show receipt
+      showParkReceipt(d.vehicle,d.hoursParked,d.amountDue);
       loadParkVehicles();
       loadParkHistory();
-      // Notify user via socket
-      const ev=db.operatorEvents[S.currentEventId];
-      if(ev&&S.socket){
-        S.socket.emit('parking-vehicle-exited',{eventId:S.currentEventId,plate,amountDue:d.amountDue});
+      if(S.socket){
+        S.socket.emit('parking-vehicle-exited',{eventId:S.currentEventId,plate:plate,amountDue:d.amountDue});
       }
     }
   }catch(e){console.error('markParkExit:',e)}
 }
 
+function showParkReceipt(vehicle,hours,amount){
+  var eventName=S.currentEventName||'Estacionamento';
+  $('parkReceiptEventName').textContent=eventName;
+  var entry=new Date(vehicle.entryTime);
+  var exit=new Date(vehicle.exitTime||Date.now());
+  $('parkReceiptBody').innerHTML=
+    '<div style="font-size:1.1rem;font-weight:800;letter-spacing:.15em;margin-bottom:.3rem">'+esc(vehicle.plate)+'</div>'+
+    (vehicle.vehicleModel?'<div style="font-size:.7rem;color:var(--t2)">'+esc(vehicle.vehicleModel)+(vehicle.vehicleColor?' - '+esc(vehicle.vehicleColor):'')+'</div>':'')+
+    '<div style="font-size:.7rem;color:var(--t3);margin:.3rem 0">'+esc(vehicle.nickname||'Visitante')+'</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--t2);margin:.4rem 0">'+
+      '<div>Entrada<br><strong>'+entry.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</strong></div>'+
+      '<div>Saida<br><strong>'+exit.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</strong></div>'+
+      '<div>Duracao<br><strong>'+hours+'h</strong></div>'+
+    '</div>'+
+    '<div style="font-size:1.3rem;font-weight:800;color:#2dd4a0;margin-top:.5rem">R$ '+(amount||0).toFixed(2).replace('.',',')+'</div>'+
+    '<div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">'+(vehicle.paymentMode==='prepaid'?'Pre-pago':'Pos-pago - pagar na saida')+'</div>';
+  $('parkReceiptBg').style.display='flex';
+}
+function closeParkReceipt(){$('parkReceiptBg').style.display='none'}
+
 function removeParkVehicle(plate){
   if(!S.currentEventId)return;
-  const ev=db.operatorEvents[S.currentEventId];
-  if(ev&&ev.parking&&ev.parking.vehicles){
-    delete ev.parking.vehicles[plate];
-    renderParkVehicles();
-  }
+  // Remove via API (manual delete)
+  fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({plate:plate})
+  }).then(function(){loadParkVehicles()}).catch(function(e){console.error(e)});
 }
 
 function parkCapturePhoto(){
@@ -6431,14 +6720,16 @@ async function parkRunOCR(base64){
       $('parkManualPlate').value=match[0];
       status.textContent='Placa detectada: '+match[0];
       status.style.color='#34d399';
+      parkLookupPlate();
     }else{
       match=text.match(/[A-Z]{3}[0-9]{4}/);
       if(match){
         $('parkManualPlate').value=match[0];
         status.textContent='Placa detectada: '+match[0];
         status.style.color='#34d399';
+        parkLookupPlate();
       }else{
-        status.textContent='Nao consegui ler. Texto detectado: '+text.substring(0,20);
+        status.textContent='Nao consegui ler. Texto: '+text.substring(0,20);
         status.style.color='#fbbf24';
       }
     }
@@ -6451,102 +6742,111 @@ async function parkRunOCR(base64){
 
 async function saveParkManualEntry(){
   if(!S.currentEventId)return;
-  const plate=($('parkManualPlate').value||'').toUpperCase().trim();
-  const nickname=($('parkManualName').value||'').trim();
-  const notes=($('parkManualNotes').value||'').trim();
-  if(!plate){
-    $('parkManualStatus').textContent='Placa obrigatória';
+  var plate=($('parkManualPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  var nickname=($('parkManualName').value||'').trim();
+  var notes=($('parkManualNotes').value||'').trim();
+  var model=($('parkManualModel').value||'').trim();
+  var color=($('parkManualColor').value||'').trim();
+  if(!plate||plate.length<7){
+    $('parkManualStatus').textContent='Placa invalida';
+    $('parkManualStatus').style.color='#ef4444';
     return;
   }
   try{
-    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({plate,nickname,notes})
+      body:JSON.stringify({plate:plate,nickname:nickname||'Visitante',notes:notes,vehicleModel:model,vehicleColor:color})
     });
-    const d=await r.json();
+    var d=await r.json();
     if(d.ok){
-      $('parkManualStatus').textContent='Veículo registrado!';
-      $('parkManualPlate').value='';
-      $('parkManualName').value='';
-      $('parkManualNotes').value='';
-      setTimeout(()=>switchParkTab('vehicles'),800);
+      $('parkManualStatus').textContent='Veiculo registrado!';
+      $('parkManualStatus').style.color='var(--ok)';
+      $('parkManualPlate').value='';$('parkManualName').value='';$('parkManualNotes').value='';$('parkManualModel').value='';$('parkManualColor').value='';
+      $('parkLookupResult').style.display='none';$('parkLookupOwners').style.display='none';
+      setTimeout(function(){switchParkTab('vehicles')},600);
       loadParkVehicles();
     }else{
-      $('parkManualStatus').textContent='Erro: '+(d.error||'desconhecido');
+      $('parkManualStatus').textContent=d.error||'Erro';
+      $('parkManualStatus').style.color='#ef4444';
     }
   }catch(e){
     console.error('saveParkManualEntry:',e);
     $('parkManualStatus').textContent='Erro ao registrar';
+    $('parkManualStatus').style.color='#ef4444';
   }
 }
 
+function parkTouchMode(){
+  alert('Modo Touch ativado! Encoste o celular do motorista para registrar automaticamente.');
+  // This would trigger the ultrasonic touch flow with parking context
+  // The touch event handler in the main flow detects if parking module is active
+}
+
 function loadParkHistory(){
-  const list=$('parkHistoryList');
-  const empty=$('parkHistoryEmpty');
+  var list=$('parkHistoryList');
+  var empty=$('parkHistoryEmpty');
   list.innerHTML='';
 
-  if(!S.currentEventId)return;
+  if(!S.currentEventId){empty.style.display='block';return}
   if(!PARK.vehicles||Object.keys(PARK.vehicles).length===0){
-    empty.style.display='block';
-    return;
+    empty.style.display='block';return;
   }
 
-  const history=Object.values(PARK.vehicles).filter(v=>v.status==='exited'||v.status==='paid');
-  if(history.length===0){
-    empty.style.display='block';
-    return;
-  }
+  var history=Object.values(PARK.vehicles).filter(function(v){return v.status==='exited'||v.status==='paid'});
+  if(history.length===0){empty.style.display='block';return}
   empty.style.display='none';
 
-  history.forEach(v=>{
-    const duration=Math.ceil((v.exitTime-v.entryTime)/3600000);
-    const card=document.createElement('div');
-    card.className='park-vehicle-card';
+  // Sort by exit time (newest first)
+  history.sort(function(a,b){return (b.exitTime||0)-(a.exitTime||0)});
+
+  history.forEach(function(v){
+    var duration=Math.ceil(((v.exitTime||Date.now())-v.entryTime)/3600000);
+    var card=document.createElement('div');
+    card.className='park-vcard';
+    card.style.opacity='.75';
+    var statusBadge=v.status==='paid'?'<span style="font-size:.55rem;background:rgba(45,212,160,.15);color:#2dd4a0;padding:.15rem .35rem;border-radius:6px;font-weight:700">PAGO</span>':'<span style="font-size:.55rem;background:rgba(251,191,36,.15);color:#fbbf24;padding:.15rem .35rem;border-radius:6px;font-weight:700">PENDENTE</span>';
     card.innerHTML=
-      '<div class="park-vehicle-head">'+
-        '<div class="park-vehicle-plate">'+esc(v.plate)+'</div>'+
-        '<div class="park-vehicle-status '+v.status+'">'+v.status.toUpperCase()+'</div>'+
+      '<div class="park-vcard-head">'+
+        '<div class="park-vcard-plate" style="font-size:.85rem">'+esc(v.plate)+'</div>'+
+        statusBadge+
       '</div>'+
-      '<div class="park-vehicle-info">'+
-        '<div><strong>'+esc(v.nickname)+'</strong></div>'+
-        '<div>Duração: '+duration+' hora'+(duration!==1?'s':'')+' | Devido: R$ '+v.amountDue.toFixed(2)+' | Pago: R$ '+v.amountPaid.toFixed(2)+'</div>'+
+      '<div class="park-vcard-info">'+
+        '<strong>'+esc(v.nickname||'Visitante')+'</strong> &middot; '+duration+'h &middot; '+
+        new Date(v.entryTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' - '+
+        new Date(v.exitTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+
+        ' &middot; <strong style="color:#2dd4a0">R$ '+(v.amountDue||0).toFixed(2).replace('.',',')+'</strong>'+
       '</div>';
     list.appendChild(card);
   });
 }
 
-function updateParkBadge(){
-  const badge=$('fabParkBadge');
-  const count=PARK.config.activeVehicles||0;
-  if(count>0){
-    badge.style.display='flex';
-    badge.textContent=count;
-  }else{
-    badge.style.display='none';
+function filterParkHistory(query){
+  var q=(query||'').toLowerCase();
+  var cards=$('parkHistoryList').children;
+  for(var i=0;i<cards.length;i++){
+    var text=cards[i].textContent.toLowerCase();
+    cards[i].style.display=!q||text.indexOf(q)>=0?'':'none';
   }
+}
+
+function updateParkBadge(){
+  var badge=$('fabParkBadge');
+  var tabBadge=$('parkVehiclesBadge');
+  var count=PARK.vehicles?Object.values(PARK.vehicles).filter(function(v){return v.status==='parked'}).length:0;
+  if(badge){badge.style.display=count>0?'flex':'none';badge.textContent=count}
+  if(tabBadge){tabBadge.style.display=count>0?'inline':'none';tabBadge.textContent=count}
 }
 
 function initParkSocket(){
   if(!S.socket)return;
   S.socket.on('parking-vehicle-registered',function(data){
-    if(data.eventId===S.currentEventId){
-      loadParkVehicles();
-      updateParkBadge();
-    }
+    if(data.eventId===S.currentEventId){loadParkVehicles();updateParkBadge()}
   });
   S.socket.on('parking-vehicle-exited',function(data){
-    if(data.eventId===S.currentEventId){
-      loadParkVehicles();
-      loadParkHistory();
-      updateParkBadge();
-    }
+    if(data.eventId===S.currentEventId){loadParkVehicles();loadParkHistory();updateParkBadge()}
   });
   S.socket.on('parking-payment-received',function(data){
-    if(data.eventId===S.currentEventId){
-      loadParkVehicles();
-      loadParkHistory();
-      updateParkBadge();
-    }
+    if(data.eventId===S.currentEventId){loadParkVehicles();loadParkHistory();updateParkBadge()}
   });
 }
 
