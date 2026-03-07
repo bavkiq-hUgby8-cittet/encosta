@@ -70,12 +70,44 @@ Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
 
 ### Sistema de Modulos
 Eventos tem modulos selecionaveis via checkboxes no Perfil:
-- Restaurante (laranja #f97316) -- cardapio, pedidos, mesas
+- Restaurante (laranja #f97316) -- cardapio, pedidos, mesas, equipe (garcom/motorista), delivery
 - Estacionamento (azul #3b82f6) -- veiculos, cobranca, OCR
-- Academia (verde #10b981) -- aulas, planos, alunos
+- Treinos (verde #10b981) -- antes "Academia", cobre qualquer esporte, mural, WiFi
 - Igreja (roxo #8b5cf6) -- dizimos, cultos, celulas
-Armazenados em ev.modules = {restaurant: bool, parking: bool, gym: bool, church: bool}
+- Barbearia (dourado #d4a745) -- barbeiros, servicos, horarios, agendamento com pagamento antecipado
+Armazenados em ev.modules = {restaurant: bool, parking: bool, gym: bool, church: bool, barber: bool}
 FABs dos modulos so aparecem se o modulo esta ativo.
+
+### Touch Feedback nos Modulos
+- Quando operador ativa Touch de dentro de um modulo (restaurante/parking/barber), aparece banner animado IN-PANEL
+- Banner com pulsacao + barras de onda, nao sai da tela do modulo
+- Sucesso mostra checkmark verde por 3 segundos
+- CSS: `.mod-touch-banner`, `.mod-touch-success`
+- JS: `showModuleTouchBanner(mod)`, `cancelModuleTouch(mod)`, `showModuleTouchSuccess(mod,msg)`
+
+### Staff no Aquario
+- Staff conectados (garcom/barbeiro/motorista) aparecem como nodes flutuantes no canvas
+- Cores: garcom=laranja, barbeiro=dourado, motorista=verde
+- Borda pontilhada + badge do cargo
+- Removidos auto ao desconectar
+- `addStaffNodeToCanvas(staff)`, `removeStaffNodeFromCanvas()`
+
+### Modulo Barbearia -- Fluxo de Agendamento
+1. Operador cadastra barbeiros, servicos e horarios
+2. Cliente vê botao "Agendar Barbeiro" no card de conexao (rede)
+3. Cliente escolhe barbeiro > servico > slot
+4. Cliente PAGA na hora (payment gateway)
+5. Appointment criado com status `pending_acceptance`
+6. Barbeiro recebe notificacao, aceita ou recusa
+7. Se aceitar: `confirmed`. Se recusar: `rejected` + reembolso
+8. Barbeiro marca "Concluir" quando termina servico
+- Endpoints: barber/book, appointment/accept, appointment/reject, appointment/complete
+- Barber Staff View: agenda, pendentes, historico
+
+### Pedido por Touch (Garcom)
+- Garcom pode fazer pedido "Por Mesa" ou "Por Touch"
+- Modo Touch: monta pedido, envia, mostra tela "Aguardando Touch" para cobrar
+- `startWaiterTouchOrder()`, `showWaiterTouchPayment()`
 
 ### Modulo Perfil (Facebook blue #1877f2)
 - Segundo FAB (abaixo de Participantes)
@@ -196,14 +228,20 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - render.yaml: Infrastructure as Code na raiz do repositorio
 - IMPORTANTE: apos cada push, aguardar ~90s para o deploy concluir no Render
 
-## STATUS ATUAL (01/03/2026)
+## STATUS ATUAL (07/03/2026)
 
 - App funcionando em producao (touch-irl.com)
 - touch irl, LLC em Delaware -- incorporacao em andamento
 - Stripe implementado no codigo (pendente ativar chaves no Render)
 - Dashboard financeiro admin completo (receita, taxas, payouts, prestadores)
 - Painel operacional com glass morphism, modulos, perfil, notificacoes de chat
-- 4 modulos operacionais: Restaurante, Estacionamento, Academia, Igreja
+- 5 modulos operacionais: Restaurante, Estacionamento, Treinos, Barbearia, Igreja
+- Modulo Treinos (ex-Academia): renomeado para cobrir CrossFit e qualquer esporte, mural de anuncios com prioridade/validade, WiFi auto-share
+- Modulo Barbearia COMPLETO: agendamento com pagamento antecipado, fluxo aceitar/recusar pelo barbeiro, reembolso em caso de recusa, view completa do barbeiro (agenda/pendentes/historico), conclusao de servico
+- Touch feedback nos modulos: banners animados IN-PANEL (pulsacao + barras de onda) em vez de sair da tela do modulo
+- Staff como nodes flutuantes no aquario: garcom (laranja), barbeiro (dourado), motorista (verde) com borda pontilhada e badge de cargo
+- Pedido por Touch do garcom: 2 modos ("Por Mesa" ou "Por Touch"), tela de aguardando Touch para cobrar
+- Real-time pedidos/pagamentos corrigido: operador entra na sala event:${eventId}, triple notification (global + user + event room), deduplicacao
 - Modulo Perfil completo com gestao de dados do negocio
 - Sistema de notificacao de chat com badges, som e toast
 - Abas Chat/Historico no painel de conversa com transacoes por usuario
@@ -218,6 +256,33 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - 12 prompts de imagem cinematica preparados (PROMPTS-IMAGENS-GEMINI.md)
 - GTM strategy doc criado (GTM-GORJETA-USA.docx)
 - Restricao legal: somente maiores de 18 anos (definido pelo agente juridico)
+
+### Fluxo do Modulo Barbearia (NOVO - 07/03/2026)
+1. Operador cria evento com modulo Barbearia ativo
+2. Operador cadastra barbeiros (manual ou Touch), servicos e horarios
+3. Cliente conecta ao evento (check-in via Touch ou QR)
+4. Cliente ve card na rede com botao "Agendar Barbeiro"
+5. Cliente escolhe barbeiro > servico > horario
+6. Cliente PAGA imediatamente (gateway de pagamento)
+7. Agendamento criado com status `pending_acceptance`
+8. Barbeiro recebe notificacao, aceita ou recusa
+9. Se aceitar: slot vira `booked`, cliente notificado
+10. Se recusar: slot liberado, reembolso iniciado, cliente notificado
+11. No dia: barbeiro marca "Concluir" quando termina
+
+### Status de Appointment (barber)
+- `pending_acceptance` -- aguardando barbeiro aceitar (pago pelo cliente)
+- `confirmed` -- aceito pelo barbeiro
+- `rejected` -- recusado (reembolso em processamento)
+- `completed` -- servico finalizado
+- `cancelled` -- cancelado pelo operador
+
+### Endpoints Barber (server.js)
+- POST /api/event/:id/barber/book -- cria com status pending_acceptance + dados de pagamento
+- POST /api/event/:id/barber/appointment/:aptId/accept -- barbeiro aceita
+- POST /api/event/:id/barber/appointment/:aptId/reject -- barbeiro recusa (refund pending)
+- POST /api/event/:id/barber/appointment/:aptId/complete -- marca concluido
+- Socket events: barber-appointment-accepted, barber-appointment-rejected, barber-appointment-completed, barber-appointment-updated
 
 ## ESTRATEGIA DE LANCAMENTO E MARKETING (MUITO IMPORTANTE)
 
