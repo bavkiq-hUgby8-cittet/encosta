@@ -3870,6 +3870,8 @@ function initSocket(){
   S.socket=io({reconnection:true,reconnectionDelay:1000});
   S.socket.on('connect',()=>{
     if(S.userId)S.socket.emit('identify',S.userId);
+    // Join event room so targeted events reach us
+    if(S.currentEventId)S.socket.emit('join-event-room',S.currentEventId);
     // On reconnect: re-register in queue AND update oscillator to new freq
     if(homeSonicActive){
       S.socket.emit('sonic-start',{userId:S.userId,isCheckin:true,eventId:S.currentEventId});
@@ -4005,7 +4007,12 @@ function initSocket(){
   S.socket.on('staff-left',d=>{loadStaff()});
   S.socket.on('staff-tables-updated',d=>{loadStaff()});
   S.socket.on('delivery-order-new',d=>{
-    if(d.order)renderDeliveryOrder(d.order);
+    if(d.order){
+      // Deduplicate: server now emits to multiple channels
+      if(document.getElementById('del-order-'+d.order.id))return;
+      renderDeliveryOrder(d.order);
+      playOrderBeep();
+    }
   });
   S.socket.on('delivery-status-update',d=>{
     if(d.orderId){
@@ -6499,48 +6506,76 @@ function renderRestDashboard(){
 }
 
 // ── Socket.IO listeners for orders ──
+var _restSocketAttached=false;
 function initRestSocket(){
-  if(!S.socket)return;
+  if(!S.socket||_restSocketAttached)return;
+  _restSocketAttached=true;
   S.socket.on('new-order',function(data){
     if(data.eventId===S.currentEventId&&data.order){
-      // Avoid duplicates
+      // Avoid duplicates (server now emits to multiple channels)
       if(!REST.orders.find(o=>o.id===data.order.id)){
         REST.orders.push(data.order);
         updateOrderBadges();
         if(REST.activeTab==='orders')renderOrders();
         if(REST.activeTab==='tables')renderTables();
         if(REST.activeTab==='dashboard')renderRestDashboard();
-        // Play notification sound
         playOrderBeep();
+        // Toast notification
+        var t=document.createElement('div');
+        t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.95);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s;white-space:nowrap';
+        t.textContent='Novo pedido! #'+data.order.receiptNumber+' - R$'+(data.order.total||0).toFixed(2).replace('.',',');
+        document.body.appendChild(t);setTimeout(function(){t.remove()},5000);
       }
     }
   });
   S.socket.on('order-update',function(data){
     if(data.eventId===S.currentEventId){
-      const o=REST.orders.find(x=>x.id===data.orderId);
+      var o=REST.orders.find(function(x){return x.id===data.orderId});
       if(o){o.status=data.status;updateOrderBadges();if(REST.activeTab==='orders')renderOrders();if(REST.activeTab==='tables')renderTables()}
     }
+  });
+  // Payment received notification (real-time financial update)
+  S.socket.on('payment-received',function(data){
+    if(!data||!data.eventId)return;
+    if(data.eventId!==S.currentEventId)return;
+    var t=document.createElement('div');
+    t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(96,165,250,.95);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s;white-space:nowrap';
+    var label=data.type==='delivery'?'Delivery':'Pedido';
+    t.textContent='Pagamento recebido! '+label+' R$'+(data.amount||0).toFixed(2).replace('.',',')+' de '+(data.userName||'Cliente');
+    document.body.appendChild(t);setTimeout(function(){t.remove()},6000);
+    // Auto-refresh financial panel if open
+    if($('opFinPanel')&&$('opFinPanel').style.display!=='none')showFinancialPanel();
   });
 }
 
 function playOrderBeep(){
   if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
   if(audioCtx.state==='suspended')audioCtx.resume();
-  const o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);
+  var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);
   o1.type='sine';o1.frequency.value=880;g1.gain.setValueAtTime(.15,audioCtx.currentTime);g1.gain.exponentialRampToValueAtTime(.01,audioCtx.currentTime+.2);
   o1.start(audioCtx.currentTime);o1.stop(audioCtx.currentTime+.2);
-  const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);
+  var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);
   o2.type='sine';o2.frequency.value=1100;g2.gain.setValueAtTime(.15,audioCtx.currentTime+.25);g2.gain.exponentialRampToValueAtTime(.01,audioCtx.currentTime+.5);
   o2.start(audioCtx.currentTime+.25);o2.stop(audioCtx.currentTime+.5);
 }
 
-// Hook into initSocket — attach restaurant listeners after socket connects
+// Hook into initSocket — attach module listeners after socket connects
+// Uses flag to prevent duplicate listener attachment
+var _moduleSocketsAttached=false;
 (function patchInitSocket(){
-  const orig=initSocket;
+  var orig=initSocket;
   initSocket=function(){
+    _restSocketAttached=false;_moduleSocketsAttached=false;
     orig();
     // After socket created, attach module listeners
-    setTimeout(()=>{initRestSocket();initParkSocket();initGymSocket();initChurchSocket();initBarberSocket();},200);
+    function attachModuleListeners(){
+      if(_moduleSocketsAttached||!S.socket)return;
+      _moduleSocketsAttached=true;
+      initRestSocket();initParkSocket();initGymSocket();initChurchSocket();initBarberSocket();
+    }
+    // Attach immediately if socket is already connected, else wait for connect
+    if(S.socket.connected){attachModuleListeners()}
+    else{S.socket.once('connect',function(){setTimeout(attachModuleListeners,50)})}
   };
 })();
 
