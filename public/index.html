@@ -11958,7 +11958,11 @@ function showConstDetail(node){
     const evtVerifiedTag=node.verified?' <span style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:5px;font-size:.5rem;font-weight:700;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;letter-spacing:.03em;vertical-align:middle;margin-left:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Verificado</span>':'';
     $('cdName').innerHTML='<span style="color:#60a5fa">'+esc(node.nickname||'Evento')+'</span>'+evtVerifiedTag+(node.eventActive?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-left:6px;vertical-align:middle;box-shadow:0 0 6px rgba(34,197,94,.6)"></span>':'');
     $('cdAlias').textContent=node.eventActive?'ao vivo':'evento encerrado';$('cdAlias').style.display='';
-    $('cdStats').innerHTML='<span class="cd-stat-inline"><b>'+(node.encounters||0)+'</b> check-ins</span>';
+    var evStatParts=[];
+    evStatParts.push('<span class="cd-stat-inline"><b>'+(node.encounters||0)+'</b> check-ins</span>');
+    var evLikes=node.likesCount||0;
+    if(evLikes>0)evStatParts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+evLikes+'</b> curtidas</span>');
+    $('cdStats').innerHTML=evStatParts.join('<span class="cd-stat-sep">·</span>');
     // Meta
     const metaEl=$('cdMeta');
     const lastD=node.lastDate?new Date(node.lastDate):null;
@@ -11967,7 +11971,8 @@ function showConstDetail(node){
     let evActions='';
     evActions+='<button class="cd-action-icon" onclick="toggleEventMenu(event)" style="position:relative"><span class="cd-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span><span>Mais</span></button>';
     if(node.eventActive){evActions+=iconBtn(ICONS.eye,'Ao vivo',"goToEventLive('"+esc(cleanEventId)+"','"+esc(node.nickname||'Evento')+"')",'cd-act-primary')}
-    evActions+=iconBtn(ICONS.heart,'Curtir',"likeEvent('"+esc(cleanEventId)+"',this)",'cd-like-btn');
+    var evLikedByMe=!!node.likedByMe;
+    evActions+=iconBtn(evLikedByMe?ICONS.heartFill:ICONS.heart,evLikedByMe?'Curtido':'Curtir',"likeEvent('"+esc(cleanEventId)+"',this)",evLikedByMe?'liked cd-like-btn':'cd-like-btn');
     $('cdActions').innerHTML=evActions;
     $('cdAnonPreview').classList.add('hidden');
     const _evTags=$('cdProfileTags');if(_evTags){_evTags.style.display='none';_evTags.innerHTML=''}
@@ -12133,7 +12138,7 @@ function showConstDetail(node){
   if(stars>0)statParts.push('<span class="cd-stat-inline"><b style="color:#fbbf24">'+stars+'</b> estrelas</span>');
   statParts.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> pts</span>');
   statParts.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexões</span>');
-  if(likes>0)statParts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+likes+'</b> curtidas</span>');
+  statParts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+likes+'</b> curtidas</span>');
   statsEl.innerHTML=statParts.join('<span class="cd-stat-sep">·</span>');
   // Profile tags: profession, sports, hobbies
   const tagsEl=$('cdProfileTags');
@@ -12242,15 +12247,7 @@ function showConstDetail(node){
   }
   // Load declarations directly into mural
   loadDeclarations(node.id);
-  // Gifts count — update inline stat
-  fetch('/api/gifts/count/'+node.id).then(r=>r.json()).then(d=>{
-    const c=d.count||0;
-    if(c>0){
-      const sep=document.createElement('span');sep.className='cd-stat-sep';sep.textContent='·';
-      const g=document.createElement('span');g.className='cd-stat-inline';g.innerHTML='<b style="color:#c084fc">'+c+'</b> presentes';
-      statsEl.appendChild(sep);statsEl.appendChild(g);
-    }
-  }).catch(()=>{});
+  // Curtidas count replaced presentes in stats (already in statParts above)
   // History panel reset
   $('cdHistoryScroll').innerHTML='<div style="font-size:.6rem;color:var(--t3);text-align:center;padding:1rem">Carregando...</div>';
   $('cdHistoryPanel').classList.remove('visible');
@@ -12409,10 +12406,25 @@ function likeEvent(eventId,btn){
   fetch('/api/event/'+eventId+'/like',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId})})
     .then(r=>r.json()).then(d=>{
       if(d.liked){
-        if(btn)btn.classList.add('cd-act-primary');
+        if(btn){btn.classList.add('liked');var lbl=btn.querySelector('span:last-child');if(lbl)lbl.textContent='Curtido'}
         showToast('Curtiu o evento!');
       }else{
-        if(btn)btn.classList.remove('cd-act-primary');
+        if(btn){btn.classList.remove('liked');var lbl=btn.querySelector('span:last-child');if(lbl)lbl.textContent='Curtir'}
+      }
+      // Update likes count in constellation node
+      var evNodeId='evt:'+eventId;
+      if(constState&&constState.nodes){
+        var nd=constState.nodes.find(function(n){return n.id===evNodeId});
+        if(nd){nd.likesCount=d.count||0;nd.likedByMe=!!d.liked}
+      }
+      // Update stats display
+      var statsEl=$('cdStats');
+      if(statsEl){
+        var parts=[];
+        var curNode=constState&&constState.nodes?constState.nodes.find(function(n){return n.id===evNodeId}):null;
+        parts.push('<span class="cd-stat-inline"><b>'+(curNode?(curNode.encounters||0):0)+'</b> check-ins</span>');
+        if(d.count>0)parts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+d.count+'</b> curtidas</span>');
+        statsEl.innerHTML=parts.join('<span class="cd-stat-sep">·</span>');
       }
     }).catch(()=>{});
   haptic([20]);
@@ -14379,7 +14391,7 @@ async function declineRevealRequest(fromUserId){
   updateChatIdBar();
 }
 
-// Like toggle — white heart 🤍 → red ❤️
+// Like toggle for person connections
 async function toggleLike(targetUserId){
   if(!state.userId||!targetUserId)return;
   try{
@@ -14387,14 +14399,41 @@ async function toggleLike(targetUserId){
     const d=await r.json();
     if(d.error)return showToast(d.error);
     haptic(d.liked?[50,30,50]:[20]);
-    const btn=$('constLikeBtn');
-    if(btn){
-      const heart=d.liked?'❤️':'🤍';
-      btn.innerHTML=heart+(d.count?' '+d.count:'');
-      btn.style.background=d.liked?'rgba(255,60,80,.15)':'rgba(255,100,100,.06)';
-      btn.style.borderColor=d.liked?'rgba(255,60,80,.3)':'rgba(255,100,100,.15)';
+    // Update constellation node data
+    if(constState&&constState.nodes){
+      var nd=constState.nodes.find(function(n){return n.id===targetUserId});
+      if(nd){nd.likesCount=d.count||0;nd.likedByMe=!!d.liked}
     }
-    if(d.liked)showToast('Curtiu! ❤️');
+    // Update action button - find the like button (first action icon)
+    var actEl=$('cdActions');
+    if(actEl){
+      var btns=actEl.querySelectorAll('.cd-action-icon');
+      if(btns.length>0){
+        var likeBtn=btns[0];
+        var iconSpan=likeBtn.querySelector('.cd-icon');
+        var lblSpan=likeBtn.querySelector('span:last-child');
+        if(iconSpan)iconSpan.innerHTML=d.liked?ICONS.heartFill:ICONS.heart;
+        if(lblSpan)lblSpan.textContent=d.liked?'Curtido':'Curtir';
+        if(d.liked)likeBtn.classList.add('liked');else likeBtn.classList.remove('liked');
+      }
+    }
+    // Update stats line with new count
+    var statsEl=$('cdStats');
+    if(statsEl&&constState&&constState.nodes){
+      var curNode=constState.nodes.find(function(n){return n.id===targetUserId});
+      if(curNode){
+        var st=[];
+        var stars=curNode.starsCount||0;
+        var score=curNode.score||0;
+        var conns=curNode.uniqueConnections||curNode.touchers||0;
+        if(stars>0)st.push('<span class="cd-stat-inline"><b style="color:#fbbf24">'+stars+'</b> estrelas</span>');
+        st.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> pts</span>');
+        st.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexoes</span>');
+        st.push('<span class="cd-stat-inline"><b style="color:#f87171">'+(d.count||0)+'</b> curtidas</span>');
+        statsEl.innerHTML=st.join('<span class="cd-stat-sep">·</span>');
+      }
+    }
+    if(d.liked)showToast('Curtiu!');
   }catch(e){}
 }
 
