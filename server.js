@@ -3035,7 +3035,7 @@ app.get('/api/constellation/:userId', (req, res) => {
       tipsGiven: 0, tipsTotal: 0, lastSelfie: null,
       iRevealedToPartner: false, partnerRevealedToMe: false,
       hasActiveRelation: ev.active, topTag: null, touchers: (ev.participants || []).length,
-      likesCount: 0, starsCount: 0, likedByMe: false,
+      likesCount: (ev.likes || []).length, starsCount: 0, likedByMe: (ev.likes || []).includes(req.params.userId),
       isPrestador: false, serviceLabel: null, pendingReveal: null, verified: !!ev.verified,
       eventActive: ev.active, eventParticipants: (ev.participants || []).length,
       peopleMet: peopleMet, eventLogo: proxyStorageUrl(ev.eventLogo || null)
