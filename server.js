@@ -14891,7 +14891,7 @@ app.post('/api/event/:eventId/barber/book', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const barber = ensureBarber(ev);
-  const { barberId, slotId, serviceId, userId, customerName } = req.body;
+  const { barberId, slotId, serviceId, userId, customerName, paymentMethod, paymentId } = req.body;
   if (!barberId || !slotId || !serviceId) return res.status(400).json({ error: 'Barbeiro, slot e servico obrigatorios.' });
   const member = findBarberMember(barber, barberId);
   if (!member) return res.status(404).json({ error: 'Barbeiro nao encontrado.' });
@@ -14899,11 +14899,11 @@ app.post('/api/event/:eventId/barber/book', (req, res) => {
   if (!slot || slot.status !== 'available') return res.status(400).json({ error: 'Horario indisponivel.' });
   const service = (member.services || []).find(s => s.id === serviceId);
   if (!service) return res.status(400).json({ error: 'Servico nao encontrado.' });
-  // Book the slot
-  slot.status = 'booked';
+  // Hold the slot (not fully booked until barber accepts)
+  slot.status = 'held';
   slot.bookedBy = customerName || 'Cliente';
   slot.bookedByUserId = userId || null;
-  // Create appointment
+  // Create appointment with pending_acceptance status
   const appointment = {
     id: 'bapt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
     barberId: member.id,
@@ -14917,7 +14917,10 @@ app.post('/api/event/:eventId/barber/book', (req, res) => {
     timeEnd: slot.timeEnd,
     userId: userId || null,
     customerName: customerName || 'Cliente',
-    status: 'confirmed',
+    status: 'pending_acceptance',
+    paymentMethod: paymentMethod || 'pending',
+    paymentId: paymentId || null,
+    paidAt: paymentMethod ? Date.now() : null,
     createdAt: Date.now()
   };
   barber.appointments.push(appointment);
@@ -14926,11 +14929,91 @@ app.post('/api/event/:eventId/barber/book', (req, res) => {
   if (ev.creatorId) {
     io.to('user:' + ev.creatorId).emit('barber-appointment-new', { eventId: ev.id, appointment });
   }
-  // Notify the barber if linked
+  // Notify the barber — needs to accept or reject
   if (member.userId && member.userId !== ev.creatorId) {
     io.to('user:' + member.userId).emit('barber-appointment-new', { eventId: ev.id, appointment });
   }
+  io.to('event:' + ev.id).emit('barber-appointment-new', { eventId: ev.id, appointment });
   res.json({ ok: true, appointment });
+});
+
+// Barber accepts appointment
+app.post('/api/event/:eventId/barber/appointment/:appointmentId/accept', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const apt = barber.appointments.find(a => a.id === req.params.appointmentId);
+  if (!apt) return res.status(404).json({ error: 'Agendamento nao encontrado.' });
+  if (apt.status !== 'pending_acceptance') return res.status(400).json({ error: 'Agendamento nao esta pendente.' });
+  apt.status = 'confirmed';
+  apt.acceptedAt = Date.now();
+  // Confirm the slot as fully booked
+  const member = findBarberMember(barber, apt.barberId);
+  if (member) {
+    const slot = (member.slots || []).find(s => s.id === apt.slotId);
+    if (slot) slot.status = 'booked';
+  }
+  saveDB('operatorEvents');
+  // Notify client
+  if (apt.userId) {
+    io.to('user:' + apt.userId).emit('barber-appointment-accepted', { eventId: ev.id, appointment: apt });
+  }
+  // Notify operator
+  if (ev.creatorId) {
+    io.to('user:' + ev.creatorId).emit('barber-appointment-updated', { eventId: ev.id, appointment: apt });
+  }
+  io.to('event:' + ev.id).emit('barber-appointment-updated', { eventId: ev.id, appointment: apt });
+  res.json({ ok: true, appointment: apt });
+});
+
+// Barber rejects appointment (refund needed)
+app.post('/api/event/:eventId/barber/appointment/:appointmentId/reject', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const apt = barber.appointments.find(a => a.id === req.params.appointmentId);
+  if (!apt) return res.status(404).json({ error: 'Agendamento nao encontrado.' });
+  if (apt.status !== 'pending_acceptance') return res.status(400).json({ error: 'Agendamento nao esta pendente.' });
+  apt.status = 'rejected';
+  apt.rejectedAt = Date.now();
+  apt.refundStatus = 'pending';
+  // Release the slot
+  const member = findBarberMember(barber, apt.barberId);
+  if (member) {
+    const slot = (member.slots || []).find(s => s.id === apt.slotId);
+    if (slot) { slot.status = 'available'; slot.bookedBy = null; slot.bookedByUserId = null; }
+  }
+  saveDB('operatorEvents');
+  // Notify client about rejection + refund
+  if (apt.userId) {
+    io.to('user:' + apt.userId).emit('barber-appointment-rejected', { eventId: ev.id, appointment: apt });
+  }
+  if (ev.creatorId) {
+    io.to('user:' + ev.creatorId).emit('barber-appointment-updated', { eventId: ev.id, appointment: apt });
+  }
+  io.to('event:' + ev.id).emit('barber-appointment-updated', { eventId: ev.id, appointment: apt });
+  res.json({ ok: true, appointment: apt });
+});
+
+// Barber marks appointment as completed (Task E: can trigger Touch payment)
+app.post('/api/event/:eventId/barber/appointment/:appointmentId/complete', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const barber = ensureBarber(ev);
+  const apt = barber.appointments.find(a => a.id === req.params.appointmentId);
+  if (!apt) return res.status(404).json({ error: 'Agendamento nao encontrado.' });
+  if (apt.status !== 'confirmed') return res.status(400).json({ error: 'Agendamento nao esta confirmado.' });
+  apt.status = 'completed';
+  apt.completedAt = Date.now();
+  saveDB('operatorEvents');
+  if (apt.userId) {
+    io.to('user:' + apt.userId).emit('barber-appointment-completed', { eventId: ev.id, appointment: apt });
+  }
+  if (ev.creatorId) {
+    io.to('user:' + ev.creatorId).emit('barber-appointment-updated', { eventId: ev.id, appointment: apt });
+  }
+  io.to('event:' + ev.id).emit('barber-appointment-updated', { eventId: ev.id, appointment: apt });
+  res.json({ ok: true, appointment: apt });
 });
 
 // ═══ STRIPE — Full Payment Integration ═══
