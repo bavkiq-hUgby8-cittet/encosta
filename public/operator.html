@@ -5307,6 +5307,7 @@ function playBeep(){
 
 // ═══ UTILS ═══
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmtCurrency(val){return (_userCurrencySymbol||'R$')+' '+(val||0).toFixed(2).replace('.',',')}
 function ini(n){if(!n)return'?';const p=n.trim().split(/\s+/);return p.length>1?(p[0][0]+p[1][0]).toUpperCase():n.slice(0,2).toUpperCase()}
 function nickColor(n){let h=0;for(let i=0;i<n.length;i++)h=n.charCodeAt(i)+((h<<5)-h);return'hsl('+Math.abs(h%360)+',65%,45%)'}
 function hexA(color,alpha){
@@ -6966,7 +6967,7 @@ function renderParkVehicles(){
     return;
   }
 
-  var vehicles=Object.values(PARK.vehicles).filter(function(v){return v.status==='parked'});
+  const vehicles=Object.values(PARK.vehicles).filter(function(v){return v.status==='parked'});
   if(vehicles.length===0){
     empty.style.display='block';
     if(countEl)countEl.textContent='0 veiculos';
@@ -6979,11 +6980,11 @@ function renderParkVehicles(){
   vehicles.sort(function(a,b){return b.entryTime-a.entryTime});
 
   vehicles.forEach(function(v){
-    var elapsed=Date.now()-v.entryTime;
-    var cost=estimateParkCost(v.entryTime);
-    var card=document.createElement('div');
+    const elapsed=Date.now()-v.entryTime;
+    const cost=estimateParkCost(v.entryTime);
+    const card=document.createElement('div');
     card.className='park-vcard';
-    var modelStr=v.vehicleModel?esc(v.vehicleModel)+(v.vehicleColor?' - '+esc(v.vehicleColor):''):'';
+    const modelStr=v.vehicleModel?esc(v.vehicleModel)+(v.vehicleColor?' - '+esc(v.vehicleColor):''):'';
     card.innerHTML=
       '<div class="park-vcard-head">'+
         '<div>'+
@@ -7009,33 +7010,33 @@ function renderParkVehicles(){
 
 // Quick entry from vehicles tab
 async function parkQuickEntry(){
-  var plate=($('parkQuickPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(!plate||plate.length<7){alert('Placa invalida. Use formato ABC1D23');return}
+  const plate=($('parkQuickPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!plate||plate.length<7){showToast('Placa invalida. Use formato ABC1D23');return}
   if(!S.currentEventId)return;
   // Check if plate lookup has info
   try{
-    var lr=await fetch('/api/plate-lookup/'+plate);
-    var ld=await lr.json();
-    var nickname=(ld.owners&&ld.owners.length>0)?ld.owners[0].nickname:'Visitante';
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
+    const lr=await fetch('/api/plate-lookup/'+plate);
+    const ld=await lr.json();
+    const nickname=(ld.owners&&ld.owners.length>0)?ld.owners[0].nickname:'Visitante';
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({plate:plate,nickname:nickname,vehicleModel:ld.model||'',vehicleBrand:ld.brand||'',vehicleColor:ld.color||'',notes:'',userId:ld.owners&&ld.owners[0]?ld.owners[0].userId:null})
     });
-    var d=await r.json();
+    const d=await r.json();
     if(d.ok){
       $('parkQuickPlate').value='';
       loadParkVehicles();
     }else{
-      alert(d.error||'Erro ao registrar');
+      showToast(d.error||'Erro ao registrar');
     }
-  }catch(e){console.error('parkQuickEntry:',e);alert('Erro ao registrar veiculo')}
+  }catch(e){console.error('parkQuickEntry:',e);showToast('Erro ao registrar veiculo')}
 }
 
 // Plate lookup from register tab
-var _parkLookupTimeout=null;
+const _parkLookupTimeout=null;
 function parkAutoLookup(val){
   clearTimeout(_parkLookupTimeout);
-  var plate=val.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const plate=val.toUpperCase().replace(/[^A-Z0-9]/g,'');
   if(plate.length>=7){
     _parkLookupTimeout=setTimeout(function(){parkLookupPlate()},500);
   }else{
@@ -7045,11 +7046,11 @@ function parkAutoLookup(val){
 }
 
 async function parkLookupPlate(){
-  var plate=($('parkManualPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const plate=($('parkManualPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
   if(plate.length<7)return;
   try{
-    var r=await fetch('/api/plate-lookup/'+plate);
-    var d=await r.json();
+    const r=await fetch('/api/plate-lookup/'+plate);
+    const d=await r.json();
     if(d.model||d.brand){
       $('parkLookupResult').style.display='block';
       $('parkLookupInfo').innerHTML='<strong>'+esc(d.brand||'')+' '+esc(d.model||'')+'</strong>'+(d.year?' &middot; '+esc(d.year):'')+(d.color?' &middot; '+esc(d.color):'')+(d.city?' &middot; '+esc(d.city)+'/'+esc(d.state):'')+'<br><span style="color:var(--t3)">Fonte: '+esc(d.source)+'</span>';
@@ -7061,7 +7062,7 @@ async function parkLookupPlate(){
     // Show owners if shared vehicle
     if(d.owners&&d.owners.length>0){
       $('parkLookupOwners').style.display='block';
-      var ownerNames=d.owners.map(function(o){return esc(o.nickname)}).join(', ');
+      const ownerNames=d.owners.map(function(o){return esc(o.nickname)}).join(', ');
       $('parkLookupOwners').innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Veiculo cadastrado para: <strong>'+ownerNames+'</strong> (veiculo compartilhado OK)';
       if(d.owners[0]&&!$('parkManualName').value)$('parkManualName').value=d.owners[0].nickname;
     }else{
@@ -7073,11 +7074,11 @@ async function parkLookupPlate(){
 async function markParkExit(plate){
   if(!S.currentEventId)return;
   try{
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({plate:plate})
     });
-    var d=await r.json();
+    const d=await r.json();
     if(d.ok){
       // Show receipt
       showParkReceipt(d.vehicle,d.hoursParked,d.amountDue);
@@ -7091,10 +7092,10 @@ async function markParkExit(plate){
 }
 
 function showParkReceipt(vehicle,hours,amount){
-  var eventName=S.currentEventName||'Estacionamento';
+  const eventName=S.currentEventName||'Estacionamento';
   $('parkReceiptEventName').textContent=eventName;
-  var entry=new Date(vehicle.entryTime);
-  var exit=new Date(vehicle.exitTime||Date.now());
+  const entry=new Date(vehicle.entryTime);
+  const exit=new Date(vehicle.exitTime||Date.now());
   $('parkReceiptBody').innerHTML=
     '<div style="font-size:1.1rem;font-weight:800;letter-spacing:.15em;margin-bottom:.3rem">'+esc(vehicle.plate)+'</div>'+
     (vehicle.vehicleModel?'<div style="font-size:.7rem;color:var(--t2)">'+esc(vehicle.vehicleModel)+(vehicle.vehicleColor?' - '+esc(vehicle.vehicleColor):'')+'</div>':'')+
@@ -7104,29 +7105,40 @@ function showParkReceipt(vehicle,hours,amount){
       '<div>Saida<br><strong>'+exit.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</strong></div>'+
       '<div>Duracao<br><strong>'+hours+'h</strong></div>'+
     '</div>'+
-    '<div style="font-size:1.3rem;font-weight:800;color:#2dd4a0;margin-top:.5rem">R$ '+(amount||0).toFixed(2).replace('.',',')+'</div>'+
+    '<div style="font-size:1.3rem;font-weight:800;color:#2dd4a0;margin-top:.5rem">'+(_userCurrencySymbol||'R$')+' '+(amount||0).toFixed(2).replace('.',',')+'</div>'+
     '<div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">'+(vehicle.paymentMode==='prepaid'?'Pre-pago':'Pos-pago - pagar na saida')+'</div>';
   $('parkReceiptBg').style.display='flex';
 }
 function closeParkReceipt(){$('parkReceiptBg').style.display='none'}
 
-function removeParkVehicle(plate){
+async function removeParkVehicle(plate){
   if(!S.currentEventId)return;
-  // Remove via API (manual delete)
-  fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({plate:plate})
-  }).then(function(){loadParkVehicles()}).catch(function(e){console.error(e)});
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/vehicle/'+encodeURIComponent(plate),{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok||r.ok){
+      loadParkVehicles();
+      showToast('Veiculo removido');
+    }else{
+      // Fallback to exit endpoint if delete not available
+      await fetch('/api/operator/event/'+S.currentEventId+'/parking/exit',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({plate:plate})
+      });
+      loadParkVehicles();
+      showToast('Veiculo registrado como saiu');
+    }
+  }catch(e){showToast('Erro ao remover veiculo')}
 }
 
 function parkCapturePhoto(){
-  var inp=document.createElement('input');
+  const inp=document.createElement('input');
   inp.type='file';inp.accept='image/*';inp.capture='environment';
   inp.onchange=function(){
     if(!inp.files||!inp.files[0])return;
-    var reader=new FileReader();
+    const reader=new FileReader();
     reader.onload=function(e){
-      var preview=$('parkPhotoPreview');
+      const preview=$('parkPhotoPreview');
       preview.innerHTML='<img src="'+e.target.result+'" style="width:100%;border-radius:8px;margin-top:.3rem">';
       preview.dataset.base64=e.target.result;
       parkTryOCR(e.target.result);
@@ -7138,7 +7150,7 @@ function parkCapturePhoto(){
 
 async function parkTryOCR(base64){
   if(typeof Tesseract==='undefined'){
-    var s=document.createElement('script');
+    const s=document.createElement('script');
     s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
     s.onload=function(){parkRunOCR(base64)};
     document.head.appendChild(s);
@@ -7148,15 +7160,15 @@ async function parkTryOCR(base64){
 }
 
 async function parkRunOCR(base64){
-  var status=$('parkOCRStatus');
+  const status=$('parkOCRStatus');
   status.textContent='Lendo placa...';
   status.style.color='#3b82f6';
   try{
-    var worker=await Tesseract.createWorker('por');
-    var result=await worker.recognize(base64);
+    const worker=await Tesseract.createWorker('por');
+    const result=await worker.recognize(base64);
     await worker.terminate();
-    var text=result.data.text.toUpperCase().replace(/[^A-Z0-9]/g,'');
-    var match=text.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/);
+    const text=result.data.text.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const match=text.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/);
     if(match){
       $('parkManualPlate').value=match[0];
       status.textContent='Placa detectada: '+match[0];
@@ -7183,22 +7195,22 @@ async function parkRunOCR(base64){
 
 async function saveParkManualEntry(){
   if(!S.currentEventId)return;
-  var plate=($('parkManualPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  var nickname=($('parkManualName').value||'').trim();
-  var notes=($('parkManualNotes').value||'').trim();
-  var model=($('parkManualModel').value||'').trim();
-  var color=($('parkManualColor').value||'').trim();
+  const plate=($('parkManualPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const nickname=($('parkManualName').value||'').trim();
+  const notes=($('parkManualNotes').value||'').trim();
+  const model=($('parkManualModel').value||'').trim();
+  const color=($('parkManualColor').value||'').trim();
   if(!plate||plate.length<7){
     $('parkManualStatus').textContent='Placa invalida';
     $('parkManualStatus').style.color='#ef4444';
     return;
   }
   try{
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({plate:plate,nickname:nickname||'Visitante',notes:notes,vehicleModel:model,vehicleColor:color})
     });
-    var d=await r.json();
+    const d=await r.json();
     if(d.ok){
       $('parkManualStatus').textContent='Veiculo registrado!';
       $('parkManualStatus').style.color='var(--ok)';
@@ -7226,8 +7238,8 @@ function parkTouchMode(){
 }
 
 function loadParkHistory(){
-  var list=$('parkHistoryList');
-  var empty=$('parkHistoryEmpty');
+  const list=$('parkHistoryList');
+  const empty=$('parkHistoryEmpty');
   list.innerHTML='';
 
   if(!S.currentEventId){empty.style.display='block';return}
@@ -7235,7 +7247,7 @@ function loadParkHistory(){
     empty.style.display='block';return;
   }
 
-  var history=Object.values(PARK.vehicles).filter(function(v){return v.status==='exited'||v.status==='paid'});
+  const history=Object.values(PARK.vehicles).filter(function(v){return v.status==='exited'||v.status==='paid'});
   if(history.length===0){empty.style.display='block';return}
   empty.style.display='none';
 
@@ -7243,11 +7255,11 @@ function loadParkHistory(){
   history.sort(function(a,b){return (b.exitTime||0)-(a.exitTime||0)});
 
   history.forEach(function(v){
-    var duration=Math.ceil(((v.exitTime||Date.now())-v.entryTime)/3600000);
-    var card=document.createElement('div');
+    const duration=Math.ceil(((v.exitTime||Date.now())-v.entryTime)/3600000);
+    const card=document.createElement('div');
     card.className='park-vcard';
     card.style.opacity='.75';
-    var statusBadge=v.status==='paid'?'<span style="font-size:.55rem;background:rgba(45,212,160,.15);color:#2dd4a0;padding:.15rem .35rem;border-radius:6px;font-weight:700">PAGO</span>':'<span style="font-size:.55rem;background:rgba(251,191,36,.15);color:#fbbf24;padding:.15rem .35rem;border-radius:6px;font-weight:700">PENDENTE</span>';
+    const statusBadge=v.status==='paid'?'<span style="font-size:.55rem;background:rgba(45,212,160,.15);color:#2dd4a0;padding:.15rem .35rem;border-radius:6px;font-weight:700">PAGO</span>':'<span style="font-size:.55rem;background:rgba(251,191,36,.15);color:#fbbf24;padding:.15rem .35rem;border-radius:6px;font-weight:700">PENDENTE</span>';
     card.innerHTML=
       '<div class="park-vcard-head">'+
         '<div class="park-vcard-plate" style="font-size:.85rem">'+esc(v.plate)+'</div>'+
@@ -7264,18 +7276,18 @@ function loadParkHistory(){
 }
 
 function filterParkHistory(query){
-  var q=(query||'').toLowerCase();
-  var cards=$('parkHistoryList').children;
+  const q=(query||'').toLowerCase();
+  const cards=$('parkHistoryList').children;
   for(var i=0;i<cards.length;i++){
-    var text=cards[i].textContent.toLowerCase();
+    const text=cards[i].textContent.toLowerCase();
     cards[i].style.display=!q||text.indexOf(q)>=0?'':'none';
   }
 }
 
 function updateParkBadge(){
-  var badge=$('fabParkBadge');
-  var tabBadge=$('parkVehiclesBadge');
-  var count=PARK.vehicles?Object.values(PARK.vehicles).filter(function(v){return v.status==='parked'}).length:0;
+  const badge=$('fabParkBadge');
+  const tabBadge=$('parkVehiclesBadge');
+  const count=PARK.vehicles?Object.values(PARK.vehicles).filter(function(v){return v.status==='parked'}).length:0;
   if(badge){badge.style.display=count>0?'flex':'none';badge.textContent=count}
   if(tabBadge){tabBadge.style.display=count>0?'inline':'none';tabBadge.textContent=count}
 }
@@ -7322,7 +7334,7 @@ function startGymTimer(){
   if(GYM.timerInterval)clearInterval(GYM.timerInterval);
   GYM.timerInterval=setInterval(function(){
     if(GYM.activeTab==='workouts')renderGymWorkouts();
-  },30000);
+  },10000);
 }
 
 function switchGymTab(tab){
@@ -7346,8 +7358,8 @@ function switchGymTab(tab){
 async function loadGymData(){
   if(!S.currentEventId)return;
   try{
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
-    var d=await r.json();
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym');
+    const d=await r.json();
     GYM.config=d.config||{enabled:false,maxCapacity:50,openTime:'06:00',closeTime:'22:00'};
     GYM.workouts=d.workouts||{};
     GYM.classes=d.classes||{};
@@ -7374,11 +7386,11 @@ function renderGymConfig(){
 }
 
 function renderGymInfoItems(){
-  var container=$('gymInfoItems');
+  const container=$('gymInfoItems');
   if(!container)return;
   container.innerHTML='';
   GYM.infoItems.forEach(function(item,i){
-    var row=document.createElement('div');
+    const row=document.createElement('div');
     row.className='gym-info-item';
     row.innerHTML='<span style="flex:1">'+esc(item)+'</span><button class="mod-btn danger" onclick="removeGymInfoItem('+i+')" style="font-size:.6rem;padding:.2rem .4rem;min-width:auto">X</button>';
     container.appendChild(row);
@@ -7386,8 +7398,8 @@ function renderGymInfoItems(){
 }
 
 function addGymInfoItem(){
-  var input=$('gymNewInfoItem');
-  var val=input.value.trim();
+  const input=$('gymNewInfoItem');
+  const val=input.value.trim();
   if(!val)return;
   GYM.infoItems.push(val);
   input.value='';
@@ -7413,12 +7425,12 @@ async function saveGymInfo(){
 
 async function saveGymConfig(){
   if(!S.currentEventId)return;
-  var enabled=$('gymEnabled').checked;
-  var maxCapacity=parseInt($('gymMaxCapacity').value)||50;
-  var openTime=$('gymOpenTime').value||'06:00';
-  var closeTime=$('gymCloseTime').value||'22:00';
-  var wifiName=$('gymWifiName').value||'';
-  var wifiPassword=$('gymWifiPass').value||'';
+  const enabled=$('gymEnabled').checked;
+  const maxCapacity=parseInt($('gymMaxCapacity').value)||50;
+  const openTime=$('gymOpenTime').value||'06:00';
+  const closeTime=$('gymCloseTime').value||'22:00';
+  const wifiName=$('gymWifiName').value||'';
+  const wifiPassword=$('gymWifiPass').value||'';
   try{
     await fetch('/api/operator/event/'+S.currentEventId+'/gym/config',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -7432,11 +7444,11 @@ async function saveGymConfig(){
 
 // --- WORKOUTS (Active training) ---
 function renderGymWorkouts(){
-  var list=$('gymWorkoutsList');
-  var empty=$('gymWorkoutsEmpty');
+  const list=$('gymWorkoutsList');
+  const empty=$('gymWorkoutsEmpty');
   list.innerHTML='';
-  var active=Object.values(GYM.workouts).filter(function(w){return w.status==='active'});
-  var countEl=$('gymActiveCount');
+  const active=Object.values(GYM.workouts).filter(function(w){return w.status==='active'});
+  const countEl=$('gymActiveCount');
   if(countEl)countEl.textContent=active.length+' treinando';
   if(active.length===0){
     empty.style.display='block';
@@ -7445,8 +7457,8 @@ function renderGymWorkouts(){
   empty.style.display='none';
   active.sort(function(a,b){return b.checkInTime-a.checkInTime});
   active.forEach(function(w){
-    var elapsed=Date.now()-w.checkInTime;
-    var card=document.createElement('div');
+    const elapsed=Date.now()-w.checkInTime;
+    const card=document.createElement('div');
     card.className='gym-vcard';
     card.innerHTML=
       '<div class="gym-vcard-head">'+
@@ -7467,7 +7479,7 @@ function renderGymWorkouts(){
 
 async function gymQuickCheckin(){
   if(!S.currentEventId)return;
-  var name=$('gymQuickName').value.trim();
+  const name=$('gymQuickName').value.trim();
   if(!name){showToast('Digite o nome do aluno');return}
   try{
     await fetch('/api/event/'+S.currentEventId+'/gym/checkin',{
@@ -7481,6 +7493,10 @@ async function gymQuickCheckin(){
 }
 
 function gymTouchMode(){
+  if(!S.socket||!S.currentEventId)return;
+  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'gym'});
+  if(typeof homeSonicActive!=='undefined'&&!homeSonicActive)opToggleTouch();
+  showModuleTouchBanner('gym');
   showToast('Touch Treinos ativado! Encoste os celulares.');
 }
 
@@ -7498,20 +7514,20 @@ async function gymCheckout(odId){
 
 // --- MURAL (Announcements) ---
 function renderGymMural(){
-  var list=$('gymMuralList');
-  var empty=$('gymMuralEmpty');
+  const list=$('gymMuralList');
+  const empty=$('gymMuralEmpty');
   list.innerHTML='';
-  var posts=Object.values(GYM.mural).filter(function(m){return m.active&&(!m.expiresAt||m.expiresAt>Date.now())}).sort(function(a,b){return b.createdAt-a.createdAt});
+  const posts=Object.values(GYM.mural).filter(function(m){return m.active&&(!m.expiresAt||m.expiresAt>Date.now())}).sort(function(a,b){return b.createdAt-a.createdAt});
   if(posts.length===0){
     empty.style.display='block';
     return;
   }
   empty.style.display='none';
   posts.forEach(function(p){
-    var card=document.createElement('div');
+    const card=document.createElement('div');
     card.className='gym-mural-card '+(p.priority||'normal');
-    var timeAgo=Math.ceil((Date.now()-p.createdAt)/60000);
-    var timeStr=timeAgo<60?timeAgo+'min':Math.floor(timeAgo/60)+'h';
+    const timeAgo=Math.ceil((Date.now()-p.createdAt)/60000);
+    const timeStr=timeAgo<60?timeAgo+'min':Math.floor(timeAgo/60)+'h';
     card.innerHTML=
       '<div class="gym-mural-msg">'+esc(p.message)+'</div>'+
       '<div class="gym-mural-meta">'+
@@ -7524,17 +7540,17 @@ function renderGymMural(){
 
 async function saveGymMural(){
   if(!S.currentEventId)return;
-  var msg=$('gymMuralMsg').value.trim();
+  const msg=$('gymMuralMsg').value.trim();
   if(!msg){showToast('Digite uma mensagem');return}
-  var priority=$('gymMuralPriority').value;
-  var expiryHours=parseInt($('gymMuralExpiry').value)||0;
-  var expiresAt=expiryHours>0?Date.now()+(expiryHours*3600000):null;
+  const priority=$('gymMuralPriority').value;
+  const expiryHours=parseInt($('gymMuralExpiry').value)||0;
+  const expiresAt=expiryHours>0?Date.now()+(expiryHours*3600000):null;
   try{
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/gym/mural',{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym/mural',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:msg,priority:priority,expiresAt:expiresAt})
     });
-    var d=await r.json();
+    const d=await r.json();
     if(d.ok&&d.post){
       GYM.mural[d.post.id]=d.post;
     }
@@ -7555,12 +7571,12 @@ async function deleteGymMural(id){
 
 // --- CLASSES ---
 function openGymClassForm(id){
-  var form=$('gymClassForm');
+  const form=$('gymClassForm');
   form.style.display='block';
   $('gymClassEditId').value=id||'';
   $('gymClassFormTitle').textContent=id?'Editar Aula':'Nova Aula';
   if(id&&GYM.classes[id]){
-    var c=GYM.classes[id];
+    const c=GYM.classes[id];
     $('gymClassName').value=c.name||'';
     $('gymClassInstructor').value=c.instructor||'';
     $('gymClassTime').value=c.time||'07:00';
@@ -7581,9 +7597,9 @@ function closeGymClassForm(){$('gymClassForm').style.display='none'}
 
 async function saveGymClass(){
   if(!S.currentEventId)return;
-  var editId=$('gymClassEditId').value;
-  var id=editId||('cls_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
-  var classData={
+  const editId=$('gymClassEditId').value;
+  const id=editId||('cls_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
+  const classData={
     id:id,
     name:$('gymClassName').value.trim(),
     instructor:$('gymClassInstructor').value.trim(),
@@ -7607,10 +7623,10 @@ async function saveGymClass(){
 }
 
 function renderGymClasses(){
-  var list=$('gymClassesList');
-  var empty=$('gymClassesEmpty');
+  const list=$('gymClassesList');
+  const empty=$('gymClassesEmpty');
   list.innerHTML='';
-  var classes=Object.values(GYM.classes);
+  const classes=Object.values(GYM.classes);
   if(classes.length===0){
     empty.style.display='block';
     return;
@@ -7618,8 +7634,8 @@ function renderGymClasses(){
   empty.style.display='none';
   classes.sort(function(a,b){return(a.time||'').localeCompare(b.time||'')});
   classes.forEach(function(c){
-    var enrolled=(c.enrolled||[]).length;
-    var card=document.createElement('div');
+    const enrolled=(c.enrolled||[]).length;
+    const card=document.createElement('div');
     card.className='gym-class-card';
     card.innerHTML=
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.3rem;flex-wrap:wrap;gap:.3rem">'+
@@ -7646,10 +7662,14 @@ function renderGymClasses(){
 async function deleteGymClass(id){
   if(!S.currentEventId)return;
   try{
-    delete GYM.classes[id];
-    renderGymClasses();
-    await fetch('/api/operator/event/'+S.currentEventId+'/gym/class/'+id,{method:'DELETE'});
-  }catch(e){console.error('deleteGymClass:',e)}
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym/class/'+id,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok||r.ok){
+      delete GYM.classes[id];
+      renderGymClasses();
+      showToast('Aula removida!');
+    }else{showToast(d.error||'Erro ao deletar aula')}
+  }catch(e){showToast('Erro de rede ao deletar aula')}
 }
 
 // --- PLANS ---
@@ -7658,10 +7678,10 @@ function closeGymPlanForm(){$('gymPlanForm').style.display='none'}
 
 async function saveGymPlan(){
   if(!S.currentEventId)return;
-  var name=$('gymPlanName').value.trim();
+  const name=$('gymPlanName').value.trim();
   if(!name){showToast('Preencha o nome do plano');return}
-  var id='pln_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  var planData={
+  const id='pln_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const planData={
     id:id,
     name:name,
     price:parseFloat($('gymPlanPrice').value)||0,
@@ -7680,18 +7700,18 @@ async function saveGymPlan(){
 }
 
 function renderGymPlans(){
-  var list=$('gymPlansList');
-  var empty=$('gymPlansEmpty');
+  const list=$('gymPlansList');
+  const empty=$('gymPlansEmpty');
   list.innerHTML='';
-  var plans=Object.values(GYM.plans);
+  const plans=Object.values(GYM.plans);
   if(plans.length===0){
     empty.style.display='block';
     return;
   }
   empty.style.display='none';
-  var durationNames={daily:'Diaria',weekly:'Semanal',monthly:'Mensal',quarterly:'Trimestral',semiannual:'Semestral',annual:'Anual'};
+  const durationNames={daily:'Diaria',weekly:'Semanal',monthly:'Mensal',quarterly:'Trimestral',semiannual:'Semestral',annual:'Anual'};
   plans.forEach(function(p){
-    var card=document.createElement('div');
+    const card=document.createElement('div');
     card.className='gym-vcard';
     card.innerHTML=
       '<div class="gym-vcard-head">'+
@@ -7712,26 +7732,30 @@ function renderGymPlans(){
 async function deleteGymPlan(id){
   if(!S.currentEventId)return;
   try{
-    delete GYM.plans[id];
-    renderGymPlans();
-    await fetch('/api/operator/event/'+S.currentEventId+'/gym/plan/'+id,{method:'DELETE'});
-  }catch(e){console.error('deleteGymPlan:',e)}
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/gym/plan/'+id,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok||r.ok){
+      delete GYM.plans[id];
+      renderGymPlans();
+      showToast('Plano removido!');
+    }else{showToast(d.error||'Erro ao deletar plano')}
+  }catch(e){showToast('Erro de rede ao deletar plano')}
 }
 
 // --- MEMBERS ---
 function renderGymMembers(){
-  var list=$('gymMembersList');
-  var empty=$('gymMembersEmpty');
+  const list=$('gymMembersList');
+  const empty=$('gymMembersEmpty');
   list.innerHTML='';
-  var members=Object.values(GYM.members);
+  const members=Object.values(GYM.members);
   if(members.length===0){
     empty.style.display='block';
     return;
   }
   empty.style.display='none';
   members.forEach(function(m){
-    var isExpired=m.endDate&&new Date(m.endDate)<new Date();
-    var card=document.createElement('div');
+    const isExpired=m.endDate&&new Date(m.endDate)<new Date();
+    const card=document.createElement('div');
     card.className='gym-vcard';
     card.innerHTML=
       '<div class="gym-vcard-head">'+
@@ -7747,24 +7771,24 @@ function renderGymMembers(){
 }
 
 function filterGymMembers(query){
-  var q=query.toLowerCase();
-  var list=$('gymMembersList');
+  const q=query.toLowerCase();
+  const list=$('gymMembersList');
   Array.from(list.children).forEach(function(card){
-    var text=card.textContent.toLowerCase();
+    const text=card.textContent.toLowerCase();
     card.style.display=text.includes(q)?'':'none';
   });
 }
 
 function updateGymBadge(){
-  var badge=$('fabGymBadge');
-  var count=Object.values(GYM.workouts).filter(function(w){return w.status==='active'}).length||0;
+  const badge=$('fabGymBadge');
+  const count=Object.values(GYM.workouts).filter(function(w){return w.status==='active'}).length||0;
   if(count>0){
     badge.style.display='flex';
     badge.textContent=count;
   }else{
     badge.style.display='none';
   }
-  var tabBadge=$('gymWorkoutsBadge');
+  const tabBadge=$('gymWorkoutsBadge');
   if(tabBadge){
     if(count>0){tabBadge.style.display='inline-block';tabBadge.textContent=count}
     else{tabBadge.style.display='none'}
@@ -7793,9 +7817,34 @@ const CHURCH={config:{enabled:false,churchName:'',pastorName:'',denomination:''}
 
 function openChurchPanel(){
   $('opChurchPanel').style.display='block';
-  loadChurchConfig();
-  loadChurchTithes();
+  loadAllChurchData();
   switchChurchTab('tithes');
+}
+
+async function loadAllChurchData(){
+  if(!S.currentEventId)return;
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/church');
+    const d=await r.json();
+    CHURCH.config=d.config||{enabled:false,churchName:'',pastorName:'',denomination:''};
+    CHURCH.tithes=Object.values(d.tithes||{});
+    CHURCH.services=d.services||{};
+    CHURCH.prayers=d.prayers||{};
+    CHURCH.cells=d.cells||{};
+    CHURCH.announcements=d.announcements||[];
+    // Populate config fields
+    if($('churchEnabled'))$('churchEnabled').checked=CHURCH.config.enabled;
+    if($('churchName'))$('churchName').value=CHURCH.config.churchName||'';
+    if($('churchPastor'))$('churchPastor').value=CHURCH.config.pastorName||'';
+    if($('churchDenomination'))$('churchDenomination').value=CHURCH.config.denomination||'';
+    // Render active tab
+    if(CHURCH.activeTab==='tithes')renderChurchTithes();
+    else if(CHURCH.activeTab==='services')renderChurchServices();
+    else if(CHURCH.activeTab==='prayers')renderChurchPrayers();
+    else if(CHURCH.activeTab==='cells')renderChurchCells();
+    else if(CHURCH.activeTab==='announcements')renderChurchAnnouncements();
+    updateChurchBadge();
+  }catch(e){console.error('loadAllChurchData:',e)}
 }
 
 function closeChurchPanel(){$('opChurchPanel').style.display='none'}
@@ -7810,11 +7859,12 @@ function switchChurchTab(tab){
     const tabs=['tithes','services','prayers','cells','announcements','config'];
     b.classList.toggle('active',tabs[i]===tab);
   });
-  if(tab==='tithes')loadChurchTithes();
-  if(tab==='services')loadChurchServices();
-  if(tab==='prayers')loadChurchPrayers();
-  if(tab==='cells')loadChurchCells();
-  if(tab==='announcements')loadChurchAnnouncements();
+  // Render from cached data (loadAllChurchData loads everything once on panel open)
+  if(tab==='tithes')renderChurchTithes();
+  if(tab==='services')renderChurchServices();
+  if(tab==='prayers')renderChurchPrayers();
+  if(tab==='cells')renderChurchCells();
+  if(tab==='announcements')renderChurchAnnouncements();
   if(tab==='config')loadChurchConfig();
 }
 
@@ -7884,11 +7934,13 @@ function renderChurchTithes(){
       '</div>';
     list.appendChild(card);
   });
+  const oldSummary=document.getElementById('churchTitheSummary');
+  if(oldSummary)oldSummary.remove();
   const summary=document.createElement('div');
+  summary.id='churchTitheSummary';
   summary.style.cssText='padding:1rem;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(167,139,250,.05));border:1px solid rgba(139,92,246,.2);border-radius:16px;text-align:center;margin-top:1rem';
   summary.innerHTML='<div style="font-size:.7rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.5rem">Total coletado</div><div style="font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,#8b5cf6,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">R$ '+totalAmount.toFixed(2)+'</div>';
-  const empty_el=$('churchTithesEmpty');
-  if(empty_el.previousSibling)list.parentNode.insertBefore(summary,empty_el.nextSibling);
+  list.appendChild(summary);
 }
 
 async function loadChurchServices(){
@@ -7928,15 +7980,49 @@ function renderChurchServices(){
 }
 
 function openChurchServiceModal(){
-  const name=prompt('Nome do culto:');
-  if(!name)return;
-  const day=prompt('Dia da semana (segunda/terca/...):');
-  const time=prompt('Hora (HH:MM):','10:00');
-  const type=prompt('Tipo (regular/youth/special):','regular');
-  if(!name||!day)return;
+  const existing=$('churchServiceForm');
+  if(existing&&existing.style.display!=='none'){existing.style.display='none';return}
+  let form=$('churchServiceForm');
+  if(!form){
+    form=document.createElement('div');
+    form.id='churchServiceForm';
+    form.style.cssText='padding:.8rem;border-radius:12px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.15);margin-bottom:.8rem';
+    form.innerHTML=
+      '<div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Novo Culto</div>'+
+      '<input id="churchSrvName" class="mod-input" placeholder="Nome do culto" style="margin-bottom:.4rem">'+
+      '<input id="churchSrvDay" class="mod-input" placeholder="Dia da semana" style="margin-bottom:.4rem">'+
+      '<input id="churchSrvTime" class="mod-input" type="time" value="10:00" style="margin-bottom:.4rem">'+
+      '<select id="churchSrvType" class="mod-input" style="margin-bottom:.5rem"><option value="regular">Regular</option><option value="youth">Jovens</option><option value="special">Especial</option></select>'+
+      '<div style="display:flex;gap:.3rem">'+
+        '<button class="mod-btn primary" onclick="saveChurchService()">Salvar</button>'+
+        '<button class="mod-btn" onclick="$(\'churchServiceForm\').style.display=\'none\'">Cancelar</button>'+
+      '</div>';
+    const list=$('churchServicesList');
+    list.parentNode.insertBefore(form,list);
+  }
+  form.style.display='';
+  $('churchSrvName').value='';$('churchSrvDay').value='';$('churchSrvTime').value='10:00';$('churchSrvType').value='regular';
+}
+
+async function saveChurchService(){
+  const name=$('churchSrvName').value.trim();
+  const day=$('churchSrvDay').value.trim();
+  const time=$('churchSrvTime').value;
+  const type=$('churchSrvType').value;
+  if(!name){showToast('Digite o nome do culto');return}
+  if(!day){showToast('Informe o dia da semana');return}
   const newId='srv_'+Date.now();
-  CHURCH.services[newId]={id:newId,name,dayOfWeek:day,time,type,attendance:{}};
-  renderChurchServices();
+  const serviceData={id:newId,name,dayOfWeek:day,time,type,attendance:{}};
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/church/service',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(serviceData)
+    });
+    CHURCH.services[newId]=serviceData;
+    $('churchServiceForm').style.display='none';
+    renderChurchServices();
+    showToast('Culto criado!');
+  }catch(e){showToast('Erro ao salvar culto')}
 }
 
 async function loadChurchPrayers(){
@@ -7981,10 +8067,15 @@ async function togglePrayerFor(prayerId){
   if(!S.currentEventId)return;
   try{
     const prayer=CHURCH.prayers[prayerId];
-    if(prayer){
-      prayer.prayedFor=!prayer.prayedFor;
-      renderChurchPrayers();
-    }
+    if(!prayer)return;
+    const newVal=!prayer.prayedFor;
+    prayer.prayedFor=newVal;
+    renderChurchPrayers();
+    updateChurchBadge();
+    await fetch('/api/operator/event/'+S.currentEventId+'/church/prayer/'+prayerId+'/toggle',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prayedFor:newVal})
+    });
   }catch(e){console.error('togglePrayerFor:',e)}
 }
 
@@ -8026,16 +8117,50 @@ function renderChurchCells(){
 }
 
 function openChurchCellModal(){
-  const name=prompt('Nome da celula:');
-  if(!name)return;
-  const leader=prompt('Lider:');
-  const day=prompt('Dia de reuniao:');
-  const time=prompt('Hora (HH:MM):','19:00');
-  const location=prompt('Localizacao:');
-  if(!name)return;
+  const existing=$('churchCellForm');
+  if(existing&&existing.style.display!=='none'){existing.style.display='none';return}
+  let form=$('churchCellForm');
+  if(!form){
+    form=document.createElement('div');
+    form.id='churchCellForm';
+    form.style.cssText='padding:.8rem;border-radius:12px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.15);margin-bottom:.8rem';
+    form.innerHTML=
+      '<div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Nova Celula</div>'+
+      '<input id="churchCellName" class="mod-input" placeholder="Nome da celula" style="margin-bottom:.4rem">'+
+      '<input id="churchCellLeader" class="mod-input" placeholder="Lider" style="margin-bottom:.4rem">'+
+      '<input id="churchCellDay" class="mod-input" placeholder="Dia de reuniao" style="margin-bottom:.4rem">'+
+      '<input id="churchCellTime" class="mod-input" type="time" value="19:00" style="margin-bottom:.4rem">'+
+      '<input id="churchCellLocation" class="mod-input" placeholder="Localizacao" style="margin-bottom:.5rem">'+
+      '<div style="display:flex;gap:.3rem">'+
+        '<button class="mod-btn primary" onclick="saveChurchCell()">Salvar</button>'+
+        '<button class="mod-btn" onclick="$(\'churchCellForm\').style.display=\'none\'">Cancelar</button>'+
+      '</div>';
+    const list=$('churchCellsList');
+    list.parentNode.insertBefore(form,list);
+  }
+  form.style.display='';
+  $('churchCellName').value='';$('churchCellLeader').value='';$('churchCellDay').value='';$('churchCellTime').value='19:00';$('churchCellLocation').value='';
+}
+
+async function saveChurchCell(){
+  const name=$('churchCellName').value.trim();
+  const leader=$('churchCellLeader').value.trim();
+  const day=$('churchCellDay').value.trim();
+  const time=$('churchCellTime').value;
+  const location=$('churchCellLocation').value.trim();
+  if(!name){showToast('Digite o nome da celula');return}
   const newId='cell_'+Date.now();
-  CHURCH.cells[newId]={id:newId,name,leader,meetingDay:day,meetingTime:time,location,members:[]};
-  renderChurchCells();
+  const cellData={id:newId,name,leader,meetingDay:day,meetingTime:time,location,members:[]};
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/church/cell',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(cellData)
+    });
+    CHURCH.cells[newId]=cellData;
+    $('churchCellForm').style.display='none';
+    renderChurchCells();
+    showToast('Celula criada!');
+  }catch(e){showToast('Erro ao salvar celula')}
 }
 
 async function loadChurchAnnouncements(){
@@ -8074,14 +8199,46 @@ function renderChurchAnnouncements(){
 }
 
 function openChurchAnnouncementModal(){
-  const title=prompt('Titulo do aviso:');
-  if(!title)return;
-  const message=prompt('Mensagem:');
-  const priority=prompt('Prioridade (normal/urgent):','normal');
-  if(!title||!message)return;
+  const existing=$('churchAnnForm');
+  if(existing&&existing.style.display!=='none'){existing.style.display='none';return}
+  let form=$('churchAnnForm');
+  if(!form){
+    form=document.createElement('div');
+    form.id='churchAnnForm';
+    form.style.cssText='padding:.8rem;border-radius:12px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.15);margin-bottom:.8rem';
+    form.innerHTML=
+      '<div style="font-size:.75rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Novo Aviso</div>'+
+      '<input id="churchAnnTitle" class="mod-input" placeholder="Titulo do aviso" style="margin-bottom:.4rem">'+
+      '<textarea id="churchAnnMessage" class="mod-input" placeholder="Mensagem" rows="3" style="margin-bottom:.4rem;resize:vertical"></textarea>'+
+      '<select id="churchAnnPriority" class="mod-input" style="margin-bottom:.5rem"><option value="normal">Normal</option><option value="urgent">Urgente</option></select>'+
+      '<div style="display:flex;gap:.3rem">'+
+        '<button class="mod-btn primary" onclick="saveChurchAnnouncement()">Salvar</button>'+
+        '<button class="mod-btn" onclick="$(\'churchAnnForm\').style.display=\'none\'">Cancelar</button>'+
+      '</div>';
+    const list=$('churchAnnouncementsList');
+    list.parentNode.insertBefore(form,list);
+  }
+  form.style.display='';
+  $('churchAnnTitle').value='';$('churchAnnMessage').value='';$('churchAnnPriority').value='normal';
+}
+
+async function saveChurchAnnouncement(){
+  const title=$('churchAnnTitle').value.trim();
+  const message=$('churchAnnMessage').value.trim();
+  const priority=$('churchAnnPriority').value;
+  if(!title){showToast('Digite o titulo do aviso');return}
+  if(!message){showToast('Digite a mensagem');return}
   const announcement={id:'ann_'+Date.now(),title,message,date:Date.now(),priority};
-  CHURCH.announcements.push(announcement);
-  renderChurchAnnouncements();
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/church/announcement',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(announcement)
+    });
+    CHURCH.announcements.push(announcement);
+    $('churchAnnForm').style.display='none';
+    renderChurchAnnouncements();
+    showToast('Aviso publicado!');
+  }catch(e){showToast('Erro ao salvar aviso')}
 }
 
 function updateChurchBadge(){
@@ -8176,7 +8333,7 @@ function showAddBarberMember(){
 
 async function saveBarberMember(){
   const name=$('barberMemberName').value.trim();
-  if(!name){alert('Digite o nome do barbeiro');return}
+  if(!name){showToast('Digite o nome do barbeiro');return}
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/team',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -8184,8 +8341,8 @@ async function saveBarberMember(){
     });
     const d=await r.json();
     if(d.ok){$('barberAddMemberForm').style.display='none';$('barberTouchInviteCard').style.display='none';loadBarberTeam()}
-    else{alert(d.error||'Erro ao salvar')}
-  }catch(e){alert('Erro de rede')}
+    else{showToast(d.error||'Erro ao salvar')}
+  }catch(e){showToast('Erro de rede')}
 }
 
 function inviteBarberByTouch(){
@@ -8264,9 +8421,9 @@ async function saveBarberService(){
   const name=$('barberServiceName').value.trim();
   const price=parseFloat($('barberServicePrice').value)||0;
   const duration=parseInt($('barberServiceDuration').value)||30;
-  if(!name){alert('Digite o nome do servico');return}
-  if(price<=0){alert('Preco deve ser maior que zero');return}
-  if(!BARBER.selectedBarberId){alert('Selecione um barbeiro primeiro');return}
+  if(!name){showToast('Digite o nome do servico');return}
+  if(price<=0){showToast('Preco deve ser maior que zero');return}
+  if(!BARBER.selectedBarberId){showToast('Selecione um barbeiro primeiro');return}
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/services',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -8274,8 +8431,8 @@ async function saveBarberService(){
     });
     const d=await r.json();
     if(d.ok){$('barberAddServiceForm').style.display='none';loadBarberServices()}
-    else{alert(d.error||'Erro ao salvar')}
-  }catch(e){alert('Erro de rede')}
+    else{showToast(d.error||'Erro ao salvar')}
+  }catch(e){showToast('Erro de rede')}
 }
 
 async function deleteBarberService(id){
@@ -8325,9 +8482,9 @@ async function saveBarberSlot(){
   const date=$('barberSlotDate').value;
   const timeStart=$('barberSlotTime').value;
   const timeEnd=$('barberSlotTimeEnd').value;
-  if(!date||!timeStart||!timeEnd){alert('Preencha todos os campos');return}
-  if(timeEnd<=timeStart){alert('Hora fim deve ser depois de hora inicio');return}
-  if(!BARBER.selectedBarberId){alert('Selecione um barbeiro primeiro');return}
+  if(!date||!timeStart||!timeEnd){showToast('Preencha todos os campos');return}
+  if(timeEnd<=timeStart){showToast('Hora fim deve ser depois de hora inicio');return}
+  if(!BARBER.selectedBarberId){showToast('Selecione um barbeiro primeiro');return}
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/slots',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -8335,8 +8492,8 @@ async function saveBarberSlot(){
     });
     const d=await r.json();
     if(d.ok){$('barberAddSlotForm').style.display='none';loadBarberSlots()}
-    else{alert(d.error||'Erro ao salvar')}
-  }catch(e){alert('Erro de rede')}
+    else{showToast(d.error||'Erro ao salvar')}
+  }catch(e){showToast('Erro de rede')}
 }
 
 async function deleteBarberSlot(id){
@@ -8394,16 +8551,6 @@ async function loadBarberAppointments(){
   }catch(e){list.innerHTML='<div class="mod-empty">Erro ao carregar agendamentos</div>'}
 }
 
-async function completeBarberAppointment(id){
-  try{
-    await fetch('/api/operator/event/'+S.currentEventId+'/barber/appointments/'+id+'/status',{
-      method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({status:'completed'})
-    });
-    loadBarberAppointments();
-  }catch(e){}
-}
-
 async function cancelBarberAppointment(id){
   if(!confirm('Cancelar este agendamento?'))return;
   try{
@@ -8421,8 +8568,8 @@ async function opAcceptBarberAppointment(id){
     var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/accept',{method:'POST'});
     var d=await r.json();
     if(d.ok){showToast('Agendamento aceito!');loadBarberAppointments()}
-    else{alert(d.error||'Erro')}
-  }catch(e){alert('Erro de rede')}
+    else{showToast(d.error||'Erro')}
+  }catch(e){showToast('Erro de rede')}
 }
 
 async function opRejectBarberAppointment(id){
@@ -8432,8 +8579,8 @@ async function opRejectBarberAppointment(id){
     var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/reject',{method:'POST'});
     var d=await r.json();
     if(d.ok){showToast('Agendamento recusado.');loadBarberAppointments()}
-    else{alert(d.error||'Erro')}
-  }catch(e){alert('Erro de rede')}
+    else{showToast(d.error||'Erro')}
+  }catch(e){showToast('Erro de rede')}
 }
 
 async function opCompleteBarberAppointment(id){
@@ -8442,8 +8589,8 @@ async function opCompleteBarberAppointment(id){
     var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/complete',{method:'POST'});
     var d=await r.json();
     if(d.ok){showToast('Servico concluido!');loadBarberAppointments()}
-    else{alert(d.error||'Erro')}
-  }catch(e){alert('Erro de rede')}
+    else{showToast(d.error||'Erro')}
+  }catch(e){showToast('Erro de rede')}
 }
 
 // ── Config ──
@@ -8470,14 +8617,14 @@ async function saveBarberConfig(){
     });
     const d=await r.json();
     if(d.ok)showToast('Configuracoes salvas!');
-    else alert(d.error||'Erro');
-  }catch(e){alert('Erro de rede')}
+    else showToast(d.error||'Erro');
+  }catch(e){showToast('Erro de rede')}
 }
 
 function updateBarberBadge(){
   const badge=$('fabBarberBadge');
   if(!badge)return;
-  const pending=BARBER.appointments.filter(a=>a.status==='confirmed'||a.status==='pending').length;
+  const pending=BARBER.appointments.filter(a=>a.status==='confirmed'||a.status==='pending'||a.status==='pending_acceptance').length;
   badge.textContent=pending;
   badge.style.display=pending>0?'flex':'none';
 }
@@ -8488,6 +8635,18 @@ function initBarberSocket(){
     if(data.eventId===S.currentEventId){
       loadBarberAppointments();
     }
+  });
+  S.socket.on('barber-appointment-accepted',function(data){
+    if(data.eventId===S.currentEventId){loadBarberAppointments()}
+  });
+  S.socket.on('barber-appointment-rejected',function(data){
+    if(data.eventId===S.currentEventId){loadBarberAppointments()}
+  });
+  S.socket.on('barber-appointment-completed',function(data){
+    if(data.eventId===S.currentEventId){loadBarberAppointments()}
+  });
+  S.socket.on('barber-appointment-updated',function(data){
+    if(data.eventId===S.currentEventId){loadBarberAppointments()}
   });
   S.socket.on('barber-team-joined',function(data){
     if(data.eventId===S.currentEventId){
@@ -8562,9 +8721,9 @@ async function readyDeliveryOp(orderId){
 }
 
 async function assignDriverOp(orderId){
-  const ev=currentEvent;
-  if(!ev||!ev.staff){showToast('Nenhum motorista disponivel');return}
-  const drivers=ev.staff.filter(s=>s.role==='driver'&&s.status==='online');
+  if(!S.currentEventId){showToast('Nenhum evento ativo');return}
+  const participants=Object.values(S.participants||{});
+  const drivers=participants.filter(function(s){return s.staffRole==='driver'&&s.online});
   if(drivers.length===0){showToast('Nenhum motorista online');return}
   const driver=drivers[0];
   try{
