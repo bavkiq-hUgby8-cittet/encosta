@@ -20176,6 +20176,7 @@ const VA = (function(){
   }
   function _cleanupGyro(){
     _gyroActive = false;
+    _gyroHandlerReady = false;
     if(_gyroRAF){ cancelAnimationFrame(_gyroRAF); _gyroRAF = null; }
     if(_gyroOrientHandler){ window.removeEventListener('deviceorientation', _gyroOrientHandler, true); _gyroOrientHandler = null; }
     if(_gyroMouseHandler){ document.removeEventListener('mousemove', _gyroMouseHandler); _gyroMouseHandler = null; }
@@ -20184,32 +20185,45 @@ const VA = (function(){
     _gyroIdlePhase = 0;
     var orb = $('vaOrb');
     if(orb) orb.style.transform = '';
+    // Note: _gyroPermissionGranted is NOT reset — permission persists across calls
   }
   let _gyroPermissionGranted = false; // cached iOS permission
+  let _gyroHandlerReady = false; // true after _initGyro creates the handler
+
+  // Try to attach gyro listener — only works when BOTH handler is ready AND permission granted
+  function _tryAttachGyro(){
+    if(_gyroActive) return;
+    if(!_gyroHandlerReady || !_gyroOrientHandler) return;
+    if(!('ontouchstart' in window)) return; // desktop uses mouse, not gyro
+    if(!_gyroPermissionGranted){
+      console.log('[VA] _tryAttachGyro: waiting for permission');
+      return;
+    }
+    window.addEventListener('deviceorientation', _gyroOrientHandler, true);
+    _gyroActive = true;
+    console.log('[VA] Gyro deviceorientation listener ATTACHED');
+  }
+
   // Request gyro permission from a user gesture — must be called in click handler
   // On iOS, requestPermission MUST be in a user gesture (click/tap) context
   function _requestGyroPermission(){
     if(_gyroPermissionGranted) return;
     if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
       DeviceOrientationEvent.requestPermission().then(function(perm){
-        console.log('[VA] Gyro permission:', perm);
+        console.log('[VA] Gyro permission result:', perm);
         _gyroPermissionGranted = (perm === 'granted');
-        // If permission was just granted and gyro hasn't started yet, start it now
-        if(_gyroPermissionGranted && !_gyroActive && active){
-          _attachGyroListener();
+        // Try to attach now — if handler is ready, it will attach
+        if(_gyroPermissionGranted && active){
+          _tryAttachGyro();
         }
       }).catch(function(err){ console.log('[VA] Gyro permission err:', err); });
     } else {
       // Android / desktop — no permission needed
       _gyroPermissionGranted = true;
+      console.log('[VA] Gyro: no permission API, auto-granted');
     }
   }
-  function _attachGyroListener(){
-    if(!_gyroOrientHandler) return;
-    window.addEventListener('deviceorientation', _gyroOrientHandler, true);
-    _gyroActive = true;
-    console.log('[VA] Gyro deviceorientation listener attached');
-  }
+
   function _initGyro(){
     if(_gyroActive) return;
     console.log('[VA] _initGyro called, permission:', _gyroPermissionGranted, 'touch:', ('ontouchstart' in window));
@@ -20225,7 +20239,9 @@ const VA = (function(){
       }
     });
     _gyroBaseBeta = null; _gyroBaseGamma = null;
-    _gyroRAF = requestAnimationFrame(_gyroAnimate);
+    // Start animation loop (idle breathing even without gyro data)
+    if(!_gyroRAF) _gyroRAF = requestAnimationFrame(_gyroAnimate);
+    // Create orientation handler
     _gyroOrientHandler = function(e){
       var beta = e.beta || 0;
       var gamma = e.gamma || 0;
@@ -20235,16 +20251,12 @@ const VA = (function(){
       _gyroTargetX = Math.max(-_gyroMaxX, Math.min(_gyroMaxX, dBeta * 0.18));
       _gyroTargetY = Math.max(-_gyroMaxY, Math.min(_gyroMaxY, dGamma * 0.25));
     };
-    // Mobile: attach listener if permission already granted
+    _gyroHandlerReady = true;
+    // Mobile: try to attach (works if permission already granted)
     if('ontouchstart' in window){
-      if(_gyroPermissionGranted){
-        _attachGyroListener();
-      } else {
-        console.log('[VA] Gyro: waiting for permission callback...');
-        // Permission callback will call _attachGyroListener when ready
-      }
+      _tryAttachGyro();
     }
-    // Desktop: mouse parallax
+    // Desktop: mouse parallax (no permission needed)
     if(!('ontouchstart' in window)){
       _gyroMouseHandler = function(e){
         var cx = window.innerWidth / 2, cy = window.innerHeight / 2;
