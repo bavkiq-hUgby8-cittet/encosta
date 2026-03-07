@@ -1254,6 +1254,23 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .mod-btn.danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#ef4444}
 .mod-btn.danger:hover{background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.3)}
 .mod-btn.full{width:100%}
+.mod-touch-banner{position:sticky;top:0;z-index:10;padding:.6rem .8rem;background:linear-gradient(135deg,rgba(96,165,250,.15),rgba(129,140,248,.1));border:1px solid rgba(96,165,250,.25);border-radius:12px;margin-bottom:.8rem;display:none;text-align:center;animation:mod-touch-pulse 2s ease-in-out infinite}
+.mod-touch-banner.active{display:block}
+.mod-touch-banner .mtb-title{font-size:.75rem;font-weight:700;color:#60a5fa;margin-bottom:.2rem}
+.mod-touch-banner .mtb-sub{font-size:.6rem;color:var(--t3);margin-bottom:.4rem}
+.mod-touch-banner .mtb-wave{display:flex;align-items:center;justify-content:center;gap:3px;height:16px}
+.mod-touch-banner .mtb-wave span{display:block;width:3px;border-radius:2px;background:#60a5fa;animation:mtb-bar .8s ease-in-out infinite}
+.mod-touch-banner .mtb-wave span:nth-child(1){height:6px;animation-delay:0s}
+.mod-touch-banner .mtb-wave span:nth-child(2){height:12px;animation-delay:.1s}
+.mod-touch-banner .mtb-wave span:nth-child(3){height:16px;animation-delay:.2s}
+.mod-touch-banner .mtb-wave span:nth-child(4){height:12px;animation-delay:.3s}
+.mod-touch-banner .mtb-wave span:nth-child(5){height:6px;animation-delay:.4s}
+.mod-touch-banner .mtb-cancel{margin-top:.4rem;padding:.3rem .8rem;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.1);color:#ef4444;border-radius:8px;font-size:.6rem;cursor:pointer;font-family:inherit}
+@keyframes mod-touch-pulse{0%,100%{box-shadow:0 0 0 0 rgba(96,165,250,.2)}50%{box-shadow:0 0 20px 4px rgba(96,165,250,.15)}}
+@keyframes mtb-bar{0%,100%{transform:scaleY(.5);opacity:.4}50%{transform:scaleY(1);opacity:1}}
+.mod-touch-success{display:none;text-align:center;padding:1rem;animation:mtb-success-in .5s ease}
+.mod-touch-success.active{display:block}
+@keyframes mtb-success-in{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
 .mod-btn.small{padding:.45rem .9rem;font-size:.72rem;min-height:36px;border-radius:8px}
 .mod-field{display:flex;flex-direction:column;gap:.35rem;margin-bottom:.8rem}
 .mod-label{font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.07em;font-weight:700;font-family:var(--font-display)}
@@ -2170,6 +2187,18 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <button class="op-rest-tab" onclick="switchRestTab('delivery')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Entregas</button>
     </div>
 
+    <!-- Touch Banner (shown when Touch is active from inside this module) -->
+    <div class="mod-touch-banner" id="restTouchBanner">
+      <div class="mtb-title">TOUCH ATIVADO</div>
+      <div class="mtb-sub">Encoste os celulares para conectar</div>
+      <div class="mtb-wave"><span></span><span></span><span></span><span></span><span></span></div>
+      <button class="mtb-cancel" onclick="cancelModuleTouch('rest')">Cancelar Touch</button>
+    </div>
+    <div class="mod-touch-success" id="restTouchSuccess">
+      <div style="font-size:2rem;margin-bottom:.3rem">&#10003;</div>
+      <div style="font-size:.8rem;font-weight:700;color:#22c55e">Conectado!</div>
+    </div>
+
     <!-- MENU TAB -->
     <div id="restTabMenu">
       <div class="menu-config">
@@ -2374,6 +2403,18 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <button class="mod-tab" onclick="switchParkTab('history')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Historico</button>
       <button class="mod-test-btn" onclick="populateTestParking()" style="margin-left:auto">Teste</button>
     </div>
+    <!-- Touch Banner for Parking -->
+    <div class="mod-touch-banner" id="parkTouchBanner">
+      <div class="mtb-title">TOUCH ATIVADO</div>
+      <div class="mtb-sub">Encoste os celulares para registrar veiculo</div>
+      <div class="mtb-wave"><span></span><span></span><span></span><span></span><span></span></div>
+      <button class="mtb-cancel" onclick="cancelModuleTouch('park')">Cancelar Touch</button>
+    </div>
+    <div class="mod-touch-success" id="parkTouchSuccess">
+      <div style="font-size:2rem;margin-bottom:.3rem">&#10003;</div>
+      <div style="font-size:.8rem;font-weight:700;color:#22c55e">Veiculo Registrado!</div>
+    </div>
+
     <div class="mod-content">
       <!-- VEHICLES TAB (Active) -->
       <div id="parkTabVehicles">
@@ -2824,6 +2865,18 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <button class="mod-tab" onclick="switchBarberTab('services')">Servicos</button>
         <button class="mod-tab" onclick="switchBarberTab('slots')">Horarios</button>
         <button class="mod-tab" onclick="switchBarberTab('config')">Config</button>
+      </div>
+
+      <!-- Touch Banner for Barber -->
+      <div class="mod-touch-banner" id="barberTouchBanner">
+        <div class="mtb-title">TOUCH ATIVADO</div>
+        <div class="mtb-sub">Encoste os celulares para conectar barbeiro</div>
+        <div class="mtb-wave"><span></span><span></span><span></span><span></span><span></span></div>
+        <button class="mtb-cancel" onclick="cancelModuleTouch('barber')">Cancelar Touch</button>
+      </div>
+      <div class="mod-touch-success" id="barberTouchSuccess">
+        <div style="font-size:2rem;margin-bottom:.3rem">&#10003;</div>
+        <div style="font-size:.8rem;font-weight:700;color:#22c55e">Barbeiro Conectado!</div>
       </div>
 
       <!-- TAB: Agenda (appointments) -->
@@ -4002,9 +4055,24 @@ function initSocket(){
   S.socket.on('staff-joined',d=>{
     loadStaff();
     if(_activeStaffCall){cancelStaffCall(_activeStaffCall)}
-    showToast((d.staff&&d.staff.role==='driver'?'Motorista':'Garcom')+' conectado!');
+    var role=d.staff&&d.staff.role||'waiter';
+    var roleLabel=role==='driver'?'Motorista':role==='barber'?'Barbeiro':'Garcom';
+    showToast(roleLabel+' conectado: '+(d.staff&&d.staff.name||''));
+    // Show success animation in the appropriate module banner
+    var modKey=role==='driver'?'park':role==='barber'?'barber':'rest';
+    showModuleTouchSuccess(modKey,roleLabel+' Conectado!');
+    // Add staff as node to aquarium (Task B)
+    if(d.staff){
+      addStaffNodeToCanvas(d.staff);
+    }
   });
-  S.socket.on('staff-left',d=>{loadStaff()});
+  S.socket.on('staff-left',d=>{
+    loadStaff();
+    // Remove staff node from aquarium
+    if(d.staffId||d.userId){
+      removeStaffNodeFromCanvas(d.staffId,d.userId);
+    }
+  });
   S.socket.on('staff-tables-updated',d=>{loadStaff()});
   S.socket.on('delivery-order-new',d=>{
     if(d.order){
@@ -4930,7 +4998,11 @@ function renderCanvas(){
   c.strokeStyle='rgba('+baseC.join(',')+',0.5)';c.lineWidth=1;
   c.shadowColor='rgba('+baseC.join(',')+',0.5)';c.shadowBlur=8;c.stroke();c.shadowBlur=0;
   c.fillStyle='rgba(255,255,255,.4)';c.font='600 9px Inter,sans-serif';c.textBaseline='top';
-  c.fillText(nodes.length+' pessoa'+(nodes.length!==1?'s':''),mcx,mcy+centerR+5);
+  var visitorCount=nodes.filter(function(nn){return !nn.isStaff}).length;
+  var staffCount=nodes.filter(function(nn){return nn.isStaff}).length;
+  var countTxt=visitorCount+' pessoa'+(visitorCount!==1?'s':'');
+  if(staffCount>0)countTxt+=' + '+staffCount+' staff';
+  c.fillText(countTxt,mcx,mcy+centerR+5);
   if(isActive){const pa=.12+Math.sin(t*3)*.08;c.beginPath();c.arc(mcx,mcy,centerR+5+Math.sin(t*2)*3,0,Math.PI*2);c.strokeStyle='rgba('+baseC.join(',')+','+pa+')';c.lineWidth=1;c.stroke()}
 
   if(!nodes.length){cvAnim=requestAnimationFrame(renderCanvas);return}
@@ -5056,8 +5128,11 @@ function renderCanvas(){
     const r=Math.min(n.baseRadius*pulse*n.entryScale,R_MAX);
     if(r<1)return;
 
-    const ringColor=n.revealed?'#00dc82':'#ff4466';
-    const glowRGB=n.revealed?'0,220,130':'255,68,102';
+    // Staff nodes use different ring color
+    const isStaffNode=!!n.isStaff;
+    const staffRingColors={waiter:'#f97316',barber:'#eab308',driver:'#22c55e'};
+    const ringColor=isStaffNode?(staffRingColors[n.staffRole]||'#60a5fa'):(n.revealed?'#00dc82':'#ff4466');
+    const glowRGB=isStaffNode?(n.staffRole==='waiter'?'249,115,22':n.staffRole==='barber'?'234,179,8':'34,197,94'):(n.revealed?'0,220,130':'255,68,102');
 
     c.save();
 
@@ -5077,7 +5152,38 @@ function renderCanvas(){
     c.beginPath();c.arc(sx,sy,nGlowR,0,Math.PI*2);c.fillStyle=nGlow;c.fill();
 
     // ── Node body ──
-    if(!S.hidePhotos&&n.revealed&&n.photoLoaded&&n.photoImg&&r>5){
+    if(isStaffNode){
+      // Staff node: colored circle with role icon
+      var sGrad=c.createRadialGradient(sx-r*.3,sy-r*.3,0,sx,sy,r);
+      sGrad.addColorStop(0,'rgba('+glowRGB+',0.7)');sGrad.addColorStop(1,'rgba('+glowRGB+',0.25)');
+      c.beginPath();c.arc(sx,sy,r,0,Math.PI*2);c.fillStyle=sGrad;c.fill();
+      // Role icon in center
+      if(r>6){
+        c.fillStyle='#fff';c.font='600 '+Math.max(7,r*.55)+'px Inter';c.textAlign='center';c.textBaseline='middle';
+        var roleIcon=n.staffRole==='waiter'?'G':n.staffRole==='barber'?'B':'M';
+        c.fillText(roleIcon,sx,sy+.5);
+      }
+      // Dashed ring for staff
+      c.beginPath();c.arc(sx,sy,r+1.5,0,Math.PI*2);
+      c.setLineDash([4,3]);c.strokeStyle=ringColor;c.lineWidth=1.2;
+      c.shadowColor=ringColor;c.shadowBlur=8;c.stroke();c.shadowBlur=0;c.setLineDash([]);
+      // Staff role badge below
+      if(r>5){
+        var badgeTxt=n.staffLabel||'Staff';
+        c.font='bold 7px Inter';var badgeW=c.measureText(badgeTxt).width+8;
+        var badgeY=sy+r+4;
+        c.fillStyle=ringColor;
+        c.beginPath();c.roundRect(sx-badgeW/2,badgeY,badgeW,13,4);c.fill();
+        c.fillStyle='#000';c.textAlign='center';c.textBaseline='top';
+        c.fillText(badgeTxt,sx,badgeY+2);
+        // Name below badge
+        c.font='500 8px Inter';c.fillStyle='rgba(255,255,255,.5)';
+        c.fillText(n.name,sx,badgeY+16);
+      }
+      c.restore();
+      return; // Skip rest of normal node rendering for staff
+    }
+    else if(!S.hidePhotos&&n.revealed&&n.photoLoaded&&n.photoImg&&r>5){
       drawCroppedImg(c,n.photoImg,sx,sy,r);
     }else if(!n.revealed&&r>6){
       // Anonymous silhouette
@@ -5781,9 +5887,7 @@ let _activeStaffCall=null;
 
 function callStaff(role){
   if(!S.socket||!S.currentEventId){showToast('Ative o evento primeiro.');return}
-  // If already calling this role, ignore (use cancel button)
   if(_activeStaffCall===role)return;
-  // If calling another role, cancel it first
   if(_activeStaffCall)cancelStaffCall(_activeStaffCall);
   _activeStaffCall=role;
   const isWaiter=role==='waiter';
@@ -5793,6 +5897,8 @@ function callStaff(role){
   if(status)status.textContent='TOUCH ativado - encoste os celulares';
   S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:role});
   if(!homeSonicActive)opToggleTouch();
+  // Show in-module touch banner if a module panel is open
+  showModuleTouchBanner('rest');
   showToast('TOUCH ativado para '+(isWaiter?'Garcom':'Motorista'));
 }
 
@@ -5811,6 +5917,110 @@ function cancelStaffCall(role){
 // Legacy aliases
 function callWaiter(){callStaff('waiter')}
 function callDriver(){callStaff('driver')}
+
+// --- Module Touch Banner System (Task A) ---
+var _moduleTouchActive=null; // which module has touch active: 'rest','park','barber'
+
+function showModuleTouchBanner(mod){
+  // Hide any previously active banner
+  hideAllModuleTouchBanners();
+  _moduleTouchActive=mod;
+  var banner=$(mod+'TouchBanner');
+  if(banner)banner.classList.add('active');
+}
+
+function hideAllModuleTouchBanners(){
+  ['rest','park','barber'].forEach(function(m){
+    var b=$(m+'TouchBanner');
+    if(b)b.classList.remove('active');
+    var s=$(m+'TouchSuccess');
+    if(s)s.classList.remove('active');
+  });
+  _moduleTouchActive=null;
+}
+
+function cancelModuleTouch(mod){
+  var banner=$(mod+'TouchBanner');
+  if(banner)banner.classList.remove('active');
+  _moduleTouchActive=null;
+  // Also cancel the sonic/touch if active
+  if(homeSonicActive)stopHomeSonic();
+  if(_activeStaffCall)cancelStaffCall(_activeStaffCall);
+  // Reset barber invite button if needed
+  var barberBtn=$('barberTouchInviteBtn');
+  if(barberBtn){barberBtn.textContent='Ativar TOUCH para Barbeiro';barberBtn.disabled=false}
+  var barberSt=$('barberTouchInviteStatus');
+  if(barberSt)barberSt.style.display='none';
+  showToast('Touch cancelado');
+}
+
+function showModuleTouchSuccess(mod,msg){
+  // Hide the waiting banner
+  var banner=$(mod+'TouchBanner');
+  if(banner)banner.classList.remove('active');
+  // Show success
+  var success=$(mod+'TouchSuccess');
+  if(success){
+    var msgEl=success.querySelector('div:last-child');
+    if(msgEl&&msg)msgEl.textContent=msg;
+    success.classList.add('active');
+    setTimeout(function(){success.classList.remove('active')},3000);
+  }
+  _moduleTouchActive=null;
+  // Reset barber invite button
+  var barberBtn=$('barberTouchInviteBtn');
+  if(barberBtn){barberBtn.textContent='Ativar TOUCH para Barbeiro';barberBtn.disabled=false}
+  var barberSt=$('barberTouchInviteStatus');
+  if(barberSt)barberSt.style.display='none';
+}
+
+// --- Staff Nodes in Aquarium (Task B) ---
+var staffNodeColors={waiter:'#f97316',barber:'#eab308',driver:'#22c55e'};
+var staffNodeLabels={waiter:'Garcom',barber:'Barbeiro',driver:'Motorista'};
+
+function addStaffNodeToCanvas(staff){
+  if(!staff||!staff.userId)return;
+  // Check if already exists
+  for(var i=0;i<nodes.length;i++){
+    if(nodes[i].userId===staff.userId&&nodes[i].isStaff)return;
+  }
+  var pad=60;
+  var baseR=22;
+  var role=staff.role||'waiter';
+  var n={
+    x:pad+Math.random()*(cvW-pad*2),
+    y:pad+Math.random()*(cvH-pad*2),
+    vx:(Math.random()-.5)*0.3,
+    vy:(Math.random()-.5)*0.3,
+    baseRadius:baseR,
+    color:staffNodeColors[role]||'#60a5fa',
+    name:staff.name||staffNodeLabels[role]||'Staff',
+    pulsePhase:Math.random()*Math.PI*2,
+    intensity:0.6,encounters:0,
+    glow:2.5,entryScale:0,
+    userId:staff.userId,relationId:null,
+    revealed:true,revealData:null,
+    profilePhoto:null,
+    stars:0,topTag:null,score:0,
+    timestamp:Date.now(),
+    photoImg:null,photoLoaded:false,
+    paidPresencial:false,
+    // Staff-specific properties
+    isStaff:true,
+    staffRole:role,
+    staffId:staff.id,
+    staffLabel:staffNodeLabels[role]||'Staff'
+  };
+  nodes.push(n);
+}
+
+function removeStaffNodeFromCanvas(staffId,userId){
+  for(var i=nodes.length-1;i>=0;i--){
+    if(nodes[i].isStaff&&(nodes[i].staffId===staffId||nodes[i].userId===userId)){
+      nodes.splice(i,1);
+    }
+  }
+}
 
 async function assignTables(staffId){
   const input=prompt('Informe os numeros das mesas separados por virgula (ex: 1,2,3):');
@@ -7008,9 +7218,11 @@ async function saveParkManualEntry(){
 }
 
 function parkTouchMode(){
-  alert('Modo Touch ativado! Encoste o celular do motorista para registrar automaticamente.');
-  // This would trigger the ultrasonic touch flow with parking context
-  // The touch event handler in the main flow detects if parking module is active
+  if(!S.socket||!S.currentEventId){showToast('Ative o evento primeiro.');return}
+  S.socket.emit('sonic-set-staff-role',{eventId:S.currentEventId,staffRole:'driver'});
+  if(!homeSonicActive)opToggleTouch();
+  showModuleTouchBanner('park');
+  showToast('TOUCH ativado para Estacionamento');
 }
 
 function loadParkHistory(){
@@ -7983,6 +8195,7 @@ function inviteBarberByTouch(){
   $('barberTouchInviteStatus').style.display='';
   $('barberTouchInviteBtn').textContent='TOUCH ativado...';
   $('barberTouchInviteBtn').disabled=true;
+  showModuleTouchBanner('barber');
   showToast('TOUCH ativado para Barbeiro');
 }
 
@@ -8159,19 +8372,21 @@ async function loadBarberAppointments(){
     BARBER.appointments.sort((a,b)=>(a.date+a.timeStart).localeCompare(b.date+b.timeStart));
     BARBER.appointments.forEach(a=>{
       const card=document.createElement('div');
-      const statusColors={confirmed:'#22c55e',cancelled:'#ef4444',completed:'#3b82f6',pending:'#fbbf24'};
-      const statusLabels={confirmed:'Confirmado',cancelled:'Cancelado',completed:'Concluido',pending:'Pendente'};
+      const statusColors={confirmed:'#22c55e',cancelled:'#ef4444',completed:'#3b82f6',pending:'#fbbf24',pending_acceptance:'#f97316',rejected:'#ef4444'};
+      const statusLabels={confirmed:'Confirmado',cancelled:'Cancelado',completed:'Concluido',pending:'Pendente',pending_acceptance:'Aguardando Aceite',rejected:'Recusado'};
       const color=statusColors[a.status]||'#999';
       const dateStr=a.date.split('-').reverse().join('/');
       card.style.cssText='padding:.6rem;border-radius:10px;background:rgba(212,167,69,.04);border:1px solid rgba(212,167,69,.12);margin-bottom:.5rem';
+      var paidBadge=a.paidAt?'<span style="font-size:.45rem;padding:.1rem .3rem;border-radius:4px;background:rgba(34,197,94,.1);color:#22c55e;margin-left:.3rem">PAGO</span>':'';
       card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">'
         +'<span style="font-weight:700;font-size:.7rem;color:var(--t1)">'+dateStr+' '+a.timeStart+'</span>'
         +'<span style="font-size:.5rem;padding:.1rem .4rem;border-radius:10px;background:rgba(255,255,255,.05);color:'+color+'">'+(statusLabels[a.status]||a.status)+'</span></div>'
         +'<div style="font-size:.6rem;color:var(--t2)">'+esc(a.customerName||'Cliente')+' - '+esc(a.serviceName||'Servico')
-        +(a.barberName?' <span style="color:#d4a745">c/ '+esc(a.barberName)+'</span>':'')+'</div>'
+        +(a.barberName?' <span style="color:#d4a745">c/ '+esc(a.barberName)+'</span>':'')+paidBadge+'</div>'
         +'<div style="display:flex;gap:.3rem;margin-top:.3rem">'
-        +(a.status==='confirmed'?'<button class="mod-btn primary small" onclick="completeBarberAppointment(\''+a.id+'\')">Concluir</button>':'')
-        +(a.status==='confirmed'||a.status==='pending'?'<button class="mod-btn danger small" onclick="cancelBarberAppointment(\''+a.id+'\')">Cancelar</button>':'')
+        +(a.status==='pending_acceptance'?'<button class="mod-btn primary small" onclick="opAcceptBarberAppointment(\''+a.id+'\')">Aceitar</button><button class="mod-btn danger small" onclick="opRejectBarberAppointment(\''+a.id+'\')">Recusar</button>':'')
+        +(a.status==='confirmed'?'<button class="mod-btn primary small" onclick="opCompleteBarberAppointment(\''+a.id+'\')">Concluir</button>':'')
+        +(a.status==='confirmed'?'<button class="mod-btn danger small" onclick="cancelBarberAppointment(\''+a.id+'\')">Cancelar</button>':'')
         +'</div>';
       list.appendChild(card);
     });
@@ -8198,6 +8413,37 @@ async function cancelBarberAppointment(id){
     });
     loadBarberAppointments();
   }catch(e){}
+}
+
+async function opAcceptBarberAppointment(id){
+  if(!S.currentEventId)return;
+  try{
+    var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/accept',{method:'POST'});
+    var d=await r.json();
+    if(d.ok){showToast('Agendamento aceito!');loadBarberAppointments()}
+    else{alert(d.error||'Erro')}
+  }catch(e){alert('Erro de rede')}
+}
+
+async function opRejectBarberAppointment(id){
+  if(!S.currentEventId)return;
+  if(!confirm('Recusar este agendamento? O cliente sera reembolsado.'))return;
+  try{
+    var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/reject',{method:'POST'});
+    var d=await r.json();
+    if(d.ok){showToast('Agendamento recusado.');loadBarberAppointments()}
+    else{alert(d.error||'Erro')}
+  }catch(e){alert('Erro de rede')}
+}
+
+async function opCompleteBarberAppointment(id){
+  if(!S.currentEventId)return;
+  try{
+    var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/complete',{method:'POST'});
+    var d=await r.json();
+    if(d.ok){showToast('Servico concluido!');loadBarberAppointments()}
+    else{alert(d.error||'Erro')}
+  }catch(e){alert('Erro de rede')}
 }
 
 // ── Config ──
