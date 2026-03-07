@@ -23,160 +23,148 @@
 - Botao "Pedir Delivery" adicionado direto no card da rede (nao so no modal)
 - Commit: `c7864d1`
 
----
+### 3. Task A: Touch Feedback nos Modulos - COMPLETO
+- Banners animados (pulsacao + barras de onda) dentro dos paineis de modulo
+- Quando ativa Touch do cardapio/estacionamento/barbearia, banner aparece IN-PANEL
+- NAO sai mais da tela do modulo ao ativar Touch
+- Animacao de sucesso verde quando staff/veiculo conecta
+- Botao cancelar Touch dentro do modulo
+- CSS: `.mod-touch-banner`, `.mod-touch-success`, animacoes `mod-touch-pulse`, `mtb-bar`
+- JS: `showModuleTouchBanner(mod)`, `cancelModuleTouch(mod)`, `showModuleTouchSuccess(mod,msg)`
+- Modificou: `callStaff()`, `parkTouchMode()`, `inviteBarberByTouch()`, `staff-joined` handler
 
-## PROXIMAS TAREFAS (PENDENTES)
+### 4. Task B: Staff como Nodes Flutuantes no Aquario - COMPLETO
+- Garcom aparece em laranja (#f97316), barbeiro em dourado (#eab308), motorista em verde (#22c55e)
+- Nodes com borda pontilhada (dashed ring) + badge do cargo abaixo
+- Removidos automaticamente quando staff desconecta
+- Contador separado no aquario: "X pessoas + Y staff"
+- JS: `addStaffNodeToCanvas(staff)`, `removeStaffNodeFromCanvas(staffId, userId)`
+- Rendering especial em `renderCanvas()` com `isStaff`, `staffRole`, `staffLabel`
 
-Ramon pediu varias features interligadas. Segue o resumo de cada uma com o que ja existe no codigo e o que precisa ser feito:
+### 5. Task C: Pedido por Touch do Garcom - COMPLETO
+- Na view do garcom, agora tem 2 opcoes: "Por Mesa" ou "Por Touch"
+- No modo Touch: monta pedido, envia, mostra tela de "Aguardando Touch" para cobrar
+- Botao de envio muda texto baseado no modo (Enviar Pedido vs Enviar + Touch Pagar)
+- `showTablePicker()` para escolher mesa, `startWaiterTouchOrder()` para modo Touch
+- `showWaiterTouchPayment()` mostra tela com animacao enquanto aguarda Touch
+- CSS do `.mod-touch-banner` adicionado no index.html tambem
 
-### TAREFA A: Botao Touch nos Paineis de Modulo (Cardapio/Estacionamento)
-**Problema:** Quando ativa Touch de dentro de um modulo (restaurante, estacionamento), a UI volta pra tela principal e o botao fica la embaixo. Nao tem feedback visual claro.
-**O que existe:**
-- Botao Touch principal: `<button id="opTouchBtn" onclick="opToggleTouch()">` na linha 1742 do operator.html
-- Quando ativa, adiciona classes `shake-activate` e `energized` com animacao CSS
-- `callStaff('waiter')` ja chama `opToggleTouch()` se nao estiver ativo (linha 5795)
-- Sonic bars (`sonicBarsL/R`) e fire overlay existem mas so no botao principal
-**O que fazer:**
-- Criar uma animacao/overlay DENTRO do painel do modulo que mostre que o Touch esta ativo
-- Tipo um banner pulsante no topo do painel: "TOUCH ATIVADO - encoste os celulares"
-- Quando conectar (checkin-created ou staff-joined), mostrar animacao de sucesso
-- NAO fechar o painel do modulo ao ativar Touch - manter aberto com feedback visual
-- Pode ser um mini-status bar flutuante dentro do mod-panel
+### 6. Task D: Agendamento Barbeiro pela Rede com Pagamento Antecipado - COMPLETO
+**Fluxo: Cliente paga no agendamento -> Barbeiro aceita ou recusa -> Se recusar, reembolso**
 
-### TAREFA B: Funcionarios (Staff) como Nodes Itinerantes no Aquario
-**Problema:** Quando garcom ou barbeiro conecta, eles aparecem so na lista HTML de staff. Nao aparecem no aquario.
-**O que existe:**
-- Array `nodes` do canvas com propriedades: x, y, vx, vy, baseRadius, color, name, userId, profilePhoto, etc
-- `addNodeToCanvas(d)` adiciona node com drift physics
-- Staff sao criados via `sonic-matched` quando `pendingStaffRole` esta setado e visitor usa `isServiceTouch`
-- Staff atual: `{id, userId, name, role, tables, status, socketId, connectedAt}`
-- Rendering: nodes flutuam com velocidade 0.4, bounce nas bordas, repulsao do centro e entre si
-**O que fazer:**
-- Quando `staff-joined` chegar, chamar `addNodeToCanvas()` com dados especiais
-- Diferenciar visualmente: usar cor do modulo (laranja pra garcom, dourado pra barbeiro, verde pra motorista)
-- Em vez de foto, mostrar o logo do evento ou um icone do cargo (garcom/barbeiro/motorista)
-- Adicionar um badge/tag no node: "Garcom", "Barbeiro", "Motorista"
-- No `renderCanvas`, checar se node tem flag `isStaff` e desenhar diferente (ex: borda pontilhada, icone de cargo)
-- Nodes de staff devem ser removidos quando o staff desconecta (`staff-left` event)
+#### Server (server.js):
+- `POST /api/event/:id/barber/book` -- agora cria com status `pending_acceptance` + dados de pagamento
+- `POST /api/event/:id/barber/appointment/:aptId/accept` -- barbeiro aceita (slot fica `booked`)
+- `POST /api/event/:id/barber/appointment/:aptId/reject` -- barbeiro recusa (slot liberado, `refundStatus:'pending'`)
+- `POST /api/event/:id/barber/appointment/:aptId/complete` -- barbeiro marca concluido
+- Socket events: `barber-appointment-accepted`, `barber-appointment-rejected`, `barber-appointment-completed`, `barber-appointment-updated`
 
-### TAREFA C: Fluxo de Pedido por Staff (Garcom pede para cliente)
-**Problema:** O fluxo de pedido do garcom precisa incluir opcoes: por mesa OU por Touch (encosta no cliente). No final, Touch pra pagar.
-**O que existe:**
-- Waiter View completa em index.html (linhas 13025-13250)
-- `_waiterState` com tabs: tables, orders, menu
-- Endpoint: `POST /api/event/:eventId/staff-order` (server.js linha 13686)
-- Garcom ve suas mesas atribuidas, adiciona itens ao carrinho, cria pedido
-- Pedido criado com `waiterId`, `table`, `customerName`
-**O que fazer:**
-- Adicionar opcao "Pedir por Touch" alem de "Pedir por Mesa"
-- Fluxo: Garcom seleciona itens > escolhe mesa OU toca no cliente > pedido criado
-- No final do pedido, opcao de "Touch para Pagar" (garcom e cliente encostam celulares pra processar pagamento)
-- Gateway de pagamento unificado aparece no celular do CLIENTE apos o Touch
-- Garcom ve confirmacao em tempo real quando cliente paga
+#### Cliente (index.html):
+- Botao "Agendar Barbeiro" no card de conexao (rede) se evento tem modulo barber
+- `openBarberBookingFromNetwork(eventId)` -- abre overlay com UI de agendamento
+- `renderBarberUIInto(el, data)` -- renderiza 3 steps (barbeiro > servico > slot) no overlay
+- `showBarberPaymentGateway()` -- mostra gateway de pagamento antes de confirmar
+- `submitBarberBooking(payResult)` -- envia booking com dados de pagamento
+- Botao agora diz "Pagar R$X e Agendar" em vez de so "Agendar"
+- Socket listeners para `barber-appointment-accepted/rejected/completed`
 
-### TAREFA D: Barbeiro com Agendamento via Rede
-**Problema:** Se eu ja conectei com um barbeiro, quero agendar direto da minha rede de conexoes, sem precisar ir ao evento.
-**O que existe:**
-- Modulo barbeiro completo com: team, services, slots, appointments, config
-- BARBER state: `{activeTab, team[], selectedBarberId, appointments[]}`
-- Server endpoints: team CRUD, services CRUD, slots CRUD, appointments, config
-- Client: UI de 3 passos (escolhe barbeiro > servico > slot) em index.html linhas 5529-5740
-- Booking: `POST /api/event/:eventId/barber/book` com barberId, slotId, serviceId
-- Socket: `barber-appointment-new` notifica operador e barbeiro
-- Barbeiro conecta via Touch: `sonic-set-staff-role` com `staffRole='barber'`
-- Barbeiro recebe servicos default: Corte (R$35), Barba (R$25), Combo (R$50)
-**O que fazer:**
-- **Agendamento via Rede:** No card de conexao (constDetail), se o evento tem modulo barber ativo, mostrar botao "Agendar"
-- Abrir mesma UI de 3 passos (barbeiro > servico > slot) mas a partir da rede, nao do evento ao vivo
-- **Barbeiro aceita antes:** Mudar status inicial de appointment para `pending` em vez de `confirmed`
-- Barbeiro recebe notificacao e precisa clicar "Aceitar" ou "Recusar"
-- So depois de aceitar, o slot e marcado como `booked` e cliente recebe confirmacao
-- **Barbeiro solo vs barbearia:** Barbeiro pode ser vinculado a um evento (barbearia) OU ser independente
-- Se solo: aceita agendamentos das suas conexoes diretas
-- Se vinculado: agenda sincroniza com a barbearia (ja funciona via event)
-- **Painel do barbeiro:** Adicionar view propria pro barbeiro (como waiter view) mostrando agenda do dia, proximos clientes, aceitar/recusar agendamentos
+#### Barber Staff View (index.html):
+- Nova view completa para barbeiros conectados via Touch
+- HTML: `#barberStaffView` com header dourado + 3 abas
+- Aba "Agenda": agendamentos confirmados do dia + proximos
+- Aba "Pendentes": agendamentos `pending_acceptance` com botoes Aceitar/Recusar
+- Aba "Historico": concluidos e recusados
+- `openBarberStaffView()`, `loadBarberStaffAppointments()`, `renderBarberStaffView()`
+- `acceptBarberAppointment()`, `rejectBarberAppointment()`, `completeBarberAppointment()`
+- `staff-connected` agora roteia `role==='barber'` para a barber view
 
-### TAREFA E: Barbeiro - Pedido com Agendamento
-**Problema:** Barbeiro funciona igual garcom mas com agendamento. Cliente agenda slot, barbeiro aceita, e no dia do servico pode cobrar via Touch.
-**O que fazer:**
-- Integrar pagamento no fluxo de appointment completion
-- Quando barbeiro marca `completed`, opcao de cobrar via Touch
-- Gateway de pagamento aparece no celular do cliente
+#### Operador (operator.html):
+- Appointments list agora mostra status `pending_acceptance` com badge "Aguardando Aceite"
+- Badge "PAGO" quando appointment tem `paidAt`
+- Botoes: Aceitar/Recusar para pendentes, Concluir para confirmados
+- `opAcceptBarberAppointment()`, `opRejectBarberAppointment()`, `opCompleteBarberAppointment()`
 
----
-
-## ARQUITETURA RELEVANTE (pra referencia rapida)
-
-### Arquivos Principais
-- `server.js` (~16400 linhas) - Backend monolito
-- `public/operator.html` (~8000 linhas) - Painel do operador
-- `public/index.html` (~18000 linhas) - App do cliente
-
-### Socket Rooms
-- `user:${userId}` - Room individual do usuario
-- `event:${eventId}` - Room do evento (operador entra agora via join-event-room)
-- `session:${sessionId}` - Room de sessao de chat
-- `mural:${channelKey}` - Room de broadcast do mural
-
-### Sonic/Touch Flow
-1. Operador emite `sonic-start` com `{userId, isCheckin:true, eventId}`
-2. Server registra na `sonicQueue` com key `evt:${eventId}`
-3. Operador pode setar `sonic-set-staff-role` com `{eventId, staffRole:'waiter'|'driver'|'barber'}`
-4. Visitante emite `sonic-start` com `{userId, isServiceTouch:true}` (se modo servico)
-5. Quando frequencias batem (`sonic-matched`):
-   - Se `pendingStaffRole` existe: cria staff member, emite `staff-joined` + `staff-connected`
-   - Se nao: cria checkin normal, emite `checkin-created`
-
-### Canvas do Aquario
-- Array `nodes[]` com propriedades: x, y, vx, vy, baseRadius, color, name, userId, etc
-- `addNodeToCanvas(d, instant)` - adiciona node com animacao
-- `renderCanvas()` - loop de animacao a 60fps
-- Drift physics: velocidade 0.4, bounce nas bordas, repulsao entre nodes
-- Lightning bolts entre matches
-- Centro: logo do evento
-
-### Unified Payment Gateway
-- `renderUnifiedPaymentGateway(containerId, opts)` - Renderiza UI de pagamento
-- Suporta: Apple Pay, Google Pay, PIX, Stripe Card, Cartao salvo, Balcao
-- `opts.onConfirm(result)` - Callback apos pagamento confirmado
-- Usado em: ingresso, pedido restaurante, delivery, gorjeta
-
-### Barber Data Model
-```
-ev.barber = {
-  enabled: bool,
-  config: { barberName, welcomeMessage },
-  barbers: [{
-    id, userId, name, status,
-    services: [{ id, name, price, duration }],
-    slots: [{ id, date, timeStart, timeEnd, status, bookedBy, bookedByUserId }]
-  }],
-  appointments: [{
-    id, barberId, barberName, slotId, serviceId, serviceName, servicePrice,
-    date, timeStart, timeEnd, userId, customerName, status
-  }]
-}
-```
-
-### Staff Data Model
-```
-ev.staff = [{
-  id, userId, name, role ('waiter'|'driver'|'barber'),
-  tables: [1,2,3], status ('online'|'offline'),
-  socketId, connectedAt
-}]
-```
+### 7. Task E: Conclusao de Servico do Barbeiro - COMPLETO
+- Barbeiro marca como concluido via botao "Concluir" na agenda
+- Pagamento ja foi recebido no momento do agendamento
+- Notificacao socket para o cliente quando servico e concluido
+- Commit: `3132d7f` (todas as 5 tasks juntas)
 
 ---
 
 ## COMMITS DESTA SESSAO
-1. `2baf058` - feat: add gym mural, wifi, info endpoints (server)
-2. `f43adab` - feat: complete Treinos panel redesign with mural, wifi, info
-3. `c7864d1` - fix: real-time order/payment notifications + delivery flow
 
-## ORDEM SUGERIDA DE IMPLEMENTACAO
-1. Tarefa B (Staff no aquario) - visual, nao quebra nada
-2. Tarefa A (Touch feedback nos modulos) - UX, nao quebra nada
-3. Tarefa D (Barbeiro agendamento via rede) - funcionalidade nova
-4. Tarefa C (Pedido por Touch do garcom) - fluxo complexo
-5. Tarefa E (Pagamento via Touch do barbeiro) - depende de C e D
+| Commit | Descricao |
+|--------|-----------|
+| `2baf058` | Treinos: server endpoints redesign |
+| `f43adab` | Treinos: frontend redesign completo |
+| `c7864d1` | Fix real-time pedidos/pagamentos |
+| `f2cf463` | Documentacao de sessao (RESUMO) |
+| `3132d7f` | 5 features: Touch feedback, staff aquario, pedido Touch, barber scheduling, barber completion |
+
+---
+
+## ESTADO ATUAL DO MODULO BARBER
+
+### Fluxo Completo:
+1. Operador cria evento com modulo Barbearia ativo
+2. Operador cadastra barbeiros (manual ou Touch), servicos e horarios
+3. Cliente conecta ao evento (check-in via Touch ou QR)
+4. Cliente ve card na rede com botao "Agendar Barbeiro"
+5. Cliente escolhe barbeiro > servico > horario
+6. Cliente PAGA imediatamente (gateway de pagamento)
+7. Agendamento criado com status `pending_acceptance`
+8. Barbeiro recebe notificacao, aceita ou recusa
+9. Se aceitar: slot vira `booked`, cliente notificado
+10. Se recusar: slot liberado, reembolso iniciado, cliente notificado
+11. No dia: barbeiro marca "Concluir" quando termina
+
+### Status de Appointment:
+- `pending_acceptance` -- aguardando barbeiro aceitar (pago pelo cliente)
+- `confirmed` -- aceito pelo barbeiro
+- `rejected` -- recusado (reembolso em processamento)
+- `completed` -- servico finalizado
+- `cancelled` -- cancelado pelo operador
+
+---
+
+## ARQUIVOS MODIFICADOS
+
+### server.js (~16700+ linhas)
+- Linha 7039: `join-event-room` socket handler
+- Linha 13925: order creation com triple notification
+- Linha 14890: barber/book agora com `pending_acceptance` + payment data
+- Linha 14935+: NOVOS endpoints accept/reject/complete
+
+### public/operator.html (~8500+ linhas)
+- Linha 1257: CSS `.mod-touch-banner` com animacoes
+- Linha 2191: Touch banner HTML no painel restaurante
+- Linha 2406: Touch banner HTML no painel estacionamento
+- Linha 2857: Touch banner HTML no painel barbearia
+- Linha 5880+: JS functions `showModuleTouchBanner`, `cancelModuleTouch`, `showModuleTouchSuccess`
+- Linha 5910+: JS functions `addStaffNodeToCanvas`, `removeStaffNodeFromCanvas`
+- Linha 5127+: `renderCanvas` com rendering especial para staff nodes
+- Linha 8375+: Appointment list com status `pending_acceptance` e botoes aceitar/recusar
+
+### public/index.html (~18700+ linhas)
+- Linha 706: CSS `.mod-touch-banner` para client
+- Linha 3051: HTML `#barberStaffView` (nova view completa do barbeiro)
+- Linha 4107: `staff-connected` roteamento para barber view
+- Linha 4132+: Socket listeners barber-appointment-accepted/rejected/completed
+- Linha 5730: `confirmBarberBooking` agora com payment gateway
+- Linha 5780+: `showBarberPaymentGateway`, `submitBarberBooking`, `openBarberBookingFromNetwork`
+- Linha 12055+: Botao "Agendar Barbeiro" no card de conexao da rede
+- Linha 13162+: Waiter "Por Mesa" / "Por Touch" opcoes
+- Linha 13229+: `submitWaiterOrder` com modo Touch, `showWaiterTouchPayment`
+- Linha 13300+: Barber staff view completa (agenda/pendentes/historico + accept/reject/complete)
+
+---
+
+## PROXIMAS PRIORIDADES SUGERIDAS
+
+1. **Testar fluxo completo** de agendamento barbeiro (pagar > aceitar > concluir)
+2. **Integrar Stripe real** no payment gateway do barber booking (hoje e fallback/botao)
+3. **Barbeiro solo** aceitar agendamentos via conexoes (sem vinculo a barbearia)
+4. **Painel sincronizado** barbearia-barbeiro-cliente (agenda compartilhada)
+5. **Refund real** quando barbeiro recusa (hoje marca `refundStatus:'pending'`)
+6. **Touch payment** do garcom no modo "Pedir por Touch" (conectar via ultrasom para cobrar)
