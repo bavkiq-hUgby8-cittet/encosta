@@ -843,6 +843,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 @keyframes sonic-energy-ev{0%{transform:scale(1);box-shadow:0 0 50px rgba(96,165,250,.25),0 0 100px rgba(96,165,250,.1)}100%{transform:scale(1.04);box-shadow:0 0 70px rgba(96,165,250,.3),0 0 130px rgba(96,165,250,.15),0 0 220px rgba(129,140,248,.08)}}
 @keyframes bb{0%,100%{opacity:.3}50%{opacity:.6}}
 @keyframes rs{to{transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes sonic-energy{0%{transform:scale(1);box-shadow:0 0 60px var(--gw2),0 0 120px rgba(255,107,53,.15)}100%{transform:scale(1.04);box-shadow:0 0 80px var(--gw2),0 0 150px rgba(255,107,53,.2),0 0 250px rgba(255,61,113,.08)}}
 @keyframes sonic-waves{0%{inset:-30px;opacity:.5}100%{inset:-80px;opacity:0}}
 @keyframes sonic-text{0%{opacity:1}100%{opacity:.6}}
@@ -3093,10 +3094,32 @@ function $(id){return document.getElementById(id)}
 
 function showToast(msg){
   var t=document.createElement('div');
-  t.style.cssText='position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.8rem;z-index:99999;backdrop-filter:blur(10px)';
+  t.style.cssText='position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:.6rem 1.2rem;border-radius:12px;font-size:.8rem;z-index:99999;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08)';
   t.textContent=msg;
   document.body.appendChild(t);
   setTimeout(function(){t.remove()},2500);
+}
+
+function showConfirmModal(msg,onYes,onNo){
+  var bg=document.createElement('div');
+  bg.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  var box=document.createElement('div');
+  box.style.cssText='background:rgba(20,20,25,.95);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:1.2rem 1.5rem;max-width:320px;width:90%;backdrop-filter:blur(20px)';
+  box.innerHTML='<div style="font-size:.85rem;color:rgba(255,255,255,.9);line-height:1.5;margin-bottom:1rem">'+msg+'</div>'
+    +'<div style="display:flex;gap:.5rem;justify-content:flex-end">'
+    +'<button id="confirmNo" style="padding:.4rem 1rem;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:transparent;color:rgba(255,255,255,.6);font-size:.75rem;cursor:pointer;font-family:inherit">Cancelar</button>'
+    +'<button id="confirmYes" style="padding:.4rem 1rem;border:none;border-radius:10px;background:rgba(239,68,68,.2);color:#f87171;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit">Confirmar</button>'
+    +'</div>';
+  bg.appendChild(box);
+  document.body.appendChild(bg);
+  box.querySelector('#confirmYes').onclick=function(){bg.remove();if(onYes)onYes()};
+  box.querySelector('#confirmNo').onclick=function(){bg.remove();if(onNo)onNo()};
+  bg.onclick=function(e){if(e.target===bg){bg.remove();if(onNo)onNo()}};
+}
+
+function showLoadingIn(el){
+  if(!el)return;
+  el.innerHTML='<div style="display:flex;align-items:center;justify-content:center;padding:1.5rem;gap:.5rem"><div style="width:16px;height:16px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--ac,#3b82f6);border-radius:50%;animation:spin .6s linear infinite"></div><span style="font-size:.7rem;color:var(--t3)">Carregando...</span></div>';
 }
 
 // ═══ AUTH ═══
@@ -7001,7 +7024,7 @@ function renderParkVehicles(){
         '<div class="park-vcard-cost">R$ '+cost.toFixed(2).replace('.',',')+'</div>'+
         '<div class="park-vcard-actions">'+
           '<button class="mod-btn primary small" onclick="markParkExit(\''+esc(v.plate)+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Saida</button>'+
-          '<button class="mod-btn danger small" onclick="if(confirm(\'Remover veiculo?\'))removeParkVehicle(\''+esc(v.plate)+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
+          '<button class="mod-btn danger small" onclick="showConfirmModal(\'Remover veiculo?\',function(){removeParkVehicle(\''+esc(v.plate)+'\')})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
         '</div>'+
       '</div>';
     list.appendChild(card);
@@ -7652,7 +7675,7 @@ function renderGymClasses(){
         '</div>'+
         '<div style="display:flex;gap:.2rem">'+
           '<button class="mod-btn primary" onclick="openGymClassForm(\''+c.id+'\')" style="font-size:.6rem;padding:.25rem .5rem">Editar</button>'+
-          '<button class="mod-btn danger" onclick="if(confirm(\'Deletar aula?\'))deleteGymClass(\''+c.id+'\')" style="font-size:.6rem;padding:.25rem .5rem">X</button>'+
+          '<button class="mod-btn danger" onclick="showConfirmModal(\'Deletar esta aula?\',function(){deleteGymClass(\''+c.id+'\')})" style="font-size:.6rem;padding:.25rem .5rem">X</button>'+
         '</div>'+
       '</div>';
     list.appendChild(card);
@@ -7723,7 +7746,7 @@ function renderGymPlans(){
         (p.description?'<div>'+esc(p.description)+'</div>':'')+
       '</div>'+
       '<div class="gym-vcard-actions">'+
-        '<button class="mod-btn danger small" onclick="if(confirm(\'Deletar plano?\'))deleteGymPlan(\''+p.id+'\')">Deletar</button>'+
+        '<button class="mod-btn danger small" onclick="showConfirmModal(\'Deletar este plano?\',function(){deleteGymPlan(\''+p.id+'\')})">Deletar</button>'+
       '</div>';
     list.appendChild(card);
   });
@@ -8300,6 +8323,7 @@ function switchBarberTab(tab){
 async function loadBarberTeam(){
   const list=$('barberTeamList');
   if(!list||!S.currentEventId)return;
+  showLoadingIn(list);
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/team');
     const d=await r.json();
@@ -8356,13 +8380,15 @@ function inviteBarberByTouch(){
   showToast('TOUCH ativado para Barbeiro');
 }
 
-async function removeBarberMember(id){
-  if(!confirm('Remover este barbeiro da equipe?'))return;
-  try{
-    await fetch('/api/operator/event/'+S.currentEventId+'/barber/team/'+id,{method:'DELETE'});
-    if(BARBER.selectedBarberId===id)BARBER.selectedBarberId=null;
-    loadBarberTeam();
-  }catch(e){}
+function removeBarberMember(id){
+  showConfirmModal('Remover este barbeiro da equipe?',async function(){
+    try{
+      await fetch('/api/operator/event/'+S.currentEventId+'/barber/team/'+id,{method:'DELETE'});
+      if(BARBER.selectedBarberId===id)BARBER.selectedBarberId=null;
+      loadBarberTeam();
+      showToast('Barbeiro removido');
+    }catch(e){showToast('Erro ao remover barbeiro')}
+  });
 }
 
 // ── Barber selector (dropdown for services/slots tabs) ──
@@ -8393,6 +8419,7 @@ function selectBarberMember(id){
 async function loadBarberServices(){
   const list=$('barberServicesList');
   if(!list||!S.currentEventId||!BARBER.selectedBarberId)return;
+  showLoadingIn(list);
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/services');
     const d=await r.json();
@@ -8435,19 +8462,22 @@ async function saveBarberService(){
   }catch(e){showToast('Erro de rede')}
 }
 
-async function deleteBarberService(id){
-  if(!confirm('Deletar este servico?'))return;
-  if(!BARBER.selectedBarberId)return;
-  try{
-    await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/services/'+id,{method:'DELETE'});
-    loadBarberServices();
-  }catch(e){}
+function deleteBarberService(id){
+  showConfirmModal('Deletar este servico?',async function(){
+    if(!BARBER.selectedBarberId)return;
+    try{
+      await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/services/'+id,{method:'DELETE'});
+      loadBarberServices();
+      showToast('Servico removido');
+    }catch(e){showToast('Erro ao remover servico')}
+  });
 }
 
 // ── Slots (per barber) ──
 async function loadBarberSlots(){
   const list=$('barberSlotsList');
   if(!list||!S.currentEventId||!BARBER.selectedBarberId)return;
+  showLoadingIn(list);
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/slots');
     const d=await r.json();
@@ -8496,19 +8526,22 @@ async function saveBarberSlot(){
   }catch(e){showToast('Erro de rede')}
 }
 
-async function deleteBarberSlot(id){
-  if(!confirm('Deletar este horario?'))return;
-  if(!BARBER.selectedBarberId)return;
-  try{
-    await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/slots/'+id,{method:'DELETE'});
-    loadBarberSlots();
-  }catch(e){}
+function deleteBarberSlot(id){
+  showConfirmModal('Deletar este horario?',async function(){
+    if(!BARBER.selectedBarberId)return;
+    try{
+      await fetch('/api/operator/event/'+S.currentEventId+'/barber/'+BARBER.selectedBarberId+'/slots/'+id,{method:'DELETE'});
+      loadBarberSlots();
+      showToast('Horario removido');
+    }catch(e){showToast('Erro ao remover horario')}
+  });
 }
 
 // ── Appointments (global) ──
 async function loadBarberAppointments(){
   const list=$('barberAppointmentsList');
   if(!list||!S.currentEventId)return;
+  showLoadingIn(list);
   try{
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/barber/appointments');
     const d=await r.json();
@@ -8551,15 +8584,17 @@ async function loadBarberAppointments(){
   }catch(e){list.innerHTML='<div class="mod-empty">Erro ao carregar agendamentos</div>'}
 }
 
-async function cancelBarberAppointment(id){
-  if(!confirm('Cancelar este agendamento?'))return;
-  try{
-    await fetch('/api/operator/event/'+S.currentEventId+'/barber/appointments/'+id+'/status',{
-      method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({status:'cancelled'})
-    });
-    loadBarberAppointments();
-  }catch(e){}
+function cancelBarberAppointment(id){
+  showConfirmModal('Cancelar este agendamento?',async function(){
+    try{
+      await fetch('/api/operator/event/'+S.currentEventId+'/barber/appointments/'+id+'/status',{
+        method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({status:'cancelled'})
+      });
+      loadBarberAppointments();
+      showToast('Agendamento cancelado');
+    }catch(e){showToast('Erro ao cancelar')}
+  });
 }
 
 async function opAcceptBarberAppointment(id){
@@ -8572,15 +8607,16 @@ async function opAcceptBarberAppointment(id){
   }catch(e){showToast('Erro de rede')}
 }
 
-async function opRejectBarberAppointment(id){
+function opRejectBarberAppointment(id){
   if(!S.currentEventId)return;
-  if(!confirm('Recusar este agendamento? O cliente sera reembolsado.'))return;
+  showConfirmModal('Recusar este agendamento? O cliente sera reembolsado.',async function(){
   try{
     var r=await fetch('/api/event/'+S.currentEventId+'/barber/appointment/'+id+'/reject',{method:'POST'});
     var d=await r.json();
     if(d.ok){showToast('Agendamento recusado.');loadBarberAppointments()}
     else{showToast(d.error||'Erro')}
   }catch(e){showToast('Erro de rede')}
+  });
 }
 
 async function opCompleteBarberAppointment(id){
