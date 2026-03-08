@@ -555,7 +555,7 @@ function setupStorageProxy(app) {
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
 // PERF: 'messages' is LAZY-LOADED from Firebase on demand (biggest collection by far)
 // This saves ~40% RAM at scale (5M messages = 1.2GB saved)
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags', 'eventPayments', 'payouts', 'customDomains'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags', 'eventPayments', 'payouts', 'customDomains', 'sitePayments'];
 const LAZY_COLLECTIONS = ['messages']; // loaded on demand, not on startup
 const EAGER_COLLECTIONS = DB_COLLECTIONS.filter(c => !LAZY_COLLECTIONS.includes(c));
 
@@ -14332,16 +14332,32 @@ app.get('/api/operator/event/:eventId/orders', (req, res) => {
 // Update order status (operator)
 app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const order = (ev.orders || []).find(o => o.id === req.params.orderId);
-  if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
-  order.status = req.body.status || order.status; // 'pending','preparing','ready','delivered','cancelled'
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
+  const newStatus = req.body.status || order.status; // 'pending','preparing','ready','delivered','cancelled'
+  order.status = newStatus;
+  // Record status history
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({ status: newStatus, timestamp: Date.now() });
   saveDB('operatorEvents');
   // Notify client (global + targeted for reliability)
   const updateData = { eventId: ev.id, orderId: order.id, status: order.status };
   io.emit('order-update', updateData);
   if (order.userId) io.to(`user:${order.userId}`).emit('order-update', updateData);
   io.to('event:' + ev.id).emit('order-update', updateData);
+  // If delivered or cancelled, expire temporary site_order relation
+  if ((newStatus === 'delivered' || newStatus === 'cancelled') && order.source === 'site') {
+    const relId = 'siteorder_' + order.id;
+    const rel = db.relations[relId];
+    if (rel) {
+      rel.expiresAt = Date.now() + 1800000; // 30min grace period
+      saveDB('relations');
+      if (rel.userB) {
+        io.to('user:' + rel.userB).emit('order-delivered', { orderId: order.id, relationId: relId, status: newStatus });
+      }
+    }
+  }
   res.json({ ok: true, order });
 });
 
@@ -15191,17 +15207,35 @@ app.post('/api/operator/event/:eventId/site/domain', express.json(), async (req,
   res.json({ ok: true, status: 'pending', instructions: 'Aponte o DNS do seu dominio (' + d + ') com um CNAME para touch-irl.com. A verificacao sera automatica.' });
 });
 
-// ── Site White-Label: Public Order (no auth needed - guests) ──
+// ── Site White-Label: Unified Checkout (atomic: validate + pay + create order + record) ──
 const siteOrderLimiter = require('express-rate-limit')({ windowMs: 60000, max: 10, message: { error: 'Muitos pedidos. Aguarde 1 minuto.' } });
+const SITE_ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
 
-app.post('/api/site/:slug/order', express.json(), siteOrderLimiter, (req, res) => {
+app.post('/api/site/:slug/checkout', express.json(), siteOrderLimiter, async (req, res) => {
   const ev = findEventBySlug(req.params.slug);
   if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
   if (!ev.active) return res.status(400).json({ error: 'Estabelecimento nao esta aceitando pedidos no momento' });
-  const { customerName, customerPhone, customerEmail, items, notes, paymentMethod, tipPercent, tipAmount } = req.body;
+  const {
+    customerName, customerPhone, customerEmail, items, notes,
+    paymentMethod, tipPercent, tipAmount, currency,
+    // Express Checkout (Apple Pay / Google Pay)
+    paymentMethodId,
+    // Payment Element (card already confirmed client-side)
+    stripePaymentIntentId,
+    // Delivery
+    deliveryType, deliveryAddress, deliveryFee,
+    // Touch user (if logged in)
+    userId
+  } = req.body;
   if (!customerName || !customerName.trim()) return res.status(400).json({ error: 'Nome obrigatorio' });
   if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Pedido vazio' });
   if (items.length > 50) return res.status(400).json({ error: 'Maximo 50 itens por pedido' });
+  // Validate delivery address if delivery
+  if (deliveryType === 'delivery') {
+    if (!deliveryAddress || !deliveryAddress.street || !deliveryAddress.city) {
+      return res.status(400).json({ error: 'Endereco de entrega obrigatorio' });
+    }
+  }
   // Validate items against actual menu
   const menu = ev.menu || [];
   const validatedItems = [];
@@ -15211,7 +15245,6 @@ app.post('/api/site/:slug/order', express.json(), siteOrderLimiter, (req, res) =
     const menuItem = menu.find(m => m.id === item.menuItemId);
     if (!menuItem) continue;
     if (menuItem.available === false) continue;
-    // Check stock
     if (menuItem.stockEnabled && menuItem.stockQty !== undefined && menuItem.stockQty < item.qty) {
       return res.status(400).json({ error: 'Item "' + menuItem.name + '" sem estoque suficiente (disponivel: ' + menuItem.stockQty + ')' });
     }
@@ -15219,31 +15252,79 @@ app.post('/api/site/:slug/order', express.json(), siteOrderLimiter, (req, res) =
     const price = parseFloat(menuItem.price) || 0;
     validatedItems.push({ menuItemId: menuItem.id, name: menuItem.name, qty, price });
     subtotal += price * qty;
-    // Decrement stock
     if (menuItem.stockEnabled && menuItem.stockQty !== undefined) {
       menuItem.stockQty -= qty;
     }
   }
   if (validatedItems.length === 0) return res.status(400).json({ error: 'Nenhum item valido no pedido' });
   const parsedTipAmount = parseFloat(tipAmount) || 0;
-  const total = subtotal + parsedTipAmount;
+  const parsedDeliveryFee = deliveryType === 'delivery' ? (parseFloat(deliveryFee) || 0) : 0;
+  const total = subtotal + parsedTipAmount + parsedDeliveryFee;
+  const pm = paymentMethod === 'card' || paymentMethod === 'pix' ? paymentMethod : 'counter';
+  const curr = (currency || 'usd').toLowerCase();
+
+  // ── Step 1: Process payment (if card) ──
+  let paymentIntentId = stripePaymentIntentId || null;
+  let paymentSource = 'site-counter';
+  let paymentSucceeded = pm !== 'card'; // counter = auto-success
+
+  if (pm === 'card') {
+    if (paymentMethodId && stripeInstance) {
+      // Express Checkout (Apple Pay / Google Pay) — confirm immediately
+      paymentSource = 'site-express';
+      const amountCents = SITE_ZERO_DECIMAL.has(curr) ? Math.round(total) : Math.round(total * 100);
+      try {
+        const intentData = {
+          amount: amountCents, currency: curr,
+          payment_method: paymentMethodId, confirm: true,
+          automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+          metadata: { source: 'touch-site-express', slug: ev.siteConfig.slug, eventId: ev.id, type: 'order' }
+        };
+        const operator = db.users[ev.creatorId];
+        if (operator && operator.stripeConnectId && operator.stripeConnected) {
+          const fee = Math.round(amountCents * TOUCH_FEE_PERCENT / 100);
+          intentData.application_fee_amount = fee;
+          intentData.transfer_data = { destination: operator.stripeConnectId };
+        }
+        const pi = await stripeInstance.paymentIntents.create(intentData);
+        if (pi.status === 'succeeded') {
+          paymentIntentId = pi.id;
+          paymentSucceeded = true;
+        } else {
+          return res.json({ ok: false, error: 'Pagamento nao confirmado', stripeStatus: pi.status });
+        }
+      } catch (e) {
+        console.error('[site-checkout] Express pay error:', e.message);
+        return res.json({ ok: false, error: 'Erro no pagamento: ' + e.message });
+      }
+    } else if (stripePaymentIntentId) {
+      // Payment Element — already confirmed client-side, just link
+      paymentSource = 'site-card';
+      paymentIntentId = stripePaymentIntentId;
+      paymentSucceeded = true;
+    } else {
+      return res.status(400).json({ error: 'Dados de pagamento incompletos' });
+    }
+  }
+
+  // ── Step 2: Create order ──
   if (!ev.orders) ev.orders = [];
   const receiptNumber = 'REC-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   const fiscal = {
-    productAmount: subtotal,
-    serviceAmount: parsedTipAmount,
-    productFiscalType: 'NF-e',
-    serviceFiscalType: parsedTipAmount > 0 ? 'NF-S' : null,
+    productAmount: subtotal, serviceAmount: parsedTipAmount,
+    productFiscalType: 'NF-e', serviceFiscalType: parsedTipAmount > 0 ? 'NF-S' : null,
     cfop: '5.102', cst: '00', ncm: '2106.90.90',
     issCode: parsedTipAmount > 0 ? '09.02' : null,
-    nfeStatus: 'pending',
-    nfsStatus: parsedTipAmount > 0 ? 'pending' : null
+    nfeStatus: 'pending', nfsStatus: parsedTipAmount > 0 ? 'pending' : null
   };
-  const pm = paymentMethod === 'card' || paymentMethod === 'pix' ? paymentMethod : 'counter';
+  // Resolve userId: real Touch user or guest
+  const isRealUser = userId && db.users[userId];
+  const effectiveUserId = isRealUser ? userId : ('site-guest-' + Date.now().toString(36));
+  const effectiveUserName = isRealUser ? (db.users[userId].nickname || db.users[userId].name) : sanitizeStr(customerName, 60);
   const order = {
     id: uuidv4(),
-    userId: 'site-guest-' + Date.now().toString(36),
-    userName: sanitizeStr(customerName, 60),
+    userId: effectiveUserId,
+    userName: effectiveUserName,
     customerPhone: sanitizeStr(customerPhone || '', 20),
     customerEmail: sanitizeStr(customerEmail || '', 100),
     items: validatedItems,
@@ -15251,19 +15332,88 @@ app.post('/api/site/:slug/order', express.json(), siteOrderLimiter, (req, res) =
     subtotal,
     tipPercent: parseInt(tipPercent) || 0,
     tipAmount: parsedTipAmount,
+    deliveryFee: parsedDeliveryFee,
     total,
     paymentMethod: pm,
-    status: pm === 'card' ? 'paid' : 'pending',
+    paymentSource,
+    stripePaymentIntentId: paymentIntentId,
+    status: paymentSucceeded && pm === 'card' ? 'paid' : 'pending',
     receiptNumber,
     eventName: ev.name || 'Evento',
     notes: sanitizeStr(notes || '', 200),
     source: 'site',
+    deliveryType: deliveryType === 'delivery' ? 'delivery' : 'pickup',
+    deliveryAddress: deliveryType === 'delivery' && deliveryAddress ? {
+      street: sanitizeStr(deliveryAddress.street || '', 80),
+      number: sanitizeStr(deliveryAddress.number || '', 10),
+      complement: sanitizeStr(deliveryAddress.complement || '', 40),
+      city: sanitizeStr(deliveryAddress.city || '', 40),
+      state: sanitizeStr(deliveryAddress.state || '', 2),
+      cep: sanitizeStr(deliveryAddress.cep || '', 10)
+    } : null,
+    statusHistory: [{ status: paymentSucceeded && pm === 'card' ? 'paid' : 'pending', timestamp: Date.now() }],
     fiscal,
     createdAt: Date.now()
   };
   ev.orders.push(order);
+
+  // ── Step 3: Record payment transaction ──
+  if (paymentIntentId && paymentSucceeded) {
+    const sitePaymentId = uuidv4();
+    db.sitePayments[sitePaymentId] = {
+      id: sitePaymentId,
+      eventId: ev.id,
+      orderId: order.id,
+      slug: ev.siteConfig ? ev.siteConfig.slug : '',
+      amount: total,
+      currency: curr,
+      subtotal,
+      tipAmount: parsedTipAmount,
+      deliveryFee: parsedDeliveryFee,
+      paymentMethod: paymentSource,
+      stripePaymentIntentId: paymentIntentId,
+      stripeStatus: 'succeeded',
+      operatorId: ev.creatorId,
+      operatorStripeConnectId: (db.users[ev.creatorId] || {}).stripeConnectId || null,
+      touchFeeAmount: Math.round(total * TOUCH_FEE_PERCENT) / 100,
+      customerName: sanitizeStr(customerName || '', 60),
+      customerEmail: sanitizeStr(customerEmail || '', 100),
+      status: 'completed',
+      createdAt: Date.now()
+    };
+    saveDB('sitePayments');
+  }
+
+  // ── Step 4: Create temporary relation for logged-in Touch users ──
+  if (isRealUser) {
+    const relationId = 'siteorder_' + order.id;
+    const now = Date.now();
+    db.relations[relationId] = {
+      id: relationId,
+      userA: ev.creatorId,
+      userB: userId,
+      phrase: 'Pedido #' + receiptNumber.slice(-6),
+      type: 'site_order',
+      createdAt: now,
+      expiresAt: now + 86400000,
+      provocations: {},
+      renewed: 0,
+      selfie: null,
+      orderId: order.id,
+      eventId: ev.id
+    };
+    if (typeof idxAddRelation === 'function') idxAddRelation(relationId, ev.creatorId, userId);
+    saveDB('relations');
+    io.to('user:' + userId).emit('relation-created', {
+      id: relationId, partnerId: ev.creatorId, partnerName: ev.name || 'Estabelecimento',
+      phrase: 'Pedido #' + receiptNumber.slice(-6), type: 'site_order',
+      isEvent: true, eventId: ev.id, eventLogo: ev.eventLogo || null
+    });
+  }
+
   saveDB('operatorEvents');
-  // Notify operator
+
+  // ── Step 5: Notify operator via socket ──
   io.emit('new-order', { eventId: ev.id, order });
   io.to('user:' + ev.creatorId).emit('new-order', { eventId: ev.id, order });
   io.to('event:' + ev.id).emit('new-order', { eventId: ev.id, order });
@@ -15275,11 +15425,11 @@ app.post('/api/site/:slug/order', express.json(), siteOrderLimiter, (req, res) =
       timestamp: order.createdAt, source: 'site'
     });
   }
-  console.log('[site-order] New order from site:', ev.siteConfig.slug, '| #' + receiptNumber, '| $' + total.toFixed(2));
-  res.json({ ok: true, order: { id: order.id, receiptNumber, total, status: order.status, items: validatedItems } });
+  console.log('[site-checkout] Order created:', ev.siteConfig ? ev.siteConfig.slug : '?', '| #' + receiptNumber, '| $' + total.toFixed(2), '| pay:', paymentSource, '| pi:', paymentIntentId || 'none');
+  res.json({ ok: true, order: { id: order.id, receiptNumber, total, status: order.status, items: validatedItems, deliveryType: order.deliveryType } });
 });
 
-// ── Site White-Label: Stripe Payment Intent (public, no auth) ──
+// ── Site White-Label: Stripe Payment Intent for Payment Element (public) ──
 app.post('/api/site/:slug/create-payment-intent', express.json(), siteOrderLimiter, async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Pagamento com cartao nao disponivel no momento' });
   const ev = findEventBySlug(req.params.slug);
@@ -15288,23 +15438,14 @@ app.post('/api/site/:slug/create-payment-intent', express.json(), siteOrderLimit
   if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
   if (amount > 50000) return res.status(400).json({ error: 'Valor maximo excedido' });
   const curr = (currency || 'usd').toLowerCase();
-  const ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
-  const amountCents = ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
+  const amountCents = SITE_ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
   try {
     const intentData = {
-      amount: amountCents,
-      currency: curr,
+      amount: amountCents, currency: curr,
       automatic_payment_methods: { enabled: true },
-      metadata: {
-        source: 'touch-site',
-        slug: ev.siteConfig.slug,
-        eventId: ev.id,
-        type: 'order',
-        customerName: sanitizeStr(customerName || '', 60),
-        customerEmail: sanitizeStr(customerEmail || '', 100)
-      }
+      metadata: { source: 'touch-site', slug: ev.siteConfig.slug, eventId: ev.id, type: 'order',
+        customerName: sanitizeStr(customerName || '', 60), customerEmail: sanitizeStr(customerEmail || '', 100) }
     };
-    // Split payment if operator has Stripe Connect
     const operator = db.users[ev.creatorId];
     if (operator && operator.stripeConnectId && operator.stripeConnected) {
       const fee = Math.round(amountCents * TOUCH_FEE_PERCENT / 100);
@@ -15320,62 +15461,48 @@ app.post('/api/site/:slug/create-payment-intent', express.json(), siteOrderLimit
   }
 });
 
-// ── Site White-Label: Express Checkout (Apple Pay / Google Pay) - PUBLIC ──
-// This mirrors /api/stripe/pay but without requireAuth, for site guests
-app.post('/api/site/:slug/express-pay', express.json(), siteOrderLimiter, async (req, res) => {
-  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
-  const ev = findEventBySlug(req.params.slug);
-  if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
-  const { paymentMethodId, amount, currency, customerName, customerEmail } = req.body;
-  if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId obrigatorio' });
-  if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
-  if (amount > 50000) return res.status(400).json({ error: 'Valor maximo excedido' });
-  const curr = (currency || 'usd').toLowerCase();
-  const ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
-  const amountCents = ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
-  try {
-    const intentData = {
-      amount: amountCents,
-      currency: curr,
-      payment_method: paymentMethodId,
-      confirm: true,
-      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      metadata: {
-        source: 'touch-site-express',
-        slug: ev.siteConfig.slug,
-        eventId: ev.id,
-        type: 'order',
-        customerName: sanitizeStr(customerName || '', 60),
-        customerEmail: sanitizeStr(customerEmail || '', 100)
-      }
-    };
-    // Split payment if operator has Stripe Connect
-    const operator = db.users[ev.creatorId];
-    if (operator && operator.stripeConnectId && operator.stripeConnected) {
-      const fee = Math.round(amountCents * TOUCH_FEE_PERCENT / 100);
-      intentData.application_fee_amount = fee;
-      intentData.transfer_data = { destination: operator.stripeConnectId };
-    }
-    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
-    if (paymentIntent.status === 'succeeded') {
-      console.log('[site-express-pay] Payment succeeded for', ev.siteConfig.slug, '| $' + amount, '| PI:', paymentIntent.id);
-      res.json({ ok: true, paymentIntentId: paymentIntent.id });
-    } else {
-      res.json({ ok: false, error: 'Pagamento nao confirmado', status: paymentIntent.status });
-    }
-  } catch (e) {
-    console.error('[site-express-pay] Error:', e.message);
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-// ── Site White-Label: Order tracking (public) ──
+// ── Site White-Label: Order tracking (public, enriched) ──
 app.get('/api/site/:slug/order/:orderId', (req, res) => {
   const ev = findEventBySlug(req.params.slug);
   if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
   const order = (ev.orders || []).find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: 'Pedido nao encontrado' });
-  res.json({ id: order.id, receiptNumber: order.receiptNumber, status: order.status, items: order.items, total: order.total, createdAt: order.createdAt });
+  res.json({
+    id: order.id, receiptNumber: order.receiptNumber, status: order.status,
+    items: order.items, total: order.total, subtotal: order.subtotal,
+    tipAmount: order.tipAmount || 0, deliveryFee: order.deliveryFee || 0,
+    deliveryType: order.deliveryType || 'pickup',
+    deliveryAddress: order.deliveryAddress || null,
+    paymentMethod: order.paymentMethod, paymentSource: order.paymentSource || null,
+    statusHistory: order.statusHistory || [],
+    operatorName: ev.name || 'Estabelecimento',
+    createdAt: order.createdAt
+  });
+});
+
+// ── Site: User checkout profile (get saved data for prefill) ──
+app.get('/api/user/:userId/checkout-profile', (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado' });
+  res.json({
+    nickname: user.nickname || '', name: user.name || '',
+    email: user.email || '', phone: user.phone || '',
+    savedAddress: user.savedAddress || null
+  });
+});
+
+// ── Site: Save delivery address to user profile ──
+app.post('/api/user/:userId/save-address', express.json(), (req, res) => {
+  const user = db.users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado' });
+  const { street, number, complement, city, state, cep } = req.body;
+  user.savedAddress = {
+    street: sanitizeStr(street || '', 80), number: sanitizeStr(number || '', 10),
+    complement: sanitizeStr(complement || '', 40), city: sanitizeStr(city || '', 40),
+    state: sanitizeStr(state || '', 2), cep: sanitizeStr(cep || '', 10)
+  };
+  saveDB('users');
+  res.json({ ok: true });
 });
 
 // ═══ OPERATOR FULL DATA ENDPOINTS ═══
