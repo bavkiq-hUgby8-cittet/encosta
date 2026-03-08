@@ -3169,7 +3169,10 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div style="font-size:.75rem;font-weight:700;color:#60a5fa;display:flex;align-items:center;gap:.3rem;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Check-in</div>
       <div style="font-size:.9rem;font-weight:600" id="evViewName"></div>
     </div>
-    <div style="font-size:.7rem;color:var(--t2)" id="evViewCount">0</div>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <button id="evQRBtnHeader" onclick="showEventCheckinQR()" style="display:none;padding:.3rem .5rem;border-radius:8px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#818cf8;font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;align-items:center;gap:.2rem;white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> QR</button>
+      <div style="font-size:.7rem;color:var(--t2)" id="evViewCount">0</div>
+    </div>
   </div>
   <div style="flex:1;position:relative;overflow:hidden;background:#050508;touch-action:none">
     <canvas id="evCanvas" style="width:100%;height:100%;touch-action:none"></canvas>
@@ -4904,8 +4907,12 @@ async function showEventView(eventId,eventName){
     if(d.businessProfile)window._currentEventBizProfile=d.businessProfile;
     else window._currentEventBizProfile=null;
     // Show QR checkin button for event creator/operator
+    const isCreator=!!(d.creatorId&&d.creatorId===state.userId);
+    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isCreator:',isCreator);
     const qrBtn=$('evQRBtn');
-    if(qrBtn){qrBtn.style.display=(d.creatorId===state.userId)?'flex':'none'}
+    if(qrBtn){qrBtn.style.display=isCreator?'flex':'none'}
+    const qrBtnH=$('evQRBtnHeader');
+    if(qrBtnH){qrBtnH.style.display=isCreator?'inline-flex':'none'}
     // Load event logo for center node
     window._evLogoImg=null;window._evLogoLoaded=false;
     if(d.eventLogo){
