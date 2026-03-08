@@ -1455,6 +1455,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .ccr-status.pending{color:rgba(251,191,36,.6)}
 .ccr-status.accepted{color:var(--ok)}
 .ccr-status.declined{color:rgba(255,255,255,.3)}
+/* Gift message card in chat */
+.gift-msg-card{max-width:85%!important;margin:.3rem auto!important;background:none!important;padding:0!important;border-radius:0!important}
+.gift-msg-wrap{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;background:linear-gradient(135deg,rgba(255,107,53,.06),rgba(255,61,113,.04));border:1px solid rgba(255,107,53,.12);border-radius:16px;animation:mi .3s ease}
+.gift-msg-icon{width:42px;height:42px;flex-shrink:0;border-radius:12px;background:radial-gradient(circle,var(--gc),transparent 75%);opacity:.8;display:flex;align-items:center;justify-content:center;padding:3px}
+.gift-msg-icon svg{width:100%;height:100%}
+.gift-msg-text{font-size:.78rem;color:var(--t1);font-weight:500;line-height:1.4}
+.gift-msg-price{display:inline-block;background:linear-gradient(135deg,var(--ac),var(--pk));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;font-size:.8rem}
+.msg.system{background:none!important;text-align:center;font-size:.7rem;color:var(--t3);margin:.3rem 0;padding:.2rem .5rem!important}
 /* AI tip banner */
 .ai-tip-banner{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:linear-gradient(135deg,rgba(96,165,250,.06),rgba(167,139,250,.04));border:1px solid rgba(96,165,250,.12);border-radius:12px;margin:.3rem .8rem;animation:mi .3s ease;font-size:.72rem;color:rgba(96,165,250,.8)}
 .ai-tip-icon{flex-shrink:0;color:rgba(96,165,250,.6)}
@@ -8830,8 +8838,15 @@ function appendMessage(msg){
     div.innerHTML=html;
     // Start timer countdown for non-expired invites
     if(!expired&&!isMine){_startInviteTimer(div,sessId,msg.timestamp+60000)}
+  }else if(msg.type==='gift'){
+    // Special gift message card
+    div.className='msg system gift-msg-card';
+    const gColor=msg.giftColor||'var(--ac)';
+    const gIcon=msg.giftIcon?('<div class="gift-msg-icon" style="--gc:'+gColor+'">'+(GIFT_SVGS&&GIFT_SVGS[msg.giftIcon]?'<div style="width:36px;height:36px">'+GIFT_SVGS[msg.giftIcon]+'</div>':'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+gColor+'" stroke-width="1.8"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>')+'</div>'):'';
+    const priceTag=msg.giftPrice?'<span class="gift-msg-price">R$'+msg.giftPrice+'</span>':'';
+    div.innerHTML='<div class="gift-msg-wrap" style="--gc:'+gColor+'">'+gIcon+'<div class="gift-msg-text">'+esc(msg.text)+' '+priceTag+'</div></div><div class="mt">'+timeStr+'</div>';
   }else{
-    div.className='msg '+(msg.userId===state.userId?'mine':'theirs');
+    div.className='msg '+(msg.userId===state.userId?'mine':(msg.userId==='system'?'system':'theirs'));
     div.innerHTML=esc(msg.text)+'<div class="mt">'+timeStr+'</div>';
   }
   mc.insertBefore(div,ti);if(near||msg.userId===state.userId)mc.scrollTo({top:mc.scrollHeight,behavior:'smooth'});
@@ -16451,36 +16466,59 @@ async function confirmSendStar(){
     closeGiftModal();
   }catch(e){showToast('Erro ao transferir.')}
 }
+let _selectedGiftId=null;
 function selectGift(giftId){
   const gift=giftCatalog.find(g=>g.id===giftId);if(!gift)return;
+  _selectedGiftId=giftId;
   const svg=GIFT_SVGS[giftId]||'';
   let html='<div class="modal-overlay gift-overlay" id="giftOverlay">';
-  html+='<div class="modal-sheet gift-sheet gift-confirm" id="giftSheet">';
+  html+='<div class="modal-sheet gift-sheet gift-confirm" id="giftSheet" style="max-height:85vh">';
   html+='<div class="modal-handle" id="giftHandle"></div>';
   html+='<button type="button" class="gift-back" onclick="openGiftPicker()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>';
   html+='<div class="gift-confirm-img" style="--gift-color:'+(gift.color||'var(--ac)')+'">'+svg+'</div>';
   html+='<div class="modal-title">'+esc(gift.name)+'</div>';
-  html+='<div style="text-align:center;font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:.4rem">'+esc(gift.description)+'</div>';
+  html+='<div style="text-align:center;font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:.3rem">'+esc(gift.description)+'</div>';
   html+='<div class="gift-price-tag">R$ '+gift.price+',00</div>';
-  html+='<div style="font-size:.62rem;color:rgba(255,255,255,.3);text-align:center;margin-bottom:.6rem">Valor enviado como gorjeta para a pessoa</div>';
+  html+='<div style="font-size:.62rem;color:rgba(255,255,255,.3);text-align:center;margin-bottom:.5rem">Valor enviado como gorjeta para a pessoa</div>';
   html+='<input class="gift-msg-input" id="giftMsg" placeholder="Mensagem carinhosa (opcional)" maxlength="120">';
-  // Payment gateway container
-  html+='<div id="giftPayContainer" style="margin-top:.8rem"></div>';
-  // Simple pay button (gateway integration placeholder)
-  html+='<div style="margin-top:.6rem;text-align:center"><button class="gift-pay-btn" id="giftPayBtn" onclick="confirmSendGift(\''+giftId+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Presentear R$ '+gift.price+',00</button></div>';
+  // Payment gateway container (unified)
+  html+='<div id="giftPayGateway" style="margin-top:.7rem"></div>';
   html+='</div></div>';
-  $('giftModal').innerHTML=html;setTimeout(()=>{_initGiftDrag()},50);
+  $('giftModal').innerHTML=html;
+  setTimeout(()=>{
+    _initGiftDrag();
+    // Render unified payment gateway
+    if(typeof renderUnifiedPaymentGateway==='function'){
+      renderUnifiedPaymentGateway('giftPayGateway',{
+        prefix:'giftPay',
+        price:gift.price,
+        label:'Presente: '+gift.name,
+        type:'gift',
+        onConfirm:function(result){
+          _processGiftPayment(giftId,result);
+        }
+      });
+    }else{
+      // Fallback simple button if gateway not available
+      $('giftPayGateway').innerHTML='<div style="text-align:center;margin-top:.5rem"><button class="gift-pay-btn" id="giftPayBtn" onclick="confirmSendGift(\''+giftId+'\',\'direct\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Presentear R$ '+gift.price+',00</button></div>';
+    }
+  },100);
 }
-async function confirmSendGift(giftId){
-  const btn=$('giftPayBtn');if(btn){btn.disabled=true;btn.textContent='Enviando...'}
+function _processGiftPayment(giftId,paymentResult){
   const msg=$('giftMsg')?$('giftMsg').value.trim():'';
+  const method=paymentResult?.method||paymentResult?.paymentMethod||'gateway';
+  confirmSendGift(giftId,method,msg);
+}
+async function confirmSendGift(giftId,paymentMethod,msgOverride){
+  const msg=msgOverride||(($('giftMsg')?$('giftMsg').value.trim():'')||'');
+  const method=paymentMethod||'direct';
   try{
-    const r=await fetch('/api/gift/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({relationId:state.currentRelation.relationId,fromUserId:state.userId,giftId,message:msg,paymentMethod:'direct'})});
+    const r=await fetch('/api/gift/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({relationId:state.currentRelation.relationId,fromUserId:state.userId,giftId,message:msg,paymentMethod:method})});
     const d=await r.json();
-    if(d.error){if(btn){btn.disabled=false;btn.textContent='Tentar novamente'}return showToast(d.error)}
+    if(d.error)return showToast(d.error);
     showToast('Presente enviado!');haptic([50,30,50,30,50]);
     closeGiftModal();
-  }catch(e){if(btn){btn.disabled=false;btn.textContent='Tentar novamente'}showToast(t('errors.send_error'))}
+  }catch(e){showToast(t('errors.send_error'))}
 }
 
 // ═══ DECLARATION MODAL ═══

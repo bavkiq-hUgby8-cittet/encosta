@@ -3830,8 +3830,8 @@ app.post('/api/reveal/toggle', (req, res) => {
 // ── GIFTS CATALOG ──
 // Presentes digitais: valor e enviado como gorjeta para a outra pessoa
 const GIFT_CATALOG = [
-  { id: 'flowers', name: 'Bouquet de Flores', icon: 'flowers', price: 100, currency: 'BRL', description: 'Um bouquet digital que expressa admiracao', color: '#ff6b8a' },
-  { id: 'breakfast', name: 'Cafe da Manha', icon: 'breakfast', price: 50, currency: 'BRL', description: 'Um cafe especial para comecar o dia', color: '#d4a574' },
+  { id: 'flowers', name: 'Bouquet de Flores', icon: 'flowers', price: 140, currency: 'BRL', description: 'Um bouquet digital que expressa admiracao', color: '#ff6b8a' },
+  { id: 'breakfast', name: 'Cafe da Manha', icon: 'breakfast', price: 100, currency: 'BRL', description: 'Um cafe especial para comecar o dia', color: '#d4a574' },
   { id: 'book', name: 'Livro', icon: 'book', price: 80, currency: 'BRL', description: 'Um livro que conecta mentes', color: '#8b7ec8' },
   { id: 'dessert', name: 'Sobremesa', icon: 'dessert', price: 40, currency: 'BRL', description: 'Uma sobremesa para adocar o momento', color: '#f0a0c0' }
 ];
@@ -3863,26 +3863,59 @@ app.post('/api/gift/send', (req, res) => {
   if (!db.gifts[fromUserId]) db.gifts[fromUserId] = [];
   db.gifts[toUserId].push(giftRecord);
   db.gifts[fromUserId].push({ ...giftRecord, _role: 'sender' });
-  // Award coins to recipient (gift value as tip)
+  // Register financial transaction as a tip (gift value sent as gorjeta)
+  const tipId = uuidv4();
+  const toUser = db.users[toUserId];
+  const tipRecord = {
+    id: tipId,
+    type: 'gift',
+    giftId: gift.id,
+    giftName: gift.name,
+    payerId: fromUserId,
+    payerName: fromUser?.nickname || fromUser?.name || '?',
+    receiverId: toUserId,
+    receiverName: toUser?.nickname || toUser?.name || '?',
+    amount: gift.price,
+    currency: gift.currency || 'BRL',
+    fee: 0,
+    relationId,
+    paymentMethod: paymentMethod || 'gateway',
+    status: 'approved',
+    message: message || '',
+    createdAt: Date.now()
+  };
+  db.tips[tipId] = tipRecord;
+  // Update receiver tip stats
+  if (toUser) {
+    toUser.tipsReceived = (toUser.tipsReceived || 0) + 1;
+    toUser.tipsTotal = (toUser.tipsTotal || 0) + gift.price;
+  }
+  // Update sender tip stats
+  if (fromUser) {
+    fromUser.tipsSent = (fromUser.tipsSent || 0) + 1;
+    fromUser.tipsSentTotal = (fromUser.tipsSentTotal || 0) + gift.price;
+  }
+  // Award coins to recipient
   if (!db.users[toUserId].pointLog) db.users[toUserId].pointLog = [];
-  db.users[toUserId].pointLog.push({ value: gift.price, type: 'gift-tip', from: fromUserId, giftName: gift.name, timestamp: Date.now() });
+  db.users[toUserId].pointLog.push({ value: gift.price, type: 'gift-tip', from: fromUserId, giftName: gift.name, tipId, timestamp: Date.now() });
   if (db.users[toUserId].pointLog.length > 500) db.users[toUserId].pointLog = db.users[toUserId].pointLog.slice(-500);
-  // Also log sender gift action
+  // Log sender gift action
   if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
-  db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift || 10, type: 'gift-sent', giftName: gift.name, timestamp: Date.now() });
+  db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift || 10, type: 'gift-sent', giftName: gift.name, tipId, timestamp: Date.now() });
   if (db.users[fromUserId].pointLog.length > 500) db.users[fromUserId].pointLog = db.users[fromUserId].pointLog.slice(-500);
-  saveDB('gifts', 'users');
-  // Add system message to chat
-  const sysMsg = { id: uuidv4(), userId: 'system', text: fromUser?.nickname + ' enviou ' + gift.name + ' (R$' + gift.price + ')', type: 'gift', timestamp: Date.now(), giftId: gift.id };
+  saveDB('gifts', 'users', 'tips');
+  // Add system message to chat (persistent - both sent and received visible)
+  const sysMsgSent = { id: uuidv4(), userId: fromUserId, text: 'Enviou ' + gift.name + ' (R$' + gift.price + ')', type: 'gift', timestamp: Date.now(), giftId: gift.id, giftIcon: gift.icon, giftPrice: gift.price, giftColor: gift.color };
+  const sysMsgReceived = { id: uuidv4(), userId: 'system', text: (fromUser?.nickname || '?') + ' te presenteou com ' + gift.name + ' (R$' + gift.price + ')', type: 'gift', timestamp: Date.now(), giftId: gift.id, giftIcon: gift.icon, giftPrice: gift.price, giftColor: gift.color };
   if (!db.messages[relationId]) db.messages[relationId] = [];
-  db.messages[relationId].push(sysMsg);
+  db.messages[relationId].push(sysMsgSent);
   if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
   saveDB('messages');
   // Notify both users via socket
   io.to(`user:${toUserId}`).emit('gift-received', { relationId, gift: giftRecord });
-  io.to(`user:${toUserId}`).emit('new-message', { relationId, message: sysMsg });
-  io.to(`user:${fromUserId}`).emit('new-message', { relationId, message: sysMsg });
-  res.json({ ok: true, gift: giftRecord });
+  io.to(`user:${toUserId}`).emit('new-message', { relationId, message: sysMsgReceived });
+  io.to(`user:${fromUserId}`).emit('new-message', { relationId, message: sysMsgSent });
+  res.json({ ok: true, gift: giftRecord, tipId });
 });
 
 // Send star from personal balance (chat gift modal)
