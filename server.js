@@ -3124,6 +3124,57 @@ app.get('/api/chat-init/:relationId/:userId', (req, res) => {
   res.json({ messages, partnerScore, streak });
 });
 
+// AI assistant context endpoint -- provides full chat context for voice agents
+app.get('/api/ai/chat-context/:relationId/:userId', (req, res) => {
+  const rel = db.relations[req.params.relationId];
+  const userId = req.params.userId;
+  if (!rel) return res.status(404).json({ error: 'Relacao nao encontrada.' });
+  if (rel.userA !== userId && rel.userB !== userId) return res.status(403).json({ error: 'Sem permissao.' });
+  const partnerId = rel.userA === userId ? rel.userB : rel.userA;
+  const partner = db.users[partnerId];
+  const user = db.users[userId];
+  const messages = (db.messages[req.params.relationId] || []).slice(-50);
+  const timeRemainingMs = Math.max(0, rel.expiresAt - Date.now());
+  const timeRemainingMin = Math.round(timeRemainingMs / 60000);
+  const hours = Math.floor(timeRemainingMin / 60);
+  const mins = timeRemainingMin % 60;
+  // Collect contact requests and gifts in this relation
+  const contactReqs = messages.filter(m => m.type === 'contact-request');
+  const giftMsgs = messages.filter(m => m.type === 'gift');
+  const revealMsgs = messages.filter(m => m.type === 'reveal-request' || m.type === 'reveal-accepted' || m.type === 'reveal-declined');
+  // Build partner zodiac info
+  const signA = getZodiacSign(user?.birthdate);
+  const signB = getZodiacSign(partner?.birthdate);
+  const infoA = signA ? ZODIAC_INFO[signA] : null;
+  const infoB = signB ? ZODIAC_INFO[signB] : null;
+  // Streak
+  const streakKey = [userId, partnerId].sort().join('_');
+  const s = db.streaks?.[streakKey];
+  res.json({
+    relationId: req.params.relationId,
+    timeRemaining: { ms: timeRemainingMs, minutes: timeRemainingMin, formatted: hours + 'h ' + mins + 'min', expired: timeRemainingMs <= 0 },
+    user: { id: userId, nickname: user?.nickname, sign: signA, element: infoA?.elementName },
+    partner: { id: partnerId, nickname: partner?.nickname, sign: signB, element: infoB?.elementName, isRevealed: !!(rel.revealedA || rel.revealedB) },
+    recentMessages: messages.map(m => ({ from: m.userId === userId ? 'user' : (m.userId === 'system' ? 'system' : 'partner'), text: m.text, type: m.type || 'text', timestamp: m.timestamp })),
+    pendingContactRequests: contactReqs.filter(m => m.status === 'pending').map(m => ({ type: m.contactType, from: m.from?.name, requestId: m.requestId })),
+    giftsExchanged: giftMsgs.length,
+    revealStatus: revealMsgs.length > 0 ? revealMsgs[revealMsgs.length - 1].type : 'none',
+    streak: s ? { current: s.currentStreak, best: s.bestStreak } : null,
+    phrase: rel.phrase,
+    suggestions: _getAISuggestions(timeRemainingMs, messages, contactReqs, revealMsgs)
+  });
+});
+function _getAISuggestions(timeMs, msgs, contactReqs, revealMsgs) {
+  const suggestions = [];
+  const hours = timeMs / 3600000;
+  if (hours < 4 && hours > 0) suggestions.push('O tempo esta acabando! Sugira trocar contatos antes que expire.');
+  if (hours < 1 && hours > 0) suggestions.push('Menos de 1 hora! Urgente: incentive a revelacao de identidade ou troca de contato.');
+  if (msgs.length < 3) suggestions.push('A conversa esta no inicio. Sugira quebrar o gelo com uma frase rapida ou verificar a compatibilidade astral.');
+  if (contactReqs.filter(m => m.status === 'pending').length > 0) suggestions.push('Ha um pedido de contato pendente. Lembre o usuario de responder.');
+  if (revealMsgs.length === 0 && msgs.length > 10) suggestions.push('Muitas mensagens trocadas mas sem reveal. Sugira revelar a identidade para aprofundar a conexao.');
+  return suggestions;
+}
+
 // ── Ranking cache: recomputed every 2 min (not on every request) ──
 let _rankingCache = null;
 let _rankingCacheTime = 0;
@@ -3613,55 +3664,60 @@ app.post('/api/reveal/toggle', (req, res) => {
 });
 
 // ── GIFTS CATALOG ──
+// Presentes digitais: valor e enviado como gorjeta para a outra pessoa
 const GIFT_CATALOG = [
-  { id: 'flowers', name: 'Bouquet de Flores', icon: 'flowers', needsAddress: false, scoreCost: 15, description: 'Um bouquet digital com carinho' },
-  { id: 'coffee', name: 'Café Especial', icon: 'coffee', needsAddress: false, scoreCost: 10, description: 'Um café digital especial' },
-  { id: 'letter', name: 'Carta Selada', icon: 'letter', needsAddress: false, scoreCost: 5, description: 'Uma carta digital com selo Touch?' },
-  { id: 'playlist', name: 'Playlist', icon: 'playlist', needsAddress: false, scoreCost: 8, description: 'Uma playlist dedicada' },
-  { id: 'star', name: 'Estrela', icon: 'star', needsAddress: false, scoreCost: 0, description: 'Uma estrela da sua constelação' },
-  { id: 'book', name: 'Livro', icon: 'book', needsAddress: false, scoreCost: 12, description: 'Um livro digital surpresa' },
-  { id: 'dessert', name: 'Sobremesa', icon: 'dessert', needsAddress: false, scoreCost: 10, description: 'Uma sobremesa digital' }
+  { id: 'flowers', name: 'Bouquet de Flores', icon: 'flowers', price: 100, currency: 'BRL', description: 'Um bouquet digital que expressa admiracao', color: '#ff6b8a' },
+  { id: 'breakfast', name: 'Cafe da Manha', icon: 'breakfast', price: 50, currency: 'BRL', description: 'Um cafe especial para comecar o dia', color: '#d4a574' },
+  { id: 'book', name: 'Livro', icon: 'book', price: 80, currency: 'BRL', description: 'Um livro que conecta mentes', color: '#8b7ec8' },
+  { id: 'dessert', name: 'Sobremesa', icon: 'dessert', price: 40, currency: 'BRL', description: 'Uma sobremesa para adocar o momento', color: '#f0a0c0' }
 ];
 
 app.get('/api/gift-catalog', (req, res) => { res.json(GIFT_CATALOG); });
 
 // Send gift — if needsAddress, creates a pending address request
 app.post('/api/gift/send', (req, res) => {
-  const { relationId, fromUserId, giftId, message } = req.body;
+  const { relationId, fromUserId, giftId, message, paymentMethod } = req.body;
   const rel = db.relations[relationId];
-  if (!rel || Date.now() > rel.expiresAt) return res.status(404).json({ error: 'Relação expirada.' });
-  if (rel.userA !== fromUserId && rel.userB !== fromUserId) return res.status(403).json({ error: 'Sem permissão.' });
+  if (!rel || Date.now() > rel.expiresAt) return res.status(404).json({ error: 'Relacao expirada.' });
+  if (rel.userA !== fromUserId && rel.userB !== fromUserId) return res.status(403).json({ error: 'Sem permissao.' });
   const gift = GIFT_CATALOG.find(g => g.id === giftId);
-  if (!gift) return res.status(400).json({ error: 'Presente não encontrado.' });
+  if (!gift) return res.status(400).json({ error: 'Presente nao encontrado.' });
   const toUserId = rel.userA === fromUserId ? rel.userB : rel.userA;
   const fromUser = db.users[fromUserId];
   const id = uuidv4();
   const giftRecord = {
-    id, giftId, giftName: gift.name, icon: gift.icon, scoreCost: gift.scoreCost || 0, message: message || '',
+    id, giftId, giftName: gift.name, icon: gift.icon,
+    price: gift.price, currency: gift.currency || 'BRL',
+    message: message || '',
     from: fromUserId, fromName: fromUser?.nickname || fromUser?.name || '?', fromColor: fromUser?.color,
     to: toUserId, relationId,
-    needsAddress: gift.needsAddress,
-    addressStatus: gift.needsAddress ? 'pending' : 'none', // pending | accepted | declined | none
-    address: null,
-    status: gift.needsAddress ? 'awaiting_address' : 'delivered',
+    paymentMethod: paymentMethod || 'pending',
+    status: 'delivered',
     createdAt: Date.now()
   };
   if (!db.gifts[toUserId]) db.gifts[toUserId] = [];
   if (!db.gifts[fromUserId]) db.gifts[fromUserId] = [];
   db.gifts[toUserId].push(giftRecord);
   db.gifts[fromUserId].push({ ...giftRecord, _role: 'sender' });
+  // Award coins to recipient (gift value as tip)
+  if (!db.users[toUserId].pointLog) db.users[toUserId].pointLog = [];
+  db.users[toUserId].pointLog.push({ value: gift.price, type: 'gift-tip', from: fromUserId, giftName: gift.name, timestamp: Date.now() });
+  if (db.users[toUserId].pointLog.length > 500) db.users[toUserId].pointLog = db.users[toUserId].pointLog.slice(-500);
+  // Also log sender gift action
+  if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
+  db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift || 10, type: 'gift-sent', giftName: gift.name, timestamp: Date.now() });
+  if (db.users[fromUserId].pointLog.length > 500) db.users[fromUserId].pointLog = db.users[fromUserId].pointLog.slice(-500);
   saveDB('gifts', 'users');
-  // If gift is a star, award a permanent star
-  if (giftId === 'star') {
-    awardStar(toUserId, 'gift', fromUserId);
-    // Also award score points for gifting
-    if (!db.users[fromUserId].pointLog) db.users[fromUserId].pointLog = [];
-    db.users[fromUserId].pointLog.push({ value: getGameConfig().pointsGift, type: 'gift', timestamp: Date.now() });
-    if (db.users[fromUserId].pointLog.length > 500) db.users[fromUserId].pointLog = db.users[fromUserId].pointLog.slice(-500);
-    saveDB('users');
-  }
-  // Notify recipient via socket
+  // Add system message to chat
+  const sysMsg = { id: uuidv4(), userId: 'system', text: fromUser?.nickname + ' enviou ' + gift.name + ' (R$' + gift.price + ')', type: 'gift', timestamp: Date.now(), giftId: gift.id };
+  if (!db.messages[relationId]) db.messages[relationId] = [];
+  db.messages[relationId].push(sysMsg);
+  if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
+  saveDB('messages');
+  // Notify both users via socket
   io.to(`user:${toUserId}`).emit('gift-received', { relationId, gift: giftRecord });
+  io.to(`user:${toUserId}`).emit('new-message', { relationId, message: sysMsg });
+  io.to(`user:${fromUserId}`).emit('new-message', { relationId, message: sysMsg });
   res.json({ ok: true, gift: giftRecord });
 });
 
@@ -6961,15 +7017,31 @@ const CONTACT_TYPES = ['instagram', 'x', 'whatsapp', 'email', 'foto'];
 app.post('/api/request-contact', (req, res) => {
   const { relationId, fromUserId, contactType } = req.body;
   const rel = db.relations[relationId];
-  if (!rel || Date.now() > rel.expiresAt) return res.status(400).json({ error: 'Relação expirada.' });
-  if (!CONTACT_TYPES.includes(contactType)) return res.status(400).json({ error: 'Tipo inválido.' });
+  if (!rel || Date.now() > rel.expiresAt) return res.status(400).json({ error: 'Relacao expirada.' });
+  if (!CONTACT_TYPES.includes(contactType)) return res.status(400).json({ error: 'Tipo invalido.' });
   const partnerId = rel.userA === fromUserId ? rel.userB : rel.userA;
   const user = db.users[fromUserId];
   const reqId = uuidv4();
+  const labels = { instagram: 'Instagram', whatsapp: 'WhatsApp', x: 'X / Twitter', email: 'Email', foto: 'Foto' };
+  // Save as a chat message so it persists and is visible to both
+  const contactReqMsg = {
+    id: reqId, userId: 'system',
+    text: (user.nickname || user.name) + ' pediu seu ' + (labels[contactType] || contactType),
+    type: 'contact-request', contactType, requestId: reqId,
+    from: { id: fromUserId, name: user.nickname || user.name, color: user.color },
+    status: 'pending', timestamp: Date.now()
+  };
+  if (!db.messages[relationId]) db.messages[relationId] = [];
+  db.messages[relationId].push(contactReqMsg);
+  if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
+  saveDB('messages');
+  // Notify both users
+  io.to(`user:${partnerId}`).emit('new-message', { relationId, message: contactReqMsg });
   io.to(`user:${partnerId}`).emit('contact-request', {
     requestId: reqId, relationId, contactType,
     from: { id: fromUserId, name: user.nickname || user.name, color: user.color }
   });
+  io.to(`user:${fromUserId}`).emit('new-message', { relationId, message: contactReqMsg });
   res.json({ ok: true });
 });
 
@@ -8177,17 +8249,20 @@ io.on('connection', (socket) => {
     setTimeout(() => _broadcastMuralOnline(channelKey), 100);
   });
 
-  socket.on('send-message', ({ relationId, userId, text }) => {
+  socket.on('send-message', ({ relationId, userId, text, localId }) => {
     if (!dbLoaded || !socketRateOk(socket.id, 'send-message')) return;
     const rel = db.relations[relationId];
     if (!rel || Date.now() > rel.expiresAt) return;
     const msg = { id: uuidv4(), userId, text, timestamp: Date.now() };
+    if (localId) msg.localId = localId;
     if (!db.messages[relationId]) db.messages[relationId] = [];
     db.messages[relationId].push(msg);
     if (db.messages[relationId].length > 500) db.messages[relationId] = db.messages[relationId].slice(-500);
     saveDB('messages');
     const partnerId = rel.userA === userId ? rel.userB : rel.userA;
     io.to(`user:${partnerId}`).emit('new-message', { relationId, message: msg });
+    // Echo back to sender for dedup confirmation
+    io.to(`user:${userId}`).emit('new-message', { relationId, message: msg });
   });
 
   socket.on('typing', ({ relationId, userId }) => {
