@@ -40,6 +40,17 @@ EU NAO SEI PROGRAMAR. Voce faz TUDO: codigo, commits, push no GitHub, backup, tu
 - VERIFICACAO: Para dar o selo de verificado a alguem, DEVE ter validacao de documento (identidade/passaporte). Nao basta email ou face ID. O selo de verificado significa que a pessoa provou quem ela e.
 - BANDEIRA/NACIONALIDADE: Aparece automaticamente se o usuario escolheu um pais. Nao existe toggle separado de "mostrar/esconder". Para remover, o usuario vai la e desmarca o pais.
 - PRIVACIDADE DO RANKING: Ranking mundial mostra apenas nick + silhueta (com acessorio). Foto e nome real so aparecem no ranking de amigos e SOMENTE se a pessoa se revelou para quem esta vendo.
+- ECONOMIA DE MOEDAS (antes chamava "score", agora "moedas"):
+  - Primeiro encontro: 10 moedas
+  - Reencontro dia diferente: 5 moedas
+  - Reencontro mesmo dia (2a vez): 2 moedas
+  - 3a+ vez no mesmo dia: 0 (anti-farm, max 2 por par/24h)
+  - Check-in evento: 10 moedas
+  - Presente digital: 10 moedas
+  - Declaracao: 20 moedas
+  - Bonus multiplicador: 1 + (estrelas_do_outro * 0.1). Ex: outro com 4 estrelas = 1.4x, com 10 = 2x
+  - Preco da estrela temporaria: 100 moedas (fixo, sem escalacao, dura 30 dias)
+  - Moedas NAO expiram, acumulam pra sempre. Saldo = total ganho - total gasto.
 
 ## CONTEXTO DO APP
 

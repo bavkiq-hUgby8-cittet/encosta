@@ -2009,9 +2009,9 @@ const DEFAULT_GAME_CONFIG = {
   pointsReEncounterDiffDay: 5,    // Re-encounter on a different day
   pointsReEncounterSameDay: 2,    // Re-encounter within 24h (2nd time)
   pointsReEncounterSpam: 0,       // 3rd+ encounter within 24h
-  pointsCheckin: 2,               // Event check-in
-  pointsGift: 1,                  // Gift/declaration
-  pointsDeclaration: 2,           // Declaration
+  pointsCheckin: 10,              // Event check-in
+  pointsGift: 10,                 // Gift/present
+  pointsDeclaration: 20,          // Declaration
 
   // Anti-farm — cooldown 24h per pair, no daily cap
   maxScoringPerPair24h: 2,        // Max scoring events per pair within 24h
@@ -2035,7 +2035,8 @@ const DEFAULT_GAME_CONFIG = {
   maxProfessionalStars: 2,        // Slots 9-10 (ouro branco, professional recognition)
   tempStarDurationDays: 30,       // Temporary stars expire after N days
 
-  // Star bonus multiplier — connecting with someone who has N stars = Nx score
+  // Star bonus multiplier — connecting with someone who has N stars = (1 + N*0.1)x score
+  // 0 stars = 1x, 1 star = 1.1x, 4 stars = 1.4x, 10 stars = 2x
   starBonusEnabled: true,         // Enable star bonus multiplier
 
   // Max stars one person can give to another
@@ -2151,7 +2152,8 @@ function getStarBonusMultiplier(otherUserId) {
   const other = db.users[otherUserId];
   if (!other) return 1;
   const starCount = (other.stars || []).length;
-  return starCount === 0 ? 1 : starCount; // 0 stars = 1x, N stars = Nx
+  // Smooth scaling: 0=1x, 1=1.1x, 4=1.4x, 9=1.9x, 10=2x
+  return starCount === 0 ? 1 : 1 + starCount * 0.1;
 }
 
 // Count stars by category for a user
@@ -4394,7 +4396,7 @@ app.post('/api/star/buy', (req, res) => {
   const spendable = rawScore - alreadySpent;
 
   if (spendable < cost) {
-    return res.status(400).json({ error: 'Score insuficiente. Custo: ' + cost + ', Disponivel: ' + Math.round(spendable) });
+    return res.status(400).json({ error: 'Moedas insuficientes. Custo: ' + cost + ', Disponivel: ' + Math.round(spendable) });
   }
 
   // Deduct points
