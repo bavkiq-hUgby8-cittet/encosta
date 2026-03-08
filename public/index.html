@@ -14349,14 +14349,21 @@ function openChatFromConst(nodeId){
     });
   }).catch(function(){showToast('Erro ao abrir chat')});
 }
-function navigateToConstNode(nodeId){
+async function navigateToConstNode(nodeId){
   toggleNotifPanel();
-  const node=constState.nodes.find(n=>n.id===nodeId);
+  var node=constState&&constState.nodes?constState.nodes.find(function(n){return n.id===nodeId}):null;
+  // If node not found, reload constellation data and try again
+  if(!node&&state.userId){
+    await loadConstellationData();
+    node=constState&&constState.nodes?constState.nodes.find(function(n){return n.id===nodeId}):null;
+  }
   if(node){
     // Center camera on this node
     constState.cam.x=-node.x3d;constState.cam.y=-node.y3d;
     constState.cam.zoom=Math.max(constState.cam.zoom,1.2);
     showConstDetail(node);haptic([20]);
+  }else{
+    showToast('Perfil nao encontrado na rede');
   }
 }
 
