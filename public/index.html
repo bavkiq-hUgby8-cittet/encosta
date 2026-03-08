@@ -4612,7 +4612,7 @@ function showScreen(id){
     if(_homeNodesGyro){window.removeEventListener('deviceorientation',_homeNodesGyro);_homeNodesGyro=null}
   }
   // Guest nudge: when leaving chat/reveal, show complete registration modal
-  if(state.isGuest&&(id==='home'||id==='history')){
+  if(state.isGuest&&(id==='home'||id==='history')&&!window._guestAnimating){
     if(window._guestNeedsUpgrade){
       window._guestNeedsUpgrade=false;
       setTimeout(()=>showGuestUpgradeModal(),400);
@@ -19985,13 +19985,16 @@ window.addEventListener('load',()=>{
   const _guestPhrase=new URLSearchParams(location.search).get('phrase');
   const _guestEvent=new URLSearchParams(location.search).get('guestEvent');
   // Handle guest arriving from QR touch-link or event checkin
-  if(_guestParam&&!state.userId){
-    state.userId=_guestParam;
-    state.userName=localStorage.getItem('touch_userName')||'Guest';
-    state.userColor=localStorage.getItem('touch_userColor')||'';
+  if(_guestParam){
+    // Set guest state if not already set (touch page already sets localStorage)
+    if(!state.userId){
+      state.userId=_guestParam;
+      state.userName=localStorage.getItem('touch_userName')||'Guest';
+      state.userColor=localStorage.getItem('touch_userColor')||'';
+    }
     state.isGuest=true;
     localStorage.setItem('touch_isGuest','true');
-    history.replaceState({},'','/');
+    // Don't clear URL yet — params needed for animation routing below
   }
   setTimeout(async()=>{
     if(state.userId){
@@ -20003,13 +20006,15 @@ window.addEventListener('load',()=>{
 
         if((_guestRel||_guestEvent)&&_guestParam){
           // Guest from QR: show Electric Touch animation -> reveal screen with payment -> skip -> registration
+          window._guestAnimating=true; // Prevent guest upgrade modal from firing during animation
+          history.replaceState({},'','/'); // Clean URL now that params are captured
           showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
           setTimeout(async()=>{
             try{
               const relId=_guestRel||localStorage.getItem('touch_guestRelId')||'';
-              if(!relId){showToast('Conexao criada!');return}
-              const rv=await authFetch('/api/relation-reveal/'+relId+'/'+state.userId);
-              if(!rv.ok){showToast('Conexao criada!');return}
+              if(!relId){window._guestAnimating=false;showToast('Conexao criada!');return}
+              const rv=await fetch('/api/relation-reveal/'+relId+'/'+state.userId);
+              if(!rv.ok){window._guestAnimating=false;showToast('Conexao criada!');return}
               const revealData=await rv.json();
               state.currentRelation=revealData;
               window._guestFromQR=true;
@@ -20024,17 +20029,20 @@ window.addEventListener('load',()=>{
                 const partnerData=revealData.userA.id===state.userId?revealData.userB:revealData.userA;
                 startElectricTouch(isRenewed,isQuick?'':(partnerData.nickname||partnerData.name||''));
                 haptic(isQuick?[60,20,60,20,100]:[80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
+                playSound('connect');
                 setTimeout(()=>{
                   stopElectricTouch();
                   if(navigator.vibrate)navigator.vibrate(0);
                   co.classList.remove('active','first','renewed');
+                  window._guestAnimating=false;
                   showScreen('reveal');doReveal(revealData);
                 },isQuick?2500:4200);
               }else{
+                window._guestAnimating=false;
                 showScreen('reveal');doReveal(revealData);
               }
-            }catch(e){console.warn('[guest] Error loading reveal:',e);showToast('Conexao criada!')}
-          },500);
+            }catch(e){console.warn('[guest] Error loading reveal:',e);window._guestAnimating=false;showToast('Conexao criada!')}
+          },300);
         }else if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
         else{showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
         refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();checkGatewayConnectResult();
