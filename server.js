@@ -14100,6 +14100,32 @@ app.get('/api/user/:userId/delivery-restaurants', (req, res) => {
   res.json({ restaurants: results });
 });
 
+// ── Helper: Sync delivery order status to ev.orders (kanban mirror) ──
+function _syncDeliveryToEvOrders(deliveryOrder) {
+  const ev = db.operatorEvents[deliveryOrder.eventId];
+  if (!ev || !ev.orders) return;
+  const mirror = ev.orders.find(o => o._deliveryOrderRef === deliveryOrder.id);
+  if (mirror) {
+    mirror.status = _mapDeliveryStatusToKanban(deliveryOrder.status);
+    mirror.statusHistory = deliveryOrder.statusHistory || [];
+    saveDB('operatorEvents');
+  }
+}
+
+// ── Helper: Map delivery statuses to kanban statuses ──
+function _mapDeliveryStatusToKanban(deliveryStatus) {
+  const map = {
+    'pending': 'pending',
+    'confirmed': 'preparing',
+    'preparing': 'preparing',
+    'ready_pickup': 'ready',
+    'on_the_way': 'ready',
+    'delivered': 'delivered',
+    'cancelled': 'cancelled'
+  };
+  return map[deliveryStatus] || 'pending';
+}
+
 app.post('/api/delivery/order', (req, res) => {
   const { eventId, customerId, items, deliveryAddress, phone, notes, paymentMethod, tipPercent, tipAmount, customerName } = req.body;
   const ev = db.operatorEvents[eventId];
@@ -14112,6 +14138,7 @@ app.post('/api/delivery/order', (req, res) => {
   const deliveryFee = ev.businessProfile.deliveryFee || 0;
   const tip = parseFloat(tipAmount) || 0;
   const total = subtotal + deliveryFee + tip;
+  const receiptNumber = 'REC-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   // Fiscal breakdown: produtos+frete = NF-e (ICMS), gorjeta = NF-S (ISS)
   const fiscal = {
     productAmount: subtotal,
@@ -14140,15 +14167,48 @@ app.post('/api/delivery/order', (req, res) => {
     paymentMethod: paymentMethod || 'counter',
     paymentStatus: 'pending',
     notes: (notes || '').trim(),
+    source: 'app',
+    deliveryType: 'delivery',
+    receiptNumber,
+    statusHistory: [{ status: 'pending', timestamp: Date.now() }],
     fiscal,
     createdAt: Date.now(), deliveredAt: null
   };
   db.deliveryOrders[order.id] = order;
   saveDB('deliveryOrders');
+  // Also push to ev.orders for unified kanban view
+  if (!ev.orders) ev.orders = [];
+  ev.orders.push({
+    id: order.id,
+    userId: customerId,
+    userName: order.customerName,
+    customerPhone: order.customerPhone,
+    items: order.items,
+    table: null,
+    subtotal, tipPercent: order.tipPercent, tipAmount: tip,
+    deliveryFee, total,
+    paymentMethod: order.paymentMethod,
+    paymentSource: 'app-delivery',
+    status: 'pending',
+    receiptNumber,
+    eventName: ev.name || 'Evento',
+    notes: order.notes,
+    source: 'app',
+    deliveryType: 'delivery',
+    deliveryAddress: order.deliveryAddress,
+    statusHistory: [{ status: 'pending', timestamp: Date.now() }],
+    fiscal,
+    createdAt: order.createdAt,
+    _deliveryOrderRef: order.id
+  });
+  saveDB('operatorEvents');
   // Notify operator: targeted + event room + global fallback
   io.to(`user:${ev.creatorId}`).emit('delivery-order-new', { order });
   io.to('event:' + ev.id).emit('delivery-order-new', { order });
   io.emit('delivery-order-new', { order, eventId: ev.id });
+  // Also emit as new-order for kanban
+  io.to('user:' + ev.creatorId).emit('new-order', { eventId: ev.id, order: ev.orders[ev.orders.length - 1] });
+  io.to('event:' + ev.id).emit('new-order', { eventId: ev.id, order: ev.orders[ev.orders.length - 1] });
   // Payment notification for paid delivery orders
   if (paymentMethod === 'paid' || paymentMethod === 'card') {
     io.to(`user:${ev.creatorId}`).emit('payment-received', {
@@ -14172,7 +14232,11 @@ app.post('/api/delivery/order/:orderId/cancel', (req, res) => {
   if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
   if (['on_the_way', 'delivered'].includes(order.status)) return res.status(400).json({ error: 'Pedido ja esta em entrega ou entregue.' });
   order.status = 'cancelled';
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({ status: 'cancelled', timestamp: Date.now() });
   saveDB('deliveryOrders');
+  // Sync with ev.orders
+  _syncDeliveryToEvOrders(order);
   const ev = db.operatorEvents[order.eventId];
   if (ev) io.to(`user:${ev.creatorId}`).emit('delivery-order-cancelled', { orderId: order.id });
   res.json({ ok: true });
@@ -14186,7 +14250,10 @@ app.post('/api/delivery/order/:orderId/assign-driver', (req, res) => {
   order.driverName = driverName || 'Entregador';
   order.driverFee = parseFloat(agreedFee) || order.deliveryFee;
   order.status = 'confirmed';
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({ status: 'confirmed', timestamp: Date.now() });
   saveDB('deliveryOrders');
+  _syncDeliveryToEvOrders(order);
   io.to(`user:${driverId}`).emit('driver-assigned', { order });
   io.to(`user:${order.customerId}`).emit('delivery-status-update', { orderId: order.id, status: 'confirmed', driverName: order.driverName });
   res.json({ ok: true, order });
@@ -14199,11 +14266,19 @@ app.post('/api/delivery/order/:orderId/driver-status', (req, res) => {
   const validStatuses = ['preparing', 'ready_pickup', 'on_the_way', 'delivered'];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Status invalido.' });
   order.status = status;
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({ status, timestamp: Date.now() });
   if (status === 'delivered') order.deliveredAt = Date.now();
   saveDB('deliveryOrders');
+  // Sync status to ev.orders kanban mirror
+  _syncDeliveryToEvOrders(order);
   io.to(`user:${order.customerId}`).emit('delivery-status-update', { orderId: order.id, status, driverName: order.driverName });
   const ev = db.operatorEvents[order.eventId];
-  if (ev) io.to(`user:${ev.creatorId}`).emit('delivery-status-update', { orderId: order.id, status });
+  if (ev) {
+    io.to(`user:${ev.creatorId}`).emit('delivery-status-update', { orderId: order.id, status });
+    // Also emit order-update for kanban
+    io.to('event:' + ev.id).emit('order-update', { eventId: ev.id, orderId: order.id, status: _mapDeliveryStatusToKanban(status) });
+  }
   res.json({ ok: true, order });
 });
 
