@@ -368,8 +368,43 @@ img{max-width:100%;display:block}
   display:flex;align-items:center;gap:.4rem;
   font-size:.75rem;font-weight:600;
 }
-.tracking-dot{width:8px;height:8px;border-radius:50%;background:var(--site-primary);animation:pulse 1.5s infinite}
+/* ── Timeline Tracking ── */
+.tracking-timeline{display:flex;align-items:center;justify-content:center;gap:0;padding:.5rem 0}
+.timeline-step{display:flex;flex-direction:column;align-items:center;gap:.3rem;min-width:50px}
+.timeline-dot{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--site-surface);border:2px solid var(--site-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;font-weight:700;color:var(--site-text2);
+  transition:all .3s ease;
+}
+.timeline-step.done .timeline-dot{background:var(--site-primary);border-color:var(--site-primary);color:#fff}
+.timeline-step.active .timeline-dot{border-color:var(--site-primary);box-shadow:0 0 0 3px rgba(255,107,53,.25);animation:pulse 1.5s infinite}
+.timeline-label{font-size:.6rem;color:var(--site-text2);font-weight:500;white-space:nowrap}
+.timeline-step.done .timeline-label,.timeline-step.active .timeline-label{color:var(--site-text)}
+.timeline-line{flex:1;height:2px;background:var(--site-border);min-width:12px;max-width:40px;margin:0 2px;margin-bottom:1.2rem}
+.timeline-line.done{background:var(--site-primary)}
+.tracking-status-text{font-size:.8rem;font-weight:600;color:var(--site-primary);text-align:center;margin-top:.3rem}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── Delivery Type Selector ── */
+.delivery-type-selector{display:flex;gap:.3rem}
+.del-type-btn{
+  flex:1;padding:.5rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface);border:1px solid var(--site-border);
+  color:var(--site-text2);font-size:.75rem;font-weight:600;transition:all .2s;
+}
+.del-type-btn.selected{background:var(--site-primary);color:#fff;border-color:var(--site-primary)}
+
+/* ── Touch Login Button ── */
+.btn-touch-login{
+  width:100%;padding:.55rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface);border:1px solid var(--site-border);
+  color:var(--site-primary);font-size:.8rem;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:.4rem;
+  transition:all .2s;
+}
+.btn-touch-login:hover{background:var(--site-surface2);border-color:var(--site-primary)}
 .tip-selector{display:flex;gap:.3rem;margin:.6rem 0}
 .tip-btn{
   flex:1;padding:.4rem;border-radius:var(--site-radius-sm);
@@ -459,7 +494,8 @@ img{max-width:100%;display:block}
       <div class="cart-total">
         <div>
           <div>Subtotal: <span id="cartSubtotal">$0.00</span></div>
-          <div style="font-size:.7rem;color:var(--site-text2)" id="tipLine" style="display:none">Gorjeta: <span id="cartTip">$0.00</span></div>
+          <div style="font-size:.7rem;color:var(--site-text2);display:none" id="tipLine">Gorjeta: <span id="cartTip">$0.00</span></div>
+          <div style="font-size:.7rem;color:var(--site-text2);display:none" id="deliveryFeeLine">Entrega: <span id="cartDeliveryFee">$0.00</span></div>
         </div>
         <span class="cart-total-val" id="cartTotal">$0.00</span>
       </div>
@@ -480,6 +516,18 @@ img{max-width:100%;display:block}
           <span>Total</span><span style="color:var(--site-primary)" id="summaryTotal">$0.00</span>
         </div>
       </div>
+      <!-- Touch Login -->
+      <div id="touchLoginArea" style="margin-bottom:.6rem">
+        <button class="btn-touch-login" onclick="showTouchLogin()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4-4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Entrar com Touch?
+        </button>
+        <div style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0;color:var(--site-text2);font-size:.65rem">
+          <div style="flex:1;height:1px;background:var(--site-border)"></div>
+          <span>ou continue sem conta</span>
+          <div style="flex:1;height:1px;background:var(--site-border)"></div>
+        </div>
+      </div>
       <!-- Customer info -->
       <div class="checkout-form-group">
         <label>Seu nome *</label>
@@ -492,6 +540,40 @@ img{max-width:100%;display:block}
       <div class="checkout-form-group">
         <label>Email</label>
         <input type="email" class="checkout-input" id="custEmail" placeholder="email@exemplo.com" maxlength="100">
+      </div>
+      <!-- Delivery type (only if restaurant accepts delivery) -->
+      <div id="deliveryTypeSection" style="display:none;margin:.6rem 0">
+        <div style="font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.3rem">Tipo de pedido</div>
+        <div class="delivery-type-selector">
+          <button class="del-type-btn selected" data-dtype="pickup" onclick="selectDeliveryType('pickup')">Retirada</button>
+          <button class="del-type-btn" data-dtype="delivery" onclick="selectDeliveryType('delivery')">Entrega</button>
+        </div>
+      </div>
+      <!-- Delivery address (hidden by default) -->
+      <div id="deliveryAddressSection" style="display:none">
+        <div style="font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.3rem">Endereco de entrega</div>
+        <div class="checkout-form-group">
+          <input type="text" class="checkout-input" id="delStreet" placeholder="Rua / Avenida *" maxlength="80">
+        </div>
+        <div style="display:flex;gap:.4rem">
+          <div class="checkout-form-group" style="flex:1">
+            <input type="text" class="checkout-input" id="delNumber" placeholder="Numero *" maxlength="10">
+          </div>
+          <div class="checkout-form-group" style="flex:2">
+            <input type="text" class="checkout-input" id="delComplement" placeholder="Complemento" maxlength="40">
+          </div>
+        </div>
+        <div style="display:flex;gap:.4rem">
+          <div class="checkout-form-group" style="flex:2">
+            <input type="text" class="checkout-input" id="delCity" placeholder="Cidade *" maxlength="40">
+          </div>
+          <div class="checkout-form-group" style="flex:1">
+            <input type="text" class="checkout-input" id="delState" placeholder="UF" maxlength="2" style="text-transform:uppercase">
+          </div>
+          <div class="checkout-form-group" style="flex:1">
+            <input type="text" class="checkout-input" id="delCep" placeholder="CEP" maxlength="10">
+          </div>
+        </div>
       </div>
       <!-- Express Checkout: Apple Pay / Google Pay -->
       <div id="siteExpressCheckout" style="display:none;margin-bottom:.8rem">
@@ -528,21 +610,43 @@ img{max-width:100%;display:block}
       </div>
     </div>
 
-    <!-- Step 3: Confirmation -->
+    <!-- Step 3: Confirmation + Tracking -->
     <div class="checkout-step" id="checkoutStep3">
       <div class="order-confirmed">
         <div class="order-confirmed-icon">&#10003;</div>
-        <h3>Pedido Enviado!</h3>
+        <h3>Pedido Confirmado!</h3>
         <div class="order-receipt" id="confirmReceipt"></div>
-        <div style="font-size:.8rem;color:var(--site-text2);margin:.5rem 0" id="confirmMsg">Seu pedido foi enviado para a cozinha.</div>
-        <div class="order-tracking" id="orderTracking">
-          <div class="tracking-status">
-            <div class="tracking-dot"></div>
-            <span id="trackingLabel">Aguardando preparo...</span>
-          </div>
+        <div style="font-size:.8rem;color:var(--site-text2);margin:.5rem 0" id="confirmMsg"></div>
+        <!-- Timeline visual -->
+        <div id="orderTimeline" style="margin:1rem 0"></div>
+        <div class="tracking-status-text">
+          <span id="trackingLabel">Aguardando preparo...</span>
         </div>
         <button class="btn-primary" style="margin-top:1.2rem" onclick="resetCheckout()">Fazer novo pedido</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Touch Login Modal -->
+<div id="touchLoginModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--site-bg);border:1px solid var(--site-border);border-radius:var(--site-radius);padding:1.2rem;width:100%;max-width:340px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+      <div style="font-size:.9rem;font-weight:700">Entrar com Touch?</div>
+      <button onclick="closeTouchLogin()" style="background:none;color:var(--site-text2);font-size:1.2rem">&#10005;</button>
+    </div>
+    <div class="checkout-form-group">
+      <label style="font-size:.7rem">Email</label>
+      <input type="email" class="checkout-input" id="touchLoginEmail" placeholder="seu@email.com" maxlength="100">
+    </div>
+    <div class="checkout-form-group">
+      <label style="font-size:.7rem">Senha</label>
+      <input type="password" class="checkout-input" id="touchLoginPass" placeholder="Sua senha Touch?" maxlength="60">
+    </div>
+    <div style="color:#ef4444;font-size:.7rem;min-height:1rem;margin-bottom:.3rem" id="touchLoginError"></div>
+    <button class="btn-checkout" id="touchLoginBtn" onclick="doTouchLogin()" style="width:100%">Entrar</button>
+    <div style="font-size:.65rem;color:var(--site-text2);text-align:center;margin-top:.5rem">
+      Nao tem conta? <a href="https://touch-irl.com" target="_blank" style="color:var(--site-primary)">Criar conta Touch?</a>
     </div>
   </div>
 </div>
@@ -718,13 +822,18 @@ function updateCartUI() {
   const totalItems = CART.reduce(function(s, c) { return s + c.qty; }, 0);
   const sub = getSubtotal();
   const tip = getTipAmount();
-  const total = sub + tip;
+  const delFee = getDeliveryFee();
+  const total = sub + tip + delFee;
   const fab = document.getElementById('cartFab');
   fab.style.display = totalItems > 0 ? 'flex' : 'none';
   document.getElementById('cartBadge').textContent = totalItems;
   document.getElementById('cartSubtotal').textContent = '$' + sub.toFixed(2);
   document.getElementById('cartTip').textContent = '$' + tip.toFixed(2);
   document.getElementById('tipLine').style.display = tip > 0 ? 'block' : 'none';
+  var delLine = document.getElementById('deliveryFeeLine');
+  if (delLine) { delLine.style.display = delFee > 0 ? 'block' : 'none'; }
+  var delFeeEl = document.getElementById('cartDeliveryFee');
+  if (delFeeEl) delFeeEl.textContent = '$' + delFee.toFixed(2);
   document.getElementById('cartTotal').textContent = '$' + total.toFixed(2);
   // Render items
   const el = document.getElementById('cartItems');
@@ -756,6 +865,197 @@ let siteStripePublicKey = null;
 let sitePaymentRequest = null;
 let siteStripeInstance = null;
 let siteExpressAvailable = false;
+// Delivery state
+let selectedDeliveryType = 'pickup';
+// Touch login state
+let touchLoggedUserId = null;
+let touchLoggedUserData = null;
+
+// ── Delivery helpers ──
+function getDeliveryFee() {
+  if (selectedDeliveryType !== 'delivery') return 0;
+  return parseFloat((SITE_DATA && SITE_DATA.restaurant && SITE_DATA.restaurant.deliveryFee) || 0);
+}
+
+function getDeliveryAddressData() {
+  return {
+    street: (document.getElementById('delStreet') || {}).value || '',
+    number: (document.getElementById('delNumber') || {}).value || '',
+    complement: (document.getElementById('delComplement') || {}).value || '',
+    city: (document.getElementById('delCity') || {}).value || '',
+    state: (document.getElementById('delState') || {}).value || '',
+    cep: (document.getElementById('delCep') || {}).value || ''
+  };
+}
+
+function validateDeliveryAddress() {
+  var street = (document.getElementById('delStreet') || {}).value || '';
+  var city = (document.getElementById('delCity') || {}).value || '';
+  if (!street.trim() || !city.trim()) {
+    document.getElementById('checkoutError').textContent = 'Preencha rua e cidade para entrega';
+    return false;
+  }
+  return true;
+}
+
+function selectDeliveryType(type) {
+  selectedDeliveryType = type;
+  document.querySelectorAll('.del-type-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.dtype === type); });
+  var addrSection = document.getElementById('deliveryAddressSection');
+  if (addrSection) addrSection.style.display = type === 'delivery' ? 'block' : 'none';
+  updateCartUI();
+  // Update pay button text
+  var btn = document.getElementById('btnPay');
+  if (btn) btn.textContent = selectedPM === 'card' ? 'Pagar $' + getTotal().toFixed(2) : 'Enviar Pedido';
+}
+
+function saveDeliveryAddressToLocal() {
+  if (selectedDeliveryType !== 'delivery') return;
+  try {
+    var addr = getDeliveryAddressData();
+    if (addr.street) localStorage.setItem('touch_site_addr_' + SLUG, JSON.stringify(addr));
+  } catch (e) { /* ignore */ }
+}
+
+function loadDeliveryAddressFromLocal() {
+  try {
+    var saved = localStorage.getItem('touch_site_addr_' + SLUG);
+    if (!saved) return;
+    var addr = JSON.parse(saved);
+    if (addr.street && document.getElementById('delStreet')) {
+      document.getElementById('delStreet').value = addr.street || '';
+      document.getElementById('delNumber').value = addr.number || '';
+      document.getElementById('delComplement').value = addr.complement || '';
+      document.getElementById('delCity').value = addr.city || '';
+      document.getElementById('delState').value = addr.state || '';
+      document.getElementById('delCep').value = addr.cep || '';
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// ── Tracking screen ──
+function showTrackingScreen(order, payMethodLabel) {
+  document.getElementById('confirmReceipt').textContent = '#' + order.receiptNumber;
+  document.getElementById('confirmMsg').textContent = payMethodLabel + ' | Total: $' + order.total.toFixed(2);
+  // Build timeline
+  renderTrackingTimeline(order.status);
+}
+
+function renderTrackingTimeline(currentStatus) {
+  var steps = [
+    { key: 'pending', label: 'Recebido', icon: '1' },
+    { key: 'preparing', label: 'Preparando', icon: '2' },
+    { key: 'ready', label: 'Pronto', icon: '3' },
+    { key: 'delivered', label: 'Entregue', icon: '4' }
+  ];
+  // paid maps to pending for display
+  if (currentStatus === 'paid') currentStatus = 'pending';
+  var statusOrder = ['pending','preparing','ready','delivered'];
+  var currentIdx = statusOrder.indexOf(currentStatus);
+  if (currentIdx < 0) currentIdx = 0;
+  var html = '<div class="tracking-timeline">';
+  steps.forEach(function(step, i) {
+    var done = i <= currentIdx;
+    var active = i === currentIdx;
+    html += '<div class="timeline-step' + (done ? ' done' : '') + (active ? ' active' : '') + '">';
+    html += '<div class="timeline-dot">' + (done ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : step.icon) + '</div>';
+    html += '<div class="timeline-label">' + step.label + '</div>';
+    html += '</div>';
+    if (i < steps.length - 1) {
+      html += '<div class="timeline-line' + (i < currentIdx ? ' done' : '') + '"></div>';
+    }
+  });
+  html += '</div>';
+  document.getElementById('orderTimeline').innerHTML = html;
+}
+
+// ── Touch Login ──
+function showTouchLogin() {
+  var modal = document.getElementById('touchLoginModal');
+  if (modal) modal.style.display = 'flex';
+}
+function closeTouchLogin() {
+  var modal = document.getElementById('touchLoginModal');
+  if (modal) modal.style.display = 'none';
+}
+async function doTouchLogin() {
+  var email = document.getElementById('touchLoginEmail').value.trim();
+  var pass = document.getElementById('touchLoginPass').value;
+  if (!email || !pass) { document.getElementById('touchLoginError').textContent = 'Preencha email e senha'; return; }
+  document.getElementById('touchLoginError').textContent = '';
+  document.getElementById('touchLoginBtn').disabled = true;
+  document.getElementById('touchLoginBtn').textContent = 'Entrando...';
+  try {
+    // Load Firebase if not loaded
+    if (!window.firebase || !firebase.auth) {
+      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js');
+      if (!firebase.apps.length) {
+        firebase.initializeApp({
+          apiKey: 'AIzaSyCXkCORWpP8GaJXijRKB2OR8sCbBZ5esPA',
+          authDomain: 'touch-irl.firebaseapp.com',
+          projectId: 'touch-irl'
+        });
+      }
+    }
+    var cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+    var idToken = await cred.user.getIdToken();
+    // Link with Touch backend
+    var r = await fetch('/api/auth/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: idToken })
+    });
+    var d = await r.json();
+    if (d.ok && d.userId) {
+      touchLoggedUserId = d.userId;
+      // Fetch checkout profile
+      var pr = await fetch('/api/user/' + d.userId + '/checkout-profile');
+      var pd = await pr.json();
+      if (pd.name || pd.nickname) {
+        touchLoggedUserData = pd;
+        // Prefill fields
+        if (pd.name || pd.nickname) document.getElementById('custName').value = pd.name || pd.nickname;
+        if (pd.phone) document.getElementById('custPhone').value = pd.phone;
+        if (pd.email) document.getElementById('custEmail').value = pd.email;
+        // Prefill saved address
+        if (pd.savedAddress && pd.savedAddress.street) {
+          if (document.getElementById('delStreet')) {
+            document.getElementById('delStreet').value = pd.savedAddress.street || '';
+            document.getElementById('delNumber').value = pd.savedAddress.number || '';
+            document.getElementById('delComplement').value = pd.savedAddress.complement || '';
+            document.getElementById('delCity').value = pd.savedAddress.city || '';
+            document.getElementById('delState').value = pd.savedAddress.state || '';
+            document.getElementById('delCep').value = pd.savedAddress.cep || '';
+          }
+        }
+      }
+      closeTouchLogin();
+      showToast('Logado como ' + (pd.nickname || pd.name || email));
+      // Update UI to show logged state
+      var loginArea = document.getElementById('touchLoginArea');
+      if (loginArea) loginArea.innerHTML = '<div style="font-size:.75rem;color:var(--site-primary);font-weight:600;padding:.5rem 0">Logado como ' + esc(pd.nickname || pd.name || email) + '</div>';
+    } else {
+      document.getElementById('touchLoginError').textContent = d.error || 'Erro ao vincular conta';
+    }
+  } catch (e) {
+    var msg = 'Erro ao fazer login';
+    if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Email ou senha incorretos';
+    else if (e.code === 'auth/user-not-found') msg = 'Conta nao encontrada';
+    else if (e.code === 'auth/invalid-email') msg = 'Email invalido';
+    document.getElementById('touchLoginError').textContent = msg;
+  }
+  document.getElementById('touchLoginBtn').disabled = false;
+  document.getElementById('touchLoginBtn').textContent = 'Entrar';
+}
+
+function loadScript(src) {
+  return new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
 
 // ── Stripe Init ──
 async function initStripe() {
@@ -811,6 +1111,8 @@ function siteExpressCheckout() {
   if (!sitePaymentRequest || !siteStripeInstance) { showToast('Pagamento express indisponivel'); return; }
   var total = getTotal();
   if (total < 1) { showToast('Valor minimo $1 para Apple Pay / Google Pay'); return; }
+  // Validate delivery address if needed
+  if (selectedDeliveryType === 'delivery' && !validateDeliveryAddress()) return;
   // Currency - detect same as init
   var lang = (navigator.language || navigator.languages[0] || 'en-US').toUpperCase();
   var regionMatch = lang.match(/[-_]([A-Z]{2})$/);
@@ -829,49 +1131,40 @@ function siteExpressCheckout() {
   sitePaymentRequest.on('paymentmethod', function(ev) {
     var custName = ev.payerName || document.getElementById('custName').value.trim() || 'Guest';
     var custEmail = ev.payerEmail || document.getElementById('custEmail').value.trim() || '';
-    // Step 1: Confirm payment via Express Checkout endpoint
-    fetch('/api/site/' + SLUG + '/express-pay', {
+    // Unified checkout: payment + order in one atomic call
+    var checkoutData = {
+      customerName: custName,
+      customerPhone: document.getElementById('custPhone').value.trim(),
+      customerEmail: custEmail,
+      items: CART.map(function(c) { return { menuItemId: c.id, qty: c.qty }; }),
+      notes: document.getElementById('orderNotes').value.trim(),
+      paymentMethod: 'card',
+      tipPercent: selectedTip,
+      tipAmount: getTipAmount(),
+      currency: siteCurrency,
+      paymentMethodId: ev.paymentMethod.id,
+      deliveryType: selectedDeliveryType,
+      deliveryFee: getDeliveryFee()
+    };
+    if (selectedDeliveryType === 'delivery') {
+      checkoutData.deliveryAddress = getDeliveryAddressData();
+    }
+    if (touchLoggedUserId) checkoutData.userId = touchLoggedUserId;
+    fetch('/api/site/' + SLUG + '/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        paymentMethodId: ev.paymentMethod.id,
-        amount: total,
-        currency: siteCurrency,
-        customerName: custName,
-        customerEmail: custEmail
-      })
+      body: JSON.stringify(checkoutData)
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.ok) {
         ev.complete('success');
-        // Step 2: Create order with payment confirmed
-        var orderData = {
-          customerName: custName,
-          customerPhone: document.getElementById('custPhone').value.trim(),
-          customerEmail: custEmail,
-          items: CART.map(function(c) { return { menuItemId: c.id, qty: c.qty }; }),
-          notes: document.getElementById('orderNotes').value.trim(),
-          paymentMethod: 'card',
-          tipPercent: selectedTip,
-          tipAmount: getTipAmount()
-        };
-        fetch('/api/site/' + SLUG + '/order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
-        }).then(function(r2) { return r2.json(); }).then(function(d2) {
-          if (d2.ok) {
-            lastOrderId = d2.order.id;
-            lastReceiptNumber = d2.order.receiptNumber;
-            document.getElementById('confirmReceipt').textContent = '#' + d2.order.receiptNumber;
-            document.getElementById('confirmMsg').textContent = 'Pago via Apple Pay / Google Pay | Total: $' + d2.order.total.toFixed(2);
-            CART = [];
-            updateCartUI();
-            showStep(3);
-            startOrderTracking();
-          } else {
-            showToast(d2.error || 'Erro ao criar pedido');
-          }
-        }).catch(function() { showToast('Erro de conexao ao criar pedido'); });
+        lastOrderId = d.order.id;
+        lastReceiptNumber = d.order.receiptNumber;
+        showTrackingScreen(d.order, 'Apple Pay / Google Pay');
+        saveDeliveryAddressToLocal();
+        CART = [];
+        updateCartUI();
+        showStep(3);
+        startOrderTracking();
       } else {
         ev.complete('fail');
         showToast(d.error || 'Erro no pagamento');
@@ -899,6 +1192,12 @@ function goToStep2() {
   el.innerHTML = html;
   document.getElementById('summaryTotal').textContent = '$' + getTotal().toFixed(2);
   document.getElementById('checkoutError').textContent = '';
+  // Show delivery type selector if restaurant accepts delivery
+  var delSection = document.getElementById('deliveryTypeSection');
+  if (delSection && SITE_DATA && SITE_DATA.restaurant && SITE_DATA.restaurant.acceptsDelivery) {
+    delSection.style.display = 'block';
+    loadDeliveryAddressFromLocal();
+  }
   showStep(2);
 }
 
@@ -911,7 +1210,7 @@ function selectTip(pct) {
 
 function getSubtotal() { return CART.reduce(function(s, c) { return s + c.price * c.qty; }, 0); }
 function getTipAmount() { return getSubtotal() * selectedTip / 100; }
-function getTotal() { return getSubtotal() + getTipAmount(); }
+function getTotal() { return getSubtotal() + getTipAmount() + getDeliveryFee(); }
 
 // ── Payment Method ──
 function selectPM(pm) {
@@ -964,19 +1263,22 @@ async function createStripeElement() {
   }
 }
 
-// ── Submit Order ──
+// ── Submit Order (unified checkout) ──
 async function submitOrder() {
   const name = document.getElementById('custName').value.trim();
   if (!name) { document.getElementById('checkoutError').textContent = 'Nome obrigatorio'; return; }
+  // Validate delivery address if delivery selected
+  if (selectedDeliveryType === 'delivery' && !validateDeliveryAddress()) return;
   const btn = document.getElementById('btnPay');
   btn.disabled = true;
   btn.textContent = 'Processando...';
   document.getElementById('checkoutError').textContent = '';
 
   try {
-    // If card payment, confirm Stripe first
+    // If card payment, confirm Stripe first (Payment Element flow)
+    let confirmedPaymentIntentId = null;
     if (selectedPM === 'card' && stripeObj && stripeClientSecret) {
-      const { error } = await stripeObj.confirmPayment({
+      const { error, paymentIntent } = await stripeObj.confirmPayment({
         elements: stripeElements,
         confirmParams: { return_url: window.location.href },
         redirect: 'if_required'
@@ -987,10 +1289,18 @@ async function submitOrder() {
         btn.textContent = 'Pagar $' + getTotal().toFixed(2);
         return;
       }
+      if (paymentIntent) confirmedPaymentIntentId = paymentIntent.id;
     }
 
-    // Create order
-    const orderData = {
+    // Detect currency
+    var lang = (navigator.language || navigator.languages[0] || 'en-US').toUpperCase();
+    var regionMatch = lang.match(/[-_]([A-Z]{2})$/);
+    var currencyMap = { US:'usd', GB:'gbp', JP:'jpy', DE:'eur', FR:'eur', ES:'eur', IT:'eur', PT:'eur', NL:'eur', IE:'eur', AT:'eur', BE:'eur', FI:'eur', SE:'sek', NO:'nok', DK:'dkk', CH:'chf', AU:'aud', NZ:'nzd', CA:'cad', SG:'sgd', HK:'hkd', KR:'krw', BR:'brl', MX:'mxn' };
+    var reqCountry = (regionMatch ? regionMatch[1] : 'US');
+    var siteCurrency = currencyMap[reqCountry] || 'usd';
+
+    // Build unified checkout payload
+    const checkoutData = {
       customerName: name,
       customerPhone: document.getElementById('custPhone').value.trim(),
       customerEmail: document.getElementById('custEmail').value.trim(),
@@ -998,16 +1308,24 @@ async function submitOrder() {
       notes: document.getElementById('orderNotes').value.trim(),
       paymentMethod: selectedPM,
       tipPercent: selectedTip,
-      tipAmount: getTipAmount()
+      tipAmount: getTipAmount(),
+      currency: siteCurrency,
+      deliveryType: selectedDeliveryType,
+      deliveryFee: getDeliveryFee()
     };
+    if (confirmedPaymentIntentId) checkoutData.stripePaymentIntentId = confirmedPaymentIntentId;
+    if (selectedDeliveryType === 'delivery') {
+      checkoutData.deliveryAddress = getDeliveryAddressData();
+    }
+    if (touchLoggedUserId) checkoutData.userId = touchLoggedUserId;
 
-    const r = await fetch('/api/site/' + SLUG + '/order', {
+    const r = await fetch('/api/site/' + SLUG + '/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderData)
+      body: JSON.stringify(checkoutData)
     });
     const d = await r.json();
-    if (!r.ok) {
+    if (!r.ok || !d.ok) {
       document.getElementById('checkoutError').textContent = d.error || 'Erro ao enviar pedido';
       btn.disabled = false;
       btn.textContent = selectedPM === 'card' ? 'Pagar $' + getTotal().toFixed(2) : 'Enviar Pedido';
@@ -1017,13 +1335,12 @@ async function submitOrder() {
     // Success!
     lastOrderId = d.order.id;
     lastReceiptNumber = d.order.receiptNumber;
-    document.getElementById('confirmReceipt').textContent = '#' + d.order.receiptNumber;
     const pmLabel = selectedPM === 'card' ? 'Pago com cartao' : 'Pagamento no local';
-    document.getElementById('confirmMsg').textContent = pmLabel + ' | Total: $' + d.order.total.toFixed(2);
+    showTrackingScreen(d.order, pmLabel);
+    saveDeliveryAddressToLocal();
     CART = [];
     updateCartUI();
     showStep(3);
-    // Start tracking
     startOrderTracking();
   } catch (e) {
     document.getElementById('checkoutError').textContent = 'Erro: ' + e.message;
@@ -1035,7 +1352,6 @@ async function submitOrder() {
 // ── Order Tracking ──
 let trackingInterval = null;
 const STATUS_LABELS = { pending: 'Aguardando preparo...', preparing: 'Sendo preparado!', ready: 'Pronto para retirada!', delivered: 'Entregue!', cancelled: 'Cancelado', paid: 'Aguardando preparo...' };
-const STATUS_COLORS = { pending: '#fbbf24', preparing: '#3b82f6', ready: '#22c55e', delivered: '#22c55e', cancelled: '#ef4444', paid: '#fbbf24' };
 
 function startOrderTracking() {
   if (trackingInterval) clearInterval(trackingInterval);
@@ -1048,13 +1364,11 @@ async function checkOrderStatus() {
     const r = await fetch('/api/site/' + SLUG + '/order/' + lastOrderId);
     const d = await r.json();
     if (d.status) {
-      const label = STATUS_LABELS[d.status] || d.status;
-      document.getElementById('trackingLabel').textContent = label;
-      document.querySelector('.tracking-dot').style.background = STATUS_COLORS[d.status] || 'var(--site-primary)';
+      document.getElementById('trackingLabel').textContent = STATUS_LABELS[d.status] || d.status;
+      renderTrackingTimeline(d.status);
       if (d.status === 'delivered' || d.status === 'cancelled') {
         clearInterval(trackingInterval);
         trackingInterval = null;
-        document.querySelector('.tracking-dot').style.animation = 'none';
       }
     }
   } catch (e) { /* polling failed, retry */ }
@@ -1066,16 +1380,22 @@ function resetCheckout() {
   lastReceiptNumber = null;
   selectedTip = 0;
   selectedPM = 'counter';
+  selectedDeliveryType = 'pickup';
   stripePaymentElement = null;
   stripeElements = null;
   stripeClientSecret = null;
   document.querySelectorAll('.tip-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.tip === '0'); });
   document.querySelectorAll('.pm-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.pm === 'counter'); });
+  document.querySelectorAll('.del-type-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.dtype === 'pickup'); });
   document.getElementById('stripeSection').style.display = 'none';
   document.getElementById('stripe-element').innerHTML = '';
-  document.getElementById('custName').value = '';
-  document.getElementById('custPhone').value = '';
-  document.getElementById('custEmail').value = '';
+  var addrSection = document.getElementById('deliveryAddressSection');
+  if (addrSection) addrSection.style.display = 'none';
+  if (!touchLoggedUserId) {
+    document.getElementById('custName').value = '';
+    document.getElementById('custPhone').value = '';
+    document.getElementById('custEmail').value = '';
+  }
   document.getElementById('orderNotes').value = '';
   document.getElementById('btnPay').disabled = false;
   document.getElementById('btnPay').textContent = 'Enviar Pedido';
