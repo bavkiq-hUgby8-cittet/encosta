@@ -3391,13 +3391,22 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       });
     });
   });
-  // 7. Recent connections (encounters in last 7 days)
+  // 7. Recent connections (encounters in last 7 days) — deduplicated by person, show most recent
   const now7d = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const connByPerson = {};
   myEncounters.filter(e => !e.isEvent && e.timestamp > now7d && !(e.with || '').startsWith('evt:')).forEach(e => {
+    const pid = e.with;
+    if (!connByPerson[pid] || (e.timestamp || 0) > (connByPerson[pid].timestamp || 0)) {
+      connByPerson[pid] = e;
+    }
+  });
+  Object.values(connByPerson).forEach(e => {
     const partner = db.users[e.with];
     if (!partner) return;
     const ts = e.timestamp || 0;
     const connRevealed = isRevealedTo(e.with, user, null);
+    // Count total encounters with this person in last 7 days
+    const totalEnc = myEncounters.filter(enc => enc.with === e.with && enc.timestamp > now7d && !enc.isEvent).length;
     notifs.push({
       type: 'new-connection',
       fromId: e.with,
@@ -3406,8 +3415,8 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       profilePhoto: connRevealed ? (partner.profilePhoto || partner.photoURL || null) : null,
       color: partner.color,
       avatarAccessory: partner.avatarAccessory || null,
-      encounterCount: e.encounterCount || 1,
-      isRenewal: (e.encounterCount || 1) > 1,
+      encounterCount: totalEnc,
+      isRenewal: totalEnc > 1,
       timestamp: ts,
       seen: ts <= seenAt
     });
@@ -3446,10 +3455,19 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       });
     }
   });
-  // 9. Event checkins (last 7 days)
+  // 9. Event checkins (last 7 days) — deduplicated by event, show most recent + count
+  const checkinByEvent = {};
   myEncounters.filter(e => e.isEvent && e.timestamp > now7d).forEach(e => {
-    const ts = e.timestamp || 0;
     const evId = (e.with || '').replace('evt:', '');
+    if (!checkinByEvent[evId]) checkinByEvent[evId] = { latest: e, count: 1 };
+    else {
+      checkinByEvent[evId].count++;
+      if ((e.timestamp || 0) > (checkinByEvent[evId].latest.timestamp || 0)) checkinByEvent[evId].latest = e;
+    }
+  });
+  Object.entries(checkinByEvent).forEach(([evId, info]) => {
+    const e = info.latest;
+    const ts = e.timestamp || 0;
     const evObj = db.operatorEvents[evId] || null;
     notifs.push({
       type: 'event-checkin',
@@ -3459,6 +3477,7 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       eventLogo: evObj ? proxyStorageUrl(evObj.eventLogo || evObj.logo || null) : null,
       color: '#a78bfa',
       eventId: evId,
+      checkinCount: info.count,
       timestamp: ts,
       seen: ts <= seenAt
     });
@@ -4222,6 +4241,9 @@ app.post('/api/like/toggle', (req, res) => {
     if (!target.likedBy) target.likedBy = [];
     target.likedBy = target.likedBy.filter(id => id !== userId);
     target.likesCount = Math.max(0, (target.likesCount || 0) - 1);
+    // Clean up like timestamp
+    const liker = db.users[userId];
+    if (liker && liker._likedAt) delete liker._likedAt[targetUserId];
     // Update IDX
     if (likedSet) { likedSet.delete(userId); if (likedSet.size === 0) IDX.likedBy.delete(targetUserId); }
     liked = false;
@@ -4232,6 +4254,12 @@ app.post('/api/like/toggle', (req, res) => {
     if (!target.likedBy) target.likedBy = [];
     if (!target.likedBy.includes(userId)) target.likedBy.push(userId);
     target.likesCount = (target.likesCount || 0) + 1;
+    // Track timestamp for notifications
+    const liker = db.users[userId];
+    if (liker) {
+      if (!liker._likedAt) liker._likedAt = {};
+      liker._likedAt[targetUserId] = Date.now();
+    }
     // Update IDX
     if (!IDX.likedBy.has(targetUserId)) IDX.likedBy.set(targetUserId, new Set());
     IDX.likedBy.get(targetUserId).add(userId);
