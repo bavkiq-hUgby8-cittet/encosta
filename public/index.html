@@ -15320,18 +15320,20 @@ async function loadRankTab(tab){
     var html='';
     list.forEach(function(u,i){
       var medal=i===0?'<span style="font-size:1.15rem">&#x1f947;</span>':i===1?'<span style="font-size:1.15rem">&#x1f948;</span>':i===2?'<span style="font-size:1.15rem">&#x1f949;</span>':'<span style="font-size:.8rem;color:var(--t3);font-weight:600;min-width:1.5rem;display:inline-block;text-align:center">'+(i+1)+'</span>';
-      var starIcons='';
-      for(var s=0;s<Math.min(u.stars,10);s++){
-        starIcons+='<svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-      }
       var topLabel=u.topTag?'<span style="font-size:.55rem;color:#fbbf24;background:rgba(251,191,36,.1);padding:2px 4px;border-radius:3px;margin-left:4px">'+u.topTag.toUpperCase()+'</span>':'';
       var flagHtml=u._flag?'<span style="font-size:.7rem;margin-right:2px">'+u._flag+'</span>':'';
       var isMe=u.userId===(typeof state!=='undefined'?state.userId:'')||u.isMe;
-      html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.45rem .4rem;border-bottom:1px solid rgba(255,255,255,.03);'+(isMe?'background:rgba(251,191,36,.05);border-radius:6px;border:1px solid rgba(251,191,36,.08)':'')+'">';
+      var photoHtml='';
+      if(u._showPhoto&&u._photoURL){
+        photoHtml='<img src="'+u._photoURL+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0">';
+      }else{
+        photoHtml='<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,rgba(251,191,36,.15),rgba(251,191,36,.05));display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(251,191,36,.5)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>';
+      }
+      html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .4rem;border-bottom:1px solid rgba(255,255,255,.03);'+(isMe?'background:rgba(251,191,36,.05);border-radius:8px;border:1px solid rgba(251,191,36,.08)':'')+'">';
       html+=medal;
-      html+='<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+flagHtml+u._displayName+topLabel+(isMe?' <span style="font-size:.55rem;color:var(--ac)">(voce)</span>':'')+'</div>';
-      html+='<div style="display:flex;gap:1px;margin-top:2px">'+starIcons+'</div></div>';
-      html+='<div style="font-size:.9rem;font-weight:800;color:#fbbf24">'+u.stars+'</div>';
+      html+=photoHtml;
+      html+='<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+flagHtml+u._displayName+topLabel+(isMe?' <span style="font-size:.55rem;color:var(--ac)">(voce)</span>':'')+'</div></div>';
+      html+='<div style="display:flex;align-items:center;gap:3px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span style="font-size:.95rem;font-weight:800;color:#fbbf24">'+u.stars+'</span></div>';
       html+='</div>';
     });
     el.innerHTML=html;
