@@ -718,6 +718,7 @@ const IDX = {
   revealByTo: new Map(),      // toUserId -> Set of revealRequestIds (pending)
   revealByFrom: new Map(),    // fromUserId -> Set of revealRequestIds (pending)
   revealByPair: new Map(),    // "from_to" -> revealRequestId (pending)
+  prestador: new Set(),       // set of userIds that are prestadores
 };
 
 function rebuildIndexes() {
@@ -728,6 +729,7 @@ function rebuildIndexes() {
   IDX.email.clear(); IDX.phone.clear(); IDX.cpf.clear();
   IDX.tipsByPayer.clear(); IDX.tipsByReceiver.clear();
   IDX.likedBy.clear(); IDX.revealByTo.clear(); IDX.revealByFrom.clear(); IDX.revealByPair.clear();
+  IDX.prestador.clear();
   for (const [uid, u] of Object.entries(db.users)) {
     if (u.firebaseUid) IDX.firebaseUid.set(u.firebaseUid, uid);
     if (u.touchCode) IDX.touchCode.set(u.touchCode, uid);
@@ -735,6 +737,7 @@ function rebuildIndexes() {
     if (u.email) IDX.email.set(u.email.toLowerCase(), uid);
     if (u.phone) IDX.phone.set(u.phone, uid);
     if (u.cpf) IDX.cpf.set(u.cpf.replace(/\D/g, ''), uid);
+    if (u.isPrestador) IDX.prestador.add(uid);
   }
   for (const [rid, r] of Object.entries(db.relations)) {
     if (r.userA && r.userB) {
@@ -910,6 +913,7 @@ function idxAddUser(user) {
   if (user.firebaseUid) IDX.firebaseUid.set(user.firebaseUid, user.id);
   if (user.touchCode) IDX.touchCode.set(user.touchCode, user.id);
   if (user.nickname) IDX.nickname.set(user.nickname.toLowerCase(), user.id);
+  if (user.isPrestador) IDX.prestador.add(user.id);
 }
 
 // Helper: count donations from user in O(1)
@@ -7618,7 +7622,7 @@ app.get('/api/admin/dashboard-stats', adminLimiter, requireAdmin, (req, res) => 
     const totalUsers = users.length;
     const verified = users.filter(u => u.verified).length;
     const premium = users.filter(u => u.isSubscriber).length;
-    const prestadores = users.filter(u => u.isPrestador).length;
+    const prestadores = IDX.prestador.size;
     const admins = users.filter(u => u.isAdmin).length;
     const totalRelations = Object.keys(db.relations).length;
     const totalEncounters = Object.keys(db.encounters).length;
@@ -7667,7 +7671,7 @@ app.get('/api/admin/users', adminLimiter, requireAdmin, (req, res) => {
     let users = Object.values(db.users);
     if (filter === 'verified') users = users.filter(u => u.verified);
     else if (filter === 'premium') users = users.filter(u => u.isSubscriber);
-    else if (filter === 'prestador') users = users.filter(u => u.isPrestador);
+    else if (filter === 'prestador') users = [...IDX.prestador].map(id => db.users[id]).filter(Boolean);
     else if (filter === 'admin') users = users.filter(u => u.isAdmin);
     if (q) users = users.filter(u => (u.nickname||'').toLowerCase().includes(q)||(u.name||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)||(u.id||'').toLowerCase().includes(q));
     users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -7757,7 +7761,7 @@ app.get('/api/admin/financial', adminLimiter, requireAdmin, (req, res) => {
     const eventRevenue = events.reduce((s, e) => s + (e.revenue || 0), 0);
 
     // ── PRESTADORES (service providers) ──
-    const prestadores = Object.values(db.users).filter(u => u.isPrestador);
+    const prestadores = [...IDX.prestador].map(id => db.users[id]).filter(Boolean);
     const prestadoresConnected = prestadores.filter(u => u.mpConnected || u.stripeConnected);
 
     // ── RECENT TRANSACTIONS (combined) ──
@@ -7829,7 +7833,7 @@ app.get('/api/admin/financial', adminLimiter, requireAdmin, (req, res) => {
 // Admin: list all providers with retained balances
 app.get('/api/admin/payouts/pending', adminLimiter, requireAdmin, (req, res) => {
   try {
-    const prestadores = Object.values(db.users).filter(u => u.isPrestador);
+    const prestadores = [...IDX.prestador].map(id => db.users[id]).filter(Boolean);
     const result = [];
     prestadores.forEach(u => {
       const isConnected = u.mpConnected || u.stripeConnected;
