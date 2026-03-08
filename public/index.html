@@ -4534,6 +4534,12 @@ function showScreen(id){
     if(constState.animFrame){cancelAnimationFrame(constState.animFrame);constState.animFrame=null}
     if(constState._cleanGyro)constState._cleanGyro();
   }
+  // Stop mural polling when leaving mural
+  if(id!=='mural'&&typeof _muralPollTimer!=='undefined'&&_muralPollTimer){clearInterval(_muralPollTimer);_muralPollTimer=null}
+  // Stop delivery tracking when leaving
+  if(id!=='delivery'&&typeof _delTrackInterval!=='undefined'&&window._delTrackInterval){clearInterval(window._delTrackInterval);window._delTrackInterval=null}
+  // Stop news countdown
+  if(typeof _newsCountdownTimer!=='undefined'&&_newsCountdownTimer){clearInterval(_newsCountdownTimer);_newsCountdownTimer=null}
   // Stop face camera when leaving face enrollment
   if(id!=='faceEnrollScreen'&&_faceStream){_faceStream.getTracks().forEach(t=>t.stop());_faceStream=null;_faceCapturing=false}
   // Stop sonic + release audio when leaving home (prevents mic/audio stuck)
@@ -5009,10 +5015,11 @@ function clearCart(){evCart=[];updateCartBadge();closeCart();showToast(t('events
 function renderMenuCats(){
   const cats=[...new Set(evMenuData.map(i=>i.category||'Geral'))];
   const el=$('evMenuCats');
-  el.innerHTML='<button class="ev-cat-btn active" onclick="filterMenuCat(this,\'\')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.15);color:#f97316;font-size:.65rem;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit">Tudo</button>';
+  let html='<button class="ev-cat-btn active" onclick="filterMenuCat(this,\'\')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(249,115,22,.3);background:rgba(249,115,22,.15);color:#f97316;font-size:.65rem;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit">Tudo</button>';
   cats.forEach(cat=>{
-    el.innerHTML+='<button class="ev-cat-btn" onclick="filterMenuCat(this,\''+esc(cat)+'\')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t2);font-size:.65rem;font-weight:500;white-space:nowrap;cursor:pointer;font-family:inherit">'+esc(cat)+'</button>';
+    html+='<button class="ev-cat-btn" onclick="filterMenuCat(this,\''+esc(cat)+'\')" style="padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--t2);font-size:.65rem;font-weight:500;white-space:nowrap;cursor:pointer;font-family:inherit">'+esc(cat)+'</button>';
   });
+  el.innerHTML=html;
 }
 
 function filterMenuCat(btn,cat){
@@ -6109,6 +6116,7 @@ function initHomeNodes(nodes){
   }
   const t0=performance.now();
   function draw(){
+    if(document.hidden){_homeNodesAnim=requestAnimationFrame(draw);return}
     _homeNodesAnim=requestAnimationFrame(draw);
     const t=(performance.now()-t0)/1000;
     tiltX+=(rawTX-tiltX)*0.06;
@@ -9324,6 +9332,7 @@ function _startMatrixRain() {
   var chars = '01アウカサタナハマヤラワ';
   var frameSkip = 0;
   function draw() {
+    if(document.hidden){_muralState.matrixAnim=requestAnimationFrame(draw);return}
     frameSkip++;
     // Only draw every 3rd frame for performance
     if (frameSkip % 3 !== 0) {
@@ -11430,8 +11439,10 @@ async function showHistory(){
         z3d:zDepth,
         color:n.color||nickColor(n.nickname||'?'),baseRadius:sizeByAge,pulsePhase:Math.random()*Math.PI*2};
     });
-    // Pre-load images for revealed users — full cascade
+    // Pre-load images for revealed users — limit concurrent loads
     const myCanSee=state.revealedIds||{};
+    let _imgLoadQueue=0;
+    const IMG_LOAD_MAX=6;
     nodes.forEach(n=>{
       const revealed=!!(n.partnerRevealedToMe||myCanSee[n.id]);
       // Full photo cascade: profilePhoto > canSee snapshot > lastSelfie
@@ -11440,11 +11451,16 @@ async function showHistory(){
         ||n.lastSelfie||null;
       // DEBUG: log photo status for each node (disabled for performance)
       if(revealed&&photo){
-        const img=new Image();
-        img.src=photo;
-        n._img=img;n._imgLoaded=false;n._revealed=true;
-        img.onload=()=>{n._imgLoaded=true};
-        img.onerror=(e)=>{n._imgLoaded=false;n._revealed=true}; // show silhouette on error
+        if(_imgLoadQueue<IMG_LOAD_MAX){
+          _imgLoadQueue++;
+          const img=new Image();
+          img.src=photo;
+          n._img=img;n._imgLoaded=false;n._revealed=true;
+          img.onload=()=>{n._imgLoaded=true;_imgLoadQueue--};
+          img.onerror=(e)=>{n._imgLoaded=false;n._revealed=true;_imgLoadQueue--};
+        }else{
+          n._revealed=true;n._imgLoaded=false;n._imgDeferred=true;
+        }
       }else if(revealed){
         // Revealed but no photo at all — mark revealed for silhouette + real name
         n._img=null;n._imgLoaded=false;n._revealed=true;
@@ -15366,6 +15382,7 @@ function initRankCanvas(list,tab){
   var myId=(typeof state!=='undefined')?state.userId:'';
   if(_rankAnimFrame){cancelAnimationFrame(_rankAnimFrame);_rankAnimFrame=null;}
   function drawFrame(){
+    if(document.hidden){_rankAnimFrame=requestAnimationFrame(drawFrame);return}
     _rankAnimFrame=requestAnimationFrame(drawFrame);
     if(!document.getElementById('rankCanvas'))return;
     var t=Date.now()/1000;
@@ -19510,6 +19527,7 @@ function startFaceScanAnim(){
   line.style.opacity='1';
   let pos=0,dir=1;
   function animate(){
+    if(document.hidden){_faceScanAnim=requestAnimationFrame(animate);return}
     pos+=dir*1.5;
     if(pos>100)dir=-1;
     if(pos<0)dir=1;
@@ -20713,6 +20731,7 @@ const VA = (function(){
     if(orb){
       orb.style.transform = 'perspective(800px) rotateX(' + (-finalX).toFixed(2) + 'deg) rotateY(' + finalY.toFixed(2) + 'deg)';
     }
+    if(document.hidden){_gyroRAF=requestAnimationFrame(_gyroAnimate);return}
     _gyroRAF = requestAnimationFrame(_gyroAnimate);
   }
   function _cleanupGyro(){
@@ -20825,6 +20844,7 @@ const VA = (function(){
     // Mark as JS-driven to disable CSS animations
     if(wave) wave.classList.add('va-wave-js');
     function vizFrame(){
+      if(document.hidden){_vizRAF=requestAnimationFrame(vizFrame);return}
       _vizRAF = requestAnimationFrame(vizFrame);
       if(!_vaAnalyser || !_vaFreqData) return;
       _vaAnalyser.getByteFrequencyData(_vaFreqData);
