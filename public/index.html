@@ -11438,17 +11438,15 @@ async function showHistory(){
       const photo=n.profilePhoto
         ||(myCanSee[n.id]&&myCanSee[n.id].profilePhoto)
         ||n.lastSelfie||null;
-      // DEBUG: log photo status for each node
-      console.log('[PHOTO DEBUG]',n.nickname,'| revealed:',revealed,'| profilePhoto:',n.profilePhoto?'YES('+n.profilePhoto.substring(0,30)+')':'NULL','| canSee:',myCanSee[n.id]?JSON.stringify({photo:!!(myCanSee[n.id].profilePhoto)}):'N/A','| lastSelfie:',n.lastSelfie?'YES':'NULL','| finalPhoto:',photo?'YES':'NULL');
+      // DEBUG: log photo status for each node (disabled for performance)
       if(revealed&&photo){
         const img=new Image();
         img.src=photo;
         n._img=img;n._imgLoaded=false;n._revealed=true;
-        img.onload=()=>{n._imgLoaded=true;console.log('[PHOTO LOADED]',n.nickname)};
-        img.onerror=(e)=>{n._imgLoaded=false;n._revealed=true;console.error('[PHOTO ERROR]',n.nickname,photo.substring(0,60),e)}; // show silhouette on error
+        img.onload=()=>{n._imgLoaded=true};
+        img.onerror=(e)=>{n._imgLoaded=false;n._revealed=true}; // show silhouette on error
       }else if(revealed){
         // Revealed but no photo at all — mark revealed for silhouette + real name
-        console.log('[PHOTO NONE]',n.nickname,'revealed but no photo source at all');
         n._img=null;n._imgLoaded=false;n._revealed=true;
       }else{
         n._img=null;n._imgLoaded=false;n._revealed=false;
@@ -11553,7 +11551,7 @@ function initConstCanvas(){
   canvas.onwheel=e=>{e.preventDefault();constState.cam.zoom=Math.max(.08,Math.min(50,constState.cam.zoom*(e.deltaY>0?.9:1.1)))};
 
   // ── Particles system ──
-  const particles=Array.from({length:120},()=>({
+  const particles=Array.from({length:40},()=>({
     x:(Math.random()-.5)*W*2,y:(Math.random()-.5)*H*2,
     vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,
     r:Math.random()*.8+.2,a:Math.random()*.15+.03,
@@ -11600,10 +11598,10 @@ function initConstCanvas(){
   function draw(){
     if(document.hidden){constState.animFrame=requestAnimationFrame(draw);return}
     constState.animFrame=requestAnimationFrame(draw);
-    // Throttle: 60fps during animations, ~24fps when idle (saves CPU/battery)
+    // Throttle: 60fps during animations, ~15fps when idle (saves CPU/battery on mobile)
     const _now=performance.now();
     const isAnimating=(constState._entryAnim&&constState._entryAnim.active)||(constState._searchAnim&&constState._searchAnim.active)||(constState._touching)||Math.abs((constState.fpMode?1:0)-fpBlend)>0.01;
-    if(!isAnimating&&_now-_constLastDraw<41){return} // 41ms = ~24fps
+    if(!isAnimating&&_now-_constLastDraw<66){return} // 66ms = ~15fps idle (saves battery)
     _constLastDraw=_now;
     ctx.clearRect(0,0,W,H);
     const t=Date.now()/1000;
@@ -11643,16 +11641,18 @@ function initConstCanvas(){
     const tiltOffY=tiltY*28*tiltMul*(1-fpBlend);
 
     // ── Subtle hex grid ──
-    const gridAlpha=0.03*(1-fpBlend*0.7);
+    const gridAlpha=0.02*(1-fpBlend*0.7);
     ctx.save();ctx.globalAlpha=gridAlpha;ctx.strokeStyle='#4488ff';ctx.lineWidth=.5;
+    ctx.beginPath();
     for(let gx=-gridSpacing;gx<W+gridSpacing;gx+=gridSpacing){
       const ox=gx+tiltOffX*.3+(constState.cam.x*z*.1)%gridSpacing;
-      ctx.beginPath();ctx.moveTo(ox,0);ctx.lineTo(ox,H);ctx.stroke();
+      ctx.moveTo(ox,0);ctx.lineTo(ox,H);
     }
     for(let gy=-gridSpacing;gy<H+gridSpacing;gy+=gridSpacing){
       const oy=gy+tiltOffY*.3+(constState.cam.y*z*.1)%gridSpacing;
-      ctx.beginPath();ctx.moveTo(0,oy);ctx.lineTo(W,oy);ctx.stroke();
+      ctx.moveTo(0,oy);ctx.lineTo(W,oy);
     }
+    ctx.stroke();
     ctx.restore();
 
     // ── Floating particles ──
@@ -11738,6 +11738,8 @@ function initConstCanvas(){
     // ── Draw connections — solid LED-glow lines (thickness capped) ──
     const MAX_LINE=3; // max pixel thickness for LED core
     projected.forEach(({n,sx,sy,scale})=>{
+      // Skip lines to off-screen nodes
+      if(sx<-100||sx>W+100||sy<-100||sy>H+100)return;
       const lineBothVerified=!!(n.partnerRevealedToMe&&n.iRevealedToPartner)||(!!((n.realName&&n.realName!==n.nickname)&&(n.iRevealedToPartner||(state.revealedIds&&state.revealedIds[n.id]&&state.revealedIds[n.id]._iRevealed))));
       const lineColor=n.isEvent?'96,165,250':(lineBothVerified?'0,220,130':'100,140,255');
       let depthAlpha=Math.max(0.03,scale*0.8);
@@ -11752,27 +11754,10 @@ function initConstCanvas(){
       // Dim non-selected when searching
       if(constState._searchQuery&&!n._searchMatch)aMul*=0.15;
       ctx.save();
-      // Outer glow layer (wide, soft)
+      // Single efficient line (no multi-pass glow on mobile)
       ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(endX,endY);
-      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.3*aMul).toFixed(3)+')';
-      ctx.lineWidth=Math.min(thick*4,10);ctx.stroke();
-      // Mid glow
-      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(endX,endY);
-      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.6*aMul).toFixed(3)+')';
-      ctx.lineWidth=Math.min(thick*2,6);ctx.stroke();
-      // Core bright line (LED center)
-      ctx.beginPath();ctx.moveTo(mcx,mcy);ctx.lineTo(endX,endY);
-      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*1.2*aMul).toFixed(3)+')';
-      ctx.lineWidth=Math.min(thick*0.8,MAX_LINE);ctx.stroke();
-      // Traveling energy pulse
-      const pulsePos=(t*0.4+n.pulsePhase)%1;
-      const px=mcx+(endX-mcx)*pulsePos,py=mcy+(endY-mcy)*pulsePos;
-      const pSize=Math.max(2,Math.min(8,6*scale));
-      const pg=ctx.createRadialGradient(px,py,0,px,py,pSize);
-      pg.addColorStop(0,'rgba('+lineColor+','+(depthAlpha*0.7*aMul).toFixed(3)+')');
-      pg.addColorStop(0.4,'rgba('+lineColor+','+(depthAlpha*0.3*aMul).toFixed(3)+')');
-      pg.addColorStop(1,'transparent');
-      ctx.beginPath();ctx.arc(px,py,pSize,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
+      ctx.strokeStyle='rgba('+lineColor+','+(lineAlpha*0.8*aMul).toFixed(3)+')';
+      ctx.lineWidth=Math.min(thick*1.5,MAX_LINE);ctx.stroke();
       ctx.restore();
     });
 
@@ -11783,6 +11768,9 @@ function initConstCanvas(){
       const rawR=n.baseRadius*scale*pulse;
       const r=Math.min(rawR,MAX_NODE_R);
       if(r<0.5)return; // too small to see
+      // Viewport culling: skip nodes fully off-screen (with generous margin)
+      const margin=60;
+      if(sx<-margin||sx>W+margin||sy<-margin||sy>H+margin)return;
       const theyRevealedToMe=!!(n.partnerRevealedToMe||(state.revealedIds&&state.revealedIds[n.id]));
       // Dynamic photo loading — check on every frame if reveal status changed
       if(theyRevealedToMe&&!n._revealed){
@@ -11813,11 +11801,10 @@ function initConstCanvas(){
       if(constState._searchQuery&&n._searchMatch)depthAlpha=Math.min(1,depthAlpha*1.4);
 
       // Outer glow (capped)
-      const glowR=Math.min(r*3,50);
       ctx.save();ctx.globalAlpha=depthAlpha;
-      const glow=ctx.createRadialGradient(sx,sy,0,sx,sy,glowR);
-      glow.addColorStop(0,'rgba('+glowRGB+','+(0.06+n.intensity*.1).toFixed(2)+')');glow.addColorStop(1,'transparent');
-      ctx.beginPath();ctx.arc(sx,sy,glowR,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+      // Simplified glow (no gradient - saves GPU)
+      ctx.beginPath();ctx.arc(sx,sy,r*1.8,0,Math.PI*2);
+      ctx.fillStyle='rgba('+glowRGB+','+(0.04+n.intensity*.06).toFixed(3)+')';ctx.fill();
 
       // Node body: event icon, photo if revealed, or initials
       if(n.isEvent){
@@ -11881,7 +11868,7 @@ function initConstCanvas(){
       // Ring: GREEN = verified, RED = anonymous
       ctx.beginPath();ctx.arc(sx,sy,r+1,0,Math.PI*2);
       ctx.strokeStyle=ringColor;ctx.lineWidth=Math.max(0.3,Math.min(1,0.8*scale));
-      ctx.shadowColor=ringColor;ctx.shadowBlur=Math.max(1,Math.min(8,6*scale));ctx.stroke();ctx.shadowBlur=0;
+      ctx.stroke();
 
       // Online pulse — green breathing ring for users currently online
       if(n.isOnline&&!n.isEvent&&r>3){
