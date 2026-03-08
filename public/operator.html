@@ -1737,6 +1737,7 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <button id="fabGym" class="op-fab" onclick="openGymPanel()" title="Treinos" style="--fab-color:#10b981"><span class="op-fab-label">Treinos</span><span style="font-size:1rem">T</span><span class="badge" id="fabGymBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
         <button id="fabChurch" class="op-fab" onclick="openChurchPanel()" title="Igreja" style="--fab-color:#8b5cf6"><span class="op-fab-label">Igreja</span><span style="font-size:1rem">I</span><span class="badge" id="fabChurchBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
         <button id="fabBarber" class="op-fab" onclick="openBarberPanel()" title="Barbearia" style="--fab-color:#d4a745"><span class="op-fab-label">Barbearia</span><span style="font-size:1rem">B</span><span class="badge" id="fabBarberBadge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px">0</span></button>
+        <button id="fabSite" class="op-fab" onclick="openSitePanel()" title="Meu Site" style="--fab-color:#06b6d4"><span class="op-fab-label">Meu Site</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button>
         <button class="op-fab danger" onclick="opEndEvent()" title="Pausar"><span class="op-fab-label">Pausar</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
       </div>
       <!-- RAFFLE MODAL -->
@@ -3074,6 +3075,74 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
 
   <!-- PRINT AREA (hidden, used for thermal printing) -->
   <div id="printArea" style="display:none"></div>
+
+  <!-- ═══ MEU SITE (WHITE-LABEL) PANEL ═══ -->
+  <div class="mod-panel" id="opSitePanel" style="display:none;--mod-accent:#06b6d4;--mod-accent2:#0891b2;--mod-shadow:rgba(6,182,212,.25);--mod-glow:rgba(6,182,212,.15)">
+    <div class="mod-header" style="padding:1rem 1.2rem;position:sticky;top:0;z-index:10;background:var(--bg);backdrop-filter:blur(12px)">
+      <button class="mod-close" onclick="closeSitePanel()" style="position:absolute;right:1rem;top:1rem;background:none;border:none;color:var(--t3);font-size:1.1rem;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <div style="font-size:1rem;font-weight:700;color:var(--t1)">Meu Site</div>
+      <div style="font-size:.65rem;color:var(--t3)">Crie um site publico com a cara do seu negocio</div>
+    </div>
+    <div style="padding:0 1.2rem 2rem">
+      <!-- Toggle ativar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.8rem;background:var(--card);border-radius:var(--r);border:1px solid var(--border);margin-bottom:1rem">
+        <div><div style="font-size:.85rem;font-weight:600;color:var(--t1)">Site ativo</div><div style="font-size:.6rem;color:var(--t3)">Quando ativado, seu site fica acessivel para clientes</div></div>
+        <label style="position:relative;width:44px;height:24px;cursor:pointer"><input type="checkbox" id="siteEnabled" onchange="saveSiteConfig()" style="display:none"><span style="position:absolute;inset:0;background:var(--border);border-radius:12px;transition:.3s"></span><span style="position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s" id="siteToggleKnob"></span></label>
+      </div>
+
+      <!-- URL slug -->
+      <div style="background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:.8rem;margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:600;color:var(--t1);margin-bottom:.4rem">URL do seu site</div>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <input type="text" id="siteSlug" class="mod-input" placeholder="meu-restaurante" style="flex:1;font-size:.8rem;padding:.45rem .6rem" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')">
+          <span style="font-size:.65rem;color:var(--t3);white-space:nowrap">.touch-irl.com</span>
+        </div>
+        <div id="slugStatus" style="font-size:.6rem;margin-top:.3rem;min-height:14px"></div>
+        <button class="mod-btn" onclick="checkSlugAvailability()" style="margin-top:.3rem;font-size:.7rem;padding:.3rem .6rem;background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:6px">Verificar disponibilidade</button>
+      </div>
+
+      <!-- Cores -->
+      <div style="background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:.8rem;margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:600;color:var(--t1);margin-bottom:.4rem">Cores do site</div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+          <label style="font-size:.7rem;color:var(--t3);display:flex;align-items:center;gap:.4rem">Cor primaria <input type="color" id="sitePrimaryColor" value="#ff6b35" style="width:32px;height:24px;border:none;background:none;cursor:pointer"></label>
+          <label style="font-size:.7rem;color:var(--t3);display:flex;align-items:center;gap:.4rem">Fundo <input type="color" id="siteBgColor" value="#0a0a0f" style="width:32px;height:24px;border:none;background:none;cursor:pointer"></label>
+        </div>
+      </div>
+
+      <!-- Hero Text -->
+      <div style="background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:.8rem;margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:600;color:var(--t1);margin-bottom:.4rem">Texto de boas-vindas</div>
+        <textarea id="siteHeroText" class="mod-input" placeholder="Bem-vindo ao nosso estabelecimento! Confira nosso cardapio e faca seu pedido." style="width:100%;min-height:60px;font-size:.75rem;padding:.45rem .6rem;resize:vertical" maxlength="500"></textarea>
+        <div style="font-size:.55rem;color:var(--t3);text-align:right" id="siteHeroCount">0/500</div>
+      </div>
+
+      <!-- Save -->
+      <button class="mod-btn primary full" onclick="saveSiteConfig()" style="background:#06b6d4;margin-bottom:1rem">Salvar Configuracoes</button>
+
+      <!-- Preview + Links -->
+      <div style="background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:.8rem;margin-bottom:1rem" id="siteLinkSection" style="display:none">
+        <div style="font-size:.75rem;font-weight:600;color:var(--t1);margin-bottom:.4rem">Link do seu site</div>
+        <div id="siteUrlDisplay" style="font-size:.7rem;color:#06b6d4;word-break:break-all;margin-bottom:.4rem"></div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button class="mod-btn" onclick="copySiteLink()" style="font-size:.65rem;padding:.25rem .5rem;background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:6px">Copiar link</button>
+          <button class="mod-btn" onclick="openSitePreview()" style="font-size:.65rem;padding:.25rem .5rem;background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:6px">Abrir meu site</button>
+        </div>
+        <canvas id="siteQR" style="margin-top:.5rem;max-width:120px;border-radius:8px"></canvas>
+      </div>
+
+      <!-- Custom Domain -->
+      <div style="background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:.8rem;margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:600;color:var(--t1);margin-bottom:.4rem">Dominio proprio (opcional)</div>
+        <div style="font-size:.6rem;color:var(--t3);margin-bottom:.4rem">Conecte seu proprio dominio (ex: www.meunegocio.com)</div>
+        <div style="display:flex;gap:.4rem">
+          <input type="text" id="siteCustomDomain" class="mod-input" placeholder="www.meunegocio.com" style="flex:1;font-size:.75rem;padding:.4rem .6rem">
+          <button class="mod-btn" onclick="setupCustomDomain()" style="font-size:.65rem;padding:.3rem .6rem;background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:6px;white-space:nowrap">Configurar</button>
+        </div>
+        <div id="domainStatus" style="font-size:.6rem;margin-top:.3rem;min-height:14px"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <canvas class="op-flash" id="opFlash"></canvas>
@@ -8769,6 +8838,142 @@ async function assignDriverOp(orderId){
     });
     showToast('Motorista '+driver.name+' atribuido');
   }catch(e){showToast('Erro ao atribuir motorista')}
+}
+
+// ═══ MEU SITE (WHITE-LABEL) ═══
+function openSitePanel(){
+  $('opSitePanel').style.display='block';
+  loadSiteConfig();
+}
+function closeSitePanel(){$('opSitePanel').style.display='none'}
+
+async function loadSiteConfig(){
+  if(!S.currentEventId)return;
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/site/status');
+    const d=await r.json();
+    const sc=d.siteConfig||{};
+    $('siteEnabled').checked=sc.enabled||false;
+    updateSiteToggleUI();
+    $('siteSlug').value=sc.slug||'';
+    $('sitePrimaryColor').value=sc.primaryColor||'#ff6b35';
+    $('siteBgColor').value=sc.backgroundColor||'#0a0a0f';
+    $('siteHeroText').value=sc.heroText||'';
+    $('siteHeroCount').textContent=(sc.heroText||'').length+'/500';
+    $('siteCustomDomain').value=sc.customDomain||'';
+    // Update links
+    if(sc.slug){
+      const url=(d.siteUrl||'/s/'+sc.slug);
+      $('siteUrlDisplay').textContent=url;
+      $('siteLinkSection').style.display='block';
+      generateSiteQR(url);
+    } else {
+      $('siteLinkSection').style.display='none';
+    }
+    // Domain status
+    if(sc.customDomain){
+      const colors={pending:'#fbbf24',verified:'#22c55e',failed:'#ef4444',none:'var(--t3)'};
+      const labels={pending:'Verificando DNS...',verified:'Dominio ativo!',failed:'Falha na verificacao. Verifique o CNAME.',none:''};
+      $('domainStatus').innerHTML='<span style="color:'+(colors[sc.customDomainStatus]||'var(--t3)')+'">'+labels[sc.customDomainStatus||'none']+'</span>';
+    } else {
+      $('domainStatus').textContent='';
+    }
+  }catch(e){console.error('loadSiteConfig error:',e)}
+}
+
+function updateSiteToggleUI(){
+  const on=$('siteEnabled').checked;
+  const knob=$('siteToggleKnob');
+  const track=knob.previousElementSibling;
+  if(on){
+    knob.style.transform='translateX(20px)';
+    track.style.background='#06b6d4';
+  }else{
+    knob.style.transform='translateX(0)';
+    track.style.background='var(--border)';
+  }
+}
+$('siteEnabled').addEventListener('change',updateSiteToggleUI);
+$('siteHeroText').addEventListener('input',function(){$('siteHeroCount').textContent=this.value.length+'/500'});
+
+async function saveSiteConfig(){
+  if(!S.currentEventId)return;
+  const slug=$('siteSlug').value.trim().toLowerCase();
+  const body={
+    enabled:$('siteEnabled').checked,
+    slug:slug,
+    primaryColor:$('sitePrimaryColor').value,
+    backgroundColor:$('siteBgColor').value,
+    heroText:$('siteHeroText').value.trim()
+  };
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/site/config',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
+    });
+    const d=await r.json();
+    if(!r.ok){showToast(d.error||'Erro ao salvar');return}
+    showToast('Configuracoes do site salvas!');
+    loadSiteConfig();
+  }catch(e){showToast('Erro ao salvar configuracoes')}
+}
+
+async function checkSlugAvailability(){
+  const slug=$('siteSlug').value.trim().toLowerCase();
+  if(!slug){$('slugStatus').innerHTML='<span style="color:#ef4444">Digite um slug</span>';return}
+  try{
+    const r=await fetch('/api/site/'+slug+'/check');
+    const d=await r.json();
+    if(d.available){
+      $('slugStatus').innerHTML='<span style="color:#22c55e">Disponivel!</span>';
+    }else{
+      $('slugStatus').innerHTML='<span style="color:#ef4444">'+(d.reason||'Indisponivel')+'</span>';
+    }
+  }catch(e){$('slugStatus').innerHTML='<span style="color:#ef4444">Erro ao verificar</span>'}
+}
+
+async function setupCustomDomain(){
+  const domain=$('siteCustomDomain').value.trim().toLowerCase();
+  if(!domain){showToast('Digite um dominio');return}
+  try{
+    const r=await fetch('/api/operator/event/'+S.currentEventId+'/site/domain',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})
+    });
+    const d=await r.json();
+    if(!r.ok){showToast(d.error||'Erro');return}
+    showToast('Dominio configurado! '+d.instructions);
+    $('domainStatus').innerHTML='<span style="color:#fbbf24">Verificando DNS...</span>';
+  }catch(e){showToast('Erro ao configurar dominio')}
+}
+
+function copySiteLink(){
+  const url=$('siteUrlDisplay').textContent;
+  if(!url)return;
+  navigator.clipboard.writeText(url).then(function(){showToast('Link copiado!')}).catch(function(){showToast('Erro ao copiar')});
+}
+
+function openSitePreview(){
+  const slug=$('siteSlug').value.trim();
+  if(!slug){showToast('Defina um slug primeiro');return}
+  window.open('/s/'+slug,'_blank');
+}
+
+function generateSiteQR(url){
+  const canvas=$('siteQR');
+  if(!canvas||!url)return;
+  const size=120;canvas.width=size;canvas.height=size;
+  const ctx=canvas.getContext('2d');
+  // Simple QR placeholder - actual QR generation would need a library
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);
+  ctx.fillStyle='#0a0a0f';ctx.font='bold 10px Inter';ctx.textAlign='center';
+  ctx.fillText('QR Code',size/2,size/2-5);
+  ctx.font='8px Inter';ctx.fillText(url.replace('https://','').slice(0,25),size/2,size/2+10);
+}
+
+// Listen for domain status updates via socket
+if(typeof S!=='undefined'&&S.socket){
+  S.socket.on('site-domain-status',function(data){
+    if(data.eventId===S.currentEventId)loadSiteConfig();
+  });
 }
 
 </script>
