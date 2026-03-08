@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<title>Loading...</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── CSS Reset + Variables ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --site-primary:#ff6b35;
+  --site-bg:#0a0a0f;
+  --site-text:#e8e8ed;
+  --site-text2:#9898a0;
+  --site-surface:rgba(255,255,255,.06);
+  --site-surface2:rgba(255,255,255,.1);
+  --site-border:rgba(255,255,255,.08);
+  --site-glass:rgba(15,15,25,.7);
+  --site-radius:14px;
+  --site-radius-sm:10px;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  background:var(--site-bg);
+  color:var(--site-text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:var(--site-primary);text-decoration:none}
+button{cursor:pointer;border:none;font-family:inherit}
+img{max-width:100%;display:block}
+
+/* ── Hero Section ── */
+.hero{
+  position:relative;
+  padding:3rem 1.2rem 2rem;
+  text-align:center;
+  background:linear-gradient(180deg, rgba(0,0,0,.3) 0%, var(--site-bg) 100%);
+  border-bottom:1px solid var(--site-border);
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--site-primary) 15%, transparent) 0%, transparent 60%);
+  pointer-events:none;
+}
+.hero-logo{
+  width:80px;height:80px;border-radius:50%;
+  object-fit:cover;margin:0 auto 1rem;
+  border:3px solid var(--site-primary);
+  box-shadow:0 0 30px color-mix(in srgb, var(--site-primary) 30%, transparent);
+}
+.hero-logo-placeholder{
+  width:80px;height:80px;border-radius:50%;
+  margin:0 auto 1rem;
+  background:var(--site-surface2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;font-weight:800;color:var(--site-primary);
+  border:3px solid var(--site-primary);
+}
+.hero h1{font-size:1.6rem;font-weight:800;margin-bottom:.4rem;position:relative}
+.hero-text{font-size:.85rem;color:var(--site-text2);max-width:500px;margin:0 auto;line-height:1.5;position:relative}
+
+/* ── Info Bar ── */
+.info-bar{
+  display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;
+  padding:.8rem 1.2rem;
+  border-bottom:1px solid var(--site-border);
+}
+.info-chip{
+  display:inline-flex;align-items:center;gap:.3rem;
+  font-size:.7rem;color:var(--site-text2);
+  background:var(--site-surface);
+  padding:.3rem .6rem;border-radius:20px;
+}
+.info-chip svg{width:12px;height:12px;stroke:var(--site-primary)}
+
+/* ── Module Tabs ── */
+.mod-tabs{
+  display:flex;gap:.3rem;padding:.6rem 1rem;
+  overflow-x:auto;scrollbar-width:none;
+  border-bottom:1px solid var(--site-border);
+  position:sticky;top:0;z-index:50;
+  background:var(--site-bg);
+  backdrop-filter:blur(12px);
+}
+.mod-tabs::-webkit-scrollbar{display:none}
+.mod-tab{
+  flex-shrink:0;
+  padding:.5rem 1rem;border-radius:var(--site-radius-sm);
+  font-size:.75rem;font-weight:600;
+  background:var(--site-surface);color:var(--site-text2);
+  transition:all .2s;white-space:nowrap;
+}
+.mod-tab.active{background:var(--site-primary);color:#fff}
+.mod-tab:hover:not(.active){background:var(--site-surface2)}
+
+/* ── Module Content ── */
+.mod-content{display:none;padding:1rem;min-height:50vh}
+.mod-content.active{display:block}
+.section-title{font-size:1rem;font-weight:700;margin:1rem 0 .6rem;display:flex;align-items:center;gap:.4rem}
+.section-title svg{width:18px;height:18px;stroke:var(--site-primary)}
+
+/* ── Restaurant Grid ── */
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.8rem}
+.menu-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  overflow:hidden;border:1px solid var(--site-border);
+  transition:transform .15s,box-shadow .15s;
+}
+.menu-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.menu-card-img{width:100%;height:140px;object-fit:cover;background:var(--site-surface2)}
+.menu-card-body{padding:.7rem}
+.menu-card-name{font-size:.85rem;font-weight:600}
+.menu-card-desc{font-size:.65rem;color:var(--site-text2);margin:.2rem 0 .4rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.menu-card-footer{display:flex;align-items:center;justify-content:space-between}
+.menu-card-price{font-size:.9rem;font-weight:700;color:var(--site-primary)}
+.btn-add{
+  width:30px;height:30px;border-radius:50%;
+  background:var(--site-primary);color:#fff;
+  font-size:1.2rem;display:flex;align-items:center;justify-content:center;
+  transition:transform .15s;
+}
+.btn-add:hover{transform:scale(1.1)}
+.menu-category-label{
+  font-size:.75rem;font-weight:600;color:var(--site-primary);
+  text-transform:uppercase;letter-spacing:.05em;
+  margin:1rem 0 .4rem;padding:.3rem .6rem;
+  background:color-mix(in srgb, var(--site-primary) 10%, transparent);
+  border-radius:var(--site-radius-sm);display:inline-block;
+}
+
+/* ── Parking Module ── */
+.park-info-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:1rem;border:1px solid var(--site-border);margin-bottom:.8rem;
+}
+.park-rate{font-size:1.4rem;font-weight:800;color:var(--site-primary)}
+.park-calculator{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:1rem;border:1px solid var(--site-border);
+}
+.park-calc-row{display:flex;align-items:center;gap:.6rem;margin:.6rem 0}
+.park-calc-input{
+  flex:1;padding:.5rem .7rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface2);border:1px solid var(--site-border);
+  color:var(--site-text);font-size:.85rem;
+}
+.park-calc-result{font-size:1.2rem;font-weight:700;color:var(--site-primary);text-align:center;padding:.6rem}
+
+/* ── Gym Module ── */
+.class-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.8rem}
+.class-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:.8rem;border:1px solid var(--site-border);
+}
+.class-name{font-weight:600;font-size:.85rem}
+.class-time{font-size:.7rem;color:var(--site-primary);margin:.2rem 0}
+.class-info{font-size:.65rem;color:var(--site-text2)}
+.plan-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:1rem;border:1px solid var(--site-border);text-align:center;
+}
+.plan-name{font-weight:700;font-size:1rem}
+.plan-price{font-size:1.5rem;font-weight:800;color:var(--site-primary);margin:.3rem 0}
+.plan-period{font-size:.7rem;color:var(--site-text2)}
+.plan-features{list-style:none;margin:.6rem 0;font-size:.75rem;color:var(--site-text2)}
+.plan-features li{padding:.2rem 0}
+.plan-features li::before{content:'';display:inline-block;width:6px;height:6px;background:var(--site-primary);border-radius:50%;margin-right:.4rem}
+
+/* ── Church Module ── */
+.service-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:.8rem;border:1px solid var(--site-border);margin-bottom:.6rem;
+}
+.service-name{font-weight:600;font-size:.85rem}
+.service-time{font-size:.7rem;color:var(--site-primary);margin:.2rem 0}
+.announcement-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:.7rem;border:1px solid var(--site-border);margin-bottom:.5rem;
+  font-size:.8rem;line-height:1.5;
+}
+
+/* ── Barber Module ── */
+.barber-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.8rem}
+.barber-card{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:.8rem;border:1px solid var(--site-border);text-align:center;
+  cursor:pointer;transition:transform .15s;
+}
+.barber-card:hover{transform:translateY(-2px)}
+.barber-avatar{
+  width:60px;height:60px;border-radius:50%;object-fit:cover;
+  margin:0 auto .5rem;border:2px solid var(--site-primary);
+}
+.barber-avatar-placeholder{
+  width:60px;height:60px;border-radius:50%;
+  margin:0 auto .5rem;background:var(--site-surface2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;font-weight:700;color:var(--site-primary);
+}
+.barber-name{font-weight:600;font-size:.85rem}
+.barber-specialties{font-size:.65rem;color:var(--site-text2);margin-top:.2rem}
+.service-list-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.6rem .8rem;background:var(--site-surface);
+  border-radius:var(--site-radius-sm);margin-bottom:.4rem;
+  border:1px solid var(--site-border);
+}
+.service-list-name{font-size:.8rem;font-weight:500}
+.service-list-meta{font-size:.7rem;color:var(--site-text2)}
+.service-list-price{font-size:.85rem;font-weight:700;color:var(--site-primary)}
+
+/* ── Cart Overlay ── */
+.cart-fab{
+  position:fixed;bottom:1.5rem;right:1.5rem;z-index:100;
+  width:54px;height:54px;border-radius:50%;
+  background:var(--site-primary);color:#fff;
+  display:none;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px color-mix(in srgb, var(--site-primary) 40%, transparent);
+  font-size:1.2rem;transition:transform .15s;
+}
+.cart-fab:hover{transform:scale(1.05)}
+.cart-badge{
+  position:absolute;top:-4px;right:-4px;
+  min-width:18px;height:18px;border-radius:9px;
+  background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;padding:0 4px;
+}
+.cart-panel{
+  position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+  display:none;align-items:flex-end;justify-content:center;
+}
+.cart-panel.open{display:flex}
+.cart-sheet{
+  width:100%;max-width:500px;max-height:85vh;
+  background:var(--site-bg);border-radius:var(--site-radius) var(--site-radius) 0 0;
+  border:1px solid var(--site-border);border-bottom:none;
+  overflow-y:auto;padding:1.2rem;
+  animation:slideUp .3s ease;
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.cart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.cart-title{font-size:1rem;font-weight:700}
+.cart-close{background:none;color:var(--site-text2);font-size:1.2rem;padding:.3rem}
+.cart-item{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.6rem 0;border-bottom:1px solid var(--site-border);
+}
+.cart-item-info{flex:1}
+.cart-item-name{font-size:.8rem;font-weight:500}
+.cart-item-price{font-size:.75rem;color:var(--site-primary)}
+.cart-item-qty{
+  display:flex;align-items:center;gap:.4rem;
+}
+.cart-qty-btn{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--site-surface2);color:var(--site-text);
+  display:flex;align-items:center;justify-content:center;font-size:.8rem;
+}
+.cart-total{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.8rem 0;font-weight:700;font-size:1rem;
+}
+.cart-total-val{color:var(--site-primary);font-size:1.2rem}
+.btn-checkout{
+  width:100%;padding:.7rem;border-radius:var(--site-radius-sm);
+  background:var(--site-primary);color:#fff;font-weight:700;font-size:.85rem;
+  margin-top:.5rem;transition:opacity .15s;
+}
+.btn-checkout:hover{opacity:.9}
+.btn-checkout:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Btn Primary ── */
+.btn-primary{
+  display:inline-flex;align-items:center;justify-content:center;gap:.3rem;
+  padding:.5rem 1rem;border-radius:var(--site-radius-sm);
+  background:var(--site-primary);color:#fff;font-weight:600;font-size:.8rem;
+  transition:opacity .15s;
+}
+.btn-primary:hover{opacity:.9}
+
+/* ── Footer ── */
+.site-footer{
+  padding:2rem 1.2rem;text-align:center;
+  border-top:1px solid var(--site-border);
+  margin-top:2rem;
+}
+.footer-info{font-size:.7rem;color:var(--site-text2);line-height:1.6;margin-bottom:1rem}
+.footer-powered{font-size:.6rem;color:var(--site-text2);opacity:.6}
+.footer-powered a{color:var(--site-primary);font-weight:600}
+
+/* ── Toast ── */
+.site-toast{
+  position:fixed;top:1rem;left:50%;transform:translateX(-50%) translateY(-100px);
+  z-index:999;padding:.5rem 1rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface);color:var(--site-text);
+  font-size:.75rem;font-weight:500;backdrop-filter:blur(12px);
+  border:1px solid var(--site-border);
+  transition:transform .3s ease;
+}
+.site-toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── Empty State ── */
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--site-text2);font-size:.85rem}
+.empty-state svg{width:48px;height:48px;stroke:var(--site-text2);opacity:.4;margin-bottom:.8rem}
+
+/* ── Loading ── */
+.site-loading{
+  display:flex;align-items:center;justify-content:center;
+  min-height:60vh;flex-direction:column;gap:1rem;
+}
+.spinner{
+  width:32px;height:32px;border:3px solid var(--site-surface2);
+  border-top-color:var(--site-primary);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Responsive ── */
+@media(max-width:480px){
+  .hero{padding:2rem 1rem 1.5rem}
+  .hero h1{font-size:1.3rem}
+  .menu-grid{grid-template-columns:1fr}
+  .class-grid{grid-template-columns:1fr}
+  .barber-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading state -->
+<div class="site-loading" id="siteLoading">
+  <div class="spinner"></div>
+  <div style="font-size:.8rem;color:var(--site-text2)">Carregando...</div>
+</div>
+
+<!-- Main Content (hidden until loaded) -->
+<div id="siteMain" style="display:none">
+  <!-- HERO -->
+  <section class="hero" id="heroSection">
+    <div id="heroLogo"></div>
+    <h1 id="heroName"></h1>
+    <p class="hero-text" id="heroText"></p>
+  </section>
+
+  <!-- Info Bar -->
+  <div class="info-bar" id="infoBar"></div>
+
+  <!-- Module Tabs -->
+  <div class="mod-tabs" id="modTabs"></div>
+
+  <!-- Module Contents -->
+  <div id="modContents"></div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-info" id="footerInfo"></div>
+    <div class="footer-powered">Powered by <a href="https://touch-irl.com" target="_blank">Touch?</a></div>
+  </footer>
+</div>
+
+<!-- Cart FAB -->
+<button class="cart-fab" id="cartFab" onclick="openCart()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+  <span class="cart-badge" id="cartBadge">0</span>
+</button>
+
+<!-- Cart Panel -->
+<div class="cart-panel" id="cartPanel" onclick="if(event.target===this)closeCart()">
+  <div class="cart-sheet">
+    <div class="cart-header">
+      <div class="cart-title">Seu Pedido</div>
+      <button class="cart-close" onclick="closeCart()">&#10005;</button>
+    </div>
+    <div id="cartItems"></div>
+    <div class="cart-total">
+      <span>Total</span>
+      <span class="cart-total-val" id="cartTotal">$0.00</span>
+    </div>
+    <button class="btn-checkout" id="btnCheckout" onclick="startCheckout()">Finalizar Pedido</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="site-toast" id="siteToast"></div>
+
+<script>
+/*__SITE_CONFIG__*/
+
+const CFG = window.__SITE_CONFIG__ || {};
+const SLUG = CFG.slug || '';
+let SITE_DATA = null;
+let CART = [];
+let activeModule = '';
+
+// ── Init ──
+async function initSite() {
+  applyTheme();
+  try {
+    const r = await fetch('/api/site/' + SLUG);
+    if (!r.ok) throw new Error('Site not found');
+    SITE_DATA = await r.json();
+    renderHero();
+    renderInfoBar();
+    renderModuleTabs();
+    renderActiveModule();
+    document.getElementById('siteLoading').style.display = 'none';
+    document.getElementById('siteMain').style.display = 'block';
+    document.title = SITE_DATA.name || 'Site';
+  } catch (err) {
+    document.getElementById('siteLoading').innerHTML = '<div style="text-align:center;padding:2rem"><h2>Site nao encontrado</h2><p style="color:var(--site-text2);margin-top:.5rem">Este site pode estar desativado ou o endereco esta incorreto.</p></div>';
+  }
+}
+
+function applyTheme() {
+  const root = document.documentElement;
+  root.style.setProperty('--site-primary', CFG.primaryColor || '#ff6b35');
+  root.style.setProperty('--site-bg', CFG.backgroundColor || '#0a0a0f');
+  document.querySelector('meta[name="theme-color"]').content = CFG.backgroundColor || '#0a0a0f';
+}
+
+// ── Hero ──
+function renderHero() {
+  const logoEl = document.getElementById('heroLogo');
+  if (SITE_DATA.logo) {
+    const proxyUrl = SITE_DATA.logo.includes('firebasestorage.googleapis.com') ? '/api/storage/' + encodeURIComponent(SITE_DATA.logo) : SITE_DATA.logo;
+    logoEl.innerHTML = '<img class="hero-logo" src="' + esc(proxyUrl) + '" alt="Logo" onerror="this.outerHTML=\'<div class=hero-logo-placeholder>' + esc(SITE_DATA.name || '?').charAt(0).toUpperCase() + '</div>\'">';
+  } else {
+    logoEl.innerHTML = '<div class="hero-logo-placeholder">' + esc(SITE_DATA.name || '?').charAt(0).toUpperCase() + '</div>';
+  }
+  document.getElementById('heroName').textContent = SITE_DATA.name || '';
+  document.getElementById('heroText').textContent = SITE_DATA.heroText || '';
+}
+
+// ── Info Bar ──
+function renderInfoBar() {
+  const bar = document.getElementById('infoBar');
+  let html = '';
+  if (SITE_DATA.hours) html += '<span class="info-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>' + esc(SITE_DATA.hours) + '</span>';
+  if (SITE_DATA.phone) html += '<a class="info-chip" href="tel:' + esc(SITE_DATA.phone) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>' + esc(SITE_DATA.phone) + '</a>';
+  if (SITE_DATA.address) html += '<span class="info-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' + esc(SITE_DATA.address) + '</span>';
+  if (SITE_DATA.instagram) html += '<a class="info-chip" href="https://instagram.com/' + esc(SITE_DATA.instagram.replace('@','')) + '" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>@' + esc(SITE_DATA.instagram.replace('@','')) + '</a>';
+  bar.innerHTML = html;
+  if (!html) bar.style.display = 'none';
+}
+
+// ── Module Tabs ──
+const MODULE_LABELS = {restaurant:'Cardapio',parking:'Estacionamento',gym:'Treinos',church:'Igreja',barber:'Barbearia'};
+const MODULE_ORDER = ['restaurant','parking','gym','church','barber'];
+
+function renderModuleTabs() {
+  const tabs = document.getElementById('modTabs');
+  const enabled = MODULE_ORDER.filter(m => SITE_DATA.modules[m] && SITE_DATA[m]);
+  if (enabled.length === 0) {
+    tabs.style.display = 'none';
+    document.getElementById('modContents').innerHTML = '<div class="empty-state"><p>Este site esta em construcao.</p></div>';
+    return;
+  }
+  activeModule = enabled[0];
+  let html = '';
+  enabled.forEach(m => {
+    html += '<button class="mod-tab' + (m === activeModule ? ' active' : '') + '" data-mod="' + m + '" onclick="switchModule(\'' + m + '\')">' + MODULE_LABELS[m] + '</button>';
+  });
+  tabs.innerHTML = html;
+  // Create content containers
+  let cHtml = '';
+  enabled.forEach(m => {
+    cHtml += '<div class="mod-content' + (m === activeModule ? ' active' : '') + '" id="mod-' + m + '"></div>';
+  });
+  document.getElementById('modContents').innerHTML = cHtml;
+}
+
+function switchModule(mod) {
+  activeModule = mod;
+  document.querySelectorAll('.mod-tab').forEach(t => t.classList.toggle('active', t.dataset.mod === mod));
+  document.querySelectorAll('.mod-content').forEach(c => c.classList.toggle('active', c.id === 'mod-' + mod));
+  renderActiveModule();
+}
+
+function renderActiveModule() {
+  const el = document.getElementById('mod-' + activeModule);
+  if (!el || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  switch (activeModule) {
+    case 'restaurant': renderRestaurant(el); break;
+    case 'parking': renderParking(el); break;
+    case 'gym': renderGym(el); break;
+    case 'church': renderChurch(el); break;
+    case 'barber': renderBarber(el); break;
+  }
+}
+
+// ── Restaurant Module ──
+function renderRestaurant(el) {
+  const data = SITE_DATA.restaurant;
+  if (!data || !data.menu || data.menu.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>Cardapio ainda nao disponivel.</p></div>';
+    return;
+  }
+  let html = '';
+  if (data.welcomeMessage) html += '<p style="font-size:.8rem;color:var(--site-text2);margin-bottom:1rem">' + esc(data.welcomeMessage) + '</p>';
+  // Group by category
+  const cats = {};
+  data.menu.forEach(item => {
+    const cat = item.category || 'Geral';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(item);
+  });
+  Object.keys(cats).forEach(cat => {
+    html += '<div class="menu-category-label">' + esc(cat) + '</div>';
+    html += '<div class="menu-grid">';
+    cats[cat].forEach(item => {
+      const proxyPhoto = item.photo ? (item.photo.includes('firebasestorage') ? '/api/storage/' + encodeURIComponent(item.photo) : item.photo) : '';
+      html += '<div class="menu-card">';
+      if (proxyPhoto) html += '<img class="menu-card-img" src="' + esc(proxyPhoto) + '" alt="' + esc(item.name) + '" loading="lazy" onerror="this.style.display=\'none\'">';
+      html += '<div class="menu-card-body">';
+      html += '<div class="menu-card-name">' + esc(item.name) + '</div>';
+      if (item.description) html += '<div class="menu-card-desc">' + esc(item.description) + '</div>';
+      html += '<div class="menu-card-footer"><span class="menu-card-price">$' + Number(item.price||0).toFixed(2) + '</span>';
+      html += '<button class="btn-add" onclick="addToCart(\'' + esc(item.id) + '\')">+</button>';
+      html += '</div></div></div>';
+    });
+    html += '</div>';
+  });
+  if (data.acceptsDelivery) {
+    html += '<div style="margin-top:1rem;padding:.6rem;background:var(--site-surface);border-radius:var(--site-radius-sm);font-size:.75rem;color:var(--site-text2)">';
+    html += 'Delivery disponivel' + (data.deliveryFee > 0 ? ' - Taxa: $' + Number(data.deliveryFee).toFixed(2) : ' - Gratis') + (data.deliveryNote ? ' (' + esc(data.deliveryNote) + ')' : '');
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Cart Logic ──
+function addToCart(itemId) {
+  const item = SITE_DATA.restaurant.menu.find(i => i.id === itemId);
+  if (!item) return;
+  const existing = CART.find(c => c.id === itemId);
+  if (existing) { existing.qty++; } else { CART.push({ id: itemId, name: item.name, price: item.price, qty: 1 }); }
+  updateCartUI();
+  showToast(item.name + ' adicionado ao pedido');
+}
+
+function removeFromCart(itemId) {
+  const idx = CART.findIndex(c => c.id === itemId);
+  if (idx < 0) return;
+  if (CART[idx].qty > 1) CART[idx].qty--;
+  else CART.splice(idx, 1);
+  updateCartUI();
+}
+
+function updateCartUI() {
+  const totalItems = CART.reduce((s, c) => s + c.qty, 0);
+  const totalPrice = CART.reduce((s, c) => s + c.price * c.qty, 0);
+  const fab = document.getElementById('cartFab');
+  fab.style.display = totalItems > 0 ? 'flex' : 'none';
+  document.getElementById('cartBadge').textContent = totalItems;
+  document.getElementById('cartTotal').textContent = '$' + totalPrice.toFixed(2);
+  // Render items
+  const el = document.getElementById('cartItems');
+  if (CART.length === 0) { el.innerHTML = '<div class="empty-state"><p>Seu pedido esta vazio</p></div>'; return; }
+  let html = '';
+  CART.forEach(c => {
+    html += '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">' + esc(c.name) + '</div>';
+    html += '<div class="cart-item-price">$' + (c.price * c.qty).toFixed(2) + '</div></div>';
+    html += '<div class="cart-item-qty"><button class="cart-qty-btn" onclick="removeFromCart(\'' + esc(c.id) + '\')">-</button>';
+    html += '<span style="font-size:.8rem;min-width:20px;text-align:center">' + c.qty + '</span>';
+    html += '<button class="cart-qty-btn" onclick="addToCart(\'' + esc(c.id) + '\')">+</button></div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function openCart() { document.getElementById('cartPanel').classList.add('open'); updateCartUI(); }
+function closeCart() { document.getElementById('cartPanel').classList.remove('open'); }
+
+function startCheckout() {
+  if (CART.length === 0) return;
+  showToast('Checkout em breve! Entre em contato para finalizar seu pedido.');
+}
+
+// ── Parking Module ──
+function renderParking(el) {
+  const data = SITE_DATA.parking;
+  if (!data) { el.innerHTML = '<div class="empty-state"><p>Estacionamento nao disponivel.</p></div>'; return; }
+  let html = '';
+  if (data.welcomeMessage) html += '<p style="font-size:.8rem;color:var(--site-text2);margin-bottom:1rem">' + esc(data.welcomeMessage) + '</p>';
+  html += '<div class="park-info-card">';
+  html += '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Tarifas</div>';
+  if (data.mode === 'hourly' || data.mode === 'postpaid') {
+    html += '<div class="park-rate">$' + Number(data.hourlyRate||0).toFixed(2) + ' <span style="font-size:.7rem;color:var(--site-text2)">/hora</span></div>';
+  }
+  if (data.fixedRate > 0) {
+    html += '<div style="margin-top:.3rem;font-size:.8rem;color:var(--site-text2)">Taxa fixa: $' + Number(data.fixedRate).toFixed(2) + '</div>';
+  }
+  if (data.totalSpots > 0) {
+    const free = Math.max(0, data.totalSpots - data.occupiedSpots);
+    html += '<div style="margin-top:.5rem;font-size:.8rem">Vagas disponiveis: <strong style="color:var(--site-primary)">' + free + '</strong> / ' + data.totalSpots + '</div>';
+  }
+  html += '</div>';
+  // Calculator
+  html += '<div class="park-calculator">';
+  html += '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8.01" y2="10"/><line x1="12" y1="10" x2="12.01" y2="10"/><line x1="16" y1="10" x2="16.01" y2="10"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="16" y1="14" x2="16.01" y2="14"/><line x1="8" y1="18" x2="8.01" y2="18"/><line x1="12" y1="18" x2="16" y2="18"/></svg>Calculadora</div>';
+  html += '<div class="park-calc-row"><label style="font-size:.8rem;min-width:60px">Horas:</label><input type="number" class="park-calc-input" id="parkHours" value="1" min="1" max="' + (data.maxHours||24) + '" onchange="calcParking()"></div>';
+  html += '<div class="park-calc-result" id="parkResult">$' + Number(data.hourlyRate||0).toFixed(2) + '</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function calcParking() {
+  const hours = parseInt(document.getElementById('parkHours').value) || 1;
+  const data = SITE_DATA.parking;
+  const total = (data.fixedRate || 0) + hours * (data.hourlyRate || 0);
+  document.getElementById('parkResult').textContent = '$' + total.toFixed(2);
+}
+
+// ── Gym Module ──
+function renderGym(el) {
+  const data = SITE_DATA.gym;
+  if (!data) { el.innerHTML = '<div class="empty-state"><p>Treinos nao disponiveis.</p></div>'; return; }
+  let html = '';
+  if (data.welcomeMessage) html += '<p style="font-size:.8rem;color:var(--site-text2);margin-bottom:1rem">' + esc(data.welcomeMessage) + '</p>';
+  // Classes
+  const classes = Object.values(data.classes || {});
+  if (classes.length > 0) {
+    html += '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>Aulas</div>';
+    html += '<div class="class-grid">';
+    classes.forEach(c => {
+      html += '<div class="class-card"><div class="class-name">' + esc(c.name || '') + '</div>';
+      if (c.time) html += '<div class="class-time">' + esc(c.time) + (c.days ? ' - ' + esc(c.days) : '') + '</div>';
+      if (c.instructor) html += '<div class="class-info">Instrutor: ' + esc(c.instructor) + '</div>';
+      if (c.capacity) html += '<div class="class-info">Capacidade: ' + c.capacity + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  // Plans
+  const plans = Object.values(data.plans || {});
+  if (plans.length > 0) {
+    html += '<div class="section-title" style="margin-top:1.5rem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Planos</div>';
+    html += '<div class="class-grid">';
+    plans.forEach(p => {
+      html += '<div class="plan-card"><div class="plan-name">' + esc(p.name || '') + '</div>';
+      html += '<div class="plan-price">$' + Number(p.price||0).toFixed(2) + '</div>';
+      if (p.period) html += '<div class="plan-period">/' + esc(p.period) + '</div>';
+      if (p.features) {
+        html += '<ul class="plan-features">';
+        String(p.features).split(',').forEach(f => { if(f.trim()) html += '<li>' + esc(f.trim()) + '</li>'; });
+        html += '</ul>';
+      }
+      html += '<button class="btn-primary" style="margin-top:.5rem" onclick="showToast(\'Entre em contato para se matricular!\')">Matricular</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  if (classes.length === 0 && plans.length === 0) {
+    html = '<div class="empty-state"><p>Grade de treinos em construcao.</p></div>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Church Module ──
+function renderChurch(el) {
+  const data = SITE_DATA.church;
+  if (!data) { el.innerHTML = '<div class="empty-state"><p>Informacoes da igreja nao disponiveis.</p></div>'; return; }
+  let html = '';
+  if (data.config.churchName) html += '<div style="text-align:center;margin-bottom:1rem"><div style="font-size:1.1rem;font-weight:700">' + esc(data.config.churchName) + '</div>' + (data.config.denomination ? '<div style="font-size:.7rem;color:var(--site-text2)">' + esc(data.config.denomination) + '</div>' : '') + '</div>';
+  if (data.welcomeMessage) html += '<p style="font-size:.8rem;color:var(--site-text2);margin-bottom:1rem;text-align:center">' + esc(data.welcomeMessage) + '</p>';
+  // Services
+  const services = Object.values(data.services || {});
+  if (services.length > 0) {
+    html += '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Cultos</div>';
+    services.forEach(s => {
+      html += '<div class="service-card"><div class="service-name">' + esc(s.name || 'Culto') + '</div>';
+      if (s.day || s.time) html += '<div class="service-time">' + esc((s.day||'') + ' ' + (s.time||'')) + '</div>';
+      if (s.description) html += '<div style="font-size:.7rem;color:var(--site-text2)">' + esc(s.description) + '</div>';
+      html += '</div>';
+    });
+  }
+  // Announcements
+  const anns = data.announcements || [];
+  if (anns.length > 0) {
+    html += '<div class="section-title" style="margin-top:1rem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 006 0h8a3 3 0 006 0zM16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Avisos</div>';
+    anns.forEach(a => {
+      html += '<div class="announcement-card">' + esc(typeof a === 'string' ? a : a.text || a.message || '') + '</div>';
+    });
+  }
+  // Tithe/Offering button
+  html += '<div style="text-align:center;margin-top:1.5rem">';
+  html += '<button class="btn-primary" onclick="showToast(\'Entre em contato para fazer dizimos e ofertas\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>Dizimos e Ofertas</button>';
+  html += '</div>';
+  if (services.length === 0 && anns.length === 0) {
+    html = '<div class="empty-state"><p>Informacoes da igreja em breve.</p></div>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Barber Module ──
+function renderBarber(el) {
+  const data = SITE_DATA.barber;
+  if (!data) { el.innerHTML = '<div class="empty-state"><p>Barbearia nao disponivel.</p></div>'; return; }
+  let html = '';
+  if (data.config.welcomeMessage) html += '<p style="font-size:.8rem;color:var(--site-text2);margin-bottom:1rem">' + esc(data.config.welcomeMessage) + '</p>';
+  // Barbers
+  const barbers = data.barbers || [];
+  if (barbers.length > 0) {
+    html += '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>Equipe</div>';
+    html += '<div class="barber-grid">';
+    barbers.forEach(b => {
+      html += '<div class="barber-card">';
+      if (b.photo) {
+        const proxyPhoto = b.photo.includes('firebasestorage') ? '/api/storage/' + encodeURIComponent(b.photo) : b.photo;
+        html += '<img class="barber-avatar" src="' + esc(proxyPhoto) + '" alt="' + esc(b.name) + '" onerror="this.outerHTML=\'<div class=barber-avatar-placeholder>' + esc(b.name||'?').charAt(0).toUpperCase() + '</div>\'">';
+      } else {
+        html += '<div class="barber-avatar-placeholder">' + esc(b.name||'?').charAt(0).toUpperCase() + '</div>';
+      }
+      html += '<div class="barber-name">' + esc(b.name) + '</div>';
+      if (b.specialties && b.specialties.length) html += '<div class="barber-specialties">' + b.specialties.map(esc).join(', ') + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  // Services
+  const services = data.services || [];
+  if (services.length > 0) {
+    html += '<div class="section-title" style="margin-top:1.5rem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>Servicos</div>';
+    services.forEach(s => {
+      html += '<div class="service-list-item"><div><div class="service-list-name">' + esc(s.name || '') + '</div>';
+      if (s.duration) html += '<div class="service-list-meta">' + s.duration + ' min' + (s.barberName ? ' - ' + esc(s.barberName) : '') + '</div>';
+      html += '</div><div class="service-list-price">$' + Number(s.price||0).toFixed(2) + '</div></div>';
+    });
+  }
+  // Book button
+  html += '<div style="text-align:center;margin-top:1.5rem">';
+  html += '<button class="btn-primary" onclick="showToast(\'Agendamento online em breve! Entre em contato por telefone.\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Agendar</button>';
+  html += '</div>';
+  if (barbers.length === 0 && services.length === 0) {
+    html = '<div class="empty-state"><p>Barbearia em construcao.</p></div>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Footer ──
+function renderFooterInfo() {
+  const el = document.getElementById('footerInfo');
+  let parts = [];
+  if (SITE_DATA.hours) parts.push(SITE_DATA.hours);
+  if (SITE_DATA.address) parts.push(SITE_DATA.address);
+  if (SITE_DATA.phone) parts.push(SITE_DATA.phone);
+  el.textContent = parts.join(' | ');
+}
+
+// ── Utils ──
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s||''); return d.innerHTML; }
+
+function showToast(msg) {
+  const t = document.getElementById('siteToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Boot ──
+initSite();
+</script>
+</body>
+</html>

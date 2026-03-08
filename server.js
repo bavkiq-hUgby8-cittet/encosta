@@ -181,6 +181,103 @@ function isValidUUID(id) {
   return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
 }
 
+// ── Site white-label utils ──
+const RESERVED_SLUGS = new Set(['admin','api','s','site','operator','terms','privacy','termos','privacidade','sobre','app','www','mail','ftp','blog','help','support','status','dashboard','login','signup','register','settings','billing','checkout','pay','webhook','webhooks','static','assets','cdn','img','images','css','js','fonts','media']);
+
+function isValidSlug(slug) {
+  if (typeof slug !== 'string') return false;
+  if (slug.length < 3 || slug.length > 64) return false;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return false;
+  if (RESERVED_SLUGS.has(slug)) return false;
+  return true;
+}
+
+function isSlugAvailable(slug) {
+  for (const id of Object.keys(db.operatorEvents)) {
+    const ev = db.operatorEvents[id];
+    if (ev.siteConfig && ev.siteConfig.slug === slug) return false;
+  }
+  return true;
+}
+
+function generateSlugFromName(name) {
+  return String(name).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
+
+function isValidColor(color) {
+  return typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color);
+}
+
+function isValidDomain(domain) {
+  if (typeof domain !== 'string') return false;
+  if (domain.length < 4 || domain.length > 253) return false;
+  if (/\.touch-irl\.com$/i.test(domain)) return false;
+  return /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(domain);
+}
+
+// ── Cloudflare DNS Manager (for custom domains) ──
+const CF_API = 'https://api.cloudflare.com/client/v4';
+async function cfRequest(method, path, body) {
+  const apiKey = process.env.CLOUDFLARE_API_KEY;
+  const email = process.env.CLOUDFLARE_ACCOUNT_EMAIL;
+  if (!apiKey || !email) throw new Error('Cloudflare API not configured');
+  const opts = {
+    method,
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(CF_API + path, opts);
+  const data = await r.json();
+  if (!data.success) throw new Error('Cloudflare API error: ' + JSON.stringify(data.errors));
+  return data;
+}
+
+async function addCloudflareCNAME(domain) {
+  const zoneId = process.env.CLOUDFLARE_ZONE_ID;
+  if (!zoneId) throw new Error('CLOUDFLARE_ZONE_ID not set');
+  const data = await cfRequest('POST', '/zones/' + zoneId + '/dns_records', {
+    type: 'CNAME', name: domain, content: 'touch-irl.com', ttl: 1, proxied: true
+  });
+  return data.result.id;
+}
+
+async function deleteCloudflareDNS(recordId) {
+  const zoneId = process.env.CLOUDFLARE_ZONE_ID;
+  await cfRequest('DELETE', '/zones/' + zoneId + '/dns_records/' + recordId);
+}
+
+async function setupCustomDomainAsync(eventId, domain) {
+  try {
+    console.log('[cloudflare] Setting up domain:', domain, 'for event:', eventId);
+    const recordId = await addCloudflareCNAME(domain);
+    const ev = db.operatorEvents[eventId];
+    if (ev && ev.siteConfig) {
+      ev.siteConfig.customDomainStatus = 'verified';
+      if (db.customDomains[domain]) {
+        db.customDomains[domain].cloudflareRecordId = recordId;
+        db.customDomains[domain].dnsVerified = true;
+        db.customDomains[domain].status = 'verified';
+      }
+      saveDB('operatorEvents', 'customDomains');
+      io.to(ev.creatorId).emit('site-domain-status', { eventId, domain, status: 'verified' });
+      console.log('[cloudflare] Domain verified:', domain);
+    }
+  } catch (err) {
+    console.error('[cloudflare] Setup failed for', domain, ':', err.message);
+    const ev = db.operatorEvents[eventId];
+    if (ev && ev.siteConfig) {
+      ev.siteConfig.customDomainStatus = 'failed';
+      if (db.customDomains[domain]) db.customDomains[domain].status = 'failed';
+      saveDB('operatorEvents', 'customDomains');
+      io.to(ev.creatorId).emit('site-domain-status', { eventId, domain, status: 'failed', error: err.message });
+    }
+  }
+}
+
 // ═══ i18n: Load translated phrases ═══
 function loadI18nPhrases() {
   const i18nDir = path.join(__dirname, 'i18n');
@@ -282,6 +379,73 @@ function requireAdmin(req, res, next) {
 
   return res.status(403).json({ error: 'Acesso negado. Autenticação admin necessária.' });
 }
+
+// ── White-label site middleware: subdomain + custom domain + /s/:slug routing ──
+function findEventBySlug(slug) {
+  for (const id of Object.keys(db.operatorEvents)) {
+    const ev = db.operatorEvents[id];
+    if (ev.siteConfig && ev.siteConfig.enabled && ev.siteConfig.slug === slug) return ev;
+  }
+  return null;
+}
+
+function findEventByCustomDomain(domain) {
+  const domainEntry = db.customDomains && db.customDomains[domain.toLowerCase()];
+  if (!domainEntry || domainEntry.status !== 'verified') return null;
+  return db.operatorEvents[domainEntry.eventId] || null;
+}
+
+function serveSiteTemplate(res, ev) {
+  const sc = ev.siteConfig || {};
+  const safeConfig = JSON.stringify({
+    eventId: ev.id,
+    slug: sc.slug,
+    name: ev.businessProfile ? ev.businessProfile.name || ev.name : ev.name,
+    primaryColor: sc.primaryColor || '#ff6b35',
+    backgroundColor: sc.backgroundColor || '#0a0a0f',
+    heroText: sc.heroText || '',
+    logo: ev.eventLogo || null,
+    modules: ev.modules || {},
+    hours: ev.businessProfile ? ev.businessProfile.hours || '' : '',
+    phone: ev.businessProfile ? ev.businessProfile.phone || '' : '',
+    address: ev.businessProfile ? ev.businessProfile.address || '' : '',
+    instagram: ev.businessProfile ? ev.businessProfile.instagram || '' : '',
+    website: ev.businessProfile ? ev.businessProfile.website || '' : '',
+    acceptsTips: ev.acceptsTips || false
+  }).replace(/</g, '\\u003c');
+  const templatePath = path.join(__dirname, 'public', 'site-template.html');
+  const fs = require('fs');
+  if (!fs.existsSync(templatePath)) return res.status(404).send('Site template not found');
+  let html = fs.readFileSync(templatePath, 'utf-8');
+  html = html.replace('/*__SITE_CONFIG__*/', 'window.__SITE_CONFIG__=' + safeConfig + ';');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(html);
+}
+
+// Subdomain detection middleware
+app.use((req, res, next) => {
+  const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0];
+  // Check subdomain: xxx.touch-irl.com
+  const subMatch = host.match(/^([a-z0-9-]+)\.touch-irl\.com$/);
+  if (subMatch && subMatch[1] !== 'www' && subMatch[1] !== 'api') {
+    const ev = findEventBySlug(subMatch[1]);
+    if (ev) return serveSiteTemplate(res, ev);
+  }
+  // Check custom domain
+  if (host && !host.includes('touch-irl.com') && !host.includes('onrender.com') && !host.includes('localhost')) {
+    const ev = findEventByCustomDomain(host);
+    if (ev) return serveSiteTemplate(res, ev);
+  }
+  next();
+});
+
+// Path-based site access: /s/:slug
+app.get('/s/:slug', (req, res) => {
+  const ev = findEventBySlug(req.params.slug);
+  if (!ev) return res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
+  serveSiteTemplate(res, ev);
+});
 
 // Clean URL routes for static pages
 app.get('/site', (req, res) => res.sendFile(path.join(__dirname, 'public', 'site.html')));
@@ -388,7 +552,7 @@ function setupStorageProxy(app) {
 // ── Database (in-memory cache synced with Firebase Realtime Database) ──
 // PERF: 'messages' is LAZY-LOADED from Firebase on demand (biggest collection by far)
 // This saves ~40% RAM at scale (5M messages = 1.2GB saved)
-const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags', 'eventPayments', 'payouts'];
+const DB_COLLECTIONS = ['users', 'sessions', 'relations', 'messages', 'encounters', 'gifts', 'declarations', 'events', 'checkins', 'tips', 'streaks', 'locations', 'revealRequests', 'likes', 'starDonations', 'operatorEvents', 'docVerifications', 'faceData', 'gameConfig', 'subscriptions', 'verifications', 'faceAccessLog', 'gameSessions', 'gameScores', 'ultimateBank', 'vaConfig', 'vaConversations', 'deliveryOrders', 'muralPosts', 'muralFlags', 'eventPayments', 'payouts', 'customDomains'];
 const LAZY_COLLECTIONS = ['messages']; // loaded on demand, not on startup
 const EAGER_COLLECTIONS = DB_COLLECTIONS.filter(c => !LAZY_COLLECTIONS.includes(c));
 
@@ -12905,7 +13069,16 @@ app.post('/api/operator/event/create', async (req, res) => {
       gym: !!modules.gym,
       church: !!modules.church,
       barber: !!modules.barber
-    } : { restaurant: true, parking: false, gym: false, church: false, barber: false }
+    } : { restaurant: true, parking: false, gym: false, church: false, barber: false },
+    siteConfig: {
+      enabled: false,
+      slug: '',
+      primaryColor: '#ff6b35',
+      backgroundColor: '#0a0a0f',
+      heroText: '',
+      customDomain: '',
+      customDomainStatus: 'none'
+    }
   };
   // Add to index so it shows in operator's event list immediately
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
@@ -14838,6 +15011,148 @@ app.delete('/api/operator/event/:eventId/parking/vehicle/:plate', (req, res) => 
   delete ev.parking.vehicles[plate];
   saveDB('operatorEvents');
   res.json({ ok: true });
+});
+
+// ═══ WHITE-LABEL SITE API ═══
+
+// Public: Get site data by slug (sanitized - no sensitive fields)
+app.get('/api/site/:slug', (req, res) => {
+  const ev = findEventBySlug(req.params.slug);
+  if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
+  const bp = ev.businessProfile || {};
+  const mods = ev.modules || {};
+  const data = {
+    name: bp.name || ev.name,
+    slug: ev.siteConfig.slug,
+    logo: ev.eventLogo || null,
+    primaryColor: ev.siteConfig.primaryColor || '#ff6b35',
+    backgroundColor: ev.siteConfig.backgroundColor || '#0a0a0f',
+    heroText: ev.siteConfig.heroText || '',
+    hours: bp.hours || '',
+    phone: bp.phone || '',
+    address: bp.address || '',
+    instagram: bp.instagram || '',
+    website: bp.website || '',
+    acceptsTips: ev.acceptsTips || false,
+    modules: mods,
+    restaurant: mods.restaurant ? {
+      menu: (ev.menu || []).filter(i => i.available !== false).map(i => ({
+        id: i.id, name: i.name, price: i.price, description: i.description || '',
+        photo: i.photo || null, category: i.category || ''
+      })),
+      welcomeMessage: bp.welcomeRestaurant || '',
+      acceptsDelivery: bp.acceptsDelivery || false,
+      deliveryFee: bp.deliveryFee || 0,
+      deliveryNote: bp.deliveryNote || ''
+    } : null,
+    parking: mods.parking && ev.parking ? {
+      mode: ev.parking.mode,
+      hourlyRate: ev.parking.hourlyRate,
+      fixedRate: ev.parking.fixedRate || 0,
+      maxHours: ev.parking.maxHours || 24,
+      welcomeMessage: bp.welcomeParking || '',
+      totalSpots: ev.parking.totalSpots || 0,
+      occupiedSpots: Object.keys(ev.parking.vehicles || {}).length
+    } : null,
+    gym: mods.gym && ev.gym ? {
+      config: ev.gym.config || {},
+      classes: ev.gym.classes || {},
+      plans: ev.gym.plans || {},
+      welcomeMessage: bp.welcomeGym || ''
+    } : null,
+    church: mods.church && ev.church ? {
+      config: { churchName: (ev.church.config || {}).churchName || '', denomination: (ev.church.config || {}).denomination || '' },
+      services: ev.church.services || {},
+      announcements: (ev.church.announcements || []).slice(-10),
+      welcomeMessage: bp.welcomeChurch || ''
+    } : null,
+    barber: mods.barber && ev.barber ? {
+      config: { barberName: (ev.barber.config || {}).barberName || '', welcomeMessage: (ev.barber.config || {}).welcomeMessage || '' },
+      barbers: (ev.barber.barbers || []).map(b => ({ id: b.id, name: b.name, photo: b.photo || null, specialties: b.specialties || [] })),
+      services: (ev.barber.barbers || []).flatMap(b => (b.services || []).map(s => ({ barberId: b.id, barberName: b.name, ...s })))
+    } : null
+  };
+  res.json(data);
+});
+
+// Public: Check slug availability
+app.get('/api/site/:slug/check', (req, res) => {
+  const slug = (req.params.slug || '').toLowerCase();
+  if (!isValidSlug(slug)) return res.json({ available: false, reason: 'Slug invalido (3-64 chars, letras minusculas, numeros e hifens)' });
+  const available = isSlugAvailable(slug);
+  res.json({ available, reason: available ? '' : 'Slug ja em uso' });
+});
+
+// Operator: Save site config
+app.post('/api/operator/event/:eventId/site/config', express.json(), (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const { enabled, slug, primaryColor, backgroundColor, heroText } = req.body;
+  if (!ev.siteConfig) ev.siteConfig = { enabled: false, slug: '', primaryColor: '#ff6b35', backgroundColor: '#0a0a0f', heroText: '', customDomain: '', customDomainStatus: 'none' };
+  if (typeof enabled === 'boolean') ev.siteConfig.enabled = enabled;
+  if (slug !== undefined) {
+    const s = String(slug).toLowerCase().trim();
+    if (s && !isValidSlug(s)) return res.status(400).json({ error: 'Slug invalido (3-64 chars, letras minusculas, numeros e hifens, sem palavras reservadas)' });
+    if (s && s !== ev.siteConfig.slug && !isSlugAvailable(s)) return res.status(400).json({ error: 'Slug ja em uso por outro operador' });
+    ev.siteConfig.slug = s;
+  }
+  if (primaryColor !== undefined) {
+    if (!isValidColor(primaryColor)) return res.status(400).json({ error: 'Cor primaria invalida (formato #RRGGBB)' });
+    ev.siteConfig.primaryColor = primaryColor;
+  }
+  if (backgroundColor !== undefined) {
+    if (!isValidColor(backgroundColor)) return res.status(400).json({ error: 'Cor de fundo invalida (formato #RRGGBB)' });
+    ev.siteConfig.backgroundColor = backgroundColor;
+  }
+  if (heroText !== undefined) {
+    ev.siteConfig.heroText = sanitizeStr(heroText, 500);
+  }
+  saveDB('operatorEvents');
+  res.json({ ok: true, siteConfig: ev.siteConfig });
+});
+
+// Operator: Get site status
+app.get('/api/operator/event/:eventId/site/status', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const sc = ev.siteConfig || { enabled: false, slug: '', primaryColor: '#ff6b35', backgroundColor: '#0a0a0f', heroText: '', customDomain: '', customDomainStatus: 'none' };
+  res.json({
+    siteConfig: sc,
+    siteUrl: sc.slug ? (process.env.BASE_URL || 'https://touch-irl.com') + '/s/' + sc.slug : null,
+    subdomainUrl: sc.slug ? 'https://' + sc.slug + '.touch-irl.com' : null,
+    customDomainUrl: sc.customDomain && sc.customDomainStatus === 'verified' ? 'https://' + sc.customDomain : null
+  });
+});
+
+// Operator: Setup custom domain
+app.post('/api/operator/event/:eventId/site/domain', express.json(), async (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const { domain } = req.body;
+  if (!domain) return res.status(400).json({ error: 'Dominio obrigatorio' });
+  const d = domain.toLowerCase().trim();
+  if (!isValidDomain(d)) return res.status(400).json({ error: 'Dominio invalido' });
+  // Check if domain is already used by another event
+  if (db.customDomains[d] && db.customDomains[d].eventId !== ev.id) {
+    return res.status(400).json({ error: 'Dominio ja vinculado a outro evento' });
+  }
+  if (!ev.siteConfig) ev.siteConfig = { enabled: false, slug: '', primaryColor: '#ff6b35', backgroundColor: '#0a0a0f', heroText: '', customDomain: '', customDomainStatus: 'none' };
+  ev.siteConfig.customDomain = d;
+  ev.siteConfig.customDomainStatus = 'pending';
+  db.customDomains[d] = {
+    eventId: ev.id,
+    operatorId: ev.creatorId,
+    status: 'pending',
+    dnsVerified: false,
+    cloudflareRecordId: null,
+    createdAt: Date.now()
+  };
+  saveDB('operatorEvents', 'customDomains');
+  // Try Cloudflare setup if keys are configured
+  if (process.env.CLOUDFLARE_API_KEY && process.env.CLOUDFLARE_ZONE_ID) {
+    setupCustomDomainAsync(ev.id, d).catch(err => console.error('[cloudflare] Domain setup failed:', err.message));
+  }
+  res.json({ ok: true, status: 'pending', instructions: 'Aponte o DNS do seu dominio (' + d + ') com um CNAME para touch-irl.com. A verificacao sera automatica.' });
 });
 
 // ═══ OPERATOR FULL DATA ENDPOINTS ═══
