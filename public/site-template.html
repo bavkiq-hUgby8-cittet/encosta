@@ -493,6 +493,23 @@ img{max-width:100%;display:block}
         <label>Email</label>
         <input type="email" class="checkout-input" id="custEmail" placeholder="email@exemplo.com" maxlength="100">
       </div>
+      <!-- Express Checkout: Apple Pay / Google Pay -->
+      <div id="siteExpressCheckout" style="display:none;margin-bottom:.8rem">
+        <div style="font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.4rem">Pagamento rapido</div>
+        <button id="siteApplePayBtn" onclick="siteExpressCheckout()" style="display:none;width:100%;height:44px;background:#000;color:#fff;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;margin-bottom:.4rem;letter-spacing:.3px">
+          <svg style="vertical-align:middle;margin-right:4px" width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+          Apple Pay
+        </button>
+        <button id="siteGooglePayBtn" onclick="siteExpressCheckout()" style="display:none;width:100%;height:44px;background:#fff;color:#3c4043;border:1px solid #dadce0;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;margin-bottom:.4rem;letter-spacing:.3px">
+          <svg style="vertical-align:middle;margin-right:4px" width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Google Pay
+        </button>
+        <div style="display:flex;align-items:center;gap:.5rem;margin:.6rem 0;color:var(--site-text2);font-size:.7rem">
+          <div style="flex:1;height:1px;background:var(--site-border)"></div>
+          <span>ou</span>
+          <div style="flex:1;height:1px;background:var(--site-border)"></div>
+        </div>
+      </div>
       <!-- Payment method -->
       <div style="font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.3rem">Forma de pagamento</div>
       <div class="payment-methods">
@@ -735,6 +752,10 @@ let stripePaymentElement = null;
 let stripeClientSecret = null;
 let lastOrderId = null;
 let lastReceiptNumber = null;
+let siteStripePublicKey = null;
+let sitePaymentRequest = null;
+let siteStripeInstance = null;
+let siteExpressAvailable = false;
 
 // ── Stripe Init ──
 async function initStripe() {
@@ -742,10 +763,121 @@ async function initStripe() {
     const r = await fetch('/api/stripe/config');
     const d = await r.json();
     if (d.publicKey) {
+      siteStripePublicKey = d.publicKey;
       stripeObj = Stripe(d.publicKey);
       document.getElementById('pmCardBtn').style.display = 'block';
+      // After Payment Element is ready, also init Express Checkout
+      initSiteExpressCheckout();
     }
   } catch (e) { /* Stripe not available, counter-only */ }
+}
+
+// ── Express Checkout (Apple Pay / Google Pay) ──
+function initSiteExpressCheckout() {
+  if (!siteStripePublicKey || !window.Stripe) return;
+  try {
+    siteStripeInstance = Stripe(siteStripePublicKey);
+    // Detect user region from browser locale
+    var lang = (navigator.language || navigator.languages[0] || 'en-US').toUpperCase();
+    var regionMatch = lang.match(/[-_]([A-Z]{2})$/);
+    var reqCountry = regionMatch ? regionMatch[1] : 'US';
+    var STRIPE_COUNTRIES = new Set(['US','GB','JP','DE','FR','ES','IT','PT','NL','IE','AT','BE','FI','SE','NO','DK','CH','AU','NZ','CA','SG','HK','KR']);
+    if (!STRIPE_COUNTRIES.has(reqCountry)) reqCountry = 'US';
+    // Detect currency from country
+    var currencyMap = { US:'usd', GB:'gbp', JP:'jpy', DE:'eur', FR:'eur', ES:'eur', IT:'eur', PT:'eur', NL:'eur', IE:'eur', AT:'eur', BE:'eur', FI:'eur', SE:'sek', NO:'nok', DK:'dkk', CH:'chf', AU:'aud', NZ:'nzd', CA:'cad', SG:'sgd', HK:'hkd', KR:'krw', BR:'brl', MX:'mxn', AR:'ars', CL:'clp', CO:'cop' };
+    var siteCurrency = currencyMap[reqCountry] || 'usd';
+    sitePaymentRequest = siteStripeInstance.paymentRequest({
+      country: reqCountry,
+      currency: siteCurrency,
+      total: { label: CFG.name || 'Touch?', amount: 100 },
+      requestPayerEmail: true,
+      requestPayerName: true
+    });
+    sitePaymentRequest.canMakePayment().then(function(result) {
+      if (!result) return;
+      siteExpressAvailable = true;
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      var isApple = !!result.applePay;
+      var isGoogle = !!result.googlePay && !isIOS;
+      var container = document.getElementById('siteExpressCheckout');
+      if (isApple || isGoogle) container.style.display = '';
+      if (isApple) document.getElementById('siteApplePayBtn').style.display = '';
+      if (isGoogle) document.getElementById('siteGooglePayBtn').style.display = '';
+    });
+  } catch (e) { console.log('[site-express-checkout] error:', e); }
+}
+
+function siteExpressCheckout() {
+  if (!sitePaymentRequest || !siteStripeInstance) { showToast('Pagamento express indisponivel'); return; }
+  var total = getTotal();
+  if (total < 1) { showToast('Valor minimo $1 para Apple Pay / Google Pay'); return; }
+  // Currency - detect same as init
+  var lang = (navigator.language || navigator.languages[0] || 'en-US').toUpperCase();
+  var regionMatch = lang.match(/[-_]([A-Z]{2})$/);
+  var reqCountry = regionMatch ? regionMatch[1] : 'US';
+  var currencyMap = { US:'usd', GB:'gbp', JP:'jpy', DE:'eur', FR:'eur', ES:'eur', IT:'eur', PT:'eur', NL:'eur', IE:'eur', AT:'eur', BE:'eur', FI:'eur', SE:'sek', NO:'nok', DK:'dkk', CH:'chf', AU:'aud', NZ:'nzd', CA:'cad', SG:'sgd', HK:'hkd', KR:'krw', BR:'brl', MX:'mxn' };
+  var siteCurrency = currencyMap[reqCountry] || 'usd';
+  var ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
+  var amountForStripe = ZERO_DECIMAL.has(siteCurrency) ? Math.round(total) : Math.round(total * 100);
+  sitePaymentRequest.update({
+    total: { label: CFG.name || 'Touch?', amount: amountForStripe },
+    currency: siteCurrency
+  });
+  sitePaymentRequest.show();
+  // Remove previous listeners to avoid double-fire
+  sitePaymentRequest.off('paymentmethod');
+  sitePaymentRequest.on('paymentmethod', function(ev) {
+    var custName = ev.payerName || document.getElementById('custName').value.trim() || 'Guest';
+    var custEmail = ev.payerEmail || document.getElementById('custEmail').value.trim() || '';
+    // Step 1: Confirm payment via Express Checkout endpoint
+    fetch('/api/site/' + SLUG + '/express-pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentMethodId: ev.paymentMethod.id,
+        amount: total,
+        currency: siteCurrency,
+        customerName: custName,
+        customerEmail: custEmail
+      })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.ok) {
+        ev.complete('success');
+        // Step 2: Create order with payment confirmed
+        var orderData = {
+          customerName: custName,
+          customerPhone: document.getElementById('custPhone').value.trim(),
+          customerEmail: custEmail,
+          items: CART.map(function(c) { return { menuItemId: c.id, qty: c.qty }; }),
+          notes: document.getElementById('orderNotes').value.trim(),
+          paymentMethod: 'card',
+          tipPercent: selectedTip,
+          tipAmount: getTipAmount()
+        };
+        fetch('/api/site/' + SLUG + '/order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        }).then(function(r2) { return r2.json(); }).then(function(d2) {
+          if (d2.ok) {
+            lastOrderId = d2.order.id;
+            lastReceiptNumber = d2.order.receiptNumber;
+            document.getElementById('confirmReceipt').textContent = '#' + d2.order.receiptNumber;
+            document.getElementById('confirmMsg').textContent = 'Pago via Apple Pay / Google Pay | Total: $' + d2.order.total.toFixed(2);
+            CART = [];
+            updateCartUI();
+            showStep(3);
+            startOrderTracking();
+          } else {
+            showToast(d2.error || 'Erro ao criar pedido');
+          }
+        }).catch(function() { showToast('Erro de conexao ao criar pedido'); });
+      } else {
+        ev.complete('fail');
+        showToast(d.error || 'Erro no pagamento');
+      }
+    }).catch(function() { ev.complete('fail'); showToast('Erro de conexao'); });
+  });
 }
 
 // ── Step Navigation ──

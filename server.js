@@ -424,7 +424,10 @@ function serveSiteTemplate(res, ev) {
 }
 
 // Subdomain detection middleware
+// IMPORTANT: Skip API, socket.io and static asset paths so they reach the correct handlers
 app.use((req, res, next) => {
+  const p = req.path;
+  if (p.startsWith('/api/') || p.startsWith('/socket.io/') || p.startsWith('/s/') || p === '/favicon.ico') return next();
   const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0];
   // Check subdomain: xxx.touch-irl.com
   const subMatch = host.match(/^([a-z0-9-]+)\.touch-irl\.com$/);
@@ -15314,6 +15317,55 @@ app.post('/api/site/:slug/create-payment-intent', express.json(), siteOrderLimit
   } catch (e) {
     console.error('[site-stripe] Error:', e.message);
     res.status(500).json({ error: 'Erro ao processar pagamento: ' + e.message });
+  }
+});
+
+// ── Site White-Label: Express Checkout (Apple Pay / Google Pay) - PUBLIC ──
+// This mirrors /api/stripe/pay but without requireAuth, for site guests
+app.post('/api/site/:slug/express-pay', express.json(), siteOrderLimiter, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const ev = findEventBySlug(req.params.slug);
+  if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
+  const { paymentMethodId, amount, currency, customerName, customerEmail } = req.body;
+  if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId obrigatorio' });
+  if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
+  if (amount > 50000) return res.status(400).json({ error: 'Valor maximo excedido' });
+  const curr = (currency || 'usd').toLowerCase();
+  const ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
+  const amountCents = ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
+  try {
+    const intentData = {
+      amount: amountCents,
+      currency: curr,
+      payment_method: paymentMethodId,
+      confirm: true,
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      metadata: {
+        source: 'touch-site-express',
+        slug: ev.siteConfig.slug,
+        eventId: ev.id,
+        type: 'order',
+        customerName: sanitizeStr(customerName || '', 60),
+        customerEmail: sanitizeStr(customerEmail || '', 100)
+      }
+    };
+    // Split payment if operator has Stripe Connect
+    const operator = db.users[ev.creatorId];
+    if (operator && operator.stripeConnectId && operator.stripeConnected) {
+      const fee = Math.round(amountCents * TOUCH_FEE_PERCENT / 100);
+      intentData.application_fee_amount = fee;
+      intentData.transfer_data = { destination: operator.stripeConnectId };
+    }
+    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
+    if (paymentIntent.status === 'succeeded') {
+      console.log('[site-express-pay] Payment succeeded for', ev.siteConfig.slug, '| $' + amount, '| PI:', paymentIntent.id);
+      res.json({ ok: true, paymentIntentId: paymentIntent.id });
+    } else {
+      res.json({ ok: false, error: 'Pagamento nao confirmado', status: paymentIntent.status });
+    }
+  } catch (e) {
+    console.error('[site-express-pay] Error:', e.message);
+    res.json({ ok: false, error: e.message });
   }
 });
 
