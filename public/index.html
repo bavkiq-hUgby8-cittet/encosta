@@ -2522,7 +2522,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#fbbf24" id="bpStars">0</div><div style="font-size:.45rem;color:var(--t3);letter-spacing:.06em">estrelas</div></div>
         <div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--t1)" id="bpPeople">0</div><div style="font-size:.45rem;color:var(--t3);letter-spacing:.06em">pessoas</div></div>
         <div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#ff6b8a" id="bpLikes">0</div><div style="font-size:.45rem;color:var(--t3);letter-spacing:.06em">curtidas</div></div>
-        <div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--ac)" id="bpScore">0</div><div style="font-size:.45rem;color:var(--t3);letter-spacing:.06em">score</div></div>
+        <div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--ac)" id="bpScore">0</div><div style="font-size:.45rem;color:var(--t3);letter-spacing:.06em">moedas</div></div>
       </div>
       <div style="margin-top:.2rem"><span id="bpTag" style="font-size:.55rem;font-weight:700;color:#ffd700;background:rgba(255,215,0,.08);padding:.12rem .45rem;border-radius:8px">—</span></div>
     </div>
@@ -8686,7 +8686,7 @@ async function openChat(rel){
     if(ps&&ps.score!=null){
       $('partnerPtsNum').textContent=ps.score;
       const sub=$('chatSub');
-      const extra=(ps.stars>0?' · '+ps.stars+' estrelas':'')+(ps.score>0?' · '+ps.score+'pts':'');
+      const extra=(ps.stars>0?' · '+ps.stars+' estrelas':'')+(ps.score>0?' · '+ps.score+' moedas':'');
       if(pRealName&&pRealName!==pNick){
         sub.innerHTML='<span style="color:var(--ok)">ID</span> · @'+esc(pNick)+extra;
       }else{
@@ -12380,8 +12380,8 @@ function showConstDetail(node){
   let statParts=[];
   const likes=node.likesCount||0;
   if(stars>0)statParts.push('<span class="cd-stat-inline"><b style="color:#fbbf24">'+stars+'</b> estrelas</span>');
-  statParts.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> pts</span>');
-  statParts.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexões</span>');
+  statParts.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> moedas</span>');
+  statParts.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexoes</span>');
   statParts.push('<span class="cd-stat-inline"><b style="color:#f87171">'+likes+'</b> curtidas</span>');
   statsEl.innerHTML=statParts.join('<span class="cd-stat-sep">·</span>');
   // Profile tags: profession, sports, hobbies
@@ -14898,7 +14898,7 @@ async function toggleLike(targetUserId){
         var score=curNode.score||0;
         var conns=curNode.uniqueConnections||curNode.touchers||0;
         if(stars>0)st.push('<span class="cd-stat-inline"><b style="color:#fbbf24">'+stars+'</b> estrelas</span>');
-        st.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> pts</span>');
+        st.push('<span class="cd-stat-inline"><b style="color:#60a5fa">'+score+'</b> moedas</span>');
         st.push('<span class="cd-stat-inline"><b>'+conns+'</b> conexoes</span>');
         st.push('<span class="cd-stat-inline"><b style="color:#f87171">'+(d.count||0)+'</b> curtidas</span>');
         statsEl.innerHTML=st.join('<span class="cd-stat-sep">·</span>');
@@ -15099,13 +15099,13 @@ async function buyStarForPerson(targetUserId){
   try{
     const shop=await(await fetch('/api/star/shop/'+state.userId)).json();
     const cost=shop.giftCost;
-    if(shop.spendablePoints<cost)return showToast('Pontos insuficientes. Custo: '+cost+', Disponível: '+shop.spendablePoints);
-    if(!confirm('Comprar ★ estrela para essa pessoa?\nCusto: '+cost+' pontos (Disponível: '+shop.spendablePoints+')'))return;
+    if(shop.spendablePoints<cost)return showToast('Moedas insuficientes. Custo: '+cost+', Disponivel: '+shop.spendablePoints);
+    if(!confirm('Comprar estrela para essa pessoa?\nCusto: '+cost+' moedas (Disponivel: '+shop.spendablePoints+')'))return;
     const r=await fetch('/api/star/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,target:targetUserId})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
     haptic([60,30,60,30,100]);
-    showToast('★ Estrela comprada! (-'+d.cost+' pts)');
+    showToast('Estrela comprada! (-'+d.cost+' moedas)');
   }catch(e){showToast('Erro ao comprar.')}
 }
 
@@ -15116,15 +15116,15 @@ async function buyStarSelf(slotIndex){
     const shop=await(await fetch('/api/star/shop/'+state.userId)).json();
     const cost=shop.fixedPrice||shop.selfCost||100;
     const score=shop.spendablePoints||0;
-    if(score<cost)return showToast('Score insuficiente. Custo: '+cost+' sc, Disponivel: '+score+' sc');
+    if(score<cost)return showToast('Moedas insuficientes. Custo: '+cost+', Disponivel: '+score);
     const bd=shop.breakdown||{};
     if((bd.temporary||0)>=(shop.maxTempStars||5))return showToast('Limite de estrelas temporarias atingido (max '+(shop.maxTempStars||5)+')');
-    if(!confirm('Comprar estrela temporaria (30 dias)?\nCusto: '+cost+' sc\nSeu score: '+score+' sc'))return;
+    if(!confirm('Comprar estrela temporaria (30 dias)?\nCusto: '+cost+' moedas\nSuas moedas: '+score))return;
     const r=await fetch('/api/star/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,target:'self'})});
     const d=await r.json();
     if(d.error)return showToast(d.error);
     haptic([60,30,60,30,100]);
-    showToast('Estrela adquirida! (-'+cost+' sc)');
+    showToast('Estrela adquirida! (-'+cost+' moedas)');
     // Refresh profile if open
     if($('pfScroll'))showProfile(state.userId);
     // Refresh my profile overlay if open
@@ -15197,7 +15197,7 @@ function renderStarSlots(profileData,isOwnProfile){
     if(sl.filled){
       tooltip=sl.category==='permanent'?'Permanente':sl.category==='professional'?'Profissional':('Temporaria'+(sl.daysLeft?' ('+sl.daysLeft+')':''));
     }else{
-      tooltip=sl.buyable?'Comprar (100 sc)':sl.category==='permanent'?(sl.milestone||'?')+' conexoes':sl.category==='professional'?'Em breve':'';
+      tooltip=sl.buyable?'Comprar (100 moedas)':sl.category==='permanent'?(sl.milestone||'?')+' conexoes':sl.category==='professional'?'Em breve':'';
     }
     h+='<div title="'+tooltip+'" style="cursor:'+cursor+';transition:.12s;line-height:0" '+onclick+' onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'none\'">';
     h+=starSvg;
@@ -15674,7 +15674,7 @@ function downloadBoardingPass(){
   ctx.fillStyle='#555568';ctx.font='13px Inter,sans-serif';
   ctx.fillText($('bpSince').textContent,320,290);
   // Stats boxes
-  const stats=[{n:$('bpScore').textContent,l:'SCORE'},{n:$('bpStars').textContent,l:'ESTRELAS'},{n:$('bpPeople').textContent,l:'PESSOAS'},{n:$('bpTotal').textContent,l:'ENCONTROS'}];
+  const stats=[{n:$('bpScore').textContent,l:'MOEDAS'},{n:$('bpStars').textContent,l:'ESTRELAS'},{n:$('bpPeople').textContent,l:'PESSOAS'},{n:$('bpTotal').textContent,l:'ENCONTROS'}];
   const sw=120,sy=340;
   stats.forEach((s,i)=>{
     const sx=30+i*(sw+25);
@@ -15743,7 +15743,7 @@ function renderProfile(d,userId){
   if(d.phone)socials.push('<span style="color:var(--t2)">'+esc(d.phone)+'</span>');
   if(socials.length)html+='<div style="font-size:.68rem;margin-top:.3rem;display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center">'+socials.join('')+'</div>';
   html+='<div class="pf-stats">';
-  html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#60a5fa">'+(d.score||0)+'</div><div class="pf-stat-lbl">score</div></div>';
+  html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#60a5fa">'+(d.score||0)+'</div><div class="pf-stat-lbl">moedas</div></div>';
   html+='<div class="pf-stat"><div class="pf-stat-num">'+d.uniquePeople+'</div><div class="pf-stat-lbl">conexoes</div></div>';
   html+='<div class="pf-stat"><div class="pf-stat-num" style="color:#ff6b8a">'+(d.likesCount||0)+'</div><div class="pf-stat-lbl">curtidas</div></div>';
   html+='</div>';
@@ -16258,7 +16258,7 @@ function selectGift(giftId){
   html+='<div class="modal-title">'+esc(gift.name)+'</div>';
   html+='<div style="text-align:center;font-size:1.8rem;margin:.3rem 0">'+gift.emoji+'</div>';
   html+='<div style="text-align:center;font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:.5rem">'+esc(gift.description)+'</div>';
-  html+='<div style="text-align:center;font-size:.7rem;color:rgba(255,107,53,.7);margin-bottom:.6rem">Custo: '+cost+' pontos de score</div>';
+  html+='<div style="text-align:center;font-size:.7rem;color:rgba(255,107,53,.7);margin-bottom:.6rem">Custo: '+cost+' moedas</div>';
   html+='<input class="gift-msg-input" id="giftMsg" placeholder="Mensagem (opcional)" maxlength="120">';
   html+='<div style="margin-top:.8rem;text-align:center"><button class="bp" style="max-width:200px" onclick="confirmSendGift(\''+giftId+'\')">Enviar presente</button></div>';
   html+='</div></div>';
@@ -16761,7 +16761,7 @@ async function loadNearbyPeople(){
       html+='<div class="loc-person">';
       html+=makeAvatar(nick,color,36,p.profilePhoto||null);
       html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+'</div><div class="loc-person-dist">'+dist+'</div>';
-      if(p.score||p.stars)html+='<div class="loc-person-pts">'+(p.score?'&#x26A1;'+p.score:'')+(p.stars?' <svg width="9" height="9" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'+p.stars:'')+'</div>';
+      if(p.score||p.stars)html+='<div class="loc-person-pts">'+(p.score?p.score+' moedas':'')+(p.stars?' <svg width="9" height="9" viewBox="0 0 24 24" fill="#fbbf24" stroke="none" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'+p.stars:'')+'</div>';
       html+='</div>';
       html+='<button class="loc-encosta-btn" onclick="encostaFromLocation(\''+p.id+'\')">'+t('location.touch_btn')+'</button>';
       html+='</div>';
@@ -19866,7 +19866,7 @@ async function showVerificationPanel(){
       const av=u.profilePhoto?'<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="'+u.profilePhoto+'" style="width:100%;height:100%;object-fit:cover"></div>':'<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1px solid rgba(255,255,255,.1)">'+ANON_AVATAR_SVG+'</div>';
       html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem;background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:.3rem">';
       html+='<div class="verified-wrap">'+av+'<div class="verified-badge verified-badge-sm">'+VERIFIED_SVG+'</div></div>';
-      html+='<div style="flex:1;min-width:0"><div style="font-size:.78rem;font-weight:600;color:var(--t1)">'+esc(u.nickname)+'</div><div style="font-size:.6rem;color:var(--t3)">★'+u.stars+' · score '+u.score+'</div></div>';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:.78rem;font-weight:600;color:var(--t1)">'+esc(u.nickname)+'</div><div style="font-size:.6rem;color:var(--t3)">★'+u.stars+' · '+u.score+' moedas</div></div>';
       html+='<button onclick="event.stopPropagation();togglePlusUser(\''+u.id+'\','+(u.isSubscriber?'false':'true')+',this)" style="font-size:.6rem;padding:.25rem .5rem;background:'+(u.isSubscriber?'rgba(99,102,241,.15)':'rgba(255,255,255,.04)')+';border:1px solid '+(u.isSubscriber?'rgba(99,102,241,.3)':'rgba(255,255,255,.08)')+';border-radius:8px;color:'+(u.isSubscriber?'#818cf8':'var(--t3)')+';cursor:pointer;font-weight:600">'+(u.isSubscriber?'Plus ✦':'+ Plus')+'</button>';
       html+='<button onclick="unverifyUser(\''+u.id+'\',this)" style="font-size:.6rem;padding:.25rem .5rem;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);border-radius:8px;color:#f87171;cursor:pointer">Revogar</button>';
       html+='</div>';
