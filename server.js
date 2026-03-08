@@ -3073,6 +3073,41 @@ app.get('/api/relations/:userId', (req, res) => {
   res.json(results);
 });
 
+// Relation reveal data — returns full reveal-compatible data for animation on guest arrival
+app.get('/api/relation-reveal/:relationId/:userId', (req, res) => {
+  const { relationId, userId } = req.params;
+  const rel = db.relations[relationId];
+  if (!rel) return res.status(404).json({ error: 'Relacao nao encontrada.' });
+  const me = db.users[userId];
+  if (!me) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const partnerId = rel.userA === userId ? rel.userB : rel.userA;
+  const partner = db.users[partnerId];
+  if (!partner) return res.status(404).json({ error: 'Parceiro nao encontrado.' });
+  const signMe = getZodiacSign(me.birthdate);
+  const signPartner = getZodiacSign(partner.birthdate);
+  const lang = getUserLang(userId);
+  const zodiacPhrase = getZodiacPhrase(signMe, signPartner, lang);
+  const pairEncAll = (db.encounters[partnerId] || []).filter(e => e.with === userId)
+    .concat((db.encounters[userId] || []).filter(e => e.with === partnerId));
+  const pairEncounters = pairEncAll.length;
+  const now24h = Date.now() - 86400000;
+  const pairEncounters24h = pairEncAll.filter(e => e.timestamp > now24h).length;
+  const isCheckin = !!rel.isCheckin;
+  const isService = !!rel.isServiceTouch;
+  const evId = rel.eventId || null;
+  const opEv = evId && db.operatorEvents ? db.operatorEvents[evId] : null;
+  res.json({
+    relationId: rel.id, phrase: rel.phrase, expiresAt: rel.expiresAt, renewed: !!(rel.renewed),
+    encounterCount: pairEncounters, encounterCount24h: pairEncounters24h,
+    isCheckin, isServiceTouch: isService, eventId: evId,
+    eventName: opEv ? opEv.name : null, entryPrice: opEv ? (opEv.entryPrice || 0) : 0,
+    operatorId: isCheckin ? partnerId : null, operatorName: isCheckin ? (partner.nickname || '') : null,
+    userA: { id: partnerId, name: partner.nickname, realName: partner.realName || null, color: partner.color, profilePhoto: partner.profilePhoto || null, photoURL: partner.photoURL || null, score: calcScore(partnerId), stars: (partner.stars || []).length, sign: signPartner, signInfo: signPartner ? ZODIAC_INFO[signPartner] : null, isPrestador: !!partner.isPrestador, serviceLabel: partner.serviceLabel || '', verified: !!partner.verified, accessory: partner.avatarAccessory || null },
+    userB: { id: userId, name: me.nickname, realName: me.realName || null, color: me.color, profilePhoto: me.profilePhoto || null, photoURL: me.photoURL || null, score: calcScore(userId), stars: (me.stars || []).length, sign: signMe, signInfo: signMe ? ZODIAC_INFO[signMe] : null, isPrestador: !!me.isPrestador, serviceLabel: me.serviceLabel || '', verified: !!me.verified, accessory: me.avatarAccessory || null },
+    zodiacPhrase
+  });
+});
+
 app.get('/api/messages/:relationId', async (req, res) => {
   try {
     const msgs = await ensureMessages(req.params.relationId);
@@ -7122,6 +7157,156 @@ app.post('/api/event/create', (req, res) => {
   IDX.operatorByCreator.get(userId).push(id);
   saveDB('events', 'operatorEvents');
   res.json({ event: eventData });
+});
+
+// ═══ EVENT QUICK CHECKIN (QR code flow for guests) ═══
+
+// Serve event checkin page
+app.get('/e/:eventId', (req, res) => {
+  const eventId = req.params.eventId;
+  const ev = db.events[eventId];
+  const opEv = db.operatorEvents ? db.operatorEvents[eventId] : null;
+  if (!ev) return res.status(404).send('Evento nao encontrado.');
+  const eventName = ev.name || 'Evento';
+  const entryPrice = opEv ? (opEv.entryPrice || 0) : 0;
+  const creatorName = ev.creatorName || '';
+  res.send(generateEventCheckinPage(eventId, eventName, entryPrice, creatorName));
+});
+
+function generateEventCheckinPage(eventId, eventName, entryPrice, creatorName) {
+  const priceDisplay = entryPrice > 0 ? 'R$ ' + (entryPrice / 100).toFixed(2).replace('.', ',') : 'Gratis';
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Touch? - ${eventName}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#050508;color:#e8e6e3;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{width:100%;max-width:360px;text-align:center;padding:2rem}
+.logo{font-size:.7rem;letter-spacing:.4em;text-transform:uppercase;color:rgba(255,107,53,.6);margin-bottom:1.5rem}
+.event-icon{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}
+.event-icon svg{width:28px;height:28px;stroke:#fff;fill:none;stroke-width:2}
+.event-name{font-size:1.2rem;font-weight:700;margin-bottom:.3rem}
+.event-sub{font-size:.72rem;color:rgba(232,230,227,.4);margin-bottom:.3rem}
+.price-tag{font-size:.85rem;font-weight:600;color:${entryPrice > 0 ? '#f97316' : '#22c55e'};margin-bottom:1.5rem}
+input{width:100%;padding:.8rem 1rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:#e8e6e3;font-size:.9rem;font-family:inherit;outline:none;margin-bottom:.8rem;text-align:center}
+input:focus{border-color:#3b82f6}
+button{width:100%;padding:.9rem;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:12px;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;letter-spacing:.05em}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.result{display:none;animation:fadeIn .5s ease}
+.phrase{font-size:1rem;color:rgba(96,165,250,.9);margin:1rem 0;font-weight:600}
+.timer{font-family:'Courier New',monospace;font-size:.78rem;color:rgba(232,230,227,.4)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+</style></head><body>
+<div class="card">
+<div class="logo">Touch?</div>
+<div id="form">
+<div class="event-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+<div class="event-name">${eventName}</div>
+<div class="event-sub">${creatorName ? 'por ' + creatorName : 'Check-in rapido'}</div>
+<div class="price-tag">${entryPrice > 0 ? 'Entrada: ' + priceDisplay : 'Entrada gratuita'}</div>
+<input type="text" id="nick" placeholder="Seu nickname" maxlength="20" autocomplete="off">
+<button onclick="checkin()">Entrar no evento</button>
+</div>
+<div id="result" class="result">
+<div class="phrase" id="statusMsg">Entrando...</div>
+<div class="timer">Redirecionando pro evento...</div>
+</div>
+</div>
+<script>
+async function checkin(){
+  var nick=document.getElementById('nick').value.trim();
+  if(!nick||nick.length<2)return alert('Nickname precisa ter 2+ caracteres');
+  var btn=document.querySelector('button');
+  btn.disabled=true;btn.textContent='Entrando...';
+  try{
+    var r=await fetch('/api/event/quick-checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:'${eventId}',nickname:nick})});
+    var d=await r.json();
+    if(d.error){btn.disabled=false;btn.textContent='Entrar no evento';return alert(d.error)}
+    document.getElementById('form').style.display='none';
+    document.getElementById('result').style.display='block';
+    document.getElementById('statusMsg').textContent='Bem-vindo ao evento!';
+    localStorage.setItem('touch_userId',d.userId);
+    localStorage.setItem('touch_userName',nick);
+    localStorage.setItem('touch_userColor',d.userColor||'');
+    localStorage.setItem('touch_isGuest','true');
+    localStorage.setItem('activeEventId','${eventId}');
+    localStorage.setItem('activeEventName','${eventName.replace(/'/g, "\\'")}');
+    localStorage.setItem('activeEventRole','visitor');
+    setTimeout(function(){
+      window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
+    },1000);
+  }catch(e){btn.disabled=false;btn.textContent='Entrar no evento';alert('Erro de conexao.')}
+}
+document.getElementById('nick').addEventListener('keydown',function(e){if(e.key==='Enter')checkin()});
+</script></body></html>`;
+}
+
+// Quick checkin endpoint for event guests
+app.post('/api/event/quick-checkin', (req, res) => {
+  const { eventId, nickname } = req.body;
+  if (!eventId || !nickname) return res.status(400).json({ error: 'Dados invalidos.' });
+  const ev = db.events[eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const nick = nickname.trim();
+  if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname: 2 a 20 caracteres.' });
+
+  // Find or create user
+  const existingId = IDX.nickname.get(nick.toLowerCase());
+  let user = existingId ? db.users[existingId] : null;
+  if (!user) {
+    const id = uuidv4();
+    const color = nickColor(nick);
+    user = { id, nickname: nick, name: nick, birthdate: null, avatar: null, color, createdAt: Date.now(), points: 0, pointLog: [], stars: [], isGuest: true };
+    db.users[id] = user;
+    idxAddUser(user);
+  }
+
+  // Add to event participants
+  if (!Array.isArray(ev.participants)) ev.participants = [];
+  if (!ev.participants.includes(user.id)) {
+    ev.participants.push(user.id);
+  }
+  // Also update operatorEvents
+  const opEv = db.operatorEvents ? db.operatorEvents[eventId] : null;
+  if (opEv) {
+    if (!Array.isArray(opEv.participants)) opEv.participants = [];
+    if (!opEv.participants.includes(user.id)) {
+      opEv.participants.push(user.id);
+      opEv.checkinCount = opEv.participants.length;
+    }
+  }
+
+  // Create relation between guest and event creator for communication
+  const now = Date.now();
+  const ownerLang = getUserLang(ev.creatorId);
+  const phrase = smartPhrase(ev.creatorId, user.id, ownerLang);
+  const relationId = uuidv4();
+  const existingRel = findActiveRelation(ev.creatorId, user.id);
+  if (!existingRel) {
+    db.relations[relationId] = { id: relationId, userA: ev.creatorId, userB: user.id, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, isCheckin: true, eventId };
+    idxAddRelation(relationId, ev.creatorId, user.id);
+    db.messages[relationId] = [];
+  }
+
+  recordEncounter(user.id, null, phrase, 'checkin');
+  awardPoints(user.id, null, 'checkin');
+  saveDB('users', 'events', 'operatorEvents', 'relations', 'messages', 'encounters');
+
+  // Notify event canvas via socket
+  io.to('event:' + eventId).emit('event-attendee-joined', {
+    eventId, userId: user.id, nickname: user.nickname, color: user.color,
+    profilePhoto: user.profilePhoto || null, score: calcScore(user.id),
+    stars: (user.stars || []).length, timestamp: now
+  });
+
+  // Notify operator
+  if (ev.creatorId) {
+    io.to(`user:${ev.creatorId}`).emit('checkin-created', {
+      eventId, visitorId: user.id, visitorName: user.nickname, visitorColor: user.color,
+      phrase, timestamp: now
+    });
+  }
+
+  res.json({ ok: true, userId: user.id, userColor: user.color, eventName: ev.name, relationId: existingRel ? existingRel.id : relationId });
 });
 
 // Count active events where user is a participant
@@ -13667,7 +13852,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });

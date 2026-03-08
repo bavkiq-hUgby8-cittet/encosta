@@ -3186,6 +3186,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div id="evCartBadge" style="display:none;position:absolute;bottom:102px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.55rem;font-weight:700;text-align:center;line-height:20px;z-index:6;pointer-events:none">0</div>
     <!-- Order history FAB -->
     <button id="evOrderHistoryBtn" onclick="openOrderHistory()" style="display:none;position:absolute;bottom:70px;left:16px;padding:.5rem .8rem;border-radius:14px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);color:#f97316;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;z-index:5;backdrop-filter:blur(8px);display:none;align-items:center;gap:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg> Pedidos</button>
+    <!-- QR Code checkin FAB (operator only) -->
+    <button id="evQRBtn" onclick="showEventCheckinQR()" style="display:none;position:absolute;top:70px;right:16px;padding:.5rem .8rem;border-radius:14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);color:#818cf8;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;z-index:5;backdrop-filter:blur(8px);align-items:center;gap:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> QR Checkin</button>
     <!-- Leave event button -->
     <button id="evLeaveBtn" onclick="leaveEvent()" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:.5rem 1.2rem;background:rgba(255,61,113,.12);border:1px solid rgba(255,61,113,.3);border-radius:14px;color:#ff3d71;font-size:.7rem;font-weight:600;font-family:inherit;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s;z-index:5">Sair do evento</button>
   </div>
@@ -4610,9 +4612,14 @@ function showScreen(id){
     if(_homeNodesGyro){window.removeEventListener('deviceorientation',_homeNodesGyro);_homeNodesGyro=null}
   }
   // Guest nudge: when leaving chat/reveal, show complete registration modal
-  if(state.isGuest&&(id==='home'||id==='history')&&!window._guestNudgeShown){
-    window._guestNudgeShown=true;
-    setTimeout(()=>showGuestUpgradeModal(),600);
+  if(state.isGuest&&(id==='home'||id==='history')){
+    if(window._guestNeedsUpgrade){
+      window._guestNeedsUpgrade=false;
+      setTimeout(()=>showGuestUpgradeModal(),400);
+    }else if(!window._guestNudgeShown){
+      window._guestNudgeShown=true;
+      setTimeout(()=>showGuestUpgradeModal(),600);
+    }
   }
 }
 function showPhase(id){document.querySelectorAll('.ep').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
@@ -4765,6 +4772,21 @@ function goHome(){
   // (onboarding BACK_HOME now auto-triggered after agent finishes etapa 3)
 }
 
+// Guest enters chat from reveal, then show upgrade modal when they leave
+function guestEnterChat(){
+  if(state.currentRelation)openChat(state.currentRelation);
+  // Mark that guest should see upgrade modal when leaving chat
+  window._guestNeedsUpgrade=true;
+}
+
+// Guest skips reveal -> show upgrade modal immediately
+function guestSkipReveal(){
+  goHome();
+  if(state.isGuest){
+    setTimeout(()=>showGuestUpgradeModal(),400);
+  }
+}
+
 // ═══ SWIPE BACK GESTURE ═══
 (function(){
   var EDGE=22,THRESHOLD=90,swiping=false,startX=0,startY=0,dx=0,locked=false;
@@ -4881,6 +4903,9 @@ async function showEventView(eventId,eventName){
     if(d.quickPhrases&&d.quickPhrases.length>0)setEventQuickPhrases(d.quickPhrases);
     if(d.businessProfile)window._currentEventBizProfile=d.businessProfile;
     else window._currentEventBizProfile=null;
+    // Show QR checkin button for event creator/operator
+    const qrBtn=$('evQRBtn');
+    if(qrBtn){qrBtn.style.display=(d.creatorId===state.userId)?'flex':'none'}
     // Load event logo for center node
     window._evLogoImg=null;window._evLogoLoaded=false;
     if(d.eventLogo){
@@ -5108,6 +5133,32 @@ function renderEvCanvas(){
     c.restore()
   });
   evViewAnim=requestAnimationFrame(renderEvCanvas)
+}
+
+function showEventCheckinQR(){
+  if(!evViewEventId)return;
+  const existing=document.querySelector('.ev-qr-overlay');if(existing){existing.remove();return}
+  const url=location.origin+'/e/'+evViewEventId;
+  const evName=$('evViewName')?.textContent||'Evento';
+  const ov=document.createElement('div');
+  ov.className='more-menu-overlay ev-qr-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.innerHTML=''
+    +'<div style="background:var(--bg2,#111);border-radius:16px;padding:1.5rem;max-width:340px;width:100%;text-align:center">'
+    +'<div style="font-size:.65rem;letter-spacing:.3em;text-transform:uppercase;color:#60a5fa;margin-bottom:.6rem">CHECK-IN RAPIDO</div>'
+    +'<div style="font-size:.95rem;font-weight:700;margin-bottom:.3rem">'+esc(evName)+'</div>'
+    +'<div style="font-size:.68rem;color:var(--t3);margin-bottom:1rem">Mostre este QR para as pessoas entrarem no evento com apenas o nickname</div>'
+    +'<div id="evCheckinQRBox" style="display:flex;align-items:center;justify-content:center;min-height:200px;margin-bottom:1rem"></div>'
+    +'<div style="font-size:.6rem;color:var(--t3);word-break:break-all;margin-bottom:.8rem">'+url+'</div>'
+    +'<button onclick="navigator.clipboard.writeText(\''+url+'\');showToast(\'Link copiado!\')" style="width:100%;padding:.6rem;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:10px;color:#818cf8;font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:.4rem">Copiar link</button>'
+    +'<button onclick="this.closest(\'.ev-qr-overlay\').remove()" style="width:100%;padding:.5rem;background:none;border:none;color:var(--t3);font-size:.72rem;cursor:pointer;font-family:inherit">Fechar</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.onclick=function(e){if(e.target===ov)ov.remove()};
+  // Generate QR
+  const qrBox=document.getElementById('evCheckinQRBox');
+  if(typeof QRCode!=='undefined'){new QRCode(qrBox,{text:url,width:200,height:200,colorDark:'#0a0a0a',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}
+  else{qrBox.innerHTML='<div style="font-size:.7rem;color:var(--t3)">QR indisponivel</div>'}
 }
 
 function closeEventView(){
@@ -7703,12 +7754,24 @@ function doReveal(data){
     }else{
       let h='';
       h+=_rvBtn(_rvIco.reveal,t('reveal.reveal_btn'),"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,t('reveal.checkin_only_btn'),evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()",'skip');
+      const skipAction=evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()";
+      h+=_rvBtn(_rvIco.skip,t('reveal.checkin_only_btn'),skipAction+(state.isGuest?";window._guestNeedsUpgrade=true":""),'skip');
       iconRow.innerHTML=h;
       if(secRow)secRow.style.display='none';
     }
+  }else if(window._guestFromQR&&state.isGuest){
+    // GUEST FROM QR: show tip + chat + skip (skip -> registration)
+    let h='';
+    h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
+    h+=_rvBtn(_rvIco.chat,'Conversar',"guestEnterChat()",'primary');
+    h+=_rvBtn(_rvIco.skip,'Pular',"guestSkipReveal()",'skip');
+    iconRow.innerHTML=h;
+    // Set receiverId on tip button
+    const newTipBtn=iconRow.querySelector('.rv-icon-btn.tip');
+    if(newTipBtn){newTipBtn.id='revealTipBtn';newTipBtn.dataset.receiverId=them.id}
+    window._guestFromQR=false;
   }else{
-    // NORMAL: chat + selfie + share + conexão + pular
+    // NORMAL: chat + selfie + share + conexao + pular
     let h='';
     h+=_rvBtn(_rvIco.chat,t('reveal.chat_24h_btn'),"enterChat()",'primary');
     h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',t('reveal.connection_btn'),"goToConnectionFromReveal()",'');
@@ -7734,7 +7797,7 @@ function revealToOperator(operatorId,eventId,eventName){
   fetch('/api/identity/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,targetUserId:operatorId,eventId:eventId||null})})
   .then(r=>r.json()).then(d=>{
     if(d.error)showToast(d.error);
-    else{showToast('Dados revelados!');if(eventId)showEventView(eventId,eventName);else enterChat()}
+    else{showToast('Dados revelados!');if(eventId)showEventView(eventId,eventName);else enterChat();if(state.isGuest)window._guestNeedsUpgrade=true}
   }).catch(()=>showToast('Erro ao revelar.'));
 }
 
@@ -7762,6 +7825,8 @@ function skipEntryPayment(eventId,eventName,operatorId){
   }
   // Still enter the event view
   showEventView(eventId,eventName);
+  // If guest, mark for upgrade when they leave event
+  if(state.isGuest){window._guestNeedsUpgrade=true}
 }
 
 function showEntryCardForm(eventId,eventName,price,operatorId,eventLogo){
@@ -19918,7 +19983,8 @@ window.addEventListener('load',()=>{
   const _guestParam=new URLSearchParams(location.search).get('guest');
   const _guestRel=new URLSearchParams(location.search).get('rel');
   const _guestPhrase=new URLSearchParams(location.search).get('phrase');
-  // Handle guest arriving from QR touch-link
+  const _guestEvent=new URLSearchParams(location.search).get('guestEvent');
+  // Handle guest arriving from QR touch-link or event checkin
   if(_guestParam&&!state.userId){
     state.userId=_guestParam;
     state.userName=localStorage.getItem('touch_userName')||'Guest';
@@ -19935,17 +20001,39 @@ window.addEventListener('load',()=>{
         // Set home avatar
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
 
-        if(_guestRel&&_guestParam){
-          // Guest from QR touch-link: go straight to the connection
+        if((_guestRel||_guestEvent)&&_guestParam){
+          // Guest from QR: show Electric Touch animation -> reveal screen with payment -> skip -> registration
           showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
           setTimeout(async()=>{
             try{
-              const rr=await authFetch('/api/relations/'+state.userId);
-              const rels=await rr.json();
-              const targetRel=rels.find(r=>r.relationId===_guestRel||r.id===_guestRel);
-              if(targetRel){openChat(targetRel)}
-              else{showToast('Conexao criada!')}
-            }catch(e){console.warn('[guest] Error opening rel:',e)}
+              const relId=_guestRel||localStorage.getItem('touch_guestRelId')||'';
+              if(!relId){showToast('Conexao criada!');return}
+              const rv=await authFetch('/api/relation-reveal/'+relId+'/'+state.userId);
+              if(!rv.ok){showToast('Conexao criada!');return}
+              const revealData=await rv.json();
+              state.currentRelation=revealData;
+              window._guestFromQR=true;
+              // Trigger Electric Touch animation
+              const co=$('connectingOverlay');
+              if(co){
+                const isRenewed=!!revealData.renewed;
+                const isQuick=!!(revealData.isServiceTouch||revealData.isCheckin);
+                co.classList.remove('first','renewed');
+                co.classList.add(isRenewed?'renewed':'first');
+                co.classList.add('active');
+                const partnerData=revealData.userA.id===state.userId?revealData.userB:revealData.userA;
+                startElectricTouch(isRenewed,isQuick?'':(partnerData.nickname||partnerData.name||''));
+                haptic(isQuick?[60,20,60,20,100]:[80,30,80,30,120,40,120,40,150,30,150,30,200,20,200,20,250,15,250,15,300,10,300,10,400,10,500]);
+                setTimeout(()=>{
+                  stopElectricTouch();
+                  if(navigator.vibrate)navigator.vibrate(0);
+                  co.classList.remove('active','first','renewed');
+                  showScreen('reveal');doReveal(revealData);
+                },isQuick?2500:4200);
+              }else{
+                showScreen('reveal');doReveal(revealData);
+              }
+            }catch(e){console.warn('[guest] Error loading reveal:',e);showToast('Conexao criada!')}
           },500);
         }else if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
         else{showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
