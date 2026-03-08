@@ -3448,7 +3448,7 @@ function lsGet(k){
   return raw;
 }
 function lsRemove(k){localStorage.removeItem(k)}
-let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,currentSession:null,currentRelation:null,timerInterval:null,userCountry:null,userCity:'',userLang:'pt-br'};
+let socket=null,state={userId:lsGet('touch_userId'),userName:lsGet('touch_userName'),userColor:lsGet('touch_userColor')||'',userPhoto:lsGet('touch_userPhoto')||null,email:lsGet('touch_email')||null,userAccessory:lsGet('touch_userAccessory')||null,isGuest:lsGet('touch_isGuest')==='true',currentSession:null,currentRelation:null,timerInterval:null,userCountry:null,userCity:'',userLang:'pt-br'};
 let typingTimeout=null,lastTypingEmit=0,pulseSent=false;
 
 // ═══ AUTH FETCH HELPER: automaticamente inclui Firebase token em todas as chamadas API ═══
@@ -4609,8 +4609,152 @@ function showScreen(id){
     if(_homeNodesAnim){cancelAnimationFrame(_homeNodesAnim);_homeNodesAnim=null}
     if(_homeNodesGyro){window.removeEventListener('deviceorientation',_homeNodesGyro);_homeNodesGyro=null}
   }
+  // Guest nudge: when leaving chat/reveal, show complete registration modal
+  if(state.isGuest&&(id==='home'||id==='history')&&!window._guestNudgeShown){
+    window._guestNudgeShown=true;
+    setTimeout(()=>showGuestUpgradeModal(),600);
+  }
 }
 function showPhase(id){document.querySelectorAll('.ep').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
+// ═══ GUEST UPGRADE MODAL ═══
+function showGuestUpgradeModal(){
+  if(document.getElementById('guestUpgradeOverlay'))return;
+  const ov=document.createElement('div');
+  ov.id='guestUpgradeOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .3s ease';
+  ov.innerHTML=''
+    +'<div style="background:var(--bg2,#111);border-radius:16px;padding:1.5rem;max-width:360px;width:100%;text-align:center">'
+    +'<div style="font-size:.65rem;letter-spacing:.3em;text-transform:uppercase;color:var(--ac,#ff6b35);margin-bottom:1rem">TOUCH?</div>'
+    +'<div style="font-size:1.1rem;font-weight:700;margin-bottom:.4rem">Proteja sua conta</div>'
+    +'<div style="font-size:.78rem;color:var(--t3,#888);margin-bottom:1.2rem;line-height:1.4">Cadastre um email e senha ou conecte com Google para nao perder suas conexoes e poder acessar de qualquer lugar.</div>'
+    // Google login
+    +'<button id="guestGoogleBtn" style="width:100%;padding:.75rem;background:#fff;color:#333;border:none;border-radius:12px;font-size:.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.6rem">'
+    +'<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" style="width:18px;height:18px"> Continuar com Google</button>'
+    // Divider
+    +'<div style="font-size:.7rem;color:var(--t3,#888);margin:.5rem 0">ou</div>'
+    // Email + password form
+    +'<input type="email" id="guestEmail" placeholder="Seu email" style="width:100%;padding:.7rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#e8e6e3;font-size:.85rem;margin-bottom:.4rem;text-align:center;font-family:inherit" autocomplete="email">'
+    +'<input type="password" id="guestPass" placeholder="Crie uma senha (min. 6 caracteres)" style="width:100%;padding:.7rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#e8e6e3;font-size:.85rem;margin-bottom:.6rem;text-align:center;font-family:inherit" autocomplete="new-password">'
+    +'<button id="guestEmailBtn" style="width:100%;padding:.75rem;background:linear-gradient(135deg,#ff6b35,#e85d2a);border:none;border-radius:12px;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer">SALVAR CONTA</button>'
+    +'<div id="guestUpgradeErr" style="color:#ef4444;font-size:.75rem;margin-top:.4rem;min-height:1rem"></div>'
+    // Skip
+    +'<div id="guestSkipBtn" style="color:var(--t3,#888);font-size:.72rem;cursor:pointer;margin-top:.6rem">Fazer depois</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  // Google
+  document.getElementById('guestGoogleBtn').onclick=async function(){
+    try{
+      if(!firebaseAuthInstance){showToast('Firebase nao carregou.');return}
+      const provider=new firebase.auth.GoogleAuthProvider();
+      const result=await firebaseAuthInstance.signInWithPopup(provider);
+      if(result.user){
+        // Upgrade guest account with Google
+        const token=await result.user.getIdToken();
+        const r=await fetch('/api/guest/upgrade',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({userId:state.userId,method:'google',firebaseUid:result.user.uid,email:result.user.email,displayName:result.user.displayName,photoURL:result.user.photoURL})});
+        const d=await r.json();
+        if(d.error){document.getElementById('guestUpgradeErr').textContent=d.error;return}
+        state.isGuest=false;state.email=result.user.email;
+        localStorage.removeItem('touch_isGuest');
+        if(result.user.email)lsSet('touch_email',result.user.email);
+        if(result.user.photoURL){state.userPhoto=result.user.photoURL;lsSet('touch_userPhoto',result.user.photoURL)}
+        ov.remove();showToast('Conta salva com sucesso!');
+      }
+    }catch(e){document.getElementById('guestUpgradeErr').textContent=e.message||'Erro ao conectar Google.'}
+  };
+  // Email + password
+  document.getElementById('guestEmailBtn').onclick=async function(){
+    const email=document.getElementById('guestEmail').value.trim();
+    const pass=document.getElementById('guestPass').value;
+    const errEl=document.getElementById('guestUpgradeErr');
+    if(!email||!email.includes('@')){errEl.textContent='Email invalido.';return}
+    if(!pass||pass.length<6){errEl.textContent='Senha precisa ter 6+ caracteres.';return}
+    try{
+      // Create Firebase auth account
+      const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
+      const token=await cred.user.getIdToken();
+      const r=await fetch('/api/guest/upgrade',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({userId:state.userId,method:'email',firebaseUid:cred.user.uid,email:email})});
+      const d=await r.json();
+      if(d.error){errEl.textContent=d.error;return}
+      state.isGuest=false;state.email=email;
+      localStorage.removeItem('touch_isGuest');
+      lsSet('touch_email',email);
+      ov.remove();showToast('Conta criada com sucesso!');
+    }catch(e){
+      if(e.code==='auth/email-already-in-use'){errEl.textContent='Este email ja esta em uso.'}
+      else{errEl.textContent=e.message||'Erro ao criar conta.'}
+    }
+  };
+  // Skip
+  document.getElementById('guestSkipBtn').onclick=function(){ov.remove()};
+}
+
+// ═══ PASSWORD MANAGER (set or change password) ═══
+function showPasswordManager(){
+  const existing=document.querySelector('.password-manager-overlay');if(existing){existing.remove();return}
+  const hasEmail=!!state.email;
+  const ov=document.createElement('div');
+  ov.className='more-menu-overlay password-manager-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML=''
+    +'<div class="more-menu-sheet" style="animation:slideUp .3s ease;max-height:80vh;overflow-y:auto">'
+    +'<div style="display:flex;justify-content:flex-end;margin-bottom:.3rem"><button onclick="this.closest(\'.password-manager-overlay\').remove()" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--t2);font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center">&times;</button></div>'
+    +'<div style="text-align:center;margin-bottom:1rem"><div style="font-size:.95rem;font-weight:700">Gerenciar senha</div>'
+    +'<div style="font-size:.72rem;color:var(--t3);margin-top:.3rem">'+(hasEmail?'Email: '+state.email:'Voce ainda nao tem email cadastrado.')+'</div></div>'
+    // If no email yet, ask for email first
+    +(!hasEmail?'<input type="email" id="pwMgrEmail" placeholder="Seu email" style="width:100%;padding:.7rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#e8e6e3;font-size:.85rem;margin-bottom:.4rem;text-align:center;font-family:inherit" autocomplete="email">':'')
+    // New password
+    +'<input type="password" id="pwMgrNewPass" placeholder="'+(state.isGuest?'Crie uma senha (min. 6 caracteres)':'Nova senha (min. 6 caracteres)')+'" style="width:100%;padding:.7rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#e8e6e3;font-size:.85rem;margin-bottom:.4rem;text-align:center;font-family:inherit" autocomplete="new-password">'
+    +'<input type="password" id="pwMgrConfirm" placeholder="Confirme a senha" style="width:100%;padding:.7rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#e8e6e3;font-size:.85rem;margin-bottom:.6rem;text-align:center;font-family:inherit" autocomplete="new-password">'
+    +'<button id="pwMgrSaveBtn" style="width:100%;padding:.75rem;background:linear-gradient(135deg,#ff6b35,#e85d2a);border:none;border-radius:12px;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer">SALVAR SENHA</button>'
+    +'<div id="pwMgrErr" style="color:#ef4444;font-size:.75rem;margin-top:.4rem;min-height:1rem;text-align:center"></div>'
+    // Reset password option for existing users
+    +(hasEmail?'<div style="text-align:center;margin-top:.6rem"><span onclick="sendPasswordReset()" style="color:var(--ac);font-size:.72rem;cursor:pointer">Enviar link de redefinicao por email</span></div>':'')
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.onclick=function(e){if(e.target===ov)ov.remove()};
+  document.getElementById('pwMgrSaveBtn').onclick=async function(){
+    const errEl=document.getElementById('pwMgrErr');
+    const emailInput=document.getElementById('pwMgrEmail');
+    const newPass=document.getElementById('pwMgrNewPass').value;
+    const confirm=document.getElementById('pwMgrConfirm').value;
+    const email=emailInput?emailInput.value.trim():state.email;
+    if(!email||!email.includes('@')){errEl.textContent='Email invalido.';return}
+    if(!newPass||newPass.length<6){errEl.textContent='Senha precisa ter 6+ caracteres.';return}
+    if(newPass!==confirm){errEl.textContent='As senhas nao conferem.';return}
+    try{
+      this.disabled=true;this.textContent='Salvando...';
+      if(!firebaseAuthInstance){errEl.textContent='Firebase nao carregou.';this.disabled=false;this.textContent='SALVAR SENHA';return}
+      if(state.isGuest||!fbUser){
+        // Create new Firebase account with email+password
+        const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,newPass);
+        const token=await cred.user.getIdToken();
+        await fetch('/api/guest/upgrade',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({userId:state.userId,method:'email',firebaseUid:cred.user.uid,email:email})});
+        state.isGuest=false;state.email=email;
+        localStorage.removeItem('touch_isGuest');
+        lsSet('touch_email',email);
+        ov.remove();showToast('Senha criada com sucesso!');
+      }else{
+        // Update password for existing Firebase user
+        await fbUser.updatePassword(newPass);
+        ov.remove();showToast('Senha alterada com sucesso!');
+      }
+    }catch(e){
+      this.disabled=false;this.textContent='SALVAR SENHA';
+      if(e.code==='auth/requires-recent-login'){errEl.textContent='Por seguranca, faca login novamente antes de trocar a senha.'}
+      else if(e.code==='auth/email-already-in-use'){errEl.textContent='Este email ja esta em uso.'}
+      else{errEl.textContent=e.message||'Erro ao salvar senha.'}
+    }
+  };
+}
+
+async function sendPasswordReset(){
+  if(!state.email){showToast('Nenhum email cadastrado.');return}
+  try{
+    await firebaseAuthInstance.sendPasswordResetEmail(state.email);
+    showToast('Link de redefinicao enviado para '+state.email);
+  }catch(e){showToast('Erro: '+(e.message||'Tente novamente.'))}
+}
+
 function goHome(){
   // Full cleanup: stop any active sonic/audio before returning home
   if(homeSonicActive)stopHomeSonic();
@@ -16016,6 +16160,7 @@ function showMyProfileSheet(){
   // Cadastro tag
   const profileMostlyComplete=hasPhoto&&state.userRealName;
   const cadastroTag=profileMostlyComplete?'':'<span class="my-pf-tag">'+t('profile.complete_tag')+'</span>';
+  const guestTag=state.isGuest?'<span style="font-size:.55rem;background:rgba(239,68,68,.2);color:#ef4444;padding:1px 6px;border-radius:5px;margin-left:.3rem;font-weight:600">Conta temporaria</span>':'';
   const realNameLine=state.userRealName?'<div style="font-size:.72rem;color:var(--t2);margin-top:.1rem">'+esc(state.userRealName)+'</div>':'';
   // Prestador: "Serviços" with both cadastro and painel inside
   const isPrestador=localStorage.getItem('touch_isPrestador')==='1';
@@ -16052,6 +16197,7 @@ function showMyProfileSheet(){
     +(hasFace?'<span style="font-size:.5rem;color:#06b6d4;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:6px;font-weight:600">Face</span>':'')
     +(hasDoc?'<span style="font-size:.5rem;color:#a855f7;background:rgba(168,85,247,.1);padding:1px 6px;border-radius:6px;font-weight:600">Doc</span>':'')
     +(state.userTopTag?'<span style="font-size:.5rem;color:'+(state.userTopTag==='top1'?'#FFD700':state.userTopTag==='top5'?'#C0C0C0':'#CD7F32')+';background:rgba(255,215,0,.1);padding:1px 6px;border-radius:6px;font-weight:700">'+(state.userTopTag==='top1'?'TOP 1':state.userTopTag==='top5'?'TOP 5':state.userTopTag==='top50'?'TOP 50':'')+'</span>':'')
+    +guestTag
     +'</div>'
     // Stats row
     +'<div style="display:flex;gap:1rem;justify-content:center;margin-bottom:.4rem">'
@@ -16065,6 +16211,7 @@ function showMyProfileSheet(){
     +'<div style="display:flex;flex-direction:column;gap:.3rem">'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showBoardingPassWithQR()"><span class="my-pf-ico">ID</span>ID</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();openCompleteProfile()"><span class="my-pf-ico" style="font-style:normal">∕</span>'+t('profile.edit_profile_btn')+cadastroTag+'</button>'
+    +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showPasswordManager()"><span class="my-pf-ico" style="font-style:normal">&#x1F512;</span>'+(state.isGuest?'Cadastrar senha':'Alterar senha')+'</button>'
     +'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showSubscriptionScreen()"><span class="my-pf-ico" style="font-style:normal">'+(state.userIsSubscriber?'✦':'☆')+'</span>'+t('subscription.touch_plus_title')+(state.userIsSubscriber?' <span style="font-size:.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Plus</span>':(isVerified?' <span style="font-size:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;padding:1px 5px;border-radius:5px;margin-left:.3rem;font-weight:600">Selo</span>':''))+'</button>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:.45rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;cursor:pointer" onclick="if(!event.target.closest(\'.pf-svc-toggle\')){this.closest(\'.my-profile-overlay\').remove();showServicosScreen()}"><div style="display:flex;align-items:center;gap:.5rem"><span style="font-size:.85rem;font-weight:800;font-style:normal;color:#22c55e">◈</span><span style="font-size:.72rem;color:var(--t1);font-weight:600">'+t('home.service_mode_toggle')+'</span></div>'+(isPrestador?'<div class="pf-svc-toggle" style="position:relative;cursor:pointer" onclick="event.stopPropagation();var cb=this.querySelector(\'input\');cb.checked=!cb.checked;toggleServiceModeEnabled(cb.checked);var tk=this.querySelector(\'.pf-svc-track\');var dt=this.querySelector(\'.pf-svc-dot\');tk.style.background=cb.checked?\'#22c55e\':\'rgba(255,255,255,.12)\';dt.style.left=cb.checked?\'22px\':\'2px\'"><input type="checkbox" style="display:none"'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?' checked':'')+'><div class="pf-svc-track" style="width:38px;height:22px;border-radius:11px;background:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'#22c55e':'rgba(255,255,255,.12)')+';transition:background .2s"></div><div class="pf-svc-dot" style="position:absolute;top:1px;left:'+(localStorage.getItem('touch_serviceModeEnabled')==='1'?'18px':'2px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div></div>':'')+'</div>'
     +(state.userIsAdmin?'<button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showVerificationPanel()"><span class="my-pf-ico" style="background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800">&#x2713;</span>'+t('profile.verified_label')+'</button><button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showAdminFinancial()"><span class="my-pf-ico" style="color:#10b981;font-weight:800">$</span>Painel Financeiro Admin</button><button class="my-pf-btn" onclick="this.closest(\'.my-profile-overlay\').remove();showAdminAgents()"><span class="my-pf-ico" style="color:#f59e0b;font-weight:800">&#x2699;</span>Agentes & API</button>':'')
@@ -19768,6 +19915,18 @@ async function _tryFirebaseRelink(){
 window.addEventListener('load',()=>{
   applyI18n();
   const qr=new URLSearchParams(location.search).get('code');
+  const _guestParam=new URLSearchParams(location.search).get('guest');
+  const _guestRel=new URLSearchParams(location.search).get('rel');
+  const _guestPhrase=new URLSearchParams(location.search).get('phrase');
+  // Handle guest arriving from QR touch-link
+  if(_guestParam&&!state.userId){
+    state.userId=_guestParam;
+    state.userName=localStorage.getItem('touch_userName')||'Guest';
+    state.userColor=localStorage.getItem('touch_userColor')||'';
+    state.isGuest=true;
+    localStorage.setItem('touch_isGuest','true');
+    history.replaceState({},'','/');
+  }
   setTimeout(async()=>{
     if(state.userId){
       const valid=await validateUser();
@@ -19776,7 +19935,19 @@ window.addEventListener('load',()=>{
         // Set home avatar
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
 
-        if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
+        if(_guestRel&&_guestParam){
+          // Guest from QR touch-link: go straight to the connection
+          showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
+          setTimeout(async()=>{
+            try{
+              const rr=await authFetch('/api/relations/'+state.userId);
+              const rels=await rr.json();
+              const targetRel=rels.find(r=>r.relationId===_guestRel||r.id===_guestRel);
+              if(targetRel){openChat(targetRel)}
+              else{showToast('Conexao criada!')}
+            }catch(e){console.warn('[guest] Error opening rel:',e)}
+          },500);
+        }else if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
         else{showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
         refreshHome();restoreFloatingEvent();checkTipResultParam();checkSubResultParam();checkGatewayConnectResult();
       }else if(state.userId){

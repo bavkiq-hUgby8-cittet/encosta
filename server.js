@@ -1524,6 +1524,41 @@ app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
 });
 
 // ── Link Firebase Auth UID to ENCOSTA user ──
+// ═══ GUEST UPGRADE: convert guest account to full account ═══
+app.post('/api/guest/upgrade', async (req, res) => {
+  const { userId, method, firebaseUid, email, displayName, photoURL } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  const user = db.users[userId];
+  if (!user.isGuest) return res.json({ ok: true, message: 'Conta ja esta completa.' });
+
+  // Link Firebase credentials
+  if (firebaseUid) {
+    // Check if this firebaseUid or email already belongs to another user
+    const existingByFb = IDX.firebaseUid.get(firebaseUid);
+    if (existingByFb && existingByFb !== userId) return res.status(400).json({ error: 'Esta conta Google ja esta vinculada a outro usuario.' });
+    if (email) {
+      const existingByEmail = IDX.email.get(email.toLowerCase());
+      if (existingByEmail && existingByEmail !== userId) return res.status(400).json({ error: 'Este email ja esta em uso por outro usuario.' });
+    }
+    user.firebaseUid = firebaseUid;
+    IDX.firebaseUid.set(firebaseUid, userId);
+    if (!user.linkedFirebaseUids) user.linkedFirebaseUids = [];
+    if (!user.linkedFirebaseUids.includes(firebaseUid)) user.linkedFirebaseUids.push(firebaseUid);
+  }
+  if (email) {
+    user.email = email.toLowerCase();
+    IDX.email.set(email.toLowerCase(), userId);
+  }
+  if (displayName && !user.realName) user.realName = displayName;
+  if (photoURL && !user.profilePhoto) { user.photoURL = photoURL; user.profilePhoto = photoURL; }
+  user.isGuest = false;
+  user.upgradedAt = Date.now();
+  user.authMethod = method || 'unknown';
+  saveDB('users');
+  console.log('[guest-upgrade] User', userId, 'upgraded via', method);
+  res.json({ ok: true, user: { id: user.id, nickname: user.nickname, email: user.email, profilePhoto: user.profilePhoto } });
+});
+
 app.post('/api/auth/link', async (req, res) => {
   const { firebaseUid, email, displayName, photoURL, phoneNumber, encUserId } = req.body;
   if (!firebaseUid) return res.status(400).json({ error: 'Firebase UID obrigatório.' });
@@ -1696,6 +1731,29 @@ const _cleanupInterval = setInterval(() => {
   if (donationsArchived > 0) {
     console.log('[cleanup] Archived ' + donationsArchived + ' star donations older than 90 days');
     saveDB('starDonations');
+  }
+  // Cleanup guest accounts inactive for 30 days with no connections
+  const guestCutoff = now - (30 * 24 * 60 * 60 * 1000);
+  let guestsRemoved = 0;
+  for (const [id, u] of Object.entries(db.users)) {
+    if (u.isGuest && u.createdAt && u.createdAt < guestCutoff) {
+      // Check if guest has any active relations
+      const rels = IDX.userRelations.get(id);
+      if (!rels || rels.size === 0) {
+        if (u.nickname) IDX.nickname.delete(u.nickname.toLowerCase());
+        if (u.email) IDX.email.delete(u.email.toLowerCase());
+        if (u.touchCode) IDX.touchCode.delete(u.touchCode);
+        if (u.firebaseUid) IDX.firebaseUid.delete(u.firebaseUid);
+        IDX.userRelations.delete(id);
+        IDX.prestador.delete(id);
+        delete db.users[id];
+        guestsRemoved++;
+      }
+    }
+  }
+  if (guestsRemoved > 0) {
+    console.log('[cleanup] Removed ' + guestsRemoved + ' inactive guest accounts (30d+, no relations)');
+    saveDB('users');
   }
   saveDB('relations', 'messages');
 }, 60000);
@@ -2571,13 +2629,13 @@ app.post('/api/touch-link/connect', (req, res) => {
     existing.phrase = phrase;
     existing.renewed = (existing.renewed || 0) + 1;
     expiresAt = existing.expiresAt;
-    res.json({ relationId: existing.id, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, renewed: true });
+    res.json({ relationId: existing.id, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, visitorColor: visitor.color, renewed: true });
   } else {
     db.relations[relationId] = { id: relationId, userA: owner.id, userB: visitor.id, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
     idxAddRelation(relationId, owner.id, visitor.id);
     db.messages[relationId] = [];
     expiresAt = now + 86400000;
-    res.json({ relationId, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, renewed: false });
+    res.json({ relationId, phrase, expiresAt, ownerName: owner.nickname, visitorId: visitor.id, visitorColor: visitor.color, renewed: false });
   }
   recordEncounter(owner.id, visitor.id, phrase, 'physical');
   saveDB('users', 'relations', 'messages', 'encounters');
@@ -2644,26 +2702,34 @@ ${(owner.stars || []).length > 0 ? '<div class="stars">' + '⭐'.repeat(Math.min
 <button onclick="connect()">👆 TOUCH</button>
 </div>
 <div id="result" class="result">
-<div class="sub">Vocês se tocaram! ✨</div>
+<div class="sub">Conectando...</div>
 <div class="phrase" id="phrase"></div>
-<div class="timer">24h juntos a partir de agora</div>
-<div class="cta">Baixe o app para a experiência completa<br><a href="/">Abrir Touch?</a></div>
+<div class="timer">Entrando no Touch?...</div>
 </div>
 </div>
 <script>
 async function connect(){
   const nick=document.getElementById('nick').value.trim();
   if(!nick||nick.length<2)return alert('Nickname precisa ter 2+ caracteres');
+  const btn=document.querySelector('button');
+  btn.disabled=true;btn.textContent='Conectando...';
   try{
     const r=await fetch('/api/touch-link/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({touchCode:'${code}',visitorNickname:nick})});
     const d=await r.json();
-    if(d.error)return alert(d.error);
+    if(d.error){btn.disabled=false;btn.textContent='TOUCH';return alert(d.error)}
     document.getElementById('form').style.display='none';
     document.getElementById('result').style.display='block';
     document.getElementById('phrase').textContent='"'+d.phrase+'"';
+    // Save guest credentials and redirect to main app with connection
     localStorage.setItem('touch_userId',d.visitorId);
     localStorage.setItem('touch_userName',nick);
-  }catch(e){alert('Erro de conexão.')}
+    localStorage.setItem('touch_userColor',d.visitorColor||'');
+    localStorage.setItem('touch_isGuest','true');
+    // Redirect to app opening the connection directly
+    setTimeout(function(){
+      window.location.href='/?guest='+d.visitorId+'&rel='+(d.relationId||'')+'&phrase='+encodeURIComponent(d.phrase||'');
+    },1200);
+  }catch(e){btn.disabled=false;btn.textContent='TOUCH';alert('Erro de conexao.')}
 }
 document.getElementById('nick').addEventListener('keydown',e=>{if(e.key==='Enter')connect()});
 </script></body></html>`;
