@@ -7,6 +7,7 @@
 <title>Loading...</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
 <style>
 /* ── CSS Reset + Variables ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -323,6 +324,68 @@ img{max-width:100%;display:block}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── Responsive ── */
+/* ── Checkout Flow ── */
+.checkout-step{display:none;padding:0 .2rem}
+.checkout-step.active{display:block}
+.checkout-form-group{margin-bottom:.8rem}
+.checkout-form-group label{display:block;font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.3rem}
+.checkout-input{
+  width:100%;padding:.5rem .7rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface2);border:1px solid var(--site-border);
+  color:var(--site-text);font-size:.8rem;font-family:inherit;
+}
+.checkout-input:focus{outline:none;border-color:var(--site-primary)}
+.checkout-input::placeholder{color:rgba(255,255,255,.3)}
+.payment-methods{display:flex;gap:.5rem;margin:.8rem 0}
+.pm-btn{
+  flex:1;padding:.6rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface);border:2px solid var(--site-border);
+  color:var(--site-text);font-size:.7rem;font-weight:600;text-align:center;
+  transition:all .2s;
+}
+.pm-btn.selected{border-color:var(--site-primary);background:color-mix(in srgb, var(--site-primary) 10%, transparent)}
+.pm-btn:hover:not(.selected){background:var(--site-surface2)}
+#stripe-element{
+  padding:.7rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface2);border:1px solid var(--site-border);
+  margin:.6rem 0;min-height:44px;
+}
+.order-summary-items{max-height:200px;overflow-y:auto;margin:.5rem 0}
+.order-summary-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:.3rem 0;font-size:.75rem;border-bottom:1px solid var(--site-border);
+}
+.order-summary-item:last-child{border-bottom:none}
+.order-confirmed{text-align:center;padding:2rem 1rem}
+.order-confirmed-icon{font-size:3rem;margin-bottom:.8rem;color:#22c55e}
+.order-confirmed h3{font-size:1.1rem;font-weight:700;margin-bottom:.3rem}
+.order-receipt{font-size:.8rem;color:var(--site-primary);font-weight:600;margin:.3rem 0}
+.order-tracking{
+  background:var(--site-surface);border-radius:var(--site-radius);
+  padding:.8rem;margin-top:1rem;border:1px solid var(--site-border);
+}
+.tracking-status{
+  display:flex;align-items:center;gap:.4rem;
+  font-size:.75rem;font-weight:600;
+}
+.tracking-dot{width:8px;height:8px;border-radius:50%;background:var(--site-primary);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.tip-selector{display:flex;gap:.3rem;margin:.6rem 0}
+.tip-btn{
+  flex:1;padding:.4rem;border-radius:var(--site-radius-sm);
+  background:var(--site-surface);border:1px solid var(--site-border);
+  color:var(--site-text2);font-size:.7rem;font-weight:600;
+  transition:all .2s;
+}
+.tip-btn.selected{border-color:var(--site-primary);color:var(--site-primary);background:color-mix(in srgb, var(--site-primary) 10%, transparent)}
+.checkout-error{color:#ef4444;font-size:.7rem;margin:.4rem 0;min-height:16px}
+.btn-back{
+  background:var(--site-surface);color:var(--site-text2);
+  padding:.5rem 1rem;border-radius:var(--site-radius-sm);
+  font-size:.75rem;font-weight:500;border:1px solid var(--site-border);
+  margin-right:.5rem;
+}
+
 @media(max-width:480px){
   .hero{padding:2rem 1rem 1.5rem}
   .hero h1{font-size:1.3rem}
@@ -374,16 +437,96 @@ img{max-width:100%;display:block}
 <!-- Cart Panel -->
 <div class="cart-panel" id="cartPanel" onclick="if(event.target===this)closeCart()">
   <div class="cart-sheet">
-    <div class="cart-header">
-      <div class="cart-title">Seu Pedido</div>
-      <button class="cart-close" onclick="closeCart()">&#10005;</button>
+    <!-- Step 1: Cart Review -->
+    <div class="checkout-step active" id="checkoutStep1">
+      <div class="cart-header">
+        <div class="cart-title">Seu Pedido</div>
+        <button class="cart-close" onclick="closeCart()">&#10005;</button>
+      </div>
+      <div id="cartItems"></div>
+      <div style="margin:.6rem 0">
+        <label style="font-size:.7rem;color:var(--site-text2);margin-bottom:.3rem;display:block">Observacoes (opcional)</label>
+        <input type="text" class="checkout-input" id="orderNotes" placeholder="Ex: sem cebola, bem passado..." maxlength="200">
+      </div>
+      <!-- Tip -->
+      <div style="font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.3rem">Gorjeta (opcional)</div>
+      <div class="tip-selector">
+        <button class="tip-btn selected" data-tip="0" onclick="selectTip(0)">Sem</button>
+        <button class="tip-btn" data-tip="10" onclick="selectTip(10)">10%</button>
+        <button class="tip-btn" data-tip="15" onclick="selectTip(15)">15%</button>
+        <button class="tip-btn" data-tip="20" onclick="selectTip(20)">20%</button>
+      </div>
+      <div class="cart-total">
+        <div>
+          <div>Subtotal: <span id="cartSubtotal">$0.00</span></div>
+          <div style="font-size:.7rem;color:var(--site-text2)" id="tipLine" style="display:none">Gorjeta: <span id="cartTip">$0.00</span></div>
+        </div>
+        <span class="cart-total-val" id="cartTotal">$0.00</span>
+      </div>
+      <button class="btn-checkout" id="btnCheckout" onclick="goToStep2()">Continuar</button>
     </div>
-    <div id="cartItems"></div>
-    <div class="cart-total">
-      <span>Total</span>
-      <span class="cart-total-val" id="cartTotal">$0.00</span>
+
+    <!-- Step 2: Customer Info + Payment -->
+    <div class="checkout-step" id="checkoutStep2">
+      <div class="cart-header">
+        <div class="cart-title">Seus Dados</div>
+        <button class="cart-close" onclick="closeCart()">&#10005;</button>
+      </div>
+      <!-- Order summary -->
+      <div style="background:var(--site-surface);border-radius:var(--site-radius-sm);padding:.6rem;margin-bottom:.8rem;border:1px solid var(--site-border)">
+        <div style="font-size:.7rem;font-weight:600;margin-bottom:.3rem">Resumo</div>
+        <div class="order-summary-items" id="orderSummary"></div>
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:700;padding-top:.3rem;border-top:1px solid var(--site-border)">
+          <span>Total</span><span style="color:var(--site-primary)" id="summaryTotal">$0.00</span>
+        </div>
+      </div>
+      <!-- Customer info -->
+      <div class="checkout-form-group">
+        <label>Seu nome *</label>
+        <input type="text" class="checkout-input" id="custName" placeholder="Nome completo" maxlength="60" required>
+      </div>
+      <div class="checkout-form-group">
+        <label>Telefone / WhatsApp</label>
+        <input type="tel" class="checkout-input" id="custPhone" placeholder="(99) 99999-9999" maxlength="20">
+      </div>
+      <div class="checkout-form-group">
+        <label>Email</label>
+        <input type="email" class="checkout-input" id="custEmail" placeholder="email@exemplo.com" maxlength="100">
+      </div>
+      <!-- Payment method -->
+      <div style="font-size:.7rem;font-weight:600;color:var(--site-text2);margin-bottom:.3rem">Forma de pagamento</div>
+      <div class="payment-methods">
+        <button class="pm-btn selected" data-pm="counter" onclick="selectPM('counter')">Pagar no local</button>
+        <button class="pm-btn" data-pm="card" onclick="selectPM('card')" id="pmCardBtn" style="display:none">Cartao</button>
+      </div>
+      <!-- Stripe Payment Element -->
+      <div id="stripeSection" style="display:none">
+        <div id="stripe-element"></div>
+        <div class="checkout-error" id="stripeError"></div>
+      </div>
+      <div class="checkout-error" id="checkoutError"></div>
+      <div style="display:flex;margin-top:.8rem">
+        <button class="btn-back" onclick="goToStep1()">Voltar</button>
+        <button class="btn-checkout" style="flex:1" id="btnPay" onclick="submitOrder()">Enviar Pedido</button>
+      </div>
     </div>
-    <button class="btn-checkout" id="btnCheckout" onclick="startCheckout()">Finalizar Pedido</button>
+
+    <!-- Step 3: Confirmation -->
+    <div class="checkout-step" id="checkoutStep3">
+      <div class="order-confirmed">
+        <div class="order-confirmed-icon">&#10003;</div>
+        <h3>Pedido Enviado!</h3>
+        <div class="order-receipt" id="confirmReceipt"></div>
+        <div style="font-size:.8rem;color:var(--site-text2);margin:.5rem 0" id="confirmMsg">Seu pedido foi enviado para a cozinha.</div>
+        <div class="order-tracking" id="orderTracking">
+          <div class="tracking-status">
+            <div class="tracking-dot"></div>
+            <span id="trackingLabel">Aguardando preparo...</span>
+          </div>
+        </div>
+        <button class="btn-primary" style="margin-top:1.2rem" onclick="resetCheckout()">Fazer novo pedido</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -555,17 +698,22 @@ function removeFromCart(itemId) {
 }
 
 function updateCartUI() {
-  const totalItems = CART.reduce((s, c) => s + c.qty, 0);
-  const totalPrice = CART.reduce((s, c) => s + c.price * c.qty, 0);
+  const totalItems = CART.reduce(function(s, c) { return s + c.qty; }, 0);
+  const sub = getSubtotal();
+  const tip = getTipAmount();
+  const total = sub + tip;
   const fab = document.getElementById('cartFab');
   fab.style.display = totalItems > 0 ? 'flex' : 'none';
   document.getElementById('cartBadge').textContent = totalItems;
-  document.getElementById('cartTotal').textContent = '$' + totalPrice.toFixed(2);
+  document.getElementById('cartSubtotal').textContent = '$' + sub.toFixed(2);
+  document.getElementById('cartTip').textContent = '$' + tip.toFixed(2);
+  document.getElementById('tipLine').style.display = tip > 0 ? 'block' : 'none';
+  document.getElementById('cartTotal').textContent = '$' + total.toFixed(2);
   // Render items
   const el = document.getElementById('cartItems');
   if (CART.length === 0) { el.innerHTML = '<div class="empty-state"><p>Seu pedido esta vazio</p></div>'; return; }
   let html = '';
-  CART.forEach(c => {
+  CART.forEach(function(c) {
     html += '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">' + esc(c.name) + '</div>';
     html += '<div class="cart-item-price">$' + (c.price * c.qty).toFixed(2) + '</div></div>';
     html += '<div class="cart-item-qty"><button class="cart-qty-btn" onclick="removeFromCart(\'' + esc(c.id) + '\')">-</button>';
@@ -575,12 +723,231 @@ function updateCartUI() {
   el.innerHTML = html;
 }
 
-function openCart() { document.getElementById('cartPanel').classList.add('open'); updateCartUI(); }
+function openCart() { document.getElementById('cartPanel').classList.add('open'); updateCartUI(); showStep(1); }
 function closeCart() { document.getElementById('cartPanel').classList.remove('open'); }
 
-function startCheckout() {
-  if (CART.length === 0) return;
-  showToast('Checkout em breve! Entre em contato para finalizar seu pedido.');
+// ── Checkout State ──
+let selectedTip = 0;
+let selectedPM = 'counter';
+let stripeObj = null;
+let stripeElements = null;
+let stripePaymentElement = null;
+let stripeClientSecret = null;
+let lastOrderId = null;
+let lastReceiptNumber = null;
+
+// ── Stripe Init ──
+async function initStripe() {
+  try {
+    const r = await fetch('/api/stripe/config');
+    const d = await r.json();
+    if (d.publicKey) {
+      stripeObj = Stripe(d.publicKey);
+      document.getElementById('pmCardBtn').style.display = 'block';
+    }
+  } catch (e) { /* Stripe not available, counter-only */ }
+}
+
+// ── Step Navigation ──
+function showStep(n) {
+  document.querySelectorAll('.checkout-step').forEach(function(s) { s.classList.remove('active'); });
+  document.getElementById('checkoutStep' + n).classList.add('active');
+}
+
+function goToStep1() { showStep(1); }
+
+function goToStep2() {
+  if (CART.length === 0) { showToast('Carrinho vazio'); return; }
+  // Render order summary
+  const el = document.getElementById('orderSummary');
+  let html = '';
+  CART.forEach(function(c) {
+    html += '<div class="order-summary-item"><span>' + c.qty + 'x ' + esc(c.name) + '</span><span>$' + (c.price * c.qty).toFixed(2) + '</span></div>';
+  });
+  el.innerHTML = html;
+  document.getElementById('summaryTotal').textContent = '$' + getTotal().toFixed(2);
+  document.getElementById('checkoutError').textContent = '';
+  showStep(2);
+}
+
+// ── Tip ──
+function selectTip(pct) {
+  selectedTip = pct;
+  document.querySelectorAll('.tip-btn').forEach(function(b) { b.classList.toggle('selected', parseInt(b.dataset.tip) === pct); });
+  updateCartUI();
+}
+
+function getSubtotal() { return CART.reduce(function(s, c) { return s + c.price * c.qty; }, 0); }
+function getTipAmount() { return getSubtotal() * selectedTip / 100; }
+function getTotal() { return getSubtotal() + getTipAmount(); }
+
+// ── Payment Method ──
+function selectPM(pm) {
+  selectedPM = pm;
+  document.querySelectorAll('.pm-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.pm === pm); });
+  document.getElementById('stripeSection').style.display = pm === 'card' ? 'block' : 'none';
+  document.getElementById('btnPay').textContent = pm === 'card' ? 'Pagar $' + getTotal().toFixed(2) : 'Enviar Pedido';
+  if (pm === 'card' && stripeObj && !stripePaymentElement) {
+    createStripeElement();
+  }
+}
+
+async function createStripeElement() {
+  if (!stripeObj) return;
+  const total = getTotal();
+  if (total <= 0) return;
+  document.getElementById('stripeError').textContent = '';
+  try {
+    const r = await fetch('/api/site/' + SLUG + '/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: total,
+        currency: 'usd',
+        customerName: document.getElementById('custName').value.trim() || 'Guest',
+        customerEmail: document.getElementById('custEmail').value.trim() || ''
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById('stripeError').textContent = d.error || 'Erro'; return; }
+    stripeClientSecret = d.clientSecret;
+    stripeElements = stripeObj.elements({
+      clientSecret: d.clientSecret,
+      appearance: {
+        theme: 'night',
+        variables: {
+          colorPrimary: CFG.primaryColor || '#ff6b35',
+          colorBackground: '#1a1a2e',
+          colorText: '#e8e8ed',
+          colorTextSecondary: '#9898a0',
+          borderRadius: '10px',
+          fontFamily: 'Inter, system-ui, sans-serif'
+        }
+      }
+    });
+    stripePaymentElement = stripeElements.create('payment');
+    stripePaymentElement.mount('#stripe-element');
+  } catch (e) {
+    document.getElementById('stripeError').textContent = 'Erro ao carregar pagamento: ' + e.message;
+  }
+}
+
+// ── Submit Order ──
+async function submitOrder() {
+  const name = document.getElementById('custName').value.trim();
+  if (!name) { document.getElementById('checkoutError').textContent = 'Nome obrigatorio'; return; }
+  const btn = document.getElementById('btnPay');
+  btn.disabled = true;
+  btn.textContent = 'Processando...';
+  document.getElementById('checkoutError').textContent = '';
+
+  try {
+    // If card payment, confirm Stripe first
+    if (selectedPM === 'card' && stripeObj && stripeClientSecret) {
+      const { error } = await stripeObj.confirmPayment({
+        elements: stripeElements,
+        confirmParams: { return_url: window.location.href },
+        redirect: 'if_required'
+      });
+      if (error) {
+        document.getElementById('checkoutError').textContent = error.message;
+        btn.disabled = false;
+        btn.textContent = 'Pagar $' + getTotal().toFixed(2);
+        return;
+      }
+    }
+
+    // Create order
+    const orderData = {
+      customerName: name,
+      customerPhone: document.getElementById('custPhone').value.trim(),
+      customerEmail: document.getElementById('custEmail').value.trim(),
+      items: CART.map(function(c) { return { menuItemId: c.id, qty: c.qty }; }),
+      notes: document.getElementById('orderNotes').value.trim(),
+      paymentMethod: selectedPM,
+      tipPercent: selectedTip,
+      tipAmount: getTipAmount()
+    };
+
+    const r = await fetch('/api/site/' + SLUG + '/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      document.getElementById('checkoutError').textContent = d.error || 'Erro ao enviar pedido';
+      btn.disabled = false;
+      btn.textContent = selectedPM === 'card' ? 'Pagar $' + getTotal().toFixed(2) : 'Enviar Pedido';
+      return;
+    }
+
+    // Success!
+    lastOrderId = d.order.id;
+    lastReceiptNumber = d.order.receiptNumber;
+    document.getElementById('confirmReceipt').textContent = '#' + d.order.receiptNumber;
+    const pmLabel = selectedPM === 'card' ? 'Pago com cartao' : 'Pagamento no local';
+    document.getElementById('confirmMsg').textContent = pmLabel + ' | Total: $' + d.order.total.toFixed(2);
+    CART = [];
+    updateCartUI();
+    showStep(3);
+    // Start tracking
+    startOrderTracking();
+  } catch (e) {
+    document.getElementById('checkoutError').textContent = 'Erro: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = selectedPM === 'card' ? 'Pagar $' + getTotal().toFixed(2) : 'Enviar Pedido';
+  }
+}
+
+// ── Order Tracking ──
+let trackingInterval = null;
+const STATUS_LABELS = { pending: 'Aguardando preparo...', preparing: 'Sendo preparado!', ready: 'Pronto para retirada!', delivered: 'Entregue!', cancelled: 'Cancelado', paid: 'Aguardando preparo...' };
+const STATUS_COLORS = { pending: '#fbbf24', preparing: '#3b82f6', ready: '#22c55e', delivered: '#22c55e', cancelled: '#ef4444', paid: '#fbbf24' };
+
+function startOrderTracking() {
+  if (trackingInterval) clearInterval(trackingInterval);
+  trackingInterval = setInterval(checkOrderStatus, 5000);
+}
+
+async function checkOrderStatus() {
+  if (!lastOrderId) return;
+  try {
+    const r = await fetch('/api/site/' + SLUG + '/order/' + lastOrderId);
+    const d = await r.json();
+    if (d.status) {
+      const label = STATUS_LABELS[d.status] || d.status;
+      document.getElementById('trackingLabel').textContent = label;
+      document.querySelector('.tracking-dot').style.background = STATUS_COLORS[d.status] || 'var(--site-primary)';
+      if (d.status === 'delivered' || d.status === 'cancelled') {
+        clearInterval(trackingInterval);
+        trackingInterval = null;
+        document.querySelector('.tracking-dot').style.animation = 'none';
+      }
+    }
+  } catch (e) { /* polling failed, retry */ }
+}
+
+function resetCheckout() {
+  if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; }
+  lastOrderId = null;
+  lastReceiptNumber = null;
+  selectedTip = 0;
+  selectedPM = 'counter';
+  stripePaymentElement = null;
+  stripeElements = null;
+  stripeClientSecret = null;
+  document.querySelectorAll('.tip-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.tip === '0'); });
+  document.querySelectorAll('.pm-btn').forEach(function(b) { b.classList.toggle('selected', b.dataset.pm === 'counter'); });
+  document.getElementById('stripeSection').style.display = 'none';
+  document.getElementById('stripe-element').innerHTML = '';
+  document.getElementById('custName').value = '';
+  document.getElementById('custPhone').value = '';
+  document.getElementById('custEmail').value = '';
+  document.getElementById('orderNotes').value = '';
+  document.getElementById('btnPay').disabled = false;
+  document.getElementById('btnPay').textContent = 'Enviar Pedido';
+  closeCart();
 }
 
 // ── Parking Module ──
@@ -767,6 +1134,7 @@ function showToast(msg) {
 
 // ── Boot ──
 initSite();
+initStripe();
 </script>
 </body>
 </html>

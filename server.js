@@ -15188,6 +15188,144 @@ app.post('/api/operator/event/:eventId/site/domain', express.json(), async (req,
   res.json({ ok: true, status: 'pending', instructions: 'Aponte o DNS do seu dominio (' + d + ') com um CNAME para touch-irl.com. A verificacao sera automatica.' });
 });
 
+// ── Site White-Label: Public Order (no auth needed - guests) ──
+const siteOrderLimiter = require('express-rate-limit')({ windowMs: 60000, max: 10, message: { error: 'Muitos pedidos. Aguarde 1 minuto.' } });
+
+app.post('/api/site/:slug/order', express.json(), siteOrderLimiter, (req, res) => {
+  const ev = findEventBySlug(req.params.slug);
+  if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
+  if (!ev.active) return res.status(400).json({ error: 'Estabelecimento nao esta aceitando pedidos no momento' });
+  const { customerName, customerPhone, customerEmail, items, notes, paymentMethod, tipPercent, tipAmount } = req.body;
+  if (!customerName || !customerName.trim()) return res.status(400).json({ error: 'Nome obrigatorio' });
+  if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Pedido vazio' });
+  if (items.length > 50) return res.status(400).json({ error: 'Maximo 50 itens por pedido' });
+  // Validate items against actual menu
+  const menu = ev.menu || [];
+  const validatedItems = [];
+  let subtotal = 0;
+  for (const item of items) {
+    if (!item.menuItemId || !item.qty || item.qty < 1) continue;
+    const menuItem = menu.find(m => m.id === item.menuItemId);
+    if (!menuItem) continue;
+    if (menuItem.available === false) continue;
+    // Check stock
+    if (menuItem.stockEnabled && menuItem.stockQty !== undefined && menuItem.stockQty < item.qty) {
+      return res.status(400).json({ error: 'Item "' + menuItem.name + '" sem estoque suficiente (disponivel: ' + menuItem.stockQty + ')' });
+    }
+    const qty = Math.min(parseInt(item.qty) || 1, 99);
+    const price = parseFloat(menuItem.price) || 0;
+    validatedItems.push({ menuItemId: menuItem.id, name: menuItem.name, qty, price });
+    subtotal += price * qty;
+    // Decrement stock
+    if (menuItem.stockEnabled && menuItem.stockQty !== undefined) {
+      menuItem.stockQty -= qty;
+    }
+  }
+  if (validatedItems.length === 0) return res.status(400).json({ error: 'Nenhum item valido no pedido' });
+  const parsedTipAmount = parseFloat(tipAmount) || 0;
+  const total = subtotal + parsedTipAmount;
+  if (!ev.orders) ev.orders = [];
+  const receiptNumber = 'REC-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+  const fiscal = {
+    productAmount: subtotal,
+    serviceAmount: parsedTipAmount,
+    productFiscalType: 'NF-e',
+    serviceFiscalType: parsedTipAmount > 0 ? 'NF-S' : null,
+    cfop: '5.102', cst: '00', ncm: '2106.90.90',
+    issCode: parsedTipAmount > 0 ? '09.02' : null,
+    nfeStatus: 'pending',
+    nfsStatus: parsedTipAmount > 0 ? 'pending' : null
+  };
+  const pm = paymentMethod === 'card' || paymentMethod === 'pix' ? paymentMethod : 'counter';
+  const order = {
+    id: uuidv4(),
+    userId: 'site-guest-' + Date.now().toString(36),
+    userName: sanitizeStr(customerName, 60),
+    customerPhone: sanitizeStr(customerPhone || '', 20),
+    customerEmail: sanitizeStr(customerEmail || '', 100),
+    items: validatedItems,
+    table: null,
+    subtotal,
+    tipPercent: parseInt(tipPercent) || 0,
+    tipAmount: parsedTipAmount,
+    total,
+    paymentMethod: pm,
+    status: pm === 'card' ? 'paid' : 'pending',
+    receiptNumber,
+    eventName: ev.name || 'Evento',
+    notes: sanitizeStr(notes || '', 200),
+    source: 'site',
+    fiscal,
+    createdAt: Date.now()
+  };
+  ev.orders.push(order);
+  saveDB('operatorEvents');
+  // Notify operator
+  io.emit('new-order', { eventId: ev.id, order });
+  io.to('user:' + ev.creatorId).emit('new-order', { eventId: ev.id, order });
+  io.to('event:' + ev.id).emit('new-order', { eventId: ev.id, order });
+  if (order.status === 'paid') {
+    io.to('user:' + ev.creatorId).emit('payment-received', {
+      eventId: ev.id, orderId: order.id,
+      amount: order.total, tipAmount: order.tipAmount || 0,
+      userName: order.userName, method: order.paymentMethod,
+      timestamp: order.createdAt, source: 'site'
+    });
+  }
+  console.log('[site-order] New order from site:', ev.siteConfig.slug, '| #' + receiptNumber, '| $' + total.toFixed(2));
+  res.json({ ok: true, order: { id: order.id, receiptNumber, total, status: order.status, items: validatedItems } });
+});
+
+// ── Site White-Label: Stripe Payment Intent (public, no auth) ──
+app.post('/api/site/:slug/create-payment-intent', express.json(), siteOrderLimiter, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Pagamento com cartao nao disponivel no momento' });
+  const ev = findEventBySlug(req.params.slug);
+  if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
+  const { amount, currency, customerName, customerEmail } = req.body;
+  if (!amount || amount < 1) return res.status(400).json({ error: 'Valor invalido' });
+  if (amount > 50000) return res.status(400).json({ error: 'Valor maximo excedido' });
+  const curr = (currency || 'usd').toLowerCase();
+  const ZERO_DECIMAL = new Set(['jpy','krw','vnd','bif','clp','djf','gnf','kmf','mga','pyg','rwf','ugx','vuv','xaf','xof','xpf']);
+  const amountCents = ZERO_DECIMAL.has(curr) ? Math.round(amount) : Math.round(amount * 100);
+  try {
+    const intentData = {
+      amount: amountCents,
+      currency: curr,
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        source: 'touch-site',
+        slug: ev.siteConfig.slug,
+        eventId: ev.id,
+        type: 'order',
+        customerName: sanitizeStr(customerName || '', 60),
+        customerEmail: sanitizeStr(customerEmail || '', 100)
+      }
+    };
+    // Split payment if operator has Stripe Connect
+    const operator = db.users[ev.creatorId];
+    if (operator && operator.stripeConnectId && operator.stripeConnected) {
+      const fee = Math.round(amountCents * TOUCH_FEE_PERCENT / 100);
+      intentData.application_fee_amount = fee;
+      intentData.transfer_data = { destination: operator.stripeConnectId };
+    }
+    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
+    console.log('[site-stripe] PaymentIntent created for', ev.siteConfig.slug, ':', paymentIntent.id, '$' + amount);
+    res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
+  } catch (e) {
+    console.error('[site-stripe] Error:', e.message);
+    res.status(500).json({ error: 'Erro ao processar pagamento: ' + e.message });
+  }
+});
+
+// ── Site White-Label: Order tracking (public) ──
+app.get('/api/site/:slug/order/:orderId', (req, res) => {
+  const ev = findEventBySlug(req.params.slug);
+  if (!ev) return res.status(404).json({ error: 'Site nao encontrado' });
+  const order = (ev.orders || []).find(o => o.id === req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado' });
+  res.json({ id: order.id, receiptNumber: order.receiptNumber, status: order.status, items: order.items, total: order.total, createdAt: order.createdAt });
+});
+
 // ═══ OPERATOR FULL DATA ENDPOINTS ═══
 // Full parking data for operator
 app.get('/api/operator/event/:eventId/parking/vehicles', (req, res) => {
