@@ -986,16 +986,15 @@ async function doTouchLogin() {
   document.getElementById('touchLoginBtn').disabled = true;
   document.getElementById('touchLoginBtn').textContent = 'Entrando...';
   try {
-    // Load Firebase if not loaded
+    // Load Firebase if not loaded (config from server, never hardcoded)
     if (!window.firebase || !firebase.auth) {
       await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js');
       if (!firebase.apps.length) {
-        firebase.initializeApp({
-          apiKey: 'AIzaSyCXkCORWpP8GaJXijRKB2OR8sCbBZ5esPA',
-          authDomain: 'touch-irl.firebaseapp.com',
-          projectId: 'touch-irl'
-        });
+        var fbCfgR = await fetch('/api/firebase-config');
+        var fbCfg = await fbCfgR.json();
+        if (!fbCfg.apiKey) { document.getElementById('touchLoginError').textContent = 'Login indisponivel no momento'; document.getElementById('touchLoginBtn').disabled = false; document.getElementById('touchLoginBtn').textContent = 'Entrar'; return; }
+        firebase.initializeApp(fbCfg);
       }
     }
     var cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
