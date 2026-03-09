@@ -7215,7 +7215,6 @@ async function checkin(){
     var r=await fetch('/api/event/quick-checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:'${eventId}',nickname:nick})});
     var d=await r.json();
     if(d.error){btn.disabled=false;btn.textContent='Fazer check-in';return alert(d.error)}
-    // Save and redirect immediately — animation happens in the app
     localStorage.setItem('touch_userId',d.userId);
     localStorage.setItem('touch_userName',nick);
     localStorage.setItem('touch_userColor',d.userColor||'');
@@ -7223,10 +7222,19 @@ async function checkin(){
     localStorage.setItem('activeEventId','${eventId}');
     localStorage.setItem('activeEventName','${eventName.replace(/'/g, "\\'")}');
     localStorage.setItem('activeEventRole','visitor');
-    btn.textContent='Entrando...';
     window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
   }catch(e){btn.disabled=false;btn.textContent='Fazer check-in';alert('Erro de conexao.')}
 }
+// Auto-checkin for logged-in users
+(function(){
+  var savedId=localStorage.getItem('touch_userId');
+  var savedName=localStorage.getItem('touch_userName');
+  if(savedId&&savedName&&savedName.length>=2){
+    document.getElementById('nick').value=savedName;
+    document.getElementById('form').innerHTML='<div class="event-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="event-name">${eventName}</div><div class="event-sub">Fazendo check-in como <strong>'+savedName+'</strong></div><div class="price-tag" style="color:#60a5fa">Conectando...</div>';
+    checkin();
+  }
+})();
 document.getElementById('nick').addEventListener('keydown',function(e){if(e.key==='Enter')checkin()});
 </script></body></html>`;
 }
