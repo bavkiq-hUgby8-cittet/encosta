@@ -7370,6 +7370,7 @@ app.get('/api/event/:eventId', (req, res) => {
     enriched.eventLogo = proxyStorageUrl(opEv.eventLogo || null);
     enriched.acceptsTips = !!opEv.acceptsTips;
     enriched.businessProfile = opEv.businessProfile || null;
+    if (!enriched.creatorId && opEv.creatorId) enriched.creatorId = opEv.creatorId;
   }
   res.json(enriched);
 });

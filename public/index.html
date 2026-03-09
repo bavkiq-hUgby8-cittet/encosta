@@ -4908,8 +4908,12 @@ async function showEventView(eventId,eventName){
     else window._currentEventBizProfile=null;
     // Show QR checkin button for event creator/operator
     const isCreator=!!(d.creatorId&&d.creatorId===state.userId);
-    const isOperator=isCreator||localStorage.getItem('activeEventRole')==='operator';
-    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isCreator:',isCreator,'isOperator:',isOperator);
+    // Fallback: if event has no creatorId (old events), check if user has operator role or owns the event via myEvents
+    const myEvList=JSON.parse(localStorage.getItem('touch_myEvents')||'[]');
+    const ownsViaList=myEvList.some(function(e){return e.id===eventId||e.eventId===eventId});
+    const isOperator=isCreator||ownsViaList||localStorage.getItem('activeEventRole')==='operator';
+    if(isOperator)localStorage.setItem('activeEventRole','operator');
+    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isCreator:',isCreator,'ownsViaList:',ownsViaList,'isOperator:',isOperator);
     const qrBtn=$('evQRBtn');
     if(qrBtn){qrBtn.style.display=isOperator?'flex':'none'}
     const qrBtnH=$('evQRBtnHeader');
@@ -17407,6 +17411,12 @@ async function openEventDetail(eventId){
     const r=await fetch('/api/event/'+eventId);
     const ev=await r.json();
     if(ev.error){showToast(ev.error);return}
+    // Auto-detect operator: if this user created the event, set role
+    if(ev.creatorId&&ev.creatorId===state.userId){
+      localStorage.setItem('activeEventId',eventId);
+      localStorage.setItem('activeEventName',ev.name||'Evento');
+      localStorage.setItem('activeEventRole','operator');
+    }
     $('evtDetailTitle').textContent=ev.name;
     const parts=ev.participantsData||ev.participants||[];
     const alreadyIn=parts.some(p=>p.id===state.userId);
