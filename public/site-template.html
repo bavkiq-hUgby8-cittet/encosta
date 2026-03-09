@@ -1032,10 +1032,10 @@ async function doTouchLogin() {
     var r = await fetch('/api/auth/link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: idToken })
+      body: JSON.stringify({ firebaseUid: cred.user.uid, email: cred.user.email || email, displayName: cred.user.displayName || '', idToken: idToken })
     });
     var d = await r.json();
-    if (d.ok && d.userId) {
+    if (d.userId) {
       touchLoggedUserId = d.userId;
       // Fetch checkout profile
       var pr = await fetch('/api/user/' + d.userId + '/checkout-profile');
@@ -1621,6 +1621,21 @@ function clearActiveOrderFromLocal() {
 
 function restoreActiveOrder() {
   try {
+    // If lastOrderId is already in memory (user clicked "Fazer novo pedido" then banner),
+    // just reopen tracking screen and fetch latest status
+    if (lastOrderId && document.getElementById('trackingScreen').style.display === 'none') {
+      var banner = document.getElementById('activeOrderBanner');
+      if (banner) banner.style.display = 'none';
+      fetch('/api/site/' + SLUG + '/order/' + lastOrderId).then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.status || d.status === 'delivered' || d.status === 'cancelled') { clearActiveOrderFromLocal(); lastOrderId = null; return; }
+        lastOrderPaid = (d.status === 'paid' || d.paymentMethod === 'card');
+        lastOrderDeliveryType = d.deliveryType || 'pickup';
+        renderTrackingTimeline(d.status);
+        renderTrackingStatusBox(d.status);
+        openTrackingScreen();
+      }).catch(function() {});
+      return;
+    }
     var saved = localStorage.getItem('touch_site_order_' + SLUG);
     if (!saved) return;
     var data = JSON.parse(saved);
@@ -1664,7 +1679,15 @@ function closeTrackingScreen() {
 
 function closeTrackingAndReset() {
   closeTrackingScreen();
-  resetCheckout();
+  // Keep tracking data accessible if order is still active
+  if (lastOrderId) {
+    // Don't clear from localStorage - show banner so user can return
+    var banner = document.getElementById('activeOrderBanner');
+    if (banner) banner.style.display = 'block';
+    // Keep socket/polling running for real-time updates
+  } else {
+    resetCheckout();
+  }
 }
 
 function resetCheckout() {
