@@ -7160,10 +7160,10 @@ app.get('/e/:eventId', (req, res) => {
   const eventId = req.params.eventId;
   const ev = db.events[eventId];
   const opEv = db.operatorEvents ? db.operatorEvents[eventId] : null;
-  if (!ev) return res.status(404).send('Evento nao encontrado.');
-  const eventName = ev.name || 'Evento';
+  if (!ev && !opEv) return res.status(404).send('Evento nao encontrado.');
+  const eventName = (opEv ? opEv.name : null) || (ev ? ev.name : null) || 'Evento';
   const entryPrice = opEv ? (opEv.entryPrice || 0) : 0;
-  const creatorName = ev.creatorName || '';
+  const creatorName = (opEv ? opEv.creatorName : null) || (ev ? ev.creatorName : null) || '';
   res.send(generateEventCheckinPage(eventId, eventName, entryPrice, creatorName));
 });
 
@@ -7235,7 +7235,14 @@ document.getElementById('nick').addEventListener('keydown',function(e){if(e.key=
 app.post('/api/event/quick-checkin', (req, res) => {
   const { eventId, nickname } = req.body;
   if (!eventId || !nickname) return res.status(400).json({ error: 'Dados invalidos.' });
-  const ev = db.events[eventId];
+  let ev = db.events[eventId];
+  const opEv = db.operatorEvents ? db.operatorEvents[eventId] : null;
+  // If event only exists in operatorEvents, create a minimal entry in db.events
+  if (!ev && opEv) {
+    ev = { id: eventId, name: opEv.name, description: opEv.description || '', creatorId: opEv.creatorId, creatorName: opEv.creatorName || '', participants: opEv.participants ? [...opEv.participants] : [], createdAt: opEv.createdAt || Date.now() };
+    db.events[eventId] = ev;
+    console.log('[quick-checkin] created db.events entry from operatorEvents for:', eventId);
+  }
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const nick = nickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname: 2 a 20 caracteres.' });
@@ -7257,7 +7264,6 @@ app.post('/api/event/quick-checkin', (req, res) => {
     ev.participants.push(user.id);
   }
   // Also update operatorEvents
-  const opEv = db.operatorEvents ? db.operatorEvents[eventId] : null;
   if (opEv) {
     if (!Array.isArray(opEv.participants)) opEv.participants = [];
     if (!opEv.participants.includes(user.id)) {
