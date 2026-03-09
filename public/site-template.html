@@ -614,20 +614,22 @@ img{max-width:100%;display:block}
       </div>
     </div>
 
-    <!-- Step 3: Confirmation + Tracking -->
-    <div class="checkout-step" id="checkoutStep3">
-      <div class="order-confirmed">
-        <div class="order-confirmed-icon">&#10003;</div>
-        <h3>Pedido Confirmado!</h3>
-        <div class="order-receipt" id="confirmReceipt"></div>
-        <div style="font-size:.8rem;color:var(--site-text2);margin:.5rem 0" id="confirmMsg"></div>
-        <!-- Timeline visual -->
-        <div id="orderTimeline" style="margin:1rem 0"></div>
-        <div class="tracking-status-text">
-          <span id="trackingLabel">Aguardando preparo...</span>
-        </div>
-        <button class="btn-primary" style="margin-top:1.2rem" onclick="resetCheckout()">Fazer novo pedido</button>
+  </div>
+</div>
+
+<!-- Order Tracking Screen (independent from cart panel) -->
+<div id="trackingScreen" style="display:none;position:fixed;inset:0;z-index:250;background:var(--site-bg);overflow-y:auto">
+  <div style="max-width:500px;margin:0 auto;padding:1.5rem 1rem;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div class="order-confirmed">
+      <div class="order-confirmed-icon">&#10003;</div>
+      <h3>Pedido Confirmado!</h3>
+      <div class="order-receipt" id="confirmReceipt"></div>
+      <div style="font-size:.8rem;color:var(--site-text2);margin:.5rem 0" id="confirmMsg"></div>
+      <div id="orderTimeline" style="margin:1rem 0"></div>
+      <div class="tracking-status-text">
+        <span id="trackingLabel">Aguardando preparo...</span>
       </div>
+      <button class="btn-primary" style="margin-top:1.2rem" onclick="closeTrackingAndReset()">Fazer novo pedido</button>
     </div>
   </div>
 </div>
@@ -1242,7 +1244,8 @@ function siteExpressCheckout() {
         saveActiveOrderToLocal(d.order.id, d.order.receiptNumber, d.order.total, 'Apple Pay / Google Pay');
         CART = [];
         updateCartUI();
-        showStep(3);
+        closeCart();
+        openTrackingScreen();
         startOrderTracking();
       } else {
         ev.complete('fail');
@@ -1420,7 +1423,8 @@ async function submitOrder() {
     saveActiveOrderToLocal(d.order.id, d.order.receiptNumber, d.order.total, pmLabel);
     CART = [];
     updateCartUI();
-    showStep(3);
+    closeCart();
+    openTrackingScreen();
     startOrderTracking();
   } catch (e) {
     document.getElementById('checkoutError').textContent = 'Erro: ' + e.message;
@@ -1493,10 +1497,26 @@ function restoreActiveOrder() {
       document.getElementById('confirmMsg').textContent = (data.pmLabel || '') + ' | Total: $' + (data.total || 0).toFixed(2);
       renderTrackingTimeline(d.status);
       document.getElementById('trackingLabel').textContent = STATUS_LABELS[d.status] || d.status;
-      showStep(3);
+      openTrackingScreen();
       startOrderTracking();
     }).catch(function() { /* server error, ignore */ });
   } catch (e) { /* ignore */ }
+}
+
+function openTrackingScreen() {
+  document.getElementById('trackingScreen').style.display = 'block';
+  // Hide the active order banner since we're showing full tracking
+  var banner = document.getElementById('activeOrderBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+function closeTrackingScreen() {
+  document.getElementById('trackingScreen').style.display = 'none';
+}
+
+function closeTrackingAndReset() {
+  closeTrackingScreen();
+  resetCheckout();
 }
 
 function resetCheckout() {
