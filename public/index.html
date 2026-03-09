@@ -4908,11 +4908,12 @@ async function showEventView(eventId,eventName){
     else window._currentEventBizProfile=null;
     // Show QR checkin button for event creator/operator
     const isCreator=!!(d.creatorId&&d.creatorId===state.userId);
-    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isCreator:',isCreator);
+    const isOperator=isCreator||localStorage.getItem('activeEventRole')==='operator';
+    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isCreator:',isCreator,'isOperator:',isOperator);
     const qrBtn=$('evQRBtn');
-    if(qrBtn){qrBtn.style.display=isCreator?'flex':'none'}
+    if(qrBtn){qrBtn.style.display=isOperator?'flex':'none'}
     const qrBtnH=$('evQRBtnHeader');
-    if(qrBtnH){qrBtnH.style.display=isCreator?'inline-flex':'none'}
+    if(qrBtnH){qrBtnH.style.display=isOperator?'inline-flex':'none'}
     // Load event logo for center node
     window._evLogoImg=null;window._evLogoLoaded=false;
     if(d.eventLogo){
@@ -7738,34 +7739,45 @@ function doReveal(data){
     const newTipBtn=iconRow.querySelector('.rv-icon-btn.tip');
     if(newTipBtn){newTipBtn.id='revealTipBtn';newTipBtn.dataset.receiverId=them.id}
   }else if(isCheckin){
-    // CHECKIN: check entry price, reveal, go to event view
+    // CHECKIN: show all relevant action buttons for the event
     const evId=data.eventId||null;
     const evName=data.eventName||data.operatorName||'Evento';
     const entryPrice=data.entryPrice||0;
-    const opId=data.operatorId||them.id; // real operator ID for reveal
-
+    const opId=data.operatorId||them.id;
+    const evModules=data.eventModules||{};
+    const hasMenu=!!(evModules.restaurant);
+    const hasTips=!!data.acceptsTips;
+    var evLogo=(them.eventLogo||data.eventLogo||'').replace(/'/g,"\\'");
+    const enterEvAction=evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()";
+    const guestFlag=state.isGuest?";window._guestNeedsUpgrade=true":"";
+    // Menu icon
+    const _menuIco='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>';
+    let h='';
+    // Entry ticket (if has price)
     if(entryPrice>0){
       const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
-      let h='';
-      var evLogo=(them.eventLogo||'').replace(/'/g,"\\'");
-      h+=_rvBtn(_rvIco.ticket,t('reveal.pay_btn',{price:priceLabel}),"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+opId+"','"+evLogo+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,t('reveal.skip_btn'),"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"')",'skip');
-      iconRow.innerHTML=h;
-      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">'+t('reveal.entry_price_info',{price:priceLabel})+'</div>';
-    }else if(data.requireReveal){
-      let h='';
-      h+=_rvBtn(_rvIco.reveal,t('reveal.reveal_btn'),"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
-      h+=_rvBtn(_rvIco.skip,t('reveal.anonymous_btn'),"showEventView('"+evId+"','"+esc(evName)+"')",'skip');
-      iconRow.innerHTML=h;
-      if(secRow)secRow.innerHTML='<div style="font-size:.62rem;color:#60a5fa;text-align:center;padding:.3rem;line-height:1.5">'+t('reveal.id_required_note')+'</div>';
-    }else{
-      let h='';
-      h+=_rvBtn(_rvIco.reveal,t('reveal.reveal_btn'),"revealToOperator('"+opId+"','"+evId+"','"+esc(evName)+"')",'primary');
-      const skipAction=evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()";
-      h+=_rvBtn(_rvIco.skip,t('reveal.checkin_only_btn'),skipAction+(state.isGuest?";window._guestNeedsUpgrade=true":""),'skip');
-      iconRow.innerHTML=h;
-      if(secRow)secRow.style.display='none';
+      h+=_rvBtn(_rvIco.ticket,'Pagar '+priceLabel,"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+opId+"','"+evLogo+"')",'primary');
     }
+    // Menu button (if event has restaurant module)
+    if(hasMenu&&evId){
+      h+=_rvBtn(_menuIco,'Cardapio',"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"');setTimeout(function(){openEventMenu()},400)",'');
+    }
+    // Tip button (if event accepts tips)
+    if(hasTips){
+      h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
+    }
+    // Enter event
+    h+=_rvBtn(_rvIco.skip,'Entrar',enterEvAction+guestFlag,'skip');
+    iconRow.innerHTML=h;
+    // Set receiverId on tip button if exists
+    if(hasTips){
+      const tipB=iconRow.querySelector('.rv-icon-btn.tip');
+      if(tipB){tipB.id='revealTipBtn';tipB.dataset.receiverId=opId}
+    }
+    if(entryPrice>0&&secRow){
+      const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
+      secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">Entrada: '+priceLabel+'</div>';
+    }else if(secRow){secRow.style.display='none'}
   }else if(window._guestFromQR&&state.isGuest){
     // GUEST FROM QR: show tip + chat + skip (skip -> registration)
     let h='';
