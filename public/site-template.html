@@ -440,6 +440,10 @@ img{max-width:100%;display:block}
 
 <!-- Main Content (hidden until loaded) -->
 <div id="siteMain" style="display:none">
+  <!-- Active Order Banner (shown when there is a pending order) -->
+  <div id="activeOrderBanner" style="display:none;background:linear-gradient(135deg,var(--site-primary),#ff3c6e);padding:.6rem 1rem;text-align:center;cursor:pointer;position:sticky;top:0;z-index:100" onclick="restoreActiveOrder()">
+    <span style="color:#fff;font-size:.8rem;font-weight:600">Voce tem um pedido em andamento. Toque aqui para acompanhar</span>
+  </div>
   <!-- HERO -->
   <section class="hero" id="heroSection">
     <div id="heroLogo"></div>
@@ -677,6 +681,8 @@ async function initSite() {
     document.getElementById('siteLoading').style.display = 'none';
     document.getElementById('siteMain').style.display = 'block';
     document.title = SITE_DATA.name || 'Site';
+    // Restore active order tracking if page was refreshed
+    restoreActiveOrder();
   } catch (err) {
     document.getElementById('siteLoading').innerHTML = '<div style="text-align:center;padding:2rem"><h2>Site nao encontrado</h2><p style="color:var(--site-text2);margin-top:.5rem">Este site pode estar desativado ou o endereco esta incorreto.</p></div>';
   }
@@ -1160,6 +1166,7 @@ function siteExpressCheckout() {
         lastReceiptNumber = d.order.receiptNumber;
         showTrackingScreen(d.order, 'Apple Pay / Google Pay');
         saveDeliveryAddressToLocal();
+        saveActiveOrderToLocal(d.order.id, d.order.receiptNumber, d.order.total, 'Apple Pay / Google Pay');
         CART = [];
         updateCartUI();
         showStep(3);
@@ -1337,6 +1344,7 @@ async function submitOrder() {
     const pmLabel = selectedPM === 'card' ? 'Pago com cartao' : 'Pagamento no local';
     showTrackingScreen(d.order, pmLabel);
     saveDeliveryAddressToLocal();
+    saveActiveOrderToLocal(d.order.id, d.order.receiptNumber, d.order.total, pmLabel);
     CART = [];
     updateCartUI();
     showStep(3);
@@ -1368,13 +1376,59 @@ async function checkOrderStatus() {
       if (d.status === 'delivered' || d.status === 'cancelled') {
         clearInterval(trackingInterval);
         trackingInterval = null;
+        clearActiveOrderFromLocal();
       }
     }
   } catch (e) { /* polling failed, retry */ }
 }
 
+// ── Persist active order for page refresh ──
+function saveActiveOrderToLocal(orderId, receiptNum, total, pmLabel) {
+  try {
+    localStorage.setItem('touch_site_order_' + SLUG, JSON.stringify({
+      orderId: orderId, receiptNumber: receiptNum, total: total, pmLabel: pmLabel, savedAt: Date.now()
+    }));
+  } catch (e) { /* ignore */ }
+}
+
+function clearActiveOrderFromLocal() {
+  try { localStorage.removeItem('touch_site_order_' + SLUG); } catch (e) { /* ignore */ }
+  var banner = document.getElementById('activeOrderBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+function restoreActiveOrder() {
+  try {
+    var saved = localStorage.getItem('touch_site_order_' + SLUG);
+    if (!saved) return;
+    var data = JSON.parse(saved);
+    // Expire after 4 hours
+    if (Date.now() - data.savedAt > 4 * 60 * 60 * 1000) { clearActiveOrderFromLocal(); return; }
+    lastOrderId = data.orderId;
+    lastReceiptNumber = data.receiptNumber;
+    // Show banner immediately (even before server confirms)
+    var banner = document.getElementById('activeOrderBanner');
+    if (banner) banner.style.display = 'block';
+    // Fetch current status from server before showing
+    fetch('/api/site/' + SLUG + '/order/' + data.orderId).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.status) { clearActiveOrderFromLocal(); return; }
+      // If already delivered or cancelled, clear and stay on menu
+      if (d.status === 'delivered' || d.status === 'cancelled') { clearActiveOrderFromLocal(); return; }
+      // Show tracking screen
+      if (banner) banner.style.display = 'none';
+      document.getElementById('confirmReceipt').textContent = '#' + data.receiptNumber;
+      document.getElementById('confirmMsg').textContent = (data.pmLabel || '') + ' | Total: $' + (data.total || 0).toFixed(2);
+      renderTrackingTimeline(d.status);
+      document.getElementById('trackingLabel').textContent = STATUS_LABELS[d.status] || d.status;
+      showStep(3);
+      startOrderTracking();
+    }).catch(function() { /* server error, ignore */ });
+  } catch (e) { /* ignore */ }
+}
+
 function resetCheckout() {
   if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; }
+  clearActiveOrderFromLocal();
   lastOrderId = null;
   lastReceiptNumber = null;
   selectedTip = 0;
