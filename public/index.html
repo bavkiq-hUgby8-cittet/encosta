@@ -4900,20 +4900,16 @@ async function showEventView(eventId,eventName){
   evNodes.length=0;evAmbientP.length=0;evBolts.length=0;evConnectedPairs.clear();
   for(let i=0;i<40;i++)evAmbientP.push({x:Math.random()*evViewW,y:Math.random()*evViewH,vx:(Math.random()-.5)*.15,vy:(Math.random()-.5)*.15,r:Math.random()*.6+.2,a:Math.random()*.1+.02,phase:Math.random()*Math.PI*2});
   try{
-    const r=await fetch('/api/operator/event/'+eventId+'/attendees');const d=await r.json();
+    const r=await fetch('/api/operator/event/'+eventId+'/attendees?userId='+encodeURIComponent(state.userId||''));const d=await r.json();
     $('evViewCount').textContent=(d.attendees||[]).length+' pessoas';
     (d.attendees||[]).forEach(a=>addEvNode(a,true));
     if(d.quickPhrases&&d.quickPhrases.length>0)setEventQuickPhrases(d.quickPhrases);
     if(d.businessProfile)window._currentEventBizProfile=d.businessProfile;
     else window._currentEventBizProfile=null;
     // Show QR checkin button for event creator/operator
-    const isCreator=!!(d.creatorId&&d.creatorId===state.userId);
-    // Fallback: if event has no creatorId (old events), check if user has operator role or owns the event via myEvents
-    const myEvList=JSON.parse(localStorage.getItem('touch_myEvents')||'[]');
-    const ownsViaList=myEvList.some(function(e){return e.id===eventId||e.eventId===eventId});
-    const isOperator=isCreator||ownsViaList||localStorage.getItem('activeEventRole')==='operator';
+    const isOperator=!!d.isOperator||localStorage.getItem('activeEventRole')==='operator';
     if(isOperator)localStorage.setItem('activeEventRole','operator');
-    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isCreator:',isCreator,'ownsViaList:',ownsViaList,'isOperator:',isOperator);
+    console.log('[eventView] creatorId:',d.creatorId,'myId:',state.userId,'isOperator(server):',d.isOperator,'isOperator(final):',isOperator);
     const qrBtn=$('evQRBtn');
     if(qrBtn){qrBtn.style.display=isOperator?'flex':'none'}
     const qrBtnH=$('evQRBtnHeader');

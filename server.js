@@ -13822,6 +13822,23 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
   try {
     const ev = db.operatorEvents[req.params.eventId];
     if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+    // Backfill creatorId for old events that don't have it
+    if (!ev.creatorId && ev.participants && ev.participants.length > 0) {
+      ev.creatorId = ev.participants[0];
+      ev.creatorName = db.users[ev.participants[0]] ? (db.users[ev.participants[0]].nickname || db.users[ev.participants[0]].name) : '';
+      console.log('[attendees] backfilled creatorId:', ev.creatorId, 'for event:', req.params.eventId);
+      saveDB('operatorEvents');
+    }
+    // Also check db.events for creatorId
+    const baseEv = db.events[req.params.eventId];
+    if (!ev.creatorId && baseEv && baseEv.creatorId) {
+      ev.creatorId = baseEv.creatorId;
+      ev.creatorName = baseEv.creatorName || '';
+      console.log('[attendees] backfilled creatorId from db.events:', ev.creatorId);
+      saveDB('operatorEvents');
+    }
+    const requestingUserId = req.query.userId || null;
+    const isOperator = !!(ev.creatorId && requestingUserId && ev.creatorId === requestingUserId);
     const totalUsers = Object.keys(db.users).length;
     const attendees = (ev.participants || []).map(uid => {
       try {
@@ -13844,7 +13861,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
