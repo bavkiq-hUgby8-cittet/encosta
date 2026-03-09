@@ -2684,9 +2684,6 @@ input{width:100%;padding:.8rem 1rem;background:rgba(255,255,255,.06);border:1px 
 input:focus{border-color:#ff6b35}
 button{width:100%;padding:.9rem;background:linear-gradient(135deg,#ff6b35,#e85d2a);border:none;border-radius:12px;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;letter-spacing:.05em}
 button:active{transform:scale(.97)}
-.result{display:none;animation:fadeIn .5s ease}
-.phrase{font-size:1.1rem;font-style:italic;color:rgba(255,107,53,.9);margin:1.5rem 0;line-height:1.5}
-.timer{font-family:'Courier New',monospace;font-size:.8rem;color:rgba(232,230,227,.4)}
 .cta{margin-top:2rem;font-size:.75rem;color:rgba(232,230,227,.3)}
 .cta a{color:#ff6b35;text-decoration:none}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -2717,18 +2714,13 @@ async function connect(){
     const r=await fetch('/api/touch-link/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({touchCode:'${code}',visitorNickname:nick})});
     const d=await r.json();
     if(d.error){btn.disabled=false;btn.textContent='TOUCH';return alert(d.error)}
-    document.getElementById('form').style.display='none';
-    document.getElementById('result').style.display='block';
-    document.getElementById('phrase').textContent='"'+d.phrase+'"';
-    // Save guest credentials and redirect to main app with connection
+    // Save guest credentials and redirect immediately — animation happens in the app
     localStorage.setItem('touch_userId',d.visitorId);
     localStorage.setItem('touch_userName',nick);
     localStorage.setItem('touch_userColor',d.visitorColor||'');
     localStorage.setItem('touch_isGuest','true');
-    // Redirect to app opening the connection directly
-    setTimeout(function(){
-      window.location.href='/?guest='+d.visitorId+'&rel='+(d.relationId||'')+'&phrase='+encodeURIComponent(d.phrase||'');
-    },1200);
+    btn.textContent='Entrando...';
+    window.location.href='/?guest='+d.visitorId+'&rel='+(d.relationId||'')+'&phrase='+encodeURIComponent(d.phrase||'');
   }catch(e){btn.disabled=false;btn.textContent='TOUCH';alert('Erro de conexao.')}
 }
 document.getElementById('nick').addEventListener('keydown',e=>{if(e.key==='Enter')connect()});
@@ -3101,6 +3093,8 @@ app.get('/api/relation-reveal/:relationId/:userId', (req, res) => {
     encounterCount: pairEncounters, encounterCount24h: pairEncounters24h,
     isCheckin, isServiceTouch: isService, eventId: evId,
     eventName: opEv ? opEv.name : null, entryPrice: opEv ? (opEv.entryPrice || 0) : 0,
+    eventModules: opEv ? (opEv.modules || null) : null, acceptsTips: opEv ? !!opEv.acceptsTips : false,
+    eventLogo: opEv ? (opEv.eventLogo || null) : null,
     operatorId: isCheckin ? partnerId : null, operatorName: isCheckin ? (partner.nickname || '') : null,
     userA: { id: partnerId, name: partner.nickname, realName: partner.realName || null, color: partner.color, profilePhoto: partner.profilePhoto || null, photoURL: partner.photoURL || null, score: calcScore(partnerId), stars: (partner.stars || []).length, sign: signPartner, signInfo: signPartner ? ZODIAC_INFO[signPartner] : null, isPrestador: !!partner.isPrestador, serviceLabel: partner.serviceLabel || '', verified: !!partner.verified, accessory: partner.avatarAccessory || null },
     userB: { id: userId, name: me.nickname, realName: me.realName || null, color: me.color, profilePhoto: me.profilePhoto || null, photoURL: me.photoURL || null, score: calcScore(userId), stars: (me.stars || []).length, sign: signMe, signInfo: signMe ? ZODIAC_INFO[signMe] : null, isPrestador: !!me.isPrestador, serviceLabel: me.serviceLabel || '', verified: !!me.verified, accessory: me.avatarAccessory || null },
@@ -7221,9 +7215,7 @@ async function checkin(){
     var r=await fetch('/api/event/quick-checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:'${eventId}',nickname:nick})});
     var d=await r.json();
     if(d.error){btn.disabled=false;btn.textContent='Entrar no evento';return alert(d.error)}
-    document.getElementById('form').style.display='none';
-    document.getElementById('result').style.display='block';
-    document.getElementById('statusMsg').textContent='Bem-vindo ao evento!';
+    // Save and redirect immediately — animation happens in the app
     localStorage.setItem('touch_userId',d.userId);
     localStorage.setItem('touch_userName',nick);
     localStorage.setItem('touch_userColor',d.userColor||'');
@@ -7231,9 +7223,8 @@ async function checkin(){
     localStorage.setItem('activeEventId','${eventId}');
     localStorage.setItem('activeEventName','${eventName.replace(/'/g, "\\'")}');
     localStorage.setItem('activeEventRole','visitor');
-    setTimeout(function(){
-      window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
-    },1000);
+    btn.textContent='Entrando...';
+    window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
   }catch(e){btn.disabled=false;btn.textContent='Entrar no evento';alert('Erro de conexao.')}
 }
 document.getElementById('nick').addEventListener('keydown',function(e){if(e.key==='Enter')checkin()});
