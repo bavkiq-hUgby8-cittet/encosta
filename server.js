@@ -7198,7 +7198,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <div class="event-sub">${creatorName ? 'por ' + creatorName : 'Check-in rapido'}</div>
 <div class="price-tag">${entryPrice > 0 ? 'Entrada: ' + priceDisplay : 'Entrada gratuita'}</div>
 <input type="text" id="nick" placeholder="Seu nickname" maxlength="20" autocomplete="off">
-<button onclick="checkin()">Entrar no evento</button>
+<button onclick="checkin()">Fazer check-in</button>
 </div>
 <div id="result" class="result">
 <div class="phrase" id="statusMsg">Entrando...</div>
@@ -7214,7 +7214,7 @@ async function checkin(){
   try{
     var r=await fetch('/api/event/quick-checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:'${eventId}',nickname:nick})});
     var d=await r.json();
-    if(d.error){btn.disabled=false;btn.textContent='Entrar no evento';return alert(d.error)}
+    if(d.error){btn.disabled=false;btn.textContent='Fazer check-in';return alert(d.error)}
     // Save and redirect immediately — animation happens in the app
     localStorage.setItem('touch_userId',d.userId);
     localStorage.setItem('touch_userName',nick);
@@ -7225,7 +7225,7 @@ async function checkin(){
     localStorage.setItem('activeEventRole','visitor');
     btn.textContent='Entrando...';
     window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
-  }catch(e){btn.disabled=false;btn.textContent='Entrar no evento';alert('Erro de conexao.')}
+  }catch(e){btn.disabled=false;btn.textContent='Fazer check-in';alert('Erro de conexao.')}
 }
 document.getElementById('nick').addEventListener('keydown',function(e){if(e.key==='Enter')checkin()});
 </script></body></html>`;
@@ -7274,14 +7274,23 @@ app.post('/api/event/quick-checkin', (req, res) => {
 
   // Create relation between guest and event creator for communication
   const now = Date.now();
-  const ownerLang = getUserLang(ev.creatorId);
-  const phrase = smartPhrase(ev.creatorId, user.id, ownerLang);
-  const relationId = uuidv4();
-  const existingRel = findActiveRelation(ev.creatorId, user.id);
-  if (!existingRel) {
-    db.relations[relationId] = { id: relationId, userA: ev.creatorId, userB: user.id, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, isCheckin: true, eventId };
-    idxAddRelation(relationId, ev.creatorId, user.id);
-    db.messages[relationId] = [];
+  const creatorId = ev.creatorId || (opEv ? opEv.creatorId : null);
+  let phrase = '';
+  let relationId = uuidv4();
+  let existingRel = null;
+
+  if (creatorId && db.users[creatorId]) {
+    const ownerLang = getUserLang(creatorId);
+    phrase = smartPhrase(creatorId, user.id, ownerLang);
+    existingRel = findActiveRelation(creatorId, user.id);
+    if (!existingRel) {
+      db.relations[relationId] = { id: relationId, userA: creatorId, userB: user.id, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null, isCheckin: true, eventId };
+      idxAddRelation(relationId, creatorId, user.id);
+      db.messages[relationId] = [];
+    }
+  } else {
+    console.warn('[quick-checkin] no creatorId for event:', eventId, '- skipping relation creation');
+    phrase = 'Bem-vindo ao evento!';
   }
 
   recordEncounter(user.id, null, phrase, 'checkin');
@@ -7296,8 +7305,8 @@ app.post('/api/event/quick-checkin', (req, res) => {
   });
 
   // Notify operator
-  if (ev.creatorId) {
-    io.to(`user:${ev.creatorId}`).emit('checkin-created', {
+  if (creatorId) {
+    io.to(`user:${creatorId}`).emit('checkin-created', {
       eventId, visitorId: user.id, visitorName: user.nickname, visitorColor: user.color,
       phrase, timestamp: now
     });
