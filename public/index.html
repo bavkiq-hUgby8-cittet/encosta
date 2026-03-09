@@ -20009,6 +20009,7 @@ window.addEventListener('load',()=>{
   const _guestRel=new URLSearchParams(location.search).get('rel');
   const _guestPhrase=new URLSearchParams(location.search).get('phrase');
   const _guestEvent=new URLSearchParams(location.search).get('guestEvent');
+  const _joinEvent=new URLSearchParams(location.search).get('joinEvent');
   // Handle guest arriving from QR touch-link or event checkin
   if(_guestParam){
     // Set guest state if not already set (touch page already sets localStorage)
@@ -20029,7 +20030,49 @@ window.addEventListener('load',()=>{
         // Set home avatar
         const _ha=$('homeAvatar');if(_ha&&state.userName){_ha.innerHTML=makeAvatar(state.userName,state.userColor||nickColor(state.userName),40,state.userPhoto||null,false,state.userAccessory||null);_ha.style.background='none';_ha.style.overflow='visible'}
 
-        if((_guestRel||_guestEvent)&&_guestParam){
+        if(_joinEvent&&!_guestParam){
+          // Logged-in user scanned event QR: do checkin via API, show animation
+          history.replaceState({},'','/');
+          showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';
+          setTimeout(async()=>{
+            try{
+              const jr=await fetch('/api/event/quick-checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:_joinEvent,nickname:state.userName||'User'})});
+              const jd=await jr.json();
+              if(jd.error){showToast(jd.error);return}
+              // Store event info
+              localStorage.setItem('activeEventId',_joinEvent);
+              localStorage.setItem('activeEventName',jd.eventName||'Evento');
+              localStorage.setItem('activeEventRole','visitor');
+              // If we got a relation, show animation
+              if(jd.relationId){
+                const rv=await fetch('/api/relation-reveal/'+jd.relationId+'/'+state.userId);
+                if(rv.ok){
+                  const revealData=await rv.json();
+                  state.currentRelation=revealData;
+                  const co=$('connectingOverlay');
+                  if(co){
+                    co.classList.remove('first','renewed');co.classList.add('first','active');
+                    startElectricTouch(false,'');
+                    haptic([60,20,60,20,100]);playSound('connect');
+                    setTimeout(()=>{
+                      stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);
+                      co.classList.remove('active','first','renewed');
+                      showScreen('reveal');doReveal(revealData);
+                    },2500);
+                  }else{showScreen('reveal');doReveal(revealData)}
+                }else{
+                  showToast('Check-in feito!');
+                  showFloatingEventBtn(_joinEvent,jd.eventName||'Evento');
+                  showEventView(_joinEvent,jd.eventName||'Evento');
+                }
+              }else{
+                showToast('Check-in feito!');
+                showFloatingEventBtn(_joinEvent,jd.eventName||'Evento');
+                showEventView(_joinEvent,jd.eventName||'Evento');
+              }
+            }catch(e){console.error('[joinEvent] error:',e);showToast('Erro ao fazer check-in.')}
+          },400);
+        }else if((_guestRel||_guestEvent)&&_guestParam){
           // Guest from QR: show Electric Touch animation -> reveal screen with payment -> skip -> registration
           window._guestAnimating=true; // Prevent guest upgrade modal from firing during animation
           history.replaceState({},'','/'); // Clean URL now that params are captured

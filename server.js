@@ -7225,13 +7225,19 @@ async function checkin(){
     window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
   }catch(e){btn.disabled=false;btn.textContent='Fazer check-in';alert('Erro de conexao.')}
 }
-// Auto-checkin for logged-in users
+// Auto-redirect for logged-in users — skip this page entirely
 (function(){
   var savedId=localStorage.getItem('touch_userId');
+  var isGuest=localStorage.getItem('touch_isGuest')==='true';
+  if(savedId&&!isGuest){
+    // Fully logged-in user: redirect to app, let app handle checkin + animation
+    window.location.replace('/?joinEvent=${eventId}');
+    return;
+  }
+  // Guest with saved name: auto-fill and submit
   var savedName=localStorage.getItem('touch_userName');
   if(savedId&&savedName&&savedName.length>=2){
     document.getElementById('nick').value=savedName;
-    document.getElementById('form').innerHTML='<div class="event-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="event-name">${eventName}</div><div class="event-sub">Fazendo check-in como <strong>'+savedName+'</strong></div><div class="price-tag" style="color:#60a5fa">Conectando...</div>';
     checkin();
   }
 })();
