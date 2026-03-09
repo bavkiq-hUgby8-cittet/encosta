@@ -7247,6 +7247,7 @@ document.getElementById('nick').addEventListener('keydown',function(e){if(e.key=
 
 // Quick checkin endpoint for event guests
 app.post('/api/event/quick-checkin', (req, res) => {
+  try {
   const { eventId, nickname } = req.body;
   if (!eventId || !nickname) return res.status(400).json({ error: 'Dados invalidos.' });
   let ev = db.events[eventId];
@@ -7307,7 +7308,9 @@ app.post('/api/event/quick-checkin', (req, res) => {
     phrase = 'Bem-vindo ao evento!';
   }
 
-  recordEncounter(user.id, null, phrase, 'checkin');
+  if (creatorId && db.users[creatorId]) {
+    recordEncounter(user.id, creatorId, phrase, 'checkin');
+  }
   awardPoints(user.id, null, 'checkin');
   saveDB('users', 'events', 'operatorEvents', 'relations', 'messages', 'encounters');
 
@@ -7327,6 +7330,10 @@ app.post('/api/event/quick-checkin', (req, res) => {
   }
 
   res.json({ ok: true, userId: user.id, userColor: user.color, eventName: ev.name, relationId: existingRel ? existingRel.id : relationId });
+  } catch (e) {
+    console.error('[quick-checkin] 500:', e.message, e.stack);
+    res.status(500).json({ error: 'Erro interno no check-in: ' + e.message });
+  }
 });
 
 // Count active events where user is a participant
