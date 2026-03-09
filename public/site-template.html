@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://js.stripe.com/v3/"></script>
+<script src="/socket.io/socket.io.js"></script>
 <style>
 /* ── CSS Reset + Variables ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -386,6 +387,7 @@ img{max-width:100%;display:block}
 .timeline-line.done{background:var(--site-primary)}
 .tracking-status-text{font-size:.8rem;font-weight:600;color:var(--site-primary);text-align:center;margin-top:.3rem}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulseReady{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.3);transform:scale(1)}50%{box-shadow:0 0 20px 4px rgba(34,197,94,.15);transform:scale(1.01)}}
 
 /* ── Delivery Type Selector ── */
 .delivery-type-selector{display:flex;gap:.3rem}
@@ -619,17 +621,27 @@ img{max-width:100%;display:block}
 
 <!-- Order Tracking Screen (independent from cart panel) -->
 <div id="trackingScreen" style="display:none;position:fixed;inset:0;z-index:250;background:var(--site-bg);overflow-y:auto">
-  <div style="max-width:500px;margin:0 auto;padding:1.5rem 1rem;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">
-    <div class="order-confirmed">
-      <div class="order-confirmed-icon">&#10003;</div>
-      <h3>Pedido Confirmado!</h3>
-      <div class="order-receipt" id="confirmReceipt"></div>
-      <div style="font-size:.8rem;color:var(--site-text2);margin:.5rem 0" id="confirmMsg"></div>
-      <div id="orderTimeline" style="margin:1rem 0"></div>
-      <div class="tracking-status-text">
-        <span id="trackingLabel">Aguardando preparo...</span>
-      </div>
-      <button class="btn-primary" style="margin-top:1.2rem" onclick="closeTrackingAndReset()">Fazer novo pedido</button>
+  <div style="max-width:520px;margin:0 auto;padding:2rem 1.2rem;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start">
+    <!-- Header -->
+    <div id="trackingHeader" style="width:100%;text-align:center;margin-top:2rem">
+      <div id="trackingIcon" style="width:80px;height:80px;border-radius:50%;background:var(--site-primary);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:2rem;color:#fff;transition:all .5s ease">&#10003;</div>
+      <h2 id="trackingTitle" style="font-size:1.3rem;font-weight:700;margin-bottom:.3rem">Pedido Confirmado!</h2>
+      <div class="order-receipt" id="confirmReceipt" style="font-size:1rem;font-weight:600;color:var(--site-primary)"></div>
+      <div style="font-size:.8rem;color:var(--site-text2);margin:.4rem 0" id="confirmMsg"></div>
+    </div>
+    <!-- Payment status badge -->
+    <div id="trackingPayBadge" style="display:none;margin:.8rem 0;padding:.5rem 1rem;border-radius:10px;font-size:.8rem;font-weight:600;text-align:center;width:100%;max-width:320px"></div>
+    <!-- Timeline -->
+    <div id="orderTimeline" style="margin:1.5rem 0;width:100%;max-width:360px"></div>
+    <!-- Dynamic status message area -->
+    <div id="trackingStatusBox" style="width:100%;max-width:400px;border-radius:16px;padding:1.2rem;text-align:center;margin:1rem 0;transition:all .5s ease">
+      <div id="trackingStatusIcon" style="font-size:2.5rem;margin-bottom:.5rem"></div>
+      <div id="trackingLabel" style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem">Aguardando preparo...</div>
+      <div id="trackingSubLabel" style="font-size:.8rem;color:var(--site-text2)"></div>
+    </div>
+    <!-- Action buttons -->
+    <div style="margin-top:auto;padding:2rem 0;width:100%;text-align:center">
+      <button class="btn-primary" style="width:100%;max-width:300px;padding:.9rem" onclick="closeTrackingAndReset()">Fazer novo pedido</button>
     </div>
   </div>
 </div>
@@ -950,8 +962,12 @@ function loadDeliveryAddressFromLocal() {
 function showTrackingScreen(order, payMethodLabel) {
   document.getElementById('confirmReceipt').textContent = '#' + order.receiptNumber;
   document.getElementById('confirmMsg').textContent = payMethodLabel + ' | Total: $' + order.total.toFixed(2);
-  // Build timeline
+  // Track payment and delivery state
+  lastOrderPaid = (order.status === 'paid' || order.paymentMethod === 'card');
+  lastOrderDeliveryType = order.deliveryType || 'pickup';
+  // Build timeline + status box
   renderTrackingTimeline(order.status);
+  renderTrackingStatusBox(order.status);
 }
 
 function renderTrackingTimeline(currentStatus) {
@@ -1433,13 +1449,51 @@ async function submitOrder() {
   }
 }
 
-// ── Order Tracking ──
+// ── Order Tracking (Socket.IO real-time + polling fallback) ──
 let trackingInterval = null;
+let siteSocket = null;
+let lastOrderPaid = false;
+let lastOrderDeliveryType = 'pickup';
 const STATUS_LABELS = { pending: 'Aguardando preparo...', preparing: 'Sendo preparado!', ready: 'Pronto para retirada!', delivered: 'Entregue!', cancelled: 'Cancelado', paid: 'Aguardando preparo...' };
 
+function initSiteSocket() {
+  if (siteSocket) return;
+  try {
+    siteSocket = io({ transports: ['websocket','polling'], reconnection: true, reconnectionDelay: 2000 });
+    siteSocket.on('connect', function() {
+      // Join event room if we have eventId from SITE_DATA
+      if (SITE_DATA && SITE_DATA.eventId) {
+        siteSocket.emit('join-event-room', SITE_DATA.eventId);
+      }
+    });
+    siteSocket.on('order-update', function(data) {
+      if (!lastOrderId || data.orderId !== lastOrderId) return;
+      updateTrackingStatus(data.status);
+    });
+    siteSocket.on('order-delivered', function(data) {
+      if (!lastOrderId || data.orderId !== lastOrderId) return;
+      updateTrackingStatus('delivered');
+    });
+  } catch (e) { /* socket init failed, polling will handle it */ }
+}
+
 function startOrderTracking() {
+  // Start socket for real-time
+  initSiteSocket();
+  // Also keep polling as fallback (every 15s since socket handles real-time)
   if (trackingInterval) clearInterval(trackingInterval);
-  trackingInterval = setInterval(checkOrderStatus, 5000);
+  trackingInterval = setInterval(checkOrderStatus, 15000);
+}
+
+function updateTrackingStatus(status) {
+  if (!status) return;
+  renderTrackingTimeline(status);
+  renderTrackingStatusBox(status);
+  if (status === 'delivered' || status === 'cancelled') {
+    clearInterval(trackingInterval);
+    trackingInterval = null;
+    setTimeout(function() { clearActiveOrderFromLocal(); }, 30000);
+  }
 }
 
 async function checkOrderStatus() {
@@ -1448,15 +1502,106 @@ async function checkOrderStatus() {
     const r = await fetch('/api/site/' + SLUG + '/order/' + lastOrderId);
     const d = await r.json();
     if (d.status) {
-      document.getElementById('trackingLabel').textContent = STATUS_LABELS[d.status] || d.status;
-      renderTrackingTimeline(d.status);
-      if (d.status === 'delivered' || d.status === 'cancelled') {
-        clearInterval(trackingInterval);
-        trackingInterval = null;
-        clearActiveOrderFromLocal();
-      }
+      updateTrackingStatus(d.status);
+      if (d.paymentMethod === 'card' || d.status === 'paid') lastOrderPaid = true;
+      if (d.deliveryType) lastOrderDeliveryType = d.deliveryType;
     }
   } catch (e) { /* polling failed, retry */ }
+}
+
+function renderTrackingStatusBox(status) {
+  var effectiveStatus = (status === 'paid') ? 'pending' : status;
+  var box = document.getElementById('trackingStatusBox');
+  var icon = document.getElementById('trackingStatusIcon');
+  var label = document.getElementById('trackingLabel');
+  var sub = document.getElementById('trackingSubLabel');
+  var header = document.getElementById('trackingIcon');
+  var title = document.getElementById('trackingTitle');
+  var payBadge = document.getElementById('trackingPayBadge');
+  if (!box) return;
+  // Reset animations
+  box.style.animation = 'none';
+  void box.offsetHeight;
+  // Payment badge
+  if (payBadge) {
+    if (lastOrderPaid) {
+      payBadge.style.display = 'block';
+      payBadge.style.background = 'rgba(34,197,94,.15)';
+      payBadge.style.color = '#22c55e';
+      payBadge.style.border = '1px solid rgba(34,197,94,.3)';
+      payBadge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Pagamento confirmado online';
+    } else if (effectiveStatus === 'ready') {
+      payBadge.style.display = 'block';
+      payBadge.style.background = 'rgba(251,191,36,.15)';
+      payBadge.style.color = '#fbbf24';
+      payBadge.style.border = '1px solid rgba(251,191,36,.3)';
+      payBadge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Lembre-se de pagar no balcao';
+    } else {
+      payBadge.style.display = 'none';
+    }
+  }
+  if (effectiveStatus === 'pending') {
+    header.style.background = 'var(--site-primary)';
+    header.innerHTML = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    title.textContent = 'Pedido Recebido!';
+    box.style.background = 'var(--site-surface)';
+    icon.textContent = '';
+    label.textContent = 'Aguardando preparo...';
+    label.style.color = 'var(--site-text)';
+    sub.textContent = 'O restaurante recebeu seu pedido e vai comecar a preparar em breve.';
+  } else if (effectiveStatus === 'preparing') {
+    header.style.background = '#f59e0b';
+    header.innerHTML = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
+    title.textContent = 'Em Preparo!';
+    box.style.background = 'rgba(245,158,11,.1)';
+    icon.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
+    label.textContent = 'Seu pedido esta sendo preparado!';
+    label.style.color = '#f59e0b';
+    sub.textContent = 'A cozinha esta trabalhando no seu pedido. Isso nao deve demorar.';
+  } else if (effectiveStatus === 'ready') {
+    header.style.background = '#22c55e';
+    header.innerHTML = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    title.textContent = 'Pedido Pronto!';
+    box.style.background = 'rgba(34,197,94,.12)';
+    box.style.border = '2px solid rgba(34,197,94,.4)';
+    box.style.animation = 'pulseReady 2s ease-in-out infinite';
+    icon.innerHTML = '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';
+    label.style.color = '#22c55e';
+    label.style.fontSize = '1.3rem';
+    if (lastOrderDeliveryType === 'delivery') {
+      label.textContent = 'Saindo para entrega!';
+      sub.textContent = 'Seu pedido esta pronto e saindo para o endereco informado.';
+    } else {
+      label.textContent = 'Dirija-se ao balcao!';
+      sub.textContent = 'Seu pedido esta pronto e esperando por voce.';
+    }
+  } else if (effectiveStatus === 'delivered') {
+    header.style.background = '#10b981';
+    header.innerHTML = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+    title.textContent = 'Entregue!';
+    box.style.background = 'rgba(16,185,129,.1)';
+    box.style.border = 'none';
+    box.style.animation = 'none';
+    icon.innerHTML = '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+    label.textContent = 'Pedido entregue!';
+    label.style.color = '#10b981';
+    label.style.fontSize = '1.1rem';
+    sub.textContent = 'Obrigado pela sua compra. Esperamos que aproveite!';
+    if (payBadge) payBadge.style.display = 'none';
+  } else if (effectiveStatus === 'cancelled') {
+    header.style.background = '#ef4444';
+    header.innerHTML = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    title.textContent = 'Pedido Cancelado';
+    box.style.background = 'rgba(239,68,68,.1)';
+    box.style.border = 'none';
+    box.style.animation = 'none';
+    icon.textContent = '';
+    label.textContent = 'Este pedido foi cancelado.';
+    label.style.color = '#ef4444';
+    label.style.fontSize = '1.1rem';
+    sub.textContent = 'Entre em contato com o estabelecimento para mais informacoes.';
+    if (payBadge) payBadge.style.display = 'none';
+  }
 }
 
 // ── Persist active order for page refresh ──
@@ -1491,12 +1636,15 @@ function restoreActiveOrder() {
       if (!d.status) { clearActiveOrderFromLocal(); return; }
       // If already delivered or cancelled, clear and stay on menu
       if (d.status === 'delivered' || d.status === 'cancelled') { clearActiveOrderFromLocal(); return; }
+      // Track payment and delivery state
+      lastOrderPaid = (d.status === 'paid' || d.paymentMethod === 'card');
+      lastOrderDeliveryType = d.deliveryType || 'pickup';
       // Show tracking screen
       if (banner) banner.style.display = 'none';
       document.getElementById('confirmReceipt').textContent = '#' + data.receiptNumber;
       document.getElementById('confirmMsg').textContent = (data.pmLabel || '') + ' | Total: $' + (data.total || 0).toFixed(2);
       renderTrackingTimeline(d.status);
-      document.getElementById('trackingLabel').textContent = STATUS_LABELS[d.status] || d.status;
+      renderTrackingStatusBox(d.status);
       openTrackingScreen();
       startOrderTracking();
     }).catch(function() { /* server error, ignore */ });

@@ -15493,7 +15493,8 @@ app.get('/api/site/:slug', (req, res) => {
       config: { barberName: (ev.barber.config || {}).barberName || '', welcomeMessage: (ev.barber.config || {}).welcomeMessage || '' },
       barbers: (ev.barber.barbers || []).map(b => ({ id: b.id, name: b.name, photo: b.photo || null, specialties: b.specialties || [] })),
       services: (ev.barber.barbers || []).flatMap(b => (b.services || []).map(s => ({ barberId: b.id, barberName: b.name, ...s })))
-    } : null
+    } : null,
+    eventId: ev.id
   };
   res.json(data);
 });

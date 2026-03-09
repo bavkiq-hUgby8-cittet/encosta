@@ -6632,7 +6632,7 @@ function renderOrders(){
     var advBtn='';
     if(effectiveStatus==='pending')advBtn='<button class="postit-btn advance" data-next="preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Preparar</button>';
     if(effectiveStatus==='preparing')advBtn='<button class="postit-btn advance" data-next="ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Pronto</button>';
-    if(effectiveStatus==='ready')advBtn='<button class="postit-btn advance" data-next="delivered" onclick="advanceOrder(\''+o.id+'\',\'delivered\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/></svg> Entregue</button>';
+    if(effectiveStatus==='ready'){var isPaid=(o.status==='paid'||o.paymentMethod==='card');var delType=o.deliveryType||'pickup';advBtn='<button class="postit-btn advance" data-next="delivered" onclick="handleDeliverOrder(\''+o.id+'\','+isPaid+',\''+delType+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/></svg> Entregar</button>';}
     var cancelBtn='';
     if(effectiveStatus!=='delivered')cancelBtn='<button class="postit-btn cancel" onclick="advanceOrder(\''+o.id+'\',\'cancelled\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
     var printBtn='<button class="postit-btn print" onclick="printOrder(\''+o.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>';
@@ -6706,6 +6706,25 @@ async function advanceOrder(orderId,newStatus){
       if(REST.activeTab==='tables')renderTables();
     }
   }catch(e){console.error('advanceOrder:',e)}
+}
+
+// ── Handle deliver button with payment/delivery logic ──
+function handleDeliverOrder(orderId, isPaid, deliveryType) {
+  if (deliveryType === 'delivery') {
+    // Delivery order - notify about delivery
+    if (!isPaid) {
+      if (!confirm('ATENCAO: Este pedido NAO foi pago online.\nO pagamento deve ser cobrado na entrega.\n\nDeseja marcar como entregue?')) return;
+    } else {
+      if (!confirm('Pedido delivery ja pago online.\nConfirmar entrega ao cliente?')) return;
+    }
+  } else {
+    // Pickup order
+    if (!isPaid) {
+      if (!confirm('ATENCAO: Este pedido NAO foi pago online.\nConfirme se o cliente pagou no balcao antes de entregar.\n\nCliente ja pagou?')) return;
+    }
+    // If paid, just deliver directly (no confirm needed for quick flow)
+  }
+  advanceOrder(orderId, 'delivered');
 }
 
 // ── Print order (thermal 80mm) ──
