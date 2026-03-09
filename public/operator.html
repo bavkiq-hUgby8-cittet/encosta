@@ -1640,6 +1640,10 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2dd4a0" stroke-width="2.5"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
         <span class="op-stat-num" id="opCount" style="font-size:1rem">0</span>
       </div>
+      <button id="opQRCheckinBtn" onclick="showCheckinQR()" style="display:flex;align-items:center;gap:.35rem;padding:.35rem .7rem;border-radius:var(--radius-sm);background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:#818cf8;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s" title="QR Code para check-in">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><path d="M21 14h-3v3"/><path d="M21 21h-3v-3"/></svg>
+        QR Check-in
+      </button>
     </div>
     <div class="op-hdr-controls">
       <!-- View Mode Toggle -->
@@ -8983,6 +8987,43 @@ if(typeof S!=='undefined'&&S.socket){
   S.socket.on('site-domain-status',function(data){
     if(data.eventId===S.currentEventId)loadSiteConfig();
   });
+}
+
+// === QR CHECK-IN ===
+function showCheckinQR(){
+  if(!S.currentEventId){return alert('Nenhum evento ativo.')}
+  var existing=$('opQRModal');
+  if(existing){existing.remove()}
+  var url=window.location.origin+'/e/'+S.currentEventId;
+  var m=document.createElement('div');
+  m.id='opQRModal';
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(12px)';
+  m.innerHTML='<div style="background:var(--card,#1a1a2e);border-radius:16px;border:1px solid rgba(99,102,241,.3);padding:2rem;text-align:center;max-width:380px;width:90%">'
+    +'<div style="font-size:1.1rem;font-weight:800;color:#818cf8;margin-bottom:.3rem;font-family:var(--font-display,sans-serif)">QR Check-in</div>'
+    +'<div style="font-size:.7rem;color:var(--t3,#888);margin-bottom:1.2rem">Mostre este QR para as pessoas entrarem no evento</div>'
+    +'<div id="opQRCanvas" style="display:flex;justify-content:center;margin-bottom:1rem"></div>'
+    +'<div style="font-size:.6rem;color:var(--t3,#888);word-break:break-all;margin-bottom:1rem;padding:.4rem .6rem;background:rgba(255,255,255,.05);border-radius:8px">'+url+'</div>'
+    +'<div style="display:flex;gap:.5rem;justify-content:center">'
+    +'<button onclick="copyCheckinLink()" style="padding:.45rem .9rem;border-radius:8px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#818cf8;font-size:.7rem;font-weight:600;cursor:pointer">Copiar link</button>'
+    +'<button onclick="document.getElementById(\'opQRModal\').remove()" style="padding:.45rem .9rem;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t2,#ccc);font-size:.7rem;font-weight:600;cursor:pointer">Fechar</button>'
+    +'</div></div>';
+  document.body.appendChild(m);
+  m.addEventListener('click',function(ev){if(ev.target===m)m.remove()});
+  // Generate QR
+  var qrDiv=$('opQRCanvas');
+  if(qrDiv){
+    var img=document.createElement('img');
+    img.src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(url)+'&bgcolor=1a1a2e&color=818cf8&format=svg';
+    img.style.cssText='width:220px;height:220px;border-radius:12px;border:2px solid rgba(99,102,241,.2)';
+    img.alt='QR Code';
+    qrDiv.appendChild(img);
+  }
+}
+function copyCheckinLink(){
+  if(!S.currentEventId)return;
+  var url=window.location.origin+'/e/'+S.currentEventId;
+  if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){alert('Link copiado!')})}
+  else{var t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('Link copiado!')}
 }
 
 </script>
