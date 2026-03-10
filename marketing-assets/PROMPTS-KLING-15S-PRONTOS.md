@@ -221,6 +221,27 @@ Close-up of a DJ's hands on a mixing console in a dark nightclub. On the console
 
 ---
 
+## VIDEO 30 -- PLATEIA GIGANTE FORMANDO LETRAS COM CELULARES (Brand - Stadium Sync)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A massive sold-out open-air stadium at night, 60,000 people in the stands. A famous artist on stage grabs the mic: "Hold up your phones!" The entire stadium raises their phones. A deep bass tone rolls through the PA system carrying the ultrasonic Touch? signal. In one wave from the stage outward, every phone in the stadium lights up -- but NOT all the same color. Seen from a high drone directly above: the left side of the stadium glows orange, the right side glows purple, creating a giant split of two colors across 60,000 screens. The crowd gasps seeing themselves on the jumbotron. The frequency shifts -- now the colors rearrange: sections of phones turn off while others turn on, and from above the lit phones spell out a giant letter "T" in orange across the dark stadium. The crowd screams. Another shift -- the T dissolves and reforms into "O", then "U", then "C", then "H", then "?" -- each letter formed by thousands of phones turning on and off in coordinated sections. The word "TOUCH?" is spelled across the entire stadium in a sequence of glowing phone screens. Then all 60,000 phones light up at once in bright orange for the finale -- the whole stadium is a single blinding sheet of warm light. Quick cuts of fans looking around in awe, realizing they are the display. The artist on stage looks out and whispers into the mic: "Touch?" Wide final drone shot rising high above the stadium: 60,000 orange lights pulsing as one, the city skyline behind, the night sky above. Text fades in: "60,000 phones. One frequency. Zero hardware." then "Touch?" and "touch-irl.com". Epic nighttime stadium lighting, goosebump energy, the scale of the Olympics opening ceremony but powered by the crowd's own phones.
+
+---
+
+## VIDEO 31 -- SETORES EM CORES DIFERENTES / WAVE DE LUZ (Brand - Stadium Choreography)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+Same massive stadium, now from the jumbotron camera angle looking at the crowd. The sound system sends a new frequency. Section by section, the crowd's phones change color -- Section A turns red, Section B turns blue, Section C turns green, Section D turns gold. From above, the stadium looks like a pie chart of living light, each slice a different color. The DJ on stage pushes a slider. A wave of white light starts at the north end and rolls across the entire stadium like a stadium wave -- but made of phone screens turning white one section at a time, then reverting to their color after the wave passes. The wave circles the whole stadium in 3 seconds. The crowd is screaming. Another command: all phones start pulsing to the beat -- but each section pulses at a slightly different time, creating a ripple effect that looks like the stadium is breathing. From the drone above it looks like a giant heart beating in color. Then the final move: all colors fade to black. Silence. Three seconds of total darkness and 60,000 people holding their breath. Then BOOM -- every phone flashes bright orange simultaneously with a massive bass drop. The word "TOUCH?" appears on all 60,000 screens at the same time. The roar of the crowd is deafening. Drone rises to the final wide shot: the glowing orange stadium against the night. Text: "Your phone is the show." then "touch-irl.com". Cinematic epic scale, Christopher Nolan meets Coldplay concert, synchronized beauty at impossible scale.
+
+---
+
+## VIDEO 32 -- MENSAGEM SURPRESA NA PLATEIA (Social - Proposal/Birthday)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A concert arena, 20,000 people. A young man in the crowd is nervous, fidgeting. His girlfriend next to him is watching the show, oblivious. The artist on stage says "We have something special tonight." The sound system sends the Touch? frequency. All phones light up orange -- except the phones in one specific area around the couple, which stay dark, forming a heart-shaped void in the sea of orange light. The jumbotron shows the aerial view: a perfect dark heart shape in the middle of 20,000 orange screens, with two tiny people at the center. The girlfriend looks around confused. Then the phones inside the heart shape turn on one by one, and they don't show orange -- they show pink, and letter by letter they spell: "MARRY ME?" in pink light surrounded by the orange stadium. She looks up at the jumbotron, sees it, covers her mouth. He's on one knee. She nods. The entire stadium erupts. All 20,000 phones flash white and then settle into a warm pulsing pink and orange heartbeat pattern. Confetti falls. The couple kisses. The artist on stage says "Touch?" and the crowd echoes it back: "TOUCH!" Drone shot: the glowing heart shape still visible in the crowd, now with two people embracing at its center. Text: "Some moments need 20,000 witnesses." then "Touch?" and "touch-irl.com". Maximum emotional impact, cinematic romance at stadium scale, the kind of video that goes viral with 100M views.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
