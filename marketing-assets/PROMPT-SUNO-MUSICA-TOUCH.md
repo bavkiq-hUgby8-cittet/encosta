@@ -1,345 +1,227 @@
-# MUSICA OFICIAL TOUCH? -- PROMPTS PRO SUNO AI
+# MUSICA "TOUCH" -- PROMPTS PRO SUNO AI
 
 ## CONCEITO
 
-Uma musica eletronica feita pra ser tocada em festivais, shows e clubs.
-A letra apresenta o Touch? como movimento -- conexao, proximidade, energia.
-Pensada pra DJs como Alok, Vintage Culture, FISHER, David Guetta usarem
-e ativarem ondas de luz, fogo, e coreografias de celulares na plateia.
-
-A musica tem que ter:
-- Drop pesado que funciona pra ativar celulares em massa
-- Momentos de silencio antes do drop (pra apagar tudo e acender de uma vez)
-- Refroes simples que a plateia consiga cantar/gritar junto
-- A palavra "Touch" como gancho principal
-- Vibe que funciona tanto em Tomorrowland quanto em club underground
+Musica eletronica DE VERDADE. Pouca letra, muito groove, drop pesado.
+A plateia so precisa saber gritar "TOUCH!" no refrao.
+Valoriza o DJ, a noite, a energia. NAO e jingle, NAO e propaganda.
+Um DJ ouve e quer dropar no set dele.
 
 ---
 
-## VERSAO 1 -- MAIN STAGE / FESTIVAL ANTHEM
+## VERSAO 1 -- FESTIVAL ANTHEM / MAIN STAGE (128 BPM)
 
-### Prompt de estilo pro Suno:
+### Prompt de estilo:
 ```
-Electronic, Festival EDM, Big Room House, 128 BPM, massive drops, stadium anthem, Alok style, epic build-ups, crowd chanting, ethereal female vocal, deep male vocal on drops, pyro-ready, hands-in-the-air energy, Tomorrowland main stage
+Festival EDM, Big Room House, 128 BPM, massive euphoric drop, minimal vocals, crowd chant hook, epic build-up with snare rolls, powerful female vocal hook only on chorus, hands-in-the-air anthem, pyro-ready, Swedish House Mafia energy, Alok festival style, extended instrumental sections, DJ tool
 ```
 
 ### Letra:
 
 ```
-[Intro - ethereal female voice, soft synth pad, slow build]
-Can you feel it in the air tonight
-Something pulling us together
-Every stranger, every light
-We were never meant to be alone
+[Intro -- 16 bars instrumental, building synth pad]
 
-[Pre-chorus - beat builds, snare rolls, rising tension]
-Raise your phones up to the sky
-Let the frequency connect us
-Every screen about to light
-Are you ready?
+[Build-up -- snare roll, rising, crowd clapping]
+This one's for the ones who play
 
-[Chorus - massive drop, full bass, pyro moment]
+[DROP -- massive, crowd screams]
 TOUCH!
-We light up the dark
+Oh-oh-oh-oh
 TOUCH!
-A million sparks
+Oh-oh-oh-oh
 TOUCH!
-Feel it in your bones
-You're never going home alone
+This is where we all belong
+Oh-oh-oh-oh
 
-[Post-drop - half-time groove, crowd bouncing]
-One gesture, one connection
-One moment, no protection
-From the feeling that we share
-When the bass is in the air
+[Instrumental groove -- 16 bars, DJ works the crowd]
 
-[Build-up 2 - everything drops out except a heartbeat kick]
-(silence... silence... silence...)
-Three... two... one...
+[Build-up 2 -- everything drops to just a kick]
+Raise it up
 
-[Drop 2 - even bigger, all phones activate]
+[DROP 2 -- bigger]
 TOUCH!
-The whole crowd lights up
+Oh-oh-oh-oh
 TOUCH!
-We can't get enough
+Oh-oh-oh-oh
 TOUCH!
-From the floor to the sky
-Sixty thousand reasons why
+We came for the sound tonight
+Oh-oh-oh-oh
 
-[Bridge - emotional breakdown, piano + vocal]
-I was just a stranger
-Standing in the crowd
-Then you held your phone out
-And the world got loud
-Now I see your name
-Glowing in my stars
-Every single connection
-Living in my heart
+[Bridge -- stripped, just kick and crowd singing]
+Oh-oh-oh-oh TOUCH!
+Oh-oh-oh-oh TOUCH!
+(repeat, crowd takes over)
 
-[Final build - massive tension, crowd screaming]
-Put your phones up!
-Put your phones up!
-LET ME SEE YOU...
-
-[Final drop - biggest drop, confetti, fireworks, all phones white]
+[FINAL DROP -- biggest, pyro, confetti]
 TOUCH!
-(crowd echoes: TOUCH!)
 TOUCH!
-(crowd echoes: TOUCH!)
-We are the light
-We are the sound
-We are connected
-We are the crowd
+TOUCH!
 
-[Outro - soft, emotional, fading]
-Touch...
-Everything starts with a gesture...
-Touch...
+[Outro -- melody fades, crowd noise]
 ```
 
 ---
 
-## VERSAO 2 -- UNDERGROUND / TECH HOUSE / CLUB
+## VERSAO 2 -- TECH HOUSE / CLUB (124 BPM)
 
-### Prompt de estilo pro Suno:
+### Prompt de estilo:
 ```
-Tech House, Deep House, 124 BPM, dark groovy bassline, underground club, Fisher style, Vintage Culture vibe, hypnotic vocal chops, minimal but punchy drops, late-night energy, strobe-ready, Berghain meets Ibiza
+Tech House, 124 BPM, deep rolling bassline, minimal vocal chops, groovy and dark, Fisher style, hypnotic loop, Ibiza club, chopped vocal hook, DJ tool, extended mix, minimal lyrics maximum groove
 ```
 
 ### Letra:
 
 ```
-[Intro - deep bass pulse, dark atmosphere, whispered vocal]
-(whispered) Touch... touch... touch...
-Do you feel the frequency?
-It's moving through the speakers
-Moving into me
+[Intro -- 16 bars, bass and hi-hats only]
 
-[Verse 1 - groovy tech house beat, spoken-sung]
-Lights down low
-Bass below
-Every phone is glowing
-And the whole room knows
-No names, no games
-Just the sound between us
-Press it close
-Let it flow
+[Vocal chop loop]
+(chopped) "tou-tou-tou-touch"
 
-[Pre-drop - beat strips to kick + bass only]
-Can you feel it?
-(touch)
-Can you feel it?
-(touch)
-Can you feel it?
-(touch touch touch)
+[Verse -- spoken, cool, over the groove]
+Feel that?
+That's the sound doing the talking
 
-[Drop - deep rolling bassline, not big room but GROOVY]
-We don't need words
-We don't need light
-Just the sound connecting us tonight
-Phone to phone
-Skin to skin
-Let the frequency pull you in
-Touch...
+[DROP -- groovy rolling bassline]
+Touch
+(bass hits)
+Touch
+(bass hits)
+The groove won't let you go
+Touch
 
-[Breakdown - all sound drops, just a heartbeat and crowd noise]
-(3 seconds of silence)
-(one single bass note)
-(crowd screams)
+[Instrumental -- 16 bars, pure tech house groove]
 
-[Drop 2 - darker, heavier, strobes firing]
-Underground we come alive
-Every stranger by my side
-One gesture in the dark
-Started something with a spark
-Touch... touch... touch...
+[Vocal chop returns]
+(chopped) "tou-tou-tou-touch"
 
-[Outro - hypnotic loop fading, vocal chops]
-(chopped vocal) "tou-tou-tou-touch"
-(bass fades)
-(whispered) Everything starts with a gesture
+[DROP 2 -- darker, heavier]
+Touch
+(bass hits)
+Touch
+(bass hits)
+She runs the show tonight
+Touch
+
+[Outro -- bass rides out, vocal chop fading]
+(chopped) "tou-tou-tou-touch"
 ```
 
 ---
 
-## VERSAO 3 -- AFRO HOUSE / MELODIC / ALOK TROPICAL
+## VERSAO 3 -- AFRO HOUSE / SUNSET (122 BPM)
 
-### Prompt de estilo pro Suno:
+### Prompt de estilo:
 ```
-Afro House, Melodic House, Brazilian Bass, 122 BPM, Alok style, tribal percussion, warm pads, emotional female vocal, sunset festival vibe, Burning Man energy, organic meets electronic, kora or marimba elements, uplifting and spiritual
+Afro House, Melodic House, 122 BPM, tribal percussion, kora melody, warm and spiritual, Black Coffee meets Alok, sunset festival energy, minimal vocal, chanting hook, organic drums, celebration of rhythm, Burning Man golden hour
 ```
 
 ### Letra:
 
 ```
-[Intro - tribal drums, kora melody, sunrise atmosphere]
-Before the words
-Before the names
-There was a gesture
-That started the flame
+[Intro -- tribal drums, kora, 16 bars building]
 
-[Verse 1 - afro house groove kicks in, warm and organic]
-From Sao Paulo nights
-To New York lights
-We speak a language
-That needs no sight
-Just bring it closer
-Feel the sound
-The earth is shaking
-Beneath the ground
+[Chant -- call and response]
+Ohh-oh-oh TOUCH
+Ohh-oh-oh TOUCH
 
-[Pre-chorus - percussion builds, call and response]
-Are you with me? (we're with you!)
-Are you ready? (we're ready!)
-Hold it up now
-Hold it steady
-
-[Chorus - melodic drop, uplifting, sunset moment]
+[DROP -- melodic, warm, percussive]
 Touch!
-We cross the ocean in a sound
+For every hand that plays
 Touch!
-We bring the whole world to the ground
+Ohh-oh-oh
 Touch!
-From the fire to the stars
-This is who we are
-This is who we are
+The rhythm never fades
+Ohh-oh-oh
 
-[Breakdown - just percussion and chanting]
-(tribal chant building)
-Ohhh-oh-oh-oh
-Ohhh-oh-oh-oh
-(crowd joins chanting)
+[Percussion breakdown -- 16 bars, just drums and chanting]
+Ohh-oh-oh TOUCH
+Ohh-oh-oh TOUCH
+(layers build)
 
-[Drop 2 - full power, every element firing]
+[DROP 2 -- full power]
 Touch!
-Every city, every soul
+From the booth to the floor
 Touch!
-Sixty thousand out of control
+Ohh-oh-oh
 Touch!
-Not an app, it's a revolution
-Sound is the only solution
+This is what we came here for
+Ohh-oh-oh
 
-[Bridge - emotional, stripped back, one voice]
-One person
-Zero code
-Built a dream
-On a frequency road
-And now we're here
-Sixty thousand strong
-This is where you belong
+[Outro -- drums fade, one voice chanting]
+Ohh-oh-oh... touch
+```
 
-[Final moment - everything cuts, one big bass hit]
+---
+
+## VERSAO 4 -- FUTURE BASS / POP HOOK (130 BPM)
+
+### Prompt de estilo:
+```
+Future Bass, Pop Electronic, 130 BPM, super catchy vocal hook, bright synths, TikTok singalong, Marshmello meets Kygo, euphoric drop, minimal verse maximum chorus, feel-good summer anthem, crowd participation, na-na-na hook
+```
+
+### Letra:
+
+```
+[Intro -- bright synth pluck, 8 bars]
+
+[Verse -- short, bouncy]
+Showed up alone
+Left with the whole crowd
+
+[CHORUS -- euphoric, catchy, singable]
 TOUCH!
-(massive fireworks implied by the drop)
+Na-na-na-na we're alive
+TOUCH!
+Na-na-na-na feel the vibe
+TOUCH!
+Say it with me now
+Na-na-na-na TOUCH!
 
-[Outro - soft marimba, fading tribal drums]
-Everything starts with a gesture...
-touch-irl.com
-```
+[Instrumental -- 8 bars, synth melody]
 
----
+[Verse 2]
+One song changed the night
+One beat made it right
 
-## VERSAO 4 -- FUTURE BASS / POP-ELECTRONIC / VIRAL TIKTOK
+[CHORUS 2 -- bigger]
+TOUCH!
+Na-na-na-na raise it high
+TOUCH!
+Na-na-na-na to the sky
+TOUCH!
+This is where we all belong
+Na-na-na-na TOUCH!
 
-### Prompt de estilo pro Suno:
-```
-Future Bass, Pop Electronic, 130 BPM, catchy vocal hook, TikTok viral potential, Marshmello meets The Chainsmokers, bright synths, emotional build, euphoric drops, young energy, singalong chorus, radio-ready but festival-worthy
-```
-
-### Letra:
-
-```
-[Intro - bright plucky synth, phone notification sound effect]
-(notification ding)
-Somebody new just entered your constellation
-
-[Verse 1 - bouncy, youthful, storytelling]
-I saw you across the room
-Too shy to make a move
-You held your phone up like a question mark
-I felt it in the dark
-
-[Pre-chorus - building energy, claps]
-So I walked right past your table
-Pressed my screen to yours
-And in a second
-I don't need words anymore
-
-[Chorus - euphoric future bass drop, super catchy]
-Touch! And now we're somewhere new
-Touch! I only needed you
-Touch! The stars are in my phone
-But I've never felt less alone
-I've never felt less alone
-
-[Post-chorus - vocal chop + bouncy beat]
-Na-na-na-na Touch
-Na-na-na-na Touch
-Na-na-na-na
-I've never felt less alone
-
-[Verse 2 - darker, more intimate]
-Three AM, I'm scrolling through my stars
-Every node a memory
-Every line a scar that healed
-The night you said to me...
-
-[Chorus 2]
-Touch! And now we're somewhere new
-Touch! I only needed you
-Touch! From strangers to a spark
-You lit me up in the dark
-
-[Bridge - stripped, emotional, just piano and voice]
-They said an app can't make you feel
-But this was never just an app
-It's a gesture
-It's a moment
-It's the thing you can't take back
-
-[Final drop - biggest, all synths, confetti energy]
-TOUCH! (crowd: TOUCH!)
-TOUCH! (crowd: TOUCH!)
-The stars are in my phone
-But I've never felt less alone
-
-[Outro - music box version of the melody, fading]
-Touch...
-Everything starts with a gesture
+[Outro -- music box melody fading]
+Na-na-na-na... touch
 ```
 
 ---
 
 ## INSTRUCOES PRO SUNO AI
 
-1. **Copie o "Prompt de estilo"** e cole no campo de STYLE/GENRE do Suno
-2. **Copie a letra** e cole no campo LYRICS
-3. **Duracao**: 3-4 minutos (pra ter espaco pro build-up e drop)
-4. **Gere 2-3 versoes** de cada e escolha a melhor
-5. **Dica**: se quiser so instrumental (sem vocal), adicione "Instrumental" no estilo
-6. **Dica**: pra deixar mais "radio-friendly", adicione "polished, radio mix, mastered"
-7. **Dica**: pra deixar mais "festival", adicione "big reverb, crowd noise, pyro drops"
+1. Copie o **Prompt de estilo** pro campo STYLE
+2. Copie a **letra** pro campo LYRICS
+3. Duracao: **3-4 minutos** (as partes instrumentais se expandem)
+4. Gere **3 versoes** de cada, escolha a melhor
+5. Dica: onde diz "[Instrumental -- 16 bars]" o Suno preenche com musica
+6. Se quiser **so instrumental** (pra DJ remixar): adicione "Instrumental" no estilo e remova a letra
 
 ## QUAL VERSAO USAR ONDE
 
-| Versao | Onde usar | Tipo de plateia |
-|--------|-----------|----------------|
-| V1 - Festival Anthem | Main stage Tomorrowland, Lollapalooza, Rock in Rio | 30-80K pessoas, maos pro alto, confetti e fogo |
-| V2 - Tech House | Clubs, after parties, D-Edge, Warung, Hi Ibiza | 500-5K pessoas, escuro, strobes, groovy |
-| V3 - Afro House | Sunset stages, Burning Man, praia, Alok sets | 5-30K pessoas, por do sol, tribal, espiritual |
-| V4 - Future Bass | TikTok, Instagram Reels, radio, streaming | Online + shows menores, jovem, viral |
+| Versao | BPM | Plateia | Onde |
+|--------|-----|---------|------|
+| V1 Festival | 128 | 30-80K, confetti, fogo | Tomorrowland, Lolla, Rock in Rio |
+| V2 Tech House | 124 | 500-5K, club escuro | D-Edge, Warung, Hi Ibiza |
+| V3 Afro House | 122 | 5-30K, sunset | Burning Man, Alok sets |
+| V4 Future Bass | 130 | Qualquer, jovem | TikTok, radio, shows |
 
-## ESTRATEGIA DJ
+## POR QUE UM DJ TOCARIA ISSO
 
-- Enviar a V1 e V3 pra DJs brasileiros (Alok, Vintage Culture, Cat Dealers)
-- Enviar V2 pra DJs de tech house (Fisher, Chris Lake, John Summit)
-- Usar V4 pra conteudo de marketing e TikTok
-- Proposta: "Use nossa musica, ative 60K celulares no seu show com Touch?"
-- O DJ ganha uma ferramenta nova (controle de plateia) + a musica
-- Touch? ganha exposicao global em festivais
-
-## LICENSING
-
-- Se a musica for boa o suficiente, registrar no DistroKid ou TuneCore
-- Disponibilizar em Spotify/Apple Music como "Touch? Official"
-- Fazer video clipe usando os prompts de video 27-32 (stadium sync)
+- Pouca letra, muito espaco pra mixar
+- O hook "TOUCH!" funciona como "ONE MORE TIME" -- simples, universal
+- "Oh-oh-oh-oh TOUCH" a plateia canta sozinha
+- Celebra quem faz a musica, nao vende nada
+- O bridge instrumental longo e perfeito pra transicao de set
+- Funciona como encore / momento emocional
