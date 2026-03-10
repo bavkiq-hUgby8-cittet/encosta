@@ -6,15 +6,43 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#050508">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
+<meta name="apple-mobile-web-app-title" content="Touch?">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <title>Touch? — tudo nasce no gesto</title>
 <script>
-// Force cache bust v4 — unregister service workers + clear caches (no reload loop)
+// PWA Service Worker registration
 (function(){
-  try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})}).catch(function(){})}}catch(e){}
-  try{if(window.caches){caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})}).catch(function(){})}}catch(e){}
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',function(){
+      navigator.serviceWorker.register('/service-worker.js',{scope:'/'})
+        .then(function(reg){
+          console.log('[SW] registered, scope:',reg.scope);
+          // Check for updates periodically
+          setInterval(function(){reg.update()},60*60*1000);
+          // Listen for new SW waiting
+          reg.addEventListener('updatefound',function(){
+            var newWorker=reg.installing;
+            if(newWorker){
+              newWorker.addEventListener('statechange',function(){
+                if(newWorker.state==='installed'&&navigator.serviceWorker.controller){
+                  // New version available — activate it
+                  newWorker.postMessage({type:'SKIP_WAITING'});
+                }
+              });
+            }
+          });
+        })
+        .catch(function(err){console.error('[SW] registration failed:',err)});
+    });
+    // Refresh page when new SW takes over
+    var refreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      if(!refreshing){refreshing=true;window.location.reload()}
+    });
+  }
 })();
 </script>
 <script>
@@ -23417,6 +23445,99 @@ const GuidedOnboarding=(function(){
   };
 })();
 
+</script>
+
+<!-- PWA Install Banner -->
+<div id="pwaInstallBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:99999;padding:1rem;padding-bottom:calc(1rem + env(safe-area-inset-bottom,0px));background:rgba(12,12,20,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,107,53,.15);transition:transform .4s cubic-bezier(.4,0,.2,1);transform:translateY(100%)">
+<div style="max-width:420px;margin:0 auto;display:flex;align-items:center;gap:.8rem">
+<div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#0a0a14,#050508);border:1px solid rgba(255,107,53,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+<span style="font-size:1.1rem;font-weight:800;color:#ff7a42">T<span style="font-size:.7rem;color:#ff9966">?</span></span>
+</div>
+<div style="flex:1;min-width:0">
+<div style="font-size:.85rem;font-weight:700;color:#f0f0f5">Instalar Touch?</div>
+<div style="font-size:.7rem;color:#7a7a96;margin-top:.1rem">Acesso rapido direto da sua tela inicial</div>
+</div>
+<button id="pwaInstallBtn" style="padding:.5rem 1rem;background:linear-gradient(135deg,#ff7a42,#ff8555);border:none;border-radius:10px;color:#fff;font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">Instalar</button>
+<button id="pwaInstallClose" style="padding:.3rem;background:none;border:none;color:#7a7a96;cursor:pointer;font-size:1.2rem;line-height:1" aria-label="Fechar">&#215;</button>
+</div>
+</div>
+<script>
+// PWA Install Prompt Handler
+(function(){
+  var deferredPrompt=null;
+  var banner=document.getElementById('pwaInstallBanner');
+  var installBtn=document.getElementById('pwaInstallBtn');
+  var closeBtn=document.getElementById('pwaInstallClose');
+
+  // Don't show if already installed as standalone
+  if(window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true)return;
+
+  // Don't show if dismissed recently (7 days)
+  var dismissed=localStorage.getItem('pwa_install_dismissed');
+  if(dismissed&&Date.now()-parseInt(dismissed,10)<7*24*60*60*1000)return;
+
+  window.addEventListener('beforeinstallprompt',function(e){
+    e.preventDefault();
+    deferredPrompt=e;
+    // Show banner after 5 seconds
+    setTimeout(function(){
+      banner.style.display='block';
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          banner.style.transform='translateY(0)';
+        });
+      });
+    },5000);
+  });
+
+  if(installBtn){
+    installBtn.addEventListener('click',function(){
+      if(!deferredPrompt)return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(choice){
+        if(choice.outcome==='accepted'){
+          console.log('[PWA] User accepted install');
+        }
+        deferredPrompt=null;
+        hideBanner();
+      });
+    });
+  }
+
+  if(closeBtn){
+    closeBtn.addEventListener('click',function(){
+      localStorage.setItem('pwa_install_dismissed',Date.now().toString());
+      hideBanner();
+    });
+  }
+
+  function hideBanner(){
+    banner.style.transform='translateY(100%)';
+    setTimeout(function(){banner.style.display='none'},400);
+  }
+
+  // iOS Safari: show manual install hint
+  var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  var isSafari=/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  if(isIOS&&isSafari&&!window.navigator.standalone){
+    setTimeout(function(){
+      var iosHint=document.getElementById('pwaInstallBanner');
+      if(iosHint&&!deferredPrompt){
+        // Replace install button with iOS instructions
+        var btnEl=document.getElementById('pwaInstallBtn');
+        if(btnEl)btnEl.style.display='none';
+        var descEl=iosHint.querySelector('div[style*="color:#7a7a96"]');
+        if(descEl)descEl.innerHTML='Toque em <svg style="display:inline-block;vertical-align:middle;width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="#ff7a42" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg> e "Adicionar a Tela Inicial"';
+        iosHint.style.display='block';
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            iosHint.style.transform='translateY(0)';
+          });
+        });
+      }
+    },8000);
+  }
+})();
 </script>
 
 </body>
