@@ -242,6 +242,34 @@ A concert arena, 20,000 people. A young man in the crowd is nervous, fidgeting. 
 
 ---
 
+## VIDEO 33 -- DJ ABRE O PAINEL E ATIVA A PLATEIA (Brand - DJ Panel)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+Close-up of a DJ's laptop on stage at a massive festival. Next to the DJ software, a browser tab is open showing the Touch? DJ Panel -- a dark dashboard with a venue map, a counter reading "0 devices", and colored buttons labeled PULSE, WAVE, FLASH, BLACKOUT, FIRE, OCEAN. The DJ puts on the headphones, checks the crowd through the stage lights -- 50,000 people waiting. He cues a track. As the intro plays, he clicks "ACTIVATE" on the panel. The PA system sends the ultrasonic handshake. The counter starts climbing fast: 200... 2,000... 15,000... 38,000... 51,247 devices. Wide shot from the stage looking out: across the entire crowd, phones are lighting up one by one like stars appearing at dusk, each screen showing the uploaded reference image -- the orange "TOUCHING..." circle. In 10 seconds the whole field is a galaxy of orange light. The DJ grins. He taps "PULSE" and sets BPM to 128. All 51,000 screens start pulsing together in perfect sync with the kick drum. He pushes up a fader labeled "BRIGHTNESS" -- the glow intensifies. Drone shot from above: a breathing ocean of orange light, pulsing as one organism. The DJ points at the crowd and drops the bass. Text: "51,247 phones. One sound system. Zero hardware." then "Touch? Live" and "touch-irl.com". Epic festival night lighting, the moment a DJ realizes he controls not just the music but the light.
+
+---
+
+## VIDEO 34 -- ANIMACOES FIRE + OCEAN + GALAXY NA PLATEIA (Brand - Animations)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A packed indoor arena. The DJ is mid-set, the crowd is moving. On the DJ Panel screen we see the animation selector. The DJ taps "FIRE." Cut to the crowd: every phone screen erupts with animated flames -- red and orange fire rising from the bottom of each screen. From above, the whole arena floor looks like it's on fire, 20,000 tiny flames flickering together. The DJ taps "OCEAN." Instantly all screens shift to blue and green waves flowing across each phone. From above the arena becomes a moving sea, wave patterns rolling from left to right in sync. The DJ taps "GALAXY." All screens become swirling purple and white nebulas with tiny stars -- from above the arena looks like deep space, a cosmic cloud of 20,000 galaxies slowly rotating. He taps "AURORA." Green and pink northern lights flow across every screen -- from above the arena shimmers like the actual aurora borealis. Quick montage from above: FIRE (orange inferno), OCEAN (blue waves), GALAXY (purple cosmos), AURORA (green shimmer), LASER (sharp colored beams), MATRIX (green code rain) -- each one transforming the entire arena into a different world. The DJ is conducting a visual symphony with phone screens instead of LED panels. Final shot: the DJ's finger hovering over the "WRITE" button. He types "T-O-U-C-H-?" and taps send. From the drone: 20,000 phones rearrange their brightness to spell TOUCH? across the arena floor in massive letters. Text: "Every phone is a pixel. The DJ is the artist." then "Touch? Live". Cinematic, awe-inspiring, the future of live shows.
+
+---
+
+## VIDEO 35 -- GORJETA EM MASSA NO ENCORE (Brand - Mass Tipping)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A concert is ending. The artist takes a bow. The crowd screams for an encore. On the DJ Panel, the artist's manager taps "ENCORE MODE." All phones in the crowd switch to a special screen: a pulsing heartbeat animation in warm orange with text "One more?" and a button "REQUEST ENCORE - $2." Thousands of fans tap the button -- each tap sends $2 as a tip to the artist. The panel counter shows: $400... $2,000... $8,000... $14,000 climbing fast. The artist watches the counter on the side screen, amazed. At $15,000, the artist holds up their hand -- the crowd roars. They walk back to the mic. The phones all flash white and switch to a celebration animation -- confetti falling on every screen. The artist plays one more song. The crowd is going wild, every phone still glowing with the confetti animation synced to the music. During the final chorus, the panel shows "TIP THE ARTIST" with $5 / $10 / $20 options. More orange flashes ripple through the crowd as fans tip. Final counter: "$47,300 tonight." The artist looks at the number and puts their hand on their heart. Drone shot of the glowing crowd. Text: "The crowd funded the encore." then "Touch? Live" and "touch-irl.com". Emotional, powerful, the direct connection between artist and fan through money that feels like love.
+
+---
+
+## VIDEO 36 -- WAVE DE LUZ PERCORRENDO O ESTADIO (Brand - Light Wave)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+Drone shot of a full stadium, 60,000 people, seen from directly above. All phones are dark. The DJ taps "WAVE" on the panel and drags a direction arrow from left to right. A wall of orange light starts at the far left section of the stadium -- phones lighting up with the uploaded reference image -- and sweeps across the entire venue like a slow tsunami of light, section by section, row by row. It takes 4 seconds to cross the whole stadium. The wave reaches the right side and bounces back, sweeping right to left, but now in blue. Then it bounces again, this time in green, faster. And again in purple, even faster. The waves are accelerating, colors alternating, bouncing back and forth across 60,000 phones. The stadium looks like a giant Pong game of light. The DJ switches to "RIPPLE" mode and taps the center of the venue map. Concentric rings of orange light expand outward from the center of the crowd -- like dropping a stone in a pond of 60,000 phones. Ring after ring expands outward, reaching the edges and fading. Another ripple from a different point. Two ripples collide and create interference patterns of light across the crowd. The DJ is playing the stadium like an instrument, painting with 60,000 pixels of light. Final shot: the DJ steps back from the panel and just watches the stadium ripple and pulse and wave -- a living canvas. Text: "60,000 screens. One canvas." then "Touch? Live". Pure visual spectacle, no words needed.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
