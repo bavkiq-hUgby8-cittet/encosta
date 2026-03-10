@@ -108,11 +108,57 @@ These campaigns were auto-suggested and can be generated anytime:
 
 ---
 
+## Campaign 2: White-Label Restaurant & Delivery
+**NEW (March 2026)** -- Based on newly shipped features
+**Target**: Restaurant owners paying commission to delivery apps
+**Angle**: "Your restaurant deserves its own app. Without building one."
+
+Key messages:
+- Zero commission vs 15-30% delivery app fees
+- Real-time delivery tracking (like Uber Eats, but yours)
+- Guest checkout -- customers order without signing up
+- Apple Pay, Google Pay, Stripe -- all payment methods
+- Runs in browser, no app download needed
+- Operator manages everything from their phone
+
+Full campaign doc: `campaigns/campaign-2-whitelabel-restaurant.md`
+
+---
+
+## Campaign 3: QR Code + Guest Checkout (Consumer)
+**NEW (March 2026)**
+**Target**: Consumers (18-35, US metros)
+**Angle**: "Scan. Order. Done. No app. No signup."
+
+Key messages:
+- 15-second ordering flow
+- No app download, works in browser
+- Apple Pay checkout in 1 tap
+- Real-time delivery tracking
+
+Full campaign doc: `campaigns/campaign-3-qr-guest-checkout.md`
+
+---
+
+## Campaign 4: Founder Story Update -- "Day 30+"
+**NEW (March 2026)**
+**Target**: Indie hackers, solo founders, AI community
+**Angle**: "1 person. 0 code. A full business platform."
+
+Updated story: 30+ days, 35K+ lines of code, 100+ commits, 5 modules, white-label sites, delivery system, voice agents -- all built by one person with zero coding knowledge using Claude AI.
+
+Full campaign doc: `campaigns/campaign-4-founder-story-day30.md`
+
+---
+
 ## Next Steps
 1. Replace Meta Pixel ID in site.html (line ~15): YOUR_PIXEL_ID
 2. Replace TikTok Pixel ID in site.html (line ~25): YOUR_TIKTOK_PIXEL_ID
-3. Download remaining creatives from Pomelli Campaigns
-4. Create TikTok Ads Manager campaign
-5. Create Meta Ads Manager campaign
-6. Generate animated versions when Pomelli limit resets
-7. A/B test: B2B creatives vs tipping consumer creatives
+3. Generate Pomelli creatives for Campaign 2 (white-label restaurant angle)
+4. Generate Pomelli creatives for Campaign 3 (QR + guest checkout)
+5. Create TikTok Ads Manager campaign
+6. Create Meta Ads Manager campaign
+7. Generate animated versions when Pomelli limit resets
+8. A/B test: B2B tipping vs B2B restaurant vs consumer QR checkout
+9. Post founder story thread on X/LinkedIn/Reddit
+10. Prepare Product Hunt launch
