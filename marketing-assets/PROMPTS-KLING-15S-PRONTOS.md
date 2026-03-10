@@ -158,6 +158,48 @@ A stylish modern barbershop entrance. A young man walks in through the glass doo
 
 ---
 
+## VIDEO 21 -- VENDEDOR DE CERVEJA NO ESTADIO (B2B - Stadium)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A packed American football stadium on game night, thousands of fans in the stands under bright floodlights. A beer vendor climbs the stairs between seats carrying a tray of cold beers, yelling "Cold ones!" A fan in a jersey raises his hand. The vendor passes a beer. Without stopping, the fan holds his phone out and the vendor has his phone strapped to his forearm like a wristband -- they touch screen-to-screen for one second as the vendor keeps moving. Orange flash from the uploaded reference image on both screens. The vendor is already two rows up. Another fan waves. Beer delivered, phone touch on the move, orange flash, keeps climbing. Another one, three rows higher -- the same fluid motion, beer in one hand, forearm phone touch with the other, never breaking stride. Wide shot from across the stadium: the vendor is a tiny figure climbing through a sea of fans, and we see brief orange flashes popping behind him like a trail of fireflies marking every sale. He reaches the top of the section, tray empty, checks his phone: "$187 in tips tonight" with a satisfied nod. He turns and heads back down for more. The crowd roars as something happens on the field. Text fades in: "Touch?" then "touch-irl.com". Night stadium lighting, cinematic handheld, energetic and loud atmosphere, teal and amber color grade.
+
+---
+
+## VIDEO 22 -- MUSICO DE RUA / BUSKER (Social - Tipping)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A busy city sidewalk at dusk, golden hour fading into blue. A street musician sits on a stool playing acoustic guitar, a small speaker amplifying the sound, phone propped on a stand next to an open guitar case. People walk by. One person slows down, pulls out their phone, holds it against the musician's phone on the stand -- screen-to-screen, orange flash from the uploaded reference image, keeps walking without breaking stride. The musician keeps playing, doesn't miss a note. Another passerby does the same -- quick touch while walking, orange flash, gone. Then another. And another. The musician never stops playing. A small counter on the musician's screen ticks up: $3, $8, $14, $22. Close-up of the musician's face -- eyes closed, feeling the music, a slight smile knowing the tips are flowing without interrupting the art. Wide final shot: the musician playing under a warm streetlight, the sidewalk streaming with people, occasional orange flashes from passersby touching as they walk past. The guitar case is empty -- no coins, no cash needed anymore. Text fades in: "Touch?" then "touch-irl.com". Golden to blue hour transition, shallow DOF on the musician, city bokeh behind, emotional indie folk vibe.
+
+---
+
+## VIDEO 23 -- VIZINHO NOVO NO PREDIO (Social - Network)
+**Referencia**: tela MY NETWORK (constelacao com nos conectados)
+
+A young man carrying a moving box walks into an apartment building hallway. He bumps into his first neighbor coming out of the elevator -- awkward smile, they juggle boxes and phones, quick Touch screen-to-screen, orange flash. The neighbor says "Welcome! I'm in 4B." He keeps moving down the hall. Knocks on the next door to introduce himself -- a woman opens, he holds up his phone, she gets it immediately and grabs hers, Touch, orange flash, she laughs "You'll love the rooftop!" Elevator opens -- an older man with a dog, the new guy touches phones with him too, orange flash, the dog sniffs his shoe. Montage accelerates: door after door, touch after touch, each one faster -- the building is alive with connection. He finally enters his empty apartment, puts the box down, sits on the floor exhausted. Pulls out his phone and opens the constellation screen -- the uploaded reference image: "MY NETWORK" is now filled with 9 new nodes, all connected, all from today, all with fictional names like "Sam 4B", "Rita 5A", "Doug + Biscuit 3C". He stares at it and whispers "Home." The constellation glows warm. Text fades in: "Touch?" then "touch-irl.com". Warm hallway lighting, handheld intimate camera, the feeling of belonging in a new place.
+
+---
+
+## VIDEO 24 -- FESTIVAL DE MUSICA / SEM DINHEIRO (Social + B2B)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+An outdoor music festival at night -- colored stage lights, crowd dancing, food trucks glowing in the background. A girl realizes she has no cash, no card, just her phone. She walks to a food truck, touches phones with the vendor through the window -- orange flash, taco handed over. She walks to a merch tent, picks up a band t-shirt, Touch with the cashier -- orange flash, shirt on. She walks to a friend in the crowd, they haven't seen each other in months -- "Oh my god!" They Touch phones to reconnect -- orange flash, but this one lingers warmer. She gets a beer at the next stand -- Touch, orange flash. She tips the DJ spinning tracks on stage -- holds her phone up toward the DJ booth where a phone is mounted, Touch from a distance through the speaker system, orange flash pulses through the stage lights. Every transaction, every connection, just Touch. Final shot: she's dancing in the crowd, phone in her back pocket, totally free -- no wallet, no worry, just music. Drone rises above the festival -- hundreds of orange flashes blinking across the crowd like stars on the ground. Text fades in: "Touch?" then "touch-irl.com". Neon festival lighting, euphoric energy, wide and intimate shots alternating, electronic music implied by the visuals.
+
+---
+
+## VIDEO 25 -- ELEVADOR TODO DIA (Social - Slow Burn)
+**Referencia**: tela MY NETWORK (constelacao com nos conectados) + tela TOUCHING
+
+Monday: a man and a woman step into an elevator at the same time. Awkward silence. They both stare at their phones. The doors close. Tuesday: same elevator, same two people. A polite nod this time. Wednesday: he notices she's wearing earbuds, bobbing her head to a song he likes. He almost says something. Doesn't. Thursday: she notices his laptop sticker -- it's from her favorite show. She almost says something. Doesn't. Friday: the doors open, they both step in. He holds up his phone and says quietly: "Touch?" She smiles -- finally. She pulls out her phone. They press screen-to-screen. The uploaded reference image flashes: the orange "TOUCHING..." circle. The elevator reaches her floor. She steps out, turns back, and they both look at their phones -- a new node glowing in the constellation. She waves. The doors close. He smiles at his phone. Text on screen: "Some connections take all week." Then: "Touch?" and "touch-irl.com". Muted office building tones -- gray, blue, silver -- with the orange Touch flash being the only warm color in the whole video. Wes Anderson symmetry in the elevator framing. Quiet, intimate, no music until the Touch moment when a soft piano note hits.
+
+---
+
+## VIDEO 26 -- SURF INSTRUCTOR NA PRAIA (B2B - Outdoors)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+Early morning beach, waves breaking, golden sunrise. A surf instructor in a rash guard sticks his phone in a waterproof pouch hanging from his neck. Three students arrive for the lesson. First student touches their phone against the instructor's pouch -- orange flash through the waterproof plastic, check-in done. Second student, same thing. Third. They all run into the water with boards. Quick montage: paddling, standing up, wiping out, laughing, riding a wave. The lesson ends, everyone walks back to the sand, boards under their arms, dripping wet and grinning. The instructor pulls the phone from his pouch. One by one the students Touch again to tip -- wet hands, sandy phones, doesn't matter, the orange flash fires through the waterproof pouch each time. The instructor's screen shows: "3 check-ins, 3 tips, $45 total, next group in 30 min." He gives a shaka sign. Wide drone shot pulling back: the beach, the ocean, the surfers walking away, the instructor already waving at his next group arriving. Text fades in: "Touch?" then "touch-irl.com". Golden sunrise tones, salt and sand texture, GoPro-style action mixed with cinematic drone. The feeling of freedom meeting effortless business.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
