@@ -137,6 +137,13 @@ A dimly lit upscale bar with warm amber Edison bulbs and exposed brick. A young 
 
 ---
 
+## VIDEO 18 -- MEGA PARKING LOT / TOLL BOOTH STYLE (B2B - Parking)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+Wide aerial establishing shot of a massive theme park parking lot at golden hour, hundreds of cars already parked in perfect rows seen from above. Camera tilts down to the entrance: 8 lanes side by side like a highway toll plaza, each lane with a uniformed parking attendant in a bright vest holding a phone. Cars stream in steadily. Lane 1: a car pulls up, the driver holds their phone out the window, the attendant brings their phone to meet it screen-to-screen -- both screens flash the uploaded reference image, the orange "TOUCHING..." circle with a fictional name "Guest Pass - Lane 1" -- a quick pulse of orange light, the attendant waves the car through, it takes 2 seconds. Lane 3 at the same time: another attendant doing the same touch with another car, orange flash again. Lane 6: same thing simultaneously. Quick cuts between lanes -- touch after touch after touch, orange flashes popping across all 8 lanes like a rhythm, cars flowing through without stopping. Each attendant moves like clockwork: phone up, touch, wave through, next car, phone up, touch, wave through. The pace accelerates -- wider angle now showing all 8 lanes at once, orange flashes firing in rapid succession across the whole toll plaza, cars streaming through faster than any ticket booth or card reader. Drone rises straight up: the 8 lanes feed into the enormous parking lot, cars fanning out into rows like an organized grid. From above it looks like a circuit board -- the entrance lanes are the connectors, the parked cars are the chips, and the orange touch flashes are the electric current flowing in. Final high drone shot: the full mega parking lot stretching to the horizon with the theme park in the background, thousands of cars, all checked in by Touch. Text fades in: "Touch?" then "touch-irl.com". Golden hour lighting, cinematic color grade with warm oranges and cool shadows, epic scale feeling like a logistics ballet.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
