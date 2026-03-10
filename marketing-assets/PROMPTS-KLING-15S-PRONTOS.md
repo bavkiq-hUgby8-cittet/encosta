@@ -130,6 +130,13 @@ A bartender behind the counter, phone propped up showing the Service Mode screen
 
 ---
 
+## VIDEO 17 -- CASAL PAQUERANDO NO BAR (Social - Romance)
+**Referencia**: tela MY NETWORK (constelacao com nos conectados) + tela TOUCHING (circulo laranja)
+
+A dimly lit upscale bar with warm amber Edison bulbs and exposed brick. A young woman sits alone at a corner table, drink in hand. Across the room, a young man at another table keeps glancing at her. They lock eyes, both smile shyly, but neither moves. Awkward beautiful tension. He picks up his phone and holds it toward her, screen out -- it shows the uploaded reference image: the "MY NETWORK" constellation screen with glowing connected nodes on dark background, but with fictional names like "Mia Torres", "Jake Wilson", "Ava Brooks." She sees it, laughs softly, picks up her own phone and holds it toward him showing the same constellation screen. They both get it. He stands, walks casually past her table. Without stopping, in one smooth motion, they press their phones screen-to-screen for one second -- the screens briefly flash the orange "TOUCHING..." circle. He keeps walking back to his seat. Now both at their separate tables, they look down at their phones, typing and smiling. She laughs reading something on the screen. He grins. The distance between them is no longer awkward -- it's electric. Wide final shot: two strangers at separate tables, faces glowing from phone light, connected. White text fades in: "Touch?" then "touch-irl.com." Shallow depth of field, handheld micro-movements, soft indie acoustic guitar, no dialogue spoken, warm teal and amber color grade.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
