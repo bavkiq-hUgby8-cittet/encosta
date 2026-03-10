@@ -151,6 +151,13 @@ The screen of a smartphone held vertically. On the screen, the uploaded referenc
 
 ---
 
+## VIDEO 20 -- BARBEARIA COMPLETA: CHECK-IN + PEDIDO + CERVEJA (B2B - Barber)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A stylish modern barbershop entrance. A young man walks in through the glass door. At the front desk there is a small Bluetooth speaker on the counter next to a phone propped up showing the Touch? service mode screen. The man pulls out his phone and holds it screen-to-screen against the desk phone near the speaker -- both screens flash the uploaded reference image, the orange "TOUCHING..." circle. A subtle sound pulse comes from the speaker confirming the check-in. Instantly, his barber across the room looks down at his own phone buzzing with a notification: "Tyler just checked in -- Chair 3 ready." The barber waves him over: "Tyler! Chair 3, let's go." The man walks to the chair and sits down. The barber puts the cape on him. As the man settles in, his phone screen shows a notification: "Connected to SharpCuts Wi-Fi" and automatically opens a clean digital menu -- craft beers, coffee, water, snacks, with photos and prices. He taps a cold IPA, taps "Order", done in 2 seconds. The barber is already cutting his hair, buzzer gliding. A few moments later, an assistant walks over carrying a frosted beer glass and hands it to the man in the chair. He takes a sip while getting his haircut, completely relaxed. Close-up of his phone on the armrest showing: "Check-in: done. Order: IPA - on the way. Next appointment: auto-booked." Everything handled. Final wide shot: the full barbershop alive -- three other chairs occupied, clients relaxed, one sipping coffee, another browsing the menu on their phone, a new customer at the front doing their own touch check-in at the speaker. The barbershop runs itself. Text fades in: "Touch?" then "touch-irl.com". Warm interior lighting with warm wood tones, leather chairs, brass fixtures. Jazz lo-fi in the background. The vibe is premium, effortless, and smooth.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
