@@ -200,6 +200,27 @@ Early morning beach, waves breaking, golden sunrise. A surf instructor in a rash
 
 ---
 
+## VIDEO 27 -- DJ ATIVA TODOS OS CELULARES NO SHOW (Brand - Ultrasonic Mass)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A massive outdoor concert at night, thousands of people in the crowd, stage lights cutting through fog. The DJ behind the decks raises one hand in the air -- the crowd cheers. He drops his hand onto a button on the mixer. A deep bass pulse hits through the massive speaker stacks -- but embedded in the sound is an ultrasonic frequency. In one instant, every single phone in the crowd lights up simultaneously. Thousands of screens turning on at the same time -- all showing the uploaded reference image, the orange "TOUCHING..." circle pulsing in sync with the beat. Wide aerial drone shot: the entire crowd is a sea of glowing orange screens, all pulsing together like a single heartbeat. The DJ sees it from the stage and grins. He twists a knob -- the frequency shifts -- and all the phone screens change color from orange to deep purple, then back to orange, synchronized with the music. The crowd goes wild, holding their phones up. From above it looks like a living light show controlled by the DJ -- thousands of phones replacing traditional lighters and flashlights, but all synchronized, all connected through sound. The DJ hits another drop -- all phones flash a message: "Tip your DJ? $5" with a one-tap button. Orange flashes ripple through the crowd as hundreds of people tap simultaneously. The DJ's screen on stage shows a counter climbing rapidly: $200... $500... $1,200... $3,000 in 10 seconds. He pumps his fist. Final wide drone shot rising above the entire venue: a galaxy of synchronized orange lights pulsing to the music, the stage at the center like a sun. Text fades in: "One frequency. Every phone." then "Touch?" and "touch-irl.com". Massive scale, neon and laser lighting, EDM energy, cyberpunk meets festival.
+
+---
+
+## VIDEO 28 -- SHOW DE ROCK: CROWD LIGHTS UP (Brand - Live Music)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+A packed indoor arena, a rock band on stage. The lead singer grabs the mic: "Everybody get your phones out!" The crowd pulls out their phones. The singer nods to the sound engineer. A wall of sound hits from the PA system -- and hidden in the frequencies, the Touch? signal activates. Every phone in the arena lights up with the orange "TOUCHING..." circle from the uploaded reference image -- but instead of one-to-one, it says "CONNECTED TO: THE WHOLE CROWD." The singer says "Now we're all connected." Slow pan across the audience: thousands of orange glowing screens held up, swaying side to side in unison like a wave. The band starts playing a slow song. The phones pulse with the rhythm -- orange glow brightening on each beat, dimming between beats, all perfectly synchronized through the sound system. It's the modern version of lighters at a concert, but alive and breathing with the music. Close-up of one fan's face, lit by the orange glow, tears in her eyes, feeling connected to everyone. Wide shot from behind the band looking out at the sea of synchronized orange light. The drummer counts in -- the song explodes into the chorus -- all phones flash bright white for one second then back to orange, creating a massive strobe effect from the crowd itself. Final shot: the arena from outside, orange light pulsing through the windows to the beat. Text: "Sound connects us all." then "Touch?" and "touch-irl.com". Raw live music energy, intimate and epic at the same time, warm amber tones.
+
+---
+
+## VIDEO 29 -- DJ COMANDANDO OS CELULARES COMO VJ (Tech - Sound Control)
+**Referencia**: tela TOUCHING (circulo laranja pulsando)
+
+Close-up of a DJ's hands on a mixing console in a dark nightclub. On the console there's a special Touch? panel -- a small screen showing "BROADCAST MODE: 847 devices connected." The DJ slides a fader up. Cut to the dance floor: all 847 phones in people's pockets and hands simultaneously light up with the uploaded reference image -- the orange "TOUCHING..." circle. The DJ twists a knob labeled "COLOR" -- all phones shift from orange to blue. He taps a button labeled "PULSE" -- all phones start strobing to the BPM of the track. The dance floor becomes a living light installation -- no LED wristbands needed, no special hardware, just everyone's own phones responding to the sound. The DJ pushes a fader labeled "WAVE" -- the phone lights ripple from front to back of the club like a stadium wave, but made of light. He hits "DROP" -- all phones go black for 2 seconds of total darkness -- then the bass drops and every phone explodes with bright orange light simultaneously. The crowd loses it. Quick cut to a fan looking at their phone: it shows their constellation with "47 new connections tonight" -- everyone at the club automatically added through the mass broadcast. The DJ pulls up a final screen: "Tips tonight: $4,200." He nods. Wide shot of the club from above: a breathing organism of synchronized phone lights. Text: "The speaker IS the connection." then "Touch?" and "touch-irl.com". Dark club aesthetic, neon accents, cyberpunk color grade, bass-heavy visual rhythm.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
