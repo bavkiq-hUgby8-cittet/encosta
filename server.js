@@ -158,6 +158,13 @@ app.use(express.static(path.join(__dirname, 'public'), {
     // HTML = no-cache (always fresh), assets (JS/CSS/images) = cache 1 day
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (filePath.endsWith('service-worker.js')) {
+      // Service worker must never be cached by the browser
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Service-Worker-Allowed', '/');
+    } else if (filePath.endsWith('manifest.json') && !filePath.includes('games')) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.setHeader('Cache-Control', 'no-cache');
     } else if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$/)) {
       res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600');
     }
