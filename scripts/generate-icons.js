@@ -16,11 +16,11 @@ if (!fs.existsSync(ICONS_DIR)) {
 // Touch? logo SVG — dark background with orange "T?" mark
 // Design: rounded rect background (#050508), stylized "T?" in orange gradient
 function createIconSVG(size, maskable = false) {
-  const padding = maskable ? Math.round(size * 0.1) : 0;
+  const padding = maskable ? Math.round(size * 0.15) : 0;
   const innerSize = size - padding * 2;
   const fontSize = Math.round(innerSize * 0.48);
   const questionSize = Math.round(innerSize * 0.28);
-  const borderRadius = Math.round(size * 0.18);
+  const borderRadius = maskable ? 0 : Math.round(size * 0.18);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <defs>
