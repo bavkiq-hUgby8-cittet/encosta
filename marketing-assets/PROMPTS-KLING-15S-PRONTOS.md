@@ -144,6 +144,13 @@ Bright sunny morning at a massive theme park parking entrance. 6 toll-booth-styl
 
 ---
 
+## VIDEO 19 -- VOICE AGENT FOFOCANDO (Brand - Assistente)
+**Referencia**: imagem do busto 3D do Voice Agent (fibra de carbono preta, linhas laranja neon, coracao com logo Touch?, fundo branco)
+
+The screen of a smartphone held vertically. On the screen, the uploaded reference image -- a futuristic 3D bust avatar with black carbon fiber skin, glowing orange circuit lines on the face and chest, a heart-shaped chest plate with the Touch? logo orb in the center. The avatar is the Touch? voice assistant. The orange lines on the avatar pulse gently as it "speaks." A chat bubble appears next to the avatar: "Sooo... that connection last night at the bar?" The orange lines pulse brighter. Another bubble: "She revealed her profile this morning. Just saying." A subtle smirk forms on the avatar's face -- the corners of the mouth shift slightly. The user's thumb appears at the bottom of the screen and taps a reply. New bubble from the assistant: "Oh and don't forget -- gym check-in in 45 minutes. Coach Mike is already there." The avatar's chest heart glows warmer. A small notification badge pops: a gym icon with a clock. The user scrolls up slightly and we briefly see the constellation screen behind the chat -- the node from last night's connection is glowing brighter than the others with a small "NEW" tag. The avatar's orange lines do one final bright pulse as a last bubble appears: "Touch?" Back to the avatar smiling knowingly. The phone screen dims slightly. We see the person holding the phone smile to themselves. Pull back to reveal they're walking down a sunny city sidewalk, earbuds in, living their day with their AI assistant keeping them connected. Text fades in: "Your connections. Your assistant." then "touch-irl.com". Clean daylight, warm tones, intimate phone-screen POV mixed with real-world shots.
+
+---
+
 ## DICAS PRA GERAR NO KLING AI:
 
 1. **Suba a imagem de referencia** (screenshot da tela) como "reference image"
