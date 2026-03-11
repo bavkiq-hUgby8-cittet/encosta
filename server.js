@@ -7146,12 +7146,13 @@ app.post('/api/event/create', (req, res) => {
     acceptsTips: false, serviceLabel: '',
     entryPrice: 0, revenue: 0, paidCheckins: 0,
     createdAt: Date.now(),
-    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false },
+    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false, dj: false },
     staff: [], menu: [], tables: 0, orders: [],
     parking: { enabled: false, mode: 'postpaid', hourlyRate: 10.00, fixedRate: 0, maxHours: 24, vehicles: {} },
     gym: { enabled: false, config: { maxCapacity: 50, openTime: '06:00', closeTime: '22:00' }, classes: {}, plans: {}, members: {}, workouts: {} },
     church: { enabled: false, config: { churchName: '', pastorName: '', denomination: '' }, tithes: {}, campaigns: {}, services: {}, prayers: {}, cells: {}, announcements: [] },
-    barber: { enabled: false, config: { barberName: '', welcomeMessage: '' }, barbers: [], appointments: [] }
+    barber: { enabled: false, config: { barberName: '', welcomeMessage: '' }, barbers: [], appointments: [] },
+    djLive: { enabled: false, broadcasting: false, color: '#ff6b35', bpm: 128, animation: 'pulse', venueFreq: 19200, connectedDevices: {} }
   };
   // Add to index so it shows in operator's event list
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
@@ -13390,8 +13391,9 @@ app.post('/api/operator/event/create', async (req, res) => {
       parking: !!modules.parking,
       gym: !!modules.gym,
       church: !!modules.church,
-      barber: !!modules.barber
-    } : { restaurant: true, parking: false, gym: false, church: false, barber: false },
+      barber: !!modules.barber,
+      dj: !!modules.dj
+    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false },
     siteConfig: {
       enabled: false,
       slug: '',
@@ -13813,7 +13815,8 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       parking: !!modules.parking,
       gym: !!modules.gym,
       church: !!modules.church,
-      barber: !!modules.barber
+      barber: !!modules.barber,
+      dj: !!modules.dj
     };
   }
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
@@ -13904,7 +13907,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -13930,7 +13933,8 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
     eventLogo: proxyStorageUrl(ev.eventLogo || null),
-    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false }
+    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false },
+    djLive: ev.djLive || null
   });
 });
 
@@ -17725,6 +17729,380 @@ io.on('connection', (socket) => {
 });
 
 console.log('[RADIO] Radio Touch engine loaded');
+
+// ══════════════════════════════════════════════════════════════
+// DJ LIVE / TOUCH? LIVE ENGINE
+// ══════════════════════════════════════════════════════════════
+
+// In-memory store for DJ live sessions
+const djSessions = {};
+// { sessionId: { eventId, creatorId, artistName, sessionName, venueFreq, broadcasting, color, bpm, animation, connectedDevices: Set, createdAt } }
+
+// Route: DJ Panel standalone page
+app.get('/dj', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dj.html')));
+
+// API: Create DJ session for an event
+app.post('/api/dj/session/create', (req, res) => {
+  const { eventId, sessionName, artistName, venueFreq } = req.body;
+  if (!eventId) return res.status(400).json({ error: 'eventId required' });
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Event not found' });
+
+  const sessionId = 'dj_' + eventId + '_' + Date.now();
+  djSessions[sessionId] = {
+    eventId,
+    creatorId: ev.creatorId,
+    artistName: artistName || 'DJ',
+    sessionName: sessionName || ev.name,
+    venueFreq: venueFreq || 19200,
+    broadcasting: false,
+    color: '#ff6b35',
+    bpm: 128,
+    animation: 'pulse',
+    connectedDevices: new Set(),
+    createdAt: Date.now()
+  };
+
+  // Update event djLive state
+  if (!ev.djLive) ev.djLive = {};
+  ev.djLive.enabled = true;
+  ev.djLive.sessionId = sessionId;
+  ev.djLive.broadcasting = false;
+  saveDB('operatorEvents');
+
+  console.log('[DJ] Session created:', sessionId, 'for event:', eventId);
+  res.json({ ok: true, sessionId });
+});
+
+// API: Get DJ session status
+app.get('/api/dj/session/:sessionId', (req, res) => {
+  const s = djSessions[req.params.sessionId];
+  if (!s) return res.status(404).json({ error: 'Session not found' });
+  res.json({
+    sessionId: req.params.sessionId,
+    eventId: s.eventId,
+    artistName: s.artistName,
+    sessionName: s.sessionName,
+    broadcasting: s.broadcasting,
+    color: s.color,
+    bpm: s.bpm,
+    animation: s.animation,
+    deviceCount: s.connectedDevices.size,
+    venueFreq: s.venueFreq
+  });
+});
+
+// API: Get active DJ session for an event
+app.get('/api/dj/event/:eventId/active', (req, res) => {
+  const eventId = req.params.eventId;
+  for (const [sid, s] of Object.entries(djSessions)) {
+    if (s.eventId === eventId && s.broadcasting) {
+      return res.json({
+        sessionId: sid,
+        broadcasting: true,
+        color: s.color,
+        bpm: s.bpm,
+        animation: s.animation,
+        venueFreq: s.venueFreq,
+        deviceCount: s.connectedDevices.size
+      });
+    }
+  }
+  res.json({ sessionId: null, broadcasting: false });
+});
+
+// Socket.IO events for DJ Live
+io.on('connection', (socket) => {
+
+  // --- DJ creates a session (standalone panel) ---
+  socket.on('dj-session-create', (data) => {
+    if (!data || !data.sessionId) return;
+    const sid = data.sessionId;
+    if (!djSessions[sid]) {
+      djSessions[sid] = {
+        eventId: data.eventId || null,
+        creatorId: null,
+        artistName: data.artistName || 'DJ',
+        sessionName: data.sessionName || 'Live Session',
+        venueFreq: data.venueFreq || 19200,
+        broadcasting: false,
+        color: '#ff6b35',
+        bpm: 128,
+        animation: 'pulse',
+        connectedDevices: new Set(),
+        createdAt: Date.now()
+      };
+    }
+    socket.join('dj-ctrl:' + sid);
+    socket.emit('dj-session-confirmed', { sessionId: sid });
+    console.log('[DJ] Session registered via socket:', sid);
+  });
+
+  // --- DJ starts broadcasting ---
+  socket.on('dj-broadcast-start', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.broadcasting = true;
+    s.color = data.color || s.color;
+    s.bpm = data.bpm || s.bpm;
+    s.animation = data.animation || s.animation;
+    s.venueFreq = data.venueFreq || s.venueFreq;
+
+    // Update event if linked
+    if (s.eventId && db.operatorEvents[s.eventId]) {
+      const ev = db.operatorEvents[s.eventId];
+      if (!ev.djLive) ev.djLive = {};
+      ev.djLive.broadcasting = true;
+      ev.djLive.sessionId = data.sessionId;
+      ev.djLive.color = s.color;
+      ev.djLive.bpm = s.bpm;
+      ev.djLive.animation = s.animation;
+      ev.djLive.venueFreq = s.venueFreq;
+      // Notify all checked-in devices in this event
+      io.to('event:' + s.eventId).emit('dj-live-started', {
+        sessionId: data.sessionId,
+        color: s.color,
+        bpm: s.bpm,
+        animation: s.animation,
+        venueFreq: s.venueFreq
+      });
+    }
+
+    // Notify the DJ live room
+    io.to('dj-live:' + data.sessionId).emit('dj-live-started', {
+      sessionId: data.sessionId,
+      color: s.color,
+      bpm: s.bpm,
+      animation: s.animation
+    });
+
+    console.log('[DJ] Broadcast started:', data.sessionId);
+  });
+
+  // --- DJ stops broadcasting ---
+  socket.on('dj-broadcast-stop', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.broadcasting = false;
+
+    if (s.eventId && db.operatorEvents[s.eventId]) {
+      const ev = db.operatorEvents[s.eventId];
+      if (ev.djLive) ev.djLive.broadcasting = false;
+      io.to('event:' + s.eventId).emit('dj-live-stopped', { sessionId: data.sessionId });
+    }
+
+    io.to('dj-live:' + data.sessionId).emit('dj-live-stopped', { sessionId: data.sessionId });
+    console.log('[DJ] Broadcast stopped:', data.sessionId);
+  });
+
+  // --- DJ sends command (color, animation, bpm, flash, blackout, etc) ---
+  socket.on('dj-command', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    // Update session state
+    if (data.color) s.color = data.color;
+    if (data.bpm) s.bpm = data.bpm;
+    if (data.animation) s.animation = data.animation;
+
+    // Broadcast to all audience devices
+    const payload = {
+      sessionId: data.sessionId,
+      command: data.command,
+      color: s.color,
+      bpm: s.bpm,
+      animation: s.animation,
+      duration: data.duration || 0,
+      timestamp: Date.now()
+    };
+
+    io.to('dj-live:' + data.sessionId).emit('dj-command', payload);
+
+    // Also broadcast to event room if linked
+    if (s.eventId) {
+      io.to('event:' + s.eventId).emit('dj-command', payload);
+    }
+  });
+
+  // --- Audience device joins DJ session ---
+  socket.on('dj-audience-join', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    const deviceId = data.deviceId || socket.id;
+    s.connectedDevices.add(deviceId);
+    socket.join('dj-live:' + data.sessionId);
+
+    // Send current state to the new device
+    socket.emit('dj-live-state', {
+      sessionId: data.sessionId,
+      broadcasting: s.broadcasting,
+      color: s.color,
+      bpm: s.bpm,
+      animation: s.animation
+    });
+
+    // Notify DJ panel
+    io.to('dj-ctrl:' + data.sessionId).emit('dj-device-joined', {
+      sessionId: data.sessionId,
+      deviceId: deviceId,
+      totalDevices: s.connectedDevices.size
+    });
+
+    console.log('[DJ] Device joined:', deviceId, '| Total:', s.connectedDevices.size);
+  });
+
+  // --- Audience device leaves ---
+  socket.on('dj-audience-leave', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    const deviceId = data.deviceId || socket.id;
+    s.connectedDevices.delete(deviceId);
+    socket.leave('dj-live:' + data.sessionId);
+
+    io.to('dj-ctrl:' + data.sessionId).emit('dj-device-left', {
+      sessionId: data.sessionId,
+      deviceId: deviceId,
+      totalDevices: s.connectedDevices.size
+    });
+  });
+
+  // --- DJ session end ---
+  socket.on('dj-session-end', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    io.to('dj-live:' + data.sessionId).emit('dj-live-stopped', { sessionId: data.sessionId });
+
+    if (s.eventId && db.operatorEvents[s.eventId]) {
+      const ev = db.operatorEvents[s.eventId];
+      if (ev.djLive) { ev.djLive.broadcasting = false; ev.djLive.enabled = false; }
+      io.to('event:' + s.eventId).emit('dj-live-stopped', { sessionId: data.sessionId });
+    }
+
+    delete djSessions[data.sessionId];
+    console.log('[DJ] Session ended:', data.sessionId);
+  });
+
+  // --- Operator starts DJ from operator panel ---
+  socket.on('dj-operator-start', (data) => {
+    if (!data || !data.eventId) return;
+    const ev = db.operatorEvents[data.eventId];
+    if (!ev) return;
+
+    const sessionId = 'dj_' + data.eventId + '_' + Date.now();
+    djSessions[sessionId] = {
+      eventId: data.eventId,
+      creatorId: ev.creatorId,
+      artistName: data.artistName || ev.name,
+      sessionName: ev.name,
+      venueFreq: data.venueFreq || 19200,
+      broadcasting: true,
+      color: data.color || '#ff6b35',
+      bpm: data.bpm || 128,
+      animation: data.animation || 'pulse',
+      connectedDevices: new Set(),
+      createdAt: Date.now()
+    };
+
+    if (!ev.djLive) ev.djLive = {};
+    ev.djLive.enabled = true;
+    ev.djLive.sessionId = sessionId;
+    ev.djLive.broadcasting = true;
+    ev.djLive.color = djSessions[sessionId].color;
+    ev.djLive.bpm = djSessions[sessionId].bpm;
+    ev.djLive.animation = djSessions[sessionId].animation;
+    ev.djLive.venueFreq = djSessions[sessionId].venueFreq;
+    saveDB('operatorEvents');
+
+    socket.join('dj-ctrl:' + sessionId);
+
+    // Notify all event participants
+    io.to('event:' + data.eventId).emit('dj-live-started', {
+      sessionId: sessionId,
+      color: djSessions[sessionId].color,
+      bpm: djSessions[sessionId].bpm,
+      animation: djSessions[sessionId].animation,
+      venueFreq: djSessions[sessionId].venueFreq
+    });
+
+    socket.emit('dj-operator-session-created', { sessionId, eventId: data.eventId });
+    console.log('[DJ] Operator started DJ for event:', data.eventId, '| Session:', sessionId);
+  });
+
+  // --- Operator stops DJ ---
+  socket.on('dj-operator-stop', (data) => {
+    if (!data || !data.eventId) return;
+    const ev = db.operatorEvents[data.eventId];
+    if (!ev || !ev.djLive || !ev.djLive.sessionId) return;
+
+    const sessionId = ev.djLive.sessionId;
+    const s = djSessions[sessionId];
+    if (s) {
+      s.broadcasting = false;
+      io.to('dj-live:' + sessionId).emit('dj-live-stopped', { sessionId });
+    }
+
+    ev.djLive.broadcasting = false;
+    io.to('event:' + data.eventId).emit('dj-live-stopped', { sessionId });
+    saveDB('operatorEvents');
+
+    socket.emit('dj-operator-session-stopped', { sessionId, eventId: data.eventId });
+    console.log('[DJ] Operator stopped DJ for event:', data.eventId);
+  });
+
+  // --- Operator sends DJ command from operator panel ---
+  socket.on('dj-operator-command', (data) => {
+    if (!data || !data.eventId) return;
+    const ev = db.operatorEvents[data.eventId];
+    if (!ev || !ev.djLive || !ev.djLive.sessionId) return;
+
+    const sessionId = ev.djLive.sessionId;
+    const s = djSessions[sessionId];
+    if (!s) return;
+
+    if (data.color) { s.color = data.color; ev.djLive.color = data.color; }
+    if (data.bpm) { s.bpm = data.bpm; ev.djLive.bpm = data.bpm; }
+    if (data.animation) { s.animation = data.animation; ev.djLive.animation = data.animation; }
+
+    const payload = {
+      sessionId: sessionId,
+      command: data.command || 'update',
+      color: s.color,
+      bpm: s.bpm,
+      animation: s.animation,
+      duration: data.duration || 0,
+      timestamp: Date.now()
+    };
+
+    io.to('dj-live:' + sessionId).emit('dj-command', payload);
+    io.to('event:' + data.eventId).emit('dj-command', payload);
+  });
+
+  // Cleanup on disconnect
+  socket.on('disconnect', () => {
+    // Remove device from all DJ sessions
+    for (const [sid, s] of Object.entries(djSessions)) {
+      if (s.connectedDevices.has(socket.id)) {
+        s.connectedDevices.delete(socket.id);
+        io.to('dj-ctrl:' + sid).emit('dj-device-left', {
+          sessionId: sid,
+          deviceId: socket.id,
+          totalDevices: s.connectedDevices.size
+        });
+      }
+    }
+  });
+});
+
+console.log('[DJ LIVE] Touch? Live DJ engine loaded');
 
 // ══════════════════════════════════════════════════════════════
 

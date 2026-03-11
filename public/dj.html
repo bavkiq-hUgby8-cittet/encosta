@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#050508">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Touch? Live -- DJ Panel</title>
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050508;--s1:#0a0a12;--s2:#111120;--s3:#1a1a2e;
+  --t1:#f0f0f5;--t2:#b0b0c8;--t3:#7a7a96;
+  --ac:#ff6b35;--ac2:#ff8555;--ac3:#ffad85;
+  --pk:#ff3c6e;--pk2:#ff6b8e;
+  --ok:#2dd4a0;--ok2:#5eead4;
+  --fire:#ff7a42;--warn:#fbbf24;
+  --b1:rgba(255,255,255,.07);--b2:rgba(255,255,255,.12);
+  --radius:16px;--radius-sm:10px;--radius-lg:24px;
+  --shadow-sm:0 2px 8px rgba(0,0,0,.3);
+  --shadow-md:0 4px 20px rgba(0,0,0,.35);
+  --shadow-lg:0 8px 40px rgba(0,0,0,.45);
+  --font-display:'Plus Jakarta Sans','Inter',sans-serif;
+  --font-body:'Inter',sans-serif;
+}
+body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-height:100vh;-webkit-user-select:none;user-select:none;font-size:14px;line-height:1.5;overflow-x:hidden}
+
+/* ---- HEADER ---- */
+.dj-header{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;background:rgba(5,5,8,.92);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-bottom:1px solid var(--b1)}
+.dj-brand{display:flex;align-items:center;gap:.6rem}
+.dj-brand h1{font-family:var(--font-display);font-size:1.1rem;font-weight:800;letter-spacing:.03em}
+.dj-brand h1 span{color:var(--ac)}
+.dj-brand-badge{font-size:.55rem;font-weight:700;color:var(--ac);background:rgba(255,107,53,.15);padding:.15rem .5rem;border-radius:20px;text-transform:uppercase;letter-spacing:.08em}
+.dj-status{display:flex;align-items:center;gap:.5rem}
+.dj-status-dot{width:8px;height:8px;border-radius:50%;background:#555;transition:background .3s}
+.dj-status-dot.live{background:var(--ok);box-shadow:0 0 8px rgba(45,212,160,.5);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.5}}
+.dj-status-label{font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+
+/* ---- MAIN CONTENT ---- */
+.dj-main{padding:4.2rem 1rem 6rem;max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:1rem}
+
+/* ---- STATS BAR ---- */
+.dj-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+.dj-stat-card{background:rgba(255,255,255,.04);border:1px solid var(--b1);border-radius:var(--radius-sm);padding:.8rem;text-align:center;backdrop-filter:blur(12px)}
+.dj-stat-value{font-family:var(--font-display);font-size:1.6rem;font-weight:800;color:var(--t1)}
+.dj-stat-value.highlight{color:var(--ac)}
+.dj-stat-label{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:.15rem}
+
+/* ---- ACTIVATE BUTTON ---- */
+.dj-activate-section{text-align:center;padding:.5rem 0}
+.dj-activate-btn{position:relative;width:180px;height:180px;border-radius:50%;border:3px solid var(--ac);background:radial-gradient(circle,rgba(255,107,53,.15) 0%,transparent 70%);cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;transition:all .3s;overflow:hidden}
+.dj-activate-btn:hover{border-color:var(--ac2);box-shadow:0 0 40px rgba(255,107,53,.2);transform:scale(1.03)}
+.dj-activate-btn.active{border-color:var(--ok);background:radial-gradient(circle,rgba(45,212,160,.15) 0%,transparent 70%);animation:broadcast-ring 2s infinite}
+@keyframes broadcast-ring{0%{box-shadow:0 0 0 0 rgba(45,212,160,.3)}70%{box-shadow:0 0 0 20px rgba(45,212,160,0)}100%{box-shadow:0 0 0 0 rgba(45,212,160,0)}}
+.dj-activate-btn svg{width:40px;height:40px}
+.dj-activate-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t2)}
+.dj-activate-btn.active .dj-activate-label{color:var(--ok)}
+
+/* ---- CONTROLS GRID ---- */
+.dj-controls{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.dj-ctrl-card{background:rgba(255,255,255,.04);border:1px solid var(--b1);border-radius:var(--radius);padding:1rem;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:.6rem}
+.dj-ctrl-card.full{grid-column:1/-1}
+.dj-ctrl-title{font-size:.65rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
+
+/* ---- ACTION BUTTONS ---- */
+.dj-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.dj-action-btn{padding:.7rem .5rem;border:1px solid var(--b1);border-radius:var(--radius-sm);background:rgba(255,255,255,.03);color:var(--t1);font-family:var(--font-display);font-size:.75rem;font-weight:700;cursor:pointer;transition:all .15s;text-align:center;text-transform:uppercase;letter-spacing:.05em}
+.dj-action-btn:active{transform:scale(.95)}
+.dj-action-btn.pulse-btn{border-color:rgba(255,107,53,.3);background:rgba(255,107,53,.08)}
+.dj-action-btn.pulse-btn:hover,.dj-action-btn.pulse-btn.active{background:rgba(255,107,53,.2);border-color:var(--ac)}
+.dj-action-btn.flash-btn{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.06)}
+.dj-action-btn.flash-btn:hover,.dj-action-btn.flash-btn.active{background:rgba(255,255,255,.15)}
+.dj-action-btn.blackout-btn{border-color:rgba(255,60,110,.2);background:rgba(255,60,110,.06)}
+.dj-action-btn.blackout-btn:hover,.dj-action-btn.blackout-btn.active{background:rgba(255,60,110,.2);border-color:var(--pk)}
+.dj-action-btn.solid-btn{border-color:rgba(45,212,160,.2);background:rgba(45,212,160,.06)}
+.dj-action-btn.solid-btn:hover,.dj-action-btn.solid-btn.active{background:rgba(45,212,160,.2);border-color:var(--ok)}
+
+/* ---- COLOR PICKER ---- */
+.dj-color-section{display:flex;flex-direction:column;gap:.5rem}
+.dj-color-presets{display:flex;gap:.4rem;flex-wrap:wrap}
+.dj-color-swatch{width:32px;height:32px;border-radius:8px;border:2px solid transparent;cursor:pointer;transition:all .15s}
+.dj-color-swatch:hover{transform:scale(1.1)}
+.dj-color-swatch.active{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,.3)}
+.dj-color-custom{display:flex;align-items:center;gap:.5rem;margin-top:.2rem}
+.dj-color-input{width:36px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent;padding:0}
+.dj-color-input::-webkit-color-swatch-wrapper{padding:0}
+.dj-color-input::-webkit-color-swatch{border:2px solid var(--b2);border-radius:6px}
+.dj-color-hex{font-size:.7rem;color:var(--t3);font-family:monospace}
+
+/* ---- BPM CONTROL ---- */
+.dj-bpm-section{display:flex;flex-direction:column;gap:.5rem}
+.dj-bpm-display{font-family:var(--font-display);font-size:2.2rem;font-weight:900;color:var(--ac);text-align:center;line-height:1}
+.dj-bpm-label{font-size:.55rem;color:var(--t3);text-align:center;text-transform:uppercase;letter-spacing:.1em}
+.dj-bpm-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:linear-gradient(to right,var(--s3),var(--ac));outline:none;cursor:pointer}
+.dj-bpm-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ac);border:2px solid #fff;cursor:pointer;box-shadow:0 0 10px rgba(255,107,53,.4)}
+.dj-bpm-btns{display:flex;gap:.3rem;justify-content:center}
+.dj-bpm-btn{padding:.3rem .6rem;border:1px solid var(--b1);border-radius:6px;background:rgba(255,255,255,.03);color:var(--t2);font-size:.65rem;font-weight:600;cursor:pointer;transition:all .15s}
+.dj-bpm-btn:hover{background:rgba(255,255,255,.08)}
+.dj-bpm-btn.active{background:rgba(255,107,53,.15);border-color:var(--ac);color:var(--ac)}
+
+/* ---- ANIMATION SELECTOR ---- */
+.dj-anim-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem}
+.dj-anim-btn{padding:.6rem;border:1px solid var(--b1);border-radius:var(--radius-sm);background:rgba(255,255,255,.03);color:var(--t2);font-size:.7rem;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
+.dj-anim-btn:hover{background:rgba(255,255,255,.06)}
+.dj-anim-btn.active{background:rgba(255,107,53,.12);border-color:var(--ac);color:var(--ac)}
+.dj-anim-icon{font-size:1.2rem;display:block;margin-bottom:.2rem}
+
+/* ---- SESSION SETUP (LOGIN) ---- */
+.dj-setup{position:fixed;inset:0;z-index:200;background:linear-gradient(135deg,#050508 0%,#0d0816 50%,#050508 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem}
+.dj-setup.hidden{display:none}
+.dj-setup-brand{text-align:center}
+.dj-setup-brand h1{font-family:var(--font-display);font-size:2.4rem;font-weight:900;letter-spacing:.04em}
+.dj-setup-brand h1 span{color:var(--ac)}
+.dj-setup-brand p{font-size:.75rem;color:var(--t3);margin-top:.3rem}
+.dj-setup-form{display:flex;flex-direction:column;gap:.7rem;width:100%;max-width:360px}
+.dj-setup-field{display:flex;flex-direction:column;gap:.2rem}
+.dj-setup-label{font-size:.6rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.dj-setup-input{padding:.7rem 1rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:border-color .2s}
+.dj-setup-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(255,107,53,.1)}
+.dj-setup-btn{padding:.85rem;background:linear-gradient(135deg,var(--ac),var(--ac2));border:none;border-radius:12px;color:#fff;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(255,107,53,.25);margin-top:.3rem}
+.dj-setup-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(255,107,53,.35)}
+.dj-setup-err{font-size:.6rem;color:var(--pk);min-height:.8em;text-align:center}
+
+/* ---- TOAST ---- */
+.dj-toast{position:fixed;top:4.5rem;left:50%;transform:translateX(-50%);padding:.6rem 1.2rem;background:rgba(45,212,160,.15);border:1px solid rgba(45,212,160,.3);border-radius:10px;color:var(--ok);font-size:.75rem;font-weight:600;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;backdrop-filter:blur(12px)}
+.dj-toast.show{opacity:1}
+.dj-toast.error{background:rgba(255,60,110,.15);border-color:rgba(255,60,110,.3);color:var(--pk)}
+
+/* ---- RESPONSIVE ---- */
+@media(min-width:600px){
+  .dj-controls{grid-template-columns:repeat(2,1fr)}
+  .dj-stats{grid-template-columns:repeat(3,1fr)}
+}
+@media(min-width:800px){
+  .dj-main{padding-top:4.5rem;gap:1.2rem}
+}
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div class="dj-setup" id="djSetup">
+  <div class="dj-setup-brand">
+    <h1>Touch<span>?</span> Live</h1>
+    <p>DJ Panel -- Control the crowd</p>
+  </div>
+  <div class="dj-setup-form">
+    <div class="dj-setup-field">
+      <label class="dj-setup-label">Session Name</label>
+      <input class="dj-setup-input" id="djSessionName" placeholder="e.g. Sunset Festival 2026" maxlength="60">
+    </div>
+    <div class="dj-setup-field">
+      <label class="dj-setup-label">DJ / Artist Name</label>
+      <input class="dj-setup-input" id="djArtistName" placeholder="e.g. DJ Nova" maxlength="40">
+    </div>
+    <div class="dj-setup-field">
+      <label class="dj-setup-label">Venue Frequency (Hz)</label>
+      <select class="dj-setup-input" id="djFreqSelect">
+        <option value="18000">18000 Hz (Slot 1)</option>
+        <option value="18300">18300 Hz (Slot 2)</option>
+        <option value="18600">18600 Hz (Slot 3)</option>
+        <option value="18900">18900 Hz (Slot 4)</option>
+        <option value="19200" selected>19200 Hz (Slot 5 - Recommended)</option>
+        <option value="19500">19500 Hz (Slot 6)</option>
+        <option value="19800">19800 Hz (Slot 7)</option>
+      </select>
+    </div>
+    <div class="dj-setup-err" id="djSetupErr"></div>
+    <button class="dj-setup-btn" onclick="startDJSession()">Create Session</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="dj-header">
+  <div class="dj-brand">
+    <h1>Touch<span>?</span> Live</h1>
+    <span class="dj-brand-badge">DJ Panel</span>
+  </div>
+  <div class="dj-status">
+    <div class="dj-status-dot" id="statusDot"></div>
+    <span class="dj-status-label" id="statusLabel">Offline</span>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="dj-main">
+
+  <!-- STATS -->
+  <section class="dj-stats">
+    <div class="dj-stat-card">
+      <div class="dj-stat-value highlight" id="deviceCount">0</div>
+      <div class="dj-stat-label">Devices</div>
+    </div>
+    <div class="dj-stat-card">
+      <div class="dj-stat-value" id="bpmDisplay">128</div>
+      <div class="dj-stat-label">BPM</div>
+    </div>
+    <div class="dj-stat-card">
+      <div class="dj-stat-value" id="sessionTime">00:00</div>
+      <div class="dj-stat-label">Session</div>
+    </div>
+  </section>
+
+  <!-- ACTIVATE BROADCAST -->
+  <section class="dj-activate-section">
+    <button class="dj-activate-btn" id="activateBtn" onclick="toggleBroadcast()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 10s3-3 10-3 10 3 10 3"/>
+        <path d="M6 14s2-2 6-2 6 2 6 2"/>
+        <circle cx="12" cy="18" r="1" fill="currentColor"/>
+      </svg>
+      <span class="dj-activate-label" id="activateLabel">Activate</span>
+    </button>
+  </section>
+
+  <!-- QUICK ACTIONS -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Quick Actions</div>
+    <div class="dj-action-grid">
+      <button class="dj-action-btn pulse-btn" id="btnPulse" onclick="sendCommand('pulse')">Pulse</button>
+      <button class="dj-action-btn flash-btn" id="btnFlash" onclick="sendCommand('flash')">Flash</button>
+      <button class="dj-action-btn blackout-btn" id="btnBlackout" onclick="sendCommand('blackout')">Blackout</button>
+      <button class="dj-action-btn solid-btn" id="btnSolid" onclick="sendCommand('solid')">Solid Color</button>
+    </div>
+  </section>
+
+  <!-- CONTROLS ROW -->
+  <div class="dj-controls">
+
+    <!-- COLOR PICKER -->
+    <div class="dj-ctrl-card">
+      <div class="dj-ctrl-title">Color</div>
+      <div class="dj-color-section">
+        <div class="dj-color-presets" id="colorPresets"></div>
+        <div class="dj-color-custom">
+          <input type="color" class="dj-color-input" id="colorPicker" value="#ff6b35">
+          <span class="dj-color-hex" id="colorHex">#ff6b35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BPM -->
+    <div class="dj-ctrl-card">
+      <div class="dj-ctrl-title">BPM</div>
+      <div class="dj-bpm-section">
+        <div class="dj-bpm-display" id="bpmValue">128</div>
+        <div class="dj-bpm-label">Beats per minute</div>
+        <input type="range" class="dj-bpm-slider" id="bpmSlider" min="60" max="200" value="128">
+        <div class="dj-bpm-btns">
+          <button class="dj-bpm-btn" onclick="setBPM(80)">80</button>
+          <button class="dj-bpm-btn" onclick="setBPM(100)">100</button>
+          <button class="dj-bpm-btn active" onclick="setBPM(128)">128</button>
+          <button class="dj-bpm-btn" onclick="setBPM(140)">140</button>
+          <button class="dj-bpm-btn" onclick="setBPM(174)">174</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANIMATIONS -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Animations</div>
+    <div class="dj-anim-grid">
+      <button class="dj-anim-btn active" data-anim="pulse" onclick="selectAnimation('pulse')">
+        <span class="dj-anim-icon">&#9711;</span>Pulse
+      </button>
+      <button class="dj-anim-btn" data-anim="fire" onclick="selectAnimation('fire')">
+        <span class="dj-anim-icon">&#9650;</span>Fire
+      </button>
+      <button class="dj-anim-btn" data-anim="ocean" onclick="selectAnimation('ocean')">
+        <span class="dj-anim-icon">&#8776;</span>Ocean
+      </button>
+      <button class="dj-anim-btn" data-anim="solid" onclick="selectAnimation('solid')">
+        <span class="dj-anim-icon">&#9632;</span>Solid Color
+      </button>
+    </div>
+  </section>
+
+</main>
+
+<!-- TOAST -->
+<div class="dj-toast" id="djToast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* ---- STATE ---- */
+var DJ = {
+  sessionId: null,
+  sessionName: '',
+  artistName: '',
+  venueFreq: 19200,
+  broadcasting: false,
+  color: '#ff6b35',
+  bpm: 128,
+  animation: 'pulse',
+  deviceCount: 0,
+  sessionStartTime: null,
+  sonicCtx: null,
+  sonicOsc: null,
+  sonicGain: null
+};
+
+var socket = null;
+var sessionTimer = null;
+
+/* ---- COLOR PRESETS ---- */
+var COLOR_PRESETS = [
+  '#ff6b35','#ff3c6e','#ff2222','#ff9900',
+  '#ffdd00','#2dd4a0','#00b4d8','#3b82f6',
+  '#7c6aef','#a855f7','#ffffff','#000000'
+];
+
+/* ---- INIT ---- */
+function init() {
+  renderColorPresets();
+  setupColorPicker();
+  setupBPMSlider();
+  // Check if already has a session in localStorage
+  var saved = localStorage.getItem('dj_session');
+  if (saved) {
+    try {
+      var s = JSON.parse(saved);
+      if (s.sessionId && s.artistName) {
+        DJ.sessionId = s.sessionId;
+        DJ.sessionName = s.sessionName;
+        DJ.artistName = s.artistName;
+        DJ.venueFreq = s.venueFreq || 19200;
+        showPanel();
+        connectSocket();
+        return;
+      }
+    } catch(e) {}
+  }
+}
+
+/* ---- SESSION SETUP ---- */
+window.startDJSession = function() {
+  var name = document.getElementById('djSessionName').value.trim();
+  var artist = document.getElementById('djArtistName').value.trim();
+  var freq = parseInt(document.getElementById('djFreqSelect').value);
+  var errEl = document.getElementById('djSetupErr');
+
+  if (!name) { errEl.textContent = 'Session name is required'; return; }
+  if (!artist) { errEl.textContent = 'DJ / Artist name is required'; return; }
+  errEl.textContent = '';
+
+  DJ.sessionId = 'dj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  DJ.sessionName = name;
+  DJ.artistName = artist;
+  DJ.venueFreq = freq;
+
+  localStorage.setItem('dj_session', JSON.stringify({
+    sessionId: DJ.sessionId,
+    sessionName: DJ.sessionName,
+    artistName: DJ.artistName,
+    venueFreq: DJ.venueFreq
+  }));
+
+  showPanel();
+  connectSocket();
+};
+
+function showPanel() {
+  document.getElementById('djSetup').classList.add('hidden');
+}
+
+/* ---- SOCKET.IO ---- */
+function connectSocket() {
+  socket = io(window.location.origin, { transports: ['websocket','polling'] });
+
+  socket.on('connect', function() {
+    updateStatus('connected');
+    // Register as DJ session
+    socket.emit('dj-session-create', {
+      sessionId: DJ.sessionId,
+      sessionName: DJ.sessionName,
+      artistName: DJ.artistName,
+      venueFreq: DJ.venueFreq
+    });
+    showToast('Connected to server');
+  });
+
+  socket.on('disconnect', function() {
+    updateStatus('offline');
+  });
+
+  // Device count updates
+  socket.on('dj-device-count', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      DJ.deviceCount = data.count || 0;
+      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+    }
+  });
+
+  // Audience device joined
+  socket.on('dj-device-joined', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      DJ.deviceCount = data.totalDevices || (DJ.deviceCount + 1);
+      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+      showToast('+1 device connected');
+    }
+  });
+
+  // Audience device left
+  socket.on('dj-device-left', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      DJ.deviceCount = data.totalDevices || Math.max(0, DJ.deviceCount - 1);
+      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+    }
+  });
+
+  socket.on('dj-session-confirmed', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      showToast('Session created: ' + DJ.sessionName);
+    }
+  });
+}
+
+/* ---- STATUS ---- */
+function updateStatus(state) {
+  var dot = document.getElementById('statusDot');
+  var label = document.getElementById('statusLabel');
+  dot.className = 'dj-status-dot';
+  if (state === 'connected') {
+    label.textContent = 'Connected';
+    dot.style.background = 'var(--warn)';
+  } else if (state === 'broadcasting') {
+    label.textContent = 'LIVE';
+    dot.classList.add('live');
+    dot.style.background = '';
+  } else {
+    label.textContent = 'Offline';
+    dot.style.background = '#555';
+  }
+}
+
+/* ---- BROADCAST TOGGLE ---- */
+window.toggleBroadcast = function() {
+  if (!DJ.sessionId) return;
+  if (DJ.broadcasting) {
+    stopBroadcast();
+  } else {
+    startBroadcast();
+  }
+};
+
+function startBroadcast() {
+  DJ.broadcasting = true;
+  DJ.sessionStartTime = Date.now();
+  var btn = document.getElementById('activateBtn');
+  btn.classList.add('active');
+  document.getElementById('activateLabel').textContent = 'LIVE';
+  updateStatus('broadcasting');
+
+  // Start ultrasonic emission
+  startSonicBroadcast();
+
+  // Start session timer
+  sessionTimer = setInterval(updateSessionTime, 1000);
+
+  // Notify server
+  if (socket && socket.connected) {
+    socket.emit('dj-broadcast-start', {
+      sessionId: DJ.sessionId,
+      venueFreq: DJ.venueFreq,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      animation: DJ.animation
+    });
+  }
+
+  // Send initial animation state
+  sendCommand(DJ.animation);
+  showToast('Broadcasting started');
+}
+
+function stopBroadcast() {
+  DJ.broadcasting = false;
+  var btn = document.getElementById('activateBtn');
+  btn.classList.remove('active');
+  document.getElementById('activateLabel').textContent = 'Activate';
+  updateStatus('connected');
+
+  // Stop ultrasonic
+  stopSonicBroadcast();
+
+  // Stop timer
+  if (sessionTimer) { clearInterval(sessionTimer); sessionTimer = null; }
+
+  if (socket && socket.connected) {
+    socket.emit('dj-broadcast-stop', { sessionId: DJ.sessionId });
+  }
+
+  showToast('Broadcast stopped');
+}
+
+/* ---- ULTRASONIC BROADCAST ---- */
+function startSonicBroadcast() {
+  try {
+    if (!DJ.sonicCtx) {
+      DJ.sonicCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (DJ.sonicCtx.state === 'suspended') {
+      DJ.sonicCtx.resume();
+    }
+
+    // Create oscillator at venue frequency
+    DJ.sonicOsc = DJ.sonicCtx.createOscillator();
+    DJ.sonicOsc.type = 'sine';
+    DJ.sonicOsc.frequency.setValueAtTime(DJ.venueFreq, DJ.sonicCtx.currentTime);
+
+    DJ.sonicGain = DJ.sonicCtx.createGain();
+    // Higher volume for PA system broadcast (0.5 = 50%)
+    DJ.sonicGain.gain.setValueAtTime(0.5, DJ.sonicCtx.currentTime);
+
+    DJ.sonicOsc.connect(DJ.sonicGain);
+    DJ.sonicGain.connect(DJ.sonicCtx.destination);
+    DJ.sonicOsc.start();
+  } catch(e) {
+    console.error('Sonic broadcast error:', e);
+    showToast('Audio error: ' + e.message, true);
+  }
+}
+
+function stopSonicBroadcast() {
+  try {
+    if (DJ.sonicOsc) { DJ.sonicOsc.stop(); DJ.sonicOsc.disconnect(); DJ.sonicOsc = null; }
+    if (DJ.sonicGain) { DJ.sonicGain.disconnect(); DJ.sonicGain = null; }
+  } catch(e) {}
+}
+
+/* ---- SEND COMMANDS ---- */
+window.sendCommand = function(cmd) {
+  if (!socket || !socket.connected || !DJ.sessionId) return;
+
+  // Update active state on buttons
+  var actionBtns = document.querySelectorAll('.dj-action-btn');
+  actionBtns.forEach(function(b) { b.classList.remove('active'); });
+  var targetBtn = document.getElementById('btn' + cmd.charAt(0).toUpperCase() + cmd.slice(1));
+  if (targetBtn) targetBtn.classList.add('active');
+
+  var payload = {
+    sessionId: DJ.sessionId,
+    command: cmd,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  };
+
+  // Special handling
+  if (cmd === 'flash') {
+    payload.duration = 200;
+  } else if (cmd === 'blackout') {
+    payload.duration = 3000;
+  }
+
+  socket.emit('dj-command', payload);
+};
+
+/* ---- ANIMATIONS ---- */
+window.selectAnimation = function(anim) {
+  DJ.animation = anim;
+  var btns = document.querySelectorAll('.dj-anim-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  var target = document.querySelector('[data-anim="' + anim + '"]');
+  if (target) target.classList.add('active');
+
+  // Send to audience if broadcasting
+  if (DJ.broadcasting && socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'animation',
+      animation: anim,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      timestamp: Date.now()
+    });
+  }
+};
+
+/* ---- COLOR ---- */
+function renderColorPresets() {
+  var container = document.getElementById('colorPresets');
+  container.innerHTML = '';
+  COLOR_PRESETS.forEach(function(c) {
+    var swatch = document.createElement('div');
+    swatch.className = 'dj-color-swatch' + (c === DJ.color ? ' active' : '');
+    swatch.style.background = c;
+    if (c === '#000000') swatch.style.border = '2px solid var(--b2)';
+    swatch.onclick = function() { selectColor(c); };
+    container.appendChild(swatch);
+  });
+}
+
+function selectColor(hex) {
+  DJ.color = hex;
+  document.getElementById('colorPicker').value = hex;
+  document.getElementById('colorHex').textContent = hex;
+
+  // Update swatch active states
+  var swatches = document.querySelectorAll('.dj-color-swatch');
+  swatches.forEach(function(s) { s.classList.remove('active'); });
+  swatches.forEach(function(s) {
+    if (rgbToHex(s.style.background) === hex.toLowerCase() ||
+        s.style.background === hex) {
+      s.classList.add('active');
+    }
+  });
+
+  // Send color update if broadcasting
+  if (DJ.broadcasting && socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'color',
+      color: hex,
+      bpm: DJ.bpm,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+  }
+}
+
+function setupColorPicker() {
+  var picker = document.getElementById('colorPicker');
+  picker.addEventListener('input', function() {
+    selectColor(this.value);
+  });
+}
+
+function rgbToHex(rgb) {
+  if (!rgb || rgb.charAt(0) === '#') return (rgb || '').toLowerCase();
+  var parts = rgb.match(/\d+/g);
+  if (!parts || parts.length < 3) return rgb;
+  return '#' + parts.slice(0, 3).map(function(x) {
+    return parseInt(x).toString(16).padStart(2, '0');
+  }).join('');
+}
+
+/* ---- BPM ---- */
+function setupBPMSlider() {
+  var slider = document.getElementById('bpmSlider');
+  slider.addEventListener('input', function() {
+    setBPM(parseInt(this.value));
+  });
+}
+
+window.setBPM = function(val) {
+  DJ.bpm = val;
+  document.getElementById('bpmSlider').value = val;
+  document.getElementById('bpmValue').textContent = val;
+  document.getElementById('bpmDisplay').textContent = val;
+
+  // Update preset button active states
+  var btns = document.querySelectorAll('.dj-bpm-btn');
+  btns.forEach(function(b) {
+    b.classList.toggle('active', parseInt(b.textContent) === val);
+  });
+
+  // Send BPM update if broadcasting
+  if (DJ.broadcasting && socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'bpm',
+      bpm: val,
+      color: DJ.color,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+  }
+};
+
+/* ---- SESSION TIMER ---- */
+function updateSessionTime() {
+  if (!DJ.sessionStartTime) return;
+  var elapsed = Math.floor((Date.now() - DJ.sessionStartTime) / 1000);
+  var mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  var secs = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('sessionTime').textContent = mins + ':' + secs;
+}
+
+/* ---- TOAST ---- */
+function showToast(msg, isError) {
+  var el = document.getElementById('djToast');
+  el.textContent = msg;
+  el.className = 'dj-toast show' + (isError ? ' error' : '');
+  setTimeout(function() { el.className = 'dj-toast'; }, 2500);
+}
+
+/* ---- END SESSION ---- */
+window.endDJSession = function() {
+  stopBroadcast();
+  localStorage.removeItem('dj_session');
+  if (socket) {
+    socket.emit('dj-session-end', { sessionId: DJ.sessionId });
+    socket.disconnect();
+  }
+  DJ.sessionId = null;
+  document.getElementById('djSetup').classList.remove('hidden');
+};
+
+/* ---- START ---- */
+init();
+
+})();
+</script>
+</body>
+</html>
