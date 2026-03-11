@@ -23564,6 +23564,19 @@ const GuidedOnboarding=(function(){
   <div id="djLiveTextOverlay" style="position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:2rem">
     <div id="djLiveTextContent" style="font-family:'Orbitron',Inter,sans-serif;font-size:clamp(1.2rem,5vw,2.8rem);font-weight:900;color:#fff;text-align:center;text-shadow:0 0 30px rgba(255,255,255,.5),0 0 60px rgba(255,107,53,.3);letter-spacing:.06em;line-height:1.4;opacity:0;transition:opacity .6s;max-width:90%"></div>
   </div>
+  <!-- FLOATING MINI CAMERA -->
+  <div id="djLiveCamWrap" style="display:none;position:absolute;z-index:5;width:120px;height:160px;border-radius:14px;overflow:hidden;border:2px solid rgba(255,255,255,.25);box-shadow:0 4px 24px rgba(0,0,0,.6);touch-action:none;cursor:grab;top:60px;right:16px;background:#000">
+    <video id="djLiveCamVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;transform:scaleX(1);pointer-events:none"></video>
+    <button id="djLiveCamClose" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-family:sans-serif" onclick="djLiveCamClose()">X</button>
+    <!-- Resize handle -->
+    <div id="djLiveCamResize" style="position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:nwse-resize;touch-action:none">
+      <svg width="12" height="12" viewBox="0 0 12 12" style="position:absolute;bottom:3px;right:3px;opacity:.4"><path d="M11 1v10H1" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M8 4v4H4" fill="none" stroke="#fff" stroke-width="1.5"/></svg>
+    </div>
+  </div>
+  <!-- CAMERA TOGGLE BUTTON -->
+  <button id="djLiveCamBtn" style="position:absolute;z-index:6;bottom:calc(env(safe-area-inset-bottom,20px) + 44px);right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;padding:0" onclick="djLiveCamToggle()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </button>
   <div id="djLiveHint" style="position:absolute;bottom:env(safe-area-inset-bottom,20px);left:0;right:0;text-align:center;padding:1rem;opacity:.6;font-size:.7rem;color:#fff;font-family:Inter,sans-serif;pointer-events:none;transition:opacity 1s">Toque 2x para sair</div>
   <!-- CONNECTION STATUS OVERLAY -->
   <div id="djLiveConnStatus" style="display:none;position:absolute;inset:0;z-index:10;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);flex-direction:column;align-items:center;justify-content:center;gap:.8rem;font-family:Inter,sans-serif;text-align:center;padding:2rem">
@@ -23981,10 +23994,188 @@ function enterDJLive(data) {
   djLiveConnHealthStart();
 }
 
+/* ═══ FLOATING MINI CAMERA ═══ */
+DJL._camStream = null;
+DJL._camDrag = { active: false, startX: 0, startY: 0, origLeft: 0, origTop: 0 };
+DJL._camResize = { active: false, startX: 0, startY: 0, origW: 0, origH: 0 };
+
+function djLiveCamToggle() {
+  var wrap = document.getElementById('djLiveCamWrap');
+  var video = document.getElementById('djLiveCamVideo');
+  var btn = document.getElementById('djLiveCamBtn');
+  if (!wrap || !video) return;
+
+  if (wrap.style.display !== 'none' && wrap.style.display !== '') {
+    // Already open, close it
+    djLiveCamClose();
+    return;
+  }
+
+  // Open rear camera
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    console.log('[DJ Cam] getUserMedia not supported');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+    audio: false
+  }).then(function(stream) {
+    DJL._camStream = stream;
+    video.srcObject = stream;
+    video.play().catch(function() {});
+    wrap.style.display = 'block';
+    if (btn) { btn.style.background = 'rgba(255,107,53,.3)'; btn.style.borderColor = 'rgba(255,107,53,.5)'; }
+  }).catch(function(err) {
+    console.log('[DJ Cam] Camera access denied:', err.message);
+    // Try front camera as fallback
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    }).then(function(stream) {
+      DJL._camStream = stream;
+      video.srcObject = stream;
+      video.style.transform = 'scaleX(-1)';
+      video.play().catch(function() {});
+      wrap.style.display = 'block';
+      if (btn) { btn.style.background = 'rgba(255,107,53,.3)'; btn.style.borderColor = 'rgba(255,107,53,.5)'; }
+    }).catch(function(err2) {
+      console.log('[DJ Cam] All cameras failed:', err2.message);
+    });
+  });
+}
+
+function djLiveCamClose() {
+  var wrap = document.getElementById('djLiveCamWrap');
+  var video = document.getElementById('djLiveCamVideo');
+  var btn = document.getElementById('djLiveCamBtn');
+  if (wrap) wrap.style.display = 'none';
+  if (video) { video.srcObject = null; }
+  if (DJL._camStream) {
+    DJL._camStream.getTracks().forEach(function(t) { t.stop(); });
+    DJL._camStream = null;
+  }
+  if (btn) { btn.style.background = 'rgba(255,255,255,.1)'; btn.style.borderColor = 'rgba(255,255,255,.18)'; }
+}
+
+// --- Drag mini camera ---
+(function() {
+  var wrap = document.getElementById('djLiveCamWrap');
+  var resize = document.getElementById('djLiveCamResize');
+  if (!wrap) return;
+
+  // Drag
+  function onDragStart(x, y) {
+    var rect = wrap.getBoundingClientRect();
+    DJL._camDrag.active = true;
+    DJL._camDrag.startX = x;
+    DJL._camDrag.startY = y;
+    DJL._camDrag.origLeft = rect.left;
+    DJL._camDrag.origTop = rect.top;
+    wrap.style.cursor = 'grabbing';
+  }
+  function onDragMove(x, y) {
+    if (!DJL._camDrag.active) return;
+    var dx = x - DJL._camDrag.startX;
+    var dy = y - DJL._camDrag.startY;
+    var newLeft = DJL._camDrag.origLeft + dx;
+    var newTop = DJL._camDrag.origTop + dy;
+    // Clamp to viewport
+    var maxX = window.innerWidth - wrap.offsetWidth;
+    var maxY = window.innerHeight - wrap.offsetHeight;
+    newLeft = Math.max(0, Math.min(newLeft, maxX));
+    newTop = Math.max(0, Math.min(newTop, maxY));
+    wrap.style.left = newLeft + 'px';
+    wrap.style.top = newTop + 'px';
+    wrap.style.right = 'auto';
+  }
+  function onDragEnd() {
+    DJL._camDrag.active = false;
+    wrap.style.cursor = 'grab';
+  }
+
+  // Touch drag
+  wrap.addEventListener('touchstart', function(e) {
+    if (e.target.id === 'djLiveCamClose' || e.target.id === 'djLiveCamResize' || e.target.closest('#djLiveCamResize')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var t = e.touches[0];
+    onDragStart(t.clientX, t.clientY);
+  }, { passive: false });
+  document.addEventListener('touchmove', function(e) {
+    if (!DJL._camDrag.active) return;
+    e.preventDefault();
+    var t = e.touches[0];
+    onDragMove(t.clientX, t.clientY);
+  }, { passive: false });
+  document.addEventListener('touchend', function() { onDragEnd(); });
+
+  // Mouse drag
+  wrap.addEventListener('mousedown', function(e) {
+    if (e.target.id === 'djLiveCamClose' || e.target.id === 'djLiveCamResize' || e.target.closest('#djLiveCamResize')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onDragStart(e.clientX, e.clientY);
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!DJL._camDrag.active) return;
+    onDragMove(e.clientX, e.clientY);
+  });
+  document.addEventListener('mouseup', function() { onDragEnd(); });
+
+  // Resize
+  if (resize) {
+    function onResizeStart(x, y) {
+      DJL._camResize.active = true;
+      DJL._camResize.startX = x;
+      DJL._camResize.startY = y;
+      DJL._camResize.origW = wrap.offsetWidth;
+      DJL._camResize.origH = wrap.offsetHeight;
+    }
+    function onResizeMove(x, y) {
+      if (!DJL._camResize.active) return;
+      var dw = x - DJL._camResize.startX;
+      var dh = y - DJL._camResize.startY;
+      var newW = Math.max(80, Math.min(DJL._camResize.origW + dw, window.innerWidth * 0.6));
+      var newH = Math.max(100, Math.min(DJL._camResize.origH + dh, window.innerHeight * 0.6));
+      wrap.style.width = newW + 'px';
+      wrap.style.height = newH + 'px';
+    }
+    function onResizeEnd() { DJL._camResize.active = false; }
+
+    resize.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var t = e.touches[0];
+      onResizeStart(t.clientX, t.clientY);
+    }, { passive: false });
+    document.addEventListener('touchmove', function(e) {
+      if (!DJL._camResize.active) return;
+      e.preventDefault();
+      var t = e.touches[0];
+      onResizeMove(t.clientX, t.clientY);
+    }, { passive: false });
+    document.addEventListener('touchend', function() { onResizeEnd(); });
+
+    resize.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      onResizeStart(e.clientX, e.clientY);
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!DJL._camResize.active) return;
+      onResizeMove(e.clientX, e.clientY);
+    });
+    document.addEventListener('mouseup', function() { onResizeEnd(); });
+  }
+})();
+
 function exitDJLive() {
   if (!DJL.active) return;
   DJL.active = false;
   DJL.broadcasting = false;
+
+  // Close mini camera if open
+  djLiveCamClose();
 
   document.getElementById('djLiveOverlay').style.display = 'none';
   if (DJL.raf) { cancelAnimationFrame(DJL.raf); DJL.raf = null; }
