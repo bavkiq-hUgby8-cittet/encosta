@@ -24082,6 +24082,13 @@ function startDJAnimation() {
       }
     }
 
+    // Apply zone color shift -- each zone gets a different hue offset
+    // This makes the audience look like a rainbow when divided into zones
+    if (DJL.totalZones > 1 && DJL.zone > 0) {
+      var hex = '#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).padStart(6, '0');
+      rgb = getZoneColor(hex, DJL.zone);
+    }
+
     switch (DJL.animation) {
       case 'pulse': drawPulse(ctx, w, h, rgb, beatPhase, t, beatCount); break;
       case 'fire': drawFire(ctx, w, h, rgb, beatPhase, t); break;
@@ -24164,7 +24171,7 @@ function drawPulse(ctx, w, h, rgb, beat, t, beatCount) {
   ctx.fillStyle = 'rgba(0,0,0,0.15)';
   ctx.fillRect(0, 0, w, h);
   var cx = w / 2, cy = h / 2, maxR = Math.sqrt(w * w + h * h) * 0.55;
-  var zc = DJL.totalZones > 1 ? getZoneColor('#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).padStart(6, '0'), DJL.zone) : rgb;
+  var zc = rgb; // zone color already applied globally in loop
   var bassHit = beat < 0.12 ? Math.pow(1 - beat / 0.12, 3) : 0;
 
   // Ambient bloom background
@@ -24440,8 +24447,8 @@ function drawOcean(ctx, w, h, rgb, beat, t) {
 }
 
 function drawSolid(ctx, w, h, rgb, beatPhase, t) {
-  // Pro solid: smooth breathing with subtle radial gradient, beat flash, zone-aware
-  var zc = DJL.totalZones > 1 ? getZoneColor('#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).padStart(6, '0'), DJL.zone) : rgb;
+  // Pro solid: smooth breathing with subtle radial gradient, beat flash
+  var zc = rgb; // zone color already applied globally in loop
   var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 4) : 0;
   var breathe = 0.75 + Math.sin(beatPhase * Math.PI * 2) * 0.15;
   var intensity = breathe + bassHit * 0.5;
@@ -25515,10 +25522,15 @@ function setupDJListeners() {
     if (data.zone !== undefined) DJL.zone = data.zone;
     if (data.totalZones !== undefined) DJL.totalZones = data.totalZones;
     if (data.deviceIndex !== undefined) DJL.deviceIndex = data.deviceIndex;
+    if (data.totalDevices !== undefined) DJL.totalDevices = data.totalDevices;
   });
 
   // Current state when joining mid-session
   socket.on('dj-live-state', function(data) {
+    if (data.zone !== undefined) DJL.zone = data.zone;
+    if (data.totalZones !== undefined) DJL.totalZones = data.totalZones;
+    if (data.deviceIndex !== undefined) DJL.deviceIndex = data.deviceIndex;
+    if (data.totalDevices !== undefined) DJL.totalDevices = data.totalDevices;
     if (data.broadcasting && !DJL.active) {
       DJL.color = data.color || DJL.color;
       DJL.bpm = data.bpm || DJL.bpm;
