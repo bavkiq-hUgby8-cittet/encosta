@@ -4145,6 +4145,8 @@ function initSocket(){
       console.log('[socket reconnect] Sonic was active, showing reconnect overlay...');
       setTimeout(()=>{if(!homeSonicActive&&!sonicActive&&_sonicWasActive)showSonicReconnect()},400);
     }
+    // DJ Live connection health -- auto-rejoin
+    if(typeof djLiveOnReconnect==='function') djLiveOnReconnect();
   });
   socket.on('disconnect',()=>{
     updateConn('offline');
@@ -4154,6 +4156,8 @@ function initSocket(){
       _sonicWasActive=true;
       stopHomeSonic();
     }
+    // DJ Live connection health -- notify user
+    if(typeof djLiveOnDisconnect==='function') djLiveOnDisconnect();
   });
   socket.io.on('reconnect_attempt',()=>updateConn('reconnecting'));
 
@@ -19903,6 +19907,13 @@ document.addEventListener('visibilitychange',()=>{
         socket.emit('identify',state.userId);
       }
     }
+    // DJ Live: re-join session if we were in live mode when going to background
+    if(DJL.active && DJL.sessionId && socket && socket.connected){
+      console.log('[visibility] DJ Live active, re-syncing...');
+      socket.emit('dj-audience-join',{sessionId:DJL.sessionId,deviceId:state.userId||socket.id});
+      socket.emit('dj-time-sync',{t0:Date.now()});
+      if(typeof djLiveCommandReceived==='function') djLiveCommandReceived();
+    }
     // Show reconnect overlay if sonic was active before going to background
     // NOTE: AudioContext requires a user gesture to unlock on mobile — we cannot
     // call handleMainButton() programmatically here. Instead show a tap-to-reconnect overlay.
@@ -23554,7 +23565,19 @@ const GuidedOnboarding=(function(){
     <div id="djLiveTextContent" style="font-family:'Orbitron',Inter,sans-serif;font-size:clamp(1.2rem,5vw,2.8rem);font-weight:900;color:#fff;text-align:center;text-shadow:0 0 30px rgba(255,255,255,.5),0 0 60px rgba(255,107,53,.3);letter-spacing:.06em;line-height:1.4;opacity:0;transition:opacity .6s;max-width:90%"></div>
   </div>
   <div id="djLiveHint" style="position:absolute;bottom:env(safe-area-inset-bottom,20px);left:0;right:0;text-align:center;padding:1rem;opacity:.6;font-size:.7rem;color:#fff;font-family:Inter,sans-serif;pointer-events:none;transition:opacity 1s">Toque 2x para sair</div>
+  <!-- CONNECTION STATUS OVERLAY -->
+  <div id="djLiveConnStatus" style="display:none;position:absolute;inset:0;z-index:10;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);flex-direction:column;align-items:center;justify-content:center;gap:.8rem;font-family:Inter,sans-serif;text-align:center;padding:2rem">
+    <div id="djConnSpinner" style="width:48px;height:48px;border:3px solid rgba(255,255,255,.15);border-top:3px solid #ff6b35;border-radius:50%;animation:djConnSpin 1s linear infinite"></div>
+    <div id="djConnTitle" style="font-size:1rem;font-weight:700;color:#fff">Reconectando...</div>
+    <div id="djConnSub" style="font-size:.72rem;color:rgba(255,255,255,.5);max-width:260px;line-height:1.4">A conexao caiu mas estamos reconectando automaticamente. A animacao volta em instantes.</div>
+    <div id="djConnDots" style="font-size:1.2rem;color:#ff6b35;letter-spacing:4px"></div>
+    <button id="djConnRetryBtn" style="display:none;margin-top:.5rem;padding:.6rem 1.8rem;background:linear-gradient(135deg,#ff6b35,#ff8555);border:none;border-radius:12px;color:#fff;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit" onclick="djLiveManualReconnect()">Reconectar Agora</button>
+  </div>
 </div>
+<style>
+@keyframes djConnSpin{to{transform:rotate(360deg)}}
+#djLiveConnStatus.active{display:flex!important}
+</style>
 
 <!-- TOUCH? LIVE ENTRY PROMPT - shown when ultrasonic detected -->
 <div id="djLivePrompt" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center;font-family:Inter,sans-serif">
@@ -23953,6 +23976,9 @@ function enterDJLive(data) {
 
   // Stop listener while in live mode
   stopDJListener();
+
+  // Start connection health monitor
+  djLiveConnHealthStart();
 }
 
 function exitDJLive() {
@@ -23983,6 +24009,143 @@ function exitDJLive() {
 
   DJL.sessionId = null;
   DJL.promptShown = false;
+  // Clear connection health
+  djLiveConnHealthStop();
+}
+
+// ═══ DJ LIVE CONNECTION HEALTH ═══
+// Detects when socket disconnects while user is in DJ Live mode,
+// shows reconnecting overlay, auto-rejoins session on reconnect,
+// and dims the animation so user knows the show is stale.
+var _djConnHealth = {
+  disconnectedAt: 0,
+  dotsInterval: null,
+  staleCheckInterval: null,
+  lastCommandAt: 0,
+  staleTimeoutMs: 12000, // 12s without any DJ command = stale
+  wasInLive: false
+};
+
+function djLiveConnShow(titleText, subText, showRetry) {
+  var el = document.getElementById('djLiveConnStatus');
+  if (!el) return;
+  el.classList.add('active');
+  document.getElementById('djConnTitle').textContent = titleText;
+  document.getElementById('djConnSub').textContent = subText;
+  document.getElementById('djConnRetryBtn').style.display = showRetry ? 'block' : 'none';
+  // Animated dots
+  var dots = '';
+  if (_djConnHealth.dotsInterval) clearInterval(_djConnHealth.dotsInterval);
+  _djConnHealth.dotsInterval = setInterval(function() {
+    dots = dots.length >= 3 ? '' : dots + '.';
+    var dd = document.getElementById('djConnDots');
+    if (dd) dd.textContent = dots;
+  }, 500);
+  // Dim the canvas behind
+  var cv = document.getElementById('djLiveCanvas');
+  if (cv) cv.style.filter = 'brightness(0.3) blur(2px)';
+}
+
+function djLiveConnHide() {
+  var el = document.getElementById('djLiveConnStatus');
+  if (!el) return;
+  el.classList.remove('active');
+  if (_djConnHealth.dotsInterval) {
+    clearInterval(_djConnHealth.dotsInterval);
+    _djConnHealth.dotsInterval = null;
+  }
+  // Restore canvas
+  var cv = document.getElementById('djLiveCanvas');
+  if (cv) cv.style.filter = '';
+}
+
+function djLiveConnHealthStart() {
+  _djConnHealth.lastCommandAt = Date.now();
+  // Check for stale connection (socket connected but no commands coming)
+  if (_djConnHealth.staleCheckInterval) clearInterval(_djConnHealth.staleCheckInterval);
+  _djConnHealth.staleCheckInterval = setInterval(function() {
+    if (!DJL.active) return;
+    var elapsed = Date.now() - _djConnHealth.lastCommandAt;
+    if (elapsed > _djConnHealth.staleTimeoutMs && typeof socket !== 'undefined' && socket && socket.connected) {
+      // Socket connected but no commands for a while -- might be stale, re-request state
+      console.log('[DJ Conn] No commands for ' + Math.round(elapsed/1000) + 's, requesting state refresh...');
+      socket.emit('dj-audience-join', {
+        sessionId: DJL.sessionId,
+        deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+      });
+      _djConnHealth.lastCommandAt = Date.now(); // Reset to avoid spamming
+    }
+  }, 5000);
+}
+
+function djLiveConnHealthStop() {
+  if (_djConnHealth.staleCheckInterval) {
+    clearInterval(_djConnHealth.staleCheckInterval);
+    _djConnHealth.staleCheckInterval = null;
+  }
+  djLiveConnHide();
+}
+
+// Called when socket disconnects
+function djLiveOnDisconnect() {
+  if (!DJL.active) return;
+  _djConnHealth.disconnectedAt = Date.now();
+  _djConnHealth.wasInLive = true;
+  console.log('[DJ Conn] Disconnected while in DJ Live mode');
+  djLiveConnShow(
+    'Reconectando...',
+    'A conexao caiu mas estamos reconectando automaticamente. A animacao volta em instantes.',
+    false
+  );
+  // After 8s show manual retry button
+  setTimeout(function() {
+    if (_djConnHealth.wasInLive && DJL.active) {
+      var btn = document.getElementById('djConnRetryBtn');
+      if (btn) btn.style.display = 'block';
+    }
+  }, 8000);
+}
+
+// Called when socket reconnects
+function djLiveOnReconnect() {
+  if (!_djConnHealth.wasInLive || !DJL.active) return;
+  console.log('[DJ Conn] Reconnected! Re-joining DJ session:', DJL.sessionId);
+  _djConnHealth.wasInLive = false;
+  // Update overlay text
+  djLiveConnShow('Sincronizando...', 'Reconectado! Voltando pra live...', false);
+  // Re-join the DJ session
+  if (typeof socket !== 'undefined' && socket && socket.connected && DJL.sessionId) {
+    socket.emit('dj-audience-join', {
+      sessionId: DJL.sessionId,
+      deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+    });
+    // Re-request time sync
+    socket.emit('dj-time-sync', { t0: Date.now() });
+  }
+  // Hide overlay after brief delay (server will send dj-live-state with current state)
+  setTimeout(function() {
+    djLiveConnHide();
+    _djConnHealth.lastCommandAt = Date.now();
+    console.log('[DJ Conn] Back in sync');
+  }, 1200);
+}
+
+function djLiveManualReconnect() {
+  console.log('[DJ Conn] Manual reconnect triggered');
+  if (typeof socket !== 'undefined' && socket) {
+    if (!socket.connected) {
+      socket.connect();
+    }
+    // Also try rejoining directly
+    setTimeout(function() {
+      djLiveOnReconnect();
+    }, 1500);
+  }
+}
+
+// Mark command received (keeps health tracker happy)
+function djLiveCommandReceived() {
+  _djConnHealth.lastCommandAt = Date.now();
 }
 
 // Double tap to exit + single tap toast
@@ -25540,6 +25703,7 @@ function setupDJListeners() {
 
   // DJ command
   socket.on('dj-command', function(data) {
+    if (typeof djLiveCommandReceived === 'function') djLiveCommandReceived();
     if (!DJL.active) {
       if (data.command !== 'blackout') { enterDJLive(data); }
       return;
@@ -25589,6 +25753,7 @@ function setupDJListeners() {
 
   // Current state when joining mid-session
   socket.on('dj-live-state', function(data) {
+    if (typeof djLiveCommandReceived === 'function') djLiveCommandReceived();
     if (data.zone !== undefined) DJL.zone = data.zone;
     if (data.totalZones !== undefined) DJL.totalZones = data.totalZones;
     if (data.deviceIndex !== undefined) DJL.deviceIndex = data.deviceIndex;
@@ -25617,6 +25782,7 @@ function setupDJListeners() {
 
   // --- Choreography Receiver ---
   socket.on('dj-choreography', function(data) {
+    if (typeof djLiveCommandReceived === 'function') djLiveCommandReceived();
     if (data.choreography) {
       DJL.choreography = data.choreography;
       DJL.beatOrigin = data.beatOrigin;
