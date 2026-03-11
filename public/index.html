@@ -23640,7 +23640,22 @@ var DJL = {
   showActive: false,
   clockOffset: 0,
   position: { x: 0.5, y: 0.5 },
-  _syncRounds: []
+  _syncRounds: [],
+  // Phase 2: Sound depth positioning
+  depth: -1,
+  depthNorm: 0.5,
+  _depthCalibrated: false,
+  // Phase 2.5: Compass for left-right positioning
+  compassHeading: -1,
+  compassX: 0.5,
+  _compassAvailable: false,
+  _compassSamples: [],
+  _compassStageHeading: -1,
+  // Phase 3: Peer mesh neighbor discovery
+  neighbors: [],
+  _meshActive: false,
+  _meshMySlot: -1,
+  _meshChirpFreq: 0
 };
 
 // Ultrasonic detection constants (same as main system)
@@ -23906,6 +23921,13 @@ function enterDJLive(data) {
   }
 
   startDJAnimation();
+
+  // Init positioning systems
+  initCompass();
+  // Request initial time sync
+  if (typeof socket !== 'undefined' && socket && socket.connected) {
+    socket.emit('dj-time-sync', { t0: Date.now() });
+  }
 
   // Auto-hide hint after 4s
   setTimeout(function() {
@@ -25624,7 +25646,46 @@ function setupDJListeners() {
     }
   }, 2000);
 
-  console.log('[DJ] Socket listeners registered');
+  // --- Positioning event listeners ---
+
+  // DJ triggers sync pulse for depth measurement
+  socket.on('dj-sync-pulse', function(data) {
+    console.log('[Position] Sync pulse received from DJ');
+    handleSyncPulse(data);
+  });
+
+  // DJ sends stage heading for compass calibration
+  socket.on('dj-stage-heading', function(data) {
+    if (data.heading !== undefined) {
+      DJL._compassStageHeading = data.heading;
+      console.log('[Compass] Stage heading set to ' + data.heading + ' degrees');
+    }
+    if (data.maxDepth) DJL._maxVenueDepth = data.maxDepth;
+  });
+
+  // Server triggers a mesh discovery round
+  socket.on('dj-mesh-round', function(data) {
+    console.log('[Mesh] Round triggered: slot=' + data.slot);
+    startMeshRound(data);
+  });
+
+  // Server sends computed position from all sensors
+  socket.on('dj-position-update', function(data) {
+    if (data.x !== undefined) DJL.position.x = data.x;
+    if (data.y !== undefined) DJL.position.y = data.y;
+    if (data.depthNorm !== undefined) DJL.depthNorm = data.depthNorm;
+    console.log('[Position] Server update: x=' + DJL.position.x.toFixed(2) + ' y=' + DJL.position.y.toFixed(2));
+  });
+
+  // GPS request from DJ
+  socket.on('dj-request-gps', function() {
+    requestGPSPosition();
+  });
+
+  // Init compass when DJ Live is active
+  if (DJL.active) initCompass();
+
+  console.log('[DJ] Socket listeners registered (incl. positioning)');
 }
 
 // --- Choreography Pattern Functions ---
@@ -25828,6 +25889,333 @@ var showPatterns = {
     return isWhite ? rgb : rgb2;
   }
 };
+
+// ═══════════════════════════════════════════════════════
+// POSITIONING ENGINE: determines each phone's (x, y) in the crowd
+// ═══════════════════════════════════════════════════════
+
+// --- Phase 2: Sound Time-of-Flight (depth from stage) ---
+// DJ speaker emits a sync chirp. Phone measures when it hears it.
+// distance = (detectionTime - emitTime) * 343 m/s
+var SOUND_SPEED = 343; // meters per second at ~20C
+
+function handleSyncPulse(data) {
+  // data: { emitTime: serverTimestamp, freq: Hz }
+  // This is called when the DJ triggers a positioning sync pulse
+  // We need to detect the sound and report back
+  if (!DJL.active || !DJL.listenerCtx) return;
+
+  var emitServerTime = data.emitTime;
+  var syncFreq = data.freq || 19500; // Default sync frequency
+  var serverNow = Date.now() + DJL.clockOffset;
+  var maxWait = 3000; // Max 3 seconds to detect (covers ~1km)
+  var detected = false;
+
+  // Use existing DJ listener analyser if available, or create temp one
+  var analyser = DJL.listenerAnalyser;
+  if (!analyser) {
+    console.log('[Position] No analyser available for sync pulse detection');
+    return;
+  }
+
+  var bufLen = analyser.frequencyBinCount;
+  var dataArr = new Uint8Array(bufLen);
+  var sampleRate = DJL.listenerCtx.sampleRate;
+  var freqPerBin = sampleRate / (analyser.fftSize || 8192);
+  var targetBin = Math.round(syncFreq / freqPerBin);
+  var tolerance = Math.ceil(200 / freqPerBin); // 200Hz tolerance
+  var startTime = Date.now();
+
+  function scanForPulse() {
+    if (detected || (Date.now() - startTime > maxWait)) {
+      if (!detected) console.log('[Position] Sync pulse not detected within timeout');
+      return;
+    }
+    analyser.getByteFrequencyData(dataArr);
+    var peakVal = 0;
+    for (var i = Math.max(0, targetBin - tolerance); i <= Math.min(bufLen - 1, targetBin + tolerance); i++) {
+      if (dataArr[i] > peakVal) peakVal = dataArr[i];
+    }
+    if (peakVal > 100) { // Strong signal detected
+      detected = true;
+      var detectTime = Date.now() + DJL.clockOffset; // Server-adjusted time
+      var travelTime = (detectTime - emitServerTime) / 1000; // seconds
+      var distance = travelTime * SOUND_SPEED;
+
+      // Clamp to reasonable range (0-200 meters)
+      distance = Math.max(0, Math.min(200, distance));
+
+      DJL.depth = distance;
+      DJL._depthCalibrated = true;
+      console.log('[Position] Depth detected: ' + distance.toFixed(1) + 'm (travel: ' + (travelTime * 1000).toFixed(1) + 'ms)');
+
+      // Report to server
+      if (typeof socket !== 'undefined' && socket && socket.connected) {
+        socket.emit('dj-position-report', {
+          sessionId: DJL.sessionId || '',
+          depth: distance,
+          compassHeading: DJL.compassHeading,
+          compassX: DJL.compassX
+        });
+      }
+      return;
+    }
+    requestAnimationFrame(scanForPulse);
+  }
+  requestAnimationFrame(scanForPulse);
+}
+
+// --- Phase 2.5: Device Compass (left-right positioning) ---
+// Uses DeviceOrientationEvent to get compass heading
+// If everyone faces the stage, heading tells us left-right position
+
+function initCompass() {
+  if (DJL._compassAvailable) return;
+
+  function startListening() {
+    window.addEventListener('deviceorientationabsolute', onCompass, false);
+    window.addEventListener('deviceorientation', onCompass, false);
+    DJL._compassAvailable = true;
+    console.log('[Compass] Listener started');
+  }
+
+  // iOS 13+ requires permission
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(function(state) {
+        if (state === 'granted') {
+          startListening();
+        } else {
+          console.log('[Compass] Permission denied');
+        }
+      })
+      .catch(function(e) {
+        console.warn('[Compass] Permission error:', e);
+      });
+  } else {
+    startListening();
+  }
+}
+
+function onCompass(event) {
+  var heading = -1;
+  if (event.webkitCompassHeading !== undefined) {
+    // iOS: webkitCompassHeading is 0-360 (0 = North)
+    heading = event.webkitCompassHeading;
+  } else if (event.alpha !== null && event.absolute) {
+    // Android absolute: alpha is degrees from North
+    heading = (360 - event.alpha) % 360;
+  } else if (event.alpha !== null) {
+    // Fallback: relative orientation
+    heading = (360 - event.alpha) % 360;
+  }
+
+  if (heading < 0) return;
+
+  // Rolling average of last 10 samples for stability
+  DJL._compassSamples.push(heading);
+  if (DJL._compassSamples.length > 10) DJL._compassSamples.shift();
+
+  // Circular mean for compass headings
+  var sinSum = 0, cosSum = 0;
+  for (var i = 0; i < DJL._compassSamples.length; i++) {
+    var rad = DJL._compassSamples[i] * Math.PI / 180;
+    sinSum += Math.sin(rad);
+    cosSum += Math.cos(rad);
+  }
+  var avgRad = Math.atan2(sinSum, cosSum);
+  var avgHeading = ((avgRad * 180 / Math.PI) + 360) % 360;
+  DJL.compassHeading = avgHeading;
+
+  // If we know stage heading, compute left-right position
+  if (DJL._compassStageHeading >= 0) {
+    // Angle difference from stage direction
+    var diff = avgHeading - DJL._compassStageHeading;
+    // Normalize to -180..180
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+    // Map -90..+90 to 0..1 (left to right)
+    DJL.compassX = Math.max(0, Math.min(1, (diff + 90) / 180));
+  }
+}
+
+// --- Phase 3: Peer Mesh Neighbor Discovery ---
+// Phones emit unique short chirps. Nearby phones detect neighbors.
+// Server builds proximity graph and computes 2D layout.
+
+var MESH_CHIRP_DURATION = 80; // ms per chirp
+var MESH_CHIRP_BASE = 17000;  // Base frequency for mesh chirps
+var MESH_CHIRP_SPACING = 50;  // Hz between slots
+var MESH_MAX_SLOTS = 40;      // Max simultaneous devices in mesh round
+var MESH_DETECT_THRESHOLD = 80;
+
+function startMeshRound(data) {
+  // data: { slot, totalSlots, roundId }
+  // Each device gets a time slot and frequency to chirp
+  if (!DJL.active) return;
+  DJL._meshActive = true;
+  DJL._meshMySlot = data.slot;
+  DJL._meshChirpFreq = MESH_CHIRP_BASE + (data.slot * MESH_CHIRP_SPACING);
+  DJL.neighbors = [];
+
+  var roundDuration = data.totalSlots * (MESH_CHIRP_DURATION + 20); // +20ms gap
+  var myChirpTime = data.slot * (MESH_CHIRP_DURATION + 20);
+
+  console.log('[Mesh] Round ' + data.roundId + ': slot=' + data.slot +
+    ' freq=' + DJL._meshChirpFreq + 'Hz chirpAt=' + myChirpTime + 'ms');
+
+  // Step 1: Listen for all chirps
+  var detectedSlots = [];
+  var analyser = DJL.listenerAnalyser;
+  if (!analyser) {
+    console.log('[Mesh] No analyser for mesh round');
+    return;
+  }
+  var bufLen = analyser.frequencyBinCount;
+  var dataArr = new Uint8Array(bufLen);
+  var sampleRate = DJL.listenerCtx ? DJL.listenerCtx.sampleRate : 44100;
+  var freqPerBin = sampleRate / (analyser.fftSize || 8192);
+
+  var roundStart = Date.now();
+  var chirpEmitted = false;
+
+  function meshScan() {
+    if (!DJL._meshActive) return;
+    var elapsed = Date.now() - roundStart;
+    if (elapsed > roundDuration + 500) {
+      // Round complete -- report neighbors
+      DJL.neighbors = detectedSlots;
+      DJL._meshActive = false;
+      console.log('[Mesh] Round complete. Detected ' + detectedSlots.length + ' neighbors: slots ' + detectedSlots.join(','));
+
+      // Report to server
+      if (typeof socket !== 'undefined' && socket && socket.connected) {
+        socket.emit('dj-mesh-report', {
+          sessionId: DJL.sessionId || '',
+          roundId: data.roundId,
+          mySlot: data.slot,
+          neighbors: detectedSlots,
+          depth: DJL.depth,
+          compassHeading: DJL.compassHeading
+        });
+      }
+      return;
+    }
+
+    // Step 2: Emit my chirp at my time slot
+    if (!chirpEmitted && elapsed >= myChirpTime && elapsed < myChirpTime + MESH_CHIRP_DURATION) {
+      chirpEmitted = true;
+      emitMeshChirp(DJL._meshChirpFreq, MESH_CHIRP_DURATION);
+    }
+
+    // Step 3: Detect other chirps
+    analyser.getByteFrequencyData(dataArr);
+    var currentSlot = Math.floor(elapsed / (MESH_CHIRP_DURATION + 20));
+    if (currentSlot >= 0 && currentSlot < data.totalSlots && currentSlot !== data.slot) {
+      var slotFreq = MESH_CHIRP_BASE + (currentSlot * MESH_CHIRP_SPACING);
+      var slotBin = Math.round(slotFreq / freqPerBin);
+      var binRange = Math.ceil(MESH_CHIRP_SPACING / freqPerBin / 2);
+      var peakVal = 0;
+      for (var i = Math.max(0, slotBin - binRange); i <= Math.min(bufLen - 1, slotBin + binRange); i++) {
+        if (dataArr[i] > peakVal) peakVal = dataArr[i];
+      }
+      if (peakVal > MESH_DETECT_THRESHOLD && detectedSlots.indexOf(currentSlot) === -1) {
+        detectedSlots.push(currentSlot);
+        console.log('[Mesh] Detected neighbor at slot ' + currentSlot + ' (' + slotFreq + 'Hz) strength=' + peakVal);
+      }
+    }
+
+    requestAnimationFrame(meshScan);
+  }
+  requestAnimationFrame(meshScan);
+}
+
+function emitMeshChirp(freq, durationMs) {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = 0.3; // Lower volume for mesh (not main speaker)
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    // Fade in/out to avoid clicks
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + (durationMs / 1000) - 0.005);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + durationMs / 1000);
+    setTimeout(function() { ctx.close(); }, durationMs + 100);
+  } catch (e) {
+    console.warn('[Mesh] Chirp emit error:', e);
+  }
+}
+
+// --- GPS Fallback (outdoor events) ---
+function requestGPSPosition() {
+  if (!navigator.geolocation) {
+    console.log('[GPS] Geolocation not available');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      console.log('[GPS] Got position: lat=' + pos.coords.latitude.toFixed(6) +
+        ' lng=' + pos.coords.longitude.toFixed(6) +
+        ' accuracy=' + pos.coords.accuracy.toFixed(0) + 'm');
+      if (typeof socket !== 'undefined' && socket && socket.connected) {
+        socket.emit('dj-gps-report', {
+          sessionId: DJL.sessionId || '',
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          heading: pos.coords.heading || -1
+        });
+      }
+    },
+    function(err) {
+      console.warn('[GPS] Error:', err.message);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+  );
+}
+
+// --- Position Computation: merge all sources into final (x, y) ---
+function updateFinalPosition() {
+  var x = 0.5, y = 0.5;
+  var hasDepth = DJL._depthCalibrated && DJL.depth >= 0;
+  var hasCompass = DJL._compassAvailable && DJL._compassStageHeading >= 0;
+  var hasIndex = DJL.totalDevices > 1;
+
+  // Y-axis (depth): prefer sound ToF, fallback to device index
+  if (hasDepth) {
+    // Normalize depth: 0m = front row, maxDepth = back
+    // Server will send maxDepth, default to 50m
+    var maxDepth = DJL._maxVenueDepth || 50;
+    y = Math.min(1, DJL.depth / maxDepth);
+    DJL.depthNorm = y;
+  } else if (hasIndex) {
+    // Fallback: spread devices evenly
+    y = DJL.totalDevices > 1 ? DJL.deviceIndex / (DJL.totalDevices - 1) : 0.5;
+  }
+
+  // X-axis (left-right): prefer compass, fallback to device index
+  if (hasCompass) {
+    x = DJL.compassX;
+  } else if (hasIndex) {
+    // Use device index spread across X
+    x = DJL.totalDevices > 1 ? DJL.deviceIndex / (DJL.totalDevices - 1) : 0.5;
+  }
+
+  DJL.position.x = x;
+  DJL.position.y = y;
+}
+
+// Run position update every 500ms
+setInterval(function() {
+  if (DJL.active) updateFinalPosition();
+}, 500);
 
 // Init
 var _djInitInterval = setInterval(function() {

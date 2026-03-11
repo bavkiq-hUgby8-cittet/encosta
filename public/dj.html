@@ -421,6 +421,31 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     <canvas id="showPreviewCanvas" width="200" height="60" style="width:100%;height:60px;border-radius:var(--radius);background:#000;display:none"></canvas>
   </section>
 
+  <!-- POSITIONING -->
+  <section class="dj-ctrl-card full" id="positionSection">
+    <div class="dj-ctrl-title" style="display:flex;align-items:center;gap:.5rem">
+      <span>Positioning</span>
+      <span style="font-size:.55rem;background:rgba(0,180,216,.2);padding:2px 6px;border-radius:8px;color:#00b4d8">BETA</span>
+    </div>
+    <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Map each phone's position for coordinated shows</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+      <button class="dj-bpm-btn" onclick="triggerSyncPulse()" title="Send ultrasonic pulse to measure distance from stage">Depth Scan</button>
+      <button class="dj-bpm-btn" onclick="triggerMeshRound()" title="Phones discover neighbors via short chirps">Mesh Scan</button>
+      <button class="dj-bpm-btn" onclick="triggerGPS()" title="Request GPS from all devices (outdoor only)">GPS</button>
+      <button class="dj-bpm-btn" onclick="calibrateCompass()" title="Set stage direction for compass positioning">Compass Cal</button>
+    </div>
+    <div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.3rem">
+      <span style="font-size:.6rem;color:var(--t3)">Venue depth:</span>
+      <input type="range" id="venueDepthSlider" min="10" max="200" value="50" style="flex:1;accent-color:var(--ac)" oninput="updateVenueDepth(this.value)">
+      <span id="venueDepthLabel" style="font-size:.6rem;color:var(--t2);min-width:32px">50m</span>
+    </div>
+    <div id="positionStatus" style="font-size:.6rem;color:var(--t3);padding:.3rem 0">
+      <span id="posDeviceCount">0</span> devices mapped
+    </div>
+    <!-- Position Map Preview (birds-eye view) -->
+    <canvas id="positionMap" width="200" height="120" style="width:100%;height:80px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,180,216,.08) 0%,rgba(0,0,0,.3) 100%);border:1px solid rgba(255,255,255,.06)"></canvas>
+  </section>
+
   <!-- ANIMATIONS -->
   <section class="dj-ctrl-card full">
     <div class="dj-ctrl-title">Animations</div>
@@ -2513,6 +2538,140 @@ function _pvHexToRgb(hex) {
   var b = parseInt(hex.slice(5, 7), 16) || 0;
   return { r: r, g: g, b: b };
 }
+
+/* ---- POSITIONING CONTROLS ---- */
+DJ.venueDepth = 50;
+DJ.stageHeading = -1;
+DJ._positionDevices = {}; // { deviceId: { x, y } }
+
+window.triggerSyncPulse = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-sync-pulse', { sessionId: DJ.sessionId, freq: 19500 });
+  showToast('Depth scan sent');
+};
+
+window.triggerMeshRound = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-start-mesh', { sessionId: DJ.sessionId });
+  showToast('Mesh discovery started');
+};
+
+window.triggerGPS = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-request-gps', { sessionId: DJ.sessionId });
+  showToast('GPS requested from all devices');
+};
+
+window.calibrateCompass = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  // Ask DJ to point phone toward stage and we use compass as reference
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(function(state) {
+      if (state === 'granted') readCompassForCalibration();
+    });
+  } else {
+    readCompassForCalibration();
+  }
+};
+
+function readCompassForCalibration() {
+  var handler = function(e) {
+    var heading = -1;
+    if (e.webkitCompassHeading !== undefined) heading = e.webkitCompassHeading;
+    else if (e.alpha !== null) heading = (360 - e.alpha) % 360;
+    if (heading >= 0) {
+      DJ.stageHeading = heading;
+      window.removeEventListener('deviceorientationabsolute', handler);
+      window.removeEventListener('deviceorientation', handler);
+      socket.emit('dj-stage-heading', {
+        sessionId: DJ.sessionId,
+        heading: heading,
+        maxDepth: DJ.venueDepth
+      });
+      showToast('Compass calibrated: ' + Math.round(heading) + ' degrees');
+    }
+  };
+  window.addEventListener('deviceorientationabsolute', handler, false);
+  window.addEventListener('deviceorientation', handler, false);
+  showToast('Point phone toward audience and wait...');
+}
+
+window.updateVenueDepth = function(val) {
+  DJ.venueDepth = parseInt(val) || 50;
+  var label = document.getElementById('venueDepthLabel');
+  if (label) label.textContent = DJ.venueDepth + 'm';
+  // Send update to server
+  if (DJ.broadcasting && socket) {
+    socket.emit('dj-stage-heading', {
+      sessionId: DJ.sessionId,
+      heading: DJ.stageHeading >= 0 ? DJ.stageHeading : 0,
+      maxDepth: DJ.venueDepth
+    });
+  }
+};
+
+// Position map rendering (birds-eye view of the crowd)
+DJ._posMapRaf = null;
+function startPositionMap() {
+  if (DJ._posMapRaf) return;
+  var canvas = document.getElementById('positionMap');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+
+  function drawMap() {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Stage at top
+    ctx.fillStyle = 'rgba(0,180,216,.3)';
+    ctx.fillRect(w * 0.2, 0, w * 0.6, 4);
+    ctx.fillStyle = 'rgba(0,180,216,.5)';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('STAGE', w / 2, 12);
+
+    // Draw devices as dots
+    var devices = DJ._positionDevices;
+    var deviceIds = Object.keys(devices);
+    var count = document.getElementById('posDeviceCount');
+    if (count) count.textContent = deviceIds.length;
+
+    for (var i = 0; i < deviceIds.length; i++) {
+      var d = devices[deviceIds[i]];
+      var dx = d.x * w;
+      var dy = 16 + d.y * (h - 20);
+      // Color based on zone
+      var zone = i % (DJ.totalZones || 4);
+      var hue = (zone * 360 / (DJ.totalZones || 4)) % 360;
+      ctx.fillStyle = 'hsl(' + hue + ', 80%, 55%)';
+      ctx.beginPath();
+      ctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // If no real devices, show simulated dots
+    if (deviceIds.length === 0 && DJ.deviceCount > 0) {
+      for (var i = 0; i < DJ.deviceCount; i++) {
+        var nx = (i % 10) / 10 * 0.8 + 0.1 + (Math.sin(i * 7.3) * 0.05);
+        var ny = Math.floor(i / 10) / Math.ceil(DJ.deviceCount / 10) * 0.8 + 0.1 + (Math.cos(i * 3.7) * 0.05);
+        var dx = nx * w;
+        var dy = 16 + ny * (h - 20);
+        ctx.fillStyle = 'rgba(255,255,255,.25)';
+        ctx.beginPath();
+        ctx.arc(dx, dy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (count) count.textContent = DJ.deviceCount + ' (est.)';
+    }
+
+    DJ._posMapRaf = requestAnimationFrame(drawMap);
+  }
+  DJ._posMapRaf = requestAnimationFrame(drawMap);
+}
+
+// Start map rendering when page loads
+setTimeout(startPositionMap, 1000);
 
 /* ---- AUTO MODE ---- */
 DJ.autoMode = false;
