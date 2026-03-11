@@ -1010,13 +1010,14 @@ function connectSocket() {
 
   socket.on('drone-show-library-data', function(data) {
     if (data && data.show) {
-      _vmDroneShow = data.show;
+      var show = data.show;
+      _vmDroneShow = show;
       _vmDroneBeatOrigin = Date.now();
-      _vmDroneBpm = data.show.bpm || 128;
+      _vmDroneBpm = show.bpm || 128;
       if (!_vmActive) toggleVenueMap();
       var stopBtn = document.getElementById('vmStopPreview');
       if (stopBtn) stopBtn.style.display = '';
-      showToast('Preview: ' + data.show.name);
+      showToast('Preview: ' + show.name);
     }
   });
 }
@@ -2846,14 +2847,20 @@ window.stopShow = function() {
 };
 
 window.playDroneLibrary = function(showId) {
-  if (!socket || !socket.connected) { showToast('Connect to server first'); return; }
-  // If broadcasting, also send to audience phones
-  if (DJ.broadcasting) {
+  var show = _LOCAL_DRONE_LIBRARY[showId];
+  if (show) {
+    _vmDroneShow = show;
+    _vmDroneBeatOrigin = Date.now();
+    _vmDroneBpm = show.bpm || 128;
+    if (!_vmActive) toggleVenueMap();
+    var stopBtn = document.getElementById('vmStopPreview');
+    if (stopBtn) stopBtn.style.display = '';
+    showToast('Preview: ' + show.name);
+  }
+  // Also send to server if broadcasting
+  if (socket && socket.connected && DJ.broadcasting) {
     socket.emit('drone-show-library-play', { showId: showId, sessionId: DJ.sessionId });
   }
-  // Always request show data for local preview in Venue Map
-  socket.emit('drone-show-library-get', { showId: showId });
-  showToast('Drone Show: ' + showId);
 };
 
 // Render a mini grid preview of the show (simulated audience)
@@ -3456,6 +3463,373 @@ init = function() {
   setupDrawerDefaults();
 };
 
+    // ========== DRONE SHOW LIBRARY HELPERS & DATA ==========
+    function _drawPixelShape(shape, color, offsetX, offsetY) {
+      var cells = {};
+      offsetX = offsetX || 0;
+      offsetY = offsetY || 0;
+      for (var i = 0; i < shape.length; i++) {
+        var x = shape[i][0] + offsetX;
+        var y = shape[i][1] + offsetY;
+        if (x >= 0 && x < 20 && y >= 0 && y < 20) {
+          cells[x + ',' + y] = color;
+        }
+      }
+      return cells;
+    }
+
+    function _mergeFrames() {
+      var result = {};
+      for (var i = 0; i < arguments.length; i++) {
+        var cells = arguments[i];
+        var keys = Object.keys(cells);
+        for (var k = 0; k < keys.length; k++) {
+          result[keys[k]] = cells[keys[k]];
+        }
+      }
+      return result;
+    }
+
+    function _fillGrid(color) {
+      var cells = {};
+      for (var y = 0; y < 20; y++) {
+        for (var x = 0; x < 20; x++) {
+          cells[x + ',' + y] = color;
+        }
+      }
+      return cells;
+    }
+
+    function _drawCircle(cx, cy, r, color) {
+      var cells = {};
+      for (var y = 0; y < 20; y++) {
+        for (var x = 0; x < 20; x++) {
+          var dist = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+          if (dist >= r - 0.7 && dist <= r + 0.7) {
+            cells[x + ',' + y] = color;
+          }
+        }
+      }
+      return cells;
+    }
+
+    function _drawFilledCircle(cx, cy, r, color) {
+      var cells = {};
+      for (var y = 0; y < 20; y++) {
+        for (var x = 0; x < 20; x++) {
+          var dist = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+          if (dist <= r) {
+            cells[x + ',' + y] = color;
+          }
+        }
+      }
+      return cells;
+    }
+
+    function _drawLine(x1, y1, x2, y2, color) {
+      var cells = {};
+      var dx = Math.abs(x2 - x1);
+      var dy = Math.abs(y2 - y1);
+      var sx = x1 < x2 ? 1 : -1;
+      var sy = y1 < y2 ? 1 : -1;
+      var err = dx - dy;
+      var x = x1, y = y1;
+      while (true) {
+        if (x >= 0 && x < 20 && y >= 0 && y < 20) {
+          cells[x + ',' + y] = color;
+        }
+        if (x === x2 && y === y2) break;
+        var e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x += sx; }
+        if (e2 < dx) { err += dx; y += sy; }
+      }
+      return cells;
+    }
+
+    var HEART_SMALL = [
+      [8,7],[9,6],[10,6],[11,7],
+      [7,8],[12,8],
+      [7,9],[12,9],
+      [8,10],[11,10],
+      [9,11],[10,11],
+      [8,8],[9,8],[10,8],[11,8],
+      [8,9],[9,9],[10,9],[11,9],
+      [9,10],[10,10]
+    ];
+
+    var HEART_BIG = [
+      [7,5],[8,5],[11,5],[12,5],
+      [6,6],[9,6],[10,6],[13,6],
+      [6,7],[13,7],
+      [6,8],[13,8],
+      [7,9],[12,9],
+      [8,10],[11,10],
+      [9,11],[10,11],
+      [7,6],[8,6],[11,6],[12,6],
+      [7,7],[8,7],[9,7],[10,7],[11,7],[12,7],
+      [7,8],[8,8],[9,8],[10,8],[11,8],[12,8],
+      [8,9],[9,9],[10,9],[11,9],
+      [9,10],[10,10]
+    ];
+
+    var DRAGON_SEG = [
+      [10,10],[10,11],
+      [9,9],[10,9],[11,9],
+      [9,10],[11,10]
+    ];
+
+    var PHOENIX_SHAPE = [
+      [8,0],[9,0],[10,0],[11,0],
+      [7,1],[8,1],[12,1],[13,1],
+      [6,2],[7,2],[12,2],[13,2],
+      [7,3],[8,3],[11,3],[12,3],
+      [9,4],[10,4]
+    ];
+
+    var STAR_5PT = [
+      [10,2],
+      [8,8],[12,8],
+      [7,6],[13,6],
+      [9,9],[11,9],
+      [10,12],
+      [9,7],[10,6],[11,7],
+      [8,9],[9,8],[10,7],[11,8],[12,9],
+      [9,11],[10,10],[11,11]
+    ];
+
+    var NUM_5 = [
+      [0,0],[1,0],[2,0],[3,0],
+      [0,1],
+      [0,2],[1,2],[2,2],
+      [3,3],
+      [0,4],[1,4],[2,4],[3,4]
+    ];
+
+    var NUM_4 = [
+      [3,0],
+      [2,1],[3,1],
+      [1,2],[2,2],[3,2],
+      [0,3],[1,3],[2,3],[3,3],
+      [3,4]
+    ];
+
+    var NUM_3 = [
+      [0,0],[1,0],[2,0],[3,0],
+      [3,1],
+      [0,2],[1,2],[2,2],
+      [3,3],
+      [0,4],[1,4],[2,4],[3,4]
+    ];
+
+    var NUM_2 = [
+      [0,0],[1,0],[2,0],[3,0],
+      [3,1],
+      [1,2],[2,2],[3,2],
+      [0,3],
+      [0,4],[1,4],[2,4],[3,4]
+    ];
+
+    var NUM_1 = [
+      [1,0],[2,0],
+      [2,1],
+      [2,2],
+      [2,3],
+      [1,4],[2,4],[3,4]
+    ];
+
+    var LETTER_T = [
+      [0,0],[1,0],[2,0],[3,0],
+      [1,1],[2,1],
+      [2,2],[2,3],
+      [2,4]
+    ];
+
+    var LETTER_O = [
+      [1,0],[2,0],[3,0],
+      [0,1],[4,1],
+      [0,2],[4,2],
+      [0,3],[4,3],
+      [1,4],[2,4],[3,4]
+    ];
+
+    var LETTER_U = [
+      [0,0],[4,0],
+      [0,1],[4,1],
+      [0,2],[4,2],
+      [0,3],[4,3],
+      [1,4],[2,4],[3,4]
+    ];
+
+    var LETTER_C = [
+      [1,0],[2,0],[3,0],
+      [0,1],
+      [0,2],
+      [0,3],
+      [1,4],[2,4],[3,4]
+    ];
+
+    var LETTER_H = [
+      [0,0],[4,0],
+      [0,1],[4,1],
+      [0,2],[1,2],[2,2],[3,2],[4,2],
+      [0,3],[4,3],
+      [0,4],[4,4]
+    ];
+
+    var LETTER_Q = [
+      [1,0],[2,0],[3,0],
+      [0,1],[4,1],
+      [0,2],[4,2],
+      [0,3],[3,3],
+      [1,4],[2,4],
+      [3,4],[4,4]
+    ];
+
+    var _LOCAL_DRONE_LIBRARY = {
+      'heart-pulse': {
+        name: 'Heart Pulse',
+        bpm: 128,
+        frames: [
+          { durationBeats: 4, transition: 'fade', cells: _drawPixelShape(HEART_SMALL, '#ff1744', 5, 6) },
+          { durationBeats: 4, transition: 'fade', cells: _drawPixelShape(HEART_BIG, '#ff3c6e', 4, 4) },
+          { durationBeats: 4, transition: 'fade', cells: _drawPixelShape(HEART_SMALL, '#ff1744', 5, 6) },
+          { durationBeats: 4, transition: 'fade', cells: _drawPixelShape(HEART_BIG, '#ff5a8f', 4, 4) }
+        ]
+      },
+
+      'countdown-blast': {
+        name: 'Countdown Blast',
+        bpm: 120,
+        frames: [
+          { durationBeats: 4, transition: 'instant', cells: _drawPixelShape(NUM_5, '#ffdd00', 8, 7) },
+          { durationBeats: 4, transition: 'instant', cells: _drawPixelShape(NUM_4, '#ffdd00', 8, 7) },
+          { durationBeats: 4, transition: 'instant', cells: _drawPixelShape(NUM_3, '#ffaa00', 8, 7) },
+          { durationBeats: 4, transition: 'instant', cells: _drawPixelShape(NUM_2, '#ff6600', 8, 7) },
+          { durationBeats: 4, transition: 'instant', cells: _drawPixelShape(NUM_1, '#ff3c00', 8, 7) },
+          { durationBeats: 2, transition: 'instant', cells: _fillGrid('#ffff00') },
+          { durationBeats: 1, transition: 'instant', cells: _fillGrid('#ff6600') },
+          { durationBeats: 1, transition: 'instant', cells: _fillGrid('#ff0000') }
+        ]
+      },
+
+      'dragon': {
+        name: 'Dragon Serpent',
+        bpm: 96,
+        frames: [
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#ff4444', 2, 0) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#ff4444', 4, 0) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#ff4444', 6, 0) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#ff4444', 8, 0) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#ff4444', 10, 0) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#ff4444', 12, 0) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#cc0000', 10, 4) },
+          { durationBeats: 2, transition: 'instant', cells: _drawPixelShape(DRAGON_SEG, '#990000', 8, 8) }
+        ]
+      },
+
+      'phoenix-rise': {
+        name: 'Phoenix Rising',
+        bpm: 100,
+        frames: [
+          { durationBeats: 3, transition: 'fade', cells: _drawPixelShape(PHOENIX_SHAPE, '#ff8c00', 5, 0) },
+          { durationBeats: 3, transition: 'fade', cells: _drawPixelShape(PHOENIX_SHAPE, '#ff8c00', 5, 2) },
+          { durationBeats: 3, transition: 'fade', cells: _drawPixelShape(PHOENIX_SHAPE, '#ffaa00', 5, 4) },
+          { durationBeats: 3, transition: 'fade', cells: _drawPixelShape(PHOENIX_SHAPE, '#ffcc00', 5, 6) },
+          { durationBeats: 3, transition: 'fade', cells: _drawPixelShape(PHOENIX_SHAPE, '#ffdd00', 5, 8) }
+        ]
+      },
+
+      'firework-burst': {
+        name: 'Fireworks',
+        bpm: 120,
+        frames: [
+          { durationBeats: 1, transition: 'instant', cells: _drawFilledCircle(5, 5, 2, '#ffff00') },
+          { durationBeats: 1, transition: 'instant', cells: _drawFilledCircle(5, 5, 3, '#ffaa00') },
+          { durationBeats: 1, transition: 'instant', cells: _mergeFrames(_drawFilledCircle(5, 5, 2, '#ffff00'), _drawFilledCircle(15, 5, 2, '#ff00ff'), _drawFilledCircle(10, 15, 2, '#00ffff')) },
+          { durationBeats: 1, transition: 'instant', cells: _mergeFrames(_drawFilledCircle(5, 5, 3, '#ff6600'), _drawFilledCircle(15, 5, 3, '#ff0088'), _drawFilledCircle(10, 15, 3, '#0088ff')) },
+          { durationBeats: 2, transition: 'fade', cells: {} }
+        ]
+      },
+
+      'globe-spin': {
+        name: 'Globe Spin',
+        bpm: 110,
+        frames: [
+          { durationBeats: 2, transition: 'instant', cells: _drawCircle(10, 10, 5, '#00b4d8') },
+          { durationBeats: 2, transition: 'instant', cells: _drawFilledCircle(10, 10, 3, '#00b4d8') },
+          { durationBeats: 2, transition: 'instant', cells: _drawCircle(10, 10, 6, '#0096c8') },
+          { durationBeats: 2, transition: 'instant', cells: _drawFilledCircle(10, 10, 2, '#0078a8') }
+        ]
+      },
+
+      'snake-wave': {
+        name: 'Snake Wave',
+        bpm: 100,
+        frames: [
+          { durationBeats: 2, transition: 'instant', cells: _drawLine(0, 5, 19, 5, '#2dd4a0') },
+          { durationBeats: 2, transition: 'instant', cells: _drawLine(0, 7, 19, 7, '#2dd4a0') },
+          { durationBeats: 2, transition: 'instant', cells: _drawLine(0, 9, 19, 9, '#2dd4a0') },
+          { durationBeats: 2, transition: 'instant', cells: _drawLine(0, 11, 19, 11, '#2dd4a0') },
+          { durationBeats: 2, transition: 'instant', cells: _drawLine(0, 13, 19, 13, '#2dd4a0') },
+          { durationBeats: 2, transition: 'instant', cells: _drawLine(0, 11, 19, 11, '#2dd4a0') }
+        ]
+      },
+
+      'star-explode': {
+        name: 'Star Explode',
+        bpm: 140,
+        frames: [
+          { durationBeats: 2, transition: 'fade', cells: _drawPixelShape(STAR_5PT, '#ffdd00', 5, 3) },
+          { durationBeats: 1, transition: 'instant', cells: _mergeFrames(_drawPixelShape(STAR_5PT, '#ffdd00', 5, 3), _drawCircle(10, 9, 4, '#ffaa00')) },
+          { durationBeats: 1, transition: 'instant', cells: _mergeFrames(_drawCircle(10, 9, 6, '#ff8800'), _drawFilledCircle(4, 4, 3, '#ffdd00'), _drawFilledCircle(16, 4, 3, '#ffdd00'), _drawFilledCircle(10, 16, 3, '#ffdd00')) },
+          { durationBeats: 2, transition: 'fade', cells: {} }
+        ]
+      },
+
+      'text-touch': {
+        name: 'TOUCH? Text',
+        bpm: 100,
+        frames: [
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawPixelShape(LETTER_T, '#ff6b35', 2, 7), _drawPixelShape(LETTER_O, '#ff6b35', 7, 7), _drawPixelShape(LETTER_U, '#ff6b35', 12, 7)) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawPixelShape(LETTER_C, '#ff6b35', 2, 7), _drawPixelShape(LETTER_H, '#ff6b35', 7, 7), _drawPixelShape(LETTER_Q, '#ff6b35', 12, 7)) }
+        ]
+      },
+
+      'lantern-float': {
+        name: 'Lanterns',
+        bpm: 88,
+        frames: [
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawFilledCircle(4, 15, 2, '#ff6432'), _drawFilledCircle(10, 15, 2, '#ff6432'), _drawFilledCircle(16, 15, 2, '#ff6432')) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawFilledCircle(4, 12, 2, '#ff6432'), _drawFilledCircle(10, 12, 2, '#ff6432'), _drawFilledCircle(16, 12, 2, '#ff6432')) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawFilledCircle(4, 9, 2, '#ff8c54'), _drawFilledCircle(10, 9, 2, '#ff8c54'), _drawFilledCircle(16, 9, 2, '#ff8c54')) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawFilledCircle(4, 6, 2, '#ffaa88'), _drawFilledCircle(10, 6, 2, '#ffaa88'), _drawFilledCircle(16, 6, 2, '#ffaa88')) }
+        ]
+      },
+
+      'dna-helix': {
+        name: 'DNA Helix',
+        bpm: 100,
+        frames: [
+          { durationBeats: 2, transition: 'instant', cells: _mergeFrames(_drawLine(5, 0, 5, 19, '#7c6aef'), _drawLine(15, 0, 15, 19, '#7c6aef'), _drawLine(10, 5, 10, 15, '#7c6aef')) },
+          { durationBeats: 2, transition: 'instant', cells: _mergeFrames(_drawLine(5, 0, 15, 19, '#7c6aef'), _drawLine(15, 0, 5, 19, '#7c6aef'), _drawLine(10, 0, 10, 19, '#b8a8ff')) },
+          { durationBeats: 2, transition: 'instant', cells: _mergeFrames(_drawFilledCircle(5, 5, 1, '#7c6aef'), _drawFilledCircle(15, 5, 1, '#7c6aef'), _drawFilledCircle(10, 15, 2, '#7c6aef')) },
+          { durationBeats: 2, transition: 'instant', cells: _mergeFrames(_drawFilledCircle(5, 10, 2, '#7c6aef'), _drawFilledCircle(15, 10, 2, '#7c6aef'), _drawFilledCircle(10, 5, 1, '#b8a8ff')) }
+        ]
+      },
+
+      'wave-ocean': {
+        name: 'Ocean Wave',
+        bpm: 92,
+        frames: [
+          { durationBeats: 2, transition: 'fade', cells: _drawLine(0, 14, 19, 12, '#0096c8') },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawLine(0, 12, 19, 9, '#0096c8'), _drawLine(0, 14, 19, 12, '#0078a8')) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawLine(0, 10, 19, 6, '#0096c8'), _drawLine(0, 12, 19, 9, '#0078a8'), _drawLine(0, 14, 19, 12, '#005a8a')) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawLine(0, 8, 19, 3, '#0096c8'), _drawLine(0, 10, 19, 6, '#0078a8'), _drawLine(0, 12, 19, 9, '#005a8a')) },
+          { durationBeats: 2, transition: 'fade', cells: _mergeFrames(_drawLine(0, 6, 19, 0, '#0096c8'), _drawLine(0, 8, 19, 3, '#0078a8'), _drawLine(0, 10, 19, 6, '#005a8a')) }
+        ]
+      }
+    };
+
     // ========== VENUE MAP SIMULATOR ==========
     var _vmCanvas = null;
     var _vmCtx = null;
@@ -3726,10 +4100,9 @@ init = function() {
       }
       // ---- END DRONE SHOW PREVIEW ----
 
-      // If no real devices, show simulated crowd from connected device count
-      if (_vmDevices.length === 0 && DJ.deviceCount > 0) {
-        // Generate phantom dots based on deviceCount for visualization
-        _ensurePhantomDots(DJ.deviceCount);
+      // Always ensure phantom dots match simulated phone count when no real devices or all are phantoms
+      if (_vmDevices.length === 0 || (_vmDevices.length > 0 && _vmDevices[0].id.indexOf('_phantom_') === 0)) {
+        _ensurePhantomDots(_vmSimPhoneCount);
       }
 
       // Animate and draw each device dot
@@ -3747,12 +4120,32 @@ init = function() {
         var baseSize = 3 + Math.sin(d.pulse) * 1;
         var sz = baseSize * _vmZoom;
 
+        // Determine color: if drone show active, get from frame cells; otherwise use device color
+        var cellColor = null;
+        if (_vmDroneShow && _vmDroneShow.frames && d.gridX !== undefined && d.gridY !== undefined) {
+          var elapsed = Date.now() - _vmDroneBeatOrigin;
+          var beatMs = (60000 / _vmDroneBpm);
+          var currentBeat = elapsed / beatMs;
+          var accumulatedBeats = 0;
+          for (var fi = 0; fi < _vmDroneShow.frames.length; fi++) {
+            var frame = _vmDroneShow.frames[fi];
+            var frameDuration = frame.durationBeats || 4;
+            if (currentBeat < accumulatedBeats + frameDuration) {
+              var cellKey = d.gridX + ',' + d.gridY;
+              cellColor = frame.cells[cellKey];
+              break;
+            }
+            accumulatedBeats += frameDuration;
+          }
+        }
+
         // Parse color
+        var displayColor = cellColor || d.color;
         var cr = 0, cg = 180, cb = 216;
-        if (d.color && d.color.length === 7) {
-          cr = parseInt(d.color.substr(1, 2), 16);
-          cg = parseInt(d.color.substr(3, 2), 16);
-          cb = parseInt(d.color.substr(5, 2), 16);
+        if (displayColor && displayColor.length === 7) {
+          cr = parseInt(displayColor.substr(1, 2), 16);
+          cg = parseInt(displayColor.substr(3, 2), 16);
+          cb = parseInt(displayColor.substr(5, 2), 16);
         }
 
         // Glow
