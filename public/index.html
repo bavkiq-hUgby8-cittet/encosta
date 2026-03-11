@@ -23981,7 +23981,7 @@ window.addEventListener('resize', resizeDJCanvas);
    ════════════════════════════════════════ */
 
 // -- Persistent particle pools (allocated once, reused) --
-var _djParticles = { fire: [], confetti: [], laser: [], electric: [] };
+var _djParticles = { fire: [], confetti: [], laser: [], electric: [], stars: [], galaxyParts: [] };
 var _djNoise = (function() {
   // Simple 1D value noise with interpolation
   var perm = new Float32Array(512);
@@ -24004,6 +24004,27 @@ function startDJAnimation() {
   _djParticles.laser = [];
   for (var i = 0; i < 60; i++) {
     _djParticles.laser.push({ x: 0, y: 0, alpha: 0, size: 0 });
+  }
+  _djParticles.stars = [];
+  for (var i = 0; i < 150; i++) {
+    _djParticles.stars.push({
+      x: (Math.random() - 0.5) * 2,
+      y: (Math.random() - 0.5) * 2,
+      z: Math.random(),
+      speed: 0.003 + Math.random() * 0.005
+    });
+  }
+  _djParticles.galaxyParts = [];
+  for (var i = 0; i < 300; i++) {
+    var _ga = Math.random() * Math.PI * 2;
+    var _gd = 0.05 + Math.pow(Math.random(), 0.5) * 0.45;
+    _djParticles.galaxyParts.push({
+      angle: _ga, dist: _gd,
+      speed: 0.2 + (0.5 - _gd) * 0.6,
+      size: 1 + Math.random() * 3,
+      hue: Math.random() * 60,
+      brightness: 0.4 + Math.random() * 0.6
+    });
   }
 
   function loop() {
@@ -24043,6 +24064,13 @@ function startDJAnimation() {
       case 'connect': drawConnect(ctx, w, h, rgb, beatPhase, t); break;
       case 'mirror': drawMirror(ctx, w, h, rgb, beatPhase, t); break;
       case 'raffle': drawRaffle(ctx, w, h, rgb, beatPhase, t); break;
+      case 'spectrum': drawSpectrum(ctx, w, h, rgb, beatPhase, t); break;
+      case 'waveform': drawWaveform(ctx, w, h, rgb, beatPhase, t); break;
+      case 'plasma': drawPlasma(ctx, w, h, rgb, beatPhase, t); break;
+      case 'starfield': drawStarfield(ctx, w, h, rgb, beatPhase, t); break;
+      case 'galaxy': drawGalaxy(ctx, w, h, rgb, beatPhase, t); break;
+      case 'bars': drawBars(ctx, w, h, rgb, beatPhase, t); break;
+      case 'cascade': drawCascade(ctx, w, h, rgb, beatPhase, t); break;
       default: drawPulse(ctx, w, h, rgb, beatPhase, t, beatCount);
     }
 
@@ -25093,6 +25121,270 @@ function drawRaffle(ctx, w, h, rgb, beatPhase, t) {
   }
 }
 
+/* ---- SPECTRUM: Classic EQ bars (Winamp style) ---- */
+function drawSpectrum(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var barCount = 48;
+  var gap = Math.max(1, Math.floor(w * 0.003));
+  var barW = (w - gap * (barCount - 1)) / barCount;
+  ctx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < barCount; i++) {
+    var freq = _djNoise(i * 0.8 + t * 2.5) * 0.5 +
+               _djNoise(i * 1.5 + t * 4) * 0.3 +
+               Math.sin(beat * Math.PI * 2 + i * 0.2) * 0.15;
+    freq += bassHit * 0.4 * (i < barCount * 0.3 ? 1 : 0.3);
+    freq = Math.max(0.02, Math.min(freq, 1));
+    var barH = freq * h * 0.85;
+    var x = i * (barW + gap);
+    var hue = (i / barCount) * 120;
+    var grad = ctx.createLinearGradient(x, h, x, h - barH);
+    grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.8)');
+    grad.addColorStop(0.5, 'hsla(' + (120 - hue) + ',80%,50%,0.6)');
+    grad.addColorStop(1, 'hsla(' + (120 - hue) + ',90%,65%,0.9)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, h - barH, barW, barH);
+    // Peak cap
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillRect(x, h - barH - 4, barW, 2);
+    // Glow at base
+    var glow = ctx.createRadialGradient(x + barW / 2, h, 0, x + barW / 2, h, barH * 0.3);
+    glow.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.05)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - barW, h - barH, barW * 3, barH);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- WAVEFORM: Oscilloscope (WMP style) ---- */
+function drawWaveform(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var cy = h / 2;
+  // Subtle center line
+  ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, cy);
+  ctx.lineTo(w, cy);
+  ctx.stroke();
+  // Background glow
+  var bgG = ctx.createRadialGradient(w / 2, cy, 0, w / 2, cy, h * 0.5);
+  bgG.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.04)');
+  bgG.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = bgG;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'lighter';
+  for (var layer = 0; layer < 3; layer++) {
+    var amp = h * (0.25 + bassHit * 0.2) * (1 - layer * 0.2);
+    var alpha = 0.6 - layer * 0.15;
+    var lw = 4 - layer;
+    ctx.beginPath();
+    for (var x = 0; x <= w; x += 2) {
+      var xn = x / w;
+      var y = cy +
+        Math.sin(xn * Math.PI * 4 + t * 3 + layer * 0.5) * amp * 0.5 +
+        Math.sin(xn * Math.PI * 7 + t * 5 + layer) * amp * 0.3 +
+        Math.sin(xn * Math.PI * 13 + t * 8 + layer * 2) * amp * 0.1 +
+        _djNoise(xn * 10 + t * 2 + layer) * amp * 0.2;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    // Glow
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.25) + ')';
+    ctx.lineWidth = lw + 6;
+    ctx.stroke();
+    // Core line
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + alpha + ')';
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- PLASMA: Milkdrop-style morphing (full-screen) ---- */
+function drawPlasma(ctx, w, h, rgb, beat, t) {
+  var step = Math.max(6, Math.floor(Math.min(w, h) * 0.01));
+  for (var y = 0; y < h; y += step) {
+    for (var x = 0; x < w; x += step) {
+      var nx = x / w;
+      var ny = y / h;
+      var v = Math.sin(nx * 6 + t * 1.5) +
+              Math.sin(ny * 4 + t * 1.2) +
+              Math.sin((nx + ny) * 5 + t * 0.8) +
+              Math.sin(Math.sqrt(nx * nx + ny * ny) * 8 + t * 2) +
+              Math.sin(Math.sqrt((nx - 0.5) * (nx - 0.5) * 4 + (ny - 0.5) * (ny - 0.5) * 4) * 6 - t * 1.5);
+      v = v / 5;
+      var hue = ((v + 1) * 180 + t * 30) % 360;
+      var sat = 70 + v * 20;
+      var lit = 40 + v * 20;
+      ctx.fillStyle = 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
+      ctx.fillRect(x, y, step + 1, step + 1);
+    }
+  }
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.12)';
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- STARFIELD: Flying through stars ---- */
+function drawStarfield(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+  var speedMult = 1 + bassHit * 3;
+  ctx.globalCompositeOperation = 'lighter';
+  var pool = _djParticles.stars;
+  for (var i = 0; i < pool.length; i++) {
+    var s = pool[i];
+    s.z -= s.speed * speedMult;
+    if (s.z <= 0.01) {
+      s.x = (Math.random() - 0.5) * 2;
+      s.y = (Math.random() - 0.5) * 2;
+      s.z = 1;
+    }
+    var sx = cx + (s.x / s.z) * w * 0.5;
+    var sy = cy + (s.y / s.z) * h * 0.5;
+    if (sx < -20 || sx > w + 20 || sy < -20 || sy > h + 20) {
+      s.x = (Math.random() - 0.5) * 2;
+      s.y = (Math.random() - 0.5) * 2;
+      s.z = 1;
+      continue;
+    }
+    var brightness = 1 - s.z;
+    var size = (1 - s.z) * 4 + 0.5;
+    // Streak
+    var prevZ = s.z + s.speed * speedMult;
+    var psx = cx + (s.x / prevZ) * w * 0.5;
+    var psy = cy + (s.y / prevZ) * h * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(psx, psy);
+    ctx.lineTo(sx, sy);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (brightness * 0.5) + ')';
+    ctx.lineWidth = size * 0.6;
+    ctx.stroke();
+    // Star
+    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 100, 255) + ',' + Math.min(rgb.b + 100, 255) + ',' + brightness + ')';
+    ctx.beginPath();
+    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- GALAXY: Rotating particle spiral ---- */
+function drawGalaxy(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+  var scale = Math.min(w, h) * 0.45;
+  ctx.globalCompositeOperation = 'lighter';
+  // Core
+  var coreG = ctx.createRadialGradient(cx, cy, 0, cx, cy, scale * 0.3);
+  coreG.addColorStop(0, 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',0.12)');
+  coreG.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = coreG;
+  ctx.beginPath();
+  ctx.arc(cx, cy, scale * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Spiral arms
+  var pool = _djParticles.galaxyParts;
+  for (var i = 0; i < pool.length; i++) {
+    var p = pool[i];
+    var a = p.angle + t * p.speed * 0.3 + Math.log(p.dist + 0.1) * 2.5;
+    var r = p.dist * scale;
+    var px = cx + Math.cos(a) * r;
+    var py = cy + Math.sin(a) * r * 0.6;
+    var alpha = p.brightness * (0.5 + bassHit * 0.4);
+    var hue = (p.hue + t * 15) % 360;
+    // Glow
+    var sg = ctx.createRadialGradient(px, py, 0, px, py, p.size * 4);
+    sg.addColorStop(0, 'hsla(' + hue + ',60%,70%,' + (alpha * 0.3) + ')');
+    sg.addColorStop(1, 'hsla(' + hue + ',60%,50%,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(px - p.size * 4, py - p.size * 4, p.size * 8, p.size * 8);
+    // Core
+    ctx.fillStyle = 'hsla(' + hue + ',70%,75%,' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(px, py, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- BARS: Classic WMP bars with reflection ---- */
+function drawBars(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var barCount = 24;
+  var gap = Math.max(2, Math.floor(w * 0.005));
+  var barW = (w - gap * (barCount + 1)) / barCount;
+  var midH = h * 0.55;
+  for (var i = 0; i < barCount; i++) {
+    var x = gap + i * (barW + gap);
+    var amp = (_djNoise(i * 1.2 + t * 3) * 0.4 +
+               _djNoise(i * 0.5 + t * 5) * 0.3 +
+               Math.sin(beat * Math.PI * 2 + i * 0.3) * 0.2);
+    amp = Math.max(0.05, Math.min(amp + bassHit * 0.35, 1));
+    var barH = amp * midH;
+    var hue = (i / barCount * 60 + t * 20) % 360;
+    // Main bar
+    var grad = ctx.createLinearGradient(x, midH, x, midH - barH);
+    grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.9)');
+    grad.addColorStop(0.4, 'hsla(' + hue + ',80%,55%,0.8)');
+    grad.addColorStop(1, 'hsla(' + hue + ',90%,70%,0.9)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, midH - barH, barW, barH);
+    // Reflection
+    var refG = ctx.createLinearGradient(x, midH, x, midH + barH * 0.4);
+    refG.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.12)');
+    refG.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = refG;
+    ctx.fillRect(x, midH + 1, barW, barH * 0.4);
+    // Top cap
+    ctx.fillStyle = 'hsla(' + hue + ',90%,80%,0.9)';
+    ctx.fillRect(x, midH - barH - 4, barW, 3);
+  }
+}
+
+/* ---- CASCADE: Color wave propagation across devices (drone shot) ---- */
+function drawCascade(ctx, w, h, rgb, beat, t) {
+  // Each device gets a color based on its deviceIndex + time
+  var deviceIdx = DJL.deviceIndex || 0;
+  var totalDevices = DJL.totalDevices || 20;
+  var waveSpeed = 1.2;
+  var devicePhase = (t * waveSpeed - deviceIdx * 0.2) % 4;
+  if (devicePhase < 0) devicePhase += 4;
+  var hue;
+  if (devicePhase < 1) {
+    hue = devicePhase * 90;
+  } else if (devicePhase < 2) {
+    hue = 90 + (devicePhase - 1) * 90;
+  } else if (devicePhase < 3) {
+    hue = 180 + (devicePhase - 2) * 90;
+  } else {
+    hue = 270 + (devicePhase - 3) * 90;
+  }
+  var sat = 85;
+  var lit = 50 + Math.sin(t * 2) * 8;
+  // Full screen color
+  var grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
+  grad.addColorStop(0, 'hsla(' + hue + ',' + sat + '%,' + (lit + 15) + '%,1)');
+  grad.addColorStop(0.7, 'hsla(' + hue + ',' + sat + '%,' + lit + '%,1)');
+  grad.addColorStop(1, 'hsla(' + hue + ',' + (sat - 10) + '%,' + (lit - 10) + '%,1)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  // Beat pulse overlay
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  if (bassHit > 0.2) {
+    ctx.fillStyle = 'rgba(255,255,255,' + (bassHit * 0.12) + ')';
+    ctx.fillRect(0, 0, w, h);
+  }
+  // Device number
+  ctx.font = 'bold ' + Math.floor(Math.min(w, h) * 0.08) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillText('#' + (deviceIdx + 1), w / 2, h * 0.9);
+}
+
 function doFlash(duration) {
   if (!DJL.active || !DJL.ctx) return;
   var dpr = window.devicePixelRatio || 1;
@@ -25170,6 +25462,13 @@ function setupDJListeners() {
       case 'electric': DJL.animation = 'electric'; break;
       case 'connect': DJL.animation = 'connect'; break;
       case 'mirror': DJL.animation = 'mirror'; break;
+      case 'spectrum': DJL.animation = 'spectrum'; break;
+      case 'waveform': DJL.animation = 'waveform'; break;
+      case 'plasma': DJL.animation = 'plasma'; break;
+      case 'starfield': DJL.animation = 'starfield'; break;
+      case 'galaxy': DJL.animation = 'galaxy'; break;
+      case 'bars': DJL.animation = 'bars'; break;
+      case 'cascade': DJL.animation = 'cascade'; break;
       case 'raffle':
         DJL.animation = 'raffle';
         DJL.raffleState = 'scramble';
