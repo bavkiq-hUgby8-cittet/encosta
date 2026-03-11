@@ -17762,7 +17762,11 @@ app.post('/api/dj/session/create', (req, res) => {
     totalZones: 4,
     liveText: '',
     connectedDevices: new Set(),
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    // Choreography / light show
+    choreography: null,
+    beatOrigin: null,
+    showActive: false
   };
 
   // Update event djLive state
@@ -17960,6 +17964,73 @@ io.on('connection', (socket) => {
         io.to('event:' + s.eventId).emit('dj-command', basePayload);
       }
     }
+  });
+
+  // --- Time Sync (NTP-style) for coordinated light shows ---
+  socket.on('dj-time-sync', (data) => {
+    // Client sends { t0: clientTimestamp }
+    // Server responds with server timestamps for round-trip calculation
+    const t1 = Date.now();
+    socket.emit('dj-time-sync-response', {
+      t0: data.t0,
+      t1: t1,
+      t2: Date.now()
+    });
+  });
+
+  // --- DJ sends choreography to all audience devices ---
+  socket.on('dj-choreography', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    // Store choreography and beat origin in session
+    s.choreography = data.choreography || null;
+    s.beatOrigin = data.beatOrigin || Date.now();
+    s.showActive = !!data.showActive;
+
+    const payload = {
+      sessionId: data.sessionId,
+      choreography: s.choreography,
+      beatOrigin: s.beatOrigin,
+      showActive: s.showActive,
+      bpm: s.bpm,
+      totalDevices: s.connectedDevices.size
+    };
+
+    // Send to all audience devices with their individual position info
+    const devicesArr = Array.from(s.connectedDevices);
+    const totalDevices = devicesArr.length;
+    const room = io.sockets.adapter.rooms.get('dj-live:' + data.sessionId);
+    if (room) {
+      let idx = 0;
+      for (const sid of room) {
+        const deviceSocket = io.sockets.sockets.get(sid);
+        if (deviceSocket) {
+          const deviceId = sid;
+          const devIdx = devicesArr.indexOf(deviceId);
+          const di = devIdx >= 0 ? devIdx : idx;
+          deviceSocket.emit('dj-choreography', Object.assign({}, payload, {
+            deviceIndex: di,
+            totalDevices: totalDevices,
+            // Normalized position: x = index / total (0 to 1)
+            position: {
+              x: totalDevices > 1 ? di / (totalDevices - 1) : 0.5,
+              y: 0.5 // Depth unknown in Phase 1, assume middle
+            }
+          }));
+        }
+        idx++;
+      }
+    }
+
+    // Also to event room
+    if (s.eventId) {
+      io.to('event:' + s.eventId).emit('dj-choreography', payload);
+    }
+
+    console.log('[DJ] Choreography broadcast:', s.showActive ? 'STARTED' : 'STOPPED',
+      '| devices:', totalDevices, '| steps:', s.choreography ? s.choreography.steps.length : 0);
   });
 
   // --- Audience phone detected ultrasonic frequency, check if DJ session exists ---

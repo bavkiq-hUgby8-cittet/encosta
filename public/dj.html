@@ -387,6 +387,40 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     <div id="zonePreview" style="display:flex;gap:2px;margin-top:.5rem;height:20px;border-radius:var(--radius);overflow:hidden"></div>
   </section>
 
+  <!-- SHOW MODE (Coordinated Light Show) -->
+  <section class="dj-ctrl-card full" id="showModeSection">
+    <div class="dj-ctrl-title" style="display:flex;align-items:center;gap:.5rem">
+      <span>Show Mode</span>
+      <span style="font-size:.55rem;background:linear-gradient(135deg,#7c6aef,#ff3c6e);padding:2px 6px;border-radius:8px;color:#fff">PRO</span>
+    </div>
+    <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Coordinated patterns -- each phone shows different colors based on position</div>
+
+    <!-- Preset Shows -->
+    <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+      <button class="dj-bpm-btn" onclick="startPresetShow('wave-show')" title="Wave traveling across the crowd">Wave</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('ripple-show')" title="Ripple expanding from center">Ripple</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('heart-show')" title="Heart shape pulsing">Heart</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('mexican-wave')" title="Stadium wave">Stadium</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('rainbow-show')" title="Rainbow flowing across crowd">Rainbow</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('firework-show')" title="Firework explosions">Firework</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('spotlight-show')" title="Spotlight scanning crowd">Spotlight</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('countdown-show')" title="3-2-1-GO countdown">Countdown</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('sparkle-show')" title="Random twinkling stars">Sparkle</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('breathe-show')" title="Synchronized breathing">Breathe</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('checker-show')" title="Alternating checkerboard">Checker</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('full-show')" title="Full auto choreography combining all patterns">AUTO SHOW</button>
+    </div>
+
+    <!-- Show Status -->
+    <div id="showStatus" style="display:none;padding:.4rem .6rem;background:rgba(124,106,239,.15);border-radius:var(--radius);font-size:.7rem;margin-bottom:.4rem">
+      <span id="showStatusText" style="color:var(--t2)">No show active</span>
+      <button class="dj-bpm-btn" onclick="stopShow()" style="margin-left:.5rem;background:rgba(255,60,60,.2);color:#ff4444;font-size:.6rem">STOP</button>
+    </div>
+
+    <!-- Show Preview Canvas -->
+    <canvas id="showPreviewCanvas" width="200" height="60" style="width:100%;height:60px;border-radius:var(--radius);background:#000;display:none"></canvas>
+  </section>
+
   <!-- ANIMATIONS -->
   <section class="dj-ctrl-card full">
     <div class="dj-ctrl-title">Animations</div>
@@ -2112,6 +2146,373 @@ window.setZones = function(n) {
 
 // Initial render of zone preview
 setTimeout(updateZonePreview, 500);
+
+/* ---- SHOW MODE (Coordinated Light Show) ---- */
+DJ.showActive = false;
+DJ.currentShow = null;
+
+// Preset show definitions
+var showPresets = {
+  'wave-show': {
+    name: 'Wave',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'wave-lr', speed: 1.0 },
+      { startBeat: 16, endBeat: 32, pattern: 'wave-rl', speed: 1.0 },
+      { startBeat: 32, endBeat: 48, pattern: 'wave-lr', speed: 2.0 },
+      { startBeat: 48, endBeat: 64, pattern: 'wave-rl', speed: 2.0 }
+    ]
+  },
+  'ripple-show': {
+    name: 'Ripple',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'ripple-center', speed: 0.8 },
+      { startBeat: 16, endBeat: 32, pattern: 'ripple-stage', speed: 0.6 },
+      { startBeat: 32, endBeat: 48, pattern: 'ripple-center', speed: 1.5 },
+      { startBeat: 48, endBeat: 64, pattern: 'ripple-stage', speed: 1.2 }
+    ]
+  },
+  'heart-show': {
+    name: 'Heart',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'heart', color: '#ff1744' },
+      { startBeat: 32, endBeat: 64, pattern: 'heart', color: '#ff69b4' }
+    ]
+  },
+  'mexican-wave': {
+    name: 'Stadium Wave',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'mexican-wave', speed: 0.3 },
+      { startBeat: 32, endBeat: 64, pattern: 'mexican-wave', speed: 0.5 }
+    ]
+  },
+  'rainbow-show': {
+    name: 'Rainbow',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'rainbow-wave', speed: 0.3 },
+      { startBeat: 32, endBeat: 64, pattern: 'rainbow-wave', speed: 0.6 }
+    ]
+  },
+  'firework-show': {
+    name: 'Firework',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'firework', speed: 1.0, color: '#ff6b35' },
+      { startBeat: 16, endBeat: 32, pattern: 'firework', speed: 1.2, color: '#00b4d8' },
+      { startBeat: 32, endBeat: 48, pattern: 'firework', speed: 0.8, color: '#ff3c6e' },
+      { startBeat: 48, endBeat: 64, pattern: 'firework', speed: 1.5, color: '#7c6aef' }
+    ]
+  },
+  'spotlight-show': {
+    name: 'Spotlight',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'spotlight', speed: 0.2, color: '#ffffff' },
+      { startBeat: 32, endBeat: 64, pattern: 'spotlight', speed: 0.4, color: '#ffdd00' }
+    ]
+  },
+  'countdown-show': {
+    name: 'Countdown',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'countdown', color: '#ffdd00' },
+      { startBeat: 16, endBeat: 32, pattern: 'breathe', color: '#00ff88' }
+    ]
+  },
+  'sparkle-show': {
+    name: 'Sparkle',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'random-sparkle', speed: 2, color: '#ffffff' },
+      { startBeat: 32, endBeat: 64, pattern: 'random-sparkle', speed: 3, color: '#ffdd00' }
+    ]
+  },
+  'breathe-show': {
+    name: 'Breathe',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'breathe' },
+      { startBeat: 32, endBeat: 64, pattern: 'breathe' }
+    ]
+  },
+  'checker-show': {
+    name: 'Checker',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'checkerboard', cols: 4, rows: 4 },
+      { startBeat: 16, endBeat: 32, pattern: 'checkerboard', cols: 6, rows: 6 },
+      { startBeat: 32, endBeat: 48, pattern: 'strobe-sections', sections: 4 },
+      { startBeat: 48, endBeat: 64, pattern: 'strobe-sections', sections: 8 }
+    ]
+  },
+  'full-show': {
+    name: 'AUTO SHOW',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'breathe', color: '#7c6aef' },
+      { startBeat: 16, endBeat: 32, pattern: 'wave-lr', speed: 1.0 },
+      { startBeat: 32, endBeat: 48, pattern: 'ripple-center', speed: 0.8 },
+      { startBeat: 48, endBeat: 64, pattern: 'mexican-wave', speed: 0.3 },
+      { startBeat: 64, endBeat: 80, pattern: 'rainbow-wave', speed: 0.4 },
+      { startBeat: 80, endBeat: 96, pattern: 'spotlight', speed: 0.2, color: '#ffffff' },
+      { startBeat: 96, endBeat: 112, pattern: 'firework', speed: 1.0, color: '#ff6b35' },
+      { startBeat: 112, endBeat: 120, pattern: 'random-sparkle', speed: 3, color: '#ffdd00' },
+      { startBeat: 120, endBeat: 128, pattern: 'heart', color: '#ff1744' },
+      { startBeat: 128, endBeat: 136, pattern: 'countdown', color: '#00ff88' },
+      { startBeat: 136, endBeat: 160, pattern: 'wave-lr', speed: 2.0 },
+      { startBeat: 160, endBeat: 176, pattern: 'strobe-sections', sections: 4 },
+      { startBeat: 176, endBeat: 192, pattern: 'ripple-stage', speed: 1.2 },
+      { startBeat: 192, endBeat: 208, pattern: 'spiral', speed: 0.5 },
+      { startBeat: 208, endBeat: 224, pattern: 'firework', speed: 1.5, color: '#ff3c6e' },
+      { startBeat: 224, endBeat: 256, pattern: 'breathe', color: '#ffffff' }
+    ]
+  }
+};
+
+window.startPresetShow = function(presetName) {
+  var preset = showPresets[presetName];
+  if (!preset) { showToast('Unknown preset: ' + presetName); return; }
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+
+  // Apply current DJ color to steps that don't have a specific color
+  var steps = preset.steps.map(function(s) {
+    var step = {};
+    for (var k in s) step[k] = s[k];
+    if (!step.color) step.color = DJ.color;
+    return step;
+  });
+
+  var choreography = {
+    name: preset.name,
+    bpm: DJ.bpm,
+    steps: steps,
+    loop: true // Loop the show
+  };
+
+  var beatOrigin = Date.now();
+  DJ.showActive = true;
+  DJ.currentShow = presetName;
+
+  socket.emit('dj-choreography', {
+    sessionId: DJ.sessionId,
+    choreography: choreography,
+    beatOrigin: beatOrigin,
+    showActive: true
+  });
+
+  // Update UI
+  var statusEl = document.getElementById('showStatus');
+  var statusText = document.getElementById('showStatusText');
+  var canvas = document.getElementById('showPreviewCanvas');
+  if (statusEl) statusEl.style.display = 'flex';
+  if (statusText) statusText.textContent = 'LIVE: ' + preset.name + ' (' + steps.length + ' steps)';
+  if (canvas) canvas.style.display = 'block';
+
+  // Highlight active button
+  var btns = document.querySelectorAll('#showModeSection .dj-bpm-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  var activeBtn = Array.from(btns).find(function(b) {
+    return b.getAttribute('onclick') && b.getAttribute('onclick').indexOf(presetName) > -1;
+  });
+  if (activeBtn) activeBtn.classList.add('active');
+
+  // Start show preview animation
+  startShowPreview(choreography, beatOrigin);
+
+  showToast('Show started: ' + preset.name);
+};
+
+window.stopShow = function() {
+  DJ.showActive = false;
+  DJ.currentShow = null;
+  if (DJ.broadcasting && socket) {
+    socket.emit('dj-choreography', {
+      sessionId: DJ.sessionId,
+      choreography: null,
+      beatOrigin: 0,
+      showActive: false
+    });
+  }
+  var statusEl = document.getElementById('showStatus');
+  var canvas = document.getElementById('showPreviewCanvas');
+  if (statusEl) statusEl.style.display = 'none';
+  if (canvas) canvas.style.display = 'none';
+  // Remove active from show buttons
+  var btns = document.querySelectorAll('#showModeSection .dj-bpm-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  if (DJ._showPreviewRaf) { cancelAnimationFrame(DJ._showPreviewRaf); DJ._showPreviewRaf = null; }
+  showToast('Show stopped');
+};
+
+// Render a mini grid preview of the show (simulated audience)
+function startShowPreview(choreography, beatOrigin) {
+  if (DJ._showPreviewRaf) cancelAnimationFrame(DJ._showPreviewRaf);
+  var canvas = document.getElementById('showPreviewCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var cols = 40, rows = 12; // Simulated audience grid
+
+  function frame() {
+    if (!DJ.showActive) return;
+    var w = canvas.width, h = canvas.height;
+    var cellW = w / cols, cellH = h / rows;
+    var serverNow = Date.now();
+    var showBPM = choreography.bpm || DJ.bpm;
+    var showBeat = (serverNow - beatOrigin) * showBPM / 60000;
+
+    // Loop: if past all steps, restart from beginning
+    if (choreography.loop && choreography.steps.length > 0) {
+      var maxBeat = choreography.steps[choreography.steps.length - 1].endBeat;
+      if (maxBeat > 0) showBeat = showBeat % maxBeat;
+    }
+
+    var step = null;
+    for (var si = choreography.steps.length - 1; si >= 0; si--) {
+      var s = choreography.steps[si];
+      if (showBeat >= s.startBeat && showBeat < s.endBeat) { step = s; break; }
+    }
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+
+    if (step) {
+      var localBeat = (showBeat - step.startBeat) / (step.endBeat - step.startBeat);
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var x = c / (cols - 1);
+          var y = r / (rows - 1);
+          // Simple pattern computation (inline for preview)
+          var color = _previewPattern(step.pattern, x, y, localBeat, step);
+          ctx.fillStyle = 'rgb(' + color.r + ',' + color.g + ',' + color.b + ')';
+          ctx.fillRect(c * cellW + 0.5, r * cellH + 0.5, cellW - 1, cellH - 1);
+        }
+      }
+    }
+
+    DJ._showPreviewRaf = requestAnimationFrame(frame);
+  }
+  DJ._showPreviewRaf = requestAnimationFrame(frame);
+}
+
+// Simplified pattern functions for DJ preview
+function _previewPattern(pattern, x, y, beat, step) {
+  var rgb = _pvHexToRgb(step.color || DJ.color);
+  switch (pattern) {
+    case 'wave-lr': {
+      var phase = (x - beat * (step.speed || 1)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'wave-rl': return _previewPattern('wave-lr', 1 - x, y, beat, step);
+    case 'wave-tb': return _previewPattern('wave-lr', y, x, beat, step);
+    case 'wave-bt': return _previewPattern('wave-lr', 1 - y, x, beat, step);
+    case 'ripple-center': {
+      var dx = x - 0.5, dy = y - 0.5;
+      var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+      var phase = (dist - beat * (step.speed || 0.8)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 3);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'ripple-stage': {
+      var phase = (y - beat * (step.speed || 0.6)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'mexican-wave': {
+      var center = (beat * (step.speed || 0.3)) % 1;
+      var dist = Math.abs(x - center);
+      if (dist > 0.5) dist = 1 - dist;
+      var b = dist < 0.15 ? Math.pow(1 - dist / 0.15, 2) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'heart': {
+      var hx = (x - 0.5) * 3, hy = -(y - 0.35) * 3;
+      var scale = 0.8 + Math.sin(beat * Math.PI * 2) * 0.2;
+      hx /= scale; hy /= scale;
+      var val = Math.pow(hx*hx + hy*hy - 1, 3) - hx*hx*hy*hy*hy;
+      var b = val < 0 ? 1.0 : (Math.abs(val) < 0.3 ? 0.3 : 0);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'random-sparkle': {
+      var seed = Math.sin(x * 12345.6789 + y * 9876.54321) * 43758.5453;
+      seed = seed - Math.floor(seed);
+      var ft = (beat * (step.speed || 2) + seed * 7) % 1;
+      var b = ft < 0.15 ? Math.pow(1 - ft / 0.15, 3) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'spotlight': {
+      var cx = 0.5 + Math.sin(beat * (step.speed||0.2) * Math.PI * 2) * 0.4;
+      var cy = 0.5 + Math.cos(beat * (step.speed||0.2) * Math.PI * 2 * 0.7) * 0.3;
+      var dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+      var b = dist < 0.2 ? Math.pow(1 - dist / 0.2, 1.5) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'spiral': {
+      var dx = x - 0.5, dy = y - 0.5;
+      var angle = Math.atan2(dy, dx);
+      var dist = Math.sqrt(dx*dx + dy*dy) * 2;
+      var phase = (angle / (Math.PI * 2) * 3 + dist * 4 - beat * (step.speed||0.5)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 4) * (1 - dist * 0.5);
+      b = Math.max(0, b);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'firework': {
+      var cycle = (beat * (step.speed||1)) % 1;
+      var seed = Math.floor(beat * (step.speed||1));
+      var cx = 0.2 + (Math.sin(seed * 123.456) * 0.5 + 0.5) * 0.6;
+      var cy = 0.2 + (Math.cos(seed * 789.012) * 0.5 + 0.5) * 0.6;
+      var dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+      var ringPos = cycle * 0.8;
+      var b = Math.abs(dist - ringPos) < 0.08 ? Math.pow(1 - cycle, 2) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'breathe': {
+      var b = 0.2 + Math.pow(Math.sin(beat * Math.PI * 2) * 0.5 + 0.5, 2) * 0.8;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'countdown': {
+      var num = 3 - Math.floor(beat * 4) % 4;
+      if (num < 0) num = 0;
+      var col = Math.floor(x * 5), row = Math.floor(y * 7);
+      var segs = { 3:[[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]], 2:[[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]], 1:[[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0]], 0:[[0,1,0],[1,0,1],[1,1,1],[1,0,1],[0,1,0]] };
+      var p = segs[num] || segs[0];
+      var lit = row >= 1 && row <= 5 && col >= 1 && col <= 3 && p[row-1] && p[row-1][col-1];
+      var b = lit ? 0.9 : 0.02;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'rainbow-wave': {
+      var hue = ((x + beat * (step.speed || 0.3)) * 360) % 360;
+      var pulse = 0.7 + Math.sin(beat * Math.PI * 4) * 0.3;
+      var h = hue / 360, s = 1, l = 0.5 * pulse;
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+      var h2r = function(p, q, t) { if (t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p; };
+      return { r: Math.round(h2r(p,q,h+1/3)*255), g: Math.round(h2r(p,q,h)*255), b: Math.round(h2r(p,q,h-1/3)*255) };
+    }
+    case 'checkerboard': {
+      var cols2 = step.cols || 4, rows2 = step.rows || 4;
+      var isW = (Math.floor(x * cols2) + Math.floor(y * rows2) + Math.floor(beat * 2)) % 2 === 0;
+      return isW ? rgb : { r: 0, g: 0, b: 0 };
+    }
+    case 'strobe-sections': {
+      var secs = step.sections || 4;
+      var sec = Math.floor(x * secs);
+      var isOn = (Math.floor(beat * 4) + sec) % 2 === 0;
+      return isOn ? rgb : { r: 0, g: 0, b: 0 };
+    }
+    case 'split-halves': {
+      var isLeft = x < 0.5;
+      var pulse = 0.7 + Math.sin(beat * Math.PI * 2) * 0.3;
+      var rgb2 = _pvHexToRgb(step.color2 || '#00b4d8');
+      var c = isLeft ? rgb : rgb2;
+      return { r: Math.round(c.r * pulse), g: Math.round(c.g * pulse), b: Math.round(c.b * pulse) };
+    }
+    default: return rgb;
+  }
+}
+
+function _pvHexToRgb(hex) {
+  if (!hex || hex.charAt(0) !== '#') return { r: 255, g: 100, b: 50 };
+  var r = parseInt(hex.slice(1, 3), 16) || 0;
+  var g = parseInt(hex.slice(3, 5), 16) || 0;
+  var b = parseInt(hex.slice(5, 7), 16) || 0;
+  return { r: r, g: g, b: b };
+}
 
 /* ---- AUTO MODE ---- */
 DJ.autoMode = false;
