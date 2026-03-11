@@ -152,6 +152,28 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .dj-auto-btn:hover{background:rgba(255,255,255,.06)}
 .dj-auto-btn.active{background:var(--ok);border-color:var(--ok);color:#000}
 
+/* ---- KILL SWITCH ---- */
+.dj-kill-row{display:flex;gap:.5rem;margin-bottom:.3rem}
+.dj-kill-btn{flex:1;padding:.85rem;border:2px solid rgba(255,30,30,.4);border-radius:var(--radius);background:rgba(255,20,20,.08);color:#ff4444;font-family:var(--font-display);font-size:.85rem;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:.08em;transition:all .15s;text-align:center}
+.dj-kill-btn:active{transform:scale(.96)}
+.dj-kill-btn:hover{background:rgba(255,20,20,.2);border-color:#ff4444;box-shadow:0 0 20px rgba(255,30,30,.2)}
+.dj-kill-btn.off{border-color:rgba(255,30,30,.6);background:rgba(255,20,20,.25);box-shadow:0 0 30px rgba(255,30,30,.3)}
+
+/* ---- MUSIC SYNC ---- */
+.dj-sync-btn{padding:.7rem 1rem;border:1px solid rgba(0,180,216,.3);border-radius:var(--radius);background:rgba(0,180,216,.08);color:#00b4d8;font-family:var(--font-display);font-size:.75rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;transition:all .15s;text-align:center;display:flex;align-items:center;justify-content:center;gap:.4rem}
+.dj-sync-btn:hover{background:rgba(0,180,216,.15)}
+.dj-sync-btn.active{background:rgba(0,180,216,.25);border-color:#00b4d8;box-shadow:0 0 20px rgba(0,180,216,.2);animation:sync-pulse 1.5s infinite}
+@keyframes sync-pulse{0%,100%{box-shadow:0 0 10px rgba(0,180,216,.2)}50%{box-shadow:0 0 25px rgba(0,180,216,.4)}}
+.dj-sync-visualizer{width:100%;height:30px;border-radius:8px;background:#000;margin-top:.4rem;overflow:hidden}
+
+/* ---- SECTION DIVIDER ---- */
+.dj-section-divider{height:1px;background:linear-gradient(to right,transparent,rgba(255,255,255,.08),transparent);margin:.3rem 0}
+
+/* ---- QUICK BTN (for raffle etc) ---- */
+.dj-quick-btn{padding:.7rem 1rem;border:none;border-radius:var(--radius);color:#fff;font-family:var(--font-display);font-size:.78rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;transition:all .15s;text-align:center}
+.dj-quick-btn:active{transform:scale(.95)}
+.dj-quick-btn:hover{filter:brightness(1.15)}
+
 /* ---- SESSION SETUP (LOGIN) ---- */
 .dj-setup{position:fixed;inset:0;z-index:200;background:linear-gradient(135deg,#050508 0%,#0d0816 50%,#050508 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem}
 .dj-setup.hidden{display:none}
@@ -312,15 +334,35 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     </button>
   </section>
 
-  <!-- QUICK ACTIONS -->
+  <!-- MASTER CONTROLS -->
   <section class="dj-ctrl-card full">
-    <div class="dj-ctrl-title">Quick Actions</div>
-    <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
-      <button class="dj-auto-btn" id="autoModeBtn" onclick="toggleAutoMode()">Auto</button>
+    <div class="dj-ctrl-title">Master Controls</div>
+
+    <!-- Kill switch row -->
+    <div class="dj-kill-row">
+      <button class="dj-kill-btn" id="killBtn" onclick="killAllPhones()">
+        ALL OFF
+      </button>
+      <button class="dj-action-btn flash-btn" id="btnFlash" onclick="sendCommand('flash')" style="flex:1;padding:.85rem;font-size:.85rem;font-weight:900;letter-spacing:.08em">
+        FLASH
+      </button>
+    </div>
+
+    <!-- Music Sync -->
+    <button class="dj-sync-btn" id="musicSyncBtn" onclick="toggleMusicSync()" style="width:100%;margin-bottom:.5rem">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      Music Sync Auto
+    </button>
+    <canvas id="musicSyncVisualizer" class="dj-sync-visualizer" width="300" height="30" style="display:none"></canvas>
+
+    <div class="dj-section-divider"></div>
+
+    <!-- Quick Actions Grid -->
+    <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
+      <button class="dj-auto-btn" id="autoModeBtn" onclick="toggleAutoMode()">Auto Cycle</button>
     </div>
     <div class="dj-action-grid">
       <button class="dj-action-btn pulse-btn" id="btnPulse" onclick="sendCommand('pulse')">Pulse</button>
-      <button class="dj-action-btn flash-btn" id="btnFlash" onclick="sendCommand('flash')">Flash</button>
       <button class="dj-action-btn blackout-btn" id="btnBlackout" onclick="sendCommand('blackout')">Blackout</button>
       <button class="dj-action-btn solid-btn" id="btnSolid" onclick="sendCommand('solid')">Solid Color</button>
       <button class="dj-action-btn" id="btnStrobe" style="border-color:rgba(255,221,0,.2);background:rgba(255,221,0,.06)" onclick="sendCommand('strobe')">Strobe</button>
@@ -508,7 +550,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
   </section>
 
   <!-- RAFFLE / SORTEIO -->
-  <section class="dj-ctrl-section">
+  <section class="dj-ctrl-card full">
     <div class="dj-ctrl-title">Raffle / Sorteio</div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
       <button class="dj-quick-btn" onclick="startRaffle()" style="background:linear-gradient(135deg,#7c6aef,#ff3c6e);flex:1;min-width:120px">
@@ -2672,6 +2714,195 @@ function startPositionMap() {
 
 // Start map rendering when page loads
 setTimeout(startPositionMap, 1000);
+
+/* ---- KILL ALL PHONES ---- */
+DJ.killed = false;
+window.killAllPhones = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  DJ.killed = !DJ.killed;
+  var btn = document.getElementById('killBtn');
+  if (DJ.killed) {
+    // Send blackout with kill flag
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'blackout',
+      kill: true,
+      color: '#000000',
+      bpm: DJ.bpm,
+      animation: 'solid',
+      timestamp: Date.now()
+    });
+    if (btn) { btn.classList.add('off'); btn.textContent = 'LIGHTS OFF'; }
+    // Stop auto mode and music sync if active
+    if (DJ.autoMode) toggleAutoMode();
+    if (DJ.musicSync) toggleMusicSync();
+    showToast('All phones OFF');
+  } else {
+    // Resume previous state
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: DJ.animation || 'pulse',
+      color: DJ.color,
+      bpm: DJ.bpm,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+    if (btn) { btn.classList.remove('off'); btn.textContent = 'ALL OFF'; }
+    showToast('Lights back ON');
+  }
+};
+
+/* ---- MUSIC SYNC AUTO ---- */
+DJ.musicSync = false;
+DJ._syncAudioCtx = null;
+DJ._syncAnalyser = null;
+DJ._syncStream = null;
+DJ._syncRaf = null;
+DJ._syncBeatLast = 0;
+DJ._syncEnergy = 0;
+DJ._syncEffects = ['pulse','fire','ocean','rainbow','strobe','confetti','electric','laser'];
+DJ._syncEffectIdx = 0;
+DJ._syncFlashCooldown = 0;
+
+window.toggleMusicSync = function() {
+  DJ.musicSync = !DJ.musicSync;
+  var btn = document.getElementById('musicSyncBtn');
+  var viz = document.getElementById('musicSyncVisualizer');
+
+  if (DJ.musicSync) {
+    // Start mic capture for beat detection
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Microphone not available');
+      DJ.musicSync = false;
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      DJ._syncStream = stream;
+      DJ._syncAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var src = DJ._syncAudioCtx.createMediaStreamSource(stream);
+      DJ._syncAnalyser = DJ._syncAudioCtx.createAnalyser();
+      DJ._syncAnalyser.fftSize = 512;
+      DJ._syncAnalyser.smoothingTimeConstant = 0.4;
+      src.connect(DJ._syncAnalyser);
+      if (viz) viz.style.display = 'block';
+      if (btn) btn.classList.add('active');
+      showToast('Music Sync ON -- listening...');
+      _startMusicSyncLoop();
+    }).catch(function(err) {
+      showToast('Mic access denied');
+      DJ.musicSync = false;
+      if (btn) btn.classList.remove('active');
+    });
+  } else {
+    // Stop music sync
+    _stopMusicSync();
+    if (btn) btn.classList.remove('active');
+    if (viz) viz.style.display = 'none';
+    showToast('Music Sync OFF');
+  }
+};
+
+function _startMusicSyncLoop() {
+  if (!DJ._syncAnalyser) return;
+  var analyser = DJ._syncAnalyser;
+  var bufLen = analyser.frequencyBinCount;
+  var dataArray = new Uint8Array(bufLen);
+  var viz = document.getElementById('musicSyncVisualizer');
+  var vizCtx = viz ? viz.getContext('2d') : null;
+  var prevEnergy = 0;
+  var beatThreshold = 1.3;
+  var lastBeatTime = 0;
+  var minBeatInterval = 200; // ms between beats
+
+  function loop() {
+    if (!DJ.musicSync) return;
+    DJ._syncRaf = requestAnimationFrame(loop);
+    analyser.getByteFrequencyData(dataArray);
+
+    // Compute energy (weighted toward bass)
+    var bass = 0, mid = 0, high = 0, total = 0;
+    var bassEnd = Math.floor(bufLen * 0.15);
+    var midEnd = Math.floor(bufLen * 0.5);
+    for (var i = 0; i < bufLen; i++) {
+      var val = dataArray[i];
+      total += val;
+      if (i < bassEnd) bass += val * 2; // bass weighted
+      else if (i < midEnd) mid += val;
+      else high += val;
+    }
+    var energy = (bass + mid * 0.5 + high * 0.3) / bufLen;
+    DJ._syncEnergy = energy;
+
+    // Beat detection: energy spike
+    var now = Date.now();
+    var isBeat = energy > prevEnergy * beatThreshold && energy > 40 && (now - lastBeatTime) > minBeatInterval;
+    if (isBeat) {
+      lastBeatTime = now;
+      DJ._syncBeatLast = now;
+
+      // On strong beat, send flash or effect change
+      if (DJ.broadcasting && socket && !DJ.killed) {
+        DJ._syncFlashCooldown--;
+        if (energy > 80 && DJ._syncFlashCooldown <= 0) {
+          // Strong beat: flash
+          socket.emit('dj-command', {
+            sessionId: DJ.sessionId,
+            command: 'flash',
+            color: DJ.color,
+            bpm: DJ.bpm,
+            animation: DJ.animation,
+            timestamp: Date.now()
+          });
+          DJ._syncFlashCooldown = 4;
+        }
+        // Every 8 beats, switch effect
+        DJ._syncEffectIdx++;
+        if (DJ._syncEffectIdx % 8 === 0) {
+          var nextAnim = DJ._syncEffects[Math.floor(Math.random() * DJ._syncEffects.length)];
+          selectAnimation(nextAnim);
+          sendCommand(nextAnim);
+        }
+      }
+    }
+    prevEnergy = energy * 0.7 + prevEnergy * 0.3;
+
+    // Draw visualizer
+    if (vizCtx && viz) {
+      var w = viz.width, h = viz.height;
+      vizCtx.fillStyle = 'rgba(0,0,0,.6)';
+      vizCtx.fillRect(0, 0, w, h);
+      var barW = w / bufLen * 2;
+      for (var i = 0; i < bufLen; i++) {
+        var val = dataArray[i] / 255;
+        var barH = val * h;
+        // Color: bass=blue, mid=cyan, high=white
+        if (i < bassEnd) vizCtx.fillStyle = 'rgba(0,180,216,' + (0.5 + val * 0.5) + ')';
+        else if (i < midEnd) vizCtx.fillStyle = 'rgba(45,212,160,' + (0.5 + val * 0.5) + ')';
+        else vizCtx.fillStyle = 'rgba(255,255,255,' + (0.3 + val * 0.5) + ')';
+        vizCtx.fillRect(i * barW, h - barH, barW - 1, barH);
+      }
+      // Beat indicator
+      if (now - lastBeatTime < 100) {
+        vizCtx.fillStyle = 'rgba(255,107,53,.3)';
+        vizCtx.fillRect(0, 0, w, h);
+      }
+    }
+  }
+  DJ._syncRaf = requestAnimationFrame(loop);
+}
+
+function _stopMusicSync() {
+  if (DJ._syncRaf) { cancelAnimationFrame(DJ._syncRaf); DJ._syncRaf = null; }
+  if (DJ._syncStream) {
+    DJ._syncStream.getTracks().forEach(function(t) { t.stop(); });
+    DJ._syncStream = null;
+  }
+  if (DJ._syncAudioCtx) {
+    DJ._syncAudioCtx.close().catch(function() {});
+    DJ._syncAudioCtx = null;
+  }
+  DJ._syncAnalyser = null;
+}
 
 /* ---- AUTO MODE ---- */
 DJ.autoMode = false;
