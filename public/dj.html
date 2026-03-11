@@ -642,6 +642,40 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     </div>
   </div>
 
+  <!-- ====== VENUE MAP SIMULATOR ====== -->
+  <div class="dj-drawer" id="venueMapDrawer">
+    <div class="dj-drawer-header" onclick="toggleDrawer('venueMapDrawer')">
+      <div class="dj-drawer-header-label">
+        Venue Map
+        <span style="font-size:.5rem;background:rgba(255,107,53,.15);padding:2px 6px;border-radius:8px;color:#ff6b35">LIVE</span>
+      </div>
+      <div class="dj-drawer-toggle" id="venueMapToggle"></div>
+    </div>
+    <div class="dj-drawer-content collapsed">
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Top-down view of the venue. Each dot = one phone at its real position.</div>
+      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;flex-wrap:wrap">
+        <button class="dj-bpm-btn" id="venueMapStartBtn" onclick="toggleVenueMap()" style="font-size:.6rem">Start Map</button>
+        <button class="dj-bpm-btn" onclick="venueMapZoomIn()" style="font-size:.6rem;min-width:30px">+</button>
+        <button class="dj-bpm-btn" onclick="venueMapZoomOut()" style="font-size:.6rem;min-width:30px">-</button>
+        <select id="venueMapShape" onchange="updateVenueShape(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 6px">
+          <option value="rectangle">Rectangle</option>
+          <option value="semicircle">Semicircle</option>
+          <option value="circle">Circle / Arena</option>
+          <option value="stadium">Stadium</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.3rem;align-items:center">
+        <span id="venueMapCount" style="font-size:.55rem;color:var(--ac)">0 devices</span>
+        <span id="venueMapGrid" style="font-size:.55rem;color:var(--t3)">Grid: --</span>
+      </div>
+      <canvas id="venueMapCanvas" width="400" height="300" style="width:100%;height:200px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
+      <div style="display:flex;justify-content:space-between;margin-top:.2rem">
+        <span style="font-size:.45rem;color:var(--t3)">STAGE</span>
+        <span style="font-size:.45rem;color:var(--t3)">BACK</span>
+      </div>
+    </div>
+  </div>
+
   <!-- RAFFLE DRAWER -->
   <div class="dj-drawer" id="raffleDrawer">
     <div class="dj-drawer-header" onclick="toggleDrawer('raffleDrawer')">
@@ -799,6 +833,21 @@ function connectSocket() {
       DJ.connectedCount = DJ.deviceCount;
       document.getElementById('deviceCount').textContent = DJ.deviceCount;
     }
+  });
+
+  // ---- Venue Map / Grid updates from server ----
+  socket.on('grid-preview-update', function(data) {
+    if (data.sessionId && data.sessionId !== DJ.sessionId) return;
+    if (data.assignments) {
+      window.venueMapUpdateDevices(data.assignments, data.cellColors || {});
+    }
+    if (data.gridConfig) {
+      window.venueMapSetGrid(data.gridConfig);
+    }
+  });
+
+  socket.on('grid-config-confirmed', function(data) {
+    window.venueMapSetGrid(data);
   });
 
   socket.on('dj-session-confirmed', function(data) {
@@ -3232,6 +3281,255 @@ init = function() {
   setupDrawerDefaults();
 };
 
+    // ========== VENUE MAP SIMULATOR ==========
+    var _vmCanvas = null;
+    var _vmCtx = null;
+    var _vmRaf = null;
+    var _vmActive = false;
+    var _vmZoom = 1.0;
+    var _vmShape = 'rectangle';
+    var _vmDevices = []; // { id, x, y, color, gridX, gridY, targetX, targetY }
+    var _vmGridConfig = null;
+
+    window.toggleVenueMap = function() {
+      if (_vmActive) {
+        _vmActive = false;
+        if (_vmRaf) cancelAnimationFrame(_vmRaf);
+        _vmRaf = null;
+        document.getElementById('venueMapStartBtn').textContent = 'Start Map';
+        return;
+      }
+      _vmCanvas = document.getElementById('venueMapCanvas');
+      if (!_vmCanvas) return;
+      _vmCtx = _vmCanvas.getContext('2d');
+      _vmActive = true;
+      document.getElementById('venueMapStartBtn').textContent = 'Stop Map';
+      _renderVenueMap();
+    };
+
+    window.venueMapZoomIn = function() {
+      _vmZoom = Math.min(3.0, _vmZoom + 0.25);
+    };
+    window.venueMapZoomOut = function() {
+      _vmZoom = Math.max(0.5, _vmZoom - 0.25);
+    };
+    window.updateVenueShape = function(shape) {
+      _vmShape = shape;
+    };
+
+    // Called by server events to update device positions
+    window.venueMapUpdateDevices = function(assignments, cellColors) {
+      // assignments = { socketId: { gridX, gridY, confidence } }
+      // cellColors = { 'x,y': '#hex' }
+      var ids = Object.keys(assignments || {});
+      var newMap = {};
+      for (var i = 0; i < ids.length; i++) {
+        var sid = ids[i];
+        var a = assignments[sid];
+        var gw = (_vmGridConfig && _vmGridConfig.width) || 20;
+        var gh = (_vmGridConfig && _vmGridConfig.height) || 20;
+        var nx = (a.gridX + 0.5) / gw; // normalized 0-1
+        var ny = (a.gridY + 0.5) / gh;
+        var cellKey = a.gridX + ',' + a.gridY;
+        var color = (cellColors && cellColors[cellKey]) || '#00b4d8';
+        newMap[sid] = { id: sid, gridX: a.gridX, gridY: a.gridY, x: nx, y: ny, color: color, confidence: a.confidence || 0.5 };
+      }
+      // Smooth transition: update existing, add new, remove gone
+      var updated = [];
+      for (var j = 0; j < _vmDevices.length; j++) {
+        var existing = newMap[_vmDevices[j].id];
+        if (existing) {
+          _vmDevices[j].targetX = existing.x;
+          _vmDevices[j].targetY = existing.y;
+          _vmDevices[j].color = existing.color;
+          _vmDevices[j].gridX = existing.gridX;
+          _vmDevices[j].gridY = existing.gridY;
+          _vmDevices[j].confidence = existing.confidence;
+          updated.push(_vmDevices[j]);
+          delete newMap[_vmDevices[j].id];
+        }
+      }
+      // Add brand new devices
+      var remaining = Object.keys(newMap);
+      for (var k = 0; k < remaining.length; k++) {
+        var nd = newMap[remaining[k]];
+        updated.push({ id: nd.id, x: nd.x, y: nd.y, targetX: nd.x, targetY: nd.y, color: nd.color, gridX: nd.gridX, gridY: nd.gridY, confidence: nd.confidence, pulse: Math.random() * 6.28 });
+      }
+      _vmDevices = updated;
+    };
+
+    window.venueMapSetGrid = function(config) {
+      _vmGridConfig = config;
+      var gridLabel = document.getElementById('venueMapGrid');
+      if (gridLabel && config) {
+        gridLabel.textContent = 'Grid: ' + config.width + 'x' + config.height;
+      }
+    };
+
+    function _renderVenueMap() {
+      if (!_vmActive || !_vmCtx) return;
+      _vmRaf = requestAnimationFrame(_renderVenueMap);
+      var c = _vmCanvas;
+      var ctx = _vmCtx;
+      var W = c.width;
+      var H = c.height;
+      var now = Date.now() / 1000;
+
+      // Clear
+      ctx.clearRect(0, 0, W, H);
+
+      // Background gradient
+      var bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, 'rgba(0,20,45,0.95)');
+      bg.addColorStop(1, 'rgba(0,8,20,0.98)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Draw venue shape outline
+      var pad = 20;
+      var vx = pad;
+      var vy = pad;
+      var vw = W - pad * 2;
+      var vh = H - pad * 2;
+
+      ctx.strokeStyle = 'rgba(0,180,216,0.15)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+
+      if (_vmShape === 'rectangle') {
+        ctx.strokeRect(vx, vy, vw, vh);
+      } else if (_vmShape === 'semicircle') {
+        ctx.beginPath();
+        ctx.moveTo(vx, vy);
+        ctx.lineTo(vx + vw, vy);
+        ctx.arc(vx + vw / 2, vy, vw / 2, 0, Math.PI, false);
+        ctx.closePath();
+        ctx.stroke();
+        vh = vw / 2; // adjust for semicircle
+      } else if (_vmShape === 'circle') {
+        var radius = Math.min(vw, vh) / 2;
+        ctx.beginPath();
+        ctx.arc(vx + vw / 2, vy + vh / 2, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (_vmShape === 'stadium') {
+        var r = vh / 2;
+        ctx.beginPath();
+        ctx.moveTo(vx + r, vy);
+        ctx.lineTo(vx + vw - r, vy);
+        ctx.arc(vx + vw - r, vy + r, r, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(vx + r, vy + vh);
+        ctx.arc(vx + r, vy + r, r, Math.PI / 2, -Math.PI / 2);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      ctx.setLineDash([]);
+
+      // Draw grid lines (subtle)
+      var gw = (_vmGridConfig && _vmGridConfig.width) || 20;
+      var gh = (_vmGridConfig && _vmGridConfig.height) || 20;
+      ctx.strokeStyle = 'rgba(0,180,216,0.04)';
+      ctx.lineWidth = 0.5;
+      for (var gx = 1; gx < gw; gx++) {
+        var lx = vx + (gx / gw) * vw;
+        ctx.beginPath(); ctx.moveTo(lx, vy); ctx.lineTo(lx, vy + vh); ctx.stroke();
+      }
+      for (var gy = 1; gy < gh; gy++) {
+        var ly = vy + (gy / gh) * vh;
+        ctx.beginPath(); ctx.moveTo(vx, ly); ctx.lineTo(vx + vw, ly); ctx.stroke();
+      }
+
+      // Stage indicator
+      ctx.fillStyle = 'rgba(255,107,53,0.3)';
+      ctx.fillRect(vx, vy - 6, vw, 4);
+      ctx.fillStyle = 'rgba(255,107,53,0.6)';
+      ctx.font = '8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('STAGE', vx + vw / 2, vy - 9);
+
+      // Update device label count
+      var countEl = document.getElementById('venueMapCount');
+      if (countEl) countEl.textContent = _vmDevices.length + ' devices';
+
+      // If no real devices, show simulated crowd from connected device count
+      if (_vmDevices.length === 0 && DJ.deviceCount > 0) {
+        // Generate phantom dots based on deviceCount for visualization
+        _ensurePhantomDots(DJ.deviceCount);
+      }
+
+      // Animate and draw each device dot
+      ctx.globalCompositeOperation = 'lighter';
+      for (var di = 0; di < _vmDevices.length; di++) {
+        var d = _vmDevices[di];
+        // Smooth movement towards target
+        d.x += (d.targetX - d.x) * 0.08;
+        d.y += (d.targetY - d.y) * 0.08;
+        if (!d.pulse) d.pulse = Math.random() * 6.28;
+        d.pulse += 0.04;
+
+        var dx = vx + d.x * vw;
+        var dy = vy + d.y * vh;
+        var baseSize = 3 + Math.sin(d.pulse) * 1;
+        var sz = baseSize * _vmZoom;
+
+        // Parse color
+        var cr = 0, cg = 180, cb = 216;
+        if (d.color && d.color.length === 7) {
+          cr = parseInt(d.color.substr(1, 2), 16);
+          cg = parseInt(d.color.substr(3, 2), 16);
+          cb = parseInt(d.color.substr(5, 2), 16);
+        }
+
+        // Glow
+        var glow = ctx.createRadialGradient(dx, dy, 0, dx, dy, sz * 4);
+        glow.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.4)');
+        glow.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(dx, dy, sz * 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core dot
+        ctx.fillStyle = 'rgb(' + cr + ',' + cg + ',' + cb + ')';
+        ctx.beginPath();
+        ctx.arc(dx, dy, sz, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // Phantom dots when no grid data yet but devices are connected
+    function _ensurePhantomDots(count) {
+      while (_vmDevices.length < count) {
+        var idx = _vmDevices.length;
+        var cols = Math.ceil(Math.sqrt(count * 1.5));
+        var row = Math.floor(idx / cols);
+        var col = idx % cols;
+        var jx = (col + 0.5) / cols + (Math.random() - 0.5) * 0.05;
+        var jy = (row + 0.5) / Math.ceil(count / cols) + (Math.random() - 0.5) * 0.05;
+        jx = Math.max(0.05, Math.min(0.95, jx));
+        jy = Math.max(0.05, Math.min(0.95, jy));
+        _vmDevices.push({
+          id: '_phantom_' + idx,
+          x: jx, y: jy,
+          targetX: jx, targetY: jy,
+          color: DJ.color || '#00b4d8',
+          gridX: col, gridY: row,
+          confidence: 0.3,
+          pulse: Math.random() * 6.28
+        });
+      }
+      // Remove extras
+      while (_vmDevices.length > count) {
+        _vmDevices.pop();
+      }
+      // Update colors to match current DJ color
+      for (var pi = 0; pi < _vmDevices.length; pi++) {
+        if (_vmDevices[pi].id.indexOf('_phantom_') === 0) {
+          _vmDevices[pi].color = DJ.color || '#00b4d8';
+        }
+      }
+    }
 
 })();
 </script>
