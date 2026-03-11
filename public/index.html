@@ -6810,6 +6810,7 @@ async function handleMainButton(){
     // 1. Fresh mic permission
     sts.textContent=t('home.microphone_request');
     sonicStream=await requestMic();
+    window._micAuthorized=true; // Mic was granted — DJ listener can restart after screen lock
     if(!homeSonicActive)return;
     sts.textContent=t('home.connecting');
 
@@ -7126,6 +7127,7 @@ async function initSonic(label,status,circle){
     // 1. Get mic permission
     if(status)status.textContent='Pedindo microfone...';
     sonicStream=await requestMic();
+    window._micAuthorized=true;
     if(status)status.textContent='Microfone OK. Conectando...';
 
     // 2. Ask server for frequency
@@ -19948,8 +19950,8 @@ document.addEventListener('visibilitychange',()=>{
       },400);
     }
     // Restart DJ listener if it was killed by releaseAllMedia (screen lock)
-    // This needs a slight delay to avoid competing with sonic reconnect
-    if(!_sonicWasActive&&state.userId){
+    // Only if mic was already authorized (user used Touch before)
+    if(!_sonicWasActive&&state.userId&&window._micAuthorized){
       setTimeout(()=>{
         if(!DJL.listenerActive&&!DJL.active&&!homeSonicActive&&!sonicActive&&typeof startDJListener==='function'){
           console.log('[visibility] Restarting DJ listener after screen unlock...');
@@ -26622,41 +26624,10 @@ var _djInitInterval = setInterval(function() {
     clearInterval(_djInitInterval);
     setupDJListeners();
 
-    // DJ listener auto-start strategy:
-    // 1. Try immediately (works if mic was previously granted)
-    // 2. Retry on first user gesture (needed if mic permission requires gesture)
-    // 3. Also starts after Touch ends (stopHomeSonic) since mic was already authorized
-    var _djAutoStarted = false;
-    function _djTryAutoStart(source) {
-      if (_djAutoStarted || DJL.listenerActive || DJL.active) return;
-      if (homeSonicActive || sonicActive) return;
-      _djAutoStarted = true;
-      console.log('[DJ] Starting listener via:', source);
-      startDJListener();
-    }
-    // Strategy 1: Try right away (1.5s delay to let page settle)
-    setTimeout(function() {
-      if (!_djAutoStarted && !homeSonicActive && !sonicActive) {
-        _djTryAutoStart('auto-init');
-      }
-    }, 1500);
-    // Strategy 2: Also try on first user gesture as fallback
-    function _djGestureStart() {
-      if (_djAutoStarted) {
-        document.removeEventListener('touchstart', _djGestureStart, true);
-        document.removeEventListener('click', _djGestureStart, true);
-        return;
-      }
-      if (homeSonicActive || sonicActive) return; // sonic active, try next gesture
-      document.removeEventListener('touchstart', _djGestureStart, true);
-      document.removeEventListener('click', _djGestureStart, true);
-      setTimeout(function() {
-        _djTryAutoStart('user-gesture');
-      }, 500);
-    }
-    document.addEventListener('touchstart', _djGestureStart, true);
-    document.addEventListener('click', _djGestureStart, true);
-    console.log('[DJ] Ready. Listener will auto-start or start on first interaction.');
+    // DJ listener does NOT auto-start to avoid mic permission popup.
+    // It starts ONLY after user presses Touch (stopHomeSonic calls startDJListener).
+    // This way the mic is already authorized and no extra popup appears.
+    console.log('[DJ] Ready. Listener will start after first Touch use.');
   }
 }, 500);
 
