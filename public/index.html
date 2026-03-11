@@ -6767,9 +6767,11 @@ async function handleMainButton(){
   // Now safe to do async work — AudioContexts already unlocked
   if(!socket.connected){
     showToast('Reconectando...');
+    // Force socket reconnect if it's not already trying
+    try{socket.connect()}catch(e){}
     const waited=await new Promise(r=>{
       if(socket.connected)return r(true);
-      const t=setTimeout(()=>r(false),3000);
+      const t=setTimeout(()=>r(false),5000); // 5s timeout (was 3s) — screen unlock may take longer
       socket.once('connect',()=>{clearTimeout(t);r(true)});
     });
     if(!waited){
@@ -6779,6 +6781,8 @@ async function handleMainButton(){
       sonicEmitCtx=null;sonicMicCtx=null;
       showToast('Sem conexão. Tente novamente.');return;
     }
+    // Re-identify after reconnect
+    if(state.userId)socket.emit('identify',state.userId);
   }
 
   // Stop DJ listener to free mic for main sonic system
@@ -7033,8 +7037,10 @@ function stopHomeSonic(){
   // Restore bottom nav + motivation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.remove('sonic-hidden');
   const hm=$('homeMotivation');if(hm)hm.style.opacity='';
-  // Mic is free now -- start DJ listener to detect nearby live sessions
-  setTimeout(function(){ if(typeof startDJListener==='function'&&!DJL.listenerActive&&!DJL.active) startDJListener(); }, 500);
+  // NOTE: Do NOT auto-start DJ listener here.
+  // When the user manually turns off Touch, the mic must stop completely (privacy).
+  // DJ listener will only start after a SUCCESSFUL connection completes
+  // (see the match/reveal flow), or when explicitly triggered.
 }
 async function createSession(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
@@ -16979,6 +16985,8 @@ function releaseAllMedia(){
   // Stop sonic (mic + speaker)
   if(homeSonicActive)stopHomeSonic();
   if(sonicActive)stopSonicMode();
+  // Stop DJ listener (also uses mic)
+  if(typeof stopDJListener==='function'&&DJL.listenerActive)stopDJListener();
   // Stop selfie camera
   releaseSelfieCamera();
 }
@@ -19903,11 +19911,23 @@ document.addEventListener('visibilitychange',()=>{
     // Re-identify on socket in case connection was lost/stale
     if(socket&&state.userId){
       if(!socket.connected){
-        // Force reconnect
-        socket.connect();
+        // Force reconnect — socket may have silently died during screen lock
+        console.log('[visibility] Socket disconnected, forcing reconnect...');
+        try{socket.connect()}catch(e){}
       }else{
         socket.emit('identify',state.userId);
       }
+      // Ping server after short delay to verify connection is truly alive
+      setTimeout(()=>{
+        if(socket&&state.userId){
+          if(!socket.connected){
+            console.log('[visibility] Socket still dead after 1s, retrying connect...');
+            try{socket.connect()}catch(e){}
+          }else{
+            socket.emit('identify',state.userId);
+          }
+        }
+      },1000);
     }
     // DJ Live: re-join session if we were in live mode when going to background
     if(DJL.active && DJL.sessionId && socket && socket.connected){
