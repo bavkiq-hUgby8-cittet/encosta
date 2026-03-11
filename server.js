@@ -19095,154 +19095,250 @@ function drawLine(x1, y1, x2, y2, color) {
   return cells;
 }
 
-var HEART_SMALL = [
-  [8,7],[9,6],[10,6],[11,7],
-  [7,8],[12,8],
-  [7,9],[12,9],
-  [8,10],[11,10],
-  [9,11],[10,11],
-  [8,8],[9,8],[10,8],[11,8],
-  [8,9],[9,9],[10,9],[11,9],
-  [9,10],[10,10]
-];
+var HEART_SMALL = [];
+(function() {
+  var h = [
+    '  ##  ##  ',
+    ' ########',
+    '##########',
+    '##########',
+    '##########',
+    ' ######## ',
+    '  ######  ',
+    '   ####   ',
+    '    ##    ',
+    '     .    '
+  ];
+  for (var y = 0; y < h.length; y++) {
+    for (var x = 0; x < h[y].length; x++) {
+      if (h[y][x] === '#') HEART_SMALL.push([x + 5, y + 5]);
+    }
+  }
+})();
 
-var HEART_BIG = [
-  [7,5],[8,5],[11,5],[12,5],
-  [6,6],[9,6],[10,6],[13,6],
-  [6,7],[13,7],
-  [6,8],[13,8],
-  [7,9],[12,9],
-  [8,10],[11,10],
-  [9,11],[10,11],
-  [7,6],[8,6],[11,6],[12,6],
-  [7,7],[8,7],[9,7],[10,7],[11,7],[12,7],
-  [7,8],[8,8],[9,8],[10,8],[11,8],[12,8],
-  [8,9],[9,9],[10,9],[11,9],
-  [9,10],[10,10]
-];
+var HEART_BIG = [];
+(function() {
+  var h = [
+    '  ####  ####  ',
+    ' ############ #',
+    '################',
+    '################',
+    '################',
+    '################',
+    ' ############## ',
+    '  ############  ',
+    '   ##########   ',
+    '    ########    ',
+    '     ######     ',
+    '      ####      ',
+    '       ##       ',
+    '        .       '
+  ];
+  for (var y = 0; y < h.length; y++) {
+    for (var x = 0; x < h[y].length; x++) {
+      if (h[y][x] === '#') HEART_BIG.push([x + 2, y + 3]);
+    }
+  }
+})();
 
-var DRAGON_SEG = [
-  [10,10],[10,11],
-  [9,9],[10,9],[11,9],
-  [9,10],[11,10]
-];
+var DRAGON_HEAD = [];
+var DRAGON_BODY_1 = [];
+var DRAGON_BODY_2 = [];
+var DRAGON_BODY_3 = [];
+var DRAGON_TAIL = [];
+(function() {
+  var head = [
+    ' ### ',
+    '#####',
+    '## ##',
+    '#####',
+    ' ### '
+  ];
+  for (var y = 0; y < head.length; y++)
+    for (var x = 0; x < head[y].length; x++)
+      if (head[y][x] === '#') DRAGON_HEAD.push([x, y]);
+  var body = [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]];
+  DRAGON_BODY_1 = body.slice();
+  DRAGON_BODY_2 = body.slice();
+  DRAGON_BODY_3 = body.slice();
+  DRAGON_TAIL = [[0,0],[1,0],[2,0],[0,1],[1,1],[1,2]];
+})();
 
-var PHOENIX_SHAPE = [
-  [8,0],[9,0],[10,0],[11,0],
-  [7,1],[8,1],[12,1],[13,1],
-  [6,2],[7,2],[12,2],[13,2],
-  [7,3],[8,3],[11,3],[12,3],
-  [9,4],[10,4]
-];
+var PHOENIX_SHAPE = [];
+(function() {
+  var p = [
+    '    #  #  #    ',
+    '   ## ## ##   ',
+    '  #### ####  ',
+    '  ##########  ',
+    '   ########   ',
+    '    ######    ',
+    '     ####     ',
+    '    ######    ',
+    '   ## ## ##   ',
+    '  #   #   #  '
+  ];
+  for (var y = 0; y < p.length; y++)
+    for (var x = 0; x < p[y].length; x++)
+      if (p[y][x] === '#') PHOENIX_SHAPE.push([x + 3, y]);
+})();
 
-var STAR_5PT = [
-  [10,2],
-  [8,8],[12,8],
-  [7,6],[13,6],
-  [9,9],[11,9],
-  [10,12],
-  [9,7],[10,6],[11,7],
-  [8,9],[9,8],[10,7],[11,8],[12,9],
-  [9,11],[10,10],[11,11]
-];
+var STAR_5PT = [];
+(function() {
+  var s = [
+    '       ##       ',
+    '       ##       ',
+    '      ####      ',
+    '      ####      ',
+    '  ############  ',
+    '   ##########   ',
+    '    ########    ',
+    '     ######     ',
+    '    ########    ',
+    '   ###    ###   ',
+    '  ##        ##  ',
+    ' ##          ## '
+  ];
+  for (var y = 0; y < s.length; y++)
+    for (var x = 0; x < s[y].length; x++)
+      if (s[y][x] === '#') STAR_5PT.push([x + 2, y + 4]);
+})();
 
-var NUM_5 = [
-  [0,0],[1,0],[2,0],[3,0],
-  [0,1],
-  [0,2],[1,2],[2,2],
-  [3,3],
-  [0,4],[1,4],[2,4],[3,4]
-];
+var NUM_5 = [];
+(function() {
+  var n = [
+    '######',
+    '##    ',
+    '######',
+    '    ##',
+    '    ##',
+    '######'
+  ];
+  for (var y = 0; y < n.length; y++)
+    for (var x = 0; x < n[y].length; x++)
+      if (n[y][x] === '#') NUM_5.push([x, y]);
+})();
 
-var NUM_4 = [
-  [3,0],
-  [2,1],[3,1],
-  [1,2],[2,2],[3,2],
-  [0,3],[1,3],[2,3],[3,3],
-  [3,4]
-];
+var NUM_4 = [];
+(function() {
+  var n = [
+    '##  ##',
+    '##  ##',
+    '######',
+    '    ##',
+    '    ##',
+    '    ##'
+  ];
+  for (var y = 0; y < n.length; y++)
+    for (var x = 0; x < n[y].length; x++)
+      if (n[y][x] === '#') NUM_4.push([x, y]);
+})();
 
-var NUM_3 = [
-  [0,0],[1,0],[2,0],[3,0],
-  [3,1],
-  [0,2],[1,2],[2,2],
-  [3,3],
-  [0,4],[1,4],[2,4],[3,4]
-];
+var NUM_3 = [];
+(function() {
+  var n = [
+    '######',
+    '    ##',
+    '######',
+    '    ##',
+    '    ##',
+    '######'
+  ];
+  for (var y = 0; y < n.length; y++)
+    for (var x = 0; x < n[y].length; x++)
+      if (n[y][x] === '#') NUM_3.push([x, y]);
+})();
 
-var NUM_2 = [
-  [0,0],[1,0],[2,0],[3,0],
-  [3,1],
-  [1,2],[2,2],[3,2],
-  [0,3],
-  [0,4],[1,4],[2,4],[3,4]
-];
+var NUM_2 = [];
+(function() {
+  var n = [
+    '######',
+    '    ##',
+    '######',
+    '##    ',
+    '##    ',
+    '######'
+  ];
+  for (var y = 0; y < n.length; y++)
+    for (var x = 0; x < n[y].length; x++)
+      if (n[y][x] === '#') NUM_2.push([x, y]);
+})();
 
-var NUM_1 = [
-  [1,0],[2,0],
-  [2,1],
-  [2,2],
-  [2,3],
-  [1,4],[2,4],[3,4]
-];
+var NUM_1 = [];
+(function() {
+  var n = [
+    '  ##  ',
+    ' ###  ',
+    '  ##  ',
+    '  ##  ',
+    '  ##  ',
+    '######'
+  ];
+  for (var y = 0; y < n.length; y++)
+    for (var x = 0; x < n[y].length; x++)
+      if (n[y][x] === '#') NUM_1.push([x, y]);
+})();
 
-var LETTER_T = [
-  [0,0],[1,0],[2,0],[3,0],
-  [1,1],[2,1],
-  [2,2],[2,3],
-  [2,4]
-];
+var LETTER_T = [];
+(function() {
+  var l = ['#####','  #  ','  #  ','  #  ','  #  ','  #  ','  #  '];
+  for (var y = 0; y < l.length; y++)
+    for (var x = 0; x < l[y].length; x++)
+      if (l[y][x] === '#') LETTER_T.push([x, y]);
+})();
 
-var LETTER_O = [
-  [1,0],[2,0],[3,0],
-  [0,1],[4,1],
-  [0,2],[4,2],
-  [0,3],[4,3],
-  [1,4],[2,4],[3,4]
-];
+var LETTER_O = [];
+(function() {
+  var l = [' ### ','#   #','#   #','#   #','#   #','#   #',' ### '];
+  for (var y = 0; y < l.length; y++)
+    for (var x = 0; x < l[y].length; x++)
+      if (l[y][x] === '#') LETTER_O.push([x, y]);
+})();
 
-var LETTER_U = [
-  [0,0],[4,0],
-  [0,1],[4,1],
-  [0,2],[4,2],
-  [0,3],[4,3],
-  [1,4],[2,4],[3,4]
-];
+var LETTER_U = [];
+(function() {
+  var l = ['#   #','#   #','#   #','#   #','#   #','#   #',' ### '];
+  for (var y = 0; y < l.length; y++)
+    for (var x = 0; x < l[y].length; x++)
+      if (l[y][x] === '#') LETTER_U.push([x, y]);
+})();
 
-var LETTER_C = [
-  [1,0],[2,0],[3,0],
-  [0,1],
-  [0,2],
-  [0,3],
-  [1,4],[2,4],[3,4]
-];
+var LETTER_C = [];
+(function() {
+  var l = [' ### ','#   #','#    ','#    ','#    ','#   #',' ### '];
+  for (var y = 0; y < l.length; y++)
+    for (var x = 0; x < l[y].length; x++)
+      if (l[y][x] === '#') LETTER_C.push([x, y]);
+})();
 
-var LETTER_H = [
-  [0,0],[4,0],
-  [0,1],[4,1],
-  [0,2],[1,2],[2,2],[3,2],[4,2],
-  [0,3],[4,3],
-  [0,4],[4,4]
-];
+var LETTER_H = [];
+(function() {
+  var l = ['#   #','#   #','#####','#   #','#   #','#   #','#   #'];
+  for (var y = 0; y < l.length; y++)
+    for (var x = 0; x < l[y].length; x++)
+      if (l[y][x] === '#') LETTER_H.push([x, y]);
+})();
 
-var LETTER_Q = [
-  [1,0],[2,0],[3,0],
-  [0,1],[4,1],
-  [0,2],[4,2],
-  [0,3],[3,3],
-  [1,4],[2,4],
-  [3,4],[4,4]
-];
+var LETTER_Q = [];
+(function() {
+  var l = [' ### ','#   #','#   #','#   #','# # #','#  # ',' ## #'];
+  for (var y = 0; y < l.length; y++)
+    for (var x = 0; x < l[y].length; x++)
+      if (l[y][x] === '#') LETTER_Q.push([x, y]);
+})();
 
 var DRONE_SHOW_LIBRARY = {
   'heart-pulse': {
     name: 'Heart Pulse',
     bpm: 128,
     frames: [
-      { durationBeats: 4, transition: 'fade', cells: drawPixelShape(HEART_SMALL, '#ff1744', 5, 6) },
-      { durationBeats: 4, transition: 'fade', cells: drawPixelShape(HEART_BIG, '#ff3c6e', 4, 4) },
-      { durationBeats: 4, transition: 'fade', cells: drawPixelShape(HEART_SMALL, '#ff1744', 5, 6) },
-      { durationBeats: 4, transition: 'fade', cells: drawPixelShape(HEART_BIG, '#ff5a8f', 4, 4) }
+      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(HEART_SMALL, '#ff1744', 0, 0) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(HEART_BIG, '#ff3c6e', 0, 0), drawCircle(10, 10, 9, '#ff1744')) },
+      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(HEART_SMALL, '#ff5a8f', 0, 0) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(HEART_BIG, '#ff1744', 0, 0), drawCircle(10, 10, 9, '#ff3c6e')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawPixelShape(HEART_BIG, '#ffffff', 0, 0), fillGrid('#330011')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawPixelShape(HEART_BIG, '#ff3c6e', 0, 0), drawCircle(10, 10, 8, '#ff1744'), drawCircle(10, 10, 6, '#cc0033')) },
+      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(HEART_SMALL, '#ff1744', 0, 0) }
     ]
   },
 
@@ -19250,14 +19346,15 @@ var DRONE_SHOW_LIBRARY = {
     name: 'Countdown Blast',
     bpm: 120,
     frames: [
-      { durationBeats: 4, transition: 'instant', cells: drawPixelShape(NUM_5, '#ffdd00', 8, 7) },
-      { durationBeats: 4, transition: 'instant', cells: drawPixelShape(NUM_4, '#ffdd00', 8, 7) },
-      { durationBeats: 4, transition: 'instant', cells: drawPixelShape(NUM_3, '#ffaa00', 8, 7) },
-      { durationBeats: 4, transition: 'instant', cells: drawPixelShape(NUM_2, '#ff6600', 8, 7) },
-      { durationBeats: 4, transition: 'instant', cells: drawPixelShape(NUM_1, '#ff3c00', 8, 7) },
-      { durationBeats: 2, transition: 'instant', cells: fillGrid('#ffff00') },
-      { durationBeats: 1, transition: 'instant', cells: fillGrid('#ff6600') },
-      { durationBeats: 1, transition: 'instant', cells: fillGrid('#ff0000') }
+      { durationBeats: 4, transition: 'instant', cells: mergeFrames(drawPixelShape(NUM_5, '#ffdd00', 7, 7), drawCircle(10, 10, 8, '#333300')) },
+      { durationBeats: 4, transition: 'instant', cells: mergeFrames(drawPixelShape(NUM_4, '#ffdd00', 7, 7), drawCircle(10, 10, 7, '#444400')) },
+      { durationBeats: 4, transition: 'instant', cells: mergeFrames(drawPixelShape(NUM_3, '#ffaa00', 7, 7), drawCircle(10, 10, 6, '#553300')) },
+      { durationBeats: 4, transition: 'instant', cells: mergeFrames(drawPixelShape(NUM_2, '#ff6600', 7, 7), drawCircle(10, 10, 5, '#663300')) },
+      { durationBeats: 4, transition: 'instant', cells: mergeFrames(drawPixelShape(NUM_1, '#ff3c00', 7, 7), drawFilledCircle(10, 10, 3, '#441100')) },
+      { durationBeats: 1, transition: 'instant', cells: fillGrid('#ffffff') },
+      { durationBeats: 1, transition: 'instant', cells: fillGrid('#ffff00') },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(fillGrid('#ff6600'), drawCircle(10, 10, 5, '#ffff00'), drawCircle(10, 10, 8, '#ffdd00')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 9, '#ff4400'), drawCircle(10, 10, 6, '#ff6600'), drawCircle(10, 10, 3, '#ff8800')) }
     ]
   },
 
@@ -19265,14 +19362,14 @@ var DRONE_SHOW_LIBRARY = {
     name: 'Dragon Serpent',
     bpm: 96,
     frames: [
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#ff4444', 2, 0) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#ff4444', 4, 0) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#ff4444', 6, 0) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#ff4444', 8, 0) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#ff4444', 10, 0) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#ff4444', 12, 0) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#cc0000', 10, 4) },
-      { durationBeats: 2, transition: 'instant', cells: drawPixelShape(DRAGON_SEG, '#990000', 8, 8) }
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff4444', 2, 3), drawPixelShape(DRAGON_BODY_1, '#cc3333', 6, 4), drawFilledCircle(3, 4, 1, '#ffdd00')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff4444', 5, 5), drawPixelShape(DRAGON_BODY_1, '#cc3333', 2, 4), drawPixelShape(DRAGON_BODY_2, '#aa2222', 9, 6), drawFilledCircle(6, 6, 1, '#ffdd00')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff4444', 9, 3), drawPixelShape(DRAGON_BODY_1, '#cc3333', 5, 5), drawPixelShape(DRAGON_BODY_2, '#aa2222', 2, 4), drawPixelShape(DRAGON_BODY_3, '#882222', 13, 4), drawFilledCircle(10, 4, 1, '#ffdd00')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff4444', 13, 5), drawPixelShape(DRAGON_BODY_1, '#cc3333', 9, 3), drawPixelShape(DRAGON_BODY_2, '#aa2222', 5, 5), drawPixelShape(DRAGON_TAIL, '#882222', 2, 7), drawFilledCircle(14, 6, 1, '#ffdd00')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff6644', 15, 8), drawPixelShape(DRAGON_BODY_1, '#cc3333', 13, 5), drawPixelShape(DRAGON_BODY_2, '#aa2222', 9, 3), drawPixelShape(DRAGON_BODY_3, '#882222', 5, 5), drawPixelShape(DRAGON_TAIL, '#662222', 2, 7), drawFilledCircle(16, 9, 1, '#ffdd00')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff8844', 14, 12), drawPixelShape(DRAGON_BODY_1, '#cc5533', 15, 8), drawPixelShape(DRAGON_BODY_2, '#aa3322', 13, 5), drawPixelShape(DRAGON_BODY_3, '#882222', 9, 3), drawPixelShape(DRAGON_TAIL, '#662222', 5, 5)) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(DRAGON_HEAD, '#ff4444', 10, 14), drawPixelShape(DRAGON_BODY_1, '#cc3333', 14, 12), drawPixelShape(DRAGON_BODY_2, '#aa2222', 15, 8)) },
+      { durationBeats: 2, transition: 'instant', cells: mergeFrames(drawFilledCircle(10, 10, 4, '#ff4444'), drawCircle(10, 10, 6, '#ff6644'), drawCircle(10, 10, 8, '#882222')) }
     ]
   },
 
@@ -19280,58 +19377,70 @@ var DRONE_SHOW_LIBRARY = {
     name: 'Phoenix Rising',
     bpm: 100,
     frames: [
-      { durationBeats: 3, transition: 'fade', cells: drawPixelShape(PHOENIX_SHAPE, '#ff8c00', 5, 0) },
-      { durationBeats: 3, transition: 'fade', cells: drawPixelShape(PHOENIX_SHAPE, '#ff8c00', 5, 2) },
-      { durationBeats: 3, transition: 'fade', cells: drawPixelShape(PHOENIX_SHAPE, '#ffaa00', 5, 4) },
-      { durationBeats: 3, transition: 'fade', cells: drawPixelShape(PHOENIX_SHAPE, '#ffcc00', 5, 6) },
-      { durationBeats: 3, transition: 'fade', cells: drawPixelShape(PHOENIX_SHAPE, '#ffdd00', 5, 8) }
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ff4400', 0, 10), drawFilledCircle(10, 17, 2, '#ff2200'), drawFilledCircle(10, 19, 1, '#cc0000')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ff6600', 0, 7), drawFilledCircle(10, 15, 2, '#ff4400'), drawLine(9, 17, 11, 19, '#cc2200')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ff8800', 0, 4), drawFilledCircle(10, 12, 2, '#ff6600'), drawLine(8, 14, 12, 18, '#cc4400')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ffaa00', 0, 1), drawFilledCircle(10, 9, 2, '#ff8800'), drawLine(7, 11, 13, 17, '#cc6600'), drawCircle(10, 10, 8, '#442200')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ffcc00', 0, 0), drawCircle(10, 5, 3, '#ffaa00'), drawCircle(10, 5, 5, '#ff8800'), drawCircle(10, 5, 7, '#ff6600')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ffffff', 0, 0), drawFilledCircle(10, 5, 4, '#ffddaa'), drawCircle(10, 5, 7, '#ffaa00'), drawCircle(10, 5, 9, '#ff6600')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawPixelShape(PHOENIX_SHAPE, '#ffdd00', 0, 0), drawCircle(10, 5, 9, '#ff880044')) }
     ]
   },
 
   'firework-burst': {
     name: 'Fireworks',
-    bpm: 120,
+    bpm: 130,
     frames: [
-      { durationBeats: 1, transition: 'instant', cells: drawFilledCircle(5, 5, 2, '#ffff00') },
-      { durationBeats: 1, transition: 'instant', cells: drawFilledCircle(5, 5, 3, '#ffaa00') },
-      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawFilledCircle(5, 5, 2, '#ffff00'), drawFilledCircle(15, 5, 2, '#ff00ff'), drawFilledCircle(10, 15, 2, '#00ffff')) },
-      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawFilledCircle(5, 5, 3, '#ff6600'), drawFilledCircle(15, 5, 3, '#ff0088'), drawFilledCircle(10, 15, 3, '#0088ff')) },
-      { durationBeats: 2, transition: 'fade', cells: {} }
+      { durationBeats: 1, transition: 'instant', cells: drawFilledCircle(5, 10, 1, '#ffffff') },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(5, 10, 2, '#ffff00'), drawFilledCircle(5, 10, 1, '#ffffff')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(5, 10, 4, '#ffaa00'), drawCircle(5, 10, 2, '#ffff00')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(5, 10, 4, '#ffaa00'), drawFilledCircle(15, 5, 1, '#ffffff')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(5, 10, 5, '#ff6600'), drawCircle(15, 5, 2, '#ff00ff'), drawFilledCircle(15, 5, 1, '#ffffff')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(5, 10, 6, '#cc3300'), drawCircle(15, 5, 4, '#cc00cc'), drawFilledCircle(10, 16, 1, '#ffffff')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(5, 10, 7, '#660000'), drawCircle(15, 5, 5, '#880088'), drawCircle(10, 16, 3, '#00ffff'), drawFilledCircle(10, 16, 1, '#ffffff')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(15, 5, 6, '#440044'), drawCircle(10, 16, 5, '#008888'), drawCircle(10, 16, 2, '#00ffff')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 16, 6, '#004444'), drawFilledCircle(3, 3, 2, '#ffdd00'), drawFilledCircle(17, 15, 2, '#ff44ff')) },
+      { durationBeats: 1, transition: 'fade', cells: {} }
     ]
   },
 
   'globe-spin': {
     name: 'Globe Spin',
-    bpm: 110,
+    bpm: 100,
     frames: [
-      { durationBeats: 2, transition: 'instant', cells: drawCircle(10, 10, 5, '#00b4d8') },
-      { durationBeats: 2, transition: 'instant', cells: drawFilledCircle(10, 10, 3, '#00b4d8') },
-      { durationBeats: 2, transition: 'instant', cells: drawCircle(10, 10, 6, '#0096c8') },
-      { durationBeats: 2, transition: 'instant', cells: drawFilledCircle(10, 10, 2, '#0078a8') }
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 7, '#00b4d8'), drawCircle(10, 10, 5, '#0096c8'), drawLine(3, 10, 17, 10, '#0078a8'), drawLine(10, 3, 10, 17, '#0078a8')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 7, '#00b4d8'), drawCircle(10, 10, 5, '#0096c8'), drawLine(5, 5, 15, 15, '#0078a8'), drawLine(15, 5, 5, 15, '#0078a8')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 7, '#00b4d8'), drawFilledCircle(10, 10, 5, '#005a8a'), drawLine(3, 10, 17, 10, '#00b4d8'), drawLine(10, 3, 10, 17, '#00b4d8')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 7, '#00d4f8'), drawCircle(10, 10, 4, '#00b4d8'), drawCircle(10, 10, 1, '#ffffff')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 8, '#00b4d8'), drawCircle(10, 10, 6, '#0096c8'), drawCircle(10, 10, 3, '#0078a8'), drawLine(3, 7, 17, 7, '#005a8a'), drawLine(3, 13, 17, 13, '#005a8a')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 7, '#00b4d8'), drawCircle(8, 10, 5, '#0096c8'), drawCircle(12, 10, 5, '#0096c8'), drawLine(10, 3, 10, 17, '#0078a8')) }
     ]
   },
 
   'snake-wave': {
     name: 'Snake Wave',
-    bpm: 100,
+    bpm: 110,
     frames: [
-      { durationBeats: 2, transition: 'instant', cells: drawLine(0, 5, 19, 5, '#2dd4a0') },
-      { durationBeats: 2, transition: 'instant', cells: drawLine(0, 7, 19, 7, '#2dd4a0') },
-      { durationBeats: 2, transition: 'instant', cells: drawLine(0, 9, 19, 9, '#2dd4a0') },
-      { durationBeats: 2, transition: 'instant', cells: drawLine(0, 11, 19, 11, '#2dd4a0') },
-      { durationBeats: 2, transition: 'instant', cells: drawLine(0, 13, 19, 13, '#2dd4a0') },
-      { durationBeats: 2, transition: 'instant', cells: drawLine(0, 11, 19, 11, '#2dd4a0') }
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawLine(0, 10, 19, 10, '#2dd4a0'), drawLine(0, 11, 19, 11, '#1aaa80')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawLine(0, 8, 19, 8, '#2dd4a0'), drawLine(0, 9, 19, 9, '#1aaa80'), drawLine(0, 12, 19, 12, '#2dd4a0'), drawLine(0, 13, 19, 13, '#1aaa80')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawLine(0, 6, 19, 6, '#2dd4a0'), drawLine(0, 7, 19, 7, '#1aaa80'), drawLine(0, 10, 19, 10, '#2dd4a0'), drawLine(0, 11, 19, 11, '#1aaa80'), drawLine(0, 14, 19, 14, '#2dd4a0'), drawLine(0, 15, 19, 15, '#1aaa80')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawLine(0, 4, 19, 4, '#2dd4a0'), drawLine(0, 5, 19, 5, '#1aaa80'), drawLine(0, 8, 19, 8, '#2dd4a0'), drawLine(0, 9, 19, 9, '#1aaa80'), drawLine(0, 12, 19, 12, '#2dd4a0'), drawLine(0, 13, 19, 13, '#1aaa80'), drawLine(0, 16, 19, 16, '#2dd4a0'), drawLine(0, 17, 19, 17, '#1aaa80')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawLine(0, 6, 19, 6, '#2dd4a0'), drawLine(0, 7, 19, 7, '#1aaa80'), drawLine(0, 10, 19, 10, '#2dd4a0'), drawLine(0, 11, 19, 11, '#1aaa80'), drawLine(0, 14, 19, 14, '#2dd4a0'), drawLine(0, 15, 19, 15, '#1aaa80')) },
+      { durationBeats: 1, transition: 'fade', cells: mergeFrames(drawLine(0, 8, 19, 8, '#2dd4a0'), drawLine(0, 9, 19, 9, '#1aaa80'), drawLine(0, 12, 19, 12, '#2dd4a0'), drawLine(0, 13, 19, 13, '#1aaa80')) }
     ]
   },
 
   'star-explode': {
     name: 'Star Explode',
-    bpm: 140,
+    bpm: 130,
     frames: [
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(STAR_5PT, '#ffdd00', 5, 3) },
-      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawPixelShape(STAR_5PT, '#ffdd00', 5, 3), drawCircle(10, 9, 4, '#ffaa00')) },
-      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(10, 9, 6, '#ff8800'), drawCircle(4, 4, 3, '#ffdd00'), drawCircle(16, 4, 3, '#ffdd00'), drawCircle(10, 16, 3, '#ffdd00')) },
-      { durationBeats: 2, transition: 'fade', cells: {} }
+      { durationBeats: 2, transition: 'fade', cells: drawFilledCircle(10, 10, 1, '#ffdd00') },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(STAR_5PT, '#ffdd00', 0, 0), drawFilledCircle(10, 10, 2, '#ffffff')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawPixelShape(STAR_5PT, '#ffcc00', 0, 0), drawCircle(10, 10, 4, '#ffaa00')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawPixelShape(STAR_5PT, '#ffffff', 0, 0), drawFilledCircle(10, 10, 3, '#ffff00'), drawCircle(10, 10, 6, '#ffaa00')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(10, 10, 5, '#ffdd00'), drawCircle(10, 10, 7, '#ffaa00'), drawCircle(10, 10, 9, '#ff8800'), drawFilledCircle(3, 3, 2, '#ffdd00'), drawFilledCircle(17, 3, 2, '#ffdd00'), drawFilledCircle(3, 17, 2, '#ffdd00'), drawFilledCircle(17, 17, 2, '#ffdd00')) },
+      { durationBeats: 1, transition: 'instant', cells: mergeFrames(drawCircle(10, 10, 8, '#ff6600'), drawCircle(10, 10, 6, '#ff8800'), drawFilledCircle(2, 2, 3, '#ffcc00'), drawFilledCircle(18, 2, 3, '#ffcc00'), drawFilledCircle(2, 18, 3, '#ffcc00'), drawFilledCircle(18, 18, 3, '#ffcc00')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawCircle(10, 10, 9, '#442200'), drawCircle(3, 3, 2, '#664400'), drawCircle(17, 3, 2, '#664400'), drawCircle(3, 17, 2, '#664400'), drawCircle(17, 17, 2, '#664400')) }
     ]
   },
 
@@ -19339,12 +19448,41 @@ var DRONE_SHOW_LIBRARY = {
     name: 'TOUCH? Text',
     bpm: 100,
     frames: [
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(LETTER_T, '#ff6b35', 2, 7) },
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(LETTER_O, '#ff6b35', 7, 7) },
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(LETTER_U, '#ff6b35', 12, 7) },
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(LETTER_C, '#ff6b35', 2, 7) },
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(LETTER_H, '#ff6b35', 7, 7) },
-      { durationBeats: 2, transition: 'fade', cells: drawPixelShape(LETTER_Q, '#ff6b35', 12, 7) }
+      { durationBeats: 4, transition: 'fade', cells: mergeFrames(
+        drawPixelShape(LETTER_T, '#ff6b35', 1, 3),
+        drawPixelShape(LETTER_O, '#ff8855', 7, 3),
+        drawPixelShape(LETTER_U, '#ffaa66', 13, 3)
+      )},
+      { durationBeats: 4, transition: 'fade', cells: mergeFrames(
+        drawPixelShape(LETTER_C, '#ff6b35', 1, 11),
+        drawPixelShape(LETTER_H, '#ff8855', 7, 11),
+        drawPixelShape(LETTER_Q, '#ffaa66', 13, 11)
+      )},
+      { durationBeats: 4, transition: 'fade', cells: mergeFrames(
+        drawPixelShape(LETTER_T, '#ff6b35', 1, 3),
+        drawPixelShape(LETTER_O, '#ff8855', 7, 3),
+        drawPixelShape(LETTER_U, '#ffaa66', 13, 3),
+        drawPixelShape(LETTER_C, '#ff6b35', 1, 11),
+        drawPixelShape(LETTER_H, '#ff8855', 7, 11),
+        drawPixelShape(LETTER_Q, '#ffaa66', 13, 11)
+      )},
+      { durationBeats: 2, transition: 'instant', cells: mergeFrames(
+        drawPixelShape(LETTER_T, '#ffffff', 1, 3),
+        drawPixelShape(LETTER_O, '#ffffff', 7, 3),
+        drawPixelShape(LETTER_U, '#ffffff', 13, 3),
+        drawPixelShape(LETTER_C, '#ffffff', 1, 11),
+        drawPixelShape(LETTER_H, '#ffffff', 7, 11),
+        drawPixelShape(LETTER_Q, '#ffffff', 13, 11),
+        fillGrid('#331100')
+      )},
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(
+        drawPixelShape(LETTER_T, '#ff6b35', 1, 3),
+        drawPixelShape(LETTER_O, '#ff8855', 7, 3),
+        drawPixelShape(LETTER_U, '#ffaa66', 13, 3),
+        drawPixelShape(LETTER_C, '#ff6b35', 1, 11),
+        drawPixelShape(LETTER_H, '#ff8855', 7, 11),
+        drawPixelShape(LETTER_Q, '#ffaa66', 13, 11)
+      )}
     ]
   },
 
@@ -19352,10 +19490,12 @@ var DRONE_SHOW_LIBRARY = {
     name: 'Lanterns',
     bpm: 88,
     frames: [
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 15, 2, '#ff6432'), drawFilledCircle(10, 15, 2, '#ff6432'), drawFilledCircle(16, 15, 2, '#ff6432')) },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 12, 2, '#ff6432'), drawFilledCircle(10, 12, 2, '#ff6432'), drawFilledCircle(16, 12, 2, '#ff6432')) },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 9, 2, '#ff8c54'), drawFilledCircle(10, 9, 2, '#ff8c54'), drawFilledCircle(16, 9, 2, '#ff8c54')) },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 6, 2, '#ffaa88'), drawFilledCircle(10, 6, 2, '#ffaa88'), drawFilledCircle(16, 6, 2, '#ffaa88')) }
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 17, 2, '#ff6432'), drawFilledCircle(10, 18, 2, '#ff7744'), drawFilledCircle(16, 17, 2, '#ff6432'), drawFilledCircle(7, 16, 1, '#ff5522')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 14, 2, '#ff6432'), drawFilledCircle(10, 15, 2, '#ff7744'), drawFilledCircle(16, 14, 2, '#ff6432'), drawFilledCircle(7, 13, 1, '#ff5522'), drawFilledCircle(13, 16, 1, '#ff8855')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 11, 2, '#ff8855'), drawFilledCircle(10, 12, 2, '#ff9966'), drawFilledCircle(16, 11, 2, '#ff8855'), drawFilledCircle(7, 10, 1, '#ff7744'), drawFilledCircle(13, 13, 1, '#ffaa77')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 8, 2, '#ffaa77'), drawFilledCircle(10, 9, 2, '#ffbb88'), drawFilledCircle(16, 8, 2, '#ffaa77'), drawFilledCircle(7, 7, 1, '#ff9966'), drawFilledCircle(13, 10, 1, '#ffcc99')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 5, 2, '#ffcc99'), drawFilledCircle(10, 6, 2, '#ffddaa'), drawFilledCircle(16, 5, 2, '#ffcc99'), drawFilledCircle(7, 4, 1, '#ffbb88'), drawFilledCircle(13, 7, 1, '#ffddbb')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawFilledCircle(4, 2, 2, '#ffddbb'), drawFilledCircle(10, 3, 2, '#ffeecc'), drawFilledCircle(16, 2, 2, '#ffddbb'), drawFilledCircle(7, 1, 1, '#ffccaa'), drawFilledCircle(13, 4, 1, '#ffeecc')) }
     ]
   },
 
@@ -19363,10 +19503,10 @@ var DRONE_SHOW_LIBRARY = {
     name: 'DNA Helix',
     bpm: 100,
     frames: [
-      { durationBeats: 2, transition: 'instant', cells: mergeFrames(drawLine(5, 0, 5, 19, '#7c6aef'), drawLine(15, 0, 15, 19, '#7c6aef'), drawLine(10, 5, 10, 15, '#7c6aef')) },
-      { durationBeats: 2, transition: 'instant', cells: mergeFrames(drawLine(5, 0, 15, 19, '#7c6aef'), drawLine(15, 0, 5, 19, '#7c6aef'), drawLine(10, 0, 10, 19, '#b8a8ff')) },
-      { durationBeats: 2, transition: 'instant', cells: mergeFrames(drawFilledCircle(5, 5, 1, '#7c6aef'), drawFilledCircle(15, 5, 1, '#7c6aef'), drawFilledCircle(10, 15, 2, '#7c6aef')) },
-      { durationBeats: 2, transition: 'instant', cells: mergeFrames(drawFilledCircle(5, 10, 2, '#7c6aef'), drawFilledCircle(15, 10, 2, '#7c6aef'), drawFilledCircle(10, 5, 1, '#b8a8ff')) }
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(5, 0, 15, 19, '#7c6aef'), drawLine(15, 0, 5, 19, '#b8a8ff'), drawFilledCircle(10, 10, 1, '#ffffff'), drawFilledCircle(5, 0, 1, '#7c6aef'), drawFilledCircle(15, 0, 1, '#b8a8ff')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(3, 0, 17, 19, '#7c6aef'), drawLine(17, 0, 3, 19, '#b8a8ff'), drawFilledCircle(10, 10, 1, '#ffffff'), drawLine(7, 5, 13, 5, '#9988ee'), drawLine(8, 15, 12, 15, '#9988ee')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(2, 0, 18, 19, '#7c6aef'), drawLine(18, 0, 2, 19, '#b8a8ff'), drawLine(5, 3, 15, 3, '#9988ee'), drawLine(6, 7, 14, 7, '#9988ee'), drawLine(7, 11, 13, 11, '#9988ee'), drawLine(8, 15, 12, 15, '#9988ee')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(4, 0, 16, 19, '#7c6aef'), drawLine(16, 0, 4, 19, '#b8a8ff'), drawLine(6, 4, 14, 4, '#9988ee'), drawLine(7, 8, 13, 8, '#9988ee'), drawLine(8, 12, 12, 12, '#9988ee'), drawLine(9, 16, 11, 16, '#9988ee'), drawFilledCircle(10, 0, 1, '#ffffff'), drawFilledCircle(10, 19, 1, '#ffffff')) }
     ]
   },
 
@@ -19374,11 +19514,12 @@ var DRONE_SHOW_LIBRARY = {
     name: 'Ocean Wave',
     bpm: 92,
     frames: [
-      { durationBeats: 2, transition: 'fade', cells: drawLine(0, 14, 19, 12, '#0096c8') },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 12, 19, 9, '#0096c8'), drawLine(0, 14, 19, 12, '#0078a8')) },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 10, 19, 6, '#0096c8'), drawLine(0, 12, 19, 9, '#0078a8'), drawLine(0, 14, 19, 12, '#005a8a')) },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 8, 19, 3, '#0096c8'), drawLine(0, 10, 19, 6, '#0078a8'), drawLine(0, 12, 19, 9, '#005a8a')) },
-      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 6, 19, 0, '#0096c8'), drawLine(0, 8, 19, 3, '#0078a8'), drawLine(0, 10, 19, 6, '#005a8a')) }
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 16, 19, 14, '#0096c8'), drawLine(0, 17, 19, 15, '#0078a8'), drawLine(0, 18, 19, 16, '#005a8a'), drawLine(0, 19, 19, 17, '#003c6a')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 14, 19, 11, '#0096c8'), drawLine(0, 15, 19, 12, '#0078a8'), drawLine(0, 16, 19, 14, '#005a8a'), drawLine(0, 17, 19, 15, '#003c6a'), drawLine(0, 18, 19, 17, '#002244')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 11, 19, 8, '#00b4d8'), drawLine(0, 12, 19, 9, '#0096c8'), drawLine(0, 14, 19, 11, '#0078a8'), drawLine(0, 15, 19, 12, '#005a8a'), drawLine(0, 17, 19, 14, '#003c6a'), drawLine(0, 18, 19, 16, '#002244')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 8, 19, 5, '#00d4f8'), drawLine(0, 9, 19, 6, '#00b4d8'), drawLine(0, 11, 19, 8, '#0096c8'), drawLine(0, 13, 19, 10, '#0078a8'), drawLine(0, 15, 19, 12, '#005a8a'), drawLine(0, 17, 19, 14, '#003c6a')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 5, 19, 2, '#00d4f8'), drawLine(0, 6, 19, 3, '#00b4d8'), drawLine(0, 8, 19, 5, '#0096c8'), drawLine(0, 10, 19, 7, '#0078a8'), drawLine(0, 13, 19, 10, '#005a8a'), drawLine(0, 16, 19, 13, '#003c6a'), drawFilledCircle(10, 1, 1, '#ffffff')) },
+      { durationBeats: 2, transition: 'fade', cells: mergeFrames(drawLine(0, 8, 19, 5, '#00b4d8'), drawLine(0, 10, 19, 7, '#0096c8'), drawLine(0, 13, 19, 10, '#0078a8'), drawLine(0, 16, 19, 13, '#005a8a'), drawLine(0, 18, 19, 16, '#003c6a')) }
     ]
   }
 };
