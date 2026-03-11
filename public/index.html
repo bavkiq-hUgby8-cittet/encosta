@@ -23545,6 +23545,9 @@ const GuidedOnboarding=(function(){
 <!-- ══════════════════════════════════════════════════════ -->
 <div id="djLiveOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#000;overflow:hidden;touch-action:none">
   <canvas id="djLiveCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+  <div id="djLiveTextOverlay" style="position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:2rem">
+    <div id="djLiveTextContent" style="font-family:'Orbitron',Inter,sans-serif;font-size:clamp(1.2rem,5vw,2.8rem);font-weight:900;color:#fff;text-align:center;text-shadow:0 0 30px rgba(255,255,255,.5),0 0 60px rgba(255,107,53,.3);letter-spacing:.06em;line-height:1.4;opacity:0;transition:opacity .6s;max-width:90%"></div>
+  </div>
   <div id="djLiveHint" style="position:absolute;bottom:env(safe-area-inset-bottom,20px);left:0;right:0;text-align:center;padding:1rem;opacity:.6;font-size:.7rem;color:#fff;font-family:Inter,sans-serif;pointer-events:none;transition:opacity 1s">Toque 2x para sair</div>
 </div>
 
@@ -23592,6 +23595,7 @@ var DJL = {
   detectedSessionId: null,
   promptShown: false,
   wakeLock: null,
+  liveText: '',
   // Zone and device state for crowd control
   deviceIndex: 0,
   totalDevices: 1,
@@ -23957,6 +23961,7 @@ function startDJAnimation() {
       case 'rainbow': drawRainbow(ctx, w, h, beatPhase, t); break;
       case 'laser': drawLaser(ctx, w, h, rgb, beatPhase, t); break;
       case 'confetti': drawConfetti(ctx, w, h, beatPhase, t); break;
+      case 'electric': drawElectric(ctx, w, h, rgb, beatPhase, t); break;
       default: drawPulse(ctx, w, h, rgb, beatPhase, t, beatCount);
     }
 
@@ -24273,6 +24278,101 @@ function drawConfetti(ctx, w, h, beatPhase, t) {
   }
 }
 
+function updateDJLiveText() {
+  var el = document.getElementById('djLiveTextContent');
+  if (!el) return;
+  if (DJL.liveText && DJL.liveText.trim()) {
+    el.textContent = DJL.liveText;
+    el.style.opacity = '1';
+    // Color glow matching current DJ color
+    var rgb = hexToRgb(DJL.color);
+    el.style.textShadow = '0 0 30px rgba(255,255,255,.5), 0 0 60px rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',.4)';
+  } else {
+    el.style.opacity = '0';
+  }
+}
+
+function drawElectric(ctx, w, h, rgb, beatPhase, t) {
+  // Tron/Electric Touch style -- horizontal beams with particles
+  ctx.fillStyle = 'rgba(0,0,4,0.12)';
+  ctx.fillRect(0, 0, w, h);
+
+  var beamCount = 10;
+  var beatSurge = Math.pow(Math.max(0, 1 - beatPhase * 3), 2); // surge at beat start
+  var globalIntensity = 0.7 + beatSurge * 1.5;
+
+  for (var i = 0; i < beamCount; i++) {
+    // Each beam scrolls upward continuously
+    var speed = 60 + i * 15;
+    var baseY = ((h * 1.5 - (t * speed + i * h / beamCount * 1.3)) % (h * 1.6)) + h * 0.1;
+    var tubeH = 20 + (i % 3) * 12 + beatSurge * 15;
+    var breathe = 1 + Math.sin(t * (0.4 + i * 0.1) + i * 2.3) * 0.08;
+    var th = tubeH * breathe;
+
+    // Outer glow
+    var g1 = ctx.createLinearGradient(0, baseY - th * 2.5, 0, baseY + th * 2.5);
+    g1.addColorStop(0, 'transparent');
+    g1.addColorStop(0.3, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.04 * globalIntensity) + ')');
+    g1.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.08 * globalIntensity) + ')');
+    g1.addColorStop(0.7, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.04 * globalIntensity) + ')');
+    g1.addColorStop(1, 'transparent');
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, baseY - th * 2.5, w, th * 5);
+
+    // Inner core
+    var g2 = ctx.createLinearGradient(0, baseY - th * 0.3, 0, baseY + th * 0.3);
+    g2.addColorStop(0, 'transparent');
+    g2.addColorStop(0.3, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.15 * globalIntensity) + ')');
+    g2.addColorStop(0.5, 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + (0.25 * globalIntensity) + ')');
+    g2.addColorStop(0.7, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.15 * globalIntensity) + ')');
+    g2.addColorStop(1, 'transparent');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, baseY - th * 0.3, w, th * 0.6);
+
+    // Hot wire center line
+    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 100, 255) + ',' + Math.min(rgb.b + 100, 255) + ',' + (0.2 * globalIntensity) + ')';
+    ctx.fillRect(0, baseY - 0.8, w, 1.6);
+
+    // Flowing streaks on beam
+    for (var s = 0; s < 3; s++) {
+      var sx = ((t * (80 + beatSurge * 300) + s * w / 3 + i * 50) % (w + 100)) - 50;
+      var sLen = 40 + Math.sin(t * 0.8 + s + i) * 20;
+      var sy = baseY + Math.sin(t * 1.2 + s * 1.3 + i) * th * 0.15;
+      var sg = ctx.createLinearGradient(sx, sy, sx - sLen, sy);
+      sg.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.3 * globalIntensity) + ')');
+      sg.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx - sLen, sy);
+      ctx.strokeStyle = sg;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  }
+
+  // Riding particles
+  for (var p = 0; p < 30; p++) {
+    var px = ((t * (50 + p * 3) + p * 137) % (w + 20)) - 10;
+    var beamIdx = p % beamCount;
+    var bSpeed = 60 + beamIdx * 15;
+    var bY = ((h * 1.5 - (t * bSpeed + beamIdx * h / beamCount * 1.3)) % (h * 1.6)) + h * 0.1;
+    var py = bY + Math.sin(t * 0.6 + p * 0.7) * 8;
+    var pAlpha = (0.2 + Math.sin(t * 2.5 + p) * 0.15) * globalIntensity;
+    var pSize = 1 + Math.sin(t + p * 1.1) * 0.8;
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(0.5, pSize), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + pAlpha + ')';
+    ctx.fill();
+  }
+
+  // Beat burst flash at top/bottom
+  if (beatSurge > 0.3) {
+    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (beatSurge * 0.08) + ')';
+    ctx.fillRect(0, 0, w, h);
+  }
+}
+
 function doFlash(duration) {
   if (!DJL.active || !DJL.ctx) return;
   var dpr = window.devicePixelRatio || 1;
@@ -24335,6 +24435,7 @@ function setupDJListeners() {
     if (data.color) DJL.color = data.color;
     if (data.bpm) DJL.bpm = data.bpm;
     if (data.animation && data.command === 'animation') DJL.animation = data.animation;
+    if (data.text !== undefined) { DJL.liveText = data.text; updateDJLiveText(); }
     switch (data.command) {
       case 'flash': doFlash(data.duration || 200); break;
       case 'blackout': doBlackout(data.duration || 3000); break;
@@ -24342,7 +24443,17 @@ function setupDJListeners() {
       case 'solid': DJL.animation = 'solid'; break;
       case 'fire': DJL.animation = 'fire'; break;
       case 'ocean': DJL.animation = 'ocean'; break;
+      case 'strobe': DJL.animation = 'strobe'; break;
+      case 'rainbow': DJL.animation = 'rainbow'; break;
+      case 'laser': DJL.animation = 'laser'; break;
+      case 'confetti': DJL.animation = 'confetti'; break;
+      case 'electric': DJL.animation = 'electric'; break;
+      case 'auto': DJL.autoMode = !DJL.autoMode; break;
     }
+    // Zone data
+    if (data.zone !== undefined) DJL.zone = data.zone;
+    if (data.totalZones !== undefined) DJL.totalZones = data.totalZones;
+    if (data.deviceIndex !== undefined) DJL.deviceIndex = data.deviceIndex;
   });
 
   // Current state when joining mid-session
