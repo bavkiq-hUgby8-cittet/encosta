@@ -23670,14 +23670,31 @@ function showDJListenerIndicator(active) {
 
 function startDJListener() {
   if (DJL.listenerActive || DJL.active) return;
+  // Clean up any stale state from previous failed attempts
+  if (DJL.listenerCtx) {
+    try { DJL.listenerCtx.close(); } catch(e) {}
+    DJL.listenerCtx = null;
+  }
+  if (DJL.listenerStream) {
+    DJL.listenerStream.getTracks().forEach(function(t) { t.stop(); });
+    DJL.listenerStream = null;
+  }
+  DJL.listenerAnalyser = null;
   console.log('[DJ Listener] Starting passive ultrasonic scan...');
 
   navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
   .then(function(stream) {
     DJL.listenerStream = stream;
     DJL.listenerCtx = new (window.AudioContext || window.webkitAudioContext)();
-    DJL.listenerCtx.resume();
-    console.log('[DJ Listener] Mic stream OK, sampleRate:', DJL.listenerCtx.sampleRate);
+    // Force resume AudioContext (critical on mobile)
+    if (DJL.listenerCtx.state === 'suspended') {
+      DJL.listenerCtx.resume().then(function() {
+        console.log('[DJ Listener] AudioContext resumed from suspended');
+      }).catch(function(e) {
+        console.warn('[DJ Listener] AudioContext resume failed:', e);
+      });
+    }
+    console.log('[DJ Listener] Mic stream OK, sampleRate:', DJL.listenerCtx.sampleRate, 'ctxState:', DJL.listenerCtx.state);
 
     var source = DJL.listenerCtx.createMediaStreamSource(stream);
     DJL.listenerAnalyser = DJL.listenerCtx.createAnalyser();
@@ -25511,17 +25528,35 @@ var _djInitInterval = setInterval(function() {
       console.log('[DJ] Auto-start listener attempt after socket ready');
     }, 1500);
 
-    // Fallback: start on first user gesture (touch/click) if not yet active
+    // Fallback: start on ANY user gesture (touch/click) if not yet active
+    // Use capture phase and do NOT remove -- keep retrying on every gesture
+    var _djGestureAttempts = 0;
     var _djGestureHandler = function() {
-      if (!DJL.listenerActive && !DJL.active) {
+      if (!DJL.listenerActive && !DJL.active && _djGestureAttempts < 10) {
+        _djGestureAttempts++;
+        console.log('[DJ] Gesture-triggered listener start attempt #' + _djGestureAttempts);
         startDJListener();
-        console.log('[DJ] Listener started via user gesture');
       }
-      document.removeEventListener('touchstart', _djGestureHandler);
-      document.removeEventListener('click', _djGestureHandler);
+      if (DJL.listenerActive || _djGestureAttempts >= 10) {
+        document.removeEventListener('touchstart', _djGestureHandler, true);
+        document.removeEventListener('click', _djGestureHandler, true);
+        console.log('[DJ] Gesture handler removed (active=' + DJL.listenerActive + ', attempts=' + _djGestureAttempts + ')');
+      }
     };
-    document.addEventListener('touchstart', _djGestureHandler, { once: true });
-    document.addEventListener('click', _djGestureHandler, { once: true });
+    document.addEventListener('touchstart', _djGestureHandler, { capture: true });
+    document.addEventListener('click', _djGestureHandler, { capture: true });
+
+    // Periodic retry: if listener failed to start, keep trying every 5s
+    var _djRetryInterval = setInterval(function() {
+      if (DJL.listenerActive || DJL.active) {
+        clearInterval(_djRetryInterval);
+        return;
+      }
+      console.log('[DJ] Periodic retry: attempting to start listener...');
+      startDJListener();
+    }, 5000);
+    // Stop retrying after 2 minutes
+    setTimeout(function() { clearInterval(_djRetryInterval); }, 120000);
 
     console.log('[DJ] Ready. Listener will auto-start on first gesture.');
   }
