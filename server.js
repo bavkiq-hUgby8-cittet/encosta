@@ -18033,6 +18033,128 @@ io.on('connection', (socket) => {
       '| devices:', totalDevices, '| steps:', s.choreography ? s.choreography.steps.length : 0);
   });
 
+  // --- Positioning: DJ triggers sync pulse for depth measurement ---
+  socket.on('dj-sync-pulse', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    const payload = {
+      emitTime: Date.now(),
+      freq: data.freq || 19500,
+      sessionId: data.sessionId
+    };
+    io.to('dj-live:' + data.sessionId).emit('dj-sync-pulse', payload);
+    if (s.eventId) io.to('event:' + s.eventId).emit('dj-sync-pulse', payload);
+    console.log('[Position] Sync pulse broadcast for session', data.sessionId);
+  });
+
+  // --- Positioning: DJ sets stage heading for compass calibration ---
+  socket.on('dj-stage-heading', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.stageHeading = data.heading || 0;
+    s.maxDepth = data.maxDepth || 50;
+    const payload = { heading: s.stageHeading, maxDepth: s.maxDepth };
+    io.to('dj-live:' + data.sessionId).emit('dj-stage-heading', payload);
+    if (s.eventId) io.to('event:' + s.eventId).emit('dj-stage-heading', payload);
+    console.log('[Position] Stage heading set:', s.stageHeading, 'maxDepth:', s.maxDepth);
+  });
+
+  // --- Positioning: Device reports depth + compass data ---
+  socket.on('dj-position-report', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    if (!s.devicePositions) s.devicePositions = {};
+    const deviceId = socket.id;
+    s.devicePositions[deviceId] = {
+      depth: data.depth || -1,
+      compassHeading: data.compassHeading || -1,
+      compassX: data.compassX || 0.5,
+      updatedAt: Date.now()
+    };
+    // Compute normalized position for this device
+    const pos = computeDevicePosition(s, deviceId);
+    socket.emit('dj-position-update', pos);
+  });
+
+  // --- Positioning: Mesh neighbor report ---
+  socket.on('dj-mesh-report', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    if (!s.meshReports) s.meshReports = {};
+    s.meshReports[socket.id] = {
+      slot: data.mySlot,
+      neighbors: data.neighbors || [],
+      depth: data.depth || -1,
+      compassHeading: data.compassHeading || -1,
+      roundId: data.roundId
+    };
+    // If all devices reported, compute layout
+    const totalReports = Object.keys(s.meshReports).length;
+    const totalDevices = s.connectedDevices.size;
+    if (totalReports >= totalDevices * 0.8) { // 80% reported
+      computeMeshLayout(s);
+    }
+  });
+
+  // --- Positioning: GPS report ---
+  socket.on('dj-gps-report', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    if (!s.gpsData) s.gpsData = {};
+    s.gpsData[socket.id] = {
+      lat: data.lat,
+      lng: data.lng,
+      accuracy: data.accuracy || 100,
+      heading: data.heading || -1,
+      updatedAt: Date.now()
+    };
+    // Compute normalized position from GPS
+    const pos = computeGPSPosition(s, socket.id);
+    if (pos) socket.emit('dj-position-update', pos);
+  });
+
+  // --- Positioning: DJ triggers mesh discovery round ---
+  socket.on('dj-start-mesh', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.meshReports = {};
+    const devicesArr = Array.from(s.connectedDevices);
+    const roundId = Date.now().toString(36);
+    const totalSlots = Math.min(devicesArr.length, 40);
+    let slotIdx = 0;
+    const room = io.sockets.adapter.rooms.get('dj-live:' + data.sessionId);
+    if (room) {
+      for (const sid of room) {
+        const deviceSocket = io.sockets.sockets.get(sid);
+        if (deviceSocket) {
+          deviceSocket.emit('dj-mesh-round', {
+            slot: slotIdx % totalSlots,
+            totalSlots: totalSlots,
+            roundId: roundId
+          });
+          slotIdx++;
+        }
+      }
+    }
+    console.log('[Mesh] Started round', roundId, 'with', slotIdx, 'devices,', totalSlots, 'slots');
+  });
+
+  // --- Positioning: DJ requests GPS from all devices ---
+  socket.on('dj-request-gps', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.gpsData = {};
+    io.to('dj-live:' + data.sessionId).emit('dj-request-gps');
+    console.log('[GPS] Requested GPS from all devices in session', data.sessionId);
+  });
+
   // --- Audience phone detected ultrasonic frequency, check if DJ session exists ---
   socket.on('dj-check-frequency', (data) => {
     console.log('[DJ] dj-check-frequency received:', JSON.stringify(data));
@@ -18261,6 +18383,157 @@ io.on('connection', (socket) => {
 });
 
 console.log('[DJ LIVE] Touch? Live DJ engine loaded');
+
+// ── Position Computation Helpers ──
+
+function computeDevicePosition(session, deviceId) {
+  const pos = session.devicePositions && session.devicePositions[deviceId];
+  if (!pos) return { x: 0.5, y: 0.5 };
+
+  let y = 0.5, x = 0.5;
+  const maxDepth = session.maxDepth || 50;
+
+  // Y from depth (sound time-of-flight)
+  if (pos.depth >= 0) {
+    y = Math.min(1, pos.depth / maxDepth);
+  }
+
+  // X from compass
+  if (pos.compassX !== undefined && session.stageHeading !== undefined) {
+    x = pos.compassX;
+  } else {
+    // Fallback: spread by device index
+    const devicesArr = Array.from(session.connectedDevices);
+    const idx = devicesArr.indexOf(deviceId);
+    if (idx >= 0 && devicesArr.length > 1) {
+      x = idx / (devicesArr.length - 1);
+    }
+  }
+
+  return { x, y, depthNorm: y };
+}
+
+function computeGPSPosition(session, deviceId) {
+  const gps = session.gpsData && session.gpsData[deviceId];
+  if (!gps || !gps.lat) return null;
+
+  // Collect all GPS points to find bounds
+  const points = Object.values(session.gpsData).filter(g => g.lat && g.lng);
+  if (points.length < 2) return { x: 0.5, y: 0.5 };
+
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const p of points) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lng < minLng) minLng = p.lng;
+    if (p.lng > maxLng) maxLng = p.lng;
+  }
+
+  // Add small padding to avoid edge positions
+  const latRange = (maxLat - minLat) || 0.001;
+  const lngRange = (maxLng - minLng) || 0.001;
+
+  const x = (gps.lng - minLng) / lngRange;
+  const y = (gps.lat - minLat) / latRange;
+
+  return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, 1 - y)) };
+}
+
+function computeMeshLayout(session) {
+  // Build adjacency from mesh reports
+  const reports = session.meshReports || {};
+  const deviceIds = Object.keys(reports);
+  if (deviceIds.length < 2) return;
+
+  // Spring-force layout: connected nodes attract, all nodes repel
+  // Initialize random positions
+  const positions = {};
+  for (const id of deviceIds) {
+    positions[id] = {
+      x: Math.random(),
+      y: Math.random()
+    };
+    // Use depth if available
+    const r = reports[id];
+    if (r.depth >= 0 && session.maxDepth) {
+      positions[id].y = Math.min(1, r.depth / (session.maxDepth || 50));
+    }
+  }
+
+  // Build slot-to-deviceId mapping
+  const slotToDevice = {};
+  for (const id of deviceIds) {
+    slotToDevice[reports[id].slot] = id;
+  }
+
+  // Run 50 iterations of force-directed layout
+  const k = 0.1; // Spring constant
+  const repulsion = 0.01;
+  for (let iter = 0; iter < 50; iter++) {
+    const forces = {};
+    for (const id of deviceIds) forces[id] = { fx: 0, fy: 0 };
+
+    // Repulsion between all pairs
+    for (let i = 0; i < deviceIds.length; i++) {
+      for (let j = i + 1; j < deviceIds.length; j++) {
+        const a = deviceIds[i], b = deviceIds[j];
+        const dx = positions[a].x - positions[b].x;
+        const dy = positions[a].y - positions[b].y;
+        const dist = Math.max(0.01, Math.sqrt(dx * dx + dy * dy));
+        const f = repulsion / (dist * dist);
+        forces[a].fx += (dx / dist) * f;
+        forces[a].fy += (dy / dist) * f;
+        forces[b].fx -= (dx / dist) * f;
+        forces[b].fy -= (dy / dist) * f;
+      }
+    }
+
+    // Attraction between neighbors
+    for (const id of deviceIds) {
+      const neighbors = reports[id].neighbors || [];
+      for (const nSlot of neighbors) {
+        const nId = slotToDevice[nSlot];
+        if (!nId || !positions[nId]) continue;
+        const dx = positions[nId].x - positions[id].x;
+        const dy = positions[nId].y - positions[id].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        forces[id].fx += dx * k;
+        forces[id].fy += dy * k;
+      }
+    }
+
+    // Apply forces with damping
+    const damping = 0.8 / (1 + iter * 0.1);
+    for (const id of deviceIds) {
+      positions[id].x = Math.max(0, Math.min(1, positions[id].x + forces[id].fx * damping));
+      positions[id].y = Math.max(0, Math.min(1, positions[id].y + forces[id].fy * damping));
+    }
+  }
+
+  // Send computed positions to each device
+  for (const id of deviceIds) {
+    const deviceSocket = io.sockets.sockets.get(id);
+    if (deviceSocket) {
+      deviceSocket.emit('dj-position-update', {
+        x: positions[id].x,
+        y: positions[id].y,
+        source: 'mesh'
+      });
+    }
+  }
+
+  // Store for late joiners
+  if (!session.devicePositions) session.devicePositions = {};
+  for (const id of deviceIds) {
+    session.devicePositions[id] = {
+      ...session.devicePositions[id],
+      meshX: positions[id].x,
+      meshY: positions[id].y
+    };
+  }
+
+  console.log('[Mesh] Layout computed for', deviceIds.length, 'devices');
+}
 
 // ══════════════════════════════════════════════════════════════
 
