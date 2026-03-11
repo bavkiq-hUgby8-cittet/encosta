@@ -7033,6 +7033,8 @@ function stopHomeSonic(){
   // Restore bottom nav + motivation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.remove('sonic-hidden');
   const hm=$('homeMotivation');if(hm)hm.style.opacity='';
+  // Mic is free now -- start DJ listener to detect nearby live sessions
+  setTimeout(function(){ if(typeof startDJListener==='function'&&!DJL.listenerActive&&!DJL.active) startDJListener(); }, 500);
 }
 async function createSession(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
@@ -26591,54 +26593,10 @@ var _djInitInterval = setInterval(function() {
     clearInterval(_djInitInterval);
     setupDJListeners();
 
-    // Try starting listener immediately (works if mic permission already granted)
-    setTimeout(function() {
-      startDJListener();
-      console.log('[DJ] Auto-start listener attempt after socket ready');
-    }, 1500);
-
-    // Fallback: start on ANY user gesture (touch/click) if not yet active
-    // Use capture phase and do NOT remove -- keep retrying on every gesture
-    var _djGestureAttempts = 0;
-    var _djGestureHandler = function() {
-      // Skip if main sonic system is using mic
-      if ((typeof sonicActive !== 'undefined' && sonicActive) ||
-          (typeof homeSonicActive !== 'undefined' && homeSonicActive)) {
-        return;
-      }
-      if (!DJL.listenerActive && !DJL.active && _djGestureAttempts < 3) {
-        _djGestureAttempts++;
-        console.log('[DJ] Gesture-triggered listener start attempt #' + _djGestureAttempts);
-        startDJListener();
-      }
-      if (DJL.listenerActive || _djGestureAttempts >= 3) {
-        document.removeEventListener('touchstart', _djGestureHandler, true);
-        document.removeEventListener('click', _djGestureHandler, true);
-        console.log('[DJ] Gesture handler removed (active=' + DJL.listenerActive + ', attempts=' + _djGestureAttempts + ')');
-      }
-    };
-    document.addEventListener('touchstart', _djGestureHandler, { capture: true });
-    document.addEventListener('click', _djGestureHandler, { capture: true });
-
-    // Periodic retry: if listener failed to start, try every 15s (gentle, not aggressive)
-    var _djRetryInterval = setInterval(function() {
-      if (DJL.listenerActive || DJL.active) {
-        clearInterval(_djRetryInterval);
-        return;
-      }
-      // Skip if main sonic system is using mic
-      if ((typeof sonicActive !== 'undefined' && sonicActive) ||
-          (typeof homeSonicActive !== 'undefined' && homeSonicActive) ||
-          (typeof sonicStream !== 'undefined' && sonicStream)) {
-        return;
-      }
-      console.log('[DJ] Periodic retry: attempting to start listener...');
-      startDJListener();
-    }, 15000);
-    // Stop retrying after 90 seconds
-    setTimeout(function() { clearInterval(_djRetryInterval); }, 90000);
-
-    console.log('[DJ] Ready. Listener will auto-start on first gesture.');
+    // DJ listener does NOT auto-start anymore.
+    // Mic should only activate when the user explicitly presses the Touch button.
+    // startDJListener() will be called from handleMainButton() after Touch is pressed.
+    console.log('[DJ] Ready. Listener will start when user presses Touch.');
   }
 }, 500);
 
