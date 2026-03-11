@@ -23590,7 +23590,8 @@ var DJL = {
   listenerStream: null,
   listenerRaf: null,
   detectedSessionId: null,
-  promptShown: false
+  promptShown: false,
+  wakeLock: null
 };
 
 // Ultrasonic detection constants (same as main system)
@@ -23812,6 +23813,15 @@ function enterDJLive(data) {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   } catch(e) {}
 
+  // Wake Lock -- keep screen on
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(function(lock) {
+      DJL.wakeLock = lock;
+      console.log('[DJ Live] Wake Lock acquired -- screen will stay on');
+      lock.addEventListener('release', function() { console.log('[DJ Live] Wake Lock released'); });
+    }).catch(function(err) { console.log('[DJ Live] Wake Lock failed:', err.message); });
+  }
+
   // Stop listener while in live mode
   stopDJListener();
 }
@@ -23836,17 +23846,53 @@ function exitDJLive() {
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   } catch(e) {}
 
+  // Release Wake Lock
+  if (DJL.wakeLock) {
+    try { DJL.wakeLock.release(); } catch(e) {}
+    DJL.wakeLock = null;
+  }
+
   DJL.sessionId = null;
   DJL.promptShown = false;
 }
 
-// Double tap to exit
+// Double tap to exit + single tap toast
+var _djTapTimer = null;
 document.getElementById('djLiveOverlay').addEventListener('touchstart', function(e) {
   var now = Date.now();
-  if (now - DJL.lastTap < 400) { exitDJLive(); e.preventDefault(); }
+  if (now - DJL.lastTap < 400) {
+    // Double tap -- exit
+    if (_djTapTimer) { clearTimeout(_djTapTimer); _djTapTimer = null; }
+    exitDJLive();
+    e.preventDefault();
+  } else {
+    // Single tap -- show hint after short delay (to distinguish from double)
+    if (_djTapTimer) clearTimeout(_djTapTimer);
+    _djTapTimer = setTimeout(function() {
+      showDJToast('toque 2x para sair');
+      _djTapTimer = null;
+    }, 450);
+  }
   DJL.lastTap = now;
 }, { passive: false });
 document.getElementById('djLiveOverlay').addEventListener('dblclick', function() { exitDJLive(); });
+
+function showDJToast(msg) {
+  var existing = document.getElementById('djLiveToast');
+  if (existing) existing.remove();
+  var el = document.createElement('div');
+  el.id = 'djLiveToast';
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.15);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#fff;padding:10px 24px;border-radius:20px;font-size:14px;font-family:Inter,sans-serif;font-weight:500;z-index:100000;pointer-events:none;opacity:0;transition:opacity .3s';
+  document.body.appendChild(el);
+  requestAnimationFrame(function() {
+    el.style.opacity = '1';
+    setTimeout(function() {
+      el.style.opacity = '0';
+      setTimeout(function() { if (el.parentNode) el.remove(); }, 400);
+    }, 1800);
+  });
+}
 
 // Resize
 function resizeDJCanvas() {
