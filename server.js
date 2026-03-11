@@ -18207,8 +18207,8 @@ io.on('connection', (socket) => {
     const totalZones = s.totalZones || 4;
     const zone = deviceIndex % totalZones;
 
-    // Send current state to the new device
-    socket.emit('dj-live-state', {
+    // Send current state to the new device (including choreography if show is running)
+    const statePayload = {
       sessionId: data.sessionId,
       broadcasting: s.broadcasting,
       color: s.color,
@@ -18218,7 +18218,22 @@ io.on('connection', (socket) => {
       totalDevices: totalDevices,
       zone: zone,
       totalZones: totalZones
-    });
+    };
+    socket.emit('dj-live-state', statePayload);
+
+    // If a choreography show is active, send it too so reconnected devices pick it up
+    if (s.showActive && s.choreography) {
+      socket.emit('dj-choreography', {
+        choreography: s.choreography,
+        beatOrigin: s.beatOrigin,
+        showActive: s.showActive,
+        deviceIndex: deviceIndex,
+        totalDevices: totalDevices,
+        position: s.devicePositions && s.devicePositions[deviceId]
+          ? s.devicePositions[deviceId]
+          : { x: deviceIndex / Math.max(1, totalDevices - 1), y: 0.5 }
+      });
+    }
 
     // Notify DJ panel
     io.to('dj-ctrl:' + data.sessionId).emit('dj-device-joined', {
