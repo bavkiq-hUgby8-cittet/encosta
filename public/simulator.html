@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch? Stadium Light Show Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+#topBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #141420;
+  border-bottom: 1px solid #2a2a3a;
+  flex-wrap: wrap;
+  z-index: 10;
+}
+#topBar h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #a855f7;
+  white-space: nowrap;
+}
+#topBar .sep { color: #333; }
+#deviceCount {
+  font-size: 13px;
+  color: #888;
+  white-space: nowrap;
+}
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl-group label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ctrl-group input[type="range"] {
+  width: 80px;
+  accent-color: #a855f7;
+}
+.ctrl-group select {
+  background: #1e1e2e;
+  color: #e0e0e0;
+  border: 1px solid #3a3a4a;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+#canvasWrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+#sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 220px;
+  height: 100%;
+  background: rgba(14, 14, 22, 0.92);
+  border-left: 1px solid #2a2a3a;
+  padding: 12px;
+  overflow-y: auto;
+  z-index: 5;
+}
+#sidebar h2 {
+  font-size: 13px;
+  color: #a855f7;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+#sidebar h3 {
+  font-size: 11px;
+  color: #666;
+  margin: 12px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.fx-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.fx-btn:hover { background: #252540; border-color: #a855f7; color: #fff; }
+.fx-btn.active { background: #3b1f6e; border-color: #a855f7; color: #fff; }
+.color-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+.color-swatch.active, .color-swatch:hover { border-color: #fff; }
+input[type="color"] {
+  width: 28px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+}
+#fpsCounter {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 11px;
+  color: #555;
+  z-index: 5;
+}
+#stageLabel {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  color: #a855f7;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  z-index: 5;
+  text-shadow: 0 0 20px rgba(168,85,247,0.5);
+}
+.zone-ctrl {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.zone-btn {
+  flex: 1;
+  padding: 4px 0;
+  background: #1a1a2e;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: 11px;
+  cursor: pointer;
+}
+.zone-btn.active { background: #3b1f6e; border-color: #a855f7; color: #fff; }
+#textInput {
+  width: 100%;
+  background: #1a1a2e;
+  border: 1px solid #3a3a4a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  padding: 8px 10px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+#textInput:focus { outline: none; border-color: #a855f7; }
+.text-opts {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.text-opts button {
+  flex: 1;
+  padding: 5px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: 10px;
+  cursor: pointer;
+}
+.text-opts button:hover { background: #252540; border-color: #a855f7; color: #fff; }
+.text-opts button.active { background: #3b1f6e; border-color: #a855f7; color: #fff; }
+.transition-label {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  margin-top: 2px;
+}
+#autoShowBar {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+#autoShowBar button {
+  flex: 1;
+  padding: 6px;
+  background: #1b3a1b;
+  border: 1px solid #2a5a2a;
+  border-radius: 6px;
+  color: #6f6;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#autoShowBar button:hover { background: #2a5a2a; }
+#autoShowBar button.stop { background: #3a1b1b; border-color: #5a2a2a; color: #f66; }
+#autoShowBar button.stop:hover { background: #5a2a2a; }
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <h1>Touch? Stadium Simulator</h1>
+  <span class="sep">|</span>
+  <span id="deviceCount">40,000 devices</span>
+  <span class="sep">|</span>
+  <div class="ctrl-group">
+    <label>BPM</label>
+    <input type="range" id="bpmSlider" min="60" max="180" value="128">
+    <span id="bpmVal" style="font-size:13px;color:#a855f7;min-width:36px">128</span>
+  </div>
+  <div class="ctrl-group">
+    <label>Devices</label>
+    <select id="deviceSelect">
+      <option value="5000">5,000</option>
+      <option value="10000">10,000</option>
+      <option value="20000">20,000</option>
+      <option value="40000" selected>40,000</option>
+      <option value="60000">60,000</option>
+      <option value="80000">80,000</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>View</label>
+    <select id="viewSelect">
+      <option value="stadium">Stadium</option>
+      <option value="rectangle">Rectangle</option>
+      <option value="circle">Circle</option>
+      <option value="semicircle">Semicircle</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Pixel</label>
+    <input type="range" id="pixelSlider" min="1" max="6" value="2">
+  </div>
+</div>
+
+<div id="canvasWrap">
+  <canvas id="stadium"></canvas>
+  <div id="stageLabel">STAGE</div>
+  <div id="fpsCounter">-- FPS</div>
+
+  <div id="sidebar">
+    <h2>Effects</h2>
+
+    <h3>Waves</h3>
+    <button class="fx-btn" data-fx="wave-lr">Wave Left to Right</button>
+    <button class="fx-btn" data-fx="wave-rl">Wave Right to Left</button>
+    <button class="fx-btn" data-fx="wave-tb">Wave Top to Bottom</button>
+    <button class="fx-btn" data-fx="wave-bt">Wave Bottom to Top</button>
+    <button class="fx-btn" data-fx="mexican-wave">Mexican Wave</button>
+
+    <h3>Radial</h3>
+    <button class="fx-btn" data-fx="ripple-center">Ripple Center</button>
+    <button class="fx-btn" data-fx="ripple-stage">Ripple Stage</button>
+    <button class="fx-btn" data-fx="spotlight">Spotlight</button>
+    <button class="fx-btn" data-fx="spiral">Spiral Arms</button>
+    <button class="fx-btn" data-fx="firework">Firework</button>
+
+    <h3>Shapes</h3>
+    <button class="fx-btn" data-fx="heart">Heart</button>
+    <button class="fx-btn" data-fx="countdown">Countdown 3-2-1</button>
+    <button class="fx-btn" data-fx="checkerboard">Checkerboard</button>
+    <button class="fx-btn" data-fx="split-halves">Split Halves</button>
+
+    <h3>Spectacular</h3>
+    <button class="fx-btn" data-fx="shooting-stars">Shooting Stars</button>
+    <button class="fx-btn" data-fx="comet">Comet Trail</button>
+    <button class="fx-btn" data-fx="galaxy-spin">Galaxy Spin</button>
+    <button class="fx-btn" data-fx="northern-lights">Northern Lights</button>
+    <button class="fx-btn" data-fx="rain-drops">Rain Drops</button>
+    <button class="fx-btn" data-fx="dna-helix">DNA Helix</button>
+    <button class="fx-btn" data-fx="fire">Fire</button>
+    <button class="fx-btn" data-fx="ocean-waves">Ocean Waves</button>
+
+    <h3>Ambient</h3>
+    <button class="fx-btn" data-fx="rainbow-wave">Rainbow Wave</button>
+    <button class="fx-btn" data-fx="random-sparkle">Random Sparkle</button>
+    <button class="fx-btn" data-fx="strobe-sections">Strobe Sections</button>
+    <button class="fx-btn" data-fx="breathe">Breathe</button>
+
+    <h3>Text / Message</h3>
+    <input type="text" id="textInput" placeholder="Type message..." maxlength="20" value="TOUCH?">
+    <div class="text-opts">
+      <button onclick="showText()" id="textShowBtn">SHOW</button>
+      <button onclick="showTextScroll()" id="textScrollBtn">SCROLL</button>
+      <button onclick="clearText()">CLEAR</button>
+    </div>
+    <div class="text-opts">
+      <button onclick="setTextStyle('bold')" class="active" id="tsBold">Bold</button>
+      <button onclick="setTextStyle('outline')" id="tsOutline">Outline</button>
+      <button onclick="setTextStyle('pixel')" id="tsPixel">Pixel</button>
+    </div>
+
+    <h3>Transitions</h3>
+    <div class="text-opts">
+      <button onclick="setTransition('cut')" class="active" id="trCut">Cut</button>
+      <button onclick="setTransition('fade')" id="trFade">Fade</button>
+      <button onclick="setTransition('wipe')" id="trWipe">Wipe</button>
+      <button onclick="setTransition('dissolve')" id="trDissolve">Dissolve</button>
+    </div>
+    <div class="transition-label" id="trLabel">Cut (instant)</div>
+
+    <h3>Auto Show</h3>
+    <div id="autoShowBar">
+      <button onclick="startAutoShow()">AUTO</button>
+      <button class="stop" onclick="stopAutoShow()">STOP</button>
+    </div>
+
+    <h3>Color</h3>
+    <div class="color-row" id="colorRow"></div>
+    <input type="color" id="customColor" value="#a855f7" title="Custom color">
+
+    <h3>Color 2 (split/checker)</h3>
+    <div class="color-row" id="color2Row"></div>
+    <input type="color" id="customColor2" value="#00b4d8" title="Custom color 2">
+
+    <h3>Zones</h3>
+    <div class="zone-ctrl" id="zoneCtrl"></div>
+
+    <h3>Speed</h3>
+    <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1" style="width:100%;accent-color:#a855f7">
+    <div style="font-size:11px;color:#666;text-align:center" id="speedVal">1.0x</div>
+  </div>
+</div>
+
+<script>
+// ===== CONFIGURATION =====
+var CFG = {
+  numDevices: 40000,
+  bpm: 128,
+  pixelSize: 2,
+  view: 'stadium',
+  currentFx: 'wave-lr',
+  color: '#a855f7',
+  color2: '#00b4d8',
+  zones: 1,
+  speed: 1,
+  autoShow: false,
+  autoShowIndex: 0,
+  autoShowTimer: null
+};
+
+// ===== CANVAS SETUP =====
+var canvas = document.getElementById('stadium');
+var ctx = canvas.getContext('2d');
+var devices = []; // { x: 0-1, y: 0-1, sx: screenX, sy: screenY }
+var W, H;
+var beatOrigin = Date.now();
+var frameCount = 0;
+var lastFpsTime = Date.now();
+var currentFps = 0;
+
+function resize() {
+  var wrap = document.getElementById('canvasWrap');
+  var dpr = window.devicePixelRatio || 1;
+  W = wrap.clientWidth;
+  H = wrap.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  layoutDevices();
+}
+
+// ===== DEVICE LAYOUT GENERATORS =====
+function layoutDevices() {
+  devices = [];
+  var n = CFG.numDevices;
+  var margin = 30;
+  var sidebarW = 220;
+  var areaW = W - sidebarW - margin * 2;
+  var areaH = H - margin * 2;
+  var stageH = 40; // reserved for stage label area at bottom
+  areaH -= stageH;
+  var ox = margin;
+  var oy = margin;
+
+  if (CFG.view === 'stadium') {
+    generateStadium(n, ox, oy, areaW, areaH);
+  } else if (CFG.view === 'rectangle') {
+    generateRectangle(n, ox, oy, areaW, areaH);
+  } else if (CFG.view === 'circle') {
+    generateCircle(n, ox, oy, areaW, areaH);
+  } else if (CFG.view === 'semicircle') {
+    generateSemicircle(n, ox, oy, areaW, areaH);
+  }
+  document.getElementById('deviceCount').textContent = devices.length.toLocaleString() + ' devices';
+}
+
+function generateStadium(n, ox, oy, areaW, areaH) {
+  // Oval stadium shape with hollow center (field)
+  // Outer oval, inner oval (field), seats between them
+  var cx = ox + areaW / 2;
+  var cy = oy + areaH / 2;
+  var outerRx = areaW / 2;
+  var outerRy = areaH / 2;
+  // Inner field is ~55% of outer
+  var innerRx = outerRx * 0.50;
+  var innerRy = outerRy * 0.45;
+
+  // Stadium has thicker sections at top/bottom (behind goals) and thinner on sides
+  var placed = 0;
+  var maxAttempts = n * 4;
+  var attempts = 0;
+
+  // Distribute in tiers (rows from inner to outer)
+  var tiers = 35;
+  var perTier = Math.ceil(n / tiers);
+
+  for (var t = 0; t < tiers && placed < n; t++) {
+    var fraction = (t + 0.5) / tiers; // 0=inner, 1=outer
+    var rx = innerRx + (outerRx - innerRx) * fraction;
+    var ry = innerRy + (outerRy - innerRy) * fraction;
+    var circumference = Math.PI * 2 * Math.sqrt((rx * rx + ry * ry) / 2);
+    var spotsInTier = Math.min(perTier, n - placed);
+    // Add slight randomness for organic look
+    for (var i = 0; i < spotsInTier && placed < n; i++) {
+      var angle = (i / spotsInTier) * Math.PI * 2 + (t % 2) * (Math.PI / spotsInTier);
+      // Slight jitter
+      angle += (Math.random() - 0.5) * (Math.PI * 2 / spotsInTier) * 0.6;
+      var jitterR = 1 + (Math.random() - 0.5) * 0.7;
+      var px = cx + Math.cos(angle) * rx * jitterR;
+      var py = cy + Math.sin(angle) * ry * jitterR;
+      // Check bounds
+      var dx = (px - cx) / outerRx;
+      var dy = (py - cy) / outerRy;
+      if (dx * dx + dy * dy <= 1.02) {
+        var dxi = (px - cx) / innerRx;
+        var dyi = (py - cy) / innerRy;
+        if (dxi * dxi + dyi * dyi >= 0.9) {
+          // Normalize to 0-1 for pattern calculation
+          // x: left-right, y: distance from stage (bottom = stage)
+          var normX = (px - ox) / areaW;
+          var normY = (py - oy) / areaH;
+          devices.push({ x: normX, y: normY, sx: px, sy: py });
+          placed++;
+        }
+      }
+    }
+  }
+}
+
+function generateRectangle(n, ox, oy, areaW, areaH) {
+  var cols = Math.ceil(Math.sqrt(n * areaW / areaH));
+  var rows = Math.ceil(n / cols);
+  var dx = areaW / cols;
+  var dy = areaH / rows;
+  var placed = 0;
+  for (var r = 0; r < rows && placed < n; r++) {
+    for (var c = 0; c < cols && placed < n; c++) {
+      var px = ox + c * dx + dx / 2 + (Math.random() - 0.5) * dx * 0.5;
+      var py = oy + r * dy + dy / 2 + (Math.random() - 0.5) * dy * 0.5;
+      devices.push({ x: (px - ox) / areaW, y: (py - oy) / areaH, sx: px, sy: py });
+      placed++;
+    }
+  }
+}
+
+function generateCircle(n, ox, oy, areaW, areaH) {
+  var cx = ox + areaW / 2;
+  var cy = oy + areaH / 2;
+  var radius = Math.min(areaW, areaH) / 2;
+  // Sunflower seed distribution for even circle fill
+  var phi = (1 + Math.sqrt(5)) / 2; // golden ratio
+  for (var i = 0; i < n; i++) {
+    var r = Math.sqrt((i + 0.5) / n) * radius;
+    var theta = i * 2 * Math.PI / (phi * phi);
+    var px = cx + r * Math.cos(theta);
+    var py = cy + r * Math.sin(theta);
+    devices.push({ x: (px - ox) / areaW, y: (py - oy) / areaH, sx: px, sy: py });
+  }
+}
+
+function generateSemicircle(n, ox, oy, areaW, areaH) {
+  var cx = ox + areaW / 2;
+  var baseY = oy + areaH; // stage at bottom
+  var radius = Math.min(areaW / 2, areaH);
+  var phi = (1 + Math.sqrt(5)) / 2;
+  var placed = 0;
+  for (var i = 0; placed < n && i < n * 3; i++) {
+    var r = Math.sqrt((i + 0.5) / (n * 2)) * radius;
+    var theta = Math.PI + i * Math.PI / (phi * phi);
+    var px = cx + r * Math.cos(theta);
+    var py = baseY + r * Math.sin(theta);
+    if (py >= oy && py <= oy + areaH && px >= ox && px <= ox + areaW) {
+      devices.push({ x: (px - ox) / areaW, y: (py - oy) / areaH, sx: px, sy: py });
+      placed++;
+    }
+  }
+}
+
+// ===== PATTERN FUNCTIONS (same as Touch? app) =====
+function hexToRgb(hex) {
+  if (!hex || hex.charAt(0) !== '#') hex = '#a855f7';
+  var val = parseInt(hex.slice(1), 16);
+  return { r: (val >> 16) & 255, g: (val >> 8) & 255, b: val & 255 };
+}
+
+function hue2rgb(p, q, t) {
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1/6) return p + (q - p) * 6 * t;
+  if (t < 1/2) return q;
+  if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+  return p;
+}
+
+var patterns = {
+  'wave-lr': function(x, y, beat, step) {
+    var phase = (x - beat * (step.speed || 1)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'wave-rl': function(x, y, beat, step) {
+    return patterns['wave-lr'](1 - x, y, beat, step);
+  },
+  'wave-tb': function(x, y, beat, step) {
+    return patterns['wave-lr'](y, x, beat, step);
+  },
+  'wave-bt': function(x, y, beat, step) {
+    return patterns['wave-lr'](1 - y, x, beat, step);
+  },
+  'ripple-center': function(x, y, beat, step) {
+    var dx = x - 0.5, dy = y - 0.5;
+    var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+    var phase = (dist - beat * (step.speed || 0.8)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 3);
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'ripple-stage': function(x, y, beat, step) {
+    var phase = (y - beat * (step.speed || 0.6)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'mexican-wave': function(x, y, beat, step) {
+    var speed = step.speed || 0.3;
+    var width = 0.15;
+    var center = (beat * speed) % 1;
+    var dist = Math.abs(x - center);
+    if (dist > 0.5) dist = 1 - dist;
+    var brightness = dist < width ? Math.pow(1 - dist / width, 2) : 0;
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'split-halves': function(x, y, beat, step) {
+    var isLeft = x < 0.5;
+    var pulse = 0.7 + Math.sin(beat * Math.PI * 2) * 0.3;
+    var rgb = hexToRgb(step.color);
+    var rgb2 = hexToRgb(step.color2 || '#00b4d8');
+    var c = isLeft ? rgb : rgb2;
+    return { r: Math.round(c.r * pulse), g: Math.round(c.g * pulse), b: Math.round(c.b * pulse) };
+  },
+  'random-sparkle': function(x, y, beat, step) {
+    var seed = Math.sin(x * 12345.6789 + y * 9876.54321) * 43758.5453;
+    seed = seed - Math.floor(seed);
+    var flashTime = (beat * (step.speed || 2) + seed * 7) % 1;
+    var brightness = flashTime < 0.15 ? Math.pow(1 - flashTime / 0.15, 3) : 0;
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'spotlight': function(x, y, beat, step) {
+    var speed = step.speed || 0.2;
+    var cx = 0.5 + Math.sin(beat * speed * Math.PI * 2) * 0.4;
+    var cy = 0.5 + Math.cos(beat * speed * Math.PI * 2 * 0.7) * 0.3;
+    var dx = x - cx, dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var radius = 0.2;
+    var brightness = dist < radius ? Math.pow(1 - dist / radius, 1.5) : 0;
+    var rgb = hexToRgb(step.color || '#ffffff');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'spiral': function(x, y, beat, step) {
+    var dx = x - 0.5, dy = y - 0.5;
+    var angle = Math.atan2(dy, dx);
+    var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+    var arms = 3;
+    var twist = dist * 4;
+    var phase = (angle / (Math.PI * 2) * arms + twist - beat * (step.speed || 0.5)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 4) * (1 - dist * 0.5);
+    brightness = Math.max(0, brightness);
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'heart': function(x, y, beat, step) {
+    var hx = (x - 0.5) * 3;
+    var hy = -(y - 0.35) * 3;
+    var scale = 0.8 + Math.sin(beat * Math.PI * 2) * 0.2;
+    hx /= scale; hy /= scale;
+    var val = Math.pow(hx * hx + hy * hy - 1, 3) - hx * hx * hy * hy * hy;
+    var inside = val < 0;
+    var edge = Math.abs(val) < 0.3;
+    var brightness = inside ? 1.0 : (edge ? 0.3 : 0);
+    var rgb = hexToRgb(step.color || '#ff1744');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'countdown': function(x, y, beat, step) {
+    var totalBeats = 4;
+    var phase = beat % 1;
+    var num = 3 - Math.floor(beat * totalBeats) % 4;
+    if (num < 0) num = 0;
+    var col = Math.floor(x * 5);
+    var row = Math.floor(y * 7);
+    var segments = {
+      3: [[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]],
+      2: [[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]],
+      1: [[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+      0: [[0,1,0],[1,0,1],[1,1,1],[1,0,1],[0,1,0]]
+    };
+    var pattern = segments[num] || segments[0];
+    var isLit = row >= 1 && row <= 5 && col >= 1 && col <= 3 && pattern[row-1] && pattern[row-1][col-1];
+    var pulse = 0.6 + Math.sin(phase * Math.PI * 2) * 0.4;
+    var brightness = isLit ? pulse : 0.02;
+    var rgb = hexToRgb(step.color || '#ffdd00');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'rainbow-wave': function(x, y, beat, step) {
+    var hue = ((x + beat * (step.speed || 0.3)) * 360) % 360;
+    var pulse = 0.7 + Math.sin(beat * Math.PI * 4) * 0.3;
+    var h = hue / 360;
+    var s = 1, l = 0.5 * pulse;
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    return {
+      r: Math.round(hue2rgb(p, q, h + 1/3) * 255),
+      g: Math.round(hue2rgb(p, q, h) * 255),
+      b: Math.round(hue2rgb(p, q, h - 1/3) * 255)
+    };
+  },
+  'strobe-sections': function(x, y, beat, step) {
+    var sections = step.sections || 4;
+    var section = Math.floor(x * sections);
+    var isOn = (Math.floor(beat * 4) + section) % 2 === 0;
+    var rgb = hexToRgb(step.color || '#ffffff');
+    return isOn ? rgb : { r: 0, g: 0, b: 0 };
+  },
+  'firework': function(x, y, beat, step) {
+    var speed = step.speed || 1;
+    var cycle = (beat * speed) % 1;
+    var seed = Math.floor(beat * speed);
+    var cx = 0.2 + (Math.sin(seed * 123.456) * 0.5 + 0.5) * 0.6;
+    var cy = 0.2 + (Math.cos(seed * 789.012) * 0.5 + 0.5) * 0.6;
+    var dx = x - cx, dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var ringPos = cycle * 0.8;
+    var ringWidth = 0.08;
+    var brightness = Math.abs(dist - ringPos) < ringWidth ? Math.pow(1 - cycle, 2) : 0;
+    var sparkle = Math.sin(x * 1000 + y * 2000 + beat * 50) > 0.95 ? 0.5 * (1 - cycle) : 0;
+    brightness = Math.min(1, brightness + sparkle);
+    var rgb = hexToRgb(step.color || '#ffdd00');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'breathe': function(x, y, beat, step) {
+    var brightness = 0.2 + Math.pow(Math.sin(beat * Math.PI * 2) * 0.5 + 0.5, 2) * 0.8;
+    var rgb = hexToRgb(step.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  'checkerboard': function(x, y, beat, step) {
+    var cols = step.cols || 4;
+    var rows = step.rows || 4;
+    var cx = Math.floor(x * cols);
+    var ry = Math.floor(y * rows);
+    var isWhite = (cx + ry + Math.floor(beat * 2)) % 2 === 0;
+    var rgb = hexToRgb(step.color);
+    var rgb2 = hexToRgb(step.color2 || '#000000');
+    return isWhite ? rgb : rgb2;
+  },
+
+  // ===== SPECTACULAR EFFECTS =====
+
+  // Shooting stars -- bright stars flying across leaving glowing trails
+  'shooting-stars': function(x, y, beat, step) {
+    var speed = step.speed || 1;
+    var brightness = 0;
+    // Multiple stars at different angles and speeds
+    for (var s = 0; s < 5; s++) {
+      var starSeed = s * 137.5;
+      var angle = (s * 0.6 + 0.2) % 1; // Different angles
+      var starSpeed = (0.3 + s * 0.15) * speed;
+      var cycle = (beat * starSpeed + starSeed * 0.01) % 3; // Longer cycle for spacing
+      // Star position along its path
+      var sx = cycle - 0.5;
+      var sy = cycle * angle - 0.3;
+      // Distance from this device to the star path
+      var dx = x - sx;
+      var dy = y - sy;
+      // Trail: devices behind the star glow
+      var alongPath = dx * Math.cos(angle * Math.PI * 0.5) + dy * Math.sin(angle * Math.PI * 0.5);
+      var perpDist = Math.abs(-dx * Math.sin(angle * Math.PI * 0.5) + dy * Math.cos(angle * Math.PI * 0.5));
+      // Head brightness (point source)
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var headGlow = dist < 0.06 ? Math.pow(1 - dist / 0.06, 3) : 0;
+      // Trail (fades behind the star)
+      var trailGlow = 0;
+      if (alongPath > 0 && alongPath < 0.4 && perpDist < 0.03) {
+        trailGlow = Math.pow(1 - alongPath / 0.4, 2) * Math.pow(1 - perpDist / 0.03, 2) * 0.7;
+      }
+      brightness += headGlow + trailGlow;
+    }
+    brightness = Math.min(1, brightness);
+    // Golden/white color for stars
+    var r = Math.round(255 * brightness);
+    var g = Math.round(220 * brightness);
+    var b = Math.round(150 * brightness * 0.5 + 255 * Math.pow(brightness, 4) * 0.5);
+    return { r: r, g: g, b: b };
+  },
+
+  // Comet -- single large bright comet with long colorful trail
+  'comet': function(x, y, beat, step) {
+    var speed = step.speed || 0.3;
+    // Comet follows a curved path across the crowd
+    var t = (beat * speed) % 1;
+    // Bezier-like path
+    var cx = 0.1 + t * 0.8 + Math.sin(t * Math.PI * 2) * 0.1;
+    var cy = 0.3 + Math.sin(t * Math.PI) * 0.3;
+    var dx = x - cx;
+    var dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    // Bright head
+    var headSize = 0.08;
+    var headBright = dist < headSize ? Math.pow(1 - dist / headSize, 2) : 0;
+    // Trail -- uses previous positions (approximated by looking "behind" the comet)
+    var trailBright = 0;
+    for (var i = 1; i <= 12; i++) {
+      var tt = t - i * 0.015;
+      if (tt < 0) tt += 1;
+      var tcx = 0.1 + tt * 0.8 + Math.sin(tt * Math.PI * 2) * 0.1;
+      var tcy = 0.3 + Math.sin(tt * Math.PI) * 0.3;
+      var tdx = x - tcx;
+      var tdy = y - tcy;
+      var tdist = Math.sqrt(tdx * tdx + tdy * tdy);
+      var trailWidth = 0.03 + i * 0.004;
+      if (tdist < trailWidth) {
+        var fade = 1 - i / 13;
+        trailBright = Math.max(trailBright, Math.pow(1 - tdist / trailWidth, 2) * fade * 0.8);
+      }
+    }
+    var brightness = Math.min(1, headBright + trailBright);
+    // Comet: white head, colored trail
+    var base = hexToRgb(step.color || '#a855f7');
+    if (headBright > 0.3) {
+      // White-hot head
+      var hw = Math.min(1, headBright * 1.5);
+      return {
+        r: Math.round(255 * hw),
+        g: Math.round(255 * hw),
+        b: Math.round((200 + 55 * hw) * hw)
+      };
+    }
+    return {
+      r: Math.round(base.r * brightness + 100 * trailBright),
+      g: Math.round(Math.min(255, base.g * brightness + 50 * trailBright)),
+      b: Math.round(base.b * brightness)
+    };
+  },
+
+  // Galaxy spin -- spiral galaxy with stars
+  'galaxy-spin': function(x, y, beat, step) {
+    var dx = x - 0.5, dy = y - 0.5;
+    var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+    var angle = Math.atan2(dy, dx);
+    var speed = step.speed || 0.3;
+    // Two spiral arms
+    var arms = 2;
+    var twist = dist * 6;
+    var rotation = beat * speed * Math.PI * 2;
+    var phase = (angle / (Math.PI * 2) * arms + twist - rotation / (Math.PI * 2)) % 1;
+    if (phase < 0) phase += 1;
+    var armBright = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 6) * (1 - dist * 0.6);
+    armBright = Math.max(0, armBright);
+    // Core glow
+    var core = Math.pow(Math.max(0, 1 - dist * 2), 3) * 0.6;
+    // Random stars
+    var starSeed = Math.sin(x * 54321 + y * 12345) * 99999;
+    var isStar = (starSeed - Math.floor(starSeed)) > 0.97 ? 0.8 : 0;
+    var twinkle = isStar * (0.5 + Math.sin(beat * 10 + starSeed) * 0.5);
+    var brightness = Math.min(1, armBright + core + twinkle);
+    // Purple-blue galaxy colors
+    var hue = (dist * 120 + 240 + beat * 20) % 360;
+    var h = hue / 360, sl = 0.8, ll = brightness * 0.5;
+    var qq = ll < 0.5 ? ll * (1 + sl) : ll + sl - ll * sl;
+    var pp = 2 * ll - qq;
+    return {
+      r: Math.round(hue2rgb(pp, qq, h + 1/3) * 255),
+      g: Math.round(hue2rgb(pp, qq, h) * 255),
+      b: Math.round(hue2rgb(pp, qq, h - 1/3) * 255)
+    };
+  },
+
+  // Northern lights / Aurora borealis
+  'northern-lights': function(x, y, beat, step) {
+    var speed = step.speed || 0.5;
+    // Layered sine waves creating curtain effect
+    var wave1 = Math.sin(x * 4 + beat * speed * 2) * 0.3;
+    var wave2 = Math.sin(x * 7 - beat * speed * 1.5 + 1) * 0.2;
+    var wave3 = Math.sin(x * 11 + beat * speed * 0.8 + 2) * 0.15;
+    var curtainY = 0.3 + wave1 + wave2 + wave3;
+    var distFromCurtain = Math.abs(y - curtainY);
+    var width = 0.15 + Math.sin(x * 3 + beat * 0.3) * 0.05;
+    var brightness = distFromCurtain < width ? Math.pow(1 - distFromCurtain / width, 2) : 0;
+    // Second curtain
+    var c2y = 0.6 + Math.sin(x * 5 - beat * speed * 1.2) * 0.2;
+    var d2 = Math.abs(y - c2y);
+    var w2 = 0.1 + Math.sin(x * 4 + beat * 0.5) * 0.04;
+    var b2 = d2 < w2 ? Math.pow(1 - d2 / w2, 2) * 0.6 : 0;
+    brightness = Math.min(1, brightness + b2);
+    // Green to purple gradient
+    var hue = 120 + x * 60 + Math.sin(beat * 0.3) * 40; // green to cyan to purple
+    var h = (hue % 360) / 360;
+    var qq = 0.5 * brightness < 0.25 ? 0.5 * brightness * 2 : 0.5 * brightness + 0.8 - 0.5 * brightness * 0.8;
+    var pp = 2 * 0.5 * brightness - qq;
+    return {
+      r: Math.round(hue2rgb(pp, qq, h + 1/3) * 255),
+      g: Math.round(hue2rgb(pp, qq, h) * 255),
+      b: Math.round(hue2rgb(pp, qq, h - 1/3) * 255)
+    };
+  },
+
+  // Rain drops hitting the crowd surface
+  'rain-drops': function(x, y, beat, step) {
+    var speed = step.speed || 2;
+    var brightness = 0;
+    // Multiple rain drops at different positions
+    for (var d = 0; d < 8; d++) {
+      var seed = d * 789.123;
+      var dropX = (Math.sin(seed) * 0.5 + 0.5);
+      var dropY = (Math.cos(seed * 1.3) * 0.5 + 0.5);
+      var cycle = (beat * speed * 0.5 + seed * 0.1) % 1.5;
+      if (cycle > 1) continue; // Gap between drops
+      var dx = x - dropX;
+      var dy = y - dropY;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      // Expanding ring
+      var ringPos = cycle * 0.3;
+      var ringWidth = 0.02 + cycle * 0.01;
+      var ring = Math.abs(dist - ringPos) < ringWidth ? Math.pow(1 - cycle, 2) * (1 - Math.abs(dist - ringPos) / ringWidth) : 0;
+      brightness += ring;
+    }
+    brightness = Math.min(1, brightness);
+    var rgb = hexToRgb(step.color || '#00b4d8');
+    return {
+      r: Math.round(rgb.r * brightness),
+      g: Math.round(rgb.g * brightness),
+      b: Math.round(rgb.b * brightness)
+    };
+  },
+
+  // DNA double helix rotating
+  'dna-helix': function(x, y, beat, step) {
+    var speed = step.speed || 0.5;
+    var twist = y * 8; // How twisted the helix is
+    var rotation = beat * speed * Math.PI * 2;
+    // Two strands
+    var strand1X = 0.5 + Math.sin(twist + rotation) * 0.2;
+    var strand2X = 0.5 + Math.sin(twist + rotation + Math.PI) * 0.2;
+    var d1 = Math.abs(x - strand1X);
+    var d2 = Math.abs(x - strand2X);
+    var width = 0.03;
+    var b1 = d1 < width ? Math.pow(1 - d1 / width, 2) : 0;
+    var b2 = d2 < width ? Math.pow(1 - d2 / width, 2) : 0;
+    // Rungs connecting strands (horizontal bars at intervals)
+    var rungPhase = (y * 16 + beat * speed * 4) % 1;
+    var isRung = rungPhase < 0.15;
+    var rungBright = 0;
+    if (isRung) {
+      var minX = Math.min(strand1X, strand2X);
+      var maxX = Math.max(strand1X, strand2X);
+      if (x > minX - 0.01 && x < maxX + 0.01) {
+        rungBright = 0.5 * (1 - rungPhase / 0.15);
+      }
+    }
+    var brightness = Math.min(1, b1 + b2 + rungBright);
+    // Strand 1 = color, Strand 2 = color2
+    var rgb1 = hexToRgb(step.color || '#00e676');
+    var rgb2 = hexToRgb(step.color2 || '#2979ff');
+    var mix = b1 / (b1 + b2 + 0.001);
+    return {
+      r: Math.round((rgb1.r * mix + rgb2.r * (1 - mix)) * brightness + 200 * rungBright),
+      g: Math.round((rgb1.g * mix + rgb2.g * (1 - mix)) * brightness + 200 * rungBright),
+      b: Math.round((rgb1.b * mix + rgb2.b * (1 - mix)) * brightness + 200 * rungBright)
+    };
+  },
+
+  // Fire effect rising from bottom
+  'fire': function(x, y, beat, step) {
+    var speed = step.speed || 1;
+    // Noise-based fire
+    var n1 = Math.sin(x * 10 + beat * speed * 3) * Math.cos(y * 8 - beat * speed * 5);
+    var n2 = Math.sin(x * 20 - beat * speed * 4 + 1) * Math.cos(y * 15 + beat * speed * 2);
+    var n3 = Math.sin(x * 5 + beat * speed * 1.5 + 2) * Math.cos(y * 4 - beat * speed * 3);
+    var noise = (n1 + n2 * 0.5 + n3 * 0.25) / 1.75;
+    // Fire is stronger at bottom, fades upward
+    var height = 1 - y; // 1 at bottom, 0 at top
+    var fireIntensity = Math.pow(height, 1.5) * (0.5 + noise * 0.5);
+    fireIntensity = Math.max(0, Math.min(1, fireIntensity));
+    // Fire colors: white core -> yellow -> orange -> red -> dark
+    var r, g, b;
+    if (fireIntensity > 0.8) {
+      r = 255; g = 255; b = Math.round(200 * (fireIntensity - 0.8) / 0.2);
+    } else if (fireIntensity > 0.5) {
+      r = 255; g = Math.round(150 + 105 * (fireIntensity - 0.5) / 0.3); b = 0;
+    } else if (fireIntensity > 0.2) {
+      r = Math.round(180 + 75 * (fireIntensity - 0.2) / 0.3); g = Math.round(50 + 100 * (fireIntensity - 0.2) / 0.3); b = 0;
+    } else {
+      r = Math.round(180 * fireIntensity / 0.2); g = 0; b = 0;
+    }
+    return { r: r, g: g, b: b };
+  },
+
+  // Ocean waves
+  'ocean-waves': function(x, y, beat, step) {
+    var speed = step.speed || 0.5;
+    // Multiple overlapping waves
+    var w1 = Math.sin(x * 6 + beat * speed * 2 + y * 2) * 0.5 + 0.5;
+    var w2 = Math.sin(x * 10 - beat * speed * 1.5 + y * 3 + 1) * 0.3 + 0.5;
+    var w3 = Math.sin(x * 3 + beat * speed * 0.8 - y * 1.5 + 2) * 0.4 + 0.5;
+    var wave = (w1 + w2 + w3) / 3;
+    // Foam on wave peaks
+    var foam = wave > 0.7 ? (wave - 0.7) / 0.3 : 0;
+    // Deep water = darker, shallow = lighter
+    var depth = y; // deeper toward bottom
+    var r = Math.round(foam * 200 + (1 - foam) * 10 * (1 - depth));
+    var g = Math.round(foam * 220 + (1 - foam) * (80 + wave * 80) * (1 - depth * 0.3));
+    var b = Math.round(foam * 255 + (1 - foam) * (120 + wave * 100));
+    return { r: r, g: g, b: b };
+  }
+};
+
+// ===== TEXT RENDERING ENGINE =====
+// Uses an offscreen canvas to render text, then samples pixel positions
+var textCanvas = document.createElement('canvas');
+var textCtx = textCanvas.getContext('2d');
+textCanvas.width = 200;
+textCanvas.height = 60;
+var textMask = null; // Float32Array, 1 per device (0 or 1)
+var textActive = false;
+var textScrollActive = false;
+var textScrollOffset = 0;
+var textStyle = 'bold'; // bold, outline, pixel
+
+function renderTextMask(text, scrollX) {
+  var tw = textCanvas.width;
+  var th = textCanvas.height;
+  textCtx.clearRect(0, 0, tw, th);
+  textCtx.fillStyle = '#000';
+  textCtx.fillRect(0, 0, tw, th);
+
+  if (textStyle === 'pixel') {
+    // Pixel/blocky font
+    textCtx.font = 'bold 36px monospace';
+  } else {
+    textCtx.font = 'bold 42px Arial, Helvetica, sans-serif';
+  }
+  textCtx.textAlign = 'center';
+  textCtx.textBaseline = 'middle';
+
+  var xPos = tw / 2 + (scrollX || 0);
+
+  if (textStyle === 'outline') {
+    textCtx.strokeStyle = '#fff';
+    textCtx.lineWidth = 2;
+    textCtx.strokeText(text, xPos, th / 2);
+  } else {
+    textCtx.fillStyle = '#fff';
+    textCtx.fillText(text, xPos, th / 2);
+  }
+
+  // Read pixel data
+  var imgData = textCtx.getImageData(0, 0, tw, th);
+  var pixels = imgData.data;
+
+  // Create mask for each device
+  if (!textMask || textMask.length !== devices.length) {
+    textMask = new Float32Array(devices.length);
+  }
+
+  for (var i = 0; i < devices.length; i++) {
+    var d = devices[i];
+    // Map device normalized position to text canvas
+    var px = Math.floor(d.x * (tw - 1));
+    var py = Math.floor(d.y * (th - 1));
+    px = Math.max(0, Math.min(tw - 1, px));
+    py = Math.max(0, Math.min(th - 1, py));
+    var idx = (py * tw + px) * 4;
+    textMask[i] = pixels[idx] > 128 ? 1.0 : 0.0;
+  }
+}
+
+function showText() {
+  var text = document.getElementById('textInput').value || 'TOUCH?';
+  textScrollActive = false;
+  textActive = true;
+  renderTextMask(text);
+}
+
+function showTextScroll() {
+  var text = document.getElementById('textInput').value || 'TOUCH?';
+  textActive = true;
+  textScrollActive = true;
+  textScrollOffset = textCanvas.width;
+}
+
+function clearText() {
+  textActive = false;
+  textScrollActive = false;
+  textMask = null;
+}
+
+function setTextStyle(style) {
+  textStyle = style;
+  document.getElementById('tsBold').classList.toggle('active', style === 'bold');
+  document.getElementById('tsOutline').classList.toggle('active', style === 'outline');
+  document.getElementById('tsPixel').classList.toggle('active', style === 'pixel');
+  if (textActive && !textScrollActive) showText();
+}
+
+// ===== TRANSITION SYSTEM =====
+var transitionType = 'cut'; // cut, fade, wipe, dissolve
+var transitionState = {
+  active: false,
+  progress: 0, // 0 to 1
+  fromFx: null,
+  toFx: null,
+  startTime: 0,
+  duration: 800 // ms
+};
+
+function setTransition(type) {
+  transitionType = type;
+  document.getElementById('trCut').classList.toggle('active', type === 'cut');
+  document.getElementById('trFade').classList.toggle('active', type === 'fade');
+  document.getElementById('trWipe').classList.toggle('active', type === 'wipe');
+  document.getElementById('trDissolve').classList.toggle('active', type === 'dissolve');
+  var labels = {
+    cut: 'Cut (instant)',
+    fade: 'Fade (crossfade)',
+    wipe: 'Wipe (left to right)',
+    dissolve: 'Dissolve (random pixels)'
+  };
+  document.getElementById('trLabel').textContent = labels[type];
+}
+
+function triggerTransition(fromFx, toFx) {
+  if (transitionType === 'cut') {
+    CFG.currentFx = toFx;
+    return;
+  }
+  transitionState.active = true;
+  transitionState.fromFx = fromFx;
+  transitionState.toFx = toFx;
+  transitionState.startTime = Date.now();
+  transitionState.progress = 0;
+  // Pre-generate dissolve noise per device
+  if (transitionType === 'dissolve' && devices.length > 0) {
+    if (!transitionState.noise || transitionState.noise.length !== devices.length) {
+      transitionState.noise = new Float32Array(devices.length);
+    }
+    for (var i = 0; i < devices.length; i++) {
+      transitionState.noise[i] = Math.random();
+    }
+  }
+}
+
+function getTransitionColor(i, d, beat, step, fromColor, toColor) {
+  var p = transitionState.progress;
+  if (transitionType === 'fade') {
+    return {
+      r: Math.round(fromColor.r * (1 - p) + toColor.r * p),
+      g: Math.round(fromColor.g * (1 - p) + toColor.g * p),
+      b: Math.round(fromColor.b * (1 - p) + toColor.b * p)
+    };
+  } else if (transitionType === 'wipe') {
+    return d.x < p ? toColor : fromColor;
+  } else if (transitionType === 'dissolve') {
+    var threshold = p;
+    return (transitionState.noise && transitionState.noise[i] < threshold) ? toColor : fromColor;
+  }
+  return toColor;
+}
+
+// ===== ZONE COLOR SHIFT =====
+function getZoneColor(rgb, zone, totalZones) {
+  if (totalZones <= 1 || zone <= 0) return rgb;
+  var hueShift = (zone - 1) * (360 / totalZones);
+  // Convert RGB to HSL, shift hue, convert back
+  var r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var h, s, l = (max + min) / 2;
+  if (max === min) {
+    h = s = 0;
+  } else {
+    var d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  h = (h + hueShift / 360) % 1;
+  if (h < 0) h += 1;
+  // HSL to RGB
+  if (s === 0) {
+    return { r: Math.round(l * 255), g: Math.round(l * 255), b: Math.round(l * 255) };
+  }
+  var q2 = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  var p2 = 2 * l - q2;
+  return {
+    r: Math.round(hue2rgb(p2, q2, h + 1/3) * 255),
+    g: Math.round(hue2rgb(p2, q2, h) * 255),
+    b: Math.round(hue2rgb(p2, q2, h - 1/3) * 255)
+  };
+}
+
+// ===== RENDER LOOP =====
+// Use ImageData for performance with large device counts
+var imgData = null;
+var imgBuf = null;
+
+function render() {
+  requestAnimationFrame(render);
+
+  var now = Date.now();
+  var beat = (now - beatOrigin) * CFG.bpm / 60000;
+  var step = {
+    color: CFG.color,
+    color2: CFG.color2,
+    speed: CFG.speed,
+    sections: 4,
+    cols: 4,
+    rows: 4
+  };
+
+  var fn = patterns[CFG.currentFx];
+  if (!fn) fn = patterns['wave-lr'];
+
+  var ps = Math.max(1, Math.round(CFG.pixelSize));
+
+  // Clear to dark
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw field/stage area for stadium view
+  if (CFG.view === 'stadium') {
+    var margin = 30;
+    var sidebarW = 220;
+    var areaW = W - sidebarW - margin * 2;
+    var areaH = H - margin * 2 - 40;
+    var cx = margin + areaW / 2;
+    var cy = margin + areaH / 2;
+    // Draw inner field
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, areaW * 0.50 * 0.85, areaH * 0.45 * 0.85, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d1a0d';
+    ctx.fill();
+    ctx.strokeStyle = '#1a3a1a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Center line
+    ctx.beginPath();
+    ctx.moveTo(cx - areaW * 0.50 * 0.85, cy);
+    ctx.lineTo(cx + areaW * 0.50 * 0.85, cy);
+    ctx.strokeStyle = '#1a3a1a';
+    ctx.stroke();
+    // Center circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.min(areaW, areaH) * 0.08, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Update text scroll
+  if (textActive && textScrollActive) {
+    var text = document.getElementById('textInput').value || 'TOUCH?';
+    textScrollOffset -= 1.5; // pixels per frame
+    renderTextMask(text, textScrollOffset);
+    if (textScrollOffset < -textCanvas.width * 1.5) {
+      textScrollOffset = textCanvas.width;
+    }
+  }
+
+  // Update transition
+  var trActive = transitionState.active;
+  var fnFrom = null;
+  if (trActive) {
+    var elapsed = now - transitionState.startTime;
+    transitionState.progress = Math.min(1, elapsed / transitionState.duration);
+    if (transitionState.progress >= 1) {
+      transitionState.active = false;
+      trActive = false;
+      CFG.currentFx = transitionState.toFx;
+      fn = patterns[CFG.currentFx] || patterns['wave-lr'];
+    } else {
+      fnFrom = patterns[transitionState.fromFx] || patterns['wave-lr'];
+      fn = patterns[transitionState.toFx] || patterns['wave-lr'];
+    }
+  }
+
+  // Render devices
+  var len = devices.length;
+  for (var i = 0; i < len; i++) {
+    var d = devices[i];
+    var devX = d.x;
+    var devY = d.y;
+
+    // Apply zone
+    var zone = 1;
+    if (CFG.zones > 1) {
+      zone = (i % CFG.zones) + 1;
+    }
+
+    var rgb;
+    if (trActive && fnFrom) {
+      var fromRgb = fnFrom(devX, devY, beat, step);
+      var toRgb = fn(devX, devY, beat, step);
+      rgb = getTransitionColor(i, d, beat, step, fromRgb, toRgb);
+    } else {
+      rgb = fn(devX, devY, beat, step);
+    }
+
+    // Apply zone color shift
+    if (CFG.zones > 1) {
+      rgb = getZoneColor(rgb, zone, CFG.zones);
+    }
+
+    // Apply text mask overlay
+    if (textActive && textMask && textMask[i] > 0) {
+      var textColor = hexToRgb(CFG.color);
+      var pulse = 0.8 + Math.sin(beat * Math.PI * 4) * 0.2;
+      rgb = {
+        r: Math.round(textColor.r * pulse),
+        g: Math.round(textColor.g * pulse),
+        b: Math.round(textColor.b * pulse)
+      };
+    }
+
+    // Skip black pixels for performance
+    if (rgb.r < 2 && rgb.g < 2 && rgb.b < 2) continue;
+
+    // Add slight glow effect for bright pixels
+    var brightness = (rgb.r + rgb.g + rgb.b) / 765;
+    if (brightness > 0.6 && ps >= 2) {
+      ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.15)';
+      ctx.fillRect(d.sx - ps, d.sy - ps, ps * 3, ps * 3);
+    }
+
+    ctx.fillStyle = 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+    ctx.fillRect(d.sx - ps/2, d.sy - ps/2, ps, ps);
+  }
+
+  // FPS counter
+  frameCount++;
+  if (now - lastFpsTime >= 1000) {
+    currentFps = frameCount;
+    frameCount = 0;
+    lastFpsTime = now;
+    document.getElementById('fpsCounter').textContent = currentFps + ' FPS | ' + devices.length.toLocaleString() + ' devices';
+  }
+}
+
+// ===== AUTO SHOW =====
+var autoShowSequence = [
+  { fx: 'breathe', duration: 4000 },
+  { fx: 'wave-lr', duration: 5000 },
+  { fx: 'shooting-stars', duration: 6000 },
+  { fx: 'ripple-center', duration: 5000 },
+  { fx: 'comet', duration: 7000 },
+  { fx: 'rainbow-wave', duration: 6000 },
+  { fx: 'galaxy-spin', duration: 7000 },
+  { fx: 'spiral', duration: 5000 },
+  { fx: 'northern-lights', duration: 7000 },
+  { fx: 'spotlight', duration: 5000 },
+  { fx: 'fire', duration: 6000 },
+  { fx: 'mexican-wave', duration: 5000 },
+  { fx: 'heart', duration: 6000 },
+  { fx: 'ocean-waves', duration: 6000 },
+  { fx: 'firework', duration: 5000 },
+  { fx: 'dna-helix', duration: 6000 },
+  { fx: 'random-sparkle', duration: 4000 },
+  { fx: 'rain-drops', duration: 5000 },
+  { fx: 'wave-bt', duration: 4000 },
+  { fx: 'ripple-stage', duration: 5000 },
+  { fx: 'split-halves', duration: 4000 },
+  { fx: 'checkerboard', duration: 4000 },
+  { fx: 'strobe-sections', duration: 3000 },
+  { fx: 'countdown', duration: 6000 }
+];
+
+function startAutoShow() {
+  if (CFG.autoShow) return;
+  CFG.autoShow = true;
+  CFG.autoShowIndex = 0;
+  advanceAutoShow();
+}
+
+function advanceAutoShow() {
+  if (!CFG.autoShow) return;
+  var item = autoShowSequence[CFG.autoShowIndex % autoShowSequence.length];
+  var prevFx = CFG.currentFx;
+  // Use fade transition for auto show
+  triggerTransition(prevFx, item.fx);
+  if (transitionType === 'cut') CFG.currentFx = item.fx;
+  highlightActiveBtn();
+  CFG.autoShowIndex++;
+  CFG.autoShowTimer = setTimeout(advanceAutoShow, item.duration);
+}
+
+function stopAutoShow() {
+  CFG.autoShow = false;
+  if (CFG.autoShowTimer) {
+    clearTimeout(CFG.autoShowTimer);
+    CFG.autoShowTimer = null;
+  }
+}
+
+// ===== UI SETUP =====
+function setupColorRow(containerId, configKey) {
+  var colors = ['#a855f7','#ff1744','#00e676','#00b4d8','#ffdd00','#ff6f00','#e91e63','#ffffff','#2979ff','#00bcd4'];
+  var row = document.getElementById(containerId);
+  colors.forEach(function(c) {
+    var swatch = document.createElement('div');
+    swatch.className = 'color-swatch' + (c === CFG[configKey] ? ' active' : '');
+    swatch.style.background = c;
+    swatch.onclick = function() {
+      CFG[configKey] = c;
+      row.querySelectorAll('.color-swatch').forEach(function(s) { s.classList.remove('active'); });
+      swatch.classList.add('active');
+    };
+    row.appendChild(swatch);
+  });
+}
+
+function setupZones() {
+  var ctrl = document.getElementById('zoneCtrl');
+  [1,2,3,4,6,8].forEach(function(z) {
+    var btn = document.createElement('button');
+    btn.className = 'zone-btn' + (z === CFG.zones ? ' active' : '');
+    btn.textContent = z === 1 ? 'OFF' : z;
+    btn.onclick = function() {
+      CFG.zones = z;
+      ctrl.querySelectorAll('.zone-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    };
+    ctrl.appendChild(btn);
+  });
+}
+
+function highlightActiveBtn() {
+  var activeFx = transitionState.active ? transitionState.toFx : CFG.currentFx;
+  document.querySelectorAll('.fx-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-fx') === activeFx);
+  });
+}
+
+function init() {
+  // Effect buttons (with transition support)
+  document.querySelectorAll('.fx-btn').forEach(function(btn) {
+    btn.onclick = function() {
+      stopAutoShow();
+      var newFx = btn.getAttribute('data-fx');
+      if (newFx !== CFG.currentFx) {
+        triggerTransition(CFG.currentFx, newFx);
+        if (transitionType === 'cut') CFG.currentFx = newFx;
+      }
+      highlightActiveBtn();
+    };
+  });
+  highlightActiveBtn();
+
+  // BPM slider
+  var bpmSlider = document.getElementById('bpmSlider');
+  var bpmVal = document.getElementById('bpmVal');
+  bpmSlider.oninput = function() {
+    CFG.bpm = parseInt(bpmSlider.value);
+    bpmVal.textContent = CFG.bpm;
+  };
+
+  // Device count
+  document.getElementById('deviceSelect').onchange = function() {
+    CFG.numDevices = parseInt(this.value);
+    layoutDevices();
+  };
+
+  // View
+  document.getElementById('viewSelect').onchange = function() {
+    CFG.view = this.value;
+    layoutDevices();
+  };
+
+  // Pixel size
+  document.getElementById('pixelSlider').oninput = function() {
+    CFG.pixelSize = parseInt(this.value);
+  };
+
+  // Speed
+  var speedSlider = document.getElementById('speedSlider');
+  var speedVal = document.getElementById('speedVal');
+  speedSlider.oninput = function() {
+    CFG.speed = parseFloat(speedSlider.value);
+    speedVal.textContent = CFG.speed.toFixed(1) + 'x';
+  };
+
+  // Custom colors
+  document.getElementById('customColor').oninput = function() {
+    CFG.color = this.value;
+  };
+  document.getElementById('customColor2').oninput = function() {
+    CFG.color2 = this.value;
+  };
+
+  setupColorRow('colorRow', 'color');
+  setupColorRow('color2Row', 'color2');
+  setupZones();
+
+  resize();
+  window.addEventListener('resize', resize);
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
