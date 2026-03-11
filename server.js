@@ -17912,8 +17912,8 @@ io.on('connection', (socket) => {
     if (data.text !== undefined) s.liveText = data.text;
     if (data.totalZones) s.totalZones = data.totalZones;
 
-    // Broadcast to all audience devices
-    const payload = {
+    // Build base payload
+    const basePayload = {
       sessionId: data.sessionId,
       command: data.command,
       color: s.color,
@@ -17922,15 +17922,43 @@ io.on('connection', (socket) => {
       duration: data.duration || 0,
       text: s.liveText || '',
       timestamp: Date.now(),
+      totalZones: s.totalZones || 4,
+      totalDevices: s.connectedDevices.size,
       raffleNumber: data.raffleNumber || 0,
       raffleTotalDevices: data.raffleTotalDevices || s.connectedDevices.size || 20
     };
 
-    io.to('dj-live:' + data.sessionId).emit('dj-command', payload);
-
-    // Also broadcast to event room if linked
-    if (s.eventId) {
-      io.to('event:' + s.eventId).emit('dj-command', payload);
+    // For zone-related commands, send per-device payloads with individual zone info
+    if (data.command === 'zones' || data.totalZones) {
+      const devicesArr = Array.from(s.connectedDevices);
+      const totalZones = s.totalZones || 4;
+      const room = io.sockets.adapter.rooms.get('dj-live:' + data.sessionId);
+      if (room) {
+        let idx = 0;
+        for (const sid of room) {
+          const deviceSocket = io.sockets.sockets.get(sid);
+          if (deviceSocket) {
+            const deviceId = sid;
+            const devIdx = devicesArr.indexOf(deviceId);
+            const di = devIdx >= 0 ? devIdx : idx;
+            deviceSocket.emit('dj-command', Object.assign({}, basePayload, {
+              deviceIndex: di,
+              zone: di % totalZones
+            }));
+          }
+          idx++;
+        }
+      }
+      // Also broadcast to event room with base payload
+      if (s.eventId) {
+        io.to('event:' + s.eventId).emit('dj-command', basePayload);
+      }
+    } else {
+      // Normal broadcast -- same payload for everyone
+      io.to('dj-live:' + data.sessionId).emit('dj-command', basePayload);
+      if (s.eventId) {
+        io.to('event:' + s.eventId).emit('dj-command', basePayload);
+      }
     }
   });
 
