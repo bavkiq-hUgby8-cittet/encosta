@@ -17945,10 +17945,18 @@ io.on('connection', (socket) => {
     for (const [sid, s] of Object.entries(djSessions)) {
       console.log('[DJ] Session', sid, '-> venueFreq=' + s.venueFreq + ' broadcasting=' + s.broadcasting + ' diff=' + Math.abs(s.venueFreq - freq));
       if (s.broadcasting && Math.abs(s.venueFreq - freq) <= tolerance) {
+        // Try to get event logo if linked to an event
+        var eventLogo = '';
+        if (s.eventId && db.operatorEvents[s.eventId]) {
+          var ev = db.operatorEvents[s.eventId];
+          eventLogo = ev.logo || ev.eventLogo || '';
+        }
         socket.emit('dj-frequency-found', {
           sessionId: sid,
           sessionName: s.sessionName,
           artistName: s.artistName,
+          eventName: s.eventId && db.operatorEvents[s.eventId] ? db.operatorEvents[s.eventId].name : '',
+          eventLogo: eventLogo,
           color: s.color,
           bpm: s.bpm,
           animation: s.animation,
