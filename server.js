@@ -17929,11 +17929,14 @@ io.on('connection', (socket) => {
 
   // --- Audience phone detected ultrasonic frequency, check if DJ session exists ---
   socket.on('dj-check-frequency', (data) => {
-    if (!data || !data.frequency) return;
+    console.log('[DJ] dj-check-frequency received:', JSON.stringify(data));
+    if (!data || !data.frequency) { console.log('[DJ] dj-check-frequency: missing frequency field'); return; }
     const freq = data.frequency;
     const tolerance = 200; // Hz fuzzy match
+    console.log('[DJ] Checking freq=' + freq + 'Hz against', Object.keys(djSessions).length, 'active sessions');
 
     for (const [sid, s] of Object.entries(djSessions)) {
+      console.log('[DJ] Session', sid, '-> venueFreq=' + s.venueFreq + ' broadcasting=' + s.broadcasting + ' diff=' + Math.abs(s.venueFreq - freq));
       if (s.broadcasting && Math.abs(s.venueFreq - freq) <= tolerance) {
         socket.emit('dj-frequency-found', {
           sessionId: sid,
