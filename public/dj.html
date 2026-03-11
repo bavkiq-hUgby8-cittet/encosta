@@ -110,11 +110,16 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .dj-bpm-btn.active{background:rgba(255,107,53,.15);border-color:var(--ac);color:var(--ac)}
 
 /* ---- ANIMATION SELECTOR ---- */
-.dj-anim-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem}
+.dj-anim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
 .dj-anim-btn{padding:.6rem;border:1px solid var(--b1);border-radius:var(--radius-sm);background:rgba(255,255,255,.03);color:var(--t2);font-size:.7rem;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
 .dj-anim-btn:hover{background:rgba(255,255,255,.06)}
 .dj-anim-btn.active{background:rgba(255,107,53,.12);border-color:var(--ac);color:var(--ac)}
 .dj-anim-icon{font-size:1.2rem;display:block;margin-bottom:.2rem}
+
+/* ---- AUTO MODE BUTTON ---- */
+.dj-auto-btn{padding:.4rem .8rem;border:1px solid var(--b1);border-radius:8px;background:rgba(255,255,255,.03);color:var(--t2);font-family:var(--font-display);font-size:.7rem;font-weight:700;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.05em}
+.dj-auto-btn:hover{background:rgba(255,255,255,.06)}
+.dj-auto-btn.active{background:var(--ok);border-color:var(--ok);color:#000}
 
 /* ---- SESSION SETUP (LOGIN) ---- */
 .dj-setup{position:fixed;inset:0;z-index:200;background:linear-gradient(135deg,#050508 0%,#0d0816 50%,#050508 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem}
@@ -236,11 +241,27 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
   <!-- QUICK ACTIONS -->
   <section class="dj-ctrl-card full">
     <div class="dj-ctrl-title">Quick Actions</div>
+    <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+      <button class="dj-auto-btn" id="autoModeBtn" onclick="toggleAutoMode()">Auto</button>
+    </div>
     <div class="dj-action-grid">
       <button class="dj-action-btn pulse-btn" id="btnPulse" onclick="sendCommand('pulse')">Pulse</button>
       <button class="dj-action-btn flash-btn" id="btnFlash" onclick="sendCommand('flash')">Flash</button>
       <button class="dj-action-btn blackout-btn" id="btnBlackout" onclick="sendCommand('blackout')">Blackout</button>
       <button class="dj-action-btn solid-btn" id="btnSolid" onclick="sendCommand('solid')">Solid Color</button>
+      <button class="dj-action-btn" id="btnStrobe" style="border-color:rgba(255,221,0,.2);background:rgba(255,221,0,.06)" onclick="sendCommand('strobe')">Strobe</button>
+      <button class="dj-action-btn" id="btnConfetti" style="border-color:rgba(127,106,239,.2);background:rgba(127,106,239,.06)" onclick="sendCommand('confetti')">Confetti</button>
+      <button class="dj-action-btn" id="btnRainbow" style="border-color:rgba(45,212,160,.2);background:rgba(45,212,160,.06)" onclick="sendCommand('rainbow')">Rainbow</button>
+    </div>
+  </section>
+
+  <!-- LIVE TEXT INPUT -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Live Text</div>
+    <div style="display:flex;gap:.4rem">
+      <input type="text" id="djLiveText" placeholder="Type a message for the audience..." style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.6rem .8rem;color:#fff;font-family:Inter,sans-serif;font-size:.8rem;outline:none">
+      <button onclick="sendLiveText()" style="background:var(--ac);border:none;border-radius:8px;padding:.6rem 1rem;color:#fff;font-weight:700;font-size:.7rem;cursor:pointer;white-space:nowrap">SEND</button>
+      <button onclick="clearLiveText()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.6rem .6rem;color:var(--t3);font-size:.7rem;cursor:pointer">X</button>
     </div>
   </section>
 
@@ -277,6 +298,19 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     </div>
   </div>
 
+  <!-- ZONE CONTROL -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Zones</div>
+    <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Divide the audience into color groups</div>
+    <div style="display:flex;gap:.4rem;align-items:center">
+      <button class="dj-bpm-btn" onclick="setZones(2)">2</button>
+      <button class="dj-bpm-btn active" onclick="setZones(4)">4</button>
+      <button class="dj-bpm-btn" onclick="setZones(6)">6</button>
+      <button class="dj-bpm-btn" onclick="setZones(8)">8</button>
+      <span style="font-size:.6rem;color:var(--t3);margin-left:.4rem">zones</span>
+    </div>
+  </section>
+
   <!-- ANIMATIONS -->
   <section class="dj-ctrl-card full">
     <div class="dj-ctrl-title">Animations</div>
@@ -290,8 +324,23 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       <button class="dj-anim-btn" data-anim="ocean" onclick="selectAnimation('ocean')">
         <span class="dj-anim-icon">&#8776;</span>Ocean
       </button>
+      <button class="dj-anim-btn" data-anim="strobe" onclick="selectAnimation('strobe')">
+        <span class="dj-anim-icon">⚡</span>Strobe
+      </button>
+      <button class="dj-anim-btn" data-anim="rainbow" onclick="selectAnimation('rainbow')">
+        <span class="dj-anim-icon">⌢</span>Rainbow
+      </button>
+      <button class="dj-anim-btn" data-anim="laser" onclick="selectAnimation('laser')">
+        <span class="dj-anim-icon">/</span>Laser
+      </button>
+      <button class="dj-anim-btn" data-anim="confetti" onclick="selectAnimation('confetti')">
+        <span class="dj-anim-icon">▪</span>Confetti
+      </button>
+      <button class="dj-anim-btn" data-anim="electric" onclick="selectAnimation('electric')">
+        <span class="dj-anim-icon">◇</span>Electric
+      </button>
       <button class="dj-anim-btn" data-anim="solid" onclick="selectAnimation('solid')">
-        <span class="dj-anim-icon">&#9632;</span>Solid Color
+        <span class="dj-anim-icon">■</span>Solid Color
       </button>
     </div>
   </section>
@@ -753,6 +802,11 @@ function renderPreview() {
   if (anim === 'pulse') previewPulse(w, h, phase, hex);
   else if (anim === 'fire') previewFire(w, h, now, hex);
   else if (anim === 'ocean') previewOcean(w, h, now, hex);
+  else if (anim === 'strobe') previewStrobe(w, h, phase, hex);
+  else if (anim === 'rainbow') previewRainbow(w, h, now);
+  else if (anim === 'laser') previewLaser(w, h, now, hex);
+  else if (anim === 'confetti') previewConfetti(w, h, now);
+  else if (anim === 'electric') previewElectric(w, h, now, hex);
   else previewSolid(w, h, hex);
 
   previewRaf = requestAnimationFrame(renderPreview);
@@ -822,9 +876,146 @@ function previewSolid(w, h, hex) {
   previewCtx.fillRect(0, 0, w, h);
 }
 
+function previewStrobe(w, h, phase, hex) {
+  var on = Math.floor(phase * 8) % 2 === 0;
+  previewCtx.fillStyle = on ? hex : '#000';
+  previewCtx.fillRect(0, 0, w, h);
+}
+
+function previewRainbow(w, h, now) {
+  var stripeW = w / 6;
+  var hues = [0, 60, 120, 180, 240, 300];
+  for (var i = 0; i < 6; i++) {
+    var hue = (hues[i] + now * 0.05) % 360;
+    previewCtx.fillStyle = 'hsl(' + hue + ',80%,55%)';
+    previewCtx.fillRect(i * stripeW, 0, stripeW + 1, h);
+  }
+}
+
+function previewLaser(w, h, now, hex) {
+  var c = hexToRgb(hex);
+  for (var i = 0; i < 4; i++) {
+    var angle = (now * 0.001 + i * 1.5) % (Math.PI * 2);
+    var x1 = w / 2 + Math.cos(angle) * w;
+    var y1 = h / 2 + Math.sin(angle) * h;
+    previewCtx.beginPath();
+    previewCtx.moveTo(w / 2, h / 2);
+    previewCtx.lineTo(x1, y1);
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.6)';
+    previewCtx.lineWidth = 3;
+    previewCtx.stroke();
+  }
+}
+
+function previewConfetti(w, h, now) {
+  var colors = ['#ff6b35','#ff3c6e','#2dd4a0','#00b4d8','#7c6aef','#ffdd00'];
+  for (var i = 0; i < 20; i++) {
+    var x = (Math.sin(i * 7.3 + now * 0.001) * 0.5 + 0.5) * w;
+    var y = ((now * 0.05 + i * 40) % (h + 20)) - 10;
+    previewCtx.fillStyle = colors[i % colors.length];
+    previewCtx.fillRect(x - 3, y - 2, 6, 4);
+  }
+}
+
+function previewElectric(w, h, now, hex) {
+  var c = hexToRgb(hex);
+  for (var i = 0; i < 6; i++) {
+    var y = ((h * 1.5 - (now * 0.03 + i * h / 6 * 1.3)) % (h * 1.4)) + h * 0.1;
+    var grad = previewCtx.createLinearGradient(0, y - 8, 0, y + 8);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(0.5, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.3)');
+    grad.addColorStop(1, 'transparent');
+    previewCtx.fillStyle = grad;
+    previewCtx.fillRect(0, y - 8, w, 16);
+    previewCtx.fillStyle = 'rgba(' + Math.min(c.r + 80, 255) + ',' + Math.min(c.g + 80, 255) + ',' + Math.min(c.b + 80, 255) + ',0.5)';
+    previewCtx.fillRect(0, y - 0.5, w, 1);
+  }
+}
+
 function stopPreview() {
   if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
 }
+
+/* ---- LIVE TEXT ---- */
+window.sendLiveText = function() {
+  var text = document.getElementById('djLiveText').value.trim();
+  if (!text || !DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'text',
+    text: text,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+  showToast('Text sent to audience');
+};
+
+window.clearLiveText = function() {
+  document.getElementById('djLiveText').value = '';
+  if (!DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'text',
+    text: '',
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var liveTextInput = document.getElementById('djLiveText');
+  if (liveTextInput) {
+    liveTextInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') window.sendLiveText();
+    });
+  }
+});
+
+/* ---- ZONES ---- */
+DJ.totalZones = 4;
+window.setZones = function(n) {
+  DJ.totalZones = n;
+  var btns = document.querySelectorAll('.dj-ctrl-card full .dj-bpm-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  var targetBtn = Array.from(btns).find(function(b) { return b.textContent.trim() === n.toString(); });
+  if (targetBtn) targetBtn.classList.add('active');
+  if (!DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'zones',
+    totalZones: n,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+  showToast(n + ' zones set');
+};
+
+/* ---- AUTO MODE ---- */
+DJ.autoMode = false;
+window.toggleAutoMode = function() {
+  DJ.autoMode = !DJ.autoMode;
+  var btn = document.getElementById('autoModeBtn');
+  if (btn) {
+    btn.classList.toggle('active');
+  }
+  if (!DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'auto',
+    autoMode: DJ.autoMode,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+  showToast(DJ.autoMode ? 'Auto mode ON' : 'Auto mode OFF');
+};
 
 /* ---- START ---- */
 init();
