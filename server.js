@@ -17927,6 +17927,30 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- Audience phone detected ultrasonic frequency, check if DJ session exists ---
+  socket.on('dj-check-frequency', (data) => {
+    if (!data || !data.frequency) return;
+    const freq = data.frequency;
+    const tolerance = 200; // Hz fuzzy match
+
+    for (const [sid, s] of Object.entries(djSessions)) {
+      if (s.broadcasting && Math.abs(s.venueFreq - freq) <= tolerance) {
+        socket.emit('dj-frequency-found', {
+          sessionId: sid,
+          sessionName: s.sessionName,
+          artistName: s.artistName,
+          color: s.color,
+          bpm: s.bpm,
+          animation: s.animation,
+          venueFreq: s.venueFreq
+        });
+        console.log('[DJ] Frequency match! freq=' + freq + ' -> session=' + sid);
+        return;
+      }
+    }
+    // No match found - no response needed
+  });
+
   // --- Audience device joins DJ session ---
   socket.on('dj-audience-join', (data) => {
     if (!data || !data.sessionId) return;
