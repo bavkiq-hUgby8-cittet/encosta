@@ -318,9 +318,12 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     grid-template-columns: repeat(3, 1fr);
     gap: .3rem;
   }
-  /* Venue map taller */
+  /* Venue map prominent */
+  #venueMapDrawer {
+    grid-column: 1 / -1;
+  }
   #venueMapCanvas {
-    height: 160px !important;
+    height: 200px !important;
   }
 }
 
@@ -457,6 +460,48 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       </div>
     </div>
   </section>
+
+  <!-- ====== VENUE MAP SIMULATOR (top priority - always visible) ====== -->
+  <div class="dj-drawer" id="venueMapDrawer">
+    <div class="dj-drawer-header" onclick="toggleDrawer('venueMapDrawer')">
+      <div class="dj-drawer-header-label">
+        Venue Map
+        <span style="font-size:.5rem;background:rgba(255,107,53,.15);padding:2px 6px;border-radius:8px;color:#ff6b35">LIVE</span>
+      </div>
+      <div class="dj-drawer-toggle open" id="venueMapToggle"></div>
+    </div>
+    <div class="dj-drawer-content">
+      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;flex-wrap:wrap;align-items:center">
+        <button class="dj-bpm-btn" id="venueMapStartBtn" onclick="toggleVenueMap()" style="font-size:.6rem">Start Map</button>
+        <button class="dj-bpm-btn" onclick="venueMapZoomIn()" style="font-size:.6rem;min-width:30px">+</button>
+        <button class="dj-bpm-btn" onclick="venueMapZoomOut()" style="font-size:.6rem;min-width:30px">-</button>
+        <select id="venueMapShape" onchange="updateVenueShape(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 6px">
+          <option value="rectangle">Rectangle</option>
+          <option value="semicircle">Semicircle</option>
+          <option value="circle">Circle / Arena</option>
+          <option value="stadium">Stadium</option>
+        </select>
+        <span style="font-size:.5rem;color:var(--t3)">Sim:</span>
+        <select id="vmSimCount" onchange="updateSimPhoneCount(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 4px">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+        </select>
+        <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop</button>
+        <span id="venueMapCount" style="font-size:.55rem;color:var(--ac);margin-left:auto">0 devices</span>
+      </div>
+      <canvas id="venueMapCanvas" width="400" height="300" style="width:100%;height:220px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
+      <div style="display:flex;justify-content:space-between;margin-top:.15rem">
+        <span style="font-size:.45rem;color:var(--t3)">STAGE</span>
+        <span id="venueMapGrid" style="font-size:.45rem;color:var(--t3)">Grid: --</span>
+        <span style="font-size:.45rem;color:var(--t3)">BACK</span>
+      </div>
+    </div>
+  </div>
 
   <!-- ACTIVATE BROADCAST -->
   <section class="dj-activate-section dj-console-full">
@@ -647,9 +692,9 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         Show Mode
         <span style="font-size:.5rem;background:linear-gradient(135deg,#7c6aef,#ff3c6e);padding:2px 6px;border-radius:8px;color:#fff">PRO</span>
       </div>
-      <div class="dj-drawer-toggle" id="showModeToggle"></div>
+      <div class="dj-drawer-toggle open" id="showModeToggle"></div>
     </div>
-    <div class="dj-drawer-content collapsed">
+    <div class="dj-drawer-content">
       <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Coordinated patterns -- each phone shows different colors based on position</div>
 
       <!-- Preset Shows -->
@@ -708,7 +753,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
   </div>
 
   <!-- SECONDARY FEATURES ROW -->
-  <div class="dj-console-full" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem">
+  <div class="dj-console-full" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
 
   <!-- ZONES DRAWER -->
   <div class="dj-drawer" id="zonesDrawer">
@@ -776,53 +821,6 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       </div>
       <!-- Position Map Preview (birds-eye view) -->
       <canvas id="positionMap" width="200" height="120" style="width:100%;height:80px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,180,216,.08) 0%,rgba(0,0,0,.3) 100%);border:1px solid rgba(255,255,255,.06)"></canvas>
-    </div>
-  </div>
-
-  <!-- ====== VENUE MAP SIMULATOR ====== -->
-  <div class="dj-drawer" id="venueMapDrawer">
-    <div class="dj-drawer-header" onclick="toggleDrawer('venueMapDrawer')">
-      <div class="dj-drawer-header-label">
-        Venue Map
-        <span style="font-size:.5rem;background:rgba(255,107,53,.15);padding:2px 6px;border-radius:8px;color:#ff6b35">LIVE</span>
-      </div>
-      <div class="dj-drawer-toggle" id="venueMapToggle"></div>
-    </div>
-    <div class="dj-drawer-content collapsed">
-      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Top-down view of the venue. Each dot = one phone at its real position.</div>
-      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;flex-wrap:wrap">
-        <button class="dj-bpm-btn" id="venueMapStartBtn" onclick="toggleVenueMap()" style="font-size:.6rem">Start Map</button>
-        <button class="dj-bpm-btn" onclick="venueMapZoomIn()" style="font-size:.6rem;min-width:30px">+</button>
-        <button class="dj-bpm-btn" onclick="venueMapZoomOut()" style="font-size:.6rem;min-width:30px">-</button>
-        <select id="venueMapShape" onchange="updateVenueShape(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 6px">
-          <option value="rectangle">Rectangle</option>
-          <option value="semicircle">Semicircle</option>
-          <option value="circle">Circle / Arena</option>
-          <option value="stadium">Stadium</option>
-        </select>
-        <div style="display:flex;gap:.3rem;align-items:center">
-          <span style="font-size:.5rem;color:var(--t3)">Phones:</span>
-          <select id="vmSimCount" onchange="updateSimPhoneCount(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 4px">
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100" selected>100</option>
-            <option value="200">200</option>
-            <option value="500">500</option>
-            <option value="1000">1000</option>
-          </select>
-        </div>
-        <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop Preview</button>
-      </div>
-      <div style="display:flex;gap:.5rem;margin-bottom:.3rem;align-items:center">
-        <span id="venueMapCount" style="font-size:.55rem;color:var(--ac)">0 devices</span>
-        <span id="venueMapGrid" style="font-size:.55rem;color:var(--t3)">Grid: --</span>
-      </div>
-      <canvas id="venueMapCanvas" width="400" height="300" style="width:100%;height:200px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
-      <div style="display:flex;justify-content:space-between;margin-top:.2rem">
-        <span style="font-size:.45rem;color:var(--t3)">STAGE</span>
-        <span style="font-size:.45rem;color:var(--t3)">BACK</span>
-      </div>
     </div>
   </div>
 
