@@ -1,0 +1,2937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#050508">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Touch? Live -- DJ Panel</title>
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050508;--s1:#0a0a12;--s2:#111120;--s3:#1a1a2e;
+  --t1:#f0f0f5;--t2:#b0b0c8;--t3:#7a7a96;
+  --ac:#ff6b35;--ac2:#ff8555;--ac3:#ffad85;
+  --pk:#ff3c6e;--pk2:#ff6b8e;
+  --ok:#2dd4a0;--ok2:#5eead4;
+  --fire:#ff7a42;--warn:#fbbf24;
+  --b1:rgba(255,255,255,.07);--b2:rgba(255,255,255,.12);
+  --radius:16px;--radius-sm:10px;--radius-lg:24px;
+  --shadow-sm:0 2px 8px rgba(0,0,0,.3);
+  --shadow-md:0 4px 20px rgba(0,0,0,.35);
+  --shadow-lg:0 8px 40px rgba(0,0,0,.45);
+  --font-display:'Plus Jakarta Sans','Inter',sans-serif;
+  --font-body:'Inter',sans-serif;
+}
+body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-height:100vh;-webkit-user-select:none;user-select:none;font-size:14px;line-height:1.5;overflow-x:hidden}
+
+/* ---- HEADER ---- */
+.dj-header{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;background:rgba(5,5,8,.92);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-bottom:1px solid var(--b1)}
+.dj-brand{display:flex;align-items:center;gap:.6rem}
+.dj-brand h1{font-family:var(--font-display);font-size:1.1rem;font-weight:800;letter-spacing:.03em}
+.dj-brand h1 span{color:var(--ac)}
+.dj-brand-badge{font-size:.55rem;font-weight:700;color:var(--ac);background:rgba(255,107,53,.15);padding:.15rem .5rem;border-radius:20px;text-transform:uppercase;letter-spacing:.08em}
+.dj-status{display:flex;align-items:center;gap:.5rem}
+.dj-status-dot{width:8px;height:8px;border-radius:50%;background:#555;transition:background .3s}
+.dj-status-dot.live{background:var(--ok);box-shadow:0 0 8px rgba(45,212,160,.5);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.5}}
+.dj-status-label{font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+
+/* ---- MAIN CONTENT ---- */
+.dj-main{padding:4.2rem 1rem 6rem;max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:1rem}
+
+/* ---- STATS BAR ---- */
+.dj-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+.dj-stat-card{background:rgba(255,255,255,.04);border:1px solid var(--b1);border-radius:var(--radius-sm);padding:.8rem;text-align:center;backdrop-filter:blur(12px)}
+.dj-stat-value{font-family:var(--font-display);font-size:1.6rem;font-weight:800;color:var(--t1)}
+.dj-stat-value.highlight{color:var(--ac)}
+.dj-stat-label{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:.15rem}
+
+/* ---- AUDIENCE PREVIEW (Stage Display) ---- */
+.dj-stage-display{position:relative;border-radius:var(--radius-lg);overflow:hidden;background:linear-gradient(135deg,#000 0%,#060612 100%);border:1px solid rgba(255,255,255,.06);box-shadow:0 0 60px rgba(0,0,0,.6),inset 0 0 40px rgba(0,0,0,.4)}
+.dj-stage-canvas-wrap{position:relative;aspect-ratio:16/9;overflow:hidden}
+.dj-stage-canvas-wrap canvas{width:100%;height:100%;display:block}
+.dj-stage-overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:.8rem 1rem}
+.dj-stage-top{display:flex;justify-content:space-between;align-items:flex-start}
+.dj-stage-logo-area{display:flex;align-items:center;gap:.5rem}
+.dj-stage-logo{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dj-stage-logo img{width:100%;height:100%;object-fit:cover}
+.dj-stage-logo-placeholder{font-size:1rem;color:rgba(255,255,255,.3)}
+.dj-stage-info{display:flex;flex-direction:column;gap:.1rem}
+.dj-stage-artist{font-family:var(--font-display);font-size:.85rem;font-weight:800;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.8),0 0 20px rgba(255,107,53,.3);letter-spacing:.02em}
+.dj-stage-session{font-size:.55rem;color:rgba(255,255,255,.5);text-shadow:0 1px 4px rgba(0,0,0,.9);letter-spacing:.04em}
+.dj-stage-live-badge{display:flex;align-items:center;gap:.3rem;background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);border-radius:20px;padding:.15rem .5rem;backdrop-filter:blur(8px)}
+.dj-stage-live-dot{width:6px;height:6px;border-radius:50%;background:#ff3c3c;animation:stage-live-pulse 1.5s infinite}
+@keyframes stage-live-pulse{0%,100%{opacity:1;box-shadow:0 0 4px #ff3c3c}50%{opacity:.5;box-shadow:0 0 8px #ff3c3c}}
+.dj-stage-live-text{font-size:.5rem;font-weight:700;color:#ff5555;text-transform:uppercase;letter-spacing:.1em}
+.dj-stage-bottom{display:flex;justify-content:space-between;align-items:flex-end}
+.dj-stage-watermark{font-family:var(--font-display);font-size:.5rem;color:rgba(255,255,255,.2);letter-spacing:.05em}
+.dj-stage-watermark span{color:rgba(255,107,53,.35)}
+.dj-stage-anim-label{font-size:.5rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;background:rgba(0,0,0,.4);padding:.15rem .4rem;border-radius:4px}
+.dj-logo-upload-area{display:flex;align-items:center;gap:.4rem;margin-top:.4rem}
+.dj-logo-upload-btn{padding:.3rem .6rem;border:1px dashed rgba(255,255,255,.15);border-radius:8px;background:rgba(255,255,255,.03);color:var(--t3);font-size:.6rem;cursor:pointer;transition:all .15s;font-family:inherit}
+.dj-logo-upload-btn:hover{border-color:var(--ac);color:var(--ac);background:rgba(255,107,53,.05)}
+.dj-logo-upload-hint{font-size:.55rem;color:var(--t3)}
+
+/* ---- AQUARIUM (Audience Count) ---- */
+.dj-aquarium{position:relative;height:80px;border-radius:var(--radius);overflow:hidden;background:linear-gradient(180deg,rgba(0,20,40,.9) 0%,rgba(0,10,30,.95) 100%);border:1px solid rgba(0,180,216,.1);margin-top:.5rem}
+.dj-aquarium canvas{width:100%;height:100%;display:block}
+.dj-aquarium-overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.dj-aquarium-count{font-family:var(--font-display);font-size:2rem;font-weight:900;color:rgba(255,255,255,.9);text-shadow:0 0 20px rgba(45,212,160,.5),0 0 40px rgba(45,212,160,.2);letter-spacing:.03em}
+.dj-aquarium-count span{font-size:.6rem;font-weight:600;color:rgba(255,255,255,.4);display:block;text-transform:uppercase;letter-spacing:.1em;text-shadow:none;margin-top:-.2rem}
+.dj-aquarium-corner{position:absolute;font-size:.5rem;color:rgba(0,180,216,.3);text-transform:uppercase;letter-spacing:.08em}
+.dj-aquarium-corner.tl{top:6px;left:8px}
+.dj-aquarium-corner.tr{top:6px;right:8px}
+
+/* ---- ACTIVATE BUTTON ---- */
+.dj-activate-section{text-align:center;padding:.5rem 0}
+.dj-activate-btn{position:relative;width:180px;height:180px;border-radius:50%;border:3px solid var(--ac);background:radial-gradient(circle,rgba(255,107,53,.15) 0%,transparent 70%);cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;transition:all .3s;overflow:hidden}
+.dj-activate-btn:hover{border-color:var(--ac2);box-shadow:0 0 40px rgba(255,107,53,.2);transform:scale(1.03)}
+.dj-activate-btn.active{border-color:var(--ok);background:radial-gradient(circle,rgba(45,212,160,.15) 0%,transparent 70%);animation:broadcast-ring 2s infinite}
+@keyframes broadcast-ring{0%{box-shadow:0 0 0 0 rgba(45,212,160,.3)}70%{box-shadow:0 0 0 20px rgba(45,212,160,0)}100%{box-shadow:0 0 0 0 rgba(45,212,160,0)}}
+.dj-activate-btn svg{width:40px;height:40px}
+.dj-activate-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t2)}
+.dj-activate-btn.active .dj-activate-label{color:var(--ok)}
+
+/* ---- CONTROLS GRID ---- */
+.dj-controls{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.dj-ctrl-card{background:rgba(255,255,255,.04);border:1px solid var(--b1);border-radius:var(--radius);padding:1rem;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:.6rem}
+.dj-ctrl-card.full{grid-column:1/-1}
+.dj-ctrl-title{font-size:.65rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
+
+/* ---- ACTION BUTTONS ---- */
+.dj-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.dj-action-btn{padding:.7rem .5rem;border:1px solid var(--b1);border-radius:var(--radius-sm);background:rgba(255,255,255,.03);color:var(--t1);font-family:var(--font-display);font-size:.75rem;font-weight:700;cursor:pointer;transition:all .15s;text-align:center;text-transform:uppercase;letter-spacing:.05em}
+.dj-action-btn:active{transform:scale(.95)}
+.dj-action-btn.pulse-btn{border-color:rgba(255,107,53,.3);background:rgba(255,107,53,.08)}
+.dj-action-btn.pulse-btn:hover,.dj-action-btn.pulse-btn.active{background:rgba(255,107,53,.2);border-color:var(--ac)}
+.dj-action-btn.flash-btn{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.06)}
+.dj-action-btn.flash-btn:hover,.dj-action-btn.flash-btn.active{background:rgba(255,255,255,.15)}
+.dj-action-btn.blackout-btn{border-color:rgba(255,60,110,.2);background:rgba(255,60,110,.06)}
+.dj-action-btn.blackout-btn:hover,.dj-action-btn.blackout-btn.active{background:rgba(255,60,110,.2);border-color:var(--pk)}
+.dj-action-btn.solid-btn{border-color:rgba(45,212,160,.2);background:rgba(45,212,160,.06)}
+.dj-action-btn.solid-btn:hover,.dj-action-btn.solid-btn.active{background:rgba(45,212,160,.2);border-color:var(--ok)}
+
+/* ---- COLOR PICKER ---- */
+.dj-color-section{display:flex;flex-direction:column;gap:.5rem}
+.dj-color-presets{display:flex;gap:.4rem;flex-wrap:wrap}
+.dj-color-swatch{width:32px;height:32px;border-radius:8px;border:2px solid transparent;cursor:pointer;transition:all .15s}
+.dj-color-swatch:hover{transform:scale(1.1)}
+.dj-color-swatch.active{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,.3)}
+.dj-color-custom{display:flex;align-items:center;gap:.5rem;margin-top:.2rem}
+.dj-color-input{width:36px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent;padding:0}
+.dj-color-input::-webkit-color-swatch-wrapper{padding:0}
+.dj-color-input::-webkit-color-swatch{border:2px solid var(--b2);border-radius:6px}
+.dj-color-hex{font-size:.7rem;color:var(--t3);font-family:monospace}
+
+/* ---- BPM CONTROL ---- */
+.dj-bpm-section{display:flex;flex-direction:column;gap:.5rem}
+.dj-bpm-display{font-family:var(--font-display);font-size:2.2rem;font-weight:900;color:var(--ac);text-align:center;line-height:1}
+.dj-bpm-label{font-size:.55rem;color:var(--t3);text-align:center;text-transform:uppercase;letter-spacing:.1em}
+.dj-bpm-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:linear-gradient(to right,var(--s3),var(--ac));outline:none;cursor:pointer}
+.dj-bpm-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ac);border:2px solid #fff;cursor:pointer;box-shadow:0 0 10px rgba(255,107,53,.4)}
+.dj-bpm-btns{display:flex;gap:.3rem;justify-content:center}
+.dj-bpm-btn{padding:.3rem .6rem;border:1px solid var(--b1);border-radius:6px;background:rgba(255,255,255,.03);color:var(--t2);font-size:.65rem;font-weight:600;cursor:pointer;transition:all .15s}
+.dj-bpm-btn:hover{background:rgba(255,255,255,.08)}
+.dj-bpm-btn.active{background:rgba(255,107,53,.15);border-color:var(--ac);color:var(--ac)}
+
+/* ---- ANIMATION SELECTOR ---- */
+.dj-anim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
+.dj-anim-btn{padding:.6rem;border:1px solid var(--b1);border-radius:var(--radius-sm);background:rgba(255,255,255,.03);color:var(--t2);font-size:.7rem;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
+.dj-anim-btn:hover{background:rgba(255,255,255,.06)}
+.dj-anim-btn.active{background:rgba(255,107,53,.12);border-color:var(--ac);color:var(--ac)}
+.dj-anim-icon{font-size:1.2rem;display:block;margin-bottom:.2rem}
+
+/* ---- AUTO MODE BUTTON ---- */
+.dj-auto-btn{padding:.4rem .8rem;border:1px solid var(--b1);border-radius:8px;background:rgba(255,255,255,.03);color:var(--t2);font-family:var(--font-display);font-size:.7rem;font-weight:700;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.05em}
+.dj-auto-btn:hover{background:rgba(255,255,255,.06)}
+.dj-auto-btn.active{background:var(--ok);border-color:var(--ok);color:#000}
+
+/* ---- KILL SWITCH ---- */
+.dj-kill-row{display:flex;gap:.5rem;margin-bottom:.3rem}
+.dj-kill-btn{flex:1;padding:.85rem;border:2px solid rgba(255,30,30,.4);border-radius:var(--radius);background:rgba(255,20,20,.08);color:#ff4444;font-family:var(--font-display);font-size:.85rem;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:.08em;transition:all .15s;text-align:center}
+.dj-kill-btn:active{transform:scale(.96)}
+.dj-kill-btn:hover{background:rgba(255,20,20,.2);border-color:#ff4444;box-shadow:0 0 20px rgba(255,30,30,.2)}
+.dj-kill-btn.off{border-color:rgba(255,30,30,.6);background:rgba(255,20,20,.25);box-shadow:0 0 30px rgba(255,30,30,.3)}
+
+/* ---- MUSIC SYNC ---- */
+.dj-sync-btn{padding:.7rem 1rem;border:1px solid rgba(0,180,216,.3);border-radius:var(--radius);background:rgba(0,180,216,.08);color:#00b4d8;font-family:var(--font-display);font-size:.75rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;transition:all .15s;text-align:center;display:flex;align-items:center;justify-content:center;gap:.4rem}
+.dj-sync-btn:hover{background:rgba(0,180,216,.15)}
+.dj-sync-btn.active{background:rgba(0,180,216,.25);border-color:#00b4d8;box-shadow:0 0 20px rgba(0,180,216,.2);animation:sync-pulse 1.5s infinite}
+@keyframes sync-pulse{0%,100%{box-shadow:0 0 10px rgba(0,180,216,.2)}50%{box-shadow:0 0 25px rgba(0,180,216,.4)}}
+.dj-sync-visualizer{width:100%;height:30px;border-radius:8px;background:#000;margin-top:.4rem;overflow:hidden}
+
+/* ---- SECTION DIVIDER ---- */
+.dj-section-divider{height:1px;background:linear-gradient(to right,transparent,rgba(255,255,255,.08),transparent);margin:.3rem 0}
+
+/* ---- QUICK BTN (for raffle etc) ---- */
+.dj-quick-btn{padding:.7rem 1rem;border:none;border-radius:var(--radius);color:#fff;font-family:var(--font-display);font-size:.78rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;transition:all .15s;text-align:center}
+.dj-quick-btn:active{transform:scale(.95)}
+.dj-quick-btn:hover{filter:brightness(1.15)}
+
+/* ---- SESSION SETUP (LOGIN) ---- */
+.dj-setup{position:fixed;inset:0;z-index:200;background:linear-gradient(135deg,#050508 0%,#0d0816 50%,#050508 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem}
+.dj-setup.hidden{display:none}
+.dj-setup-brand{text-align:center}
+.dj-setup-brand h1{font-family:var(--font-display);font-size:2.4rem;font-weight:900;letter-spacing:.04em}
+.dj-setup-brand h1 span{color:var(--ac)}
+.dj-setup-brand p{font-size:.75rem;color:var(--t3);margin-top:.3rem}
+.dj-setup-form{display:flex;flex-direction:column;gap:.7rem;width:100%;max-width:360px}
+.dj-setup-field{display:flex;flex-direction:column;gap:.2rem}
+.dj-setup-label{font-size:.6rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.dj-setup-input{padding:.7rem 1rem;background:var(--s1);border:1px solid var(--b1);border-radius:12px;color:var(--t1);font-size:.85rem;font-family:inherit;outline:none;transition:border-color .2s}
+.dj-setup-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(255,107,53,.1)}
+.dj-setup-btn{padding:.85rem;background:linear-gradient(135deg,var(--ac),var(--ac2));border:none;border-radius:12px;color:#fff;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(255,107,53,.25);margin-top:.3rem}
+.dj-setup-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(255,107,53,.35)}
+.dj-setup-err{font-size:.6rem;color:var(--pk);min-height:.8em;text-align:center}
+
+/* ---- TOAST ---- */
+.dj-toast{position:fixed;top:4.5rem;left:50%;transform:translateX(-50%);padding:.6rem 1.2rem;background:rgba(45,212,160,.15);border:1px solid rgba(45,212,160,.3);border-radius:10px;color:var(--ok);font-size:.75rem;font-weight:600;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;backdrop-filter:blur(12px)}
+.dj-toast.show{opacity:1}
+.dj-toast.error{background:rgba(255,60,110,.15);border-color:rgba(255,60,110,.3);color:var(--pk)}
+
+/* ---- RESPONSIVE ---- */
+@media(min-width:600px){
+  .dj-controls{grid-template-columns:repeat(2,1fr)}
+  .dj-stats{grid-template-columns:repeat(3,1fr)}
+}
+@media(min-width:800px){
+  .dj-main{padding-top:4.5rem;gap:1.2rem}
+}
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div class="dj-setup" id="djSetup">
+  <div class="dj-setup-brand">
+    <h1>Touch<span>?</span> Live</h1>
+    <p>DJ Panel -- Control the crowd</p>
+  </div>
+  <div class="dj-setup-form">
+    <div class="dj-setup-field">
+      <label class="dj-setup-label">Session Name</label>
+      <input class="dj-setup-input" id="djSessionName" placeholder="e.g. Sunset Festival 2026" maxlength="60">
+    </div>
+    <div class="dj-setup-field">
+      <label class="dj-setup-label">DJ / Artist Name</label>
+      <input class="dj-setup-input" id="djArtistName" placeholder="e.g. DJ Nova" maxlength="40">
+    </div>
+    <div class="dj-setup-field">
+      <label class="dj-setup-label">Venue Frequency (Hz)</label>
+      <select class="dj-setup-input" id="djFreqSelect">
+        <option value="18000">18000 Hz (Slot 1)</option>
+        <option value="18300">18300 Hz (Slot 2)</option>
+        <option value="18600">18600 Hz (Slot 3)</option>
+        <option value="18900">18900 Hz (Slot 4)</option>
+        <option value="19200" selected>19200 Hz (Slot 5 - Recommended)</option>
+        <option value="19500">19500 Hz (Slot 6)</option>
+        <option value="19800">19800 Hz (Slot 7)</option>
+      </select>
+    </div>
+    <div class="dj-setup-err" id="djSetupErr"></div>
+    <button class="dj-setup-btn" onclick="startDJSession()">Create Session</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="dj-header">
+  <div class="dj-brand">
+    <h1>Touch<span>?</span> Live</h1>
+    <span class="dj-brand-badge">DJ Panel</span>
+  </div>
+  <div class="dj-status">
+    <div class="dj-status-dot" id="statusDot"></div>
+    <span class="dj-status-label" id="statusLabel">Offline</span>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="dj-main">
+
+  <!-- STATS -->
+  <section class="dj-stats">
+    <div class="dj-stat-card">
+      <div class="dj-stat-value highlight" id="deviceCount">0</div>
+      <div class="dj-stat-label">Devices</div>
+    </div>
+    <div class="dj-stat-card">
+      <div class="dj-stat-value" id="bpmDisplay">128</div>
+      <div class="dj-stat-label">BPM</div>
+    </div>
+    <div class="dj-stat-card">
+      <div class="dj-stat-value" id="sessionTime">00:00</div>
+      <div class="dj-stat-label">Session</div>
+    </div>
+  </section>
+
+  <!-- STAGE DISPLAY (Audience Preview) -->
+  <section class="dj-ctrl-card full" style="padding:0;overflow:hidden;border:none;background:none">
+    <div class="dj-stage-display">
+      <div class="dj-stage-canvas-wrap">
+        <canvas id="djPreviewCanvas" width="640" height="360"></canvas>
+        <div class="dj-stage-overlay">
+          <div class="dj-stage-top">
+            <div class="dj-stage-logo-area">
+              <div class="dj-stage-logo" id="stageLogoWrap">
+                <span class="dj-stage-logo-placeholder" id="stageLogoPlaceholder">&#9835;</span>
+                <img id="stageLogoImg" style="display:none" alt="DJ Logo">
+              </div>
+              <div class="dj-stage-info">
+                <div class="dj-stage-artist" id="stageArtistName">DJ Name</div>
+                <div class="dj-stage-session" id="stageSessionName">Session</div>
+              </div>
+            </div>
+            <div class="dj-stage-live-badge" id="stageLiveBadge" style="display:none">
+              <div class="dj-stage-live-dot"></div>
+              <span class="dj-stage-live-text">Live</span>
+            </div>
+          </div>
+          <div class="dj-stage-bottom">
+            <div class="dj-stage-watermark">Touch<span>?</span> Live</div>
+            <div class="dj-stage-anim-label" id="stageAnimLabel">Pulse</div>
+          </div>
+        </div>
+      </div>
+      <!-- Logo Upload -->
+      <div style="padding:.6rem .8rem;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.02)">
+        <div class="dj-logo-upload-area">
+          <input type="file" id="djLogoFileInput" accept="image/*" style="display:none">
+          <button class="dj-logo-upload-btn" onclick="document.getElementById('djLogoFileInput').click()">Upload Logo</button>
+          <span class="dj-logo-upload-hint">Your logo on the stage display</span>
+        </div>
+        <div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Stage Preview</div>
+      </div>
+      <!-- AQUARIUM -->
+      <div class="dj-aquarium" id="djAquarium">
+        <canvas id="djAquariumCanvas" width="640" height="160"></canvas>
+        <div class="dj-aquarium-overlay">
+          <div class="dj-aquarium-count">
+            <span id="aquariumCount">0</span>
+            <span>Connected</span>
+          </div>
+        </div>
+        <div class="dj-aquarium-corner tl">Audience</div>
+        <div class="dj-aquarium-corner tr" id="aquariumPeak">Peak: 0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACTIVATE BROADCAST -->
+  <section class="dj-activate-section">
+    <button class="dj-activate-btn" id="activateBtn" onclick="toggleBroadcast()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 10s3-3 10-3 10 3 10 3"/>
+        <path d="M6 14s2-2 6-2 6 2 6 2"/>
+        <circle cx="12" cy="18" r="1" fill="currentColor"/>
+      </svg>
+      <span class="dj-activate-label" id="activateLabel">Activate</span>
+    </button>
+  </section>
+
+  <!-- MASTER CONTROLS -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Master Controls</div>
+
+    <!-- Kill switch row -->
+    <div class="dj-kill-row">
+      <button class="dj-kill-btn" id="killBtn" onclick="killAllPhones()">
+        ALL OFF
+      </button>
+      <button class="dj-action-btn flash-btn" id="btnFlash" onclick="sendCommand('flash')" style="flex:1;padding:.85rem;font-size:.85rem;font-weight:900;letter-spacing:.08em">
+        FLASH
+      </button>
+    </div>
+
+    <!-- Music Sync -->
+    <button class="dj-sync-btn" id="musicSyncBtn" onclick="toggleMusicSync()" style="width:100%;margin-bottom:.5rem">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      Music Sync Auto
+    </button>
+    <canvas id="musicSyncVisualizer" class="dj-sync-visualizer" width="300" height="30" style="display:none"></canvas>
+
+    <div class="dj-section-divider"></div>
+
+    <!-- Quick Actions Grid -->
+    <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
+      <button class="dj-auto-btn" id="autoModeBtn" onclick="toggleAutoMode()">Auto Cycle</button>
+    </div>
+    <div class="dj-action-grid">
+      <button class="dj-action-btn pulse-btn" id="btnPulse" onclick="sendCommand('pulse')">Pulse</button>
+      <button class="dj-action-btn blackout-btn" id="btnBlackout" onclick="sendCommand('blackout')">Blackout</button>
+      <button class="dj-action-btn solid-btn" id="btnSolid" onclick="sendCommand('solid')">Solid Color</button>
+      <button class="dj-action-btn" id="btnStrobe" style="border-color:rgba(255,221,0,.2);background:rgba(255,221,0,.06)" onclick="sendCommand('strobe')">Strobe</button>
+      <button class="dj-action-btn" id="btnConfetti" style="border-color:rgba(127,106,239,.2);background:rgba(127,106,239,.06)" onclick="sendCommand('confetti')">Confetti</button>
+      <button class="dj-action-btn" id="btnRainbow" style="border-color:rgba(45,212,160,.2);background:rgba(45,212,160,.06)" onclick="sendCommand('rainbow')">Rainbow</button>
+    </div>
+  </section>
+
+  <!-- LIVE TEXT INPUT -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Live Text</div>
+    <div style="display:flex;gap:.4rem">
+      <input type="text" id="djLiveText" placeholder="Type a message for the audience..." style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.6rem .8rem;color:#fff;font-family:Inter,sans-serif;font-size:.8rem;outline:none">
+      <button onclick="sendLiveText()" style="background:var(--ac);border:none;border-radius:8px;padding:.6rem 1rem;color:#fff;font-weight:700;font-size:.7rem;cursor:pointer;white-space:nowrap">SEND</button>
+      <button onclick="clearLiveText()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.6rem .6rem;color:var(--t3);font-size:.7rem;cursor:pointer">X</button>
+    </div>
+  </section>
+
+  <!-- CONTROLS ROW -->
+  <div class="dj-controls">
+
+    <!-- COLOR PICKER -->
+    <div class="dj-ctrl-card">
+      <div class="dj-ctrl-title">Color</div>
+      <div class="dj-color-section">
+        <div class="dj-color-presets" id="colorPresets"></div>
+        <div class="dj-color-custom">
+          <input type="color" class="dj-color-input" id="colorPicker" value="#ff6b35">
+          <span class="dj-color-hex" id="colorHex">#ff6b35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BPM -->
+    <div class="dj-ctrl-card">
+      <div class="dj-ctrl-title">BPM</div>
+      <div class="dj-bpm-section">
+        <div class="dj-bpm-display" id="bpmValue">128</div>
+        <div class="dj-bpm-label">Beats per minute</div>
+        <input type="range" class="dj-bpm-slider" id="bpmSlider" min="60" max="200" value="128">
+        <div class="dj-bpm-btns">
+          <button class="dj-bpm-btn" onclick="setBPM(80)">80</button>
+          <button class="dj-bpm-btn" onclick="setBPM(100)">100</button>
+          <button class="dj-bpm-btn active" onclick="setBPM(128)">128</button>
+          <button class="dj-bpm-btn" onclick="setBPM(140)">140</button>
+          <button class="dj-bpm-btn" onclick="setBPM(174)">174</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ZONE CONTROL -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Zones</div>
+    <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Divide the audience into color groups</div>
+    <div style="display:flex;gap:.4rem;align-items:center">
+      <button class="dj-bpm-btn" onclick="setZones(1)">1</button>
+      <button class="dj-bpm-btn" onclick="setZones(2)">2</button>
+      <button class="dj-bpm-btn active" onclick="setZones(4)">4</button>
+      <button class="dj-bpm-btn" onclick="setZones(6)">6</button>
+      <button class="dj-bpm-btn" onclick="setZones(8)">8</button>
+      <span style="font-size:.6rem;color:var(--t3);margin-left:.4rem">zones</span>
+    </div>
+    <div id="zonePreview" style="display:flex;gap:2px;margin-top:.5rem;height:20px;border-radius:var(--radius);overflow:hidden"></div>
+  </section>
+
+  <!-- SHOW MODE (Coordinated Light Show) -->
+  <section class="dj-ctrl-card full" id="showModeSection">
+    <div class="dj-ctrl-title" style="display:flex;align-items:center;gap:.5rem">
+      <span>Show Mode</span>
+      <span style="font-size:.55rem;background:linear-gradient(135deg,#7c6aef,#ff3c6e);padding:2px 6px;border-radius:8px;color:#fff">PRO</span>
+    </div>
+    <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Coordinated patterns -- each phone shows different colors based on position</div>
+
+    <!-- Preset Shows -->
+    <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+      <button class="dj-bpm-btn" onclick="startPresetShow('wave-show')" title="Wave traveling across the crowd">Wave</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('ripple-show')" title="Ripple expanding from center">Ripple</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('heart-show')" title="Heart shape pulsing">Heart</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('mexican-wave')" title="Stadium wave">Stadium</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('rainbow-show')" title="Rainbow flowing across crowd">Rainbow</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('firework-show')" title="Firework explosions">Firework</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('spotlight-show')" title="Spotlight scanning crowd">Spotlight</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('countdown-show')" title="3-2-1-GO countdown">Countdown</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('sparkle-show')" title="Random twinkling stars">Sparkle</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('breathe-show')" title="Synchronized breathing">Breathe</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('checker-show')" title="Alternating checkerboard">Checker</button>
+      <button class="dj-bpm-btn" onclick="startPresetShow('full-show')" title="Full auto choreography combining all patterns">AUTO SHOW</button>
+    </div>
+
+    <!-- Show Status + Stop -->
+    <div id="showStatus" style="display:none;padding:.5rem .6rem;background:rgba(124,106,239,.15);border:1px solid rgba(124,106,239,.3);border-radius:var(--radius);font-size:.7rem;margin-bottom:.4rem;align-items:center;justify-content:space-between">
+      <span id="showStatusText" style="color:var(--t2);flex:1">No show active</span>
+      <button onclick="stopShow()" style="padding:.45rem 1rem;background:rgba(255,40,40,.25);border:1px solid rgba(255,60,60,.5);border-radius:8px;color:#ff4444;font-family:var(--font-display);font-size:.7rem;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:all .15s">STOP SHOW</button>
+    </div>
+
+    <!-- Show Preview Canvas -->
+    <canvas id="showPreviewCanvas" width="200" height="60" style="width:100%;height:60px;border-radius:var(--radius);background:#000;display:none"></canvas>
+  </section>
+
+  <!-- POSITIONING -->
+  <section class="dj-ctrl-card full" id="positionSection">
+    <div class="dj-ctrl-title" style="display:flex;align-items:center;gap:.5rem">
+      <span>Positioning</span>
+      <span style="font-size:.55rem;background:rgba(0,180,216,.2);padding:2px 6px;border-radius:8px;color:#00b4d8">BETA</span>
+    </div>
+    <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Map each phone's position for coordinated shows</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+      <button class="dj-bpm-btn" onclick="triggerSyncPulse()" title="Send ultrasonic pulse to measure distance from stage">Depth Scan</button>
+      <button class="dj-bpm-btn" onclick="triggerMeshRound()" title="Phones discover neighbors via short chirps">Mesh Scan</button>
+      <button class="dj-bpm-btn" onclick="triggerGPS()" title="Request GPS from all devices (outdoor only)">GPS</button>
+      <button class="dj-bpm-btn" onclick="calibrateCompass()" title="Set stage direction for compass positioning">Compass Cal</button>
+    </div>
+    <div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.3rem">
+      <span style="font-size:.6rem;color:var(--t3)">Venue depth:</span>
+      <input type="range" id="venueDepthSlider" min="10" max="200" value="50" style="flex:1;accent-color:var(--ac)" oninput="updateVenueDepth(this.value)">
+      <span id="venueDepthLabel" style="font-size:.6rem;color:var(--t2);min-width:32px">50m</span>
+    </div>
+    <div id="positionStatus" style="font-size:.6rem;color:var(--t3);padding:.3rem 0">
+      <span id="posDeviceCount">0</span> devices mapped
+    </div>
+    <!-- Position Map Preview (birds-eye view) -->
+    <canvas id="positionMap" width="200" height="120" style="width:100%;height:80px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,180,216,.08) 0%,rgba(0,0,0,.3) 100%);border:1px solid rgba(255,255,255,.06)"></canvas>
+  </section>
+
+  <!-- ANIMATIONS -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Animations</div>
+    <div class="dj-anim-grid">
+      <button class="dj-anim-btn active" data-anim="pulse" onclick="selectAnimation('pulse')">
+        <span class="dj-anim-icon">&#9711;</span>Pulse
+      </button>
+      <button class="dj-anim-btn" data-anim="fire" onclick="selectAnimation('fire')">
+        <span class="dj-anim-icon">&#9650;</span>Fire
+      </button>
+      <button class="dj-anim-btn" data-anim="ocean" onclick="selectAnimation('ocean')">
+        <span class="dj-anim-icon">&#8776;</span>Ocean
+      </button>
+      <button class="dj-anim-btn" data-anim="strobe" onclick="selectAnimation('strobe')">
+        <span class="dj-anim-icon">⚡</span>Strobe
+      </button>
+      <button class="dj-anim-btn" data-anim="rainbow" onclick="selectAnimation('rainbow')">
+        <span class="dj-anim-icon">⌢</span>Rainbow
+      </button>
+      <button class="dj-anim-btn" data-anim="laser" onclick="selectAnimation('laser')">
+        <span class="dj-anim-icon">/</span>Laser
+      </button>
+      <button class="dj-anim-btn" data-anim="confetti" onclick="selectAnimation('confetti')">
+        <span class="dj-anim-icon">▪</span>Confetti
+      </button>
+      <button class="dj-anim-btn" data-anim="electric" onclick="selectAnimation('electric')">
+        <span class="dj-anim-icon">◇</span>Electric
+      </button>
+      <button class="dj-anim-btn" data-anim="solid" onclick="selectAnimation('solid')">
+        <span class="dj-anim-icon">■</span>Solid Color
+      </button>
+      <button class="dj-anim-btn" data-anim="connect" onclick="selectAnimation('connect')">
+        <span class="dj-anim-icon">&#8644;</span>Connect
+      </button>
+      <button class="dj-anim-btn" data-anim="mirror" onclick="selectAnimation('mirror')">
+        <span class="dj-anim-icon">&#10022;</span>Mirror
+      </button>
+      <button class="dj-anim-btn" data-anim="spectrum" onclick="selectAnimation('spectrum')">
+        <span class="dj-anim-icon">&#9614;</span>Spectrum
+      </button>
+      <button class="dj-anim-btn" data-anim="waveform" onclick="selectAnimation('waveform')">
+        <span class="dj-anim-icon">&#8767;</span>Waveform
+      </button>
+      <button class="dj-anim-btn" data-anim="plasma" onclick="selectAnimation('plasma')">
+        <span class="dj-anim-icon">&#9673;</span>Plasma
+      </button>
+      <button class="dj-anim-btn" data-anim="starfield" onclick="selectAnimation('starfield')">
+        <span class="dj-anim-icon">&#10037;</span>Starfield
+      </button>
+      <button class="dj-anim-btn" data-anim="galaxy" onclick="selectAnimation('galaxy')">
+        <span class="dj-anim-icon">&#10026;</span>Galaxy
+      </button>
+      <button class="dj-anim-btn" data-anim="bars" onclick="selectAnimation('bars')">
+        <span class="dj-anim-icon">&#9617;</span>Bars
+      </button>
+      <button class="dj-anim-btn" data-anim="cascade" onclick="selectAnimation('cascade')">
+        <span class="dj-anim-icon">&#9699;</span>Cascade
+      </button>
+    </div>
+  </section>
+
+  <!-- RAFFLE / SORTEIO -->
+  <section class="dj-ctrl-card full">
+    <div class="dj-ctrl-title">Raffle / Sorteio</div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <button class="dj-quick-btn" onclick="startRaffle()" style="background:linear-gradient(135deg,#7c6aef,#ff3c6e);flex:1;min-width:120px">
+        START RAFFLE
+      </button>
+      <span style="color:var(--t3);font-size:.65rem">Picks a random audience member</span>
+    </div>
+  </section>
+
+</main>
+
+<!-- TOAST -->
+<div class="dj-toast" id="djToast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* ---- STATE ---- */
+var DJ = {
+  sessionId: null,
+  sessionName: '',
+  artistName: '',
+  venueFreq: 19200,
+  broadcasting: false,
+  color: '#ff6b35',
+  bpm: 128,
+  animation: 'pulse',
+  deviceCount: 0,
+  sessionStartTime: null,
+  sonicCtx: null,
+  sonicOsc: null,
+  sonicGain: null,
+  connectedCount: 0,
+  logoDataUrl: null
+};
+
+var socket = null;
+var sessionTimer = null;
+
+/* ---- COLOR PRESETS ---- */
+var COLOR_PRESETS = [
+  '#ff6b35','#ff3c6e','#ff2222','#ff9900',
+  '#ffdd00','#2dd4a0','#00b4d8','#3b82f6',
+  '#7c6aef','#a855f7','#ffffff','#000000'
+];
+
+/* ---- INIT ---- */
+function init() {
+  renderColorPresets();
+  setupColorPicker();
+  setupBPMSlider();
+  // Check if already has a session in localStorage
+  var saved = localStorage.getItem('dj_session');
+  if (saved) {
+    try {
+      var s = JSON.parse(saved);
+      if (s.sessionId && s.artistName) {
+        DJ.sessionId = s.sessionId;
+        DJ.sessionName = s.sessionName;
+        DJ.artistName = s.artistName;
+        DJ.venueFreq = s.venueFreq || 19200;
+        showPanel();
+        connectSocket();
+        return;
+      }
+    } catch(e) {}
+  }
+}
+
+/* ---- SESSION SETUP ---- */
+window.startDJSession = function() {
+  var name = document.getElementById('djSessionName').value.trim();
+  var artist = document.getElementById('djArtistName').value.trim();
+  var freq = parseInt(document.getElementById('djFreqSelect').value);
+  var errEl = document.getElementById('djSetupErr');
+
+  if (!name) { errEl.textContent = 'Session name is required'; return; }
+  if (!artist) { errEl.textContent = 'DJ / Artist name is required'; return; }
+  errEl.textContent = '';
+
+  DJ.sessionId = 'dj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  DJ.sessionName = name;
+  DJ.artistName = artist;
+  DJ.venueFreq = freq;
+
+  localStorage.setItem('dj_session', JSON.stringify({
+    sessionId: DJ.sessionId,
+    sessionName: DJ.sessionName,
+    artistName: DJ.artistName,
+    venueFreq: DJ.venueFreq
+  }));
+
+  showPanel();
+  connectSocket();
+};
+
+function showPanel() {
+  document.getElementById('djSetup').classList.add('hidden');
+}
+
+/* ---- SOCKET.IO ---- */
+function connectSocket() {
+  socket = io(window.location.origin, { transports: ['websocket','polling'] });
+
+  socket.on('connect', function() {
+    updateStatus('connected');
+    // Register as DJ session
+    socket.emit('dj-session-create', {
+      sessionId: DJ.sessionId,
+      sessionName: DJ.sessionName,
+      artistName: DJ.artistName,
+      venueFreq: DJ.venueFreq
+    });
+    showToast('Connected to server');
+  });
+
+  socket.on('disconnect', function() {
+    updateStatus('offline');
+  });
+
+  // Device count updates
+  socket.on('dj-device-count', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      DJ.deviceCount = data.count || 0;
+      DJ.connectedCount = DJ.deviceCount;
+      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+    }
+  });
+
+  // Audience device joined
+  socket.on('dj-device-joined', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      DJ.deviceCount = data.totalDevices || (DJ.deviceCount + 1);
+      DJ.connectedCount = DJ.deviceCount;
+      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+      showToast('+1 device connected');
+    }
+  });
+
+  // Audience device left
+  socket.on('dj-device-left', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      DJ.deviceCount = data.totalDevices || Math.max(0, DJ.deviceCount - 1);
+      DJ.connectedCount = DJ.deviceCount;
+      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+    }
+  });
+
+  socket.on('dj-session-confirmed', function(data) {
+    if (data.sessionId === DJ.sessionId) {
+      showToast('Session created: ' + DJ.sessionName);
+    }
+  });
+}
+
+/* ---- STATUS ---- */
+function updateStatus(state) {
+  var dot = document.getElementById('statusDot');
+  var label = document.getElementById('statusLabel');
+  dot.className = 'dj-status-dot';
+  if (state === 'connected') {
+    label.textContent = 'Connected';
+    dot.style.background = 'var(--warn)';
+  } else if (state === 'broadcasting') {
+    label.textContent = 'LIVE';
+    dot.classList.add('live');
+    dot.style.background = '';
+  } else {
+    label.textContent = 'Offline';
+    dot.style.background = '#555';
+  }
+}
+
+/* ---- BROADCAST TOGGLE ---- */
+window.toggleBroadcast = function() {
+  if (!DJ.sessionId) return;
+  if (DJ.broadcasting) {
+    stopBroadcast();
+  } else {
+    startBroadcast();
+  }
+};
+
+function startBroadcast() {
+  DJ.broadcasting = true;
+  DJ.sessionStartTime = Date.now();
+  var btn = document.getElementById('activateBtn');
+  btn.classList.add('active');
+  document.getElementById('activateLabel').textContent = 'LIVE';
+  updateStatus('broadcasting');
+
+  // Start ultrasonic emission
+  startSonicBroadcast();
+
+  // Start session timer
+  sessionTimer = setInterval(updateSessionTime, 1000);
+
+  // Notify server
+  if (socket && socket.connected) {
+    socket.emit('dj-broadcast-start', {
+      sessionId: DJ.sessionId,
+      venueFreq: DJ.venueFreq,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      animation: DJ.animation
+    });
+  }
+
+  // Send initial animation state
+  sendCommand(DJ.animation);
+  showToast('Broadcasting started');
+}
+
+function stopBroadcast() {
+  DJ.broadcasting = false;
+  var btn = document.getElementById('activateBtn');
+  btn.classList.remove('active');
+  document.getElementById('activateLabel').textContent = 'Activate';
+  updateStatus('connected');
+
+  // Stop ultrasonic
+  stopSonicBroadcast();
+
+  // Stop timer
+  if (sessionTimer) { clearInterval(sessionTimer); sessionTimer = null; }
+
+  if (socket && socket.connected) {
+    socket.emit('dj-broadcast-stop', { sessionId: DJ.sessionId });
+  }
+
+  showToast('Broadcast stopped');
+}
+
+/* ---- ULTRASONIC BROADCAST ---- */
+function startSonicBroadcast() {
+  try {
+    if (!DJ.sonicCtx) {
+      DJ.sonicCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (DJ.sonicCtx.state === 'suspended') {
+      DJ.sonicCtx.resume();
+    }
+
+    // Create oscillator at venue frequency
+    DJ.sonicOsc = DJ.sonicCtx.createOscillator();
+    DJ.sonicOsc.type = 'sine';
+    DJ.sonicOsc.frequency.setValueAtTime(DJ.venueFreq, DJ.sonicCtx.currentTime);
+
+    DJ.sonicGain = DJ.sonicCtx.createGain();
+    // Higher volume for PA system broadcast (0.5 = 50%)
+    DJ.sonicGain.gain.setValueAtTime(0.5, DJ.sonicCtx.currentTime);
+
+    DJ.sonicOsc.connect(DJ.sonicGain);
+    DJ.sonicGain.connect(DJ.sonicCtx.destination);
+    DJ.sonicOsc.start();
+  } catch(e) {
+    console.error('Sonic broadcast error:', e);
+    showToast('Audio error: ' + e.message, true);
+  }
+}
+
+function stopSonicBroadcast() {
+  try {
+    if (DJ.sonicOsc) { DJ.sonicOsc.stop(); DJ.sonicOsc.disconnect(); DJ.sonicOsc = null; }
+    if (DJ.sonicGain) { DJ.sonicGain.disconnect(); DJ.sonicGain = null; }
+  } catch(e) {}
+}
+
+/* ---- SEND COMMANDS ---- */
+window.sendCommand = function(cmd) {
+  if (!DJ.sessionId) { showToast('Create a session first', true); return; }
+  if (!DJ.broadcasting) { showToast('Activate broadcast first', true); return; }
+  if (!socket || !socket.connected) { showToast('Not connected', true); return; }
+
+  // Update active state on buttons
+  var actionBtns = document.querySelectorAll('.dj-action-btn');
+  actionBtns.forEach(function(b) { b.classList.remove('active'); });
+  var targetBtn = document.getElementById('btn' + cmd.charAt(0).toUpperCase() + cmd.slice(1));
+  if (targetBtn) targetBtn.classList.add('active');
+
+  var payload = {
+    sessionId: DJ.sessionId,
+    command: cmd,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  };
+
+  // Special handling
+  if (cmd === 'flash') {
+    payload.duration = 200;
+  } else if (cmd === 'blackout') {
+    payload.duration = 3000;
+  }
+
+  socket.emit('dj-command', payload);
+};
+
+/* ---- ANIMATIONS ---- */
+window.selectAnimation = function(anim) {
+  DJ.animation = anim;
+  var btns = document.querySelectorAll('.dj-anim-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  var target = document.querySelector('[data-anim="' + anim + '"]');
+  if (target) target.classList.add('active');
+
+  // Send to audience if broadcasting
+  if (DJ.broadcasting && socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'animation',
+      animation: anim,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      timestamp: Date.now()
+    });
+  }
+};
+
+/* ---- RAFFLE ---- */
+window.startRaffle = function() {
+  if (!DJ.sessionId) { showToast('Create a session first', true); return; }
+  if (!DJ.broadcasting) { showToast('Activate broadcast first', true); return; }
+
+  // Pick random winner from connected devices
+  var totalDevices = DJ.connectedCount || 10;
+  var winnerNumber = Math.floor(Math.random() * totalDevices) + 1;
+
+  if (socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'raffle',
+      animation: 'raffle',
+      raffleNumber: winnerNumber,
+      raffleTotalDevices: totalDevices,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      timestamp: Date.now()
+    });
+  }
+  showToast('Raffle started! Winner: #' + winnerNumber);
+};
+
+/* ---- COLOR ---- */
+function renderColorPresets() {
+  var container = document.getElementById('colorPresets');
+  container.innerHTML = '';
+  COLOR_PRESETS.forEach(function(c) {
+    var swatch = document.createElement('div');
+    swatch.className = 'dj-color-swatch' + (c === DJ.color ? ' active' : '');
+    swatch.style.background = c;
+    if (c === '#000000') swatch.style.border = '2px solid var(--b2)';
+    swatch.onclick = function() { selectColor(c); };
+    container.appendChild(swatch);
+  });
+}
+
+function selectColor(hex) {
+  DJ.color = hex;
+  document.getElementById('colorPicker').value = hex;
+  document.getElementById('colorHex').textContent = hex;
+
+  // Update swatch active states
+  var swatches = document.querySelectorAll('.dj-color-swatch');
+  swatches.forEach(function(s) { s.classList.remove('active'); });
+  swatches.forEach(function(s) {
+    if (rgbToHex(s.style.background) === hex.toLowerCase() ||
+        s.style.background === hex) {
+      s.classList.add('active');
+    }
+  });
+
+  // Send color update if broadcasting
+  if (DJ.broadcasting && socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'color',
+      color: hex,
+      bpm: DJ.bpm,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+  }
+  // Update zone preview strip with new base color
+  if (typeof updateZonePreview === 'function') updateZonePreview();
+}
+
+function setupColorPicker() {
+  var picker = document.getElementById('colorPicker');
+  picker.addEventListener('input', function() {
+    selectColor(this.value);
+  });
+}
+
+function rgbToHex(rgb) {
+  if (!rgb || rgb.charAt(0) === '#') return (rgb || '').toLowerCase();
+  var parts = rgb.match(/\d+/g);
+  if (!parts || parts.length < 3) return rgb;
+  return '#' + parts.slice(0, 3).map(function(x) {
+    return parseInt(x).toString(16).padStart(2, '0');
+  }).join('');
+}
+
+/* ---- BPM ---- */
+function setupBPMSlider() {
+  var slider = document.getElementById('bpmSlider');
+  slider.addEventListener('input', function() {
+    setBPM(parseInt(this.value));
+  });
+}
+
+window.setBPM = function(val) {
+  DJ.bpm = val;
+  document.getElementById('bpmSlider').value = val;
+  document.getElementById('bpmValue').textContent = val;
+  document.getElementById('bpmDisplay').textContent = val;
+
+  // Update preset button active states
+  var btns = document.querySelectorAll('.dj-bpm-btn');
+  btns.forEach(function(b) {
+    b.classList.toggle('active', parseInt(b.textContent) === val);
+  });
+
+  // Send BPM update if broadcasting
+  if (DJ.broadcasting && socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'bpm',
+      bpm: val,
+      color: DJ.color,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+  }
+};
+
+/* ---- SESSION TIMER ---- */
+function updateSessionTime() {
+  if (!DJ.sessionStartTime) return;
+  var elapsed = Math.floor((Date.now() - DJ.sessionStartTime) / 1000);
+  var mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  var secs = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('sessionTime').textContent = mins + ':' + secs;
+}
+
+/* ---- TOAST ---- */
+function showToast(msg, isError) {
+  var el = document.getElementById('djToast');
+  el.textContent = msg;
+  el.className = 'dj-toast show' + (isError ? ' error' : '');
+  setTimeout(function() { el.className = 'dj-toast'; }, 2500);
+}
+
+/* ---- END SESSION ---- */
+window.endDJSession = function() {
+  stopBroadcast();
+  localStorage.removeItem('dj_session');
+  if (socket) {
+    socket.emit('dj-session-end', { sessionId: DJ.sessionId });
+    socket.disconnect();
+  }
+  DJ.sessionId = null;
+  document.getElementById('djSetup').classList.remove('hidden');
+};
+
+/* ---- PREVIEW ENGINE (Pro V3) ---- */
+var previewCanvas = null;
+var previewCtx = null;
+var previewRaf = null;
+var _pvNoise = (function() {
+  var perm = new Float32Array(512);
+  for (var i = 0; i < 512; i++) perm[i] = Math.random();
+  return function(x) {
+    var xi = Math.floor(x) & 255;
+    var xf = x - Math.floor(x);
+    var u = xf * xf * (3 - 2 * xf);
+    return perm[xi] * (1 - u) + perm[xi + 1] * u;
+  };
+})();
+var _pvParticles = { fire: [], confetti: [], laser: [], electric: [], stars: [], galaxyParts: [] };
+var _pvStartTime = Date.now();
+
+/* ---- AQUARIUM ENGINE ---- */
+var aquariumCanvas = null;
+var aquariumCtx = null;
+var aquariumRaf = null;
+var _aqDots = [];
+var _aqPeakCount = 0;
+
+function initAquariumDots(count) {
+  _aqDots = [];
+  for (var i = 0; i < Math.max(count, 1); i++) {
+    _aqDots.push({
+      x: Math.random(),
+      y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.003,
+      vy: (Math.random() - 0.5) * 0.002,
+      size: 2 + Math.random() * 3,
+      hue: 160 + Math.random() * 60,
+      alpha: 0.3 + Math.random() * 0.5,
+      pulse: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function renderAquarium() {
+  if (!aquariumCtx) return;
+  var w = aquariumCanvas.width;
+  var h = aquariumCanvas.height;
+  var now = Date.now();
+  var count = DJ.deviceCount || 0;
+
+  aquariumCtx.clearRect(0, 0, w, h);
+
+  // Deep ocean gradient background
+  var bg = aquariumCtx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, 'rgba(0,15,30,0.95)');
+  bg.addColorStop(1, 'rgba(0,8,20,0.98)');
+  aquariumCtx.fillStyle = bg;
+  aquariumCtx.fillRect(0, 0, w, h);
+
+  // Subtle caustics
+  aquariumCtx.globalCompositeOperation = 'lighter';
+  for (var ci = 0; ci < 3; ci++) {
+    var cx = w * (0.2 + ci * 0.3) + Math.sin(now * 0.0005 + ci) * w * 0.1;
+    var cy = h * 0.3 + Math.cos(now * 0.0007 + ci * 2) * h * 0.15;
+    var cr = aquariumCtx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.15);
+    cr.addColorStop(0, 'rgba(0,180,216,0.03)');
+    cr.addColorStop(1, 'rgba(0,180,216,0)');
+    aquariumCtx.fillStyle = cr;
+    aquariumCtx.fillRect(0, 0, w, h);
+  }
+
+  // Sync dot count with device count
+  var targetCount = Math.max(count, 0);
+  while (_aqDots.length < targetCount) {
+    _aqDots.push({
+      x: Math.random(), y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.003,
+      vy: (Math.random() - 0.5) * 0.002,
+      size: 2 + Math.random() * 3,
+      hue: 160 + Math.random() * 60,
+      alpha: 0.3 + Math.random() * 0.5,
+      pulse: Math.random() * Math.PI * 2
+    });
+  }
+  while (_aqDots.length > targetCount && _aqDots.length > 0) {
+    _aqDots.pop();
+  }
+
+  // Draw and animate dots
+  for (var i = 0; i < _aqDots.length; i++) {
+    var d = _aqDots[i];
+    d.x += d.vx + Math.sin(now * 0.001 + i * 0.7) * 0.0005;
+    d.y += d.vy + Math.cos(now * 0.0008 + i * 1.1) * 0.0003;
+
+    // Boundary bounce
+    if (d.x < 0.02 || d.x > 0.98) d.vx *= -1;
+    if (d.y < 0.05 || d.y > 0.95) d.vy *= -1;
+    d.x = Math.max(0.02, Math.min(0.98, d.x));
+    d.y = Math.max(0.05, Math.min(0.95, d.y));
+
+    d.pulse += 0.03;
+    var pAlpha = d.alpha + Math.sin(d.pulse) * 0.15;
+    var pSize = d.size + Math.sin(d.pulse * 0.7) * 1;
+    var px = d.x * w;
+    var py = d.y * h;
+
+    // Glow
+    var glow = aquariumCtx.createRadialGradient(px, py, 0, px, py, pSize * 4);
+    glow.addColorStop(0, 'hsla(' + d.hue + ',80%,60%,' + (pAlpha * 0.3) + ')');
+    glow.addColorStop(1, 'hsla(' + d.hue + ',80%,60%,0)');
+    aquariumCtx.fillStyle = glow;
+    aquariumCtx.beginPath();
+    aquariumCtx.arc(px, py, pSize * 4, 0, Math.PI * 2);
+    aquariumCtx.fill();
+
+    // Core
+    aquariumCtx.fillStyle = 'hsla(' + d.hue + ',85%,70%,' + pAlpha + ')';
+    aquariumCtx.beginPath();
+    aquariumCtx.arc(px, py, pSize, 0, Math.PI * 2);
+    aquariumCtx.fill();
+  }
+
+  aquariumCtx.globalCompositeOperation = 'source-over';
+
+  // Update count display
+  var countEl = document.getElementById('aquariumCount');
+  if (countEl) countEl.textContent = count;
+  if (count > _aqPeakCount) {
+    _aqPeakCount = count;
+    var peakEl = document.getElementById('aquariumPeak');
+    if (peakEl) peakEl.textContent = 'Peak: ' + _aqPeakCount;
+  }
+
+  aquariumRaf = requestAnimationFrame(renderAquarium);
+}
+
+/* ---- DJ LOGO UPLOAD ---- */
+DJ.logoDataUrl = null;
+function setupLogoUpload() {
+  var fileInput = document.getElementById('djLogoFileInput');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      DJ.logoDataUrl = ev.target.result;
+      var img = document.getElementById('stageLogoImg');
+      var placeholder = document.getElementById('stageLogoPlaceholder');
+      if (img) { img.src = DJ.logoDataUrl; img.style.display = 'block'; }
+      if (placeholder) placeholder.style.display = 'none';
+      showToast('Logo uploaded');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---- STAGE OVERLAY SYNC ---- */
+function syncStageOverlay() {
+  var artistEl = document.getElementById('stageArtistName');
+  var sessionEl = document.getElementById('stageSessionName');
+  var animEl = document.getElementById('stageAnimLabel');
+  var liveBadge = document.getElementById('stageLiveBadge');
+  if (artistEl) artistEl.textContent = DJ.artistName || 'DJ Name';
+  if (sessionEl) sessionEl.textContent = DJ.sessionName || 'Session';
+  if (animEl) animEl.textContent = (DJ.animation || 'pulse').charAt(0).toUpperCase() + (DJ.animation || 'pulse').slice(1);
+  if (liveBadge) liveBadge.style.display = DJ.broadcasting ? 'flex' : 'none';
+}
+
+/* ---- PREVIEW INIT ---- */
+function startPreview() {
+  previewCanvas = document.getElementById('djPreviewCanvas');
+  if (!previewCanvas) return;
+  previewCtx = previewCanvas.getContext('2d');
+  previewCanvas.width = previewCanvas.offsetWidth * 2;
+  previewCanvas.height = previewCanvas.offsetHeight * 2;
+
+  // Init particle pools
+  _pvParticles.fire = [];
+  for (var i = 0; i < 80; i++) {
+    _pvParticles.fire.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, size: 0, active: false });
+  }
+  _pvParticles.confetti = [];
+  for (var i = 0; i < 40; i++) {
+    _pvParticles.confetti.push({
+      x: Math.random(), y: -Math.random(),
+      vx: (Math.random() - 0.5) * 0.01,
+      vy: 0.003 + Math.random() * 0.005,
+      rot: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.1,
+      size: 3 + Math.random() * 4,
+      shape: Math.floor(Math.random() * 3),
+      hue: Math.random() * 360
+    });
+  }
+  _pvParticles.laser = [];
+  for (var i = 0; i < 24; i++) {
+    _pvParticles.laser.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, alpha: 0, active: false });
+  }
+  // Starfield particles
+  _pvParticles.stars = [];
+  for (var i = 0; i < 120; i++) {
+    _pvParticles.stars.push({
+      x: (Math.random() - 0.5) * 2,
+      y: (Math.random() - 0.5) * 2,
+      z: Math.random(),
+      speed: 0.003 + Math.random() * 0.005
+    });
+  }
+  // Galaxy particles
+  _pvParticles.galaxyParts = [];
+  for (var i = 0; i < 200; i++) {
+    var angle = Math.random() * Math.PI * 2;
+    var dist = 0.05 + Math.pow(Math.random(), 0.5) * 0.45;
+    _pvParticles.galaxyParts.push({
+      angle: angle,
+      dist: dist,
+      speed: 0.2 + (0.5 - dist) * 0.6,
+      size: 1 + Math.random() * 2,
+      hue: Math.random() * 60,
+      brightness: 0.4 + Math.random() * 0.6
+    });
+  }
+
+  // Start aquarium
+  aquariumCanvas = document.getElementById('djAquariumCanvas');
+  if (aquariumCanvas) {
+    aquariumCtx = aquariumCanvas.getContext('2d');
+    aquariumCanvas.width = aquariumCanvas.offsetWidth * 2;
+    aquariumCanvas.height = aquariumCanvas.offsetHeight * 2;
+    initAquariumDots(DJ.deviceCount || 0);
+    renderAquarium();
+  }
+
+  setupLogoUpload();
+  syncStageOverlay();
+  _pvStartTime = Date.now();
+  renderPreview();
+}
+
+function renderPreview() {
+  if (!previewCtx) return;
+  var w = previewCanvas.width;
+  var h = previewCanvas.height;
+  var now = Date.now();
+  var t = (now - _pvStartTime) / 1000;
+  var beatMs = 60000 / (DJ.bpm || 128);
+  var phase = (now % beatMs) / beatMs;
+  var bassHit = phase < 0.1 ? Math.pow(1 - phase / 0.1, 3) : 0;
+  var hex = DJ.color || '#ff6b35';
+
+  previewCtx.clearRect(0, 0, w, h);
+  previewCtx.fillStyle = '#000';
+  previewCtx.fillRect(0, 0, w, h);
+
+  var anim = DJ.animation || 'pulse';
+  switch (anim) {
+    case 'pulse': pvPulse(w, h, t, phase, bassHit, hex); break;
+    case 'fire': pvFire(w, h, t, bassHit, hex); break;
+    case 'ocean': pvOcean(w, h, t, hex); break;
+    case 'solid': pvSolid(w, h, t, bassHit, hex); break;
+    case 'strobe': pvStrobe(w, h, t, phase, hex); break;
+    case 'rainbow': pvRainbow(w, h, t); break;
+    case 'laser': pvLaser(w, h, t, bassHit, hex); break;
+    case 'confetti': pvConfetti(w, h, t); break;
+    case 'electric': pvElectric(w, h, t, bassHit, hex); break;
+    case 'connect': pvConnect(w, h, t, bassHit, hex); break;
+    case 'mirror': pvMirror(w, h, t, hex); break;
+    case 'raffle': pvRaffle(w, h, t, hex); break;
+    case 'spectrum': pvSpectrum(w, h, t, phase, bassHit, hex); break;
+    case 'waveform': pvWaveform(w, h, t, phase, bassHit, hex); break;
+    case 'plasma': pvPlasma(w, h, t, hex); break;
+    case 'starfield': pvStarfield(w, h, t, bassHit, hex); break;
+    case 'galaxy': pvGalaxy(w, h, t, bassHit, hex); break;
+    case 'bars': pvBars(w, h, t, phase, bassHit, hex); break;
+    case 'cascade': pvCascade(w, h, t, phase, hex); break;
+    default: pvSolid(w, h, t, bassHit, hex);
+  }
+
+  syncStageOverlay();
+  previewRaf = requestAnimationFrame(renderPreview);
+}
+
+function hexToRgb(hex) {
+  var val = parseInt((hex || '#ff6b35').slice(1), 16);
+  var str = val.toString(16).padStart(6, '0');
+  return { r: parseInt(str.slice(0, 2), 16), g: parseInt(str.slice(2, 4), 16), b: parseInt(str.slice(4, 6), 16) };
+}
+
+/* ---- PULSE: shockwave rings + bloom core ---- */
+function pvPulse(w, h, t, phase, bass, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  var maxR = Math.hypot(w, h) * 0.5;
+  previewCtx.globalCompositeOperation = 'lighter';
+  // Rings
+  for (var i = 0; i < 5; i++) {
+    var p = (phase + i * 0.2) % 1;
+    var r = maxR * p;
+    var alpha = Math.pow(1 - p, 2) * 0.4;
+    var lw = (1 - p) * 6 + 1;
+    previewCtx.beginPath();
+    previewCtx.arc(cx, cy, Math.max(r, 1), 0, Math.PI * 2);
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
+    previewCtx.lineWidth = lw;
+    previewCtx.stroke();
+  }
+  // Core glow
+  var coreR = 20 + bass * 40;
+  var cg = previewCtx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+  cg.addColorStop(0, 'rgba(' + Math.min(c.r + 60, 255) + ',' + Math.min(c.g + 60, 255) + ',' + Math.min(c.b + 60, 255) + ',' + (0.6 + bass * 0.4) + ')');
+  cg.addColorStop(0.5, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.2)');
+  cg.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+  previewCtx.fillStyle = cg;
+  previewCtx.beginPath();
+  previewCtx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  previewCtx.fill();
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- FIRE: volumetric flames + embers ---- */
+function pvFire(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  previewCtx.globalCompositeOperation = 'lighter';
+  // Flame columns
+  for (var i = 0; i < 8; i++) {
+    var fx = w * (0.08 + 0.84 * i / 7);
+    var flameH = h * (0.35 + 0.2 * _pvNoise(i * 3.7 + t * 0.8) + bass * 0.15);
+    var baseW = w * 0.08;
+    var grad = previewCtx.createLinearGradient(fx, h, fx, h - flameH);
+    grad.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.7)');
+    grad.addColorStop(0.3, 'rgba(' + Math.min(c.r + 60, 255) + ',' + Math.min(c.g + 30, 255) + ',0,0.45)');
+    grad.addColorStop(0.7, 'rgba(255,' + Math.min(c.g + 80, 255) + ',0,0.2)');
+    grad.addColorStop(1, 'rgba(255,255,200,0)');
+    previewCtx.beginPath();
+    previewCtx.moveTo(fx - baseW, h);
+    previewCtx.bezierCurveTo(
+      fx - baseW * 0.8, h - flameH * 0.3,
+      fx - baseW * 0.3 + Math.sin(t * 3 + i) * baseW * 0.3, h - flameH * 0.7,
+      fx + Math.sin(t * 2.5 + i * 1.2) * baseW * 0.4, h - flameH
+    );
+    previewCtx.bezierCurveTo(
+      fx + baseW * 0.3 + Math.sin(t * 2.8 + i * 0.8) * baseW * 0.3, h - flameH * 0.7,
+      fx + baseW * 0.8, h - flameH * 0.3,
+      fx + baseW, h
+    );
+    previewCtx.closePath();
+    previewCtx.fillStyle = grad;
+    previewCtx.fill();
+  }
+  // Embers
+  var pool = _pvParticles.fire;
+  for (var i = 0; i < pool.length; i++) {
+    var p = pool[i];
+    if (!p.active) {
+      if (Math.random() < 0.15) {
+        p.active = true;
+        p.x = Math.random() * w;
+        p.y = h;
+        p.vx = (Math.random() - 0.5) * 1.5;
+        p.vy = -(1 + Math.random() * 3);
+        p.life = 0;
+        p.maxLife = 40 + Math.random() * 40;
+        p.size = 1 + Math.random() * 2;
+      }
+      continue;
+    }
+    p.life++;
+    if (p.life > p.maxLife) { p.active = false; continue; }
+    p.x += p.vx + Math.sin(t * 3 + i) * 0.3;
+    p.y += p.vy;
+    p.vy *= 0.98;
+    var la = 1 - p.life / p.maxLife;
+    previewCtx.fillStyle = 'rgba(255,' + Math.floor(150 + la * 105) + ',' + Math.floor(la * 80) + ',' + (la * 0.7) + ')';
+    previewCtx.beginPath();
+    previewCtx.arc(p.x, p.y, p.size * la, 0, Math.PI * 2);
+    previewCtx.fill();
+  }
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- OCEAN: layered waves + foam + bioluminescence ---- */
+function pvOcean(w, h, t, hex) {
+  var c = hexToRgb(hex);
+  // Deep background gradient
+  var deepBg = previewCtx.createLinearGradient(0, 0, 0, h);
+  deepBg.addColorStop(0, 'rgba(' + Math.floor(c.r * 0.1) + ',' + Math.floor(c.g * 0.15) + ',' + Math.floor(c.b * 0.3) + ',1)');
+  deepBg.addColorStop(1, 'rgba(0,0,' + Math.floor(c.b * 0.15) + ',1)');
+  previewCtx.fillStyle = deepBg;
+  previewCtx.fillRect(0, 0, w, h);
+
+  // 6 wave layers
+  for (var layer = 0; layer < 6; layer++) {
+    var baseY = h * (0.2 + layer * 0.11);
+    var alpha = 0.08 + layer * 0.05;
+    var speed = 0.6 + layer * 0.15;
+    previewCtx.beginPath();
+    previewCtx.moveTo(0, h);
+    for (var x = 0; x <= w; x += 3) {
+      var y = baseY +
+        Math.sin(x * 0.006 + t * speed + layer) * h * 0.04 +
+        Math.sin(x * 0.012 + t * speed * 1.3 + layer * 2.5) * h * 0.025 +
+        Math.sin(x * 0.025 + t * speed * 0.7 + layer * 4) * h * 0.012;
+      previewCtx.lineTo(x, y);
+    }
+    previewCtx.lineTo(w, h);
+    previewCtx.closePath();
+    previewCtx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
+    previewCtx.fill();
+  }
+
+  // Bioluminescent dots
+  previewCtx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < 12; i++) {
+    var bx = (_pvNoise(i * 5.3 + t * 0.15) * 1.2 - 0.1) * w;
+    var by = h * (0.3 + _pvNoise(i * 3.1 + t * 0.12) * 0.6);
+    var ba = (Math.sin(t * 1.5 + i * 2.3) * 0.5 + 0.5) * 0.4;
+    var bg = previewCtx.createRadialGradient(bx, by, 0, bx, by, 8);
+    bg.addColorStop(0, 'rgba(' + Math.min(c.r + 100, 255) + ',' + Math.min(c.g + 100, 255) + ',255,' + ba + ')');
+    bg.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+    previewCtx.fillStyle = bg;
+    previewCtx.fillRect(bx - 8, by - 8, 16, 16);
+  }
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- SOLID: radial gradient + beat flash ---- */
+function pvSolid(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  var pulse = 0.85 + Math.sin(t * 1.5) * 0.1 + bass * 0.15;
+  var g = previewCtx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
+  g.addColorStop(0, 'rgba(' + Math.min(c.r + 30, 255) + ',' + Math.min(c.g + 30, 255) + ',' + Math.min(c.b + 30, 255) + ',' + pulse + ')');
+  g.addColorStop(0.7, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (pulse * 0.7) + ')');
+  g.addColorStop(1, 'rgba(' + Math.floor(c.r * 0.4) + ',' + Math.floor(c.g * 0.4) + ',' + Math.floor(c.b * 0.4) + ',' + (pulse * 0.5) + ')');
+  previewCtx.fillStyle = g;
+  previewCtx.fillRect(0, 0, w, h);
+  // Beat flash overlay
+  if (bass > 0.3) {
+    previewCtx.fillStyle = 'rgba(255,255,255,' + (bass * 0.15) + ')';
+    previewCtx.fillRect(0, 0, w, h);
+  }
+}
+
+/* ---- STROBE: smooth sine ramp + afterglow ---- */
+function pvStrobe(w, h, t, phase, hex) {
+  var c = hexToRgb(hex);
+  var intensity = Math.pow(Math.max(Math.sin(phase * Math.PI * 2), 0), 4);
+  previewCtx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + intensity + ')';
+  previewCtx.fillRect(0, 0, w, h);
+  // Afterglow
+  if (intensity > 0.5) {
+    previewCtx.fillStyle = 'rgba(255,255,255,' + ((intensity - 0.5) * 0.3) + ')';
+    previewCtx.fillRect(0, 0, w, h);
+  }
+}
+
+/* ---- RAINBOW: flowing diagonal gradient + shimmer ---- */
+function pvRainbow(w, h, t) {
+  // Diagonal rainbow gradient
+  for (var x = 0; x < w; x += 3) {
+    var hue = ((x / w) * 360 + t * 40) % 360;
+    var shimmer = 50 + Math.sin(x * 0.02 + t * 3) * 8;
+    previewCtx.fillStyle = 'hsl(' + hue + ',85%,' + shimmer + '%)';
+    previewCtx.fillRect(x, 0, 4, h);
+  }
+  // Scanlines
+  previewCtx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var y = 0; y < h; y += 4) {
+    previewCtx.fillRect(0, y, w, 2);
+  }
+}
+
+/* ---- LASER: scanning beams + atmospheric haze ---- */
+function pvLaser(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  // Atmospheric haze
+  var haze = previewCtx.createRadialGradient(w / 2, 0, 0, w / 2, 0, Math.max(w, h));
+  haze.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.04)');
+  haze.addColorStop(1, 'rgba(0,0,0,0)');
+  previewCtx.fillStyle = haze;
+  previewCtx.fillRect(0, 0, w, h);
+
+  previewCtx.globalCompositeOperation = 'lighter';
+  var origins = [
+    [w * 0.5, 0], [w * 0.3, 0], [w * 0.7, 0], [0, h * 0.3], [w, h * 0.3]
+  ];
+  for (var i = 0; i < 8; i++) {
+    var oi = i % origins.length;
+    var ox = origins[oi][0];
+    var oy = origins[oi][1];
+    var angle = Math.sin(t * 0.7 + i * 0.8) * 1.2 + i * 0.4;
+    var len = Math.max(w, h) * 1.2;
+    var ex = ox + Math.cos(angle) * len;
+    var ey = oy + Math.sin(angle) * len;
+    var beamAlpha = 0.25 + bass * 0.3;
+    // Beam glow (wider)
+    previewCtx.beginPath();
+    previewCtx.moveTo(ox, oy);
+    previewCtx.lineTo(ex, ey);
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (beamAlpha * 0.3) + ')';
+    previewCtx.lineWidth = 6;
+    previewCtx.stroke();
+    // Beam core
+    previewCtx.beginPath();
+    previewCtx.moveTo(ox, oy);
+    previewCtx.lineTo(ex, ey);
+    previewCtx.strokeStyle = 'rgba(' + Math.min(c.r + 80, 255) + ',' + Math.min(c.g + 80, 255) + ',' + Math.min(c.b + 80, 255) + ',' + beamAlpha + ')';
+    previewCtx.lineWidth = 2;
+    previewCtx.stroke();
+  }
+  // Dust particles
+  for (var i = 0; i < 15; i++) {
+    var px = _pvNoise(i * 7.1 + t * 0.3) * w;
+    var py = _pvNoise(i * 4.3 + t * 0.25) * h;
+    var pa = (Math.sin(t * 2 + i * 3.7) * 0.5 + 0.5) * 0.4;
+    previewCtx.fillStyle = 'rgba(' + Math.min(c.r + 100, 255) + ',' + Math.min(c.g + 100, 255) + ',' + Math.min(c.b + 100, 255) + ',' + pa + ')';
+    previewCtx.beginPath();
+    previewCtx.arc(px, py, 1.5, 0, Math.PI * 2);
+    previewCtx.fill();
+  }
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- CONFETTI: 3 shapes, physics, gravity ---- */
+function pvConfetti(w, h, t) {
+  var pool = _pvParticles.confetti;
+  var colors = ['#ff6b35','#ff3c6e','#2dd4a0','#00b4d8','#7c6aef','#ffdd00','#ff88aa','#44ffcc'];
+  for (var i = 0; i < pool.length; i++) {
+    var p = pool[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.0001; // gravity
+    p.vx += Math.sin(t * 2 + i * 1.5) * 0.0002; // turbulence
+    p.rot += p.rotV;
+    if (p.y > 1.1) { p.y = -0.1; p.x = Math.random(); }
+    if (p.x < -0.1 || p.x > 1.1) p.vx *= -0.5;
+
+    var px = p.x * w;
+    var py = p.y * h;
+    previewCtx.save();
+    previewCtx.translate(px, py);
+    previewCtx.rotate(p.rot);
+    previewCtx.fillStyle = colors[i % colors.length];
+    if (p.shape === 0) {
+      previewCtx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+    } else if (p.shape === 1) {
+      previewCtx.beginPath();
+      previewCtx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+      previewCtx.fill();
+    } else {
+      previewCtx.fillRect(-1, -p.size, 2, p.size * 2);
+    }
+    previewCtx.restore();
+  }
+}
+
+/* ---- ELECTRIC: lightning + Tron grid + plasma ---- */
+function pvElectric(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  // Tron grid
+  previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.06)';
+  previewCtx.lineWidth = 1;
+  var gridSize = 30;
+  var scrollY = (t * 20) % gridSize;
+  for (var gx = 0; gx <= w; gx += gridSize) {
+    previewCtx.beginPath();
+    previewCtx.moveTo(gx, 0);
+    previewCtx.lineTo(gx, h);
+    previewCtx.stroke();
+  }
+  for (var gy = -gridSize + scrollY; gy <= h; gy += gridSize) {
+    previewCtx.beginPath();
+    previewCtx.moveTo(0, gy);
+    previewCtx.lineTo(w, gy);
+    previewCtx.stroke();
+  }
+
+  // Lightning bolts
+  previewCtx.globalCompositeOperation = 'lighter';
+  for (var b = 0; b < 3; b++) {
+    var sx = _pvNoise(b * 5 + t * 0.5) * w;
+    var sy = 0;
+    previewCtx.beginPath();
+    previewCtx.moveTo(sx, sy);
+    var segments = 8 + Math.floor(Math.random() * 4);
+    for (var s = 1; s <= segments; s++) {
+      var ny = (s / segments) * h;
+      var nx = sx + (Math.random() - 0.5) * w * 0.3;
+      previewCtx.lineTo(nx, ny);
+    }
+    var boltAlpha = 0.3 + bass * 0.5 + Math.random() * 0.2;
+    // Glow
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (boltAlpha * 0.4) + ')';
+    previewCtx.lineWidth = 5;
+    previewCtx.stroke();
+    // Core
+    previewCtx.strokeStyle = 'rgba(' + Math.min(c.r + 100, 255) + ',' + Math.min(c.g + 100, 255) + ',' + Math.min(c.b + 100, 255) + ',' + boltAlpha + ')';
+    previewCtx.lineWidth = 1.5;
+    previewCtx.stroke();
+  }
+
+  // Plasma glow
+  for (var i = 0; i < 4; i++) {
+    var px = _pvNoise(i * 8 + t * 0.4) * w;
+    var py = _pvNoise(i * 6 + t * 0.35) * h;
+    var pg = previewCtx.createRadialGradient(px, py, 0, px, py, 40);
+    pg.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.15)');
+    pg.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+    previewCtx.fillStyle = pg;
+    previewCtx.fillRect(px - 40, py - 40, 80, 80);
+  }
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- CONNECT: converging waves + Touch? logo ---- */
+function pvConnect(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  previewCtx.globalCompositeOperation = 'lighter';
+  // Left source waves
+  for (var i = 0; i < 4; i++) {
+    var r = ((t * 0.8 + i * 0.25) % 1) * w * 0.6;
+    var a = Math.pow(1 - r / (w * 0.6), 2) * 0.3;
+    previewCtx.beginPath();
+    previewCtx.arc(0, cy, Math.max(r, 1), -0.5, 0.5);
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+    previewCtx.lineWidth = 3;
+    previewCtx.stroke();
+  }
+  // Right source waves
+  for (var i = 0; i < 4; i++) {
+    var r = ((t * 0.8 + i * 0.25) % 1) * w * 0.6;
+    var a = Math.pow(1 - r / (w * 0.6), 2) * 0.3;
+    previewCtx.beginPath();
+    previewCtx.arc(w, cy, Math.max(r, 1), Math.PI - 0.5, Math.PI + 0.5);
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+    previewCtx.lineWidth = 3;
+    previewCtx.stroke();
+  }
+  // Center glow
+  var cg = previewCtx.createRadialGradient(cx, cy, 0, cx, cy, 50 + bass * 30);
+  cg.addColorStop(0, 'rgba(' + Math.min(c.r + 80, 255) + ',' + Math.min(c.g + 80, 255) + ',' + Math.min(c.b + 80, 255) + ',0.5)');
+  cg.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+  previewCtx.fillStyle = cg;
+  previewCtx.beginPath();
+  previewCtx.arc(cx, cy, 50 + bass * 30, 0, Math.PI * 2);
+  previewCtx.fill();
+  previewCtx.globalCompositeOperation = 'source-over';
+  // Touch? text
+  previewCtx.font = 'bold ' + Math.floor(h * 0.12) + 'px "Plus Jakarta Sans",sans-serif';
+  previewCtx.textAlign = 'center';
+  previewCtx.textBaseline = 'middle';
+  previewCtx.fillStyle = 'rgba(255,255,255,' + (0.6 + bass * 0.3) + ')';
+  previewCtx.fillText('Touch?', cx, cy);
+}
+
+/* ---- MIRROR: kaleidoscope rotating mandala ---- */
+function pvMirror(w, h, t, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  var segments = 8;
+  previewCtx.save();
+  previewCtx.translate(cx, cy);
+  previewCtx.globalCompositeOperation = 'lighter';
+  for (var seg = 0; seg < segments; seg++) {
+    previewCtx.save();
+    previewCtx.rotate((seg / segments) * Math.PI * 2 + t * 0.3);
+    if (seg % 2 === 1) previewCtx.scale(1, -1);
+    // Draw petal
+    for (var layer = 0; layer < 3; layer++) {
+      var petalLen = Math.min(w, h) * (0.2 + layer * 0.08);
+      var petalW = petalLen * 0.3;
+      var hueShift = (seg * 40 + layer * 20 + t * 30) % 360;
+      previewCtx.beginPath();
+      previewCtx.moveTo(0, 0);
+      previewCtx.bezierCurveTo(
+        petalW * Math.sin(t * 1.5 + layer), petalLen * 0.3,
+        petalW * Math.cos(t * 1.2 + layer), petalLen * 0.7,
+        0, petalLen
+      );
+      previewCtx.bezierCurveTo(
+        -petalW * Math.cos(t * 1.2 + layer), petalLen * 0.7,
+        -petalW * Math.sin(t * 1.5 + layer), petalLen * 0.3,
+        0, 0
+      );
+      previewCtx.fillStyle = 'hsla(' + hueShift + ',70%,55%,0.12)';
+      previewCtx.fill();
+      previewCtx.strokeStyle = 'hsla(' + hueShift + ',80%,60%,0.2)';
+      previewCtx.lineWidth = 1;
+      previewCtx.stroke();
+    }
+    previewCtx.restore();
+  }
+  // Center gem
+  var gemG = previewCtx.createRadialGradient(0, 0, 0, 0, 0, 15);
+  gemG.addColorStop(0, 'rgba(255,255,255,0.6)');
+  gemG.addColorStop(0.5, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.3)');
+  gemG.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+  previewCtx.fillStyle = gemG;
+  previewCtx.beginPath();
+  previewCtx.arc(0, 0, 15, 0, Math.PI * 2);
+  previewCtx.fill();
+  previewCtx.globalCompositeOperation = 'source-over';
+  previewCtx.restore();
+}
+
+/* ---- RAFFLE: scramble -> slowdown -> winner reveal ---- */
+function pvRaffle(w, h, t, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  // Demo mode: cycle through scramble
+  var cyclePeriod = 4; // seconds per cycle
+  var cyclePhase = (t % cyclePeriod) / cyclePeriod;
+  var num;
+  if (cyclePhase < 0.7) {
+    // Scramble
+    num = Math.floor(Math.random() * 999) + 1;
+    // Flashing background
+    var flash = Math.sin(t * 20) * 0.5 + 0.5;
+    previewCtx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (flash * 0.1) + ')';
+    previewCtx.fillRect(0, 0, w, h);
+  } else if (cyclePhase < 0.85) {
+    // Slowdown
+    var slowPhase = (cyclePhase - 0.7) / 0.15;
+    num = Math.floor(_pvNoise(t * (3 - slowPhase * 2.5)) * 100) + 1;
+  } else {
+    // Winner reveal!
+    num = 42;
+    // Golden celebration
+    previewCtx.globalCompositeOperation = 'lighter';
+    var glow = previewCtx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.4);
+    glow.addColorStop(0, 'rgba(255,215,0,0.15)');
+    glow.addColorStop(0.5, 'rgba(255,180,0,0.05)');
+    glow.addColorStop(1, 'rgba(255,150,0,0)');
+    previewCtx.fillStyle = glow;
+    previewCtx.fillRect(0, 0, w, h);
+    // Sparkles
+    for (var i = 0; i < 8; i++) {
+      var sx = cx + Math.cos(t * 3 + i * 0.8) * w * 0.3;
+      var sy = cy + Math.sin(t * 2.5 + i * 1.2) * h * 0.3;
+      var sa = Math.sin(t * 5 + i * 2) * 0.5 + 0.5;
+      previewCtx.fillStyle = 'rgba(255,215,0,' + (sa * 0.6) + ')';
+      previewCtx.beginPath();
+      previewCtx.arc(sx, sy, 3, 0, Math.PI * 2);
+      previewCtx.fill();
+    }
+    previewCtx.globalCompositeOperation = 'source-over';
+  }
+
+  // Number display
+  var fontSize = Math.floor(h * 0.35);
+  previewCtx.font = '900 ' + fontSize + 'px "Plus Jakarta Sans",sans-serif';
+  previewCtx.textAlign = 'center';
+  previewCtx.textBaseline = 'middle';
+
+  // Text shadow/glow
+  previewCtx.shadowColor = cyclePhase >= 0.85 ? 'rgba(255,215,0,0.8)' : 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.5)';
+  previewCtx.shadowBlur = cyclePhase >= 0.85 ? 20 : 10;
+  previewCtx.fillStyle = cyclePhase >= 0.85 ? '#ffd700' : 'rgba(255,255,255,0.9)';
+  previewCtx.fillText('#' + num, cx, cy);
+  previewCtx.shadowBlur = 0;
+
+  // Label
+  previewCtx.font = '600 ' + Math.floor(h * 0.06) + 'px "Plus Jakarta Sans",sans-serif';
+  previewCtx.fillStyle = 'rgba(255,255,255,0.4)';
+  previewCtx.fillText(cyclePhase >= 0.85 ? 'WINNER!' : 'RAFFLE', cx, cy + fontSize * 0.5);
+}
+
+/* ---- SPECTRUM: Classic EQ bars (Winamp style) ---- */
+function pvSpectrum(w, h, t, phase, bass, hex) {
+  var c = hexToRgb(hex);
+  var barCount = 32;
+  var gap = 2;
+  var barW = (w - gap * (barCount - 1)) / barCount;
+  previewCtx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < barCount; i++) {
+    // Simulate frequency spectrum using noise
+    var freq = _pvNoise(i * 0.8 + t * 2.5) * 0.5 + _pvNoise(i * 1.5 + t * 4) * 0.3;
+    freq += bass * 0.4 * (i < barCount * 0.3 ? 1 : 0.3); // bass boost on low bars
+    freq = Math.min(freq, 1);
+    var barH = freq * h * 0.85;
+    var x = i * (barW + gap);
+    // Gradient per bar
+    var grad = previewCtx.createLinearGradient(x, h, x, h - barH);
+    var hue = (i / barCount) * 120; // green to red like classic EQ
+    grad.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.8)');
+    grad.addColorStop(0.5, 'hsla(' + (120 - hue) + ',80%,50%,0.6)');
+    grad.addColorStop(1, 'hsla(' + (120 - hue) + ',90%,60%,0.9)');
+    previewCtx.fillStyle = grad;
+    previewCtx.fillRect(x, h - barH, barW, barH);
+    // Peak dot
+    var peakY = h - barH - 4;
+    previewCtx.fillStyle = 'rgba(255,255,255,0.8)';
+    previewCtx.fillRect(x, peakY, barW, 2);
+  }
+  // Reflection
+  previewCtx.globalAlpha = 0.15;
+  previewCtx.scale(1, -1);
+  previewCtx.translate(0, -h * 2);
+  for (var i = 0; i < barCount; i++) {
+    var freq = _pvNoise(i * 0.8 + t * 2.5) * 0.5 + _pvNoise(i * 1.5 + t * 4) * 0.3;
+    freq += bass * 0.4 * (i < barCount * 0.3 ? 1 : 0.3);
+    freq = Math.min(freq, 1);
+    var barH = freq * h * 0.85 * 0.3;
+    var x = i * (barW + gap);
+    previewCtx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.5)';
+    previewCtx.fillRect(x, h - barH, barW, barH);
+  }
+  previewCtx.setTransform(1, 0, 0, 1, 0, 0);
+  previewCtx.globalAlpha = 1;
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- WAVEFORM: Oscilloscope (WMP style) ---- */
+function pvWaveform(w, h, t, phase, bass, hex) {
+  var c = hexToRgb(hex);
+  var cy = h / 2;
+  // Background glow
+  var bgGlow = previewCtx.createRadialGradient(w / 2, cy, 0, w / 2, cy, h * 0.4);
+  bgGlow.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.03)');
+  bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  previewCtx.fillStyle = bgGlow;
+  previewCtx.fillRect(0, 0, w, h);
+  // Center line
+  previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.08)';
+  previewCtx.lineWidth = 1;
+  previewCtx.beginPath();
+  previewCtx.moveTo(0, cy);
+  previewCtx.lineTo(w, cy);
+  previewCtx.stroke();
+  // Waveform layers
+  previewCtx.globalCompositeOperation = 'lighter';
+  for (var layer = 0; layer < 3; layer++) {
+    var amp = h * (0.2 + bass * 0.15) * (1 - layer * 0.25);
+    var alpha = 0.5 - layer * 0.12;
+    var lw = 3 - layer;
+    previewCtx.beginPath();
+    for (var x = 0; x <= w; x += 2) {
+      var xn = x / w;
+      var y = cy +
+        Math.sin(xn * Math.PI * 4 + t * 3 + layer * 0.5) * amp * 0.5 +
+        Math.sin(xn * Math.PI * 7 + t * 5 + layer) * amp * 0.3 +
+        Math.sin(xn * Math.PI * 13 + t * 8 + layer * 2) * amp * 0.1 +
+        _pvNoise(xn * 10 + t * 2 + layer) * amp * 0.2;
+      if (x === 0) previewCtx.moveTo(x, y);
+      else previewCtx.lineTo(x, y);
+    }
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
+    previewCtx.lineWidth = lw;
+    previewCtx.stroke();
+    // Glow pass
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (alpha * 0.3) + ')';
+    previewCtx.lineWidth = lw + 4;
+    previewCtx.stroke();
+  }
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- PLASMA: Milkdrop-style morphing blobs ---- */
+function pvPlasma(w, h, t, hex) {
+  var c = hexToRgb(hex);
+  // Use imageData for pixel-level plasma
+  var step = 4; // render every 4th pixel for performance
+  for (var y = 0; y < h; y += step) {
+    for (var x = 0; x < w; x += step) {
+      var nx = x / w;
+      var ny = y / h;
+      var v = Math.sin(nx * 6 + t * 1.5) +
+              Math.sin(ny * 4 + t * 1.2) +
+              Math.sin((nx + ny) * 5 + t * 0.8) +
+              Math.sin(Math.sqrt(nx * nx + ny * ny) * 8 + t * 2) +
+              Math.sin(Math.sqrt((nx - 0.5) * (nx - 0.5) * 4 + (ny - 0.5) * (ny - 0.5) * 4) * 6 - t * 1.5);
+      v = v / 5; // normalize to -1..1
+      var hue = ((v + 1) * 180 + t * 30) % 360;
+      var sat = 70 + v * 20;
+      var lit = 40 + v * 20;
+      previewCtx.fillStyle = 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
+      previewCtx.fillRect(x, y, step, step);
+    }
+  }
+  // Overlay with color tint
+  previewCtx.globalCompositeOperation = 'overlay';
+  previewCtx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.15)';
+  previewCtx.fillRect(0, 0, w, h);
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- STARFIELD: Flying through space (WMP classic) ---- */
+function pvStarfield(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  var speedMult = 1 + bass * 2;
+  previewCtx.globalCompositeOperation = 'lighter';
+  var pool = _pvParticles.stars;
+  for (var i = 0; i < pool.length; i++) {
+    var s = pool[i];
+    s.z -= s.speed * speedMult;
+    if (s.z <= 0.01) {
+      s.x = (Math.random() - 0.5) * 2;
+      s.y = (Math.random() - 0.5) * 2;
+      s.z = 1;
+    }
+    var sx = cx + (s.x / s.z) * w * 0.5;
+    var sy = cy + (s.y / s.z) * h * 0.5;
+    if (sx < -10 || sx > w + 10 || sy < -10 || sy > h + 10) {
+      s.x = (Math.random() - 0.5) * 2;
+      s.y = (Math.random() - 0.5) * 2;
+      s.z = 1;
+      continue;
+    }
+    var brightness = 1 - s.z;
+    var size = (1 - s.z) * 3 + 0.5;
+    // Streak line
+    var prevZ = s.z + s.speed * speedMult;
+    var psx = cx + (s.x / prevZ) * w * 0.5;
+    var psy = cy + (s.y / prevZ) * h * 0.5;
+    previewCtx.beginPath();
+    previewCtx.moveTo(psx, psy);
+    previewCtx.lineTo(sx, sy);
+    previewCtx.strokeStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (brightness * 0.4) + ')';
+    previewCtx.lineWidth = size * 0.5;
+    previewCtx.stroke();
+    // Star dot
+    previewCtx.fillStyle = 'rgba(' + Math.min(c.r + 100, 255) + ',' + Math.min(c.g + 100, 255) + ',' + Math.min(c.b + 100, 255) + ',' + brightness + ')';
+    previewCtx.beginPath();
+    previewCtx.arc(sx, sy, size, 0, Math.PI * 2);
+    previewCtx.fill();
+  }
+  // Center glow
+  var cg = previewCtx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+  cg.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.08)');
+  cg.addColorStop(1, 'rgba(0,0,0,0)');
+  previewCtx.fillStyle = cg;
+  previewCtx.fillRect(cx - 30, cy - 30, 60, 60);
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- GALAXY: Rotating particle spiral ---- */
+function pvGalaxy(w, h, t, bass, hex) {
+  var c = hexToRgb(hex);
+  var cx = w / 2, cy = h / 2;
+  var scale = Math.min(w, h) * 0.45;
+  previewCtx.globalCompositeOperation = 'lighter';
+  // Core glow
+  var coreG = previewCtx.createRadialGradient(cx, cy, 0, cx, cy, scale * 0.3);
+  coreG.addColorStop(0, 'rgba(' + Math.min(c.r + 80, 255) + ',' + Math.min(c.g + 80, 255) + ',' + Math.min(c.b + 80, 255) + ',0.15)');
+  coreG.addColorStop(0.5, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.05)');
+  coreG.addColorStop(1, 'rgba(0,0,0,0)');
+  previewCtx.fillStyle = coreG;
+  previewCtx.beginPath();
+  previewCtx.arc(cx, cy, scale * 0.3, 0, Math.PI * 2);
+  previewCtx.fill();
+  // Spiral arms
+  var pool = _pvParticles.galaxyParts;
+  for (var i = 0; i < pool.length; i++) {
+    var p = pool[i];
+    var a = p.angle + t * p.speed * 0.3 + Math.log(p.dist + 0.1) * 2.5; // spiral winding
+    var r = p.dist * scale;
+    var px = cx + Math.cos(a) * r;
+    var py = cy + Math.sin(a) * r * 0.6; // flatten for perspective
+    var alpha = p.brightness * (0.5 + bass * 0.3);
+    var hue = (p.hue + t * 15) % 360;
+    // Glow
+    var sg = previewCtx.createRadialGradient(px, py, 0, px, py, p.size * 3);
+    sg.addColorStop(0, 'hsla(' + hue + ',60%,70%,' + (alpha * 0.4) + ')');
+    sg.addColorStop(1, 'hsla(' + hue + ',60%,50%,0)');
+    previewCtx.fillStyle = sg;
+    previewCtx.fillRect(px - p.size * 3, py - p.size * 3, p.size * 6, p.size * 6);
+    // Core dot
+    previewCtx.fillStyle = 'hsla(' + hue + ',70%,75%,' + alpha + ')';
+    previewCtx.beginPath();
+    previewCtx.arc(px, py, p.size, 0, Math.PI * 2);
+    previewCtx.fill();
+  }
+  previewCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ---- BARS: Classic WMP vertical bars with reflection ---- */
+function pvBars(w, h, t, phase, bass, hex) {
+  var c = hexToRgb(hex);
+  var barCount = 16;
+  var gap = 4;
+  var barW = (w - gap * (barCount + 1)) / barCount;
+  var midH = h * 0.55;
+  for (var i = 0; i < barCount; i++) {
+    var x = gap + i * (barW + gap);
+    // Simulated amplitude per bar
+    var amp = (_pvNoise(i * 1.2 + t * 3) * 0.4 + _pvNoise(i * 0.5 + t * 5) * 0.3 + Math.sin(phase * Math.PI * 2 + i * 0.3) * 0.2);
+    amp = Math.max(0.05, Math.min(amp + bass * 0.3, 1));
+    var barH = amp * midH;
+    var hue = (i / barCount * 60 + t * 20) % 360;
+    // Main bar
+    var grad = previewCtx.createLinearGradient(x, midH, x, midH - barH);
+    grad.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.9)');
+    grad.addColorStop(0.4, 'hsla(' + hue + ',80%,55%,0.8)');
+    grad.addColorStop(1, 'hsla(' + hue + ',90%,70%,0.9)');
+    previewCtx.fillStyle = grad;
+    previewCtx.fillRect(x, midH - barH, barW, barH);
+    // Reflection below
+    var refGrad = previewCtx.createLinearGradient(x, midH, x, midH + barH * 0.4);
+    refGrad.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.15)');
+    refGrad.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+    previewCtx.fillStyle = refGrad;
+    previewCtx.fillRect(x, midH + 1, barW, barH * 0.4);
+    // Top cap
+    previewCtx.fillStyle = 'hsla(' + hue + ',90%,80%,0.9)';
+    previewCtx.fillRect(x, midH - barH - 3, barW, 3);
+  }
+  // Divider line
+  previewCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  previewCtx.lineWidth = 1;
+  previewCtx.beginPath();
+  previewCtx.moveTo(0, midH);
+  previewCtx.lineTo(w, midH);
+  previewCtx.stroke();
+}
+
+/* ---- CASCADE: Color wave across devices (drone shot effect) ---- */
+function pvCascade(w, h, t, phase, hex) {
+  // Simulate multiple phones side by side
+  var phoneCount = 8;
+  var phoneW = w / phoneCount;
+  var waveSpeed = 1.5; // how fast the wave travels
+  var waveWidth = 0.3; // width of the color transition
+  for (var i = 0; i < phoneCount; i++) {
+    var x = i * phoneW;
+    var devicePhase = (t * waveSpeed - i * 0.15) % 3; // 3-second cycle
+    var hue;
+    if (devicePhase < 0) devicePhase += 3;
+    if (devicePhase < 1) {
+      hue = devicePhase * 120; // 0 -> 120 (red to green)
+    } else if (devicePhase < 2) {
+      hue = 120 + (devicePhase - 1) * 120; // 120 -> 240 (green to blue)
+    } else {
+      hue = 240 + (devicePhase - 2) * 120; // 240 -> 360 (blue to red)
+    }
+    var sat = 80 + Math.sin(t * 2 + i) * 10;
+    var lit = 50 + Math.sin(t * 3 + i * 0.5) * 10;
+    // Fill phone area
+    var grad = previewCtx.createRadialGradient(x + phoneW / 2, h / 2, 0, x + phoneW / 2, h / 2, phoneW);
+    grad.addColorStop(0, 'hsla(' + hue + ',' + sat + '%,' + (lit + 10) + '%,0.95)');
+    grad.addColorStop(1, 'hsla(' + hue + ',' + sat + '%,' + lit + '%,0.85)');
+    previewCtx.fillStyle = grad;
+    previewCtx.fillRect(x, 0, phoneW, h);
+    // Phone separator line
+    if (i > 0) {
+      previewCtx.strokeStyle = 'rgba(0,0,0,0.3)';
+      previewCtx.lineWidth = 1;
+      previewCtx.beginPath();
+      previewCtx.moveTo(x, 0);
+      previewCtx.lineTo(x, h);
+      previewCtx.stroke();
+    }
+    // Phone number label
+    previewCtx.font = '600 ' + Math.floor(h * 0.06) + 'px "Plus Jakarta Sans",sans-serif';
+    previewCtx.textAlign = 'center';
+    previewCtx.fillStyle = 'rgba(255,255,255,0.3)';
+    previewCtx.fillText('#' + (i + 1), x + phoneW / 2, h - 10);
+  }
+  // Top label
+  previewCtx.font = '700 ' + Math.floor(h * 0.07) + 'px "Plus Jakarta Sans",sans-serif';
+  previewCtx.textAlign = 'center';
+  previewCtx.fillStyle = 'rgba(255,255,255,0.5)';
+  previewCtx.fillText('CASCADE', w / 2, h * 0.08);
+}
+
+function stopPreview() {
+  if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
+  if (aquariumRaf) { cancelAnimationFrame(aquariumRaf); aquariumRaf = null; }
+}
+
+/* ---- LIVE TEXT ---- */
+window.sendLiveText = function() {
+  var text = document.getElementById('djLiveText').value.trim();
+  if (!text || !DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'text',
+    text: text,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+  showToast('Text sent to audience');
+};
+
+window.clearLiveText = function() {
+  document.getElementById('djLiveText').value = '';
+  if (!DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'text',
+    text: '',
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var liveTextInput = document.getElementById('djLiveText');
+  if (liveTextInput) {
+    liveTextInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') window.sendLiveText();
+    });
+  }
+});
+
+/* ---- ZONES ---- */
+DJ.totalZones = 4;
+
+function _rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    var d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return [h * 360, s * 100, l * 100];
+}
+function _hslToHex(h, s, l) {
+  h = (h % 360) / 360; s /= 100; l /= 100;
+  var r, g, b;
+  if (s === 0) { r = g = b = l; } else {
+    var hue2rgb = function(p, q, t) {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
+  }
+  return '#' + [Math.round(r*255), Math.round(g*255), Math.round(b*255)]
+    .map(function(c) { return c.toString(16).padStart(2, '0'); }).join('');
+}
+
+function updateZonePreview() {
+  var el = document.getElementById('zonePreview');
+  if (!el) return;
+  el.innerHTML = '';
+  var n = DJ.totalZones || 4;
+  var hex = DJ.color || '#ff2d55';
+  var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  var hsl = _rgbToHsl(r, g, b);
+  if (n <= 1) {
+    var swatch = document.createElement('div');
+    swatch.style.cssText = 'flex:1;background:' + hex + ';border-radius:4px';
+    el.appendChild(swatch);
+    return;
+  }
+  for (var i = 0; i < n; i++) {
+    var hueShift = (i * 360 / n) % 360;
+    var c = _hslToHex(hsl[0] + hueShift, hsl[1], hsl[2]);
+    var swatch = document.createElement('div');
+    swatch.style.cssText = 'flex:1;background:' + c;
+    swatch.title = 'Zone ' + (i + 1);
+    el.appendChild(swatch);
+  }
+}
+
+window.setZones = function(n) {
+  DJ.totalZones = n;
+  var section = document.querySelector('.dj-ctrl-card.full');
+  if (section) {
+    var btns = section.querySelectorAll('.dj-bpm-btn');
+    btns.forEach(function(b) { b.classList.remove('active'); });
+    var targetBtn = Array.from(btns).find(function(b) { return b.textContent.trim() === n.toString(); });
+    if (targetBtn) targetBtn.classList.add('active');
+  }
+  updateZonePreview();
+  if (!DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'zones',
+    totalZones: n,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+  showToast(n + ' zone' + (n > 1 ? 's' : '') + ' set');
+};
+
+// Initial render of zone preview
+setTimeout(updateZonePreview, 500);
+
+/* ---- SHOW MODE (Coordinated Light Show) ---- */
+DJ.showActive = false;
+DJ.currentShow = null;
+
+// Preset show definitions
+var showPresets = {
+  'wave-show': {
+    name: 'Wave',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'wave-lr', speed: 1.0 },
+      { startBeat: 16, endBeat: 32, pattern: 'wave-rl', speed: 1.0 },
+      { startBeat: 32, endBeat: 48, pattern: 'wave-lr', speed: 2.0 },
+      { startBeat: 48, endBeat: 64, pattern: 'wave-rl', speed: 2.0 }
+    ]
+  },
+  'ripple-show': {
+    name: 'Ripple',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'ripple-center', speed: 0.8 },
+      { startBeat: 16, endBeat: 32, pattern: 'ripple-stage', speed: 0.6 },
+      { startBeat: 32, endBeat: 48, pattern: 'ripple-center', speed: 1.5 },
+      { startBeat: 48, endBeat: 64, pattern: 'ripple-stage', speed: 1.2 }
+    ]
+  },
+  'heart-show': {
+    name: 'Heart',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'heart', color: '#ff1744' },
+      { startBeat: 32, endBeat: 64, pattern: 'heart', color: '#ff69b4' }
+    ]
+  },
+  'mexican-wave': {
+    name: 'Stadium Wave',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'mexican-wave', speed: 0.3 },
+      { startBeat: 32, endBeat: 64, pattern: 'mexican-wave', speed: 0.5 }
+    ]
+  },
+  'rainbow-show': {
+    name: 'Rainbow',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'rainbow-wave', speed: 0.3 },
+      { startBeat: 32, endBeat: 64, pattern: 'rainbow-wave', speed: 0.6 }
+    ]
+  },
+  'firework-show': {
+    name: 'Firework',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'firework', speed: 1.0, color: '#ff6b35' },
+      { startBeat: 16, endBeat: 32, pattern: 'firework', speed: 1.2, color: '#00b4d8' },
+      { startBeat: 32, endBeat: 48, pattern: 'firework', speed: 0.8, color: '#ff3c6e' },
+      { startBeat: 48, endBeat: 64, pattern: 'firework', speed: 1.5, color: '#7c6aef' }
+    ]
+  },
+  'spotlight-show': {
+    name: 'Spotlight',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'spotlight', speed: 0.2, color: '#ffffff' },
+      { startBeat: 32, endBeat: 64, pattern: 'spotlight', speed: 0.4, color: '#ffdd00' }
+    ]
+  },
+  'countdown-show': {
+    name: 'Countdown',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'countdown', color: '#ffdd00' },
+      { startBeat: 16, endBeat: 32, pattern: 'breathe', color: '#00ff88' }
+    ]
+  },
+  'sparkle-show': {
+    name: 'Sparkle',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'random-sparkle', speed: 2, color: '#ffffff' },
+      { startBeat: 32, endBeat: 64, pattern: 'random-sparkle', speed: 3, color: '#ffdd00' }
+    ]
+  },
+  'breathe-show': {
+    name: 'Breathe',
+    steps: [
+      { startBeat: 0, endBeat: 32, pattern: 'breathe' },
+      { startBeat: 32, endBeat: 64, pattern: 'breathe' }
+    ]
+  },
+  'checker-show': {
+    name: 'Checker',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'checkerboard', cols: 4, rows: 4 },
+      { startBeat: 16, endBeat: 32, pattern: 'checkerboard', cols: 6, rows: 6 },
+      { startBeat: 32, endBeat: 48, pattern: 'strobe-sections', sections: 4 },
+      { startBeat: 48, endBeat: 64, pattern: 'strobe-sections', sections: 8 }
+    ]
+  },
+  'full-show': {
+    name: 'AUTO SHOW',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'breathe', color: '#7c6aef' },
+      { startBeat: 16, endBeat: 32, pattern: 'wave-lr', speed: 1.0 },
+      { startBeat: 32, endBeat: 48, pattern: 'ripple-center', speed: 0.8 },
+      { startBeat: 48, endBeat: 64, pattern: 'mexican-wave', speed: 0.3 },
+      { startBeat: 64, endBeat: 80, pattern: 'rainbow-wave', speed: 0.4 },
+      { startBeat: 80, endBeat: 96, pattern: 'spotlight', speed: 0.2, color: '#ffffff' },
+      { startBeat: 96, endBeat: 112, pattern: 'firework', speed: 1.0, color: '#ff6b35' },
+      { startBeat: 112, endBeat: 120, pattern: 'random-sparkle', speed: 3, color: '#ffdd00' },
+      { startBeat: 120, endBeat: 128, pattern: 'heart', color: '#ff1744' },
+      { startBeat: 128, endBeat: 136, pattern: 'countdown', color: '#00ff88' },
+      { startBeat: 136, endBeat: 160, pattern: 'wave-lr', speed: 2.0 },
+      { startBeat: 160, endBeat: 176, pattern: 'strobe-sections', sections: 4 },
+      { startBeat: 176, endBeat: 192, pattern: 'ripple-stage', speed: 1.2 },
+      { startBeat: 192, endBeat: 208, pattern: 'spiral', speed: 0.5 },
+      { startBeat: 208, endBeat: 224, pattern: 'firework', speed: 1.5, color: '#ff3c6e' },
+      { startBeat: 224, endBeat: 256, pattern: 'breathe', color: '#ffffff' }
+    ]
+  }
+};
+
+window.startPresetShow = function(presetName) {
+  var preset = showPresets[presetName];
+  if (!preset) { showToast('Unknown preset: ' + presetName); return; }
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+
+  // Apply current DJ color to steps that don't have a specific color
+  var steps = preset.steps.map(function(s) {
+    var step = {};
+    for (var k in s) step[k] = s[k];
+    if (!step.color) step.color = DJ.color;
+    return step;
+  });
+
+  var choreography = {
+    name: preset.name,
+    bpm: DJ.bpm,
+    steps: steps,
+    loop: true // Loop the show
+  };
+
+  var beatOrigin = Date.now();
+  DJ.showActive = true;
+  DJ.currentShow = presetName;
+
+  socket.emit('dj-choreography', {
+    sessionId: DJ.sessionId,
+    choreography: choreography,
+    beatOrigin: beatOrigin,
+    showActive: true
+  });
+
+  // Update UI
+  var statusEl = document.getElementById('showStatus');
+  var statusText = document.getElementById('showStatusText');
+  var canvas = document.getElementById('showPreviewCanvas');
+  if (statusEl) statusEl.style.display = 'flex';
+  if (statusText) statusText.textContent = 'LIVE: ' + preset.name + ' (' + steps.length + ' steps)';
+  if (canvas) canvas.style.display = 'block';
+
+  // Highlight active button
+  var btns = document.querySelectorAll('#showModeSection .dj-bpm-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  var activeBtn = Array.from(btns).find(function(b) {
+    return b.getAttribute('onclick') && b.getAttribute('onclick').indexOf(presetName) > -1;
+  });
+  if (activeBtn) activeBtn.classList.add('active');
+
+  // Start show preview animation
+  startShowPreview(choreography, beatOrigin);
+
+  showToast('Show started: ' + preset.name);
+};
+
+window.stopShow = function() {
+  DJ.showActive = false;
+  DJ.currentShow = null;
+  if (DJ.broadcasting && socket) {
+    socket.emit('dj-choreography', {
+      sessionId: DJ.sessionId,
+      choreography: null,
+      beatOrigin: 0,
+      showActive: false
+    });
+  }
+  var statusEl = document.getElementById('showStatus');
+  var canvas = document.getElementById('showPreviewCanvas');
+  if (statusEl) statusEl.style.display = 'none';
+  if (canvas) canvas.style.display = 'none';
+  // Remove active from show buttons
+  var btns = document.querySelectorAll('#showModeSection .dj-bpm-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  if (DJ._showPreviewRaf) { cancelAnimationFrame(DJ._showPreviewRaf); DJ._showPreviewRaf = null; }
+  showToast('Show stopped');
+};
+
+// Render a mini grid preview of the show (simulated audience)
+function startShowPreview(choreography, beatOrigin) {
+  if (DJ._showPreviewRaf) cancelAnimationFrame(DJ._showPreviewRaf);
+  var canvas = document.getElementById('showPreviewCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var cols = 40, rows = 12; // Simulated audience grid
+
+  function frame() {
+    if (!DJ.showActive) return;
+    var w = canvas.width, h = canvas.height;
+    var cellW = w / cols, cellH = h / rows;
+    var serverNow = Date.now();
+    var showBPM = choreography.bpm || DJ.bpm;
+    var showBeat = (serverNow - beatOrigin) * showBPM / 60000;
+
+    // Loop: if past all steps, restart from beginning
+    if (choreography.loop && choreography.steps.length > 0) {
+      var maxBeat = choreography.steps[choreography.steps.length - 1].endBeat;
+      if (maxBeat > 0) showBeat = showBeat % maxBeat;
+    }
+
+    var step = null;
+    for (var si = choreography.steps.length - 1; si >= 0; si--) {
+      var s = choreography.steps[si];
+      if (showBeat >= s.startBeat && showBeat < s.endBeat) { step = s; break; }
+    }
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+
+    if (step) {
+      var localBeat = (showBeat - step.startBeat) / (step.endBeat - step.startBeat);
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var x = c / (cols - 1);
+          var y = r / (rows - 1);
+          // Simple pattern computation (inline for preview)
+          var color = _previewPattern(step.pattern, x, y, localBeat, step);
+          ctx.fillStyle = 'rgb(' + color.r + ',' + color.g + ',' + color.b + ')';
+          ctx.fillRect(c * cellW + 0.5, r * cellH + 0.5, cellW - 1, cellH - 1);
+        }
+      }
+    }
+
+    DJ._showPreviewRaf = requestAnimationFrame(frame);
+  }
+  DJ._showPreviewRaf = requestAnimationFrame(frame);
+}
+
+// Simplified pattern functions for DJ preview
+function _previewPattern(pattern, x, y, beat, step) {
+  var rgb = _pvHexToRgb(step.color || DJ.color);
+  switch (pattern) {
+    case 'wave-lr': {
+      var phase = (x - beat * (step.speed || 1)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'wave-rl': return _previewPattern('wave-lr', 1 - x, y, beat, step);
+    case 'wave-tb': return _previewPattern('wave-lr', y, x, beat, step);
+    case 'wave-bt': return _previewPattern('wave-lr', 1 - y, x, beat, step);
+    case 'ripple-center': {
+      var dx = x - 0.5, dy = y - 0.5;
+      var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+      var phase = (dist - beat * (step.speed || 0.8)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 3);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'ripple-stage': {
+      var phase = (y - beat * (step.speed || 0.6)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'mexican-wave': {
+      var center = (beat * (step.speed || 0.3)) % 1;
+      var dist = Math.abs(x - center);
+      if (dist > 0.5) dist = 1 - dist;
+      var b = dist < 0.15 ? Math.pow(1 - dist / 0.15, 2) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'heart': {
+      var hx = (x - 0.5) * 3, hy = -(y - 0.35) * 3;
+      var scale = 0.8 + Math.sin(beat * Math.PI * 2) * 0.2;
+      hx /= scale; hy /= scale;
+      var val = Math.pow(hx*hx + hy*hy - 1, 3) - hx*hx*hy*hy*hy;
+      var b = val < 0 ? 1.0 : (Math.abs(val) < 0.3 ? 0.3 : 0);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'random-sparkle': {
+      var seed = Math.sin(x * 12345.6789 + y * 9876.54321) * 43758.5453;
+      seed = seed - Math.floor(seed);
+      var ft = (beat * (step.speed || 2) + seed * 7) % 1;
+      var b = ft < 0.15 ? Math.pow(1 - ft / 0.15, 3) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'spotlight': {
+      var cx = 0.5 + Math.sin(beat * (step.speed||0.2) * Math.PI * 2) * 0.4;
+      var cy = 0.5 + Math.cos(beat * (step.speed||0.2) * Math.PI * 2 * 0.7) * 0.3;
+      var dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+      var b = dist < 0.2 ? Math.pow(1 - dist / 0.2, 1.5) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'spiral': {
+      var dx = x - 0.5, dy = y - 0.5;
+      var angle = Math.atan2(dy, dx);
+      var dist = Math.sqrt(dx*dx + dy*dy) * 2;
+      var phase = (angle / (Math.PI * 2) * 3 + dist * 4 - beat * (step.speed||0.5)) % 1;
+      if (phase < 0) phase += 1;
+      var b = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 4) * (1 - dist * 0.5);
+      b = Math.max(0, b);
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'firework': {
+      var cycle = (beat * (step.speed||1)) % 1;
+      var seed = Math.floor(beat * (step.speed||1));
+      var cx = 0.2 + (Math.sin(seed * 123.456) * 0.5 + 0.5) * 0.6;
+      var cy = 0.2 + (Math.cos(seed * 789.012) * 0.5 + 0.5) * 0.6;
+      var dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+      var ringPos = cycle * 0.8;
+      var b = Math.abs(dist - ringPos) < 0.08 ? Math.pow(1 - cycle, 2) : 0;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'breathe': {
+      var b = 0.2 + Math.pow(Math.sin(beat * Math.PI * 2) * 0.5 + 0.5, 2) * 0.8;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'countdown': {
+      var num = 3 - Math.floor(beat * 4) % 4;
+      if (num < 0) num = 0;
+      var col = Math.floor(x * 5), row = Math.floor(y * 7);
+      var segs = { 3:[[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]], 2:[[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]], 1:[[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0]], 0:[[0,1,0],[1,0,1],[1,1,1],[1,0,1],[0,1,0]] };
+      var p = segs[num] || segs[0];
+      var lit = row >= 1 && row <= 5 && col >= 1 && col <= 3 && p[row-1] && p[row-1][col-1];
+      var b = lit ? 0.9 : 0.02;
+      return { r: Math.round(rgb.r * b), g: Math.round(rgb.g * b), b: Math.round(rgb.b * b) };
+    }
+    case 'rainbow-wave': {
+      var hue = ((x + beat * (step.speed || 0.3)) * 360) % 360;
+      var pulse = 0.7 + Math.sin(beat * Math.PI * 4) * 0.3;
+      var h = hue / 360, s = 1, l = 0.5 * pulse;
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+      var h2r = function(p, q, t) { if (t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p; };
+      return { r: Math.round(h2r(p,q,h+1/3)*255), g: Math.round(h2r(p,q,h)*255), b: Math.round(h2r(p,q,h-1/3)*255) };
+    }
+    case 'checkerboard': {
+      var cols2 = step.cols || 4, rows2 = step.rows || 4;
+      var isW = (Math.floor(x * cols2) + Math.floor(y * rows2) + Math.floor(beat * 2)) % 2 === 0;
+      return isW ? rgb : { r: 0, g: 0, b: 0 };
+    }
+    case 'strobe-sections': {
+      var secs = step.sections || 4;
+      var sec = Math.floor(x * secs);
+      var isOn = (Math.floor(beat * 4) + sec) % 2 === 0;
+      return isOn ? rgb : { r: 0, g: 0, b: 0 };
+    }
+    case 'split-halves': {
+      var isLeft = x < 0.5;
+      var pulse = 0.7 + Math.sin(beat * Math.PI * 2) * 0.3;
+      var rgb2 = _pvHexToRgb(step.color2 || '#00b4d8');
+      var c = isLeft ? rgb : rgb2;
+      return { r: Math.round(c.r * pulse), g: Math.round(c.g * pulse), b: Math.round(c.b * pulse) };
+    }
+    default: return rgb;
+  }
+}
+
+function _pvHexToRgb(hex) {
+  if (!hex || hex.charAt(0) !== '#') return { r: 255, g: 100, b: 50 };
+  var r = parseInt(hex.slice(1, 3), 16) || 0;
+  var g = parseInt(hex.slice(3, 5), 16) || 0;
+  var b = parseInt(hex.slice(5, 7), 16) || 0;
+  return { r: r, g: g, b: b };
+}
+
+/* ---- POSITIONING CONTROLS ---- */
+DJ.venueDepth = 50;
+DJ.stageHeading = -1;
+DJ._positionDevices = {}; // { deviceId: { x, y } }
+
+window.triggerSyncPulse = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-sync-pulse', { sessionId: DJ.sessionId, freq: 19500 });
+  showToast('Depth scan sent');
+};
+
+window.triggerMeshRound = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-start-mesh', { sessionId: DJ.sessionId });
+  showToast('Mesh discovery started');
+};
+
+window.triggerGPS = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-request-gps', { sessionId: DJ.sessionId });
+  showToast('GPS requested from all devices');
+};
+
+window.calibrateCompass = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  // Ask DJ to point phone toward stage and we use compass as reference
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(function(state) {
+      if (state === 'granted') readCompassForCalibration();
+    });
+  } else {
+    readCompassForCalibration();
+  }
+};
+
+function readCompassForCalibration() {
+  var handler = function(e) {
+    var heading = -1;
+    if (e.webkitCompassHeading !== undefined) heading = e.webkitCompassHeading;
+    else if (e.alpha !== null) heading = (360 - e.alpha) % 360;
+    if (heading >= 0) {
+      DJ.stageHeading = heading;
+      window.removeEventListener('deviceorientationabsolute', handler);
+      window.removeEventListener('deviceorientation', handler);
+      socket.emit('dj-stage-heading', {
+        sessionId: DJ.sessionId,
+        heading: heading,
+        maxDepth: DJ.venueDepth
+      });
+      showToast('Compass calibrated: ' + Math.round(heading) + ' degrees');
+    }
+  };
+  window.addEventListener('deviceorientationabsolute', handler, false);
+  window.addEventListener('deviceorientation', handler, false);
+  showToast('Point phone toward audience and wait...');
+}
+
+window.updateVenueDepth = function(val) {
+  DJ.venueDepth = parseInt(val) || 50;
+  var label = document.getElementById('venueDepthLabel');
+  if (label) label.textContent = DJ.venueDepth + 'm';
+  // Send update to server
+  if (DJ.broadcasting && socket) {
+    socket.emit('dj-stage-heading', {
+      sessionId: DJ.sessionId,
+      heading: DJ.stageHeading >= 0 ? DJ.stageHeading : 0,
+      maxDepth: DJ.venueDepth
+    });
+  }
+};
+
+// Position map rendering (birds-eye view of the crowd)
+DJ._posMapRaf = null;
+function startPositionMap() {
+  if (DJ._posMapRaf) return;
+  var canvas = document.getElementById('positionMap');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+
+  function drawMap() {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Stage at top
+    ctx.fillStyle = 'rgba(0,180,216,.3)';
+    ctx.fillRect(w * 0.2, 0, w * 0.6, 4);
+    ctx.fillStyle = 'rgba(0,180,216,.5)';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('STAGE', w / 2, 12);
+
+    // Draw devices as dots
+    var devices = DJ._positionDevices;
+    var deviceIds = Object.keys(devices);
+    var count = document.getElementById('posDeviceCount');
+    if (count) count.textContent = deviceIds.length;
+
+    for (var i = 0; i < deviceIds.length; i++) {
+      var d = devices[deviceIds[i]];
+      var dx = d.x * w;
+      var dy = 16 + d.y * (h - 20);
+      // Color based on zone
+      var zone = i % (DJ.totalZones || 4);
+      var hue = (zone * 360 / (DJ.totalZones || 4)) % 360;
+      ctx.fillStyle = 'hsl(' + hue + ', 80%, 55%)';
+      ctx.beginPath();
+      ctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // If no real devices, show simulated dots
+    if (deviceIds.length === 0 && DJ.deviceCount > 0) {
+      for (var i = 0; i < DJ.deviceCount; i++) {
+        var nx = (i % 10) / 10 * 0.8 + 0.1 + (Math.sin(i * 7.3) * 0.05);
+        var ny = Math.floor(i / 10) / Math.ceil(DJ.deviceCount / 10) * 0.8 + 0.1 + (Math.cos(i * 3.7) * 0.05);
+        var dx = nx * w;
+        var dy = 16 + ny * (h - 20);
+        ctx.fillStyle = 'rgba(255,255,255,.25)';
+        ctx.beginPath();
+        ctx.arc(dx, dy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (count) count.textContent = DJ.deviceCount + ' (est.)';
+    }
+
+    DJ._posMapRaf = requestAnimationFrame(drawMap);
+  }
+  DJ._posMapRaf = requestAnimationFrame(drawMap);
+}
+
+// Start map rendering when page loads
+setTimeout(startPositionMap, 1000);
+
+/* ---- KILL ALL PHONES ---- */
+DJ.killed = false;
+window.killAllPhones = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  DJ.killed = !DJ.killed;
+  var btn = document.getElementById('killBtn');
+  if (DJ.killed) {
+    // Stop active show first
+    if (DJ.showActive) stopShow();
+    // Send blackout with kill flag
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'blackout',
+      kill: true,
+      color: '#000000',
+      bpm: DJ.bpm,
+      animation: 'solid',
+      timestamp: Date.now()
+    });
+    if (btn) { btn.classList.add('off'); btn.textContent = 'LIGHTS OFF'; }
+    // Stop auto mode and music sync if active
+    if (DJ.autoMode) toggleAutoMode();
+    if (DJ.musicSync) toggleMusicSync();
+    showToast('All phones OFF');
+  } else {
+    // Resume previous state
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: DJ.animation || 'pulse',
+      color: DJ.color,
+      bpm: DJ.bpm,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+    if (btn) { btn.classList.remove('off'); btn.textContent = 'ALL OFF'; }
+    showToast('Lights back ON');
+  }
+};
+
+/* ---- MUSIC SYNC AUTO ---- */
+DJ.musicSync = false;
+DJ._syncAudioCtx = null;
+DJ._syncAnalyser = null;
+DJ._syncStream = null;
+DJ._syncRaf = null;
+DJ._syncBeatLast = 0;
+DJ._syncEnergy = 0;
+DJ._syncEffects = ['pulse','fire','ocean','rainbow','strobe','confetti','electric','laser'];
+DJ._syncEffectIdx = 0;
+DJ._syncFlashCooldown = 0;
+
+window.toggleMusicSync = function() {
+  DJ.musicSync = !DJ.musicSync;
+  var btn = document.getElementById('musicSyncBtn');
+  var viz = document.getElementById('musicSyncVisualizer');
+
+  if (DJ.musicSync) {
+    // Start mic capture for beat detection
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Microphone not available');
+      DJ.musicSync = false;
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      DJ._syncStream = stream;
+      DJ._syncAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var src = DJ._syncAudioCtx.createMediaStreamSource(stream);
+      DJ._syncAnalyser = DJ._syncAudioCtx.createAnalyser();
+      DJ._syncAnalyser.fftSize = 512;
+      DJ._syncAnalyser.smoothingTimeConstant = 0.4;
+      src.connect(DJ._syncAnalyser);
+      if (viz) viz.style.display = 'block';
+      if (btn) btn.classList.add('active');
+      showToast('Music Sync ON -- listening...');
+      _startMusicSyncLoop();
+    }).catch(function(err) {
+      showToast('Mic access denied');
+      DJ.musicSync = false;
+      if (btn) btn.classList.remove('active');
+    });
+  } else {
+    // Stop music sync
+    _stopMusicSync();
+    if (btn) btn.classList.remove('active');
+    if (viz) viz.style.display = 'none';
+    showToast('Music Sync OFF');
+  }
+};
+
+function _startMusicSyncLoop() {
+  if (!DJ._syncAnalyser) return;
+  var analyser = DJ._syncAnalyser;
+  var bufLen = analyser.frequencyBinCount;
+  var dataArray = new Uint8Array(bufLen);
+  var viz = document.getElementById('musicSyncVisualizer');
+  var vizCtx = viz ? viz.getContext('2d') : null;
+  var prevEnergy = 0;
+  var beatThreshold = 1.3;
+  var lastBeatTime = 0;
+  var minBeatInterval = 200; // ms between beats
+
+  function loop() {
+    if (!DJ.musicSync) return;
+    DJ._syncRaf = requestAnimationFrame(loop);
+    analyser.getByteFrequencyData(dataArray);
+
+    // Compute energy (weighted toward bass)
+    var bass = 0, mid = 0, high = 0, total = 0;
+    var bassEnd = Math.floor(bufLen * 0.15);
+    var midEnd = Math.floor(bufLen * 0.5);
+    for (var i = 0; i < bufLen; i++) {
+      var val = dataArray[i];
+      total += val;
+      if (i < bassEnd) bass += val * 2; // bass weighted
+      else if (i < midEnd) mid += val;
+      else high += val;
+    }
+    var energy = (bass + mid * 0.5 + high * 0.3) / bufLen;
+    DJ._syncEnergy = energy;
+
+    // Beat detection: energy spike
+    var now = Date.now();
+    var isBeat = energy > prevEnergy * beatThreshold && energy > 40 && (now - lastBeatTime) > minBeatInterval;
+    if (isBeat) {
+      lastBeatTime = now;
+      DJ._syncBeatLast = now;
+
+      // On strong beat, send flash or effect change
+      if (DJ.broadcasting && socket && !DJ.killed) {
+        DJ._syncFlashCooldown--;
+        if (energy > 80 && DJ._syncFlashCooldown <= 0) {
+          // Strong beat: flash
+          socket.emit('dj-command', {
+            sessionId: DJ.sessionId,
+            command: 'flash',
+            color: DJ.color,
+            bpm: DJ.bpm,
+            animation: DJ.animation,
+            timestamp: Date.now()
+          });
+          DJ._syncFlashCooldown = 4;
+        }
+        // Every 8 beats, switch effect
+        DJ._syncEffectIdx++;
+        if (DJ._syncEffectIdx % 8 === 0) {
+          var nextAnim = DJ._syncEffects[Math.floor(Math.random() * DJ._syncEffects.length)];
+          selectAnimation(nextAnim);
+          sendCommand(nextAnim);
+        }
+      }
+    }
+    prevEnergy = energy * 0.7 + prevEnergy * 0.3;
+
+    // Draw visualizer
+    if (vizCtx && viz) {
+      var w = viz.width, h = viz.height;
+      vizCtx.fillStyle = 'rgba(0,0,0,.6)';
+      vizCtx.fillRect(0, 0, w, h);
+      var barW = w / bufLen * 2;
+      for (var i = 0; i < bufLen; i++) {
+        var val = dataArray[i] / 255;
+        var barH = val * h;
+        // Color: bass=blue, mid=cyan, high=white
+        if (i < bassEnd) vizCtx.fillStyle = 'rgba(0,180,216,' + (0.5 + val * 0.5) + ')';
+        else if (i < midEnd) vizCtx.fillStyle = 'rgba(45,212,160,' + (0.5 + val * 0.5) + ')';
+        else vizCtx.fillStyle = 'rgba(255,255,255,' + (0.3 + val * 0.5) + ')';
+        vizCtx.fillRect(i * barW, h - barH, barW - 1, barH);
+      }
+      // Beat indicator
+      if (now - lastBeatTime < 100) {
+        vizCtx.fillStyle = 'rgba(255,107,53,.3)';
+        vizCtx.fillRect(0, 0, w, h);
+      }
+    }
+  }
+  DJ._syncRaf = requestAnimationFrame(loop);
+}
+
+function _stopMusicSync() {
+  if (DJ._syncRaf) { cancelAnimationFrame(DJ._syncRaf); DJ._syncRaf = null; }
+  if (DJ._syncStream) {
+    DJ._syncStream.getTracks().forEach(function(t) { t.stop(); });
+    DJ._syncStream = null;
+  }
+  if (DJ._syncAudioCtx) {
+    DJ._syncAudioCtx.close().catch(function() {});
+    DJ._syncAudioCtx = null;
+  }
+  DJ._syncAnalyser = null;
+}
+
+/* ---- AUTO MODE ---- */
+DJ.autoMode = false;
+window.toggleAutoMode = function() {
+  DJ.autoMode = !DJ.autoMode;
+  var btn = document.getElementById('autoModeBtn');
+  if (btn) {
+    btn.classList.toggle('active');
+  }
+  if (!DJ.broadcasting || !socket) return;
+  socket.emit('dj-command', {
+    sessionId: DJ.sessionId,
+    command: 'auto',
+    autoMode: DJ.autoMode,
+    color: DJ.color,
+    bpm: DJ.bpm,
+    animation: DJ.animation,
+    timestamp: Date.now()
+  });
+  showToast(DJ.autoMode ? 'Auto mode ON' : 'Auto mode OFF');
+};
+
+/* ---- START ---- */
+init();
+startPreview();
+
+})();
+</script>
+</body>
+</html>

@@ -17766,7 +17766,20 @@ app.post('/api/dj/session/create', (req, res) => {
     // Choreography / light show
     choreography: null,
     beatOrigin: null,
-    showActive: false
+    showActive: false,
+    // Grid positioning system
+    gridConfig: null,
+    deviceGridAssignments: {},
+    gridCellOccupancy: {},
+    gridCellColors: {},
+    depthReports: {},
+    meshGraph: {},
+    compassHeadings: {},
+    clockOffsets: {},
+    droneShows: {},
+    activeDroneShow: null,
+    continuousPositioning: false,
+    _positionInterval: null
   };
 
   // Update event djLive state
@@ -17836,7 +17849,20 @@ io.on('connection', (socket) => {
         bpm: 128,
         animation: 'pulse',
         connectedDevices: new Set(),
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        // Grid positioning system
+        gridConfig: null,
+        deviceGridAssignments: {},
+        gridCellOccupancy: {},
+        gridCellColors: {},
+        depthReports: {},
+        meshGraph: {},
+        compassHeadings: {},
+        clockOffsets: {},
+        droneShows: {},
+        activeDroneShow: null,
+        continuousPositioning: false,
+        _positionInterval: null
       };
     }
     socket.join('dj-ctrl:' + sid);
@@ -18274,6 +18300,7 @@ io.on('connection', (socket) => {
     if (!data || !data.sessionId) return;
     const s = djSessions[data.sessionId];
     if (!s) return;
+    if (s._positionInterval) { clearInterval(s._positionInterval); s._positionInterval = null; }
 
     io.to('dj-live:' + data.sessionId).emit('dj-live-stopped', { sessionId: data.sessionId });
 
@@ -18285,6 +18312,270 @@ io.on('connection', (socket) => {
 
     delete djSessions[data.sessionId];
     console.log('[DJ] Session ended:', data.sessionId);
+  });
+
+  // === GRID POSITIONING SYSTEM ===
+
+  // DJ configures grid
+  socket.on('grid-config-update', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.gridConfig = {
+      width: Math.max(2, Math.min(50, data.width || 10)),
+      height: Math.max(2, Math.min(50, data.height || 10)),
+      venueDepth: data.venueDepth || 50,
+      stageHeading: data.stageHeading || 0
+    };
+    s.deviceGridAssignments = {};
+    s.gridCellOccupancy = {};
+    autoAssignGrid(s, data.sessionId);
+    console.log('[DJ Grid] Config updated:', s.gridConfig);
+  });
+
+  // DJ sets color on a grid cell
+  socket.on('grid-set-cell-color', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    const key = data.x + ',' + data.y;
+    if (data.color) {
+      s.gridCellColors[key] = data.color;
+    } else {
+      delete s.gridCellColors[key];
+    }
+    io.to('dj-live:' + data.sessionId).emit('grid-cell-colors-update', {
+      cellColors: s.gridCellColors
+    });
+    if (s.eventId) {
+      io.to('event:' + s.eventId).emit('grid-cell-colors-update', {
+        cellColors: s.gridCellColors
+      });
+    }
+    io.to('dj-ctrl:' + data.sessionId).emit('grid-preview-update', {
+      cellOccupancy: s.gridCellOccupancy,
+      assignments: s.deviceGridAssignments,
+      cellColors: s.gridCellColors
+    });
+  });
+
+  // DJ batch-sets cell colors (for drone show frames)
+  socket.on('grid-set-all-cell-colors', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.gridCellColors = data.cellColors || {};
+    io.to('dj-live:' + data.sessionId).emit('grid-cell-colors-update', {
+      cellColors: s.gridCellColors
+    });
+    if (s.eventId) {
+      io.to('event:' + s.eventId).emit('grid-cell-colors-update', {
+        cellColors: s.gridCellColors
+      });
+    }
+  });
+
+  // DJ manually moves a device to a different grid cell
+  socket.on('grid-manual-adjust', (data) => {
+    if (!data || !data.sessionId || !data.deviceId) return;
+    const s = djSessions[data.sessionId];
+    if (!s || !s.gridConfig) return;
+    const gx = Math.max(0, Math.min(s.gridConfig.width - 1, data.gridX || 0));
+    const gy = Math.max(0, Math.min(s.gridConfig.height - 1, data.gridY || 0));
+
+    const old = s.deviceGridAssignments[data.deviceId];
+    if (old) {
+      const oldKey = old.gridX + ',' + old.gridY;
+      if (s.gridCellOccupancy[oldKey]) {
+        s.gridCellOccupancy[oldKey] = s.gridCellOccupancy[oldKey].filter(id => id !== data.deviceId);
+        if (s.gridCellOccupancy[oldKey].length === 0) delete s.gridCellOccupancy[oldKey];
+      }
+    }
+
+    s.deviceGridAssignments[data.deviceId] = { gridX: gx, gridY: gy, confidence: 1.0, manual: true };
+    const newKey = gx + ',' + gy;
+    if (!s.gridCellOccupancy[newKey]) s.gridCellOccupancy[newKey] = [];
+    s.gridCellOccupancy[newKey].push(data.deviceId);
+
+    const deviceSocket = io.sockets.sockets.get(data.deviceId);
+    if (deviceSocket) {
+      deviceSocket.emit('grid-assignment-update', {
+        gridX: gx,
+        gridY: gy,
+        cellColor: s.gridCellColors[newKey] || null
+      });
+    }
+
+    io.to('dj-ctrl:' + data.sessionId).emit('grid-preview-update', {
+      cellOccupancy: s.gridCellOccupancy,
+      assignments: s.deviceGridAssignments,
+      cellColors: s.gridCellColors
+    });
+  });
+
+  // DJ triggers grid auto-assign
+  socket.on('grid-auto-assign', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s || !s.gridConfig) return;
+    autoAssignGrid(s, data.sessionId);
+  });
+
+  // DJ starts continuous positioning (re-assign every 2s)
+  socket.on('grid-continuous-start', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s || !s.gridConfig) return;
+    s.continuousPositioning = true;
+    if (s._positionInterval) clearInterval(s._positionInterval);
+    s._positionInterval = setInterval(() => {
+      if (!s.continuousPositioning || !s.gridConfig) return;
+      io.to('dj-live:' + data.sessionId).emit('position-ping', {
+        ts: Date.now(),
+        scanId: 'auto_' + Date.now()
+      });
+      if (s.eventId) {
+        io.to('event:' + s.eventId).emit('position-ping', {
+          ts: Date.now(),
+          scanId: 'auto_' + Date.now()
+        });
+      }
+    }, 2000);
+    console.log('[DJ Grid] Continuous positioning started for', data.sessionId);
+  });
+
+  // DJ stops continuous positioning
+  socket.on('grid-continuous-stop', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.continuousPositioning = false;
+    if (s._positionInterval) { clearInterval(s._positionInterval); s._positionInterval = null; }
+    console.log('[DJ Grid] Continuous positioning stopped for', data.sessionId);
+  });
+
+  // Device responds to position-ping with its sensor data
+  socket.on('position-pong', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s || !s.gridConfig) return;
+    const deviceId = socket.id;
+
+    if (data.depth != null && data.depth > 0) {
+      if (!s.depthReports[deviceId]) s.depthReports[deviceId] = [];
+      s.depthReports[deviceId].push(data.depth);
+      if (s.depthReports[deviceId].length > 5) s.depthReports[deviceId].shift();
+    }
+
+    if (data.compass != null && data.compass >= 0) {
+      s.compassHeadings[deviceId] = { heading: data.compass, accuracy: data.compassAccuracy || 1.0 };
+    }
+
+    if (data.meshNeighbors && data.meshNeighbors.length > 0) {
+      s.meshGraph[deviceId] = { neighbors: data.meshNeighbors, amplitudes: data.meshAmplitudes || [] };
+    }
+
+    const pos = computeDeviceGridPosition(s, deviceId);
+    if (pos) {
+      const oldAssignment = s.deviceGridAssignments[deviceId];
+      const oldKey = oldAssignment ? (oldAssignment.gridX + ',' + oldAssignment.gridY) : null;
+      const newKey = pos.gridX + ',' + pos.gridY;
+
+      if (!oldAssignment || oldKey !== newKey) {
+        if (oldKey && s.gridCellOccupancy[oldKey]) {
+          s.gridCellOccupancy[oldKey] = s.gridCellOccupancy[oldKey].filter(id => id !== deviceId);
+          if (s.gridCellOccupancy[oldKey].length === 0) delete s.gridCellOccupancy[oldKey];
+        }
+        if (!s.gridCellOccupancy[newKey]) s.gridCellOccupancy[newKey] = [];
+        s.gridCellOccupancy[newKey].push(deviceId);
+        s.deviceGridAssignments[deviceId] = pos;
+
+        socket.emit('grid-assignment-update', {
+          gridX: pos.gridX,
+          gridY: pos.gridY,
+          cellColor: s.gridCellColors[newKey] || null
+        });
+
+        io.to('dj-ctrl:' + data.sessionId).emit('grid-preview-update', {
+          cellOccupancy: s.gridCellOccupancy,
+          assignments: s.deviceGridAssignments,
+          cellColors: s.gridCellColors
+        });
+      }
+    }
+  });
+
+  // DJ saves a drone show
+  socket.on('drone-show-save', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    const showId = 'show_' + Date.now();
+    s.droneShows[showId] = {
+      id: showId,
+      name: data.name || 'Untitled Show',
+      bpm: data.bpm || s.bpm || 128,
+      frames: data.frames || [],
+      transition: data.transition || 'instant',
+      loop: data.loop !== false,
+      createdAt: Date.now()
+    };
+    socket.emit('drone-show-saved', { showId: showId, name: data.name });
+    console.log('[DJ Grid] Drone show saved:', showId, data.frames ? data.frames.length : 0, 'frames');
+  });
+
+  // DJ broadcasts a drone show to all devices
+  socket.on('drone-show-broadcast', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    const show = data.showData || (data.showId ? s.droneShows[data.showId] : null);
+    if (!show || !show.frames || show.frames.length === 0) return;
+
+    s.activeDroneShow = {
+      show: show,
+      beatOrigin: Date.now(),
+      bpm: show.bpm || s.bpm || 128
+    };
+
+    const payload = {
+      show: show,
+      beatOrigin: s.activeDroneShow.beatOrigin,
+      bpm: s.activeDroneShow.bpm,
+      gridAssignments: s.deviceGridAssignments
+    };
+
+    io.to('dj-live:' + data.sessionId).emit('drone-show-start', payload);
+    if (s.eventId) io.to('event:' + s.eventId).emit('drone-show-start', payload);
+    console.log('[DJ Grid] Drone show broadcasting:', show.name);
+  });
+
+  // DJ stops drone show
+  socket.on('drone-show-stop', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    s.activeDroneShow = null;
+    io.to('dj-live:' + data.sessionId).emit('drone-show-stop', {});
+    if (s.eventId) io.to('event:' + s.eventId).emit('drone-show-stop', {});
+    console.log('[DJ Grid] Drone show stopped');
+  });
+
+  // DJ triggers calibration test mode (devices show their grid number)
+  socket.on('grid-test-mode', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    io.to('dj-live:' + data.sessionId).emit('grid-test-mode', {
+      enabled: data.enabled !== false,
+      assignments: s.deviceGridAssignments
+    });
+    if (s.eventId) {
+      io.to('event:' + s.eventId).emit('grid-test-mode', {
+        enabled: data.enabled !== false,
+        assignments: s.deviceGridAssignments
+      });
+    }
   });
 
   // --- Operator starts DJ from operator panel ---
@@ -18305,7 +18596,20 @@ io.on('connection', (socket) => {
       bpm: data.bpm || 128,
       animation: data.animation || 'pulse',
       connectedDevices: new Set(),
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      // Grid positioning system
+      gridConfig: null,
+      deviceGridAssignments: {},
+      gridCellOccupancy: {},
+      gridCellColors: {},
+      depthReports: {},
+      meshGraph: {},
+      compassHeadings: {},
+      clockOffsets: {},
+      droneShows: {},
+      activeDroneShow: null,
+      continuousPositioning: false,
+      _positionInterval: null
     };
 
     if (!ev.djLive) ev.djLive = {};
@@ -18555,6 +18859,111 @@ function computeMeshLayout(session) {
   }
 
   console.log('[Mesh] Layout computed for', deviceIds.length, 'devices');
+}
+
+function computeDeviceGridPosition(session, deviceId) {
+  if (!session.gridConfig) return null;
+  const gc = session.gridConfig;
+  var posX = 0.5, posY = 0.5;
+  var hasDepth = false, hasMesh = false, hasCompass = false;
+
+  var depths = session.depthReports[deviceId];
+  if (depths && depths.length > 0) {
+    var avgDepth = depths.reduce(function(a, b) { return a + b; }, 0) / depths.length;
+    posY = Math.min(1, avgDepth / gc.venueDepth);
+    hasDepth = true;
+  }
+
+  var compass = session.compassHeadings[deviceId];
+  if (compass && compass.heading >= 0 && gc.stageHeading >= 0) {
+    var relAngle = compass.heading - gc.stageHeading;
+    while (relAngle < -180) relAngle += 360;
+    while (relAngle > 180) relAngle -= 360;
+    posX = 0.5 + (relAngle / 180) * 0.5;
+    posX = Math.max(0, Math.min(1, posX));
+    hasCompass = true;
+  }
+
+  var meshEntry = session.meshGraph[deviceId];
+  if (!hasCompass && meshEntry && meshEntry.neighbors && meshEntry.neighbors.length > 0) {
+    var neighborXs = [];
+    meshEntry.neighbors.forEach(function(nid) {
+      var na = session.deviceGridAssignments[nid];
+      if (na) neighborXs.push(na.gridX / (gc.width - 1));
+    });
+    if (neighborXs.length > 0) {
+      posX = neighborXs.reduce(function(a, b) { return a + b; }, 0) / neighborXs.length;
+      posX += (Math.random() - 0.5) * 0.1;
+      posX = Math.max(0, Math.min(1, posX));
+      hasMesh = true;
+    }
+  }
+
+  if (!hasDepth && !hasMesh && !hasCompass) {
+    var devicesArr = Array.from(session.connectedDevices);
+    var idx = devicesArr.indexOf(deviceId);
+    if (idx >= 0 && devicesArr.length > 1) {
+      posX = idx / (devicesArr.length - 1);
+      posY = Math.floor(idx / gc.width) / Math.max(1, Math.ceil(devicesArr.length / gc.width) - 1);
+    }
+  }
+
+  var gridX = Math.floor(posX * gc.width);
+  var gridY = Math.floor(posY * gc.height);
+  gridX = Math.max(0, Math.min(gc.width - 1, gridX));
+  gridY = Math.max(0, Math.min(gc.height - 1, gridY));
+
+  var confidence = 0.3;
+  if (hasDepth) confidence += 0.3;
+  if (hasMesh) confidence += 0.2;
+  if (hasCompass) confidence += 0.2;
+
+  return { gridX: gridX, gridY: gridY, confidence: confidence };
+}
+
+function autoAssignGrid(session, sessionId) {
+  if (!session.gridConfig) return;
+  session.deviceGridAssignments = {};
+  session.gridCellOccupancy = {};
+
+  var devicesArr = Array.from(session.connectedDevices);
+  for (var i = 0; i < devicesArr.length; i++) {
+    var deviceId = devicesArr[i];
+    var pos = computeDeviceGridPosition(session, deviceId);
+    if (!pos) {
+      var gx = i % session.gridConfig.width;
+      var gy = Math.floor(i / session.gridConfig.width) % session.gridConfig.height;
+      pos = { gridX: gx, gridY: gy, confidence: 0.2 };
+    }
+
+    var key = pos.gridX + ',' + pos.gridY;
+    while (session.gridCellOccupancy[key] && session.gridCellOccupancy[key].length > 0) {
+      pos.gridX = (pos.gridX + 1) % session.gridConfig.width;
+      if (pos.gridX === 0) pos.gridY = (pos.gridY + 1) % session.gridConfig.height;
+      key = pos.gridX + ',' + pos.gridY;
+      pos.confidence = Math.max(0.1, pos.confidence - 0.1);
+    }
+
+    session.deviceGridAssignments[deviceId] = pos;
+    session.gridCellOccupancy[key] = [deviceId];
+
+    var deviceSocket = io.sockets.sockets.get(deviceId);
+    if (deviceSocket) {
+      deviceSocket.emit('grid-assignment-update', {
+        gridX: pos.gridX,
+        gridY: pos.gridY,
+        cellColor: session.gridCellColors[key] || null
+      });
+    }
+  }
+
+  io.to('dj-ctrl:' + sessionId).emit('grid-preview-update', {
+    cellOccupancy: session.gridCellOccupancy,
+    assignments: session.deviceGridAssignments,
+    cellColors: session.gridCellColors
+  });
+
+  console.log('[DJ Grid] Auto-assigned', devicesArr.length, 'devices to grid');
 }
 
 // ══════════════════════════════════════════════════════════════
