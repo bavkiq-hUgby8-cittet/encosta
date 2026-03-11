@@ -23609,7 +23609,15 @@ var DJL = {
   // Confetti particles for new animation
   confettiParticles: [],
   // Previous beat phase for edge detection
-  prevBeatPhase: 0
+  prevBeatPhase: 0,
+  // Raffle state
+  raffleState: null,
+  raffleNumber: 0,
+  raffleStartTime: 0,
+  raffleRevealTime: 0,
+  raffleTotalDevices: 20,
+  _raffleTicked: false,
+  _raffleSlowNum: 0
 };
 
 // Ultrasonic detection constants (same as main system)
@@ -23925,9 +23933,36 @@ function resizeDJCanvas() {
 window.addEventListener('resize', resizeDJCanvas);
 
 /* ════════════════════════════════════════
-   ANIMATION ENGINE - IMPROVED & EXPANDED
+   ANIMATION ENGINE - PRO GRADE V3
+   Particle systems, bloom, noise, physics
    ════════════════════════════════════════ */
+
+// -- Persistent particle pools (allocated once, reused) --
+var _djParticles = { fire: [], confetti: [], laser: [], electric: [] };
+var _djNoise = (function() {
+  // Simple 1D value noise with interpolation
+  var perm = new Float32Array(512);
+  for (var i = 0; i < 512; i++) perm[i] = Math.random();
+  return function(x) {
+    var xi = Math.floor(x) & 255;
+    var xf = x - Math.floor(x);
+    var u = xf * xf * (3 - 2 * xf); // smoothstep
+    return perm[xi] * (1 - u) + perm[xi + 1] * u;
+  };
+})();
+
 function startDJAnimation() {
+  // Pre-allocate fire particles
+  _djParticles.fire = [];
+  for (var i = 0; i < 200; i++) {
+    _djParticles.fire.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, size: 0, hue: 0 });
+  }
+  _djParticles.confetti = [];
+  _djParticles.laser = [];
+  for (var i = 0; i < 60; i++) {
+    _djParticles.laser.push({ x: 0, y: 0, alpha: 0, size: 0 });
+  }
+
   function loop() {
     if (!DJL.active) return;
     var w = window.innerWidth, h = window.innerHeight, ctx = DJL.ctx;
@@ -23945,7 +23980,7 @@ function startDJAnimation() {
       var beatsSinceSwitch = beatCount - DJL.autoLastSwitch;
       if (beatsSinceSwitch >= DJL.autoInterval) {
         DJL.autoLastSwitch = beatCount;
-        var animations = ['pulse', 'fire', 'ocean', 'strobe', 'rainbow', 'laser', 'confetti', 'solid'];
+        var animations = ['pulse', 'fire', 'ocean', 'strobe', 'rainbow', 'laser', 'confetti', 'solid', 'electric'];
         DJL.animation = animations[Math.floor(Math.random() * animations.length)];
         DJL.color = DJL.autoColors[Math.floor(Math.random() * DJL.autoColors.length)];
         rgb = hexToRgb(DJL.color);
@@ -23962,6 +23997,9 @@ function startDJAnimation() {
       case 'laser': drawLaser(ctx, w, h, rgb, beatPhase, t); break;
       case 'confetti': drawConfetti(ctx, w, h, beatPhase, t); break;
       case 'electric': drawElectric(ctx, w, h, rgb, beatPhase, t); break;
+      case 'connect': drawConnect(ctx, w, h, rgb, beatPhase, t); break;
+      case 'mirror': drawMirror(ctx, w, h, rgb, beatPhase, t); break;
+      case 'raffle': drawRaffle(ctx, w, h, rgb, beatPhase, t); break;
       default: drawPulse(ctx, w, h, rgb, beatPhase, t, beatCount);
     }
 
@@ -24020,260 +24058,582 @@ function hslToRgb(h, s, l) {
 }
 
 function drawPulse(ctx, w, h, rgb, beat, t, beatCount) {
-  ctx.fillStyle = '#000';
+  // Pro pulse: shockwave rings with bloom, afterglow trail, bass-reactive core
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
   ctx.fillRect(0, 0, w, h);
-  var cx = w / 2, cy = h / 2, maxR = Math.max(w, h) * 0.45;
-  var zoneColor = DJL.totalZones > 1 ? getZoneColor('#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16), DJL.zone) : rgb;
+  var cx = w / 2, cy = h / 2, maxR = Math.sqrt(w * w + h * h) * 0.55;
+  var zc = DJL.totalZones > 1 ? getZoneColor('#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).padStart(6, '0'), DJL.zone) : rgb;
+  var bassHit = beat < 0.12 ? Math.pow(1 - beat / 0.12, 3) : 0;
 
-  for (var ring = 0; ring < 8; ring++) {
-    var ringDelay = ring / 8;
+  // Ambient bloom background
+  var ambGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.7);
+  ambGrad.addColorStop(0, 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',' + (0.06 + bassHit * 0.15) + ')');
+  ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = ambGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Shockwave rings - 12 rings with staggered timing
+  for (var ring = 0; ring < 12; ring++) {
+    var ringDelay = ring / 12;
     var ringPhase = (beat + ringDelay) % 1;
-    var r = maxR * ringPhase;
-    var alpha = Math.pow(1 - ringPhase, 1.2) * 0.8;
-    var lineWidth = 3 + (1 - ringPhase) * 12;
+    var eased = 1 - Math.pow(1 - ringPhase, 2.5); // ease-out cubic
+    var r = maxR * eased;
+    var fadeOut = Math.pow(1 - ringPhase, 1.8);
+    var alpha = fadeOut * (0.5 + bassHit * 0.4);
+    var lineW = (2 + (1 - ringPhase) * 8) * (1 + bassHit * 2);
+
+    // Double stroke for glow effect
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',' + alpha + ')';
-    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',' + (alpha * 0.3) + ')';
+    ctx.lineWidth = lineW * 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',' + alpha + ')';
+    ctx.lineWidth = lineW;
     ctx.stroke();
   }
 
-  var glowSize = 80 + Math.sin(beat * Math.PI * 2) * 30;
-  var glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowSize);
-  glowGrad.addColorStop(0, 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',0.6)');
-  glowGrad.addColorStop(0.3, 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',0.15)');
-  glowGrad.addColorStop(1, 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',0)');
+  // Central core with bloom layers
+  var coreBase = 25 + bassHit * 60;
+  var corePulse = coreBase + Math.sin(t * 8) * 8;
+
+  // Outer bloom
+  var bloom = ctx.createRadialGradient(cx, cy, 0, cx, cy, corePulse * 4);
+  bloom.addColorStop(0, 'rgba(' + Math.min(zc.r + 80, 255) + ',' + Math.min(zc.g + 80, 255) + ',' + Math.min(zc.b + 80, 255) + ',' + (0.25 + bassHit * 0.5) + ')');
+  bloom.addColorStop(0.2, 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',' + (0.1 + bassHit * 0.2) + ')');
+  bloom.addColorStop(1, 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',0)');
   ctx.beginPath();
-  ctx.arc(cx, cy, glowSize, 0, Math.PI * 2);
-  ctx.fillStyle = glowGrad;
+  ctx.arc(cx, cy, corePulse * 4, 0, Math.PI * 2);
+  ctx.fillStyle = bloom;
   ctx.fill();
 
-  var coreSize = 30 + Math.sin(beat * Math.PI * 2) * 15;
-  var coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreSize);
-  coreGrad.addColorStop(0, 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',0.9)');
-  coreGrad.addColorStop(1, 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',0.2)');
+  // Hot center
+  var hotGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, corePulse);
+  hotGrad.addColorStop(0, 'rgba(255,255,255,' + (0.9 + bassHit * 0.1) + ')');
+  hotGrad.addColorStop(0.3, 'rgba(' + Math.min(zc.r + 120, 255) + ',' + Math.min(zc.g + 120, 255) + ',' + Math.min(zc.b + 120, 255) + ',0.7)');
+  hotGrad.addColorStop(0.7, 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',0.3)');
+  hotGrad.addColorStop(1, 'rgba(' + zc.r + ',' + zc.g + ',' + zc.b + ',0)');
   ctx.beginPath();
-  ctx.arc(cx, cy, coreSize, 0, Math.PI * 2);
-  ctx.fillStyle = coreGrad;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, coreSize * 0.3, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(' + zoneColor.r + ',' + zoneColor.g + ',' + zoneColor.b + ',0.7)';
+  ctx.arc(cx, cy, corePulse, 0, Math.PI * 2);
+  ctx.fillStyle = hotGrad;
   ctx.fill();
 }
 
 function drawFire(ctx, w, h, rgb, beat, t) {
-  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  // Pro fire: volumetric flames with particle embers, heat distortion, beat-reactive surges
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
   ctx.fillRect(0, 0, w, h);
-  var cols = 16, colW = w / cols;
+  var bassHit = beat < 0.12 ? Math.pow(1 - beat / 0.12, 3) : 0;
+  var surge = 0.65 + bassHit * 0.8 + Math.sin(t * 1.5) * 0.1;
 
+  // Base heat glow from bottom
+  var heatGrad = ctx.createLinearGradient(0, h, 0, h * 0.3);
+  heatGrad.addColorStop(0, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.4) + ',0,' + (0.15 + bassHit * 0.2) + ')');
+  heatGrad.addColorStop(0.5, 'rgba(' + Math.floor(rgb.r * 0.5) + ',0,0,0.05)');
+  heatGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = heatGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Multiple flame columns with bezier curves
+  var cols = 24;
+  var colW = w / cols;
   for (var i = 0; i < cols; i++) {
-    var x = i * colW;
-    var seed = i * 1.7 + t * 3;
-    var baseH = h * 0.25 + Math.sin(seed) * h * 0.2 + Math.sin(seed * 0.7) * h * 0.15;
-    var flicker = Math.sin(t * 10 + i * 2.3) * h * 0.08;
-    var surge = Math.sin(t * 2) * 0.3 + 0.7;
-    var flameH = (baseH + flicker) * surge + beat * h * 0.15;
+    var x = i * colW + colW * 0.5;
+    var n1 = _djNoise(i * 0.3 + t * 2.2);
+    var n2 = _djNoise(i * 0.5 + t * 3.1 + 100);
+    var n3 = _djNoise(i * 0.7 + t * 1.7 + 200);
+    var flameH = h * (0.15 + n1 * 0.25 + n2 * 0.15) * surge;
+    var sway = (n3 - 0.5) * colW * 2.5;
 
-    var grad = ctx.createLinearGradient(x, h, x, h - flameH);
-    grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.95)');
-    grad.addColorStop(0.2, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.8) + ',' + Math.floor(rgb.b * 0.2) + ',0.8)');
-    grad.addColorStop(0.5, 'rgba(' + Math.floor(rgb.r * 0.9) + ',' + Math.floor(rgb.g * 0.4) + ',0,0.4)');
-    grad.addColorStop(0.8, 'rgba(' + Math.floor(rgb.r * 0.6) + ',0,0,0.2)');
-    grad.addColorStop(1, 'rgba(' + Math.floor(rgb.r * 0.3) + ',0,0,0)');
+    // Outer flame (wider, dimmer)
+    var grad1 = ctx.createLinearGradient(x, h, x + sway * 0.8, h - flameH * 1.3);
+    grad1.addColorStop(0, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.6) + ',0,0.5)');
+    grad1.addColorStop(0.3, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.3) + ',0,0.25)');
+    grad1.addColorStop(0.7, 'rgba(' + Math.floor(rgb.r * 0.6) + ',0,0,0.08)');
+    grad1.addColorStop(1, 'rgba(0,0,0,0)');
 
     ctx.beginPath();
-    ctx.moveTo(x, h);
-    for (var s = 0; s <= 10; s++) {
-      var frac = s / 10;
-      var fy = h - flameH * frac;
-      var wobble = Math.sin(frac * Math.PI * 4 + t * 6 + i * 0.8) * colW * 0.5 * Math.pow(frac, 1.5);
-      ctx.lineTo(x + colW / 2 + wobble, fy);
-    }
-    ctx.lineTo(x + colW, h);
+    ctx.moveTo(x - colW * 0.8, h);
+    ctx.bezierCurveTo(
+      x - colW * 0.4 + sway * 0.3, h - flameH * 0.4,
+      x + sway * 0.6, h - flameH * 0.75,
+      x + sway, h - flameH * 1.2
+    );
+    ctx.bezierCurveTo(
+      x + sway * 0.6 + colW * 0.3, h - flameH * 0.75,
+      x + colW * 0.4 + sway * 0.3, h - flameH * 0.4,
+      x + colW * 0.8, h
+    );
     ctx.closePath();
-    ctx.fillStyle = grad;
+    ctx.fillStyle = grad1;
+    ctx.fill();
+
+    // Inner flame (brighter, narrower)
+    var grad2 = ctx.createLinearGradient(x, h, x + sway * 0.5, h - flameH);
+    grad2.addColorStop(0, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 30, 255) + ',0,0.7)');
+    grad2.addColorStop(0.15, 'rgba(' + rgb.r + ',' + rgb.g + ',' + Math.floor(rgb.b * 0.3) + ',0.5)');
+    grad2.addColorStop(0.5, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.4) + ',0,0.2)');
+    grad2.addColorStop(1, 'rgba(0,0,0,0)');
+
+    ctx.beginPath();
+    ctx.moveTo(x - colW * 0.35, h);
+    ctx.bezierCurveTo(
+      x - colW * 0.15 + sway * 0.2, h - flameH * 0.45,
+      x + sway * 0.4, h - flameH * 0.8,
+      x + sway * 0.7, h - flameH
+    );
+    ctx.bezierCurveTo(
+      x + sway * 0.4 + colW * 0.15, h - flameH * 0.8,
+      x + colW * 0.15 + sway * 0.2, h - flameH * 0.45,
+      x + colW * 0.35, h
+    );
+    ctx.closePath();
+    ctx.fillStyle = grad2;
     ctx.fill();
   }
 
-  for (var p = 0; p < 12; p++) {
-    var px = (Math.sin(t * 1.8 + p * 3.14) * 0.5 + 0.5) * w;
-    var py = h - ((t * 100 + p * 150) % (h * 1.5));
-    var emberSize = 3 + Math.sin(t * 3 + p) * 2;
+  // Spark / ember particles
+  var pool = _djParticles.fire;
+  var dt = 0.016;
+  for (var p = 0; p < pool.length; p++) {
+    var sp = pool[p];
+    if (sp.life <= 0) {
+      // Respawn on beat or randomly
+      if (Math.random() < (0.08 + bassHit * 0.4)) {
+        sp.x = Math.random() * w;
+        sp.y = h - Math.random() * h * 0.15;
+        sp.vx = (Math.random() - 0.5) * 80;
+        sp.vy = -(120 + Math.random() * 250 + bassHit * 200);
+        sp.life = 1.2 + Math.random() * 1.5;
+        sp.maxLife = sp.life;
+        sp.size = 1.5 + Math.random() * 3;
+        sp.hue = Math.random() * 40; // 0-40 = red/orange range
+      }
+      continue;
+    }
+    sp.x += sp.vx * dt;
+    sp.y += sp.vy * dt;
+    sp.vy *= 0.985; // air resistance
+    sp.vx += (Math.random() - 0.5) * 15; // turbulence
+    sp.life -= dt;
+    var lifeRatio = sp.life / sp.maxLife;
+    var alpha = lifeRatio > 0.7 ? 1 : lifeRatio / 0.7;
+    var sz = sp.size * (0.3 + lifeRatio * 0.7);
+
+    // Glow
     ctx.beginPath();
-    ctx.arc(px, py, emberSize, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(' + Math.floor(rgb.r * 0.8) + ',' + Math.floor(rgb.g * 0.3) + ',0,' + (0.4 + Math.sin(t * 4 + p) * 0.3) + ')';
+    ctx.arc(sp.x, sp.y, sz * 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.5) + ',0,' + (alpha * 0.12) + ')';
+    ctx.fill();
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, sz, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(Math.floor(rgb.g * 0.7 + sp.hue), 255) + ',0,' + (alpha * 0.8) + ')';
     ctx.fill();
   }
+
+  // Bottom white-hot glow line
+  var hotGrad = ctx.createLinearGradient(0, h, 0, h - 8);
+  hotGrad.addColorStop(0, 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 40, 255) + ',' + (0.6 + bassHit * 0.4) + ')');
+  hotGrad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',0,0)');
+  ctx.fillStyle = hotGrad;
+  ctx.fillRect(0, h - 8, w, 8);
 }
 
 function drawOcean(ctx, w, h, rgb, beat, t) {
+  // Pro ocean: deep gradient, 8 wave layers with foam, bioluminescent particles, caustics
+  var bassHit = beat < 0.12 ? Math.pow(1 - beat / 0.12, 3) : 0;
+
+  // Deep ocean gradient background
   var bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-  bgGrad.addColorStop(0, 'rgba(0,' + Math.floor(rgb.g * 0.08) + ',' + Math.floor(rgb.b * 0.25) + ',1)');
-  bgGrad.addColorStop(0.5, 'rgba(0,' + Math.floor(rgb.g * 0.05) + ',' + Math.floor(rgb.b * 0.15) + ',1)');
-  bgGrad.addColorStop(1, 'rgba(0,' + Math.floor(rgb.g * 0.02) + ',' + Math.floor(rgb.b * 0.08) + ',1)');
+  bgGrad.addColorStop(0, 'rgba(' + Math.floor(rgb.r * 0.03) + ',' + Math.floor(rgb.g * 0.08) + ',' + Math.floor(rgb.b * 0.3) + ',1)');
+  bgGrad.addColorStop(0.3, 'rgba(' + Math.floor(rgb.r * 0.02) + ',' + Math.floor(rgb.g * 0.05) + ',' + Math.floor(rgb.b * 0.2) + ',1)');
+  bgGrad.addColorStop(0.7, 'rgba(0,' + Math.floor(rgb.g * 0.03) + ',' + Math.floor(rgb.b * 0.12) + ',1)');
+  bgGrad.addColorStop(1, 'rgba(0,0,' + Math.floor(rgb.b * 0.06) + ',1)');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
 
-  for (var layer = 0; layer < 6; layer++) {
-    var layerColor = layer % 2 === 0 ? rgb : { r: Math.floor(rgb.r * 0.8), g: Math.floor(rgb.g * 0.9), b: Math.floor(rgb.b * 1.1) };
-    var yBase = h * (0.2 + layer * 0.13);
-    var amplitude = 18 + layer * 12 + Math.sin(t * 0.4 + layer) * 10;
-    var speed = (layer + 1) * 0.9;
-    var alpha = 0.12 + (5 - layer) * 0.09;
+  // Caustic light patterns (top area)
+  for (var c = 0; c < 6; c++) {
+    var cx = (w * 0.5) + Math.sin(t * 0.3 + c * 1.1) * w * 0.4;
+    var cy = Math.sin(t * 0.25 + c * 0.9) * h * 0.15 + h * 0.1;
+    var cSize = 60 + Math.sin(t * 0.7 + c * 2.3) * 30;
+    var cGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cSize);
+    cGrad.addColorStop(0, 'rgba(' + Math.min(rgb.r + 40, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + (0.04 + bassHit * 0.06) + ')');
+    cGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = cGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 8 wave layers with proper depth
+  for (var layer = 0; layer < 8; layer++) {
+    var depth = layer / 8;
+    var yBase = h * (0.12 + depth * 0.11);
+    var amp = (12 + layer * 10) * (1 + bassHit * 0.3);
+    var speed = (layer + 1) * 0.7;
+    var alpha = (0.06 + (7 - layer) * 0.04) * (1 + bassHit * 0.3);
+    var colorShift = layer / 8;
+    var lr = Math.floor(rgb.r * (0.6 + colorShift * 0.4));
+    var lg = Math.floor(rgb.g * (0.7 + colorShift * 0.3));
+    var lb = Math.floor(rgb.b * (0.8 + colorShift * 0.2));
 
     ctx.beginPath();
-    ctx.moveTo(0, h);
-    for (var x = 0; x <= w; x += 3) {
-      var y = yBase + Math.sin(x * 0.006 + t * speed) * amplitude + Math.sin(x * 0.012 + t * speed * 0.6 + layer * 0.5) * amplitude * 0.6 + beat * 15;
+    ctx.moveTo(-5, h + 5);
+    for (var x = -5; x <= w + 5; x += 2) {
+      var y = yBase
+        + Math.sin(x * 0.005 + t * speed) * amp
+        + Math.sin(x * 0.011 + t * speed * 0.6 + layer * 0.8) * amp * 0.5
+        + Math.sin(x * 0.002 + t * speed * 0.3) * amp * 0.3;
       ctx.lineTo(x, y);
     }
-    ctx.lineTo(w, h);
+    ctx.lineTo(w + 5, h + 5);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(' + layerColor.r + ',' + layerColor.g + ',' + layerColor.b + ',' + alpha + ')';
+    ctx.fillStyle = 'rgba(' + lr + ',' + lg + ',' + lb + ',' + alpha + ')';
     ctx.fill();
+
+    // Foam highlights on wave crests (only for front layers)
+    if (layer > 4) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (var fx = 0; fx < w; fx += 8) {
+        var fy = yBase
+          + Math.sin(fx * 0.005 + t * speed) * amp
+          + Math.sin(fx * 0.011 + t * speed * 0.6 + layer * 0.8) * amp * 0.5;
+        var slope = Math.cos(fx * 0.005 + t * speed) * amp * 0.005;
+        if (slope > 0.01) {
+          var foamAlpha = Math.min(slope * 8, 0.15) * (1 + bassHit * 0.5);
+          ctx.fillStyle = 'rgba(255,255,255,' + foamAlpha + ')';
+          ctx.fillRect(fx, fy - 1, 6, 2);
+        }
+      }
+      ctx.restore();
+    }
   }
 
-  for (var s = 0; s < 8; s++) {
-    var sx = (Math.sin(t * 0.25 + s * 1.9) * 0.5 + 0.5) * w;
-    var sy = (Math.sin(t * 0.35 + s * 1.5) * 0.35 + 0.35) * h;
-    var sSize = 25 + Math.sin(t * 1.8 + s) * 18;
-    var sGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, sSize);
-    sGrad.addColorStop(0, 'rgba(255,255,255,0.2)');
-    sGrad.addColorStop(0.5, 'rgba(255,255,255,0.05)');
-    sGrad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = sGrad;
+  // Bioluminescent particles
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (var p = 0; p < 20; p++) {
+    var px = ((_djNoise(p * 3.7 + t * 0.15) * 1.4 - 0.2) * w) % w;
+    if (px < 0) px += w;
+    var py = _djNoise(p * 2.1 + t * 0.12 + 50) * h;
+    var pSize = 2 + _djNoise(p * 1.3 + t * 0.5) * 6;
+    var pAlpha = (0.15 + _djNoise(p + t * 1.5) * 0.3) * (1 + bassHit * 0.5);
+    var pGrad = ctx.createRadialGradient(px, py, 0, px, py, pSize * 3);
+    pGrad.addColorStop(0, 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 120, 255) + ',' + Math.min(rgb.b + 140, 255) + ',' + pAlpha + ')');
+    pGrad.addColorStop(0.4, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (pAlpha * 0.3) + ')');
+    pGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = pGrad;
     ctx.beginPath();
-    ctx.arc(sx, sy, sSize, 0, Math.PI * 2);
+    ctx.arc(px, py, pSize * 3, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 }
 
 function drawSolid(ctx, w, h, rgb, beatPhase, t) {
-  var zoneColor = DJL.totalZones > 1 ? getZoneColor('#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16), DJL.zone) : rgb;
-  var breathing = 1 + Math.sin(beatPhase * Math.PI * 2) * 0.15;
-  var beatFlash = beatPhase < 0.15 ? (1 - beatPhase / 0.15) * 0.3 : 0;
-  var r = Math.round(zoneColor.r * breathing + beatFlash * 100);
-  var g = Math.round(zoneColor.g * breathing + beatFlash * 100);
-  var b = Math.round(zoneColor.b * breathing + beatFlash * 100);
-  r = Math.min(255, r);
-  g = Math.min(255, g);
-  b = Math.min(255, b);
-  ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+  // Pro solid: smooth breathing with subtle radial gradient, beat flash, zone-aware
+  var zc = DJL.totalZones > 1 ? getZoneColor('#' + ((rgb.r << 16) | (rgb.g << 8) | rgb.b).toString(16).padStart(6, '0'), DJL.zone) : rgb;
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 4) : 0;
+  var breathe = 0.75 + Math.sin(beatPhase * Math.PI * 2) * 0.15;
+  var intensity = breathe + bassHit * 0.5;
+
+  var r = Math.min(255, Math.round(zc.r * intensity + bassHit * 80));
+  var g = Math.min(255, Math.round(zc.g * intensity + bassHit * 80));
+  var b = Math.min(255, Math.round(zc.b * intensity + bassHit * 80));
+
+  // Radial gradient from center for depth
+  var cx = w / 2, cy = h / 2;
+  var maxR = Math.sqrt(cx * cx + cy * cy);
+  var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+  grad.addColorStop(0, 'rgb(' + Math.min(255, r + 30) + ',' + Math.min(255, g + 30) + ',' + Math.min(255, b + 30) + ')');
+  grad.addColorStop(0.6, 'rgb(' + r + ',' + g + ',' + b + ')');
+  grad.addColorStop(1, 'rgb(' + Math.floor(r * 0.7) + ',' + Math.floor(g * 0.7) + ',' + Math.floor(b * 0.7) + ')');
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
+
+  // Beat flash overlay
+  if (bassHit > 0.1) {
+    ctx.fillStyle = 'rgba(255,255,255,' + (bassHit * 0.2) + ')';
+    ctx.fillRect(0, 0, w, h);
+  }
 }
 
 function drawStrobe(ctx, w, h, rgb, beatPhase, t) {
-  var strobeFreq = 8;
-  var strobePhase = (beatPhase * strobeFreq) % 1;
-  var isOn = strobePhase < 0.5;
-  if (isOn) {
-    ctx.fillStyle = 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+  // Pro strobe: variable rate, smooth ramp on/off, beat-synced intensity, not jarring
+  var bassHit = beatPhase < 0.08 ? 1 : 0;
+  var strobeRate = 6 + bassHit * 4; // faster on beat
+  var strobePhase = (beatPhase * strobeRate) % 1;
+  // Smooth on/off with sine curve instead of hard cut
+  var intensity = strobePhase < 0.35 ? Math.pow(Math.sin(strobePhase / 0.35 * Math.PI), 0.5) : 0;
+  intensity *= (0.7 + bassHit * 0.3);
+
+  if (intensity > 0.01) {
+    var r = Math.floor(rgb.r + (255 - rgb.r) * intensity * 0.6);
+    var g = Math.floor(rgb.g + (255 - rgb.g) * intensity * 0.6);
+    var b = Math.floor(rgb.b + (255 - rgb.b) * intensity * 0.6);
+    ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
   } else {
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = 'rgb(2,2,4)';
   }
   ctx.fillRect(0, 0, w, h);
+
+  // Afterglow on black frames
+  if (intensity <= 0.01) {
+    var glow = Math.max(0, 0.04 - strobePhase * 0.02);
+    if (glow > 0) {
+      ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + glow + ')';
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
 }
 
 function drawRainbow(ctx, w, h, beatPhase, t) {
-  var stripHeight = h / 6;
-  var hues = [0, 60, 120, 180, 240, 300];
-  var baseHue = (t * 30 + DJL.deviceIndex * 30 / Math.max(1, DJL.totalDevices)) % 360;
-  var brightness = 1 + Math.sin(beatPhase * Math.PI * 2) * 0.2;
+  // Pro rainbow: smooth flowing diagonal gradient, beat-reactive shimmer, device-offset
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 3) : 0;
+  var baseHue = (t * 40 + DJL.deviceIndex * 360 / Math.max(1, DJL.totalDevices)) % 360;
+  var brightness = 50 + bassHit * 20;
+  var saturation = 90 + bassHit * 10;
 
-  for (var i = 0; i < 6; i++) {
-    var hue = (baseHue + hues[i]) % 360;
-    var hslColor = { h: hue, s: 100, l: 50 * brightness };
-    var rgbColor = hslToRgb(hslColor.h, hslColor.s, hslColor.l);
-    ctx.fillStyle = 'rgb(' + rgbColor.r + ',' + rgbColor.g + ',' + rgbColor.b + ')';
-    ctx.fillRect(0, i * stripHeight, w, stripHeight);
+  // Flowing diagonal rainbow
+  var angle = t * 0.3;
+  var cos = Math.cos(angle), sin = Math.sin(angle);
+  var gradLen = Math.sqrt(w * w + h * h);
+  var x1 = w / 2 - cos * gradLen / 2;
+  var y1 = h / 2 - sin * gradLen / 2;
+  var x2 = w / 2 + cos * gradLen / 2;
+  var y2 = h / 2 + sin * gradLen / 2;
+
+  var grad = ctx.createLinearGradient(x1, y1, x2, y2);
+  var stops = 12;
+  for (var i = 0; i <= stops; i++) {
+    var hue = (baseHue + (i / stops) * 360) % 360;
+    var rgbC = hslToRgb(hue, saturation, brightness);
+    grad.addColorStop(i / stops, 'rgb(' + rgbC.r + ',' + rgbC.g + ',' + rgbC.b + ')');
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Shimmer overlay on beat
+  if (bassHit > 0.2) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.fillStyle = 'rgba(255,255,255,' + (bassHit * 0.35) + ')';
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  // Subtle scanline texture for depth
+  ctx.fillStyle = 'rgba(0,0,0,0.03)';
+  for (var y = 0; y < h; y += 4) {
+    ctx.fillRect(0, y, w, 1);
   }
 }
 
 function drawLaser(ctx, w, h, rgb, beatPhase, t) {
-  ctx.fillStyle = '#000000';
+  // Pro laser: scanning beams from multiple origins, atmospheric haze, beat-synced fan
+  ctx.fillStyle = 'rgba(0,0,2,0.2)';
+  ctx.fillRect(0, 0, w, h);
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 3) : 0;
+
+  // Atmospheric haze layer
+  var hazeGrad = ctx.createRadialGradient(w / 2, h * 0.3, 0, w / 2, h * 0.3, Math.max(w, h) * 0.5);
+  hazeGrad.addColorStop(0, 'rgba(' + Math.floor(rgb.r * 0.15) + ',' + Math.floor(rgb.g * 0.15) + ',' + Math.floor(rgb.b * 0.15) + ',' + (0.08 + bassHit * 0.12) + ')');
+  hazeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hazeGrad;
   ctx.fillRect(0, 0, w, h);
 
-  var beamCount = 4;
-  var burstIntensity = beatPhase < 0.2 ? 1 - beatPhase / 0.2 : 0;
-  var activeLasers = Math.floor(beamCount * (0.5 + burstIntensity * 0.5));
+  var beamCount = 8;
+  var fanSpread = Math.PI * 0.6 + bassHit * Math.PI * 0.3;
+  var fanCenter = Math.sin(t * 0.4) * Math.PI * 0.15;
 
-  for (var beam = 0; beam < activeLasers; beam++) {
-    var angle = (t * 0.8 + beam * Math.PI / beamCount) % (Math.PI * 2);
-    var x1 = w / 2 + Math.cos(angle) * w * 2;
-    var y1 = h / 2 + Math.sin(angle) * h * 2;
-    var x2 = w / 2 - Math.cos(angle) * w * 2;
-    var y2 = h / 2 - Math.sin(angle) * h * 2;
+  // Origin points: top center and sides
+  var origins = [
+    { x: w * 0.5, y: -10 },
+    { x: -10, y: h * 0.2 },
+    { x: w + 10, y: h * 0.2 }
+  ];
+  var activeOrigin = origins[Math.floor(t * 0.2) % origins.length];
 
-    var grad = ctx.createLinearGradient(x1, y1, x2, y2);
-    grad.addColorStop(0.2, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
-    grad.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.8 + burstIntensity * 0.2) + ')');
-    grad.addColorStop(0.8, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  for (var beam = 0; beam < beamCount; beam++) {
+    var beamAngle = fanCenter - fanSpread / 2 + (beam / (beamCount - 1)) * fanSpread;
+    // Add scanning motion
+    beamAngle += Math.sin(t * 1.5 + beam * 0.3) * 0.15;
 
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 20 + burstIntensity * 40;
-    ctx.lineCap = 'round';
+    var beamLen = Math.max(w, h) * 2;
+    var x1 = activeOrigin.x;
+    var y1 = activeOrigin.y;
+    var x2 = x1 + Math.sin(beamAngle + Math.PI / 2) * beamLen;
+    var y2 = y1 + Math.cos(beamAngle + Math.PI / 2) * beamLen;
+
+    var beamIntensity = 0.3 + bassHit * 0.5 + Math.sin(t * 2 + beam * 1.2) * 0.15;
+    var coreWidth = 1.5 + bassHit * 2;
+
+    // Wide atmospheric glow
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (beamIntensity * 0.06) + ')';
+    ctx.lineWidth = 40 + bassHit * 30;
     ctx.stroke();
 
-    var glowGrad = ctx.createLinearGradient(x1, y1, x2, y2);
-    glowGrad.addColorStop(0.3, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
-    glowGrad.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.3 + burstIntensity * 0.3) + ')');
-    glowGrad.addColorStop(0.7, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
-    ctx.strokeStyle = glowGrad;
-    ctx.lineWidth = 50 + burstIntensity * 80;
+    // Medium glow
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (beamIntensity * 0.15) + ')';
+    ctx.lineWidth = 12 + bassHit * 10;
     ctx.stroke();
+
+    // Bright core
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + (beamIntensity * 0.6) + ')';
+    ctx.lineWidth = coreWidth;
+    ctx.stroke();
+
+    // White-hot center
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (beamIntensity * 0.25) + ')';
+    ctx.lineWidth = coreWidth * 0.4;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Haze particles floating in beams
+  var pool = _djParticles.laser;
+  for (var p = 0; p < pool.length; p++) {
+    var sp = pool[p];
+    sp.x = (_djNoise(p * 2.3 + t * 0.2) * 1.2 - 0.1) * w;
+    sp.y = (_djNoise(p * 1.7 + t * 0.15 + 100) * 1.2 - 0.1) * h;
+    sp.alpha = _djNoise(p * 0.9 + t * 0.8) * 0.15 * (1 + bassHit * 0.5);
+    sp.size = 1 + _djNoise(p * 1.1 + t * 0.3) * 2;
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, sp.size, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 100, 255) + ',' + Math.min(rgb.b + 100, 255) + ',' + sp.alpha + ')';
+    ctx.fill();
   }
 }
 
 function drawConfetti(ctx, w, h, beatPhase, t) {
-  ctx.fillStyle = 'rgba(0,0,0,0.05)';
+  // Pro confetti: varied shapes (rect, circle, streamer), physics, continuous + burst on beat
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
   ctx.fillRect(0, 0, w, h);
+  var bassHit = beatPhase < 0.08 && DJL.prevBeatPhase >= 0.85;
+  var dt = 0.016;
+  var colors = ['#ff6b35', '#ff3c6e', '#2dd4a0', '#00b4d8', '#7c6aef', '#ffdd00', '#ff1493', '#00ff88', '#ff4444'];
+  var pool = _djParticles.confetti;
+  var maxParticles = 400;
 
-  if (beatPhase < 0.15 && DJL.prevBeatPhase >= 0.85) {
-    for (var burst = 0; burst < 30; burst++) {
+  // Burst on beat
+  if (bassHit) {
+    var burstCount = 50;
+    var burstX = w * (0.2 + Math.random() * 0.6);
+    var burstY = h * (0.2 + Math.random() * 0.3);
+    for (var b = 0; b < burstCount && pool.length < maxParticles; b++) {
       var angle = Math.random() * Math.PI * 2;
-      var speed = 200 + Math.random() * 400;
-      DJL.confettiParticles.push({
-        x: w / 2,
-        y: h / 2,
-        vx: Math.cos(angle) * speed / 1000,
-        vy: Math.sin(angle) * speed / 1000 - 2,
-        life: 3,
-        maxLife: 3,
-        size: 8 + Math.random() * 12,
+      var speed = 150 + Math.random() * 350;
+      pool.push({
+        x: burstX, y: burstY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 200,
+        life: 2.5 + Math.random() * 2,
+        maxLife: 4.5,
+        size: 4 + Math.random() * 10,
         rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 10,
-        color: ['#ff6b35', '#ff3c6e', '#2dd4a0', '#00b4d8', '#7c6aef', '#ffdd00'][Math.floor(Math.random() * 6)]
+        rotSpeed: (Math.random() - 0.5) * 12,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        shape: Math.random() < 0.33 ? 0 : (Math.random() < 0.5 ? 1 : 2), // 0=rect, 1=circle, 2=streamer
+        wobble: Math.random() * Math.PI * 2
       });
     }
   }
 
-  for (var p = DJL.confettiParticles.length - 1; p >= 0; p--) {
-    var particle = DJL.confettiParticles[p];
-    particle.x += particle.vx;
-    particle.y += particle.vy;
-    particle.vy += 0.08;
-    particle.life -= 0.016;
-    particle.rotation += particle.rotationSpeed * 0.016;
+  // Continuous gentle rain
+  if (Math.random() < 0.3 && pool.length < maxParticles) {
+    pool.push({
+      x: Math.random() * w * 1.2 - w * 0.1,
+      y: -20,
+      vx: (Math.random() - 0.5) * 30,
+      vy: 40 + Math.random() * 80,
+      life: 4 + Math.random() * 3,
+      maxLife: 7,
+      size: 3 + Math.random() * 8,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 8,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      shape: Math.random() < 0.33 ? 0 : (Math.random() < 0.5 ? 1 : 2),
+      wobble: Math.random() * Math.PI * 2
+    });
+  }
 
-    if (particle.life <= 0) {
-      DJL.confettiParticles.splice(p, 1);
+  // Update and draw particles
+  for (var p = pool.length - 1; p >= 0; p--) {
+    var pt = pool[p];
+    pt.x += pt.vx * dt;
+    pt.y += pt.vy * dt;
+    pt.vy += 180 * dt; // gravity
+    pt.vx *= 0.99; // air drag
+    pt.vy *= 0.995;
+    pt.vx += Math.sin(pt.wobble + t * 3) * 20 * dt; // side wobble
+    pt.rotation += pt.rotSpeed * dt;
+    pt.life -= dt;
+
+    if (pt.life <= 0 || pt.y > h + 30) {
+      pool.splice(p, 1);
       continue;
     }
 
-    var alpha = Math.min(1, particle.life / 0.5);
+    var lifeRatio = pt.life / pt.maxLife;
+    var alpha = lifeRatio > 0.8 ? (1 - lifeRatio) / 0.2 : (lifeRatio < 0.2 ? lifeRatio / 0.2 : 1);
+    alpha = Math.min(1, alpha * 0.9);
+
     ctx.save();
-    ctx.translate(particle.x, particle.y);
-    ctx.rotate(particle.rotation);
-    ctx.fillStyle = particle.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
-    ctx.fillRect(-particle.size / 2, -particle.size / 4, particle.size, particle.size / 2);
+    ctx.translate(pt.x, pt.y);
+    ctx.rotate(pt.rotation);
+    ctx.globalAlpha = alpha;
+
+    var cRgb = hexToRgb(pt.color);
+
+    if (pt.shape === 0) {
+      // Rectangle confetti piece
+      ctx.fillStyle = pt.color;
+      ctx.fillRect(-pt.size / 2, -pt.size / 4, pt.size, pt.size / 2);
+      // Highlight edge
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(-pt.size / 2, -pt.size / 4, pt.size, 1);
+    } else if (pt.shape === 1) {
+      // Circle / dot
+      ctx.beginPath();
+      ctx.arc(0, 0, pt.size * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = pt.color;
+      ctx.fill();
+      // Shiny highlight
+      ctx.beginPath();
+      ctx.arc(-pt.size * 0.1, -pt.size * 0.1, pt.size * 0.12, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fill();
+    } else {
+      // Streamer / ribbon
+      ctx.beginPath();
+      ctx.moveTo(-pt.size * 0.6, 0);
+      ctx.bezierCurveTo(-pt.size * 0.2, -pt.size * 0.3, pt.size * 0.2, pt.size * 0.3, pt.size * 0.6, 0);
+      ctx.strokeStyle = pt.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 }
@@ -24293,83 +24653,400 @@ function updateDJLiveText() {
 }
 
 function drawElectric(ctx, w, h, rgb, beatPhase, t) {
-  // Tron/Electric Touch style -- horizontal beams with particles
-  ctx.fillStyle = 'rgba(0,0,4,0.12)';
+  // Pro electric: lightning bolts, plasma grid, energy arcs, neon Tron aesthetic
+  ctx.fillStyle = 'rgba(0,0,4,0.15)';
   ctx.fillRect(0, 0, w, h);
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 3) : 0;
+  var intensity = 0.6 + bassHit * 1.2;
 
-  var beamCount = 10;
-  var beatSurge = Math.pow(Math.max(0, 1 - beatPhase * 3), 2); // surge at beat start
-  var globalIntensity = 0.7 + beatSurge * 1.5;
+  // Background grid (Tron style)
+  ctx.save();
+  ctx.globalAlpha = 0.04 + bassHit * 0.06;
+  ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',1)';
+  ctx.lineWidth = 0.5;
+  var gridSize = 40;
+  var gridOffset = (t * 30) % gridSize;
+  for (var gx = -gridSize + gridOffset; gx < w + gridSize; gx += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(gx, 0);
+    ctx.lineTo(gx, h);
+    ctx.stroke();
+  }
+  for (var gy = -gridSize + gridOffset; gy < h + gridSize; gy += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    ctx.lineTo(w, gy);
+    ctx.stroke();
+  }
+  ctx.restore();
 
-  for (var i = 0; i < beamCount; i++) {
-    // Each beam scrolls upward continuously
-    var speed = 60 + i * 15;
-    var baseY = ((h * 1.5 - (t * speed + i * h / beamCount * 1.3)) % (h * 1.6)) + h * 0.1;
-    var tubeH = 20 + (i % 3) * 12 + beatSurge * 15;
-    var breathe = 1 + Math.sin(t * (0.4 + i * 0.1) + i * 2.3) * 0.08;
-    var th = tubeH * breathe;
+  // Central plasma glow
+  var cx = w / 2, cy = h / 2;
+  var plasmaR = Math.min(w, h) * 0.15 + bassHit * Math.min(w, h) * 0.1;
+  var pGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, plasmaR * 3);
+  pGrad.addColorStop(0, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.15 * intensity) + ')');
+  pGrad.addColorStop(0.3, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.06 * intensity) + ')');
+  pGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = pGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, plasmaR * 3, 0, Math.PI * 2);
+  ctx.fill();
 
-    // Outer glow
-    var g1 = ctx.createLinearGradient(0, baseY - th * 2.5, 0, baseY + th * 2.5);
-    g1.addColorStop(0, 'transparent');
-    g1.addColorStop(0.3, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.04 * globalIntensity) + ')');
-    g1.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.08 * globalIntensity) + ')');
-    g1.addColorStop(0.7, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.04 * globalIntensity) + ')');
-    g1.addColorStop(1, 'transparent');
-    ctx.fillStyle = g1;
-    ctx.fillRect(0, baseY - th * 2.5, w, th * 5);
+  // Lightning bolts
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  var boltCount = 3 + Math.floor(bassHit * 4);
+  for (var bolt = 0; bolt < boltCount; bolt++) {
+    var startAngle = (bolt / boltCount) * Math.PI * 2 + t * 0.5;
+    var sx = cx + Math.cos(startAngle) * plasmaR * 0.3;
+    var sy = cy + Math.sin(startAngle) * plasmaR * 0.3;
+    var endAngle = startAngle + Math.PI * (0.3 + Math.sin(t * 1.5 + bolt) * 0.5);
+    var endDist = Math.min(w, h) * (0.3 + bassHit * 0.2);
+    var ex = cx + Math.cos(endAngle) * endDist;
+    var ey = cy + Math.sin(endAngle) * endDist;
 
-    // Inner core
-    var g2 = ctx.createLinearGradient(0, baseY - th * 0.3, 0, baseY + th * 0.3);
-    g2.addColorStop(0, 'transparent');
-    g2.addColorStop(0.3, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.15 * globalIntensity) + ')');
-    g2.addColorStop(0.5, 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + (0.25 * globalIntensity) + ')');
-    g2.addColorStop(0.7, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.15 * globalIntensity) + ')');
-    g2.addColorStop(1, 'transparent');
-    ctx.fillStyle = g2;
-    ctx.fillRect(0, baseY - th * 0.3, w, th * 0.6);
+    // Draw jagged lightning path
+    var segments = 8 + Math.floor(bassHit * 4);
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    var prevX = sx, prevY = sy;
+    for (var seg = 1; seg <= segments; seg++) {
+      var frac = seg / segments;
+      var baseX = sx + (ex - sx) * frac;
+      var baseY = sy + (ey - sy) * frac;
+      var jitter = (1 - Math.abs(frac - 0.5) * 2) * 30 * (1 + bassHit);
+      var jx = baseX + (Math.random() - 0.5) * jitter * 2;
+      var jy = baseY + (Math.random() - 0.5) * jitter * 2;
+      ctx.lineTo(jx, jy);
+      prevX = jx;
+      prevY = jy;
+    }
 
-    // Hot wire center line
-    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 100, 255) + ',' + Math.min(rgb.b + 100, 255) + ',' + (0.2 * globalIntensity) + ')';
-    ctx.fillRect(0, baseY - 0.8, w, 1.6);
+    // Wide glow
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.08 * intensity) + ')';
+    ctx.lineWidth = 12 + bassHit * 8;
+    ctx.stroke();
 
-    // Flowing streaks on beam
-    for (var s = 0; s < 3; s++) {
-      var sx = ((t * (80 + beatSurge * 300) + s * w / 3 + i * 50) % (w + 100)) - 50;
-      var sLen = 40 + Math.sin(t * 0.8 + s + i) * 20;
-      var sy = baseY + Math.sin(t * 1.2 + s * 1.3 + i) * th * 0.15;
-      var sg = ctx.createLinearGradient(sx, sy, sx - sLen, sy);
-      sg.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.3 * globalIntensity) + ')');
-      sg.addColorStop(1, 'transparent');
+    // Medium glow
+    ctx.strokeStyle = 'rgba(' + Math.min(rgb.r + 40, 255) + ',' + Math.min(rgb.g + 40, 255) + ',' + Math.min(rgb.b + 40, 255) + ',' + (0.2 * intensity) + ')';
+    ctx.lineWidth = 4 + bassHit * 3;
+    ctx.stroke();
+
+    // Bright core
+    ctx.strokeStyle = 'rgba(' + Math.min(rgb.r + 100, 255) + ',' + Math.min(rgb.g + 100, 255) + ',' + Math.min(rgb.b + 100, 255) + ',' + (0.5 * intensity) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // White-hot center
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.3 * intensity) + ')';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Energy arcs around perimeter
+  var arcCount = 6;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (var arc = 0; arc < arcCount; arc++) {
+    var arcAngle = (arc / arcCount) * Math.PI * 2 + t * 0.3;
+    var arcSpan = Math.PI * 0.4 + Math.sin(t + arc) * Math.PI * 0.15;
+    var arcR = Math.min(w, h) * (0.35 + Math.sin(t * 0.5 + arc * 1.7) * 0.05);
+    var arcAlpha = (0.06 + bassHit * 0.12) * Math.max(0.3, Math.sin(t * 1.2 + arc * 2.1));
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, arcAngle, arcAngle + arcSpan);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + arcAlpha + ')';
+    ctx.lineWidth = 2 + bassHit * 3;
+    ctx.stroke();
+
+    // Glow layer
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, arcAngle, arcAngle + arcSpan);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (arcAlpha * 0.3) + ')';
+    ctx.lineWidth = 10 + bassHit * 6;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Floating particles
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (var p = 0; p < 40; p++) {
+    var px = cx + Math.cos(t * 0.3 + p * 0.7) * (50 + p * 5 + Math.sin(t + p) * 20);
+    var py = cy + Math.sin(t * 0.25 + p * 0.9) * (50 + p * 4 + Math.cos(t * 0.8 + p) * 15);
+    if (px < 0 || px > w || py < 0 || py > h) continue;
+    var pAlpha = (0.1 + _djNoise(p + t * 0.5) * 0.2) * intensity;
+    var pSize = 1 + _djNoise(p * 1.3 + t * 0.3) * 2;
+    ctx.beginPath();
+    ctx.arc(px, py, pSize, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + pAlpha + ')';
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Beat flash
+  if (bassHit > 0.3) {
+    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (bassHit * 0.06) + ')';
+    ctx.fillRect(0, 0, w, h);
+  }
+}
+
+function drawConnect(ctx, w, h, rgb, beatPhase, t) {
+  // Connection animation: Touch? logo pulse, two-phone convergence effect
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(0, 0, w, h);
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+
+  // Two converging wave sources (simulating two phones)
+  var sources = [
+    { x: cx - w * 0.25 + Math.sin(t * 0.5) * 20, y: cy },
+    { x: cx + w * 0.25 - Math.sin(t * 0.5) * 20, y: cy }
+  ];
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (var s = 0; s < 2; s++) {
+    var src = sources[s];
+    for (var ring = 0; ring < 6; ring++) {
+      var ringPhase = (beatPhase + ring / 6) % 1;
+      var eased = 1 - Math.pow(1 - ringPhase, 2);
+      var maxR = Math.max(w, h) * 0.4;
+      var r = maxR * eased;
+      var alpha = Math.pow(1 - ringPhase, 2) * 0.25 * (1 + bassHit * 0.5);
       ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(sx - sLen, sy);
-      ctx.strokeStyle = sg;
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
+      ctx.arc(src.x, src.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + alpha + ')';
+      ctx.lineWidth = 2 + (1 - ringPhase) * 6;
       ctx.stroke();
     }
   }
 
-  // Riding particles
-  for (var p = 0; p < 30; p++) {
-    var px = ((t * (50 + p * 3) + p * 137) % (w + 20)) - 10;
-    var beamIdx = p % beamCount;
-    var bSpeed = 60 + beamIdx * 15;
-    var bY = ((h * 1.5 - (t * bSpeed + beamIdx * h / beamCount * 1.3)) % (h * 1.6)) + h * 0.1;
-    var py = bY + Math.sin(t * 0.6 + p * 0.7) * 8;
-    var pAlpha = (0.2 + Math.sin(t * 2.5 + p) * 0.15) * globalIntensity;
-    var pSize = 1 + Math.sin(t + p * 1.1) * 0.8;
+  // Center merge point - glowing intersection
+  var mergeGlow = 40 + bassHit * 60 + Math.sin(t * 3) * 10;
+  var mGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, mergeGlow);
+  mGrad.addColorStop(0, 'rgba(255,255,255,' + (0.5 + bassHit * 0.4) + ')');
+  mGrad.addColorStop(0.2, 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + (0.3 + bassHit * 0.3) + ')');
+  mGrad.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.1 + bassHit * 0.15) + ')');
+  mGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, mergeGlow, 0, Math.PI * 2);
+  ctx.fillStyle = mGrad;
+  ctx.fill();
+
+  // Energy beam between sources
+  var beamWidth = 3 + bassHit * 8;
+  ctx.beginPath();
+  ctx.moveTo(sources[0].x, sources[0].y);
+  ctx.lineTo(sources[1].x, sources[1].y);
+  ctx.strokeStyle = 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.2 + bassHit * 0.4) + ')';
+  ctx.lineWidth = beamWidth;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,' + (0.1 + bassHit * 0.2) + ')';
+  ctx.lineWidth = beamWidth * 0.3;
+  ctx.stroke();
+
+  // Touch? text with glow
+  ctx.font = 'bold ' + Math.floor(Math.min(w, h) * 0.08) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + bassHit * 0.3) + ')';
+  ctx.shadowColor = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.8)';
+  ctx.shadowBlur = 20 + bassHit * 20;
+  ctx.fillText('Touch?', cx, cy);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawMirror(ctx, w, h, rgb, beatPhase, t) {
+  // Mirror/equal: synchronized symmetric patterns across all devices
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(0, 0, w, h);
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+
+  // Kaleidoscope effect - symmetric triangles rotating
+  var slices = 8;
+  var rotSpeed = t * 0.3;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.globalCompositeOperation = 'lighter';
+
+  for (var slice = 0; slice < slices; slice++) {
+    var angle = (slice / slices) * Math.PI * 2 + rotSpeed;
+    var maxDist = Math.max(w, h) * 0.6;
+
+    ctx.save();
+    ctx.rotate(angle);
+
+    // Triangle beam
+    var beamLen = maxDist * (0.4 + bassHit * 0.3 + Math.sin(t * 1.5 + slice * 0.8) * 0.1);
+    var beamWidth = 8 + bassHit * 12;
+    var bGrad = ctx.createLinearGradient(0, 0, beamLen, 0);
+    bGrad.addColorStop(0, 'rgba(' + Math.min(rgb.r + 60, 255) + ',' + Math.min(rgb.g + 60, 255) + ',' + Math.min(rgb.b + 60, 255) + ',' + (0.2 + bassHit * 0.3) + ')');
+    bGrad.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.08 + bassHit * 0.1) + ')');
+    bGrad.addColorStop(1, 'rgba(0,0,0,0)');
+
     ctx.beginPath();
-    ctx.arc(px, py, Math.max(0.5, pSize), 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + pAlpha + ')';
+    ctx.moveTo(0, -beamWidth / 2);
+    ctx.lineTo(beamLen, 0);
+    ctx.lineTo(0, beamWidth / 2);
+    ctx.closePath();
+    ctx.fillStyle = bGrad;
     ctx.fill();
+
+    // Spinning dots along beam
+    var dots = 4;
+    for (var d = 0; d < dots; d++) {
+      var dotDist = beamLen * (0.3 + d * 0.18);
+      var dotSize = 3 + bassHit * 4 - d * 0.5;
+      var dotAlpha = 0.3 - d * 0.05 + bassHit * 0.2;
+      ctx.beginPath();
+      ctx.arc(dotDist, 0, Math.max(1, dotSize), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + Math.min(rgb.r + 80, 255) + ',' + Math.min(rgb.g + 80, 255) + ',' + Math.min(rgb.b + 80, 255) + ',' + dotAlpha + ')';
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
-  // Beat burst flash at top/bottom
-  if (beatSurge > 0.3) {
-    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (beatSurge * 0.08) + ')';
+  // Center mandala rings
+  for (var ring = 0; ring < 4; ring++) {
+    var ringR = 20 + ring * 25 + Math.sin(t * 2 + ring) * 8 + bassHit * 15;
+    var ringAlpha = 0.15 - ring * 0.03 + bassHit * 0.1;
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + ringAlpha + ')';
+    ctx.lineWidth = 1.5 + bassHit * 2;
+    ctx.stroke();
+  }
+
+  // Center glow
+  var cGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 30 + bassHit * 20);
+  cGrad.addColorStop(0, 'rgba(255,255,255,' + (0.4 + bassHit * 0.3) + ')');
+  cGrad.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.15 + bassHit * 0.15) + ')');
+  cGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, 30 + bassHit * 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawRaffle(ctx, w, h, rgb, beatPhase, t) {
+  // Raffle/lottery: scrambling colors + numbers, dramatic reveal
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+
+  var raffleState = DJL.raffleState || 'scramble'; // scramble, slowdown, reveal
+  var raffleNumber = DJL.raffleNumber || 0;
+  var raffleStartTime = DJL.raffleStartTime || t;
+  var elapsed = t - raffleStartTime;
+  var bassHit = beatPhase < 0.1 ? Math.pow(1 - beatPhase / 0.1, 3) : 0;
+
+  if (raffleState === 'scramble') {
+    // Fast scrambling phase - flashing colors and numbers
+    var scrambleSpeed = Math.max(0.5, 8 - elapsed * 0.8); // slows down over time
+    var flashPhase = (t * scrambleSpeed * 10) % 1;
+    var colors = ['#ff6b35', '#ff3c6e', '#2dd4a0', '#00b4d8', '#7c6aef', '#ffdd00', '#ff1493', '#00ff88'];
+    var currentColor = colors[Math.floor(t * scrambleSpeed * 15) % colors.length];
+    var cRgb = hexToRgb(currentColor);
+
+    // Flashing background
+    var bgIntensity = flashPhase < 0.3 ? 0.3 : 0.05;
+    ctx.fillStyle = 'rgba(' + cRgb.r + ',' + cRgb.g + ',' + cRgb.b + ',' + bgIntensity + ')';
     ctx.fillRect(0, 0, w, h);
+
+    // Scrambling number display
+    var displayNum = Math.floor(Math.random() * (DJL.raffleTotalDevices || 100)) + 1;
+    var fontSize = Math.min(w, h) * 0.35;
+    ctx.font = 'bold ' + fontSize + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Number glow
+    ctx.shadowColor = currentColor;
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = currentColor;
+    ctx.fillText(displayNum, w / 2, h / 2);
+    ctx.shadowBlur = 0;
+
+    // Scanning lines effect
+    for (var line = 0; line < 8; line++) {
+      var ly = ((t * 200 + line * h / 8) % h);
+      ctx.fillStyle = 'rgba(' + cRgb.r + ',' + cRgb.g + ',' + cRgb.b + ',0.08)';
+      ctx.fillRect(0, ly, w, 3);
+    }
+
+    // After ~5 seconds, transition to slowdown
+    if (elapsed > 5) {
+      DJL.raffleState = 'slowdown';
+    }
+  } else if (raffleState === 'slowdown') {
+    // Slowdown: number changes slower and slower
+    var slowElapsed = elapsed - 5;
+    var interval = 0.1 + slowElapsed * 0.4; // increasing delay
+    var tickPhase = (slowElapsed / interval) % 1;
+
+    if (tickPhase < 0.1 && !DJL._raffleTicked) {
+      DJL._raffleSlowNum = Math.floor(Math.random() * (DJL.raffleTotalDevices || 100)) + 1;
+      DJL._raffleTicked = true;
+    }
+    if (tickPhase > 0.5) DJL._raffleTicked = false;
+
+    var num = DJL._raffleSlowNum || raffleNumber;
+    var fontSize = Math.min(w, h) * 0.35;
+    ctx.font = 'bold ' + fontSize + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.8)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.9)';
+    ctx.fillText(num, w / 2, h / 2);
+    ctx.shadowBlur = 0;
+
+    // After ~3 more seconds, reveal
+    if (slowElapsed > 3) {
+      DJL.raffleState = 'reveal';
+      DJL.raffleRevealTime = t;
+    }
+  } else if (raffleState === 'reveal') {
+    // Reveal: THE winner number with celebration
+    var revealElapsed = t - (DJL.raffleRevealTime || t);
+    var isWinner = (DJL.deviceIndex + 1) === raffleNumber;
+
+    if (isWinner) {
+      // WINNER explosion
+      var flashIntensity = Math.max(0, 1 - revealElapsed * 0.5);
+      ctx.fillStyle = 'rgba(255,255,255,' + (flashIntensity * 0.3) + ')';
+      ctx.fillRect(0, 0, w, h);
+
+      // Golden background
+      var goldGrad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6);
+      goldGrad.addColorStop(0, 'rgba(255,215,0,' + (0.3 + bassHit * 0.2) + ')');
+      goldGrad.addColorStop(0.5, 'rgba(255,165,0,' + (0.1 + bassHit * 0.1) + ')');
+      goldGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = goldGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    var fontSize = Math.min(w, h) * (isWinner ? 0.4 : 0.3);
+    ctx.font = 'bold ' + fontSize + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = isWinner ? 'rgba(255,215,0,0.9)' : 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.6)';
+    ctx.shadowBlur = isWinner ? 40 : 15;
+    ctx.fillStyle = isWinner ? '#FFD700' : 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.8)';
+    ctx.fillText(raffleNumber, w / 2, h / 2);
+
+    if (isWinner) {
+      ctx.font = 'bold ' + Math.floor(fontSize * 0.25) + 'px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillText('WINNER!', w / 2, h / 2 - fontSize * 0.6);
+    }
+    ctx.shadowBlur = 0;
   }
 }
 
@@ -24448,6 +25125,17 @@ function setupDJListeners() {
       case 'laser': DJL.animation = 'laser'; break;
       case 'confetti': DJL.animation = 'confetti'; break;
       case 'electric': DJL.animation = 'electric'; break;
+      case 'connect': DJL.animation = 'connect'; break;
+      case 'mirror': DJL.animation = 'mirror'; break;
+      case 'raffle':
+        DJL.animation = 'raffle';
+        DJL.raffleState = 'scramble';
+        DJL.raffleStartTime = (Date.now() - DJL.startTime) / 1000;
+        DJL.raffleNumber = data.raffleNumber || Math.floor(Math.random() * (DJL.totalDevices || 20)) + 1;
+        DJL.raffleTotalDevices = data.raffleTotalDevices || DJL.totalDevices || 20;
+        DJL._raffleTicked = false;
+        DJL._raffleSlowNum = 0;
+        break;
       case 'auto': DJL.autoMode = !DJL.autoMode; break;
     }
     // Zone data
