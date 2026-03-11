@@ -3153,6 +3153,9 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
           <button class="mod-btn" id="djAnimLaser" onclick="djSetAnim('laser')" style="font-size:.65rem;padding:.4rem">Laser</button>
           <button class="mod-btn" id="djAnimConfetti" onclick="djSetAnim('confetti')" style="font-size:.65rem;padding:.4rem">Confetti</button>
           <button class="mod-btn" id="djAnimElectric" onclick="djSetAnim('electric')" style="font-size:.65rem;padding:.4rem">Electric</button>
+          <button class="mod-btn" id="djAnimConnect" onclick="djSetAnim('connect')" style="font-size:.65rem;padding:.4rem">Connect</button>
+          <button class="mod-btn" id="djAnimMirror" onclick="djSetAnim('mirror')" style="font-size:.65rem;padding:.4rem">Mirror</button>
+          <button class="mod-btn" id="djAnimRaffle" onclick="djStartRaffle()" style="font-size:.65rem;padding:.4rem;background:linear-gradient(135deg,#7c6aef,#ff3c6e);color:#fff">Raffle</button>
         </div>
       </div>
     </div>
@@ -9405,6 +9408,23 @@ function djToggleAuto(){
   if(DJ_OP.broadcasting){
     socket.emit('dj-operator-command',{eventId:S.currentEventId,command:'auto',autoMode:DJ_OP.autoMode,color:DJ_OP.color,bpm:DJ_OP.bpm,animation:DJ_OP.animation});
   }
+}
+
+/* ---- RAFFLE FROM OPERATOR ---- */
+function djStartRaffle(){
+  if(!DJ_OP.broadcasting){showToast('Start broadcast first','error');return;}
+  var totalDevices=DJ_OP.connectedCount||10;
+  var winnerNumber=Math.floor(Math.random()*totalDevices)+1;
+  socket.emit('dj-operator-command',{
+    eventId:S.currentEventId,
+    command:'raffle',
+    animation:'raffle',
+    raffleNumber:winnerNumber,
+    raffleTotalDevices:totalDevices,
+    color:DJ_OP.color,
+    bpm:DJ_OP.bpm
+  });
+  showToast('Raffle started! Winner: #'+winnerNumber,'success');
 }
 
 /* ---- DJ OPERATOR PREVIEW CANVAS ---- */

@@ -17921,7 +17921,9 @@ io.on('connection', (socket) => {
       animation: s.animation,
       duration: data.duration || 0,
       text: s.liveText || '',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      raffleNumber: data.raffleNumber || 0,
+      raffleTotalDevices: data.raffleTotalDevices || s.connectedDevices.size || 20
     };
 
     io.to('dj-live:' + data.sessionId).emit('dj-command', payload);
@@ -18126,7 +18128,9 @@ io.on('connection', (socket) => {
       duration: data.duration || 0,
       text: s.liveText || '',
       totalZones: s.totalZones || 4,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      raffleNumber: data.raffleNumber || 0,
+      raffleTotalDevices: data.raffleTotalDevices || s.connectedDevices.size || 20
     };
 
     io.to('dj-live:' + sessionId).emit('dj-command', payload);

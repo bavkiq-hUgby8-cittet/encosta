@@ -342,6 +342,23 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       <button class="dj-anim-btn" data-anim="solid" onclick="selectAnimation('solid')">
         <span class="dj-anim-icon">■</span>Solid Color
       </button>
+      <button class="dj-anim-btn" data-anim="connect" onclick="selectAnimation('connect')">
+        <span class="dj-anim-icon">&#8644;</span>Connect
+      </button>
+      <button class="dj-anim-btn" data-anim="mirror" onclick="selectAnimation('mirror')">
+        <span class="dj-anim-icon">&#10022;</span>Mirror
+      </button>
+    </div>
+  </section>
+
+  <!-- RAFFLE / SORTEIO -->
+  <section class="dj-ctrl-section">
+    <div class="dj-ctrl-title">Raffle / Sorteio</div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <button class="dj-quick-btn" onclick="startRaffle()" style="background:linear-gradient(135deg,#7c6aef,#ff3c6e);flex:1;min-width:120px">
+        START RAFFLE
+      </button>
+      <span style="color:var(--t3);font-size:.65rem">Picks a random audience member</span>
     </div>
   </section>
 
@@ -651,6 +668,30 @@ window.selectAnimation = function(anim) {
       timestamp: Date.now()
     });
   }
+};
+
+/* ---- RAFFLE ---- */
+window.startRaffle = function() {
+  if (!DJ.sessionId) { showToast('Create a session first', true); return; }
+  if (!DJ.broadcasting) { showToast('Activate broadcast first', true); return; }
+
+  // Pick random winner from connected devices
+  var totalDevices = DJ.connectedCount || 10;
+  var winnerNumber = Math.floor(Math.random() * totalDevices) + 1;
+
+  if (socket && socket.connected) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'raffle',
+      animation: 'raffle',
+      raffleNumber: winnerNumber,
+      raffleTotalDevices: totalDevices,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      timestamp: Date.now()
+    });
+  }
+  showToast('Raffle started! Winner: #' + winnerNumber);
 };
 
 /* ---- COLOR ---- */
