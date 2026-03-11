@@ -2846,8 +2846,12 @@ window.stopShow = function() {
 };
 
 window.playDroneLibrary = function(showId) {
-  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
-  socket.emit('drone-show-library-play', { showId: showId, sessionId: DJ.sessionId });
+  if (!socket || !socket.connected) { showToast('Connect to server first'); return; }
+  // If broadcasting, also send to audience phones
+  if (DJ.broadcasting) {
+    socket.emit('drone-show-library-play', { showId: showId, sessionId: DJ.sessionId });
+  }
+  // Always request show data for local preview in Venue Map
   socket.emit('drone-show-library-get', { showId: showId });
   showToast('Drone Show: ' + showId);
 };
