@@ -7037,10 +7037,9 @@ function stopHomeSonic(){
   // Restore bottom nav + motivation
   const hb=document.querySelector('.home-bottom');if(hb)hb.classList.remove('sonic-hidden');
   const hm=$('homeMotivation');if(hm)hm.style.opacity='';
-  // NOTE: Do NOT auto-start DJ listener here.
-  // When the user manually turns off Touch, the mic must stop completely (privacy).
-  // DJ listener will only start after a SUCCESSFUL connection completes
-  // (see the match/reveal flow), or when explicitly triggered.
+  // After Touch ends and mic is freed, start DJ listener to passively scan for nearby DJs.
+  // This is safe because the user already granted mic permission during Touch.
+  setTimeout(function(){ if(typeof startDJListener==='function'&&!DJL.listenerActive&&!DJL.active) startDJListener(); }, 500);
 }
 async function createSession(){
   if(!state.userId){showToast('Faça login primeiro.');showScreen('login');return}
@@ -26613,10 +26612,28 @@ var _djInitInterval = setInterval(function() {
     clearInterval(_djInitInterval);
     setupDJListeners();
 
-    // DJ listener does NOT auto-start anymore.
-    // Mic should only activate when the user explicitly presses the Touch button.
-    // startDJListener() will be called from handleMainButton() after Touch is pressed.
-    console.log('[DJ] Ready. Listener will start when user presses Touch.');
+    // DJ listener starts on first user gesture (tap/click) to ensure mic permission
+    // works on mobile browsers that require a user gesture for getUserMedia.
+    // Once started, it passively scans for nearby DJ sessions via ultrasonic.
+    var _djGestureStarted = false;
+    function _djStartOnGesture() {
+      if (_djGestureStarted) return;
+      // Don't start if main sonic system is using the mic
+      if (homeSonicActive || sonicActive) return;
+      _djGestureStarted = true;
+      document.removeEventListener('touchstart', _djStartOnGesture, true);
+      document.removeEventListener('click', _djStartOnGesture, true);
+      // Small delay to avoid competing with whatever the user tapped
+      setTimeout(function() {
+        if (!DJL.listenerActive && !DJL.active && !homeSonicActive && !sonicActive) {
+          console.log('[DJ] First user gesture detected, starting listener...');
+          startDJListener();
+        }
+      }, 1500);
+    }
+    document.addEventListener('touchstart', _djStartOnGesture, true);
+    document.addEventListener('click', _djStartOnGesture, true);
+    console.log('[DJ] Ready. Listener will start on first user interaction.');
   }
 }, 500);
 
