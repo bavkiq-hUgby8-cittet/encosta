@@ -23707,6 +23707,15 @@ var DJL = {
   raffleTotalDevices: 20,
   _raffleTicked: false,
   _raffleSlowNum: 0,
+  // Grid positioning (drone show)
+  gridMode: false,
+  gridX: -1,
+  gridY: -1,
+  cellColor: null,
+  gridTestMode: false,
+  droneShow: null,
+  droneShowBeatOrigin: 0,
+  droneShowBpm: 128,
   // Choreography / light show
   choreography: null,
   beatOrigin: 0,
@@ -24494,8 +24503,80 @@ function startDJAnimation() {
     var beatCount = Math.floor(t / beatInterval);
     var rgb = hexToRgb(DJL.color);
 
+    // ---- GRID / DRONE SHOW MODE ----
+    var gridRendered = false;
+    if (DJL.gridMode && DJL.droneShow && DJL.gridX >= 0 && DJL.gridY >= 0) {
+      // Drone show: compute current frame based on beat
+      var showElapsed = (Date.now() - DJL.droneShowBeatOrigin) / 1000;
+      var beatsSoFar = showElapsed * (DJL.droneShowBpm / 60);
+      var frames = DJL.droneShow.frames;
+      if (frames && frames.length > 0) {
+        var totalBeats = 0;
+        for (var fi = 0; fi < frames.length; fi++) {
+          totalBeats += (frames[fi].durationBeats || 4);
+        }
+        var loopBeat = beatsSoFar % totalBeats;
+        var accumulated = 0;
+        var currentFrame = frames[0];
+        var nextFrame = frames.length > 1 ? frames[1] : frames[0];
+        var frameProgress = 0;
+        for (var fi = 0; fi < frames.length; fi++) {
+          var dur = frames[fi].durationBeats || 4;
+          if (loopBeat >= accumulated && loopBeat < accumulated + dur) {
+            currentFrame = frames[fi];
+            nextFrame = frames[(fi + 1) % frames.length];
+            frameProgress = (loopBeat - accumulated) / dur;
+            break;
+          }
+          accumulated += dur;
+        }
+        var cellKey = DJL.gridX + ',' + DJL.gridY;
+        var myColor = currentFrame.cells && currentFrame.cells[cellKey];
+        if (myColor) {
+          // Parse hex color
+          var r = parseInt(myColor.substr(1, 2), 16);
+          var g = parseInt(myColor.substr(3, 2), 16);
+          var b = parseInt(myColor.substr(5, 2), 16);
+          // If transition is fade, interpolate with next frame
+          if (currentFrame.transition === 'fade' && nextFrame.cells && nextFrame.cells[cellKey]) {
+            var nc = nextFrame.cells[cellKey];
+            var nr = parseInt(nc.substr(1, 2), 16);
+            var ng = parseInt(nc.substr(3, 2), 16);
+            var nb = parseInt(nc.substr(5, 2), 16);
+            r = Math.round(r + (nr - r) * frameProgress);
+            g = Math.round(g + (ng - g) * frameProgress);
+            b = Math.round(b + (nb - b) * frameProgress);
+          }
+          ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+          ctx.fillRect(0, 0, w, h);
+          gridRendered = true;
+        }
+      }
+    }
+    if (DJL.gridMode && DJL.cellColor && !gridRendered && !DJL.droneShow) {
+      // Static grid color (DJ painted cells, no active drone show)
+      ctx.fillStyle = DJL.cellColor;
+      ctx.fillRect(0, 0, w, h);
+      gridRendered = true;
+    }
+    if (DJL.gridTestMode && DJL.gridX >= 0 && DJL.gridY >= 0) {
+      // Test mode: show cell coordinates over whatever is rendered
+      var cellLabel = String.fromCharCode(65 + DJL.gridX) + (DJL.gridY + 1);
+      ctx.fillStyle = gridRendered ? 'rgba(0,0,0,0.5)' : '#111';
+      if (!gridRendered) ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold ' + Math.min(w, h) * 0.3 + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cellLabel, w / 2, h / 2);
+      ctx.font = Math.min(w, h) * 0.08 + 'px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText('Grid Test', w / 2, h * 0.8);
+      gridRendered = true;
+    }
+
     // === CHOREOGRAPHY MODE: coordinated light show ===
-    if (DJL.showActive && DJL.choreography && DJL.choreography.steps && DJL.choreography.steps.length > 0) {
+    if (!gridRendered && DJL.showActive && DJL.choreography && DJL.choreography.steps && DJL.choreography.steps.length > 0) {
       var serverNow = Date.now() + DJL.clockOffset;
       var showBPM = DJL.choreography.bpm || DJL.bpm;
       var showBeat = (serverNow - DJL.beatOrigin) * showBPM / 60000;
@@ -26083,6 +26164,60 @@ function setupDJListeners() {
     if (data.y !== undefined) DJL.position.y = data.y;
     if (data.depthNorm !== undefined) DJL.depthNorm = data.depthNorm;
     console.log('[Position] Server update: x=' + DJL.position.x.toFixed(2) + ' y=' + DJL.position.y.toFixed(2));
+  });
+
+  // ---- GRID POSITIONING SYSTEM ----
+
+  socket.on('grid-assignment-update', function(data) {
+    DJL.gridMode = true;
+    DJL.gridX = data.gridX;
+    DJL.gridY = data.gridY;
+    if (data.cellColor) {
+      DJL.cellColor = data.cellColor;
+    }
+    console.log('[Grid] Assigned to cell (' + data.gridX + ',' + data.gridY + ') color=' + (data.cellColor || 'none'));
+  });
+
+  socket.on('position-ping', function(data) {
+    // Server wants our sensor data for repositioning
+    var pongData = {
+      scanId: data.scanId,
+      depth: DJL.depth || null,
+      compass: DJL._compassHeading || null,
+      meshNeighbors: DJL.neighbors || []
+    };
+    socket.emit('position-pong', pongData);
+  });
+
+  socket.on('drone-show-start', function(data) {
+    DJL.droneShow = data.show;
+    DJL.droneShowBeatOrigin = data.beatOrigin;
+    DJL.droneShowBpm = data.bpm || 128;
+    // Update our grid assignment from the show data
+    var myAssignment = data.gridAssignments && data.gridAssignments[socket.id];
+    if (myAssignment) {
+      DJL.gridX = myAssignment.gridX;
+      DJL.gridY = myAssignment.gridY;
+    }
+    DJL.gridMode = true;
+    console.log('[DroneShow] Started: ' + data.show.name + ' at grid(' + DJL.gridX + ',' + DJL.gridY + ')');
+  });
+
+  socket.on('drone-show-stop', function() {
+    DJL.droneShow = null;
+    DJL.gridMode = false;
+    console.log('[DroneShow] Stopped');
+  });
+
+  socket.on('grid-test-mode', function(data) {
+    DJL.gridTestMode = data.enabled !== false;
+    var myAssignment = data.assignments && data.assignments[socket.id];
+    if (myAssignment) {
+      DJL.gridX = myAssignment.gridX;
+      DJL.gridY = myAssignment.gridY;
+    }
+    DJL.gridMode = true;
+    console.log('[Grid] Test mode: ' + DJL.gridTestMode + ' cell(' + DJL.gridX + ',' + DJL.gridY + ')');
   });
 
   // GPS request from DJ
