@@ -676,6 +676,23 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button class="dj-bpm-btn" onclick="startPresetShow('full-show')" title="Full auto choreography combining all patterns">AUTO SHOW</button>
       </div>
 
+      <div class="dj-section-divider" style="margin:.5rem 0"></div>
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Drone Show Library (pixel art formations)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('heart-pulse')" style="border-color:rgba(255,60,110,.3);color:#ff3c6e">Heart</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('countdown-blast')" style="border-color:rgba(255,221,0,.3);color:#ffdd00">Countdown</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('dragon')" style="border-color:rgba(255,60,60,.3);color:#ff4444">Dragon</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('phoenix-rise')" style="border-color:rgba(255,140,0,.3);color:#ff8c00">Phoenix</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('firework-burst')" style="border-color:rgba(255,200,50,.3);color:#ffc832">Fireworks</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('globe-spin')" style="border-color:rgba(0,180,216,.3);color:#00b4d8">Globe</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('snake-wave')" style="border-color:rgba(45,212,160,.3);color:#2dd4a0">Snake</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('star-explode')" style="border-color:rgba(255,221,0,.3);color:#ffdd00">Star</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('text-touch')" style="border-color:rgba(255,107,53,.3);color:#ff6b35">TOUCH?</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('lantern-float')" style="border-color:rgba(255,100,50,.3);color:#ff6432">Lanterns</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('dna-helix')" style="border-color:rgba(124,106,239,.3);color:#7c6aef">DNA</button>
+        <button class="dj-bpm-btn" onclick="playDroneLibrary('wave-ocean')" style="border-color:rgba(0,150,200,.3);color:#0096c8">Wave</button>
+      </div>
+
       <!-- Show Status + Stop -->
       <div id="showStatus" style="display:none;padding:.5rem .6rem;background:rgba(124,106,239,.15);border:1px solid rgba(124,106,239,.3);border-radius:var(--radius);font-size:.7rem;margin-bottom:.4rem;align-items:center;justify-content:space-between">
         <span id="showStatusText" style="color:var(--t2);flex:1">No show active</span>
@@ -2800,6 +2817,12 @@ window.stopShow = function() {
   btns.forEach(function(b) { b.classList.remove('active'); });
   if (DJ._showPreviewRaf) { cancelAnimationFrame(DJ._showPreviewRaf); DJ._showPreviewRaf = null; }
   showToast('Show stopped');
+};
+
+window.playDroneLibrary = function(showId) {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('drone-show-library-play', { showId: showId, sessionId: DJ.sessionId });
+  showToast('Drone Show: ' + showId);
 };
 
 // Render a mini grid preview of the show (simulated audience)
