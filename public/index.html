@@ -23633,7 +23633,14 @@ var DJL = {
   raffleRevealTime: 0,
   raffleTotalDevices: 20,
   _raffleTicked: false,
-  _raffleSlowNum: 0
+  _raffleSlowNum: 0,
+  // Choreography / light show
+  choreography: null,
+  beatOrigin: 0,
+  showActive: false,
+  clockOffset: 0,
+  position: { x: 0.5, y: 0.5 },
+  _syncRounds: []
 };
 
 // Ultrasonic detection constants (same as main system)
@@ -24070,6 +24077,39 @@ function startDJAnimation() {
     var beatPhase = (t % beatInterval) / beatInterval;
     var beatCount = Math.floor(t / beatInterval);
     var rgb = hexToRgb(DJL.color);
+
+    // === CHOREOGRAPHY MODE: coordinated light show ===
+    if (DJL.showActive && DJL.choreography && DJL.choreography.steps && DJL.choreography.steps.length > 0) {
+      var serverNow = Date.now() + DJL.clockOffset;
+      var showBPM = DJL.choreography.bpm || DJL.bpm;
+      var showBeat = (serverNow - DJL.beatOrigin) * showBPM / 60000;
+      // Loop: if past all steps, restart from beginning
+      if (DJL.choreography.loop && DJL.choreography.steps.length > 0) {
+        var maxBeat = DJL.choreography.steps[DJL.choreography.steps.length - 1].endBeat;
+        if (maxBeat > 0) showBeat = showBeat % maxBeat;
+      }
+      // Find current choreography step
+      var choreoStep = null;
+      for (var si = DJL.choreography.steps.length - 1; si >= 0; si--) {
+        var s = DJL.choreography.steps[si];
+        if (showBeat >= s.startBeat && showBeat < s.endBeat) {
+          choreoStep = s;
+          break;
+        }
+      }
+      if (choreoStep && showPatterns[choreoStep.pattern]) {
+        var localBeat = (showBeat - choreoStep.startBeat) / (choreoStep.endBeat - choreoStep.startBeat);
+        var myX = DJL.position.x;
+        var myY = DJL.position.y;
+        var showColor = showPatterns[choreoStep.pattern](myX, myY, localBeat, choreoStep);
+        ctx.fillStyle = 'rgb(' + showColor.r + ',' + showColor.g + ',' + showColor.b + ')';
+        ctx.fillRect(0, 0, w, h);
+        DJL.prevBeatPhase = beatPhase;
+        ctx.restore();
+        DJL.raf = requestAnimationFrame(loop);
+        return;
+      }
+    }
 
     if (DJL.autoMode) {
       var beatsSinceSwitch = beatCount - DJL.autoLastSwitch;
@@ -25539,8 +25579,255 @@ function setupDJListeners() {
     }
   });
 
+  // --- Time Sync (NTP-style) ---
+  socket.on('dj-time-sync-response', function(data) {
+    var t3 = Date.now();
+    var rtt = (t3 - data.t0) - (data.t2 - data.t1);
+    var offset = ((data.t1 - data.t0) + (data.t2 - t3)) / 2;
+    DJL._syncRounds.push({ offset: offset, rtt: rtt });
+    // Keep only last 5 rounds
+    if (DJL._syncRounds.length > 5) DJL._syncRounds.shift();
+    // Use median offset for robustness
+    var offsets = DJL._syncRounds.map(function(r) { return r.offset; }).sort(function(a,b) { return a - b; });
+    DJL.clockOffset = offsets[Math.floor(offsets.length / 2)];
+    console.log('[DJ Sync] offset=' + DJL.clockOffset.toFixed(1) + 'ms rtt=' + rtt.toFixed(1) + 'ms rounds=' + DJL._syncRounds.length);
+  });
+
+  // --- Choreography Receiver ---
+  socket.on('dj-choreography', function(data) {
+    if (data.choreography) {
+      DJL.choreography = data.choreography;
+      DJL.beatOrigin = data.beatOrigin;
+      DJL.showActive = data.showActive;
+      if (data.position) DJL.position = data.position;
+      if (data.deviceIndex !== undefined) DJL.deviceIndex = data.deviceIndex;
+      if (data.totalDevices !== undefined) DJL.totalDevices = data.totalDevices;
+      console.log('[DJ Show] Choreography received: active=' + data.showActive +
+        ' steps=' + (data.choreography.steps ? data.choreography.steps.length : 0) +
+        ' pos=(' + DJL.position.x.toFixed(2) + ',' + DJL.position.y.toFixed(2) + ')');
+    }
+    if (data.showActive && !DJL.active) {
+      enterDJLive(data);
+    }
+  });
+
+  // Periodically sync time (every 20 seconds)
+  DJL._syncTimer = setInterval(function() {
+    if (DJL.active && socket && socket.connected) {
+      socket.emit('dj-time-sync', { t0: Date.now() });
+    }
+  }, 20000);
+  // Initial sync
+  setTimeout(function() {
+    if (socket && socket.connected) {
+      socket.emit('dj-time-sync', { t0: Date.now() });
+    }
+  }, 2000);
+
   console.log('[DJ] Socket listeners registered');
 }
+
+// --- Choreography Pattern Functions ---
+// Each returns { r, g, b } for the given position and beat
+var showPatterns = {
+  // Wave traveling left to right
+  'wave-lr': function(x, y, beat, step) {
+    var phase = (x - beat * (step.speed || 1)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Wave right to left
+  'wave-rl': function(x, y, beat, step) {
+    return showPatterns['wave-lr'](1 - x, y, beat, step);
+  },
+  // Wave top to bottom (rain)
+  'wave-tb': function(x, y, beat, step) {
+    return showPatterns['wave-lr'](y, x, beat, step);
+  },
+  // Wave bottom to top (energy rising)
+  'wave-bt': function(x, y, beat, step) {
+    return showPatterns['wave-lr'](1 - y, x, beat, step);
+  },
+  // Ripple from center
+  'ripple-center': function(x, y, beat, step) {
+    var dx = x - 0.5, dy = y - 0.5;
+    var dist = Math.sqrt(dx * dx + dy * dy) * 2; // 0 at center, ~1 at edges
+    var phase = (dist - beat * (step.speed || 0.8)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 3);
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Ripple from stage (front)
+  'ripple-stage': function(x, y, beat, step) {
+    var phase = (y - beat * (step.speed || 0.6)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 2);
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Mexican wave (stadium wave)
+  'mexican-wave': function(x, y, beat, step) {
+    var speed = step.speed || 0.3;
+    var width = 0.15; // Width of the bright band
+    var center = (beat * speed) % 1;
+    var dist = Math.abs(x - center);
+    if (dist > 0.5) dist = 1 - dist; // Wrap around
+    var brightness = dist < width ? Math.pow(1 - dist / width, 2) : 0;
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Split halves - left and right different colors
+  'split-halves': function(x, y, beat, step) {
+    var isLeft = x < 0.5;
+    var pulse = 0.7 + Math.sin(beat * Math.PI * 2) * 0.3;
+    var rgb = hexToRgb(step.color || DJL.color);
+    var rgb2 = hexToRgb(step.color2 || '#00b4d8');
+    var c = isLeft ? rgb : rgb2;
+    return { r: Math.round(c.r * pulse), g: Math.round(c.g * pulse), b: Math.round(c.b * pulse) };
+  },
+  // Random sparkle -- random phones flash like stars
+  'random-sparkle': function(x, y, beat, step) {
+    // Use device position as seed for pseudo-random timing
+    var seed = Math.sin(x * 12345.6789 + y * 9876.54321) * 43758.5453;
+    seed = seed - Math.floor(seed);
+    var flashTime = (beat * (step.speed || 2) + seed * 7) % 1;
+    var brightness = flashTime < 0.15 ? Math.pow(1 - flashTime / 0.15, 3) : 0;
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Spotlight moving across crowd
+  'spotlight': function(x, y, beat, step) {
+    var speed = step.speed || 0.2;
+    var cx = 0.5 + Math.sin(beat * speed * Math.PI * 2) * 0.4;
+    var cy = 0.5 + Math.cos(beat * speed * Math.PI * 2 * 0.7) * 0.3;
+    var dx = x - cx, dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var radius = 0.2;
+    var brightness = dist < radius ? Math.pow(1 - dist / radius, 1.5) : 0;
+    var rgb = hexToRgb(step.color || '#ffffff');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Spiral arms rotating
+  'spiral': function(x, y, beat, step) {
+    var dx = x - 0.5, dy = y - 0.5;
+    var angle = Math.atan2(dy, dx);
+    var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+    var arms = 3;
+    var twist = dist * 4; // How much the spiral twists
+    var phase = (angle / (Math.PI * 2) * arms + twist - beat * (step.speed || 0.5)) % 1;
+    if (phase < 0) phase += 1;
+    var brightness = Math.pow(Math.max(0, Math.cos(phase * Math.PI * 2)), 4) * (1 - dist * 0.5);
+    brightness = Math.max(0, brightness);
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Heart shape pulsing
+  'heart': function(x, y, beat, step) {
+    // Heart equation: (x^2 + y^2 - 1)^3 = x^2 * y^3
+    var hx = (x - 0.5) * 3;
+    var hy = -(y - 0.35) * 3; // Flip Y, offset up
+    var scale = 0.8 + Math.sin(beat * Math.PI * 2) * 0.2;
+    hx /= scale; hy /= scale;
+    var val = Math.pow(hx * hx + hy * hy - 1, 3) - hx * hx * hy * hy * hy;
+    var inside = val < 0;
+    var edge = Math.abs(val) < 0.3;
+    var brightness = inside ? 1.0 : (edge ? 0.3 : 0);
+    var rgb = hexToRgb(step.color || '#ff1744');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Countdown 3...2...1
+  'countdown': function(x, y, beat, step) {
+    // Use beat position to determine which number to show
+    var totalBeats = 4; // 4 beats for countdown
+    var phase = beat % 1;
+    var num = 3 - Math.floor(beat * totalBeats) % 4; // 3, 2, 1, 0(GO!)
+    if (num < 0) num = 0;
+    // Simple segment display based on x position
+    var col = Math.floor(x * 5); // 5 columns
+    var row = Math.floor(y * 7); // 7 rows
+    var segments = {
+      3: [[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]],
+      2: [[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]],
+      1: [[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+      0: [[0,1,0],[1,0,1],[1,1,1],[1,0,1],[0,1,0]] // star for GO
+    };
+    var pattern = segments[num] || segments[0];
+    var isLit = row >= 1 && row <= 5 && col >= 1 && col <= 3 && pattern[row-1] && pattern[row-1][col-1];
+    var pulse = 0.6 + Math.sin(phase * Math.PI * 2) * 0.4;
+    var brightness = isLit ? pulse : 0.02;
+    var rgb = hexToRgb(step.color || '#ffdd00');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Rainbow wave across crowd
+  'rainbow-wave': function(x, y, beat, step) {
+    var hue = ((x + beat * (step.speed || 0.3)) * 360) % 360;
+    var pulse = 0.7 + Math.sin(beat * Math.PI * 4) * 0.3;
+    var h = hue / 360;
+    var s = 1, l = 0.5 * pulse;
+    // HSL to RGB inline
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    var hue2rgb = function(p, q, t) {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    return {
+      r: Math.round(hue2rgb(p, q, h + 1/3) * 255),
+      g: Math.round(hue2rgb(p, q, h) * 255),
+      b: Math.round(hue2rgb(p, q, h - 1/3) * 255)
+    };
+  },
+  // Strobe sections -- alternating sections flash
+  'strobe-sections': function(x, y, beat, step) {
+    var sections = step.sections || 4;
+    var section = Math.floor(x * sections);
+    var isOn = (Math.floor(beat * 4) + section) % 2 === 0;
+    var rgb = hexToRgb(step.color || '#ffffff');
+    return isOn ? rgb : { r: 0, g: 0, b: 0 };
+  },
+  // Firework explosion from random point
+  'firework': function(x, y, beat, step) {
+    var speed = step.speed || 1;
+    var cycle = (beat * speed) % 1;
+    // Explosion center changes each cycle
+    var seed = Math.floor(beat * speed);
+    var cx = 0.2 + (Math.sin(seed * 123.456) * 0.5 + 0.5) * 0.6;
+    var cy = 0.2 + (Math.cos(seed * 789.012) * 0.5 + 0.5) * 0.6;
+    var dx = x - cx, dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var ringPos = cycle * 0.8; // Expanding ring position
+    var ringWidth = 0.08;
+    var brightness = Math.abs(dist - ringPos) < ringWidth ? Math.pow(1 - cycle, 2) : 0;
+    // Also add sparkle
+    var sparkle = Math.sin(x * 1000 + y * 2000 + beat * 50) > 0.95 ? 0.5 * (1 - cycle) : 0;
+    brightness = Math.min(1, brightness + sparkle);
+    var rgb = hexToRgb(step.color || '#ffdd00');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Breathing -- all phones pulse together in sync
+  'breathe': function(x, y, beat, step) {
+    var brightness = 0.2 + Math.pow(Math.sin(beat * Math.PI * 2) * 0.5 + 0.5, 2) * 0.8;
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Checkerboard alternating
+  'checkerboard': function(x, y, beat, step) {
+    var cols = step.cols || 4;
+    var rows = step.rows || 4;
+    var cx = Math.floor(x * cols);
+    var ry = Math.floor(y * rows);
+    var isWhite = (cx + ry + Math.floor(beat * 2)) % 2 === 0;
+    var rgb = hexToRgb(step.color || DJL.color);
+    var rgb2 = hexToRgb(step.color2 || '#000000');
+    return isWhite ? rgb : rgb2;
+  }
+};
 
 // Init
 var _djInitInterval = setInterval(function() {
