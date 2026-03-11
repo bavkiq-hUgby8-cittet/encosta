@@ -26624,51 +26624,10 @@ var _djInitInterval = setInterval(function() {
     clearInterval(_djInitInterval);
     setupDJListeners();
 
-    // DJ listener auto-start strategy:
-    // - Check if mic permission was already granted (no popup will appear)
-    // - If granted: start listener silently (essential for DJ Live detection)
-    // - If not granted: wait until user presses Touch (which requests mic)
-    //   then stopHomeSonic() will call startDJListener()
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'microphone' }).then(function(result) {
-        if (result.state === 'granted') {
-          console.log('[DJ] Mic already granted, auto-starting listener...');
-          setTimeout(function() {
-            if (!DJL.listenerActive && !DJL.active && !homeSonicActive && !sonicActive) {
-              window._micAuthorized = true;
-              startDJListener();
-            }
-          }, 1500);
-        } else {
-          console.log('[DJ] Mic not yet granted (' + result.state + '). Listener will start after Touch.');
-          // Listen for permission change (user might grant mic via Touch or browser settings)
-          result.addEventListener('change', function() {
-            if (result.state === 'granted' && !DJL.listenerActive && !DJL.active && !homeSonicActive && !sonicActive) {
-              console.log('[DJ] Mic permission changed to granted, starting listener...');
-              window._micAuthorized = true;
-              startDJListener();
-            }
-          });
-        }
-      }).catch(function(e) {
-        // permissions.query not supported for microphone (Firefox)
-        // Fall back: try starting, getUserMedia will either work silently or fail
-        console.log('[DJ] permissions.query failed, trying direct start...');
-        setTimeout(function() {
-          if (!DJL.listenerActive && !DJL.active && !homeSonicActive && !sonicActive) {
-            startDJListener();
-          }
-        }, 2000);
-      });
-    } else {
-      // No Permissions API (old browser) — try starting directly
-      console.log('[DJ] No Permissions API, trying direct start...');
-      setTimeout(function() {
-        if (!DJL.listenerActive && !DJL.active && !homeSonicActive && !sonicActive) {
-          startDJListener();
-        }
-      }, 2000);
-    }
+    // DJ listener ONLY starts after user presses Touch.
+    // Touch requests mic permission naturally. When Touch ends,
+    // stopHomeSonic() calls startDJListener() — no surprise popups.
+    console.log('[DJ] Ready. Listener starts after first Touch.');
   }
 }, 500);
 
