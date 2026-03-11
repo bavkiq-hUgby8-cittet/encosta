@@ -17759,6 +17759,8 @@ app.post('/api/dj/session/create', (req, res) => {
     color: '#ff6b35',
     bpm: 128,
     animation: 'pulse',
+    totalZones: 4,
+    liveText: '',
     connectedDevices: new Set(),
     createdAt: Date.now()
   };
@@ -17907,6 +17909,8 @@ io.on('connection', (socket) => {
     if (data.color) s.color = data.color;
     if (data.bpm) s.bpm = data.bpm;
     if (data.animation) s.animation = data.animation;
+    if (data.text !== undefined) s.liveText = data.text;
+    if (data.totalZones) s.totalZones = data.totalZones;
 
     // Broadcast to all audience devices
     const payload = {
@@ -17916,6 +17920,7 @@ io.on('connection', (socket) => {
       bpm: s.bpm,
       animation: s.animation,
       duration: data.duration || 0,
+      text: s.liveText || '',
       timestamp: Date.now()
     };
 
@@ -17964,13 +17969,24 @@ io.on('connection', (socket) => {
     s.connectedDevices.add(deviceId);
     socket.join('dj-live:' + data.sessionId);
 
+    // Calculate device index and zone
+    const devicesArr = Array.from(s.connectedDevices);
+    const deviceIndex = devicesArr.indexOf(deviceId);
+    const totalDevices = devicesArr.length;
+    const totalZones = s.totalZones || 4;
+    const zone = deviceIndex % totalZones;
+
     // Send current state to the new device
     socket.emit('dj-live-state', {
       sessionId: data.sessionId,
       broadcasting: s.broadcasting,
       color: s.color,
       bpm: s.bpm,
-      animation: s.animation
+      animation: s.animation,
+      deviceIndex: deviceIndex,
+      totalDevices: totalDevices,
+      zone: zone,
+      totalZones: totalZones
     });
 
     // Notify DJ panel
@@ -18098,6 +18114,8 @@ io.on('connection', (socket) => {
     if (data.color) { s.color = data.color; ev.djLive.color = data.color; }
     if (data.bpm) { s.bpm = data.bpm; ev.djLive.bpm = data.bpm; }
     if (data.animation) { s.animation = data.animation; ev.djLive.animation = data.animation; }
+    if (data.text !== undefined) s.liveText = data.text;
+    if (data.totalZones) s.totalZones = data.totalZones;
 
     const payload = {
       sessionId: sessionId,
@@ -18106,6 +18124,8 @@ io.on('connection', (socket) => {
       bpm: s.bpm,
       animation: s.animation,
       duration: data.duration || 0,
+      text: s.liveText || '',
+      totalZones: s.totalZones || 4,
       timestamp: Date.now()
     };
 
