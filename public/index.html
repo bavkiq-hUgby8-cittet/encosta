@@ -23551,15 +23551,26 @@ const GuidedOnboarding=(function(){
   <div id="djLiveHint" style="position:absolute;bottom:env(safe-area-inset-bottom,20px);left:0;right:0;text-align:center;padding:1rem;opacity:.6;font-size:.7rem;color:#fff;font-family:Inter,sans-serif;pointer-events:none;transition:opacity 1s">Toque 2x para sair</div>
 </div>
 
-<!-- DJ LIVE ENTRY PROMPT - shown when ultrasonic detected -->
-<div id="djLivePrompt" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem;text-align:center;font-family:Inter,sans-serif">
-  <div style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.2) 0%,transparent 70%);border:2px solid rgba(255,107,53,.4);display:flex;align-items:center;justify-content:center;animation:djPromptPulse 2s infinite">
+<!-- TOUCH? LIVE ENTRY PROMPT - shown when ultrasonic detected -->
+<div id="djLivePrompt" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center;font-family:Inter,sans-serif">
+  <!-- Event logo container (shown when event has logo) -->
+  <div id="djLiveEventLogo" style="display:none;width:100px;height:100px;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(255,107,53,.25);margin-bottom:.3rem">
+    <img id="djLiveEventLogoImg" style="width:100%;height:100%;object-fit:cover" alt="">
+  </div>
+  <!-- Default icon (shown when no event logo) -->
+  <div id="djLiveDefaultIcon" style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,.15) 0%,transparent 70%);border:2px solid rgba(255,107,53,.35);display:flex;align-items:center;justify-content:center;animation:djPromptPulse 2s infinite">
     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" stroke-width="2"><path d="M2 10s3-3 10-3 10 3 10 3"/><path d="M6 14s2-2 6-2 6 2 6 2"/><circle cx="12" cy="18" r="1" fill="#ff6b35"/></svg>
   </div>
-  <div style="font-size:1.1rem;font-weight:700;color:#fff">Touch? Live</div>
-  <div style="font-size:.8rem;color:rgba(255,255,255,.6);max-width:280px">Um show ao vivo foi detectado! Quer entrar no modo Live e sincronizar seu celular com a musica?</div>
-  <button id="djLiveJoinBtn" style="padding:.8rem 2rem;background:linear-gradient(135deg,#ff6b35,#ff8555);border:none;border-radius:12px;color:#fff;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(255,107,53,.3)">Entrar no Show</button>
-  <button id="djLiveDismissBtn" style="padding:.5rem 1rem;background:none;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:rgba(255,255,255,.4);font-size:.7rem;cursor:pointer;font-family:inherit">Agora nao</button>
+  <!-- Event / artist name -->
+  <div id="djLiveEventName" style="font-size:1.15rem;font-weight:700;color:#fff;letter-spacing:.02em">Touch? Live</div>
+  <div id="djLiveArtistName" style="font-size:.75rem;color:rgba(255,107,53,.8);font-weight:600;display:none"></div>
+  <!-- Description -->
+  <div style="font-size:.78rem;color:rgba(255,255,255,.55);max-width:280px;line-height:1.4">A live event was detected nearby! Join to sync your phone with the show.</div>
+  <!-- CTA buttons -->
+  <button id="djLiveJoinBtn" style="padding:.85rem 2.2rem;background:linear-gradient(135deg,#ff6b35,#ff8555);border:none;border-radius:14px;color:#fff;font-size:.88rem;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 6px 20px rgba(255,107,53,.3);letter-spacing:.02em;margin-top:.3rem">Join the Show</button>
+  <button id="djLiveDismissBtn" style="padding:.45rem 1rem;background:none;border:1px solid rgba(255,255,255,.12);border-radius:8px;color:rgba(255,255,255,.35);font-size:.68rem;cursor:pointer;font-family:inherit">Not now</button>
+  <!-- Powered by Touch? -->
+  <div style="font-size:.55rem;color:rgba(255,255,255,.2);margin-top:.8rem">powered by Touch?</div>
 </div>
 <style>
 @keyframes djPromptPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,53,.3)}50%{box-shadow:0 0 0 15px rgba(255,107,53,0)}}
@@ -23759,6 +23770,38 @@ function showDJPrompt(data) {
   if (DJL.promptShown || DJL.active) return;
   DJL.promptShown = true;
   DJL.detectedSessionId = data.sessionId;
+
+  // Populate event info if available
+  var eventNameEl = document.getElementById('djLiveEventName');
+  var artistNameEl = document.getElementById('djLiveArtistName');
+  var logoContainer = document.getElementById('djLiveEventLogo');
+  var logoImg = document.getElementById('djLiveEventLogoImg');
+  var defaultIcon = document.getElementById('djLiveDefaultIcon');
+
+  // Session name or event name
+  if (data.sessionName || data.eventName) {
+    eventNameEl.textContent = data.sessionName || data.eventName;
+  } else {
+    eventNameEl.textContent = 'Touch? Live';
+  }
+
+  // Artist name
+  if (data.artistName) {
+    artistNameEl.textContent = data.artistName;
+    artistNameEl.style.display = 'block';
+  } else {
+    artistNameEl.style.display = 'none';
+  }
+
+  // Event logo
+  if (data.eventLogo) {
+    logoImg.src = data.eventLogo;
+    logoContainer.style.display = 'block';
+    defaultIcon.style.display = 'none';
+  } else {
+    logoContainer.style.display = 'none';
+    defaultIcon.style.display = 'flex';
+  }
 
   var prompt = document.getElementById('djLivePrompt');
   prompt.style.display = 'flex';
