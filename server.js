@@ -17916,6 +17916,12 @@ io.on('connection', (socket) => {
     if (data.text !== undefined) s.liveText = data.text;
     if (data.totalZones) s.totalZones = data.totalZones;
 
+    // Kill flag clears show mode on server side too
+    if (data.kill) {
+      s.showActive = false;
+      s.choreography = null;
+    }
+
     // Build base payload
     const basePayload = {
       sessionId: data.sessionId,
@@ -17929,7 +17935,8 @@ io.on('connection', (socket) => {
       totalZones: s.totalZones || 4,
       totalDevices: s.connectedDevices.size,
       raffleNumber: data.raffleNumber || 0,
-      raffleTotalDevices: data.raffleTotalDevices || s.connectedDevices.size || 20
+      raffleTotalDevices: data.raffleTotalDevices || s.connectedDevices.size || 20,
+      kill: data.kill || false
     };
 
     // For zone-related commands, send per-device payloads with individual zone info

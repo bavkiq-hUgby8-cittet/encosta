@@ -25704,6 +25704,12 @@ function setupDJListeners() {
   // DJ command
   socket.on('dj-command', function(data) {
     if (typeof djLiveCommandReceived === 'function') djLiveCommandReceived();
+    // Kill command overrides everything including show mode
+    if (data.kill) {
+      DJL.showActive = false;
+      DJL.choreography = null;
+      console.log('[DJ] Kill command received -- show mode cleared');
+    }
     if (!DJL.active) {
       if (data.command !== 'blackout') { enterDJLive(data); }
       return;
@@ -25793,6 +25799,11 @@ function setupDJListeners() {
       console.log('[DJ Show] Choreography received: active=' + data.showActive +
         ' steps=' + (data.choreography.steps ? data.choreography.steps.length : 0) +
         ' pos=(' + DJL.position.x.toFixed(2) + ',' + DJL.position.y.toFixed(2) + ')');
+    } else {
+      // choreography is null -- DJ stopped the show
+      DJL.showActive = false;
+      DJL.choreography = null;
+      console.log('[DJ Show] Show stopped by DJ');
     }
     if (data.showActive && !DJL.active) {
       enterDJLive(data);

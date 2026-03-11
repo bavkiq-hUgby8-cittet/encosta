@@ -453,10 +453,10 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       <button class="dj-bpm-btn" onclick="startPresetShow('full-show')" title="Full auto choreography combining all patterns">AUTO SHOW</button>
     </div>
 
-    <!-- Show Status -->
-    <div id="showStatus" style="display:none;padding:.4rem .6rem;background:rgba(124,106,239,.15);border-radius:var(--radius);font-size:.7rem;margin-bottom:.4rem">
-      <span id="showStatusText" style="color:var(--t2)">No show active</span>
-      <button class="dj-bpm-btn" onclick="stopShow()" style="margin-left:.5rem;background:rgba(255,60,60,.2);color:#ff4444;font-size:.6rem">STOP</button>
+    <!-- Show Status + Stop -->
+    <div id="showStatus" style="display:none;padding:.5rem .6rem;background:rgba(124,106,239,.15);border:1px solid rgba(124,106,239,.3);border-radius:var(--radius);font-size:.7rem;margin-bottom:.4rem;align-items:center;justify-content:space-between">
+      <span id="showStatusText" style="color:var(--t2);flex:1">No show active</span>
+      <button onclick="stopShow()" style="padding:.45rem 1rem;background:rgba(255,40,40,.25);border:1px solid rgba(255,60,60,.5);border-radius:8px;color:#ff4444;font-family:var(--font-display);font-size:.7rem;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:all .15s">STOP SHOW</button>
     </div>
 
     <!-- Show Preview Canvas -->
@@ -2722,6 +2722,8 @@ window.killAllPhones = function() {
   DJ.killed = !DJ.killed;
   var btn = document.getElementById('killBtn');
   if (DJ.killed) {
+    // Stop active show first
+    if (DJ.showActive) stopShow();
     // Send blackout with kill flag
     socket.emit('dj-command', {
       sessionId: DJ.sessionId,
