@@ -6777,6 +6777,9 @@ async function handleMainButton(){
     }
   }
 
+  // Stop DJ listener to free mic for main sonic system
+  if (typeof stopDJListener === 'function') stopDJListener();
+
   homeSonicActive=true;
   sonicActive=true;sonicMyFreq=0;
   const btn=$('mainBtn'),txt=$('mainBtnText'),sts=$('sonicHomeStatus'),fb=$('sonicFallback');
@@ -7082,6 +7085,8 @@ function startSonicMode(){
   if(!socket||!socket.connected){showToast('Sem conexão. Aguarde...');return}
   // Full reset
   stopSonicMode();
+  // Stop DJ listener to free mic for main sonic system
+  if (typeof stopDJListener === 'function') stopDJListener();
   showPhase('phaseBump');
   const circle=$('bumpCircle'),label=$('bumpLabel'),status=$('bumpStatus');
   circle.className='bump-circle';label.textContent='PREPARANDO...';
@@ -23670,16 +23675,25 @@ function showDJListenerIndicator(active) {
 
 function startDJListener() {
   if (DJL.listenerActive || DJL.active) return;
-  // Clean up any stale state from previous failed attempts
-  if (DJL.listenerCtx) {
-    try { DJL.listenerCtx.close(); } catch(e) {}
-    DJL.listenerCtx = null;
+  // CRITICAL: Do NOT start DJ listener if the main Touch? sonic system is using the mic
+  // This prevents mic conflicts that break the main connection feature
+  if (typeof sonicActive !== 'undefined' && sonicActive) {
+    console.log('[DJ Listener] Skipped -- main sonic system is active');
+    return;
   }
-  if (DJL.listenerStream) {
-    DJL.listenerStream.getTracks().forEach(function(t) { t.stop(); });
-    DJL.listenerStream = null;
+  if (typeof homeSonicActive !== 'undefined' && homeSonicActive) {
+    console.log('[DJ Listener] Skipped -- home sonic system is active');
+    return;
   }
+  if (typeof sonicStream !== 'undefined' && sonicStream) {
+    console.log('[DJ Listener] Skipped -- mic stream already in use by main system');
+    return;
+  }
+  // Clean up any stale DJ listener resources before starting fresh
+  if (DJL.listenerCtx) { try { DJL.listenerCtx.close(); } catch(e) {} DJL.listenerCtx = null; }
+  if (DJL.listenerStream) { try { DJL.listenerStream.getTracks().forEach(function(t) { t.stop(); }); } catch(e) {} DJL.listenerStream = null; }
   DJL.listenerAnalyser = null;
+
   console.log('[DJ Listener] Starting passive ultrasonic scan...');
 
   navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
@@ -25532,12 +25546,17 @@ var _djInitInterval = setInterval(function() {
     // Use capture phase and do NOT remove -- keep retrying on every gesture
     var _djGestureAttempts = 0;
     var _djGestureHandler = function() {
-      if (!DJL.listenerActive && !DJL.active && _djGestureAttempts < 10) {
+      // Skip if main sonic system is using mic
+      if ((typeof sonicActive !== 'undefined' && sonicActive) ||
+          (typeof homeSonicActive !== 'undefined' && homeSonicActive)) {
+        return;
+      }
+      if (!DJL.listenerActive && !DJL.active && _djGestureAttempts < 3) {
         _djGestureAttempts++;
         console.log('[DJ] Gesture-triggered listener start attempt #' + _djGestureAttempts);
         startDJListener();
       }
-      if (DJL.listenerActive || _djGestureAttempts >= 10) {
+      if (DJL.listenerActive || _djGestureAttempts >= 3) {
         document.removeEventListener('touchstart', _djGestureHandler, true);
         document.removeEventListener('click', _djGestureHandler, true);
         console.log('[DJ] Gesture handler removed (active=' + DJL.listenerActive + ', attempts=' + _djGestureAttempts + ')');
@@ -25546,17 +25565,23 @@ var _djInitInterval = setInterval(function() {
     document.addEventListener('touchstart', _djGestureHandler, { capture: true });
     document.addEventListener('click', _djGestureHandler, { capture: true });
 
-    // Periodic retry: if listener failed to start, keep trying every 5s
+    // Periodic retry: if listener failed to start, try every 15s (gentle, not aggressive)
     var _djRetryInterval = setInterval(function() {
       if (DJL.listenerActive || DJL.active) {
         clearInterval(_djRetryInterval);
         return;
       }
+      // Skip if main sonic system is using mic
+      if ((typeof sonicActive !== 'undefined' && sonicActive) ||
+          (typeof homeSonicActive !== 'undefined' && homeSonicActive) ||
+          (typeof sonicStream !== 'undefined' && sonicStream)) {
+        return;
+      }
       console.log('[DJ] Periodic retry: attempting to start listener...');
       startDJListener();
-    }, 5000);
-    // Stop retrying after 2 minutes
-    setTimeout(function() { clearInterval(_djRetryInterval); }, 120000);
+    }, 15000);
+    // Stop retrying after 90 seconds
+    setTimeout(function() { clearInterval(_djRetryInterval); }, 90000);
 
     console.log('[DJ] Ready. Listener will auto-start on first gesture.');
   }
