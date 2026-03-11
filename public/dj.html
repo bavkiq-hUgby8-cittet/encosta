@@ -339,6 +339,81 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     grid-column: span 2;
   }
 }
+
+/* ---- FLOATING VENUE MAP (Picture-in-Picture style) ---- */
+.vm-float {
+  position: fixed;
+  z-index: 9999;
+  bottom: 16px;
+  right: 16px;
+  width: 260px;
+  background: rgba(0,10,25,0.96);
+  border: 1px solid rgba(0,180,216,0.25);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,180,216,0.08);
+  overflow: hidden;
+  transition: box-shadow .2s;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.vm-float:active {
+  cursor: grabbing;
+}
+.vm-float:hover {
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 12px rgba(0,180,216,0.15);
+}
+.vm-float-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: rgba(0,180,216,0.06);
+  border-bottom: 1px solid rgba(0,180,216,0.1);
+  font-size: .5rem;
+  color: var(--t3);
+}
+.vm-float-bar span {
+  color: var(--ac);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.vm-float-close {
+  background: none;
+  border: none;
+  color: var(--t3);
+  font-size: .7rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.vm-float-close:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--t1);
+}
+.vm-float canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+.vm-float-hidden {
+  display: none !important;
+}
+/* Resize handle */
+.vm-float-resize {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: sw-resize;
+  opacity: 0.3;
+}
+.vm-float-resize:hover {
+  opacity: 0.7;
+}
 </style>
 </head>
 <body>
@@ -4369,6 +4444,163 @@ init = function() {
         }
       }
     }
+
+    // ========== FLOATING VENUE MAP (PiP) ==========
+    var _vmFloatEl = null;
+    var _vmFloatCanvas = null;
+    var _vmFloatCtx = null;
+    var _vmFloatVisible = false;
+    var _vmFloatDismissed = false; // user closed it manually
+    var _vmDragState = null; // { startX, startY, origLeft, origTop }
+
+    function _createFloatContainer() {
+      if (_vmFloatEl) return;
+      var el = document.createElement('div');
+      el.className = 'vm-float vm-float-hidden';
+      el.id = 'vmFloat';
+      el.innerHTML =
+        '<div class="vm-float-bar">' +
+          '<span>VENUE MAP</span>' +
+          '<div style="display:flex;gap:4px;align-items:center">' +
+            '<span id="vmFloatInfo" style="font-size:.45rem;color:var(--t3)"></span>' +
+            '<button class="vm-float-close" onclick="vmFloatClose()" title="Close">x</button>' +
+          '</div>' +
+        '</div>' +
+        '<canvas id="vmFloatCanvas" width="400" height="300"></canvas>' +
+        '<svg class="vm-float-resize" viewBox="0 0 16 16"><path d="M14 16L16 14M10 16L16 10M6 16L16 6" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/></svg>';
+      document.body.appendChild(el);
+      _vmFloatEl = el;
+      _vmFloatCanvas = document.getElementById('vmFloatCanvas');
+      _vmFloatCtx = _vmFloatCanvas.getContext('2d');
+
+      // Drag: pointer events (works for touch + mouse)
+      el.addEventListener('pointerdown', _vmDragStart);
+      document.addEventListener('pointermove', _vmDragMove);
+      document.addEventListener('pointerup', _vmDragEnd);
+
+      // Resize handle
+      var resizeHandle = el.querySelector('.vm-float-resize');
+      resizeHandle.addEventListener('pointerdown', _vmResizeStart);
+    }
+
+    function _vmDragStart(e) {
+      // Don't drag from buttons or resize
+      if (e.target.tagName === 'BUTTON' || e.target.closest('.vm-float-resize') || e.target.tagName === 'path') return;
+      e.preventDefault();
+      var rect = _vmFloatEl.getBoundingClientRect();
+      _vmDragState = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origLeft: rect.left,
+        origTop: rect.top,
+        mode: 'drag'
+      };
+      _vmFloatEl.setPointerCapture(e.pointerId);
+    }
+
+    function _vmDragMove(e) {
+      if (!_vmDragState) return;
+      e.preventDefault();
+      if (_vmDragState.mode === 'drag') {
+        var dx = e.clientX - _vmDragState.startX;
+        var dy = e.clientY - _vmDragState.startY;
+        var newLeft = _vmDragState.origLeft + dx;
+        var newTop = _vmDragState.origTop + dy;
+        // Clamp to viewport
+        var w = _vmFloatEl.offsetWidth;
+        var h = _vmFloatEl.offsetHeight;
+        newLeft = Math.max(0, Math.min(window.innerWidth - w, newLeft));
+        newTop = Math.max(0, Math.min(window.innerHeight - h, newTop));
+        _vmFloatEl.style.left = newLeft + 'px';
+        _vmFloatEl.style.top = newTop + 'px';
+        _vmFloatEl.style.right = 'auto';
+        _vmFloatEl.style.bottom = 'auto';
+      } else if (_vmDragState.mode === 'resize') {
+        var dw = _vmDragState.startX - e.clientX; // left edge: wider = move left
+        var dh = e.clientY - _vmDragState.startY;
+        var newW = Math.max(180, Math.min(500, _vmDragState.origW + dw));
+        var newH = Math.max(140, Math.min(400, _vmDragState.origH + dh));
+        _vmFloatEl.style.width = newW + 'px';
+        _vmFloatCanvas.style.height = (newH - 28) + 'px';
+      }
+    }
+
+    function _vmDragEnd(e) {
+      _vmDragState = null;
+    }
+
+    function _vmResizeStart(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      _vmDragState = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origW: _vmFloatEl.offsetWidth,
+        origH: _vmFloatEl.offsetHeight,
+        mode: 'resize'
+      };
+    }
+
+    window.vmFloatClose = function() {
+      _vmFloatDismissed = true;
+      _vmFloatVisible = false;
+      if (_vmFloatEl) _vmFloatEl.classList.add('vm-float-hidden');
+    };
+
+    // Scroll observer: show float when original Venue Map scrolls out of view
+    var _vmScrollObserver = null;
+
+    function _setupScrollObserver() {
+      if (_vmScrollObserver) return;
+      var target = document.getElementById('venueMapCanvas');
+      if (!target || !('IntersectionObserver' in window)) return;
+
+      _createFloatContainer();
+
+      _vmScrollObserver = new IntersectionObserver(function(entries) {
+        var isVisible = entries[0].isIntersecting;
+        if (!isVisible && _vmActive && !_vmFloatDismissed) {
+          // Original canvas scrolled away while map is running - show float
+          _vmFloatVisible = true;
+          _vmFloatEl.classList.remove('vm-float-hidden');
+        } else {
+          // Original canvas visible again - hide float
+          _vmFloatVisible = false;
+          if (_vmFloatEl) _vmFloatEl.classList.add('vm-float-hidden');
+          // Reset dismissed when scrolling back up
+          if (isVisible) _vmFloatDismissed = false;
+        }
+      }, { threshold: 0.1 });
+
+      _vmScrollObserver.observe(target);
+    }
+
+    // Hook into toggleVenueMap to setup observer
+    var _origToggleVenueMap = window.toggleVenueMap;
+    window.toggleVenueMap = function() {
+      _origToggleVenueMap();
+      if (_vmActive) {
+        _setupScrollObserver();
+      } else {
+        // Map stopped - hide float
+        _vmFloatVisible = false;
+        if (_vmFloatEl) _vmFloatEl.classList.add('vm-float-hidden');
+      }
+    };
+
+    // Mirror the main canvas to the float canvas each frame
+    var _origRenderVenueMap = _renderVenueMap;
+    _renderVenueMap = function() {
+      _origRenderVenueMap();
+      // Copy main canvas to float canvas
+      if (_vmFloatVisible && _vmFloatCanvas && _vmCanvas && _vmActive) {
+        _vmFloatCtx.clearRect(0, 0, _vmFloatCanvas.width, _vmFloatCanvas.height);
+        _vmFloatCtx.drawImage(_vmCanvas, 0, 0, _vmFloatCanvas.width, _vmFloatCanvas.height);
+        // Update info label
+        var infoEl = document.getElementById('vmFloatInfo');
+        if (infoEl) infoEl.textContent = _vmDevices.length + ' dots';
+      }
+    };
 
 })();
 </script>
