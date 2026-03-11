@@ -23611,6 +23611,25 @@ function hexToRgb(hex) {
    PASSIVE ULTRASONIC LISTENER
    Runs in background, detects DJ broadcast
    ════════════════════════════════════════ */
+function showDJListenerIndicator(active) {
+  var el = document.getElementById('djListenerDot');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'djListenerDot';
+    el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9000;width:10px;height:10px;border-radius:50%;background:#ff3c6e;opacity:0.7;pointer-events:none;transition:opacity .3s';
+    document.body.appendChild(el);
+    // Pulse animation via JS
+    var pulsing = true;
+    (function pulse() {
+      if (!pulsing) return;
+      el.style.opacity = el.style.opacity === '0.7' ? '0.2' : '0.7';
+      setTimeout(pulse, 800);
+    })();
+    el._stopPulse = function() { pulsing = false; };
+  }
+  el.style.display = active ? 'block' : 'none';
+}
+
 function startDJListener() {
   if (DJL.listenerActive || DJL.active) return;
   console.log('[DJ Listener] Starting passive ultrasonic scan...');
@@ -23620,6 +23639,7 @@ function startDJListener() {
     DJL.listenerStream = stream;
     DJL.listenerCtx = new (window.AudioContext || window.webkitAudioContext)();
     DJL.listenerCtx.resume();
+    console.log('[DJ Listener] Mic stream OK, sampleRate:', DJL.listenerCtx.sampleRate);
 
     var source = DJL.listenerCtx.createMediaStreamSource(stream);
     DJL.listenerAnalyser = DJL.listenerCtx.createAnalyser();
@@ -23633,8 +23653,10 @@ function startDJListener() {
     var freqPerBin = sampleRate / DJ_FFT_SIZE;
     var confirmHits = 0;
     var lastDetectedFreq = 0;
+    var debugCounter = 0;
 
     DJL.listenerActive = true;
+    showDJListenerIndicator(true);
 
     function scan() {
       if (!DJL.listenerActive || DJL.active) return;
@@ -23648,6 +23670,13 @@ function startDJListener() {
         if (dataArr[i] > peakVal) { peakVal = dataArr[i]; peakBin = i; }
       }
 
+      // Debug log every 120 frames (~2 seconds) to see what mic is picking up
+      debugCounter++;
+      if (debugCounter % 120 === 0) {
+        var peakFreq = Math.round(peakBin * freqPerBin);
+        console.log('[DJ Listener] scan #' + debugCounter + ' | peak=' + peakVal + ' at ' + peakFreq + 'Hz | threshold=' + DJ_DETECT_THRESHOLD + ' | confirms=' + confirmHits);
+      }
+
       if (peakVal >= DJ_DETECT_THRESHOLD) {
         var detectedFreq = Math.round(peakBin * freqPerBin);
         // Snap to known frequency slots (18000, 18300, 18600, etc)
@@ -23656,9 +23685,10 @@ function startDJListener() {
           if (snapped === lastDetectedFreq) confirmHits++;
           else { confirmHits = 1; lastDetectedFreq = snapped; }
 
+          console.log('[DJ Listener] Hit! raw=' + detectedFreq + 'Hz snapped=' + snapped + 'Hz strength=' + peakVal + ' confirms=' + confirmHits + '/' + DJ_CONFIRM_COUNT);
+
           if (confirmHits >= DJ_CONFIRM_COUNT && !DJL.promptShown) {
-            console.log('[DJ Listener] Confirmed ultrasonic at', snapped, 'Hz (strength:', peakVal, ')');
-            // Ask server if there's an active DJ session at this frequency
+            console.log('[DJ Listener] CONFIRMED ultrasonic at', snapped, 'Hz -- asking server...');
             checkDJSession(snapped);
             confirmHits = 0;
           }
@@ -23670,10 +23700,11 @@ function startDJListener() {
       DJL.listenerRaf = requestAnimationFrame(scan);
     }
     DJL.listenerRaf = requestAnimationFrame(scan);
-    console.log('[DJ Listener] Scanning for ultrasonic DJ broadcast...');
+    console.log('[DJ Listener] ACTIVE -- scanning ' + DJ_FREQ_MIN + '-' + DJ_FREQ_MAX + 'Hz, threshold=' + DJ_DETECT_THRESHOLD + ', freqPerBin=' + freqPerBin.toFixed(2));
   })
   .catch(function(err) {
-    console.log('[DJ Listener] Mic not available:', err.message);
+    console.error('[DJ Listener] Mic FAILED:', err.name, err.message);
+    showDJListenerIndicator(false);
   });
 }
 
@@ -23683,6 +23714,7 @@ function stopDJListener() {
   if (DJL.listenerStream) { DJL.listenerStream.getTracks().forEach(function(t) { t.stop(); }); DJL.listenerStream = null; }
   if (DJL.listenerCtx) { try { DJL.listenerCtx.close(); } catch(e) {} DJL.listenerCtx = null; }
   DJL.listenerAnalyser = null;
+  showDJListenerIndicator(false);
   console.log('[DJ Listener] Stopped');
 }
 
@@ -23690,7 +23722,7 @@ function checkDJSession(freq) {
   // Check via Socket.IO if there's a DJ broadcasting at this frequency
   if (typeof socket === 'undefined' || !socket || !socket.connected) return;
   // Ask server for active DJ session matching this frequency
-  socket.emit('dj-check-frequency', { freq: freq });
+  socket.emit('dj-check-frequency', { frequency: freq });
 }
 
 /* ════════════════════════════════════════
@@ -24017,9 +24049,26 @@ var _djInitInterval = setInterval(function() {
   if (typeof socket !== 'undefined' && socket) {
     clearInterval(_djInitInterval);
     setupDJListeners();
-    // Auto-start passive listener if user has mic permission
-    // (will be prompted naturally)
-    console.log('[DJ] Ready. Use startDJListener() to begin scanning.');
+
+    // Try starting listener immediately (works if mic permission already granted)
+    setTimeout(function() {
+      startDJListener();
+      console.log('[DJ] Auto-start listener attempt after socket ready');
+    }, 1500);
+
+    // Fallback: start on first user gesture (touch/click) if not yet active
+    var _djGestureHandler = function() {
+      if (!DJL.listenerActive && !DJL.active) {
+        startDJListener();
+        console.log('[DJ] Listener started via user gesture');
+      }
+      document.removeEventListener('touchstart', _djGestureHandler);
+      document.removeEventListener('click', _djGestureHandler);
+    };
+    document.addEventListener('touchstart', _djGestureHandler, { once: true });
+    document.addEventListener('click', _djGestureHandler, { once: true });
+
+    console.log('[DJ] Ready. Listener will auto-start on first gesture.');
   }
 }, 500);
 
