@@ -18594,6 +18594,16 @@ io.on('connection', (socket) => {
     console.log('[DJ Grid] Playing drone show library:', show.name);
   });
 
+  socket.on('drone-show-library-get', function(data) {
+    if (!data || !data.showId) return;
+    var show = DRONE_SHOW_LIBRARY[data.showId];
+    if (!show) return;
+    socket.emit('drone-show-library-data', {
+      showId: data.showId,
+      show: show
+    });
+  });
+
   // DJ triggers calibration test mode (devices show their grid number)
   socket.on('grid-test-mode', (data) => {
     if (!data || !data.sessionId) return;

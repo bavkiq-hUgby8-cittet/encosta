@@ -692,6 +692,9 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button class="dj-bpm-btn" onclick="playDroneLibrary('dna-helix')" style="border-color:rgba(124,106,239,.3);color:#7c6aef">DNA</button>
         <button class="dj-bpm-btn" onclick="playDroneLibrary('wave-ocean')" style="border-color:rgba(0,150,200,.3);color:#0096c8">Wave</button>
       </div>
+      <div style="font-size:.5rem;color:var(--t3);margin-top:.3rem;line-height:1.4">
+        Best with 50+ phones. Heart, Star, Text work great from 50. Dragon, Phoenix, Globe shine from 200+. All shows auto-adapt to any crowd size.
+      </div>
 
       <!-- Show Status + Stop -->
       <div id="showStatus" style="display:none;padding:.5rem .6rem;background:rgba(124,106,239,.15);border:1px solid rgba(124,106,239,.3);border-radius:var(--radius);font-size:.7rem;margin-bottom:.4rem;align-items:center;justify-content:space-between">
@@ -797,6 +800,19 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
           <option value="circle">Circle / Arena</option>
           <option value="stadium">Stadium</option>
         </select>
+        <div style="display:flex;gap:.3rem;align-items:center">
+          <span style="font-size:.5rem;color:var(--t3)">Phones:</span>
+          <select id="vmSimCount" onchange="updateSimPhoneCount(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 4px">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+          </select>
+        </div>
+        <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop Preview</button>
       </div>
       <div style="display:flex;gap:.5rem;margin-bottom:.3rem;align-items:center">
         <span id="venueMapCount" style="font-size:.55rem;color:var(--ac)">0 devices</span>
@@ -991,6 +1007,18 @@ function connectSocket() {
   socket.on('dj-session-confirmed', function(data) {
     if (data.sessionId === DJ.sessionId) {
       showToast('Session created: ' + DJ.sessionName);
+    }
+  });
+
+  socket.on('drone-show-library-data', function(data) {
+    if (data && data.show) {
+      _vmDroneShow = data.show;
+      _vmDroneBeatOrigin = Date.now();
+      _vmDroneBpm = data.show.bpm || 128;
+      if (!_vmActive) toggleVenueMap();
+      var stopBtn = document.getElementById('vmStopPreview');
+      if (stopBtn) stopBtn.style.display = '';
+      showToast('Preview: ' + data.show.name);
     }
   });
 }
@@ -2822,6 +2850,7 @@ window.stopShow = function() {
 window.playDroneLibrary = function(showId) {
   if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
   socket.emit('drone-show-library-play', { showId: showId, sessionId: DJ.sessionId });
+  socket.emit('drone-show-library-get', { showId: showId });
   showToast('Drone Show: ' + showId);
 };
 
@@ -3434,6 +3463,10 @@ init = function() {
     var _vmShape = 'rectangle';
     var _vmDevices = []; // { id, x, y, color, gridX, gridY, targetX, targetY }
     var _vmGridConfig = null;
+    var _vmDroneShow = null;      // Currently previewing drone show
+    var _vmDroneBeatOrigin = 0;   // When the show started
+    var _vmDroneBpm = 128;        // Show BPM
+    var _vmSimPhoneCount = 100;   // Simulated phone count for preview
 
     window.toggleVenueMap = function() {
       if (_vmActive) {
@@ -3508,6 +3541,18 @@ init = function() {
       if (gridLabel && config) {
         gridLabel.textContent = 'Grid: ' + config.width + 'x' + config.height;
       }
+    };
+
+    window.updateSimPhoneCount = function(count) {
+      _vmSimPhoneCount = parseInt(count) || 100;
+      _vmDevices = [];
+    };
+
+    window.stopDronePreview = function() {
+      _vmDroneShow = null;
+      var stopBtn = document.getElementById('vmStopPreview');
+      if (stopBtn) stopBtn.style.display = 'none';
+      showToast('Preview stopped');
     };
 
     function _renderVenueMap() {
@@ -3594,6 +3639,90 @@ init = function() {
       // Update device label count
       var countEl = document.getElementById('venueMapCount');
       if (countEl) countEl.textContent = _vmDevices.length + ' devices';
+
+      // ---- DRONE SHOW PREVIEW ----
+      if (_vmDroneShow && _vmDroneShow.frames && _vmDroneShow.frames.length > 0) {
+        var showElapsed = (Date.now() - _vmDroneBeatOrigin) / 1000;
+        var beatsSoFar = showElapsed * (_vmDroneBpm / 60);
+        var frames = _vmDroneShow.frames;
+
+        var totalBeats = 0;
+        for (var fi = 0; fi < frames.length; fi++) {
+          totalBeats += (frames[fi].durationBeats || 4);
+        }
+
+        var loopBeat = beatsSoFar % totalBeats;
+        var accumulated = 0;
+        var currentFrame = frames[0];
+        var nextFrame = frames.length > 1 ? frames[1] : frames[0];
+        var frameProgress = 0;
+        var currentFrameIndex = 0;
+        for (var fi = 0; fi < frames.length; fi++) {
+          var dur = frames[fi].durationBeats || 4;
+          if (loopBeat >= accumulated && loopBeat < accumulated + dur) {
+            currentFrame = frames[fi];
+            nextFrame = frames[(fi + 1) % frames.length];
+            frameProgress = (loopBeat - accumulated) / dur;
+            currentFrameIndex = fi;
+            break;
+          }
+          accumulated += dur;
+        }
+
+        if (currentFrame.cells) {
+          var cellKeys = Object.keys(currentFrame.cells);
+          var gw = 20;
+          var gh = 20;
+          var cellW = vw / gw;
+          var cellH = vh / gh;
+
+          for (var ci = 0; ci < cellKeys.length; ci++) {
+            var parts = cellKeys[ci].split(',');
+            var cx = parseInt(parts[0]);
+            var cy = parseInt(parts[1]);
+            var color = currentFrame.cells[cellKeys[ci]];
+
+            if (currentFrame.transition === 'fade' && nextFrame.cells && nextFrame.cells[cellKeys[ci]]) {
+              var nc = nextFrame.cells[cellKeys[ci]];
+              var r1 = parseInt(color.substr(1,2),16);
+              var g1 = parseInt(color.substr(3,2),16);
+              var b1 = parseInt(color.substr(5,2),16);
+              var r2 = parseInt(nc.substr(1,2),16);
+              var g2 = parseInt(nc.substr(3,2),16);
+              var b2 = parseInt(nc.substr(5,2),16);
+              var r = Math.round(r1 + (r2-r1)*frameProgress);
+              var g = Math.round(g1 + (g2-g1)*frameProgress);
+              var b = Math.round(b1 + (b2-b1)*frameProgress);
+              color = 'rgb('+r+','+g+','+b+')';
+            }
+
+            var px = vx + cx * cellW;
+            var py = vy + cy * cellH;
+
+            ctx.globalCompositeOperation = 'lighter';
+            var glow = ctx.createRadialGradient(px + cellW/2, py + cellH/2, 0, px + cellW/2, py + cellH/2, cellW * 1.5);
+            var glowColor = color.indexOf('rgb') === 0 ? color.replace('rgb', 'rgba').replace(')', ',0.3)') : color + '4d';
+            glow.addColorStop(0, glowColor);
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(px - cellW, py - cellH, cellW * 3, cellH * 3);
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(px + cellW/2, py + cellH/2, Math.min(cellW, cellH) * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, H - 20, W, 20);
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(_vmDroneShow.name + ' - Frame ' + (currentFrameIndex + 1) + '/' + frames.length, W/2, H - 7);
+      }
+      // ---- END DRONE SHOW PREVIEW ----
 
       // If no real devices, show simulated crowd from connected device count
       if (_vmDevices.length === 0 && DJ.deviceCount > 0) {
