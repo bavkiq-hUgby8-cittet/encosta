@@ -4164,12 +4164,16 @@ function initSocket(){
   // Server says: you matched another visitor, not the operator — keep listening
   socket.on('sonic-no-match',({reason,detectedFreq})=>{
     console.log('[sonic-no-match] reason:',reason,'freq:',detectedFreq);
-    // Server didn't find a match — resume listening
+    // Server didn't find a Touch match — but could be a DJ broadcasting!
+    // Check if this frequency belongs to an active DJ Live session
+    if(detectedFreq&&detectedFreq>=18000&&detectedFreq<=20000&&reason!=='self'){
+      console.log('[sonic-no-match] Checking if freq',detectedFreq,'is a DJ session...');
+      socket.emit('dj-check-frequency',{frequency:detectedFreq});
+    }
     if(!sonicActive)return;
     const sts=$('sonicHomeStatus');
     const txt=$('mainBtnText');
     if(reason==='self'){
-      // Own frequency leaked through — show brief message then resume
       if(sts)sts.textContent=t('home.own_signal');
     }else{
       if(sts)sts.textContent=t('home.nobody_found');
@@ -23891,6 +23895,7 @@ function checkDJSession(freq) {
 function showDJPrompt(data) {
   if (DJL.promptShown || DJL.active) return;
   DJL.promptShown = true;
+  window._micAuthorized = true; // DJ was found, mic clearly works
   DJL.detectedSessionId = data.sessionId;
 
   // Populate event info if available
@@ -23949,6 +23954,8 @@ document.getElementById('djLiveJoinBtn').addEventListener('click', function() {
         deviceId: typeof state !== 'undefined' ? state.userId : socket.id
       });
     }
+    // Stop Touch sonic mode if active (frees mic + stops emitting)
+    if (homeSonicActive) stopHomeSonic();
     enterDJLive({ sessionId: DJL.detectedSessionId, color: '#ff6b35', bpm: 128, animation: 'pulse' });
     stopDJListener();
   }
