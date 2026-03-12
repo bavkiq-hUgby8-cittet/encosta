@@ -24320,9 +24320,19 @@ function exitDJLive() {
   }
 
   DJL.sessionId = null;
+  DJL.detectedSessionId = null;
   DJL.promptShown = false;
   // Clear connection health
   djLiveConnHealthStop();
+
+  // Restart DJ listener so the phone can detect the DJ again and reconnect
+  // Small delay to let socket leave the room first
+  setTimeout(function() {
+    if (!DJL.active && !DJL.listenerActive && typeof startDJListener === 'function') {
+      console.log('[DJ] Restarting listener after exit for reconnection...');
+      startDJListener();
+    }
+  }, 1000);
 }
 
 // ═══ DJ LIVE CONNECTION HEALTH ═══
