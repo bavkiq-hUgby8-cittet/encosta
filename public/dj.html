@@ -662,6 +662,41 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 
       <div class="dj-section-divider"></div>
 
+      <!-- SETLIST (pre-built animation sets) -->
+      <div id="setlistSection" style="margin-bottom:.6rem">
+        <div style="font-size:.6rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem">Setlists</div>
+        <div id="setlistPicker" style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.4rem"></div>
+        <div id="setlistPlayer" style="display:none;background:linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,107,53,.03));border:1px solid rgba(255,107,53,.2);border-radius:10px;padding:.5rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+            <span id="setlistName" style="font-size:.7rem;font-weight:700;color:#ff6b35"></span>
+            <span id="setlistTimer" style="font-size:.6rem;color:var(--t3);font-family:monospace"></span>
+          </div>
+          <div id="setlistTrackName" style="font-size:.75rem;font-weight:600;color:var(--t1);margin-bottom:.3rem;min-height:1.1em"></div>
+          <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.3rem">
+            <div id="setlistProgress" style="flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;cursor:pointer" onclick="setlistSeekClick(event)">
+              <div id="setlistProgressFill" style="height:100%;width:0%;background:linear-gradient(90deg,#ff6b35,#ff3c6e);border-radius:2px;transition:width .3s"></div>
+            </div>
+            <span id="setlistStepCount" style="font-size:.55rem;color:var(--t3);white-space:nowrap"></span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:.5rem">
+            <button onclick="setlistPrev()" style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
+            <button id="setlistPlayBtn" onclick="setlistToggle()" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#ff3c6e);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+              <svg id="setlistPlayIcon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button onclick="setlistNext()" style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 18h2V6h-2zM4 18l8.5-6L4 6z" transform="scale(-1,1) translate(-24,0)"/></svg>
+            </button>
+            <button onclick="setlistStop()" style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0" title="Stop">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dj-section-divider"></div>
+
       <!-- Quick Actions Grid -->
       <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
         <button class="dj-auto-btn" id="autoModeBtn" onclick="toggleAutoMode()">Auto Cycle</button>
@@ -4108,6 +4143,377 @@ function _stopMusicSync() {
     DJ._syncAudioCtx = null;
   }
   DJ._syncAnalyser = null;
+}
+
+/* ---- SETLISTS (Pre-built animation sequences ~10min each) ---- */
+DJ._setlists = {
+  'Warm Up': {
+    desc: 'Chill build-up to get the crowd going',
+    steps: [
+      { anim: 'pulse',    color: '#ff6b35', bpm: 90,  dur: 40, label: 'Slow Pulse Warm' },
+      { anim: 'ocean',    color: '#00b4d8', bpm: 100, dur: 35, label: 'Ocean Breeze' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'solid',    color: '#7c6aef', bpm: 100, dur: 30, label: 'Purple Hold' },
+      { anim: 'waveform', color: '#2dd4a0', bpm: 110, dur: 35, label: 'Green Waves' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'plasma',   color: '#ff3c6e', bpm: 115, dur: 35, label: 'Plasma Rise' },
+      { anim: 'pulse',    color: '#ffdd00', bpm: 120, dur: 30, label: 'Yellow Pulse' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'galaxy',   color: '#7c6aef', bpm: 120, dur: 40, label: 'Galaxy Drift' },
+      { anim: 'rainbow',  color: '#fff',    bpm: 125, dur: 35, label: 'Rainbow Build' },
+      { anim: 'fire',     color: '#ff6b35', bpm: 128, dur: 35, label: 'Fire Ignition' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'electric', color: '#00b4d8', bpm: 128, dur: 40, label: 'Electric Surge' },
+      { anim: 'laser',    color: '#ff3c6e', bpm: 128, dur: 30, label: 'Laser Intro' },
+      { cmd: 'flash', dur: 0.5 },
+      { anim: 'confetti', color: '#ffdd00', bpm: 128, dur: 35, label: 'Confetti Drop' },
+      { anim: 'strobe',   color: '#fff',    bpm: 128, dur: 15, label: 'Strobe Blast' },
+      { anim: 'pulse',    color: '#ff6b35', bpm: 128, dur: 20, label: 'Final Pulse' }
+    ]
+  },
+  'Peak Time': {
+    desc: 'High energy set for the main event',
+    steps: [
+      { anim: 'strobe',   color: '#fff',    bpm: 130, dur: 12, label: 'Strobe Opener' },
+      { cmd: 'flash', dur: 0.5 },
+      { anim: 'fire',     color: '#ff6b35', bpm: 132, dur: 30, label: 'Fireball' },
+      { anim: 'electric', color: '#00b4d8', bpm: 135, dur: 30, label: 'Electric Storm' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'laser',    color: '#ff3c6e', bpm: 138, dur: 35, label: 'Laser Show' },
+      { cmd: 'blackout', dur: 3 },
+      { anim: 'confetti', color: '#ffdd00', bpm: 140, dur: 25, label: 'Confetti Explosion' },
+      { anim: 'strobe',   color: '#7c6aef', bpm: 140, dur: 10, label: 'Purple Strobe' },
+      { cmd: 'flash', dur: 0.5 },
+      { anim: 'rainbow',  color: '#fff',    bpm: 138, dur: 30, label: 'Rainbow Rave' },
+      { anim: 'plasma',   color: '#ff3c6e', bpm: 135, dur: 35, label: 'Plasma Melt' },
+      { anim: 'fire',     color: '#ffdd00', bpm: 138, dur: 25, label: 'Golden Flames' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'electric', color: '#2dd4a0', bpm: 140, dur: 30, label: 'Green Lightning' },
+      { cmd: 'blackout', dur: 2 },
+      { anim: 'laser',    color: '#ff6b35', bpm: 142, dur: 30, label: 'Orange Lasers' },
+      { anim: 'confetti', color: '#ff3c6e', bpm: 140, dur: 30, label: 'Pink Rain' },
+      { anim: 'strobe',   color: '#fff',    bpm: 145, dur: 10, label: 'White Out' },
+      { cmd: 'flash', dur: 0.8 },
+      { anim: 'galaxy',   color: '#7c6aef', bpm: 128, dur: 40, label: 'Galaxy Cool Down' },
+      { anim: 'pulse',    color: '#ff6b35', bpm: 128, dur: 30, label: 'Outro Pulse' }
+    ]
+  },
+  'Chill Vibes': {
+    desc: 'Ambient and relaxed atmosphere',
+    steps: [
+      { anim: 'ocean',    color: '#00b4d8', bpm: 80,  dur: 45, label: 'Deep Ocean' },
+      { anim: 'galaxy',   color: '#7c6aef', bpm: 85,  dur: 45, label: 'Stargazing' },
+      { anim: 'plasma',   color: '#2dd4a0', bpm: 80,  dur: 40, label: 'Green Plasma' },
+      { anim: 'waveform', color: '#00b4d8', bpm: 85,  dur: 40, label: 'Sound Waves' },
+      { anim: 'solid',    color: '#ff3c6e', bpm: 80,  dur: 30, label: 'Pink Moment' },
+      { anim: 'pulse',    color: '#7c6aef', bpm: 90,  dur: 35, label: 'Soft Pulse' },
+      { anim: 'ocean',    color: '#2dd4a0', bpm: 85,  dur: 40, label: 'Emerald Sea' },
+      { anim: 'rainbow',  color: '#fff',    bpm: 90,  dur: 40, label: 'Slow Rainbow' },
+      { anim: 'galaxy',   color: '#00b4d8', bpm: 85,  dur: 45, label: 'Blue Galaxy' },
+      { anim: 'plasma',   color: '#ff6b35', bpm: 80,  dur: 40, label: 'Warm Plasma' },
+      { anim: 'waveform', color: '#7c6aef', bpm: 85,  dur: 35, label: 'Purple Waves' },
+      { anim: 'ocean',    color: '#00b4d8', bpm: 80,  dur: 45, label: 'Ocean Fade Out' }
+    ]
+  },
+  'Festival': {
+    desc: 'Stadium-size effects, big drops',
+    steps: [
+      { anim: 'pulse',    color: '#ff6b35', bpm: 128, dur: 20, label: 'Opening Pulse' },
+      { cmd: 'blackout', dur: 3 },
+      { anim: 'strobe',   color: '#fff',    bpm: 140, dur: 8,  label: 'Strobe Drop' },
+      { cmd: 'flash', dur: 0.8 },
+      { anim: 'fire',     color: '#ff6b35', bpm: 138, dur: 30, label: 'Wall of Fire' },
+      { anim: 'laser',    color: '#ff3c6e', bpm: 140, dur: 30, label: 'Laser Barrage' },
+      { cmd: 'flash', dur: 0.5 },
+      { anim: 'confetti', color: '#ffdd00', bpm: 138, dur: 25, label: 'Golden Shower' },
+      { anim: 'electric', color: '#7c6aef', bpm: 140, dur: 25, label: 'Thunder' },
+      { cmd: 'blackout', dur: 4 },
+      { anim: 'rainbow',  color: '#fff',    bpm: 145, dur: 20, label: 'Rainbow Explosion' },
+      { anim: 'strobe',   color: '#00b4d8', bpm: 150, dur: 8,  label: 'Cyan Strobe' },
+      { cmd: 'flash', dur: 0.5 },
+      { anim: 'fire',     color: '#ff3c6e', bpm: 142, dur: 30, label: 'Pink Inferno' },
+      { anim: 'galaxy',   color: '#7c6aef', bpm: 128, dur: 35, label: 'Space Break' },
+      { anim: 'plasma',   color: '#2dd4a0', bpm: 130, dur: 30, label: 'Neon Plasma' },
+      { cmd: 'blackout', dur: 3 },
+      { anim: 'laser',    color: '#ffdd00', bpm: 142, dur: 25, label: 'Gold Lasers' },
+      { anim: 'electric', color: '#00b4d8', bpm: 145, dur: 25, label: 'Ice Storm' },
+      { cmd: 'flash', dur: 0.8 },
+      { anim: 'confetti', color: '#ff6b35', bpm: 140, dur: 30, label: 'Orange Confetti' },
+      { anim: 'strobe',   color: '#fff',    bpm: 150, dur: 10, label: 'Final Strobe' },
+      { cmd: 'flash', dur: 1 },
+      { anim: 'pulse',    color: '#ff6b35', bpm: 128, dur: 25, label: 'Closing Pulse' }
+    ]
+  },
+  'Sunset': {
+    desc: 'Golden hour mood, warm colors',
+    steps: [
+      { anim: 'solid',    color: '#ff6b35', bpm: 85,  dur: 35, label: 'Golden Hour' },
+      { anim: 'pulse',    color: '#ff8c42', bpm: 90,  dur: 35, label: 'Amber Pulse' },
+      { anim: 'ocean',    color: '#ff3c6e', bpm: 90,  dur: 40, label: 'Pink Tide' },
+      { anim: 'fire',     color: '#ff6b35', bpm: 95,  dur: 35, label: 'Sunset Flames' },
+      { cmd: 'flash', dur: 0.3 },
+      { anim: 'plasma',   color: '#ff3c6e', bpm: 100, dur: 35, label: 'Magenta Glow' },
+      { anim: 'waveform', color: '#ff6b35', bpm: 100, dur: 35, label: 'Warm Waves' },
+      { anim: 'galaxy',   color: '#7c6aef', bpm: 95,  dur: 40, label: 'Twilight Sky' },
+      { anim: 'solid',    color: '#ff3c6e', bpm: 90,  dur: 30, label: 'Rose Hold' },
+      { anim: 'rainbow',  color: '#fff',    bpm: 100, dur: 35, label: 'Sunset Rainbow' },
+      { anim: 'pulse',    color: '#7c6aef', bpm: 95,  dur: 35, label: 'Violet Dusk' },
+      { anim: 'ocean',    color: '#00b4d8', bpm: 85,  dur: 40, label: 'Night Tide' },
+      { anim: 'galaxy',   color: '#7c6aef', bpm: 80,  dur: 45, label: 'Starlight' }
+    ]
+  }
+};
+
+DJ._setlist = null;      // current setlist key
+DJ._setlistStep = 0;     // current step index
+DJ._setlistPlaying = false;
+DJ._setlistTimer = null;
+DJ._setlistStepStart = 0;
+DJ._setlistTickInterval = null;
+
+// Build setlist picker buttons
+(function() {
+  var picker = document.getElementById('setlistPicker');
+  if (!picker) return;
+  Object.keys(DJ._setlists).forEach(function(name) {
+    var sl = DJ._setlists[name];
+    var totalSec = 0;
+    sl.steps.forEach(function(s) { totalSec += s.dur || 0; });
+    var mins = Math.round(totalSec / 60);
+    var btn = document.createElement('button');
+    btn.className = 'dj-bpm-btn setlist-pick-btn';
+    btn.setAttribute('data-setlist', name);
+    btn.innerHTML = name + '<br><span style="font-size:.5rem;opacity:.6">' + mins + 'min</span>';
+    btn.style.cssText = 'padding:4px 8px;font-size:.6rem;line-height:1.2;min-width:60px';
+    btn.onclick = function() { setlistLoad(name); };
+    picker.appendChild(btn);
+  });
+})();
+
+function setlistLoad(name) {
+  var sl = DJ._setlists[name];
+  if (!sl) return;
+  DJ._setlist = name;
+  DJ._setlistStep = 0;
+  DJ._setlistPlaying = false;
+
+  // Highlight picked button
+  document.querySelectorAll('.setlist-pick-btn').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-setlist') === name);
+  });
+
+  // Show player
+  var player = document.getElementById('setlistPlayer');
+  player.style.display = 'block';
+  document.getElementById('setlistName').textContent = name;
+  _setlistUpdateUI();
+  showToast('Setlist "' + name + '" loaded -- press play');
+}
+
+function setlistToggle() {
+  if (!DJ._setlist) return;
+  if (DJ._setlistPlaying) {
+    _setlistPause();
+  } else {
+    _setlistPlay();
+  }
+}
+
+function _setlistPlay() {
+  if (!DJ._setlist || !DJ.broadcasting) {
+    showToast('Start broadcasting first', true);
+    return;
+  }
+  DJ._setlistPlaying = true;
+  // Turn off Auto Cycle and Music Sync if active
+  if (DJ.autoMode) toggleAutoMode();
+  if (DJ.musicSync) toggleMusicSync();
+
+  _setlistUpdatePlayIcon();
+  _setlistExecuteStep();
+  // Tick every 500ms to update timer
+  if (DJ._setlistTickInterval) clearInterval(DJ._setlistTickInterval);
+  DJ._setlistTickInterval = setInterval(_setlistTick, 500);
+}
+
+function _setlistPause() {
+  DJ._setlistPlaying = false;
+  if (DJ._setlistTimer) { clearTimeout(DJ._setlistTimer); DJ._setlistTimer = null; }
+  if (DJ._setlistTickInterval) { clearInterval(DJ._setlistTickInterval); DJ._setlistTickInterval = null; }
+  _setlistUpdatePlayIcon();
+}
+
+function setlistStop() {
+  _setlistPause();
+  DJ._setlistStep = 0;
+  _setlistUpdateUI();
+  document.querySelectorAll('.setlist-pick-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('setlistPlayer').style.display = 'none';
+  DJ._setlist = null;
+}
+
+function setlistNext() {
+  if (!DJ._setlist) return;
+  var sl = DJ._setlists[DJ._setlist];
+  if (!sl) return;
+  // Skip to next animation step (skip flash/blackout commands)
+  var next = DJ._setlistStep + 1;
+  while (next < sl.steps.length && sl.steps[next].cmd) next++;
+  if (next >= sl.steps.length) {
+    showToast('End of setlist');
+    _setlistPause();
+    return;
+  }
+  DJ._setlistStep = next;
+  if (DJ._setlistPlaying) {
+    if (DJ._setlistTimer) { clearTimeout(DJ._setlistTimer); DJ._setlistTimer = null; }
+    _setlistExecuteStep();
+  } else {
+    _setlistUpdateUI();
+  }
+}
+
+function setlistPrev() {
+  if (!DJ._setlist) return;
+  var sl = DJ._setlists[DJ._setlist];
+  if (!sl) return;
+  // Go back to previous animation step
+  var prev = DJ._setlistStep - 1;
+  while (prev >= 0 && sl.steps[prev].cmd) prev--;
+  if (prev < 0) prev = 0;
+  DJ._setlistStep = prev;
+  if (DJ._setlistPlaying) {
+    if (DJ._setlistTimer) { clearTimeout(DJ._setlistTimer); DJ._setlistTimer = null; }
+    _setlistExecuteStep();
+  } else {
+    _setlistUpdateUI();
+  }
+}
+
+function setlistSeekClick(e) {
+  if (!DJ._setlist) return;
+  var sl = DJ._setlists[DJ._setlist];
+  var rect = e.currentTarget.getBoundingClientRect();
+  var pct = (e.clientX - rect.left) / rect.width;
+  var totalSec = 0;
+  sl.steps.forEach(function(s) { totalSec += s.dur || 0; });
+  var targetSec = pct * totalSec;
+  var accum = 0;
+  for (var i = 0; i < sl.steps.length; i++) {
+    accum += sl.steps[i].dur || 0;
+    if (accum >= targetSec) {
+      DJ._setlistStep = i;
+      if (DJ._setlistPlaying) {
+        if (DJ._setlistTimer) { clearTimeout(DJ._setlistTimer); DJ._setlistTimer = null; }
+        _setlistExecuteStep();
+      } else {
+        _setlistUpdateUI();
+      }
+      return;
+    }
+  }
+}
+
+function _setlistExecuteStep() {
+  if (!DJ._setlist || !DJ._setlistPlaying) return;
+  var sl = DJ._setlists[DJ._setlist];
+  if (!sl || DJ._setlistStep >= sl.steps.length) {
+    // End of setlist
+    showToast('Setlist "' + DJ._setlist + '" finished');
+    _setlistPause();
+    DJ._setlistStep = 0;
+    _setlistUpdateUI();
+    return;
+  }
+
+  var step = sl.steps[DJ._setlistStep];
+  DJ._setlistStepStart = Date.now();
+
+  if (step.cmd) {
+    // Special command (flash, blackout)
+    sendCommand(step.cmd);
+    // Move to next step after command duration
+    DJ._setlistTimer = setTimeout(function() {
+      DJ._setlistStep++;
+      _setlistExecuteStep();
+    }, (step.dur || 0.5) * 1000);
+  } else {
+    // Animation step
+    if (step.color) {
+      DJ.color = step.color;
+      document.getElementById('colorPicker').value = step.color;
+      document.getElementById('colorHex').textContent = step.color;
+    }
+    if (step.bpm) {
+      DJ.bpm = step.bpm;
+      document.getElementById('bpmValue').textContent = step.bpm;
+      document.getElementById('bpmSlider').value = step.bpm;
+    }
+    DJ.animation = step.anim;
+    selectAnimation(step.anim);
+    sendCommand(step.anim);
+
+    _setlistUpdateUI();
+
+    // Schedule next step
+    DJ._setlistTimer = setTimeout(function() {
+      DJ._setlistStep++;
+      _setlistExecuteStep();
+    }, step.dur * 1000);
+  }
+}
+
+function _setlistTick() {
+  if (!DJ._setlistPlaying || !DJ._setlist) return;
+  _setlistUpdateUI();
+}
+
+function _setlistUpdateUI() {
+  var sl = DJ._setlists[DJ._setlist];
+  if (!sl) return;
+  var step = sl.steps[DJ._setlistStep] || {};
+  var totalSec = 0;
+  var elapsedSec = 0;
+  for (var i = 0; i < sl.steps.length; i++) {
+    var sDur = sl.steps[i].dur || 0;
+    if (i < DJ._setlistStep) elapsedSec += sDur;
+    else if (i === DJ._setlistStep && DJ._setlistPlaying) {
+      elapsedSec += Math.min(sDur, (Date.now() - DJ._setlistStepStart) / 1000);
+    }
+    totalSec += sDur;
+  }
+
+  // Track name
+  var trackEl = document.getElementById('setlistTrackName');
+  if (step.label) trackEl.textContent = step.label;
+  else if (step.cmd) trackEl.textContent = step.cmd.toUpperCase();
+
+  // Progress
+  var pct = totalSec > 0 ? (elapsedSec / totalSec) * 100 : 0;
+  document.getElementById('setlistProgressFill').style.width = pct + '%';
+
+  // Step count
+  var animSteps = sl.steps.filter(function(s) { return !s.cmd; });
+  var currentAnimIdx = 0;
+  for (var j = 0; j <= DJ._setlistStep && j < sl.steps.length; j++) {
+    if (!sl.steps[j].cmd) currentAnimIdx++;
+  }
+  document.getElementById('setlistStepCount').textContent = currentAnimIdx + '/' + animSteps.length;
+
+  // Timer
+  var remSec = Math.max(0, totalSec - elapsedSec);
+  var mm = Math.floor(remSec / 60);
+  var ss = Math.floor(remSec % 60);
+  document.getElementById('setlistTimer').textContent = '-' + mm + ':' + (ss < 10 ? '0' : '') + ss;
+}
+
+function _setlistUpdatePlayIcon() {
+  var icon = document.getElementById('setlistPlayIcon');
+  if (DJ._setlistPlaying) {
+    icon.innerHTML = '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>';
+  } else {
+    icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+  }
 }
 
 /* ---- AUTO MODE ---- */
