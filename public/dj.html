@@ -1105,12 +1105,25 @@ function connectSocket() {
   });
 
   // Audience device joined
+  // Track real connected devices for venue map
+  DJ.realDevices = {};
+
   socket.on('dj-device-joined', function(data) {
     if (data.sessionId === DJ.sessionId) {
       DJ.deviceCount = data.totalDevices || (DJ.deviceCount + 1);
       DJ.connectedCount = DJ.deviceCount;
       document.getElementById('deviceCount').textContent = DJ.deviceCount;
       showToast('+1 device connected');
+      // Add to real devices tracking
+      var devId = data.deviceId || ('dev_' + DJ.deviceCount);
+      var idx = Object.keys(DJ.realDevices).length;
+      var total = DJ.deviceCount || 1;
+      DJ.realDevices[devId] = {
+        id: devId,
+        joinIndex: idx,
+        joinTime: Date.now()
+      };
+      _syncRealDevicesToVenueMap();
     }
   });
 
@@ -1120,8 +1133,58 @@ function connectSocket() {
       DJ.deviceCount = data.totalDevices || Math.max(0, DJ.deviceCount - 1);
       DJ.connectedCount = DJ.deviceCount;
       document.getElementById('deviceCount').textContent = DJ.deviceCount;
+      // Remove from real devices
+      if (data.deviceId && DJ.realDevices[data.deviceId]) {
+        delete DJ.realDevices[data.deviceId];
+      }
+      _syncRealDevicesToVenueMap();
     }
   });
+
+  // Sync real connected devices into venue map (no grid needed)
+  function _syncRealDevicesToVenueMap() {
+    var devKeys = Object.keys(DJ.realDevices);
+    if (devKeys.length === 0) return; // let phantom dots handle it
+    var total = devKeys.length;
+    // Sort by joinIndex for consistent layout
+    devKeys.sort(function(a, b) {
+      return (DJ.realDevices[a].joinIndex || 0) - (DJ.realDevices[b].joinIndex || 0);
+    });
+    // Create assignments in venue map format
+    var assignments = {};
+    var gw = 10; // virtual grid for positioning
+    var gh = Math.max(1, Math.ceil(total / gw));
+    devKeys.forEach(function(devId, i) {
+      var gx = i % gw;
+      var gy = Math.floor(i / gw);
+      assignments[devId] = {
+        gridX: gx,
+        gridY: gy,
+        confidence: 1.0
+      };
+    });
+    // Use calibration distance if available
+    if (DJ.calibrationResults && Object.keys(DJ.calibrationResults).length > 0) {
+      var sorted = Object.entries(DJ.calibrationResults).sort(function(a, b) {
+        return (a[1].distance || 0) - (b[1].distance || 0);
+      });
+      sorted.forEach(function(entry, i) {
+        var devId = entry[0];
+        if (assignments[devId]) {
+          var gx = i % gw;
+          var gy = Math.floor(i / gw);
+          assignments[devId].gridX = gx;
+          assignments[devId].gridY = gy;
+        }
+      });
+    }
+    if (window.venueMapUpdateDevices) {
+      window.venueMapUpdateDevices(assignments, {});
+      if (window.venueMapSetGrid) {
+        window.venueMapSetGrid({ width: gw, height: Math.max(1, gh) });
+      }
+    }
+  }
 
   // ---- Venue Map / Grid updates from server ----
   socket.on('grid-preview-update', function(data) {
@@ -2712,18 +2775,73 @@ window.startCalibration = function() {
   if (btn) { btn.textContent = 'Calibrating...'; btn.style.opacity = '0.5'; }
 
   var calibrationId = 'cal_' + Date.now();
+  var calFreq = DJ.venueFreq || 19200;
+
+  // Step 1: Tell phones to start listening (via server)
   socket.emit('dj-calibration-start', {
     sessionId: DJ.sessionId,
     calibrationId: calibrationId,
     emitTime: Date.now(),
-    frequency: DJ.venueFreq || 19200
+    frequency: calFreq
   });
+
+  // Step 2: After 500ms (give phones time to open mic), emit a real ultrasonic pulse
+  setTimeout(function() {
+    emitCalibrationPulse(calFreq);
+    if (statusText) statusText.textContent = 'Pulse sent! Waiting for responses...';
+    // Update emitTime to the actual pulse moment
+    socket.emit('dj-calibration-pulse-sent', {
+      sessionId: DJ.sessionId,
+      calibrationId: calibrationId,
+      actualEmitTime: Date.now()
+    });
+  }, 500);
 
   DJ._calibrationTimeout = setTimeout(function() {
     finishCalibration();
   }, 8000);
 
   showToast('Calibration started - phones are listening...');
+};
+
+// Emit a short ultrasonic burst for calibration (distinct from continuous broadcast)
+function emitCalibrationPulse(freq) {
+  try {
+    var ctx = DJ.sonicCtx;
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    // Stop continuous broadcast briefly so pulse is distinct
+    if (DJ.sonicOsc) {
+      try { DJ.sonicOsc.stop(); } catch(e) {}
+      DJ.sonicOsc = null;
+    }
+
+    // Create a loud short burst at calibration frequency
+    var osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+    var gain = ctx.createGain();
+    // Start loud, then cut
+    gain.gain.setValueAtTime(0.9, ctx.currentTime);
+    gain.gain.setValueAtTime(0.9, ctx.currentTime + 0.15);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+
+    console.log('[Calibration] Ultrasonic pulse emitted at ' + freq + 'Hz');
+
+    // Restart continuous broadcast after pulse ends
+    setTimeout(function() {
+      if (DJ.broadcasting) startSonicBroadcast();
+    }, 300);
+  } catch(e) {
+    console.log('[Calibration] Pulse emit error:', e);
+  }
 };
 
 window.resetCalibration = function() {

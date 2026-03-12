@@ -26179,8 +26179,8 @@ function setupDJListeners() {
       var detected = false;
       var startListenTime = Date.now();
       var maxListenMs = 5000; // listen up to 5 seconds
-      var targetFreq = 18000; // ultrasonic frequency to detect
-      var threshold = 140; // amplitude threshold
+      var targetFreq = data.frequency || 19200; // use frequency from DJ/server
+      var threshold = 120; // amplitude threshold (lowered for better detection)
 
       function tryWithExistingAudio() {
         // Check if we have an active audio context and analyser from positioning
@@ -26255,6 +26255,7 @@ function setupDJListeners() {
 
       function reportCalibration(detectedTime) {
         socket.emit('dj-calibration-report', {
+          sessionId: DJL.sessionId || state.djSessionId,
           calibrationId: calId,
           detectedTime: detectedTime,
           emitTime: emitTime,
