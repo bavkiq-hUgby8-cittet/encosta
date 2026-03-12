@@ -18681,6 +18681,15 @@ io.on('connection', (socket) => {
     console.log('[Calibration] Started:', data.calibrationId, 'for session', data.sessionId);
   });
 
+  // DJ reports the actual moment the ultrasonic pulse was emitted (after mic warmup delay)
+  socket.on('dj-calibration-pulse-sent', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s || s.calibrationId !== data.calibrationId) return;
+    s.calibrationEmitTime = data.actualEmitTime;
+    console.log('[Calibration] Pulse actually emitted at', data.actualEmitTime, 'for', data.calibrationId);
+  });
+
   // Audience phone reports back its detected time
   socket.on('dj-calibration-report', (data) => {
     if (!data || !data.sessionId || !data.calibrationId) return;
