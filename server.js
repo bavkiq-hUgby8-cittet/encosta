@@ -17762,6 +17762,8 @@ app.post('/api/dj/session/create', (req, res) => {
     totalZones: 4,
     liveText: '',
     connectedDevices: new Set(),
+    socketToDevice: {},  // socketId -> deviceId mapping for proper cleanup
+    deviceToSocket: {},  // deviceId -> socketId reverse mapping
     createdAt: Date.now(),
     // Choreography / light show
     choreography: null,
@@ -17849,6 +17851,8 @@ io.on('connection', (socket) => {
         bpm: 128,
         animation: 'pulse',
         connectedDevices: new Set(),
+        socketToDevice: {},
+        deviceToSocket: {},
         createdAt: Date.now(),
         // Grid positioning system
         gridConfig: null,
@@ -17975,7 +17979,8 @@ io.on('connection', (socket) => {
         for (const sid of room) {
           const deviceSocket = io.sockets.sockets.get(sid);
           if (deviceSocket) {
-            const deviceId = sid;
+            // Resolve deviceId from socket mapping, fallback to socket.id
+            const deviceId = s.socketToDevice[sid] || sid;
             const devIdx = devicesArr.indexOf(deviceId);
             const di = devIdx >= 0 ? devIdx : idx;
             deviceSocket.emit('dj-command', Object.assign({}, basePayload, {
@@ -18040,7 +18045,7 @@ io.on('connection', (socket) => {
       for (const sid of room) {
         const deviceSocket = io.sockets.sockets.get(sid);
         if (deviceSocket) {
-          const deviceId = sid;
+          const deviceId = s.socketToDevice[sid] || sid;
           const devIdx = devicesArr.indexOf(deviceId);
           const di = devIdx >= 0 ? devIdx : idx;
           deviceSocket.emit('dj-choreography', Object.assign({}, payload, {
@@ -18230,7 +18235,20 @@ io.on('connection', (socket) => {
     if (!s) return;
 
     const deviceId = data.deviceId || socket.id;
+    // Clean up old mapping if this socket previously had a different deviceId
+    const oldDeviceId = s.socketToDevice[socket.id];
+    if (oldDeviceId && oldDeviceId !== deviceId) {
+      s.connectedDevices.delete(oldDeviceId);
+      delete s.deviceToSocket[oldDeviceId];
+    }
+    // Clean up old mapping if this deviceId was on a different socket
+    const oldSocketId = s.deviceToSocket[deviceId];
+    if (oldSocketId && oldSocketId !== socket.id) {
+      delete s.socketToDevice[oldSocketId];
+    }
     s.connectedDevices.add(deviceId);
+    s.socketToDevice[socket.id] = deviceId;
+    s.deviceToSocket[deviceId] = socket.id;
     socket.join('dj-live:' + data.sessionId);
 
     // Calculate device index and zone
@@ -18284,8 +18302,10 @@ io.on('connection', (socket) => {
     const s = djSessions[data.sessionId];
     if (!s) return;
 
-    const deviceId = data.deviceId || socket.id;
+    const deviceId = data.deviceId || s.socketToDevice[socket.id] || socket.id;
     s.connectedDevices.delete(deviceId);
+    delete s.socketToDevice[socket.id];
+    delete s.deviceToSocket[deviceId];
     socket.leave('dj-live:' + data.sessionId);
 
     io.to('dj-ctrl:' + data.sessionId).emit('dj-device-left', {
@@ -18639,6 +18659,8 @@ io.on('connection', (socket) => {
       bpm: data.bpm || 128,
       animation: data.animation || 'pulse',
       connectedDevices: new Set(),
+      socketToDevice: {},
+      deviceToSocket: {},
       createdAt: Date.now(),
       // Grid positioning system
       gridConfig: null,
@@ -18737,15 +18759,28 @@ io.on('connection', (socket) => {
 
   // Cleanup on disconnect
   socket.on('disconnect', () => {
-    // Remove device from all DJ sessions
+    // Remove device from all DJ sessions using socketToDevice mapping
     for (const [sid, s] of Object.entries(djSessions)) {
-      if (s.connectedDevices.has(socket.id)) {
+      const deviceId = s.socketToDevice[socket.id];
+      if (deviceId) {
+        s.connectedDevices.delete(deviceId);
+        delete s.socketToDevice[socket.id];
+        delete s.deviceToSocket[deviceId];
+        io.to('dj-ctrl:' + sid).emit('dj-device-left', {
+          sessionId: sid,
+          deviceId: deviceId,
+          totalDevices: s.connectedDevices.size
+        });
+        console.log('[DJ] Device disconnected:', deviceId, '(socket:', socket.id, ') | Total:', s.connectedDevices.size);
+      } else if (s.connectedDevices.has(socket.id)) {
+        // Fallback: device joined with socket.id directly
         s.connectedDevices.delete(socket.id);
         io.to('dj-ctrl:' + sid).emit('dj-device-left', {
           sessionId: sid,
           deviceId: socket.id,
           totalDevices: s.connectedDevices.size
         });
+        console.log('[DJ] Device disconnected (fallback):', socket.id, '| Total:', s.connectedDevices.size);
       }
     }
   });
