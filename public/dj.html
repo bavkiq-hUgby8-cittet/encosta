@@ -1277,7 +1277,9 @@ function startBroadcast() {
       venueFreq: DJ.venueFreq,
       color: DJ.color,
       bpm: DJ.bpm,
-      animation: DJ.animation
+      animation: DJ.animation,
+      logoDataUrl: DJ.logoDataUrl || '',
+      artistName: DJ.artistName || ''
     });
   }
 
@@ -1692,6 +1694,13 @@ function setupLogoUpload() {
       var placeholder = document.getElementById('stageLogoPlaceholder');
       if (img) { img.src = DJ.logoDataUrl; img.style.display = 'block'; }
       if (placeholder) placeholder.style.display = 'none';
+      // Send logo to server so audience phones can see it
+      if (DJ.broadcasting && socket && socket.connected) {
+        socket.emit('dj-update-logo', {
+          sessionId: DJ.sessionId,
+          logoDataUrl: DJ.logoDataUrl
+        });
+      }
       showToast('Logo uploaded');
     };
     reader.readAsDataURL(file);
