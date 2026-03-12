@@ -550,38 +550,77 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       <div class="dj-drawer-toggle open" id="venueMapToggle"></div>
     </div>
     <div class="dj-drawer-content">
-      <!-- Row 1: Start | Shape | Phone Count | Device Count -->
-      <div style="display:flex;gap:.3rem;margin-bottom:.3rem;flex-wrap:wrap;align-items:center">
-        <button class="dj-bpm-btn" id="venueMapStartBtn" onclick="toggleVenueMap()" style="font-size:.6rem">Start Map</button>
-        <select id="venueMapShape" onchange="updateVenueShape(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 6px">
-          <option value="rectangle">Rectangle</option>
-          <option value="semicircle">Semicircle</option>
-          <option value="circle">Circle / Arena</option>
-          <option value="stadium">Stadium</option>
-        </select>
-        <div style="display:flex;align-items:center;gap:.2rem">
-          <input type="range" id="vmSimSlider" min="3" max="500" value="8" step="1" onchange="updateSimPhoneCount(this.value);document.getElementById('vmSimValue').textContent=this.value" oninput="updateSimPhoneCount(this.value);document.getElementById('vmSimValue').textContent=this.value" style="width:80px;cursor:pointer">
-          <span id="vmSimValue" style="font-size:.55rem;color:var(--ac);min-width:25px">8</span>
+
+      <!-- === LIVE CONNECTIONS (always visible, big number) === -->
+      <div id="vmLiveBar" style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;margin-bottom:.5rem;background:linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,107,53,.03));border:1px solid rgba(255,107,53,.15);border-radius:12px">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div style="width:8px;height:8px;border-radius:50%;background:#ff6b35;animation:vmLivePulse 2s infinite"></div>
+          <span style="font-size:.65rem;color:var(--t2);font-weight:600">Connected Now</span>
         </div>
-        <span id="venueMapCount" style="font-size:.55rem;color:var(--t3);margin-left:auto">0 devices</span>
+        <div style="display:flex;align-items:baseline;gap:.3rem">
+          <span id="vmLiveCount" style="font-size:1.6rem;font-weight:900;color:#ff6b35;font-family:var(--font-display);line-height:1">0</span>
+          <span style="font-size:.55rem;color:var(--t3)">devices</span>
+        </div>
       </div>
-      <!-- Row 2: Zoom Slider | Stop Button -->
-      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;align-items:center">
-        <div style="display:flex;align-items:center;gap:.2rem;flex:1">
+
+      <!-- === SCENE PRESETS (how it looks at scale) === -->
+      <div style="margin-bottom:.5rem">
+        <div style="font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem;font-weight:600">Scene Preview</div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap">
+          <button class="dj-bpm-btn vmSceneBtn" onclick="setVmScene('party',20)" style="font-size:.55rem;padding:.25rem .5rem">House Party<br><span style="font-size:.45rem;opacity:.6">~20</span></button>
+          <button class="dj-bpm-btn vmSceneBtn" onclick="setVmScene('club',200)" style="font-size:.55rem;padding:.25rem .5rem">Club<br><span style="font-size:.45rem;opacity:.6">~200</span></button>
+          <button class="dj-bpm-btn vmSceneBtn" onclick="setVmScene('festival',2000)" style="font-size:.55rem;padding:.25rem .5rem">Festival<br><span style="font-size:.45rem;opacity:.6">~2k</span></button>
+          <button class="dj-bpm-btn vmSceneBtn" onclick="setVmScene('arena',15000)" style="font-size:.55rem;padding:.25rem .5rem">Arena<br><span style="font-size:.45rem;opacity:.6">~15k</span></button>
+          <button class="dj-bpm-btn vmSceneBtn" onclick="setVmScene('stadium',50000)" style="font-size:.55rem;padding:.25rem .5rem">Stadium<br><span style="font-size:.45rem;opacity:.6">~50k</span></button>
+        </div>
+      </div>
+
+      <!-- === YOUR SHOW (custom count + controls) === -->
+      <div style="margin-bottom:.4rem">
+        <div style="font-size:.55rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem;font-weight:600">Your Show Settings</div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">
+          <button class="dj-bpm-btn" id="venueMapStartBtn" onclick="toggleVenueMap()" style="font-size:.6rem">Start Map</button>
+          <select id="venueMapShape" onchange="updateVenueShape(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 6px">
+            <option value="rectangle">Rectangle</option>
+            <option value="semicircle">Semicircle</option>
+            <option value="circle">Circle / Arena</option>
+            <option value="stadium">Stadium</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:.2rem;flex:1;min-width:140px">
+            <span style="font-size:.5rem;color:var(--t3);white-space:nowrap">Phones:</span>
+            <input type="range" id="vmSimSlider" min="3" max="1000" value="8" step="1" oninput="setVmCustomCount(this.value)" style="flex:1;cursor:pointer">
+            <span id="vmSimValue" style="font-size:.6rem;color:var(--ac);min-width:30px;font-weight:700">8</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:.3rem;margin-top:.3rem;align-items:center">
           <span style="font-size:.5rem;color:var(--t3);white-space:nowrap">Zoom:</span>
-          <input type="range" id="vmZoomSlider" min="50" max="300" value="100" step="1" onchange="setVenueMapZoom(this.value)" oninput="setVenueMapZoom(this.value)" style="width:100%;cursor:pointer">
+          <input type="range" id="vmZoomSlider" min="50" max="300" value="100" step="1" oninput="setVenueMapZoom(this.value)" style="flex:1;cursor:pointer">
           <span id="vmZoomValue" style="font-size:.5rem;color:var(--ac);min-width:35px">100%</span>
+          <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop</button>
         </div>
-        <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop</button>
       </div>
-      <canvas id="venueMapCanvas" width="800" height="600" style="width:100%;height:320px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
+
+      <!-- === CANVAS === -->
+      <div style="position:relative">
+        <canvas id="venueMapCanvas" width="800" height="600" style="width:100%;height:320px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
+        <!-- Scene label overlay -->
+        <div id="vmSceneLabel" style="position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:.6rem;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase;letter-spacing:.1em;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.8)"></div>
+        <!-- Simulated count overlay -->
+        <div id="vmSimCountOverlay" style="position:absolute;top:8px;right:12px;font-size:.55rem;color:rgba(0,180,216,.6);font-weight:600;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.8)"></div>
+      </div>
       <div style="display:flex;justify-content:space-between;margin-top:.15rem">
         <span style="font-size:.45rem;color:var(--t3)">STAGE</span>
         <span id="venueMapGrid" style="font-size:.45rem;color:var(--t3)">Grid: --</span>
         <span style="font-size:.45rem;color:var(--t3)">BACK</span>
       </div>
+      <!-- Removed old venueMapCount span - now using vmLiveCount -->
     </div>
   </div>
+  <style>
+  @keyframes vmLivePulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,107,53,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(255,107,53,0)}}
+  .vmSceneBtn{transition:all .15s !important}
+  .vmSceneBtn.active{background:rgba(255,107,53,.2) !important;border-color:rgba(255,107,53,.5) !important;color:#ff6b35 !important}
+  </style>
 
   <!-- ACTIVATE BROADCAST -->
   <section class="dj-activate-section dj-console-full">
@@ -1102,12 +1141,31 @@ function connectSocket() {
     updateStatus('offline');
   });
 
+  // Helper: update all live count displays
+  function _updateLiveCount() {
+    var el = document.getElementById('deviceCount');
+    if (el) el.textContent = DJ.deviceCount;
+    var liveEl = document.getElementById('vmLiveCount');
+    if (liveEl) liveEl.textContent = DJ.deviceCount;
+    // Update live bar color when devices are connected
+    var liveBar = document.getElementById('vmLiveBar');
+    if (liveBar) {
+      if (DJ.deviceCount > 0) {
+        liveBar.style.borderColor = 'rgba(255,107,53,.4)';
+        liveBar.style.background = 'linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,107,53,.05))';
+      } else {
+        liveBar.style.borderColor = 'rgba(255,107,53,.15)';
+        liveBar.style.background = 'linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,107,53,.03))';
+      }
+    }
+  }
+
   // Device count updates
   socket.on('dj-device-count', function(data) {
     if (data.sessionId === DJ.sessionId) {
       DJ.deviceCount = data.count || 0;
       DJ.connectedCount = DJ.deviceCount;
-      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+      _updateLiveCount();
     }
   });
 
@@ -1119,7 +1177,7 @@ function connectSocket() {
     if (data.sessionId === DJ.sessionId) {
       DJ.deviceCount = data.totalDevices || (DJ.deviceCount + 1);
       DJ.connectedCount = DJ.deviceCount;
-      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+      _updateLiveCount();
       showToast('+1 device connected');
       // Add to real devices tracking
       var devId = data.deviceId || ('dev_' + DJ.deviceCount);
@@ -1139,7 +1197,7 @@ function connectSocket() {
     if (data.sessionId === DJ.sessionId) {
       DJ.deviceCount = data.totalDevices || Math.max(0, DJ.deviceCount - 1);
       DJ.connectedCount = DJ.deviceCount;
-      document.getElementById('deviceCount').textContent = DJ.deviceCount;
+      _updateLiveCount();
       // Remove from real devices
       if (data.deviceId && DJ.realDevices[data.deviceId]) {
         delete DJ.realDevices[data.deviceId];
@@ -4751,6 +4809,68 @@ init = function() {
       _vmDevices = [];
     };
 
+    // Scene presets for showing scale
+    var _vmCurrentScene = '';
+    var _vmSceneShapes = {
+      'party': 'rectangle',
+      'club': 'rectangle',
+      'festival': 'semicircle',
+      'arena': 'circle',
+      'stadium': 'stadium'
+    };
+
+    window.setVmScene = function(scene, count) {
+      _vmCurrentScene = scene;
+      _vmSimPhoneCount = count;
+      _vmDevices = [];
+
+      // Set matching shape
+      if (_vmSceneShapes[scene]) {
+        _vmShape = _vmSceneShapes[scene];
+        var shapeSelect = document.getElementById('venueMapShape');
+        if (shapeSelect) shapeSelect.value = _vmShape;
+      }
+
+      // Update slider to show the count
+      var slider = document.getElementById('vmSimSlider');
+      var valEl = document.getElementById('vmSimValue');
+      if (slider) slider.value = Math.min(1000, count);
+      if (valEl) valEl.textContent = _formatCount(count);
+
+      // Update scene label
+      var sceneLabel = document.getElementById('vmSceneLabel');
+      var sceneNames = { party: 'House Party', club: 'Club Night', festival: 'Festival', arena: 'Arena Show', stadium: 'Stadium Tour' };
+      if (sceneLabel) sceneLabel.textContent = (sceneNames[scene] || scene) + ' - ' + _formatCount(count) + ' phones';
+
+      // Highlight active button
+      var btns = document.querySelectorAll('.vmSceneBtn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      var activeBtn = document.querySelector('.vmSceneBtn[onclick*="' + scene + '"]');
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // Auto-start if not running
+      if (!_vmActive) toggleVenueMap();
+    };
+
+    window.setVmCustomCount = function(count) {
+      var c = parseInt(count) || 8;
+      _vmSimPhoneCount = c;
+      _vmDevices = [];
+      _vmCurrentScene = '';
+      var valEl = document.getElementById('vmSimValue');
+      if (valEl) valEl.textContent = _formatCount(c);
+      var sceneLabel = document.getElementById('vmSceneLabel');
+      if (sceneLabel) sceneLabel.textContent = 'Custom - ' + _formatCount(c) + ' phones';
+      // Remove active from scene buttons
+      var btns = document.querySelectorAll('.vmSceneBtn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+    };
+
+    function _formatCount(n) {
+      if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k';
+      return '' + n;
+    }
+
     window.stopDronePreview = function() {
       _vmDroneShow = null;
       var stopBtn = document.getElementById('vmStopPreview');
@@ -4846,8 +4966,9 @@ init = function() {
       ctx.fillText('STAGE', vx + vw / 2, vy - 9);
 
       // Update device label count
-      var countEl = document.getElementById('venueMapCount');
-      if (countEl) countEl.textContent = _vmDevices.length + ' devices';
+      // Update sim count overlay on canvas
+      var simOverlay = document.getElementById('vmSimCountOverlay');
+      if (simOverlay) simOverlay.textContent = _formatCount(_vmDevices.length) + ' simulated';
 
       // ---- DRONE SHOW PREVIEW ----
       if (_vmDroneShow && _vmDroneShow.frames && _vmDroneShow.frames.length > 0) {
@@ -4950,7 +5071,9 @@ init = function() {
 
         var dx = vx + d.x * vw;
         var dy = vy + d.y * vh;
-        var baseSize = 6 + Math.sin(d.pulse) * 1;
+        // Scale dot size based on crowd density
+        var dotScale = _vmDevices.length <= 30 ? 6 : _vmDevices.length <= 200 ? 4 : _vmDevices.length <= 1000 ? 2.5 : 1.5;
+        var baseSize = dotScale + Math.sin(d.pulse) * (dotScale * 0.15);
         var sz = baseSize;
 
         // Determine color: if drone show active, get from frame cells; otherwise use device color
@@ -5024,19 +5147,24 @@ init = function() {
 
     // Phantom dots distributed across 20x20 grid for drone show visualization
     function _ensurePhantomDots(count) {
-      var gw = (_vmGridConfig && _vmGridConfig.width) || 20;
-      var gh = (_vmGridConfig && _vmGridConfig.height) || 20;
+      // For large crowds, cap rendered dots but scale visually
+      var renderCount = Math.min(count, 2000); // max 2000 actual dots for performance
+      var gw, gh;
+      if (count <= 50) { gw = 10; gh = 5; }
+      else if (count <= 500) { gw = 20; gh = 20; }
+      else if (count <= 5000) { gw = 50; gh = 40; }
+      else { gw = 100; gh = 80; }
       var totalCells = gw * gh;
       // Distribute phones evenly across grid cells
-      while (_vmDevices.length < count) {
+      while (_vmDevices.length < renderCount) {
         var idx = _vmDevices.length;
-        // Map index to grid cell: spread evenly across all cells
-        var cellIndex = Math.floor((idx / count) * totalCells);
+        var cellIndex = Math.floor((idx / renderCount) * totalCells);
         var gridX = cellIndex % gw;
         var gridY = Math.floor(cellIndex / gw);
-        // Normalized position with small jitter for natural look
-        var jx = (gridX + 0.5) / gw + (Math.random() - 0.5) * (0.5 / gw);
-        var jy = (gridY + 0.5) / gh + (Math.random() - 0.5) * (0.5 / gh);
+        // Normalized position with jitter for natural crowd look
+        var jitter = count > 500 ? 0.8 : 0.5; // more randomness for big crowds
+        var jx = (gridX + 0.5) / gw + (Math.random() - 0.5) * (jitter / gw);
+        var jy = (gridY + 0.5) / gh + (Math.random() - 0.5) * (jitter / gh);
         jx = Math.max(0.02, Math.min(0.98, jx));
         jy = Math.max(0.02, Math.min(0.98, jy));
         _vmDevices.push({
@@ -5049,8 +5177,8 @@ init = function() {
           pulse: Math.random() * 6.28
         });
       }
-      // Remove extras
-      while (_vmDevices.length > count) {
+      // Remove extras (use renderCount, not full count)
+      while (_vmDevices.length > renderCount) {
         _vmDevices.pop();
       }
       // Update colors to match current DJ color (when no drone show)
