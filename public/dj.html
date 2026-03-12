@@ -521,8 +521,8 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         </div>
         <div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Stage Preview</div>
       </div>
-      <!-- AQUARIUM -->
-      <div class="dj-aquarium" id="djAquarium">
+      <!-- AQUARIUM (hidden, kept for CPU efficiency) -->
+      <div class="dj-aquarium" id="djAquarium" style="display:none">
         <canvas id="djAquariumCanvas" width="640" height="160"></canvas>
         <div class="dj-aquarium-overlay">
           <div class="dj-aquarium-count">
@@ -532,6 +532,10 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         </div>
         <div class="dj-aquarium-corner tl">Audience</div>
         <div class="dj-aquarium-corner tr" id="aquariumPeak">Peak: 0</div>
+      </div>
+      <!-- Connected Count Bar -->
+      <div style="text-align:center;font-size:.5rem;color:var(--t3);padding:.3rem;background:rgba(0,180,216,.05);border-radius:var(--radius);margin-bottom:.3rem">
+        Connected: <span id="connectedCountValue" style="color:var(--ac);font-weight:bold">0</span> | Peak: <span id="connectedPeakValue" style="color:var(--ac);font-weight:bold">0</span>
       </div>
     </div>
   </section>
@@ -546,30 +550,31 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       <div class="dj-drawer-toggle open" id="venueMapToggle"></div>
     </div>
     <div class="dj-drawer-content">
-      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;flex-wrap:wrap;align-items:center">
+      <!-- Row 1: Start | Shape | Phone Count | Device Count -->
+      <div style="display:flex;gap:.3rem;margin-bottom:.3rem;flex-wrap:wrap;align-items:center">
         <button class="dj-bpm-btn" id="venueMapStartBtn" onclick="toggleVenueMap()" style="font-size:.6rem">Start Map</button>
-        <button class="dj-bpm-btn" onclick="venueMapZoomIn()" style="font-size:.6rem;min-width:30px">+</button>
-        <button class="dj-bpm-btn" onclick="venueMapZoomOut()" style="font-size:.6rem;min-width:30px">-</button>
         <select id="venueMapShape" onchange="updateVenueShape(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 6px">
           <option value="rectangle">Rectangle</option>
           <option value="semicircle">Semicircle</option>
           <option value="circle">Circle / Arena</option>
           <option value="stadium">Stadium</option>
         </select>
-        <span style="font-size:.5rem;color:var(--t3)">Sim:</span>
-        <select id="vmSimCount" onchange="updateSimPhoneCount(this.value)" style="font-size:.55rem;background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 4px">
-          <option value="10">10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
-          <option value="100" selected>100</option>
-          <option value="200">200</option>
-          <option value="500">500</option>
-          <option value="1000">1000</option>
-        </select>
-        <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop</button>
-        <span id="venueMapCount" style="font-size:.55rem;color:var(--ac);margin-left:auto">0 devices</span>
+        <div style="display:flex;align-items:center;gap:.2rem">
+          <input type="range" id="vmSimSlider" min="3" max="500" value="8" step="1" onchange="updateSimPhoneCount(this.value);document.getElementById('vmSimValue').textContent=this.value" oninput="updateSimPhoneCount(this.value);document.getElementById('vmSimValue').textContent=this.value" style="width:80px;cursor:pointer">
+          <span id="vmSimValue" style="font-size:.55rem;color:var(--ac);min-width:25px">8</span>
+        </div>
+        <span id="venueMapCount" style="font-size:.55rem;color:var(--t3);margin-left:auto">0 devices</span>
       </div>
-      <canvas id="venueMapCanvas" width="400" height="300" style="width:100%;height:220px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
+      <!-- Row 2: Zoom Slider | Stop Button -->
+      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;align-items:center">
+        <div style="display:flex;align-items:center;gap:.2rem;flex:1">
+          <span style="font-size:.5rem;color:var(--t3);white-space:nowrap">Zoom:</span>
+          <input type="range" id="vmZoomSlider" min="50" max="300" value="100" step="1" onchange="setVenueMapZoom(this.value)" oninput="setVenueMapZoom(this.value)" style="width:100%;cursor:pointer">
+          <span id="vmZoomValue" style="font-size:.5rem;color:var(--ac);min-width:35px">100%</span>
+        </div>
+        <button class="dj-bpm-btn" id="vmStopPreview" onclick="stopDronePreview()" style="font-size:.6rem;display:none;border-color:rgba(255,60,60,.3);color:#ff4444">Stop</button>
+      </div>
+      <canvas id="venueMapCanvas" width="800" height="600" style="width:100%;height:320px;border-radius:var(--radius);background:linear-gradient(180deg,rgba(0,20,40,.95) 0%,rgba(0,10,25,.98) 100%);border:1px solid rgba(0,180,216,.08);cursor:crosshair"></canvas>
       <div style="display:flex;justify-content:space-between;margin-top:.15rem">
         <span style="font-size:.45rem;color:var(--t3)">STAGE</span>
         <span id="venueMapGrid" style="font-size:.45rem;color:var(--t3)">Grid: --</span>
@@ -852,6 +857,8 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button onclick="stopShow()" style="padding:.45rem 1rem;background:rgba(255,40,40,.25);border:1px solid rgba(255,60,60,.5);border-radius:8px;color:#ff4444;font-family:var(--font-display);font-size:.7rem;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:all .15s">STOP SHOW</button>
       </div>
 
+      <!-- Show Preview Label -->
+      <div id="showPreviewLabel" style="display:none;font-size:.55rem;color:var(--ac);margin-bottom:.2rem;text-transform:uppercase;letter-spacing:.06em">Show Preview</div>
       <!-- Show Preview Canvas -->
       <canvas id="showPreviewCanvas" width="200" height="60" style="width:100%;height:60px;border-radius:var(--radius);background:#000;display:none"></canvas>
     </div>
@@ -1574,6 +1581,11 @@ function initAquariumDots(count) {
 
 function renderAquarium() {
   if (!aquariumCtx) return;
+  if (!document.getElementById('djAquariumCanvas').offsetParent) {
+    document.getElementById('connectedCountValue').textContent = DJ.deviceCount || 0;
+    document.getElementById('connectedPeakValue').textContent = DJ.deviceCountMax || 0;
+    return;
+  }
   var w = aquariumCanvas.width;
   var h = aquariumCanvas.height;
   var now = Date.now();
@@ -3476,8 +3488,10 @@ window.stopShow = function() {
   }
   var statusEl = document.getElementById('showStatus');
   var canvas = document.getElementById('showPreviewCanvas');
+  var label = document.getElementById('showPreviewLabel');
   if (statusEl) statusEl.style.display = 'none';
   if (canvas) canvas.style.display = 'none';
+  if (label) label.style.display = 'none';
   // Remove active from show buttons
   var btns = document.querySelectorAll('#showModeSection .dj-bpm-btn');
   btns.forEach(function(b) { b.classList.remove('active'); });
@@ -3510,7 +3524,10 @@ window.playDroneLibrary = function(showId) {
 function startShowPreview(choreography, beatOrigin) {
   if (DJ._showPreviewRaf) cancelAnimationFrame(DJ._showPreviewRaf);
   var canvas = document.getElementById('showPreviewCanvas');
+  var label = document.getElementById('showPreviewLabel');
   if (!canvas) return;
+  canvas.style.display = '';
+  if (label) label.style.display = '';
   var ctx = canvas.getContext('2d');
   var cols = 8, rows = 4; // Simulated audience grid (32 phones max for small crowds)
 
@@ -4661,11 +4678,11 @@ init = function() {
       _renderVenueMap();
     };
 
-    window.venueMapZoomIn = function() {
-      _vmZoom = Math.min(3.0, _vmZoom + 0.25);
-    };
-    window.venueMapZoomOut = function() {
-      _vmZoom = Math.max(0.5, _vmZoom - 0.25);
+    window.setVenueMapZoom = function(value) {
+      var sliderVal = parseInt(value) || 100;
+      _vmZoom = sliderVal / 100;
+      var zoomLabel = document.getElementById('vmZoomValue');
+      if (zoomLabel) zoomLabel.textContent = sliderVal + '%';
     };
     window.updateVenueShape = function(shape) {
       _vmShape = shape;
@@ -4744,6 +4761,12 @@ init = function() {
       // Clear
       ctx.clearRect(0, 0, W, H);
 
+      // Apply zoom transform
+      ctx.save();
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(_vmZoom, _vmZoom);
+      ctx.translate(-W / 2, -H / 2);
+
       // Background gradient
       var bg = ctx.createLinearGradient(0, 0, 0, H);
       bg.addColorStop(0, 'rgba(0,20,45,0.95)');
@@ -4794,7 +4817,7 @@ init = function() {
       // Draw grid lines (subtle)
       var gw = (_vmGridConfig && _vmGridConfig.width) || 20;
       var gh = (_vmGridConfig && _vmGridConfig.height) || 20;
-      ctx.strokeStyle = 'rgba(0,180,216,0.04)';
+      ctx.strokeStyle = 'rgba(0,180,216,0.08)';
       ctx.lineWidth = 0.5;
       for (var gx = 1; gx < gw; gx++) {
         var lx = vx + (gx / gw) * vw;
@@ -4918,8 +4941,8 @@ init = function() {
 
         var dx = vx + d.x * vw;
         var dy = vy + d.y * vh;
-        var baseSize = 3 + Math.sin(d.pulse) * 1;
-        var sz = baseSize * _vmZoom;
+        var baseSize = 6 + Math.sin(d.pulse) * 1;
+        var sz = baseSize;
 
         // Determine color: if drone show active, get from frame cells; otherwise use device color
         var cellColor = null;
@@ -4954,9 +4977,9 @@ init = function() {
           cb = parseInt(displayColor.substr(5, 2), 16);
         }
 
-        // Glow
+        // Glow (more visible)
         var glow = ctx.createRadialGradient(dx, dy, 0, dx, dy, sz * 4);
-        glow.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.4)');
+        glow.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.6)');
         glow.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
@@ -4968,8 +4991,26 @@ init = function() {
         ctx.beginPath();
         ctx.arc(dx, dy, sz, 0, Math.PI * 2);
         ctx.fill();
+
+        // White outline ring for visibility
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(dx, dy, sz, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Device index label (only when less than 30 devices)
+        if (_vmDevices.length < 30) {
+          var deviceIndex = di + 1;
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 8px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillText(deviceIndex, dx, dy + sz + 2);
+        }
       }
       ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
     }
 
     // Phantom dots distributed across 20x20 grid for drone show visualization
