@@ -23604,9 +23604,18 @@ const GuidedOnboarding=(function(){
   <!-- FLOATING MINI CAMERA -->
   <div id="djLiveCamWrap" style="display:none;position:absolute;z-index:5;width:120px;height:160px;border-radius:14px;overflow:hidden;border:2px solid rgba(255,255,255,.25);box-shadow:0 4px 24px rgba(0,0,0,.6);touch-action:none;cursor:grab;top:60px;right:16px;background:#000">
     <video id="djLiveCamVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;transform:scaleX(1);pointer-events:none"></video>
-    <button id="djLiveCamClose" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-family:sans-serif" onclick="djLiveCamClose()">X</button>
+    <button id="djLiveCamClose" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-family:sans-serif;z-index:3" onclick="djLiveCamClose()">X</button>
+    <!-- Camera controls bar -->
+    <div style="position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,.7));z-index:2">
+      <button id="djLiveCamFlipBtn" onclick="djLiveCamFlip()" style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)" title="Flip camera">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M20 7l-4-4-4 4"/><path d="M16 3v10"/><path d="M4 17l4 4 4-4"/><path d="M8 21V11"/></svg>
+      </button>
+      <button id="djLiveCamFlashBtn" onclick="djLiveCamFlash()" style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)" title="Toggle flash">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </button>
+    </div>
     <!-- Resize handle -->
-    <div id="djLiveCamResize" style="position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:nwse-resize;touch-action:none">
+    <div id="djLiveCamResize" style="position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:nwse-resize;touch-action:none;z-index:3">
       <svg width="12" height="12" viewBox="0 0 12 12" style="position:absolute;bottom:3px;right:3px;opacity:.4"><path d="M11 1v10H1" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M8 4v4H4" fill="none" stroke="#fff" stroke-width="1.5"/></svg>
     </div>
   </div>
@@ -24048,6 +24057,10 @@ DJL._camStream = null;
 DJL._camDrag = { active: false, startX: 0, startY: 0, origLeft: 0, origTop: 0 };
 DJL._camResize = { active: false, startX: 0, startY: 0, origW: 0, origH: 0 };
 
+DJL._camFacing = 'environment'; // 'environment' (rear) or 'user' (selfie)
+DJL._camFlashOn = false;
+DJL._camTrack = null; // current video track for flash control
+
 function djLiveCamToggle() {
   var wrap = document.getElementById('djLiveCamWrap');
   var video = document.getElementById('djLiveCamVideo');
@@ -24055,42 +24068,98 @@ function djLiveCamToggle() {
   if (!wrap || !video) return;
 
   if (wrap.style.display !== 'none' && wrap.style.display !== '') {
-    // Already open, close it
     djLiveCamClose();
     return;
   }
 
-  // Open rear camera
+  _djCamOpen(DJL._camFacing);
+}
+
+function _djCamOpen(facing) {
+  var wrap = document.getElementById('djLiveCamWrap');
+  var video = document.getElementById('djLiveCamVideo');
+  var btn = document.getElementById('djLiveCamBtn');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     console.log('[DJ Cam] getUserMedia not supported');
     return;
   }
+
+  // Stop existing stream first
+  if (DJL._camStream) {
+    DJL._camStream.getTracks().forEach(function(t) { t.stop(); });
+    DJL._camStream = null;
+    DJL._camTrack = null;
+  }
+
+  DJL._camFacing = facing;
+  var isSelfie = (facing === 'user');
+
   navigator.mediaDevices.getUserMedia({
-    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+    video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
     audio: false
   }).then(function(stream) {
     DJL._camStream = stream;
+    DJL._camTrack = stream.getVideoTracks()[0] || null;
     video.srcObject = stream;
+    video.style.transform = isSelfie ? 'scaleX(-1)' : 'scaleX(1)';
     video.play().catch(function() {});
     wrap.style.display = 'block';
     if (btn) { btn.style.background = 'rgba(255,107,53,.3)'; btn.style.borderColor = 'rgba(255,107,53,.5)'; }
+    // Update flip button highlight
+    var flipBtn = document.getElementById('djLiveCamFlipBtn');
+    if (flipBtn) flipBtn.style.background = isSelfie ? 'rgba(255,107,53,.3)' : 'rgba(255,255,255,.15)';
+    // Reset flash state on camera switch
+    DJL._camFlashOn = false;
+    _djCamUpdateFlashUI();
+    console.log('[DJ Cam] Opened:', facing);
   }).catch(function(err) {
-    console.log('[DJ Cam] Camera access denied:', err.message);
-    // Try front camera as fallback
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false
-    }).then(function(stream) {
-      DJL._camStream = stream;
-      video.srcObject = stream;
-      video.style.transform = 'scaleX(-1)';
-      video.play().catch(function() {});
-      wrap.style.display = 'block';
-      if (btn) { btn.style.background = 'rgba(255,107,53,.3)'; btn.style.borderColor = 'rgba(255,107,53,.5)'; }
-    }).catch(function(err2) {
-      console.log('[DJ Cam] All cameras failed:', err2.message);
-    });
+    console.log('[DJ Cam] Camera ' + facing + ' failed:', err.message);
+    // Fallback: try the other camera
+    if (facing === 'environment') {
+      _djCamOpen('user');
+    }
   });
+}
+
+// Flip between rear and selfie
+function djLiveCamFlip() {
+  var newFacing = (DJL._camFacing === 'environment') ? 'user' : 'environment';
+  _djCamOpen(newFacing);
+}
+
+// Toggle flash/torch
+function djLiveCamFlash() {
+  if (!DJL._camTrack) return;
+  var capabilities = DJL._camTrack.getCapabilities ? DJL._camTrack.getCapabilities() : {};
+  if (!capabilities.torch) {
+    console.log('[DJ Cam] Flash not supported on this camera');
+    // Visual feedback
+    var flashBtn = document.getElementById('djLiveCamFlashBtn');
+    if (flashBtn) {
+      flashBtn.style.background = 'rgba(255,60,60,.3)';
+      setTimeout(function() { flashBtn.style.background = 'rgba(255,255,255,.15)'; }, 500);
+    }
+    return;
+  }
+  DJL._camFlashOn = !DJL._camFlashOn;
+  DJL._camTrack.applyConstraints({ advanced: [{ torch: DJL._camFlashOn }] })
+    .then(function() {
+      console.log('[DJ Cam] Flash:', DJL._camFlashOn ? 'ON' : 'OFF');
+      _djCamUpdateFlashUI();
+    })
+    .catch(function(err) {
+      console.log('[DJ Cam] Flash error:', err.message);
+      DJL._camFlashOn = false;
+      _djCamUpdateFlashUI();
+    });
+}
+
+function _djCamUpdateFlashUI() {
+  var flashBtn = document.getElementById('djLiveCamFlashBtn');
+  if (flashBtn) {
+    flashBtn.style.background = DJL._camFlashOn ? 'rgba(255,200,0,.4)' : 'rgba(255,255,255,.15)';
+    flashBtn.style.borderColor = DJL._camFlashOn ? 'rgba(255,200,0,.6)' : 'rgba(255,255,255,.2)';
+  }
 }
 
 function djLiveCamClose() {
@@ -24102,7 +24171,10 @@ function djLiveCamClose() {
   if (DJL._camStream) {
     DJL._camStream.getTracks().forEach(function(t) { t.stop(); });
     DJL._camStream = null;
+    DJL._camTrack = null;
   }
+  DJL._camFlashOn = false;
+  _djCamUpdateFlashUI();
   if (btn) { btn.style.background = 'rgba(255,255,255,.1)'; btn.style.borderColor = 'rgba(255,255,255,.18)'; }
 }
 
@@ -24391,6 +24463,14 @@ function djLiveCommandReceived() {
 // Double tap to exit + single tap toast
 var _djTapTimer = null;
 document.getElementById('djLiveOverlay').addEventListener('touchstart', function(e) {
+  // Skip tap detection for camera button, camera wrap, and their children
+  var tgt = e.target;
+  if (tgt.id === 'djLiveCamBtn' || tgt.closest('#djLiveCamBtn') ||
+      tgt.id === 'djLiveCamWrap' || tgt.closest('#djLiveCamWrap') ||
+      tgt.id === 'djLiveCamFlipBtn' || tgt.closest('#djLiveCamFlipBtn') ||
+      tgt.id === 'djLiveCamFlashBtn' || tgt.closest('#djLiveCamFlashBtn')) {
+    return; // Let the button/camera handle its own events
+  }
   var now = Date.now();
   if (now - DJL.lastTap < 400) {
     // Double tap -- exit
