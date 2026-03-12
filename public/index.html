@@ -19937,7 +19937,7 @@ document.addEventListener('visibilitychange',()=>{
     // DJ Live: re-join session if we were in live mode when going to background
     if(DJL.active && DJL.sessionId && socket && socket.connected){
       console.log('[visibility] DJ Live active, re-syncing...');
-      socket.emit('dj-audience-join',{sessionId:DJL.sessionId,deviceId:state.userId||socket.id});
+      socket.emit('dj-audience-join',{sessionId:DJL.sessionId,deviceId:_djlDeviceId});
       socket.emit('dj-time-sync',{t0:Date.now()});
       if(typeof djLiveCommandReceived==='function') djLiveCommandReceived();
     }
@@ -23672,6 +23672,17 @@ const GuidedOnboarding=(function(){
    With passive ultrasonic detection
    ══════════════════════════════════════════ */
 
+// Generate a unique device ID per browser tab (survives refresh, unique per tab)
+var _djlDeviceId = (function() {
+  var id = sessionStorage.getItem('djl_device_id');
+  if (!id) {
+    id = (typeof state !== 'undefined' && state.userId ? state.userId : '') +
+      '_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+    sessionStorage.setItem('djl_device_id', id);
+  }
+  return id;
+})();
+
 var DJL = {
   active: false,
   sessionId: null,
@@ -23969,7 +23980,7 @@ document.getElementById('djLiveJoinBtn').addEventListener('click', function() {
     if (typeof socket !== 'undefined' && socket && socket.connected) {
       socket.emit('dj-audience-join', {
         sessionId: DJL.detectedSessionId,
-        deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+        deviceId: _djlDeviceId
       });
     }
     // Stop Touch sonic mode if active (frees mic + stops emitting)
@@ -24010,7 +24021,7 @@ function enterDJLive(data) {
   if (typeof socket !== 'undefined' && socket && socket.connected) {
     socket.emit('dj-audience-join', {
       sessionId: DJL.sessionId,
-      deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+      deviceId: _djlDeviceId
     });
   }
 
@@ -24304,7 +24315,7 @@ function exitDJLive() {
   if (typeof socket !== 'undefined' && socket && socket.connected && DJL.sessionId) {
     socket.emit('dj-audience-leave', {
       sessionId: DJL.sessionId,
-      deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+      deviceId: _djlDeviceId
     });
   }
 
@@ -24393,7 +24404,7 @@ function djLiveConnHealthStart() {
       console.log('[DJ Conn] No commands for ' + Math.round(elapsed/1000) + 's, requesting state refresh...');
       socket.emit('dj-audience-join', {
         sessionId: DJL.sessionId,
-        deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+        deviceId: _djlDeviceId
       });
       _djConnHealth.lastCommandAt = Date.now(); // Reset to avoid spamming
     }
@@ -24439,7 +24450,7 @@ function djLiveOnReconnect() {
   if (typeof socket !== 'undefined' && socket && socket.connected && DJL.sessionId) {
     socket.emit('dj-audience-join', {
       sessionId: DJL.sessionId,
-      deviceId: typeof state !== 'undefined' ? state.userId : socket.id
+      deviceId: _djlDeviceId
     });
     // Re-request time sync
     socket.emit('dj-time-sync', { t0: Date.now() });
@@ -26350,7 +26361,7 @@ function setupDJListeners() {
           calibrationId: calId,
           detectedTime: detectedTime,
           emitTime: emitTime,
-          deviceId: state.userId || socket.id,
+          deviceId: _djlDeviceId,
           method: detected ? 'ultrasonic' : 'network'
         });
         console.log('[Calibration] Reported: method=' + (detected ? 'ultrasonic' : 'network') +
