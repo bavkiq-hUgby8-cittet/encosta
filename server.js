@@ -17960,6 +17960,7 @@ io.on('connection', (socket) => {
     if (data.animation) s.animation = data.animation;
     if (data.text !== undefined) s.liveText = data.text;
     if (data.totalZones) s.totalZones = data.totalZones;
+    if (data.autoMode !== undefined) s.autoMode = data.autoMode;
 
     // Kill flag clears show mode on server side too
     if (data.kill) {
@@ -17981,7 +17982,8 @@ io.on('connection', (socket) => {
       totalDevices: s.connectedDevices.size,
       raffleNumber: data.raffleNumber || 0,
       raffleTotalDevices: data.raffleTotalDevices || s.connectedDevices.size || 20,
-      kill: data.kill || false
+      kill: data.kill || false,
+      autoMode: s.autoMode || false
     };
 
     // For zone-related commands, send per-device payloads with individual zone info
@@ -18303,7 +18305,8 @@ io.on('connection', (socket) => {
       deviceIndex: deviceIndex,
       totalDevices: totalDevices,
       zone: zone,
-      totalZones: totalZones
+      totalZones: totalZones,
+      autoMode: s.autoMode || false
     };
     socket.emit('dj-live-state', statePayload);
 
