@@ -17884,6 +17884,8 @@ io.on('connection', (socket) => {
     s.bpm = data.bpm || s.bpm;
     s.animation = data.animation || s.animation;
     s.venueFreq = data.venueFreq || s.venueFreq;
+    if (data.logoDataUrl) s.logoDataUrl = data.logoDataUrl;
+    if (data.artistName) s.artistName = data.artistName;
 
     // Update event if linked
     if (s.eventId && db.operatorEvents[s.eventId]) {
@@ -17901,7 +17903,9 @@ io.on('connection', (socket) => {
         color: s.color,
         bpm: s.bpm,
         animation: s.animation,
-        venueFreq: s.venueFreq
+        venueFreq: s.venueFreq,
+        eventLogo: s.logoDataUrl || '',
+        artistName: s.artistName || ''
       });
     }
 
@@ -17910,10 +17914,21 @@ io.on('connection', (socket) => {
       sessionId: data.sessionId,
       color: s.color,
       bpm: s.bpm,
-      animation: s.animation
+      animation: s.animation,
+      eventLogo: s.logoDataUrl || '',
+      artistName: s.artistName || ''
     });
 
     console.log('[DJ] Broadcast started:', data.sessionId);
+  });
+
+  // --- DJ updates logo mid-broadcast ---
+  socket.on('dj-update-logo', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+    if (data.logoDataUrl) s.logoDataUrl = data.logoDataUrl;
+    console.log('[DJ] Logo updated for session:', data.sessionId);
   });
 
   // --- DJ stops broadcasting ---
@@ -18218,9 +18233,9 @@ io.on('connection', (socket) => {
     for (const [sid, s] of Object.entries(djSessions)) {
       console.log('[DJ] Session', sid, '-> venueFreq=' + s.venueFreq + ' broadcasting=' + s.broadcasting + ' diff=' + Math.abs(s.venueFreq - freq));
       if (s.broadcasting && Math.abs(s.venueFreq - freq) <= tolerance) {
-        // Try to get event logo if linked to an event
-        var eventLogo = '';
-        if (s.eventId && db.operatorEvents[s.eventId]) {
+        // Try to get logo: DJ uploaded logo first, then event logo as fallback
+        var eventLogo = s.logoDataUrl || '';
+        if (!eventLogo && s.eventId && db.operatorEvents[s.eventId]) {
           var ev = db.operatorEvents[s.eventId];
           eventLogo = ev.logo || ev.eventLogo || '';
         }
