@@ -803,6 +803,15 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button class="dj-bpm-btn" onclick="startPresetShow('siren')" title="Emergency siren effect">Siren</button>
       </div>
 
+      <div class="dj-section-divider" style="margin:.3rem 0"></div>
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Split Crowd (2 sides, different colors)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+        <button class="dj-bpm-btn" onclick="startPresetShow('split-battle')" title="Two halves battle each other" style="border-color:rgba(255,60,110,.3)">Battle</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('split-wave')" title="Waves crossing from each side" style="border-color:rgba(0,180,216,.3)">Cross Wave</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('split-breathe')" title="Two halves breathe in opposite phase" style="border-color:rgba(124,106,239,.3)">Breathe 2</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('split-chase')" title="Colors chasing each other" style="border-color:rgba(45,212,160,.3)">Chase</button>
+      </div>
+
       <div class="dj-section-divider" style="margin:.5rem 0"></div>
       <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Drone Show Library (pixel art formations)</div>
       <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
@@ -847,13 +856,17 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     </div>
     <div class="dj-drawer-content collapsed">
       <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Divide the audience into color groups</div>
-      <div style="display:flex;gap:.4rem;align-items:center">
+      <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
         <button class="dj-bpm-btn" onclick="setZones(1)">1</button>
         <button class="dj-bpm-btn" onclick="setZones(2)">2</button>
         <button class="dj-bpm-btn active" onclick="setZones(4)">4</button>
         <button class="dj-bpm-btn" onclick="setZones(6)">6</button>
         <button class="dj-bpm-btn" onclick="setZones(8)">8</button>
         <span style="font-size:.6rem;color:var(--t3);margin-left:.4rem">zones</span>
+      </div>
+      <div style="display:flex;gap:.3rem;margin-top:.4rem">
+        <button class="dj-bpm-btn active" id="zoneModeAlternate" onclick="setZoneMode('alternate')" style="font-size:.55rem;padding:4px 8px" title="Zones alternate: 1-2-1-2">Alternate</button>
+        <button class="dj-bpm-btn" id="zoneModeHalf" onclick="setZoneMode('half')" style="font-size:.55rem;padding:4px 8px" title="Split by position: left half / right half">Half Split</button>
       </div>
       <div id="zonePreview" style="display:flex;gap:2px;margin-top:.5rem;height:20px;border-radius:var(--radius);overflow:hidden"></div>
     </div>
@@ -2525,6 +2538,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /* ---- ZONES ---- */
 DJ.totalZones = 4;
+DJ.zoneMode = 'alternate'; // 'alternate' = 1-2-1-2, 'half' = left/right split by position
+
+window.setZoneMode = function(mode) {
+  DJ.zoneMode = mode;
+  // Update button UI
+  var altBtn = document.getElementById('zoneModeAlternate');
+  var halfBtn = document.getElementById('zoneModeHalf');
+  if (altBtn) altBtn.classList.toggle('active', mode === 'alternate');
+  if (halfBtn) halfBtn.classList.toggle('active', mode === 'half');
+  updateZonePreview();
+  // Re-send zones command with new mode
+  if (DJ.broadcasting && socket) {
+    socket.emit('dj-command', {
+      sessionId: DJ.sessionId,
+      command: 'zones',
+      totalZones: DJ.totalZones,
+      zoneMode: mode,
+      color: DJ.color,
+      bpm: DJ.bpm,
+      animation: DJ.animation,
+      timestamp: Date.now()
+    });
+  }
+  showToast('Zone mode: ' + (mode === 'half' ? 'Half Split' : 'Alternate'));
+};
 
 function _rgbToHsl(r, g, b) {
   r /= 255; g /= 255; b /= 255;
@@ -2599,12 +2637,13 @@ window.setZones = function(n) {
     sessionId: DJ.sessionId,
     command: 'zones',
     totalZones: n,
+    zoneMode: DJ.zoneMode,
     color: DJ.color,
     bpm: DJ.bpm,
     animation: DJ.animation,
     timestamp: Date.now()
   });
-  showToast(n + ' zone' + (n > 1 ? 's' : '') + ' set');
+  showToast(n + ' zone' + (n > 1 ? 's' : '') + ' set (' + (DJ.zoneMode === 'half' ? 'split' : 'alt') + ')');
 };
 
 // Initial render of zone preview
@@ -2962,6 +3001,64 @@ var showPresets = {
       { startBeat: 10, endBeat: 12, pattern: 'ripple-center', speed: 3.0, color: '#0066ff' },
       { startBeat: 12, endBeat: 14, pattern: 'strobe-sections', sections: 2, color: '#ff0000' },
       { startBeat: 14, endBeat: 16, pattern: 'strobe-sections', sections: 2, color: '#0066ff' }
+    ]
+  },
+
+  // ── SPLIT CROWD SHOWS (use split-halves + checkerboard for 2-side effects) ──
+  'split-battle': {
+    name: 'BATTLE',
+    steps: [
+      { startBeat: 0, endBeat: 4, pattern: 'split-halves', color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 4, endBeat: 8, pattern: 'split-halves', color: '#00b4d8', color2: '#ff3c6e' },
+      { startBeat: 8, endBeat: 12, pattern: 'split-halves', color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 12, endBeat: 14, pattern: 'strobe-sections', sections: 2, color: '#ff3c6e' },
+      { startBeat: 14, endBeat: 16, pattern: 'strobe-sections', sections: 2, color: '#00b4d8' },
+      { startBeat: 16, endBeat: 20, pattern: 'split-halves', color: '#ffdd00', color2: '#7c6aef' },
+      { startBeat: 20, endBeat: 24, pattern: 'split-halves', color: '#7c6aef', color2: '#ffdd00' },
+      { startBeat: 24, endBeat: 28, pattern: 'checkerboard', cols: 2, rows: 1, color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 28, endBeat: 32, pattern: 'ripple-center', speed: 3.0, color: '#ffffff' }
+    ]
+  },
+  'split-wave': {
+    name: 'CROSS WAVE',
+    steps: [
+      { startBeat: 0, endBeat: 8, pattern: 'wave-lr', speed: 2.0, color: '#ff3c6e' },
+      { startBeat: 8, endBeat: 16, pattern: 'wave-rl', speed: 2.0, color: '#00b4d8' },
+      { startBeat: 16, endBeat: 20, pattern: 'wave-lr', speed: 3.0, color: '#ff3c6e' },
+      { startBeat: 20, endBeat: 24, pattern: 'wave-rl', speed: 3.0, color: '#00b4d8' },
+      { startBeat: 24, endBeat: 26, pattern: 'wave-lr', speed: 5.0, color: '#ff3c6e' },
+      { startBeat: 26, endBeat: 28, pattern: 'wave-rl', speed: 5.0, color: '#00b4d8' },
+      { startBeat: 28, endBeat: 32, pattern: 'ripple-center', speed: 2.0, color: '#ffffff' }
+    ]
+  },
+  'split-breathe': {
+    name: 'BREATHE 2',
+    steps: [
+      { startBeat: 0, endBeat: 4, pattern: 'split-halves', color: '#ff3c6e', color2: '#000000' },
+      { startBeat: 4, endBeat: 8, pattern: 'split-halves', color: '#000000', color2: '#ff3c6e' },
+      { startBeat: 8, endBeat: 12, pattern: 'split-halves', color: '#00b4d8', color2: '#000000' },
+      { startBeat: 12, endBeat: 16, pattern: 'split-halves', color: '#000000', color2: '#00b4d8' },
+      { startBeat: 16, endBeat: 20, pattern: 'split-halves', color: '#7c6aef', color2: '#2dd4a0' },
+      { startBeat: 20, endBeat: 24, pattern: 'split-halves', color: '#2dd4a0', color2: '#7c6aef' },
+      { startBeat: 24, endBeat: 28, pattern: 'split-halves', color: '#ffdd00', color2: '#ff6b35' },
+      { startBeat: 28, endBeat: 32, pattern: 'split-halves', color: '#ff6b35', color2: '#ffdd00' }
+    ]
+  },
+  'split-chase': {
+    name: 'CHASE',
+    steps: [
+      { startBeat: 0, endBeat: 2, pattern: 'wave-lr', speed: 4.0, color: '#ff3c6e' },
+      { startBeat: 2, endBeat: 4, pattern: 'wave-lr', speed: 4.0, color: '#00b4d8' },
+      { startBeat: 4, endBeat: 6, pattern: 'wave-rl', speed: 4.0, color: '#ff3c6e' },
+      { startBeat: 6, endBeat: 8, pattern: 'wave-rl', speed: 4.0, color: '#00b4d8' },
+      { startBeat: 8, endBeat: 10, pattern: 'wave-lr', speed: 6.0, color: '#ffdd00' },
+      { startBeat: 10, endBeat: 12, pattern: 'wave-rl', speed: 6.0, color: '#7c6aef' },
+      { startBeat: 12, endBeat: 14, pattern: 'strobe-sections', sections: 2, color: '#ff3c6e' },
+      { startBeat: 14, endBeat: 16, pattern: 'strobe-sections', sections: 2, color: '#00b4d8' },
+      { startBeat: 16, endBeat: 20, pattern: 'checkerboard', cols: 2, rows: 1, color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 20, endBeat: 24, pattern: 'checkerboard', cols: 2, rows: 1, color: '#00b4d8', color2: '#ff3c6e' },
+      { startBeat: 24, endBeat: 28, pattern: 'ripple-center', speed: 3.0, color: '#ffffff' },
+      { startBeat: 28, endBeat: 32, pattern: 'random-sparkle', speed: 4, color: '#ffffff' }
     ]
   }
 };
