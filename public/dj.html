@@ -1134,6 +1134,23 @@ function connectSocket() {
       artistName: DJ.artistName,
       venueFreq: DJ.venueFreq
     });
+    // If was broadcasting before reconnect (e.g. server restarted), re-sync state
+    if (DJ.broadcasting) {
+      console.log('[DJ] Reconnected while broadcasting -- re-syncing broadcast state to server');
+      // Small delay to ensure session-create is processed first
+      setTimeout(function() {
+        socket.emit('dj-broadcast-start', {
+          sessionId: DJ.sessionId,
+          venueFreq: DJ.venueFreq,
+          color: DJ.color,
+          bpm: DJ.bpm,
+          animation: DJ.animation,
+          logoDataUrl: DJ.logoDataUrl || '',
+          artistName: DJ.artistName || ''
+        });
+        console.log('[DJ] Broadcast state re-synced to server');
+      }, 500);
+    }
     showToast('Connected to server');
   });
 
