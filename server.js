@@ -17971,11 +17971,15 @@ io.on('connection', (socket) => {
 
     // For zone-related commands, send per-device payloads with individual zone info
     if (data.command === 'zones' || data.totalZones) {
+      // Save zoneMode to session
+      if (data.zoneMode) s.zoneMode = data.zoneMode;
       const devicesArr = Array.from(s.connectedDevices);
       const totalZones = s.totalZones || 4;
+      const zoneMode = s.zoneMode || 'alternate';
       const room = io.sockets.adapter.rooms.get('dj-live:' + data.sessionId);
       if (room) {
         let idx = 0;
+        const totalInRoom = devicesArr.length;
         for (const sid of room) {
           const deviceSocket = io.sockets.sockets.get(sid);
           if (deviceSocket) {
@@ -17983,9 +17987,19 @@ io.on('connection', (socket) => {
             const deviceId = s.socketToDevice[sid] || sid;
             const devIdx = devicesArr.indexOf(deviceId);
             const di = devIdx >= 0 ? devIdx : idx;
+            // Calculate zone based on mode
+            let zone;
+            if (zoneMode === 'half') {
+              // Split by position: first N/zones in zone 0, next N/zones in zone 1, etc.
+              zone = Math.min(totalZones - 1, Math.floor(di * totalZones / Math.max(1, totalInRoom)));
+            } else {
+              // Alternate: 0-1-2-0-1-2...
+              zone = di % totalZones;
+            }
             deviceSocket.emit('dj-command', Object.assign({}, basePayload, {
               deviceIndex: di,
-              zone: di % totalZones
+              zone: zone,
+              zoneMode: zoneMode
             }));
           }
           idx++;
@@ -18256,7 +18270,13 @@ io.on('connection', (socket) => {
     const deviceIndex = devicesArr.indexOf(deviceId);
     const totalDevices = devicesArr.length;
     const totalZones = s.totalZones || 4;
-    const zone = deviceIndex % totalZones;
+    const zoneMode = s.zoneMode || 'alternate';
+    let zone;
+    if (zoneMode === 'half') {
+      zone = Math.min(totalZones - 1, Math.floor(deviceIndex * totalZones / Math.max(1, totalDevices)));
+    } else {
+      zone = deviceIndex % totalZones;
+    }
 
     // Send current state to the new device (including choreography if show is running)
     const statePayload = {
