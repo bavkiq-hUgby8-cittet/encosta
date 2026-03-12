@@ -26166,6 +26166,111 @@ function setupDJListeners() {
     console.log('[Position] Server update: x=' + DJL.position.x.toFixed(2) + ' y=' + DJL.position.y.toFixed(2));
   });
 
+  // ---- CALIBRATION PULSE LISTENER ----
+  // When DJ sends calibration pulse, phone listens for ultrasonic ping via mic
+  socket.on('dj-calibration-pulse', function(data) {
+    console.log('[Calibration] Received pulse event, calibrationId=' + data.calibrationId);
+    var calId = data.calibrationId;
+    var emitTime = data.emitTime;
+    // Try to detect ultrasonic pulse via microphone
+    // If mic is already open (from positioning), use existing analyser
+    // Otherwise, open mic temporarily
+    function detectPulseAndReport() {
+      var detected = false;
+      var startListenTime = Date.now();
+      var maxListenMs = 5000; // listen up to 5 seconds
+      var targetFreq = 18000; // ultrasonic frequency to detect
+      var threshold = 140; // amplitude threshold
+
+      function tryWithExistingAudio() {
+        // Check if we have an active audio context and analyser from positioning
+        if (DJL._audioCtx && DJL._analyser) {
+          console.log('[Calibration] Using existing audio context');
+          listenForPulse(DJL._analyser, DJL._audioCtx);
+        } else {
+          // Open mic temporarily
+          console.log('[Calibration] Opening mic for calibration...');
+          var AudioCtx = window.AudioContext || window.webkitAudioContext;
+          var ctx = new AudioCtx();
+          navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+            .then(function(stream) {
+              var source = ctx.createMediaStreamSource(stream);
+              var analyser = ctx.createAnalyser();
+              analyser.fftSize = 4096;
+              source.connect(analyser);
+              DJL._calStream = stream;
+              DJL._calCtx = ctx;
+              listenForPulse(analyser, ctx);
+            })
+            .catch(function(err) {
+              console.log('[Calibration] Mic access denied, using network latency fallback');
+              // Fallback: report detection time as now (network-only latency)
+              reportCalibration(Date.now());
+            });
+        }
+      }
+
+      function listenForPulse(analyser, ctx) {
+        var freqData = new Uint8Array(analyser.frequencyBinCount);
+        var sampleRate = ctx.sampleRate;
+        var binSize = sampleRate / analyser.fftSize;
+        var targetBin = Math.round(targetFreq / binSize);
+        var checkInterval;
+
+        checkInterval = setInterval(function() {
+          if (detected || (Date.now() - startListenTime) > maxListenMs) {
+            clearInterval(checkInterval);
+            cleanupCalMic();
+            if (!detected) {
+              console.log('[Calibration] Timeout, using network fallback');
+              reportCalibration(Date.now());
+            }
+            return;
+          }
+          analyser.getByteFrequencyData(freqData);
+          // Check bins around target frequency
+          var maxAmp = 0;
+          for (var b = Math.max(0, targetBin - 2); b <= Math.min(freqData.length - 1, targetBin + 2); b++) {
+            if (freqData[b] > maxAmp) maxAmp = freqData[b];
+          }
+          if (maxAmp >= threshold) {
+            detected = true;
+            var detectedTime = Date.now();
+            console.log('[Calibration] Ultrasonic pulse detected! amp=' + maxAmp + ' time=' + detectedTime);
+            reportCalibration(detectedTime);
+          }
+        }, 10); // check every 10ms for precision
+      }
+
+      function cleanupCalMic() {
+        if (DJL._calStream) {
+          DJL._calStream.getTracks().forEach(function(t) { t.stop(); });
+          DJL._calStream = null;
+        }
+        if (DJL._calCtx) {
+          DJL._calCtx.close().catch(function() {});
+          DJL._calCtx = null;
+        }
+      }
+
+      function reportCalibration(detectedTime) {
+        socket.emit('dj-calibration-report', {
+          calibrationId: calId,
+          detectedTime: detectedTime,
+          emitTime: emitTime,
+          deviceId: state.userId || socket.id,
+          method: detected ? 'ultrasonic' : 'network'
+        });
+        console.log('[Calibration] Reported: method=' + (detected ? 'ultrasonic' : 'network') +
+          ' latency=' + (detectedTime - emitTime) + 'ms');
+      }
+
+      tryWithExistingAudio();
+    }
+
+    detectPulseAndReport();
+  });
+
   // ---- GRID POSITIONING SYSTEM ----
 
   socket.on('grid-assignment-update', function(data) {
@@ -26430,6 +26535,137 @@ var showPatterns = {
     var rgb = hexToRgb(step.color || DJL.color);
     var rgb2 = hexToRgb(step.color2 || '#000000');
     return isWhite ? rgb : rgb2;
+  },
+  // Horizontal bright line scanning up and down
+  'scanner': function(x, y, beat, step) {
+    var speed = step.speed || 1.0;
+    var linePos = (Math.sin(beat * speed * Math.PI * 2) + 1) / 2;
+    var dist = Math.abs(y - linePos);
+    var thickness = 0.06;
+    var brightness = dist < thickness ? Math.pow(1 - dist / thickness, 2) : 0;
+    var trail = dist < thickness * 3 ? 0.08 * Math.pow(1 - dist / (thickness * 3), 1) : 0;
+    brightness = Math.min(1, brightness + trail);
+    var rgb = hexToRgb(step.color || '#00ff88');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Pixels falling like rain, each column at different speed
+  'pixel-rain': function(x, y, beat, step) {
+    var speed = step.speed || 2.0;
+    var cols = 8;
+    var col = Math.floor(x * cols);
+    var seed = Math.sin(col * 7.77) * 0.5 + 0.5;
+    var dropY = ((beat * speed * (0.5 + seed)) % 1);
+    var dist = Math.abs(y - dropY);
+    if (dist > 0.5) dist = 1 - dist;
+    var brightness = dist < 0.12 ? Math.pow(1 - dist / 0.12, 3) : 0;
+    var trailDist = (y - dropY);
+    if (trailDist < 0 && trailDist > -0.3) {
+      brightness = Math.max(brightness, 0.3 * Math.pow(1 + trailDist / 0.3, 2));
+    }
+    var rgb = hexToRgb(step.color || '#00ff41');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Big spotlight sweeping left to right across the crowd
+  'spotlight-sweep': function(x, y, beat, step) {
+    var speed = step.speed || 0.5;
+    var cx = (Math.sin(beat * speed * Math.PI * 2) + 1) / 2;
+    var cy = 0.3;
+    var dx = x - cx, dy = y - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var radius = 0.25;
+    var brightness = dist < radius ? Math.pow(1 - dist / radius, 1.5) : 0;
+    var coneWidth = 0.15 + (y - cy) * 0.3;
+    var coneDist = Math.abs(x - cx);
+    if (y > cy && coneDist < coneWidth) {
+      var coneBright = Math.pow(1 - coneDist / coneWidth, 2) * 0.6 * (1 - (y - cy));
+      brightness = Math.max(brightness, coneBright);
+    }
+    var rgb = hexToRgb(step.color || '#ffffff');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Solid color wipes across the screen replacing old color
+  'color-wipe': function(x, y, beat, step) {
+    var speed = step.speed || 1.0;
+    var wipePos = (beat * speed) % 1;
+    var rgb1 = hexToRgb(step.color || '#ff3c6e');
+    var rgb2 = hexToRgb(step.color2 || '#00b4d8');
+    var isWiped = x < wipePos;
+    var edgeDist = Math.abs(x - wipePos);
+    var edgeGlow = edgeDist < 0.05 ? 1.0 : 0;
+    var c = isWiped ? rgb1 : rgb2;
+    var brightness = 0.8;
+    if (edgeGlow > 0) {
+      return { r: 255, g: 255, b: 255 };
+    }
+    return { r: Math.round(c.r * brightness), g: Math.round(c.g * brightness), b: Math.round(c.b * brightness) };
+  },
+  // Expanding ring that pulses outward from center
+  'pulse-ring': function(x, y, beat, step) {
+    var speed = step.speed || 1.5;
+    var dx = x - 0.5, dy = y - 0.5;
+    var dist = Math.sqrt(dx * dx + dy * dy) * 2;
+    var ringPos = (beat * speed) % 1;
+    var ringWidth = 0.08;
+    var brightness = Math.abs(dist - ringPos) < ringWidth ? Math.pow(1 - Math.abs(dist - ringPos) / ringWidth, 2) * (1 - ringPos) : 0;
+    var ring2Pos = (beat * speed + 0.5) % 1;
+    var bright2 = Math.abs(dist - ring2Pos) < ringWidth ? Math.pow(1 - Math.abs(dist - ring2Pos) / ringWidth, 2) * (1 - ring2Pos) : 0;
+    brightness = Math.min(1, brightness + bright2);
+    var rgb = hexToRgb(step.color || DJL.color);
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // Random lightning flashes hitting different positions
+  'lightning-bolt': function(x, y, beat, step) {
+    var cycle = Math.floor(beat * 3);
+    var seed = Math.sin(cycle * 123.456) * 0.5 + 0.5;
+    var boltX = seed;
+    var phase = (beat * 3) % 1;
+    var dist = Math.abs(x - boltX);
+    var width = 0.08 * (1 - phase * 0.8);
+    var brightness = 0;
+    if (phase < 0.3) {
+      brightness = dist < width ? Math.pow(1 - dist / width, 3) * (1 - phase / 0.3) : 0;
+      var afterglow = dist < width * 3 ? 0.15 * (1 - phase / 0.3) * Math.pow(1 - dist / (width * 3), 1) : 0;
+      brightness = Math.min(1, brightness + afterglow);
+    }
+    var rgb = hexToRgb(step.color || '#aaddff');
+    return { r: Math.round(rgb.r * brightness), g: Math.round(rgb.g * brightness), b: Math.round(rgb.b * brightness) };
+  },
+  // VU meter / equalizer bars rising from bottom
+  'vumeter': function(x, y, beat, step) {
+    var cols = 5;
+    var col = Math.floor(x * cols);
+    var seed = Math.sin(col * 3.33 + beat * 2) * 0.5 + 0.5;
+    var barHeight = 0.3 + seed * 0.7;
+    var pulse = Math.sin(beat * Math.PI * 4 + col * 1.5) * 0.3;
+    barHeight = Math.min(1, Math.max(0.1, barHeight + pulse));
+    var yFlipped = 1 - y;
+    var brightness = yFlipped < barHeight ? 0.9 : 0;
+    if (brightness > 0) {
+      var ratio = yFlipped / barHeight;
+      if (ratio < 0.5) return { r: 0, g: Math.round(255 * brightness), b: 0 };
+      if (ratio < 0.8) return { r: Math.round(255 * brightness), g: Math.round(255 * brightness), b: 0 };
+      return { r: Math.round(255 * brightness), g: 0, b: 0 };
+    }
+    return { r: 0, g: 0, b: 0 };
+  },
+  // Double helix rotating pattern
+  'dna-helix': function(x, y, beat, step) {
+    var speed = step.speed || 1.0;
+    var freq = 3;
+    var strand1X = 0.5 + Math.sin(y * freq * Math.PI * 2 + beat * speed * Math.PI * 2) * 0.3;
+    var strand2X = 0.5 - Math.sin(y * freq * Math.PI * 2 + beat * speed * Math.PI * 2) * 0.3;
+    var dist1 = Math.abs(x - strand1X);
+    var dist2 = Math.abs(x - strand2X);
+    var width = 0.08;
+    var b1 = dist1 < width ? Math.pow(1 - dist1 / width, 2) : 0;
+    var b2 = dist2 < width ? Math.pow(1 - dist2 / width, 2) : 0;
+    var rgb1 = hexToRgb(step.color || '#ff3c6e');
+    var rgb2 = hexToRgb(step.color2 || '#00b4d8');
+    return {
+      r: Math.min(255, Math.round(rgb1.r * b1 + rgb2.r * b2)),
+      g: Math.min(255, Math.round(rgb1.g * b1 + rgb2.g * b2)),
+      b: Math.min(255, Math.round(rgb1.b * b1 + rgb2.b * b2))
+    };
   }
 };
 

@@ -804,6 +804,20 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       </div>
 
       <div class="dj-section-divider" style="margin:.3rem 0"></div>
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Advanced Effects</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
+        <button class="dj-bpm-btn" onclick="startPresetShow('scanner-show')" title="Scanning laser line">Scanner</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('pixel-rain-show')" title="Digital rain pixels">Pixel Rain</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('spotlight-show-2')" title="Sweeping spotlight">Spotlight 2</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('wipe-show')" title="Color wipe transitions">Color Wipe</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('pulse-ring-show')" title="Expanding pulse rings">Pulse Ring</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('equalizer-show')" title="VU meter equalizer">Equalizer</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('dna-show')" title="Double helix pattern">DNA Helix</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('lightning-storm')" title="Lightning storm">Lightning 2</button>
+        <button class="dj-bpm-btn" onclick="startPresetShow('mega-show')" title="All effects combined mega show" style="font-weight:900;border-color:rgba(255,200,0,.5)">MEGA SHOW</button>
+      </div>
+
+      <div class="dj-section-divider" style="margin:.3rem 0"></div>
       <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Split Crowd (2 sides, different colors)</div>
       <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem">
         <button class="dj-bpm-btn" onclick="startPresetShow('split-battle')" title="Two halves battle each other" style="border-color:rgba(255,60,110,.3)">Battle</button>
@@ -869,6 +883,33 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button class="dj-bpm-btn" id="zoneModeHalf" onclick="setZoneMode('half')" style="font-size:.55rem;padding:4px 8px" title="Split by position: left half / right half">Half Split</button>
       </div>
       <div id="zonePreview" style="display:flex;gap:2px;margin-top:.5rem;height:20px;border-radius:var(--radius);overflow:hidden"></div>
+    </div>
+  </div>
+
+  <!-- POSITION CALIBRATION DRAWER -->
+  <div class="dj-drawer" id="calibrationDrawer">
+    <div class="dj-drawer-header" onclick="toggleDrawer('calibrationDrawer')">
+      <div class="dj-drawer-header-label">
+        Position Calibration
+        <span style="font-size:.5rem;background:linear-gradient(135deg,#2dd4a0,#00b4d8);padding:2px 6px;border-radius:8px;color:#fff">BETA</span>
+      </div>
+      <div class="dj-drawer-toggle" id="calibrationToggle"></div>
+    </div>
+    <div class="dj-drawer-content collapsed">
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">
+        Calibrate phone positions using sound. Phones closer to the speaker will be detected as "front row".
+      </div>
+      <div style="display:flex;gap:.3rem;margin-bottom:.4rem;flex-wrap:wrap">
+        <button class="dj-bpm-btn" onclick="startCalibration()" id="calibrateBtn" title="Send calibration pulse from speakers">Calibrate Now</button>
+        <button class="dj-bpm-btn" onclick="resetCalibration()" title="Reset all positions to default (by connection order)">Reset Positions</button>
+      </div>
+      <div id="calibrationStatus" style="font-size:.6rem;color:var(--t3);margin-top:.3rem;display:none">
+        <div id="calibrationStatusText">Waiting...</div>
+        <div id="calibrationResults" style="margin-top:.3rem"></div>
+      </div>
+      <div style="font-size:.55rem;color:var(--t3);margin-top:.4rem;opacity:0.6">
+        Tip: Works best in quiet environments. Speaker should be at maximum volume during calibration.
+      </div>
     </div>
   </div>
 
@@ -2649,6 +2690,94 @@ window.setZones = function(n) {
 // Initial render of zone preview
 setTimeout(updateZonePreview, 500);
 
+/* ---- POSITION CALIBRATION (Sound Time-of-Flight) ---- */
+DJ.calibrationActive = false;
+DJ.calibrationResults = {};
+
+window.startCalibration = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  if (DJ.calibrationActive) { showToast('Calibration already running'); return; }
+
+  DJ.calibrationActive = true;
+  DJ.calibrationResults = {};
+
+  var statusEl = document.getElementById('calibrationStatus');
+  var statusText = document.getElementById('calibrationStatusText');
+  var resultsEl = document.getElementById('calibrationResults');
+  if (statusEl) statusEl.style.display = 'block';
+  if (statusText) statusText.textContent = 'Sending calibration pulse...';
+  if (resultsEl) resultsEl.innerHTML = '';
+
+  var btn = document.getElementById('calibrateBtn');
+  if (btn) { btn.textContent = 'Calibrating...'; btn.style.opacity = '0.5'; }
+
+  var calibrationId = 'cal_' + Date.now();
+  socket.emit('dj-calibration-start', {
+    sessionId: DJ.sessionId,
+    calibrationId: calibrationId,
+    emitTime: Date.now(),
+    frequency: DJ.venueFreq || 19200
+  });
+
+  DJ._calibrationTimeout = setTimeout(function() {
+    finishCalibration();
+  }, 8000);
+
+  showToast('Calibration started - phones are listening...');
+};
+
+window.resetCalibration = function() {
+  if (!DJ.broadcasting || !socket) { showToast('Start broadcasting first'); return; }
+  socket.emit('dj-calibration-reset', { sessionId: DJ.sessionId });
+  DJ.calibrationResults = {};
+  var statusEl = document.getElementById('calibrationStatus');
+  if (statusEl) statusEl.style.display = 'none';
+  showToast('Positions reset to default');
+};
+
+function finishCalibration() {
+  DJ.calibrationActive = false;
+  var btn = document.getElementById('calibrateBtn');
+  if (btn) { btn.textContent = 'Calibrate Now'; btn.style.opacity = '1'; }
+
+  var results = DJ.calibrationResults;
+  var count = Object.keys(results).length;
+  var statusText = document.getElementById('calibrationStatusText');
+  var resultsEl = document.getElementById('calibrationResults');
+
+  if (count === 0) {
+    if (statusText) statusText.textContent = 'No responses received. Make sure phones have mic access.';
+    return;
+  }
+
+  if (statusText) statusText.textContent = count + ' phone(s) calibrated successfully!';
+
+  var sorted = Object.entries(results).sort(function(a, b) { return a[1].distance - b[1].distance; });
+  var html = '';
+  sorted.forEach(function(entry, i) {
+    var label = i === 0 ? 'FRONT' : (i === sorted.length - 1 ? 'BACK' : '');
+    html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:.55rem">';
+    html += '<span style="color:var(--t2)">Phone ' + (i + 1) + ' ' + label + '</span>';
+    html += '<span style="color:var(--accent)">' + entry[1].distance.toFixed(1) + 'm</span>';
+    html += '</div>';
+  });
+  if (resultsEl) resultsEl.innerHTML = html;
+  showToast('Calibration done! ' + count + ' phones positioned');
+}
+
+if (typeof socket !== 'undefined' && socket) {
+  socket.on('dj-calibration-result', function(data) {
+    if (!DJ.calibrationActive) return;
+    DJ.calibrationResults[data.deviceId] = {
+      distance: data.distance,
+      latency: data.latency
+    };
+    var statusText = document.getElementById('calibrationStatusText');
+    var count = Object.keys(DJ.calibrationResults).length;
+    if (statusText) statusText.textContent = 'Received ' + count + ' response(s)...';
+  });
+}
+
 /* ---- SHOW MODE (Coordinated Light Show) ---- */
 DJ.showActive = false;
 DJ.currentShow = null;
@@ -3059,6 +3188,101 @@ var showPresets = {
       { startBeat: 20, endBeat: 24, pattern: 'checkerboard', cols: 2, rows: 1, color: '#00b4d8', color2: '#ff3c6e' },
       { startBeat: 24, endBeat: 28, pattern: 'ripple-center', speed: 3.0, color: '#ffffff' },
       { startBeat: 28, endBeat: 32, pattern: 'random-sparkle', speed: 4, color: '#ffffff' }
+    ]
+  },
+  'scanner-show': {
+    name: 'SCANNER',
+    steps: [
+      { startBeat: 0, endBeat: 8, pattern: 'scanner', speed: 0.8, color: '#00ff88' },
+      { startBeat: 8, endBeat: 16, pattern: 'scanner', speed: 1.2, color: '#00b4d8' },
+      { startBeat: 16, endBeat: 24, pattern: 'scanner', speed: 1.8, color: '#ff3c6e' },
+      { startBeat: 24, endBeat: 32, pattern: 'scanner', speed: 0.5, color: '#ffffff' }
+    ]
+  },
+  'pixel-rain-show': {
+    name: 'PIXEL RAIN',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'pixel-rain', speed: 1.5, color: '#00ff41' },
+      { startBeat: 16, endBeat: 32, pattern: 'pixel-rain', speed: 2.5, color: '#00b4d8' },
+      { startBeat: 32, endBeat: 48, pattern: 'pixel-rain', speed: 3.5, color: '#ff3c6e' },
+      { startBeat: 48, endBeat: 64, pattern: 'random-sparkle', speed: 4, color: '#ffffff' }
+    ]
+  },
+  'spotlight-show-2': {
+    name: 'SPOTLIGHT 2',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'spotlight-sweep', speed: 0.3, color: '#ffffff' },
+      { startBeat: 16, endBeat: 32, pattern: 'spotlight-sweep', speed: 0.5, color: '#ffdd00' },
+      { startBeat: 32, endBeat: 48, pattern: 'spotlight-sweep', speed: 0.8, color: '#ff3c6e' },
+      { startBeat: 48, endBeat: 64, pattern: 'spotlight-sweep', speed: 0.3, color: '#00b4d8' }
+    ]
+  },
+  'wipe-show': {
+    name: 'COLOR WIPE',
+    steps: [
+      { startBeat: 0, endBeat: 8, pattern: 'color-wipe', speed: 1.0, color: '#ff3c6e', color2: '#000000' },
+      { startBeat: 8, endBeat: 16, pattern: 'color-wipe', speed: 1.0, color: '#00b4d8', color2: '#ff3c6e' },
+      { startBeat: 16, endBeat: 24, pattern: 'color-wipe', speed: 1.5, color: '#ffdd00', color2: '#00b4d8' },
+      { startBeat: 24, endBeat: 32, pattern: 'color-wipe', speed: 2.0, color: '#7c6aef', color2: '#ffdd00' }
+    ]
+  },
+  'pulse-ring-show': {
+    name: 'PULSE RING',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'pulse-ring', speed: 1.0, color: '#ff3c6e' },
+      { startBeat: 16, endBeat: 32, pattern: 'pulse-ring', speed: 1.5, color: '#00b4d8' },
+      { startBeat: 32, endBeat: 48, pattern: 'pulse-ring', speed: 2.0, color: '#7c6aef' },
+      { startBeat: 48, endBeat: 64, pattern: 'ripple-center', speed: 2.0, color: '#ffffff' }
+    ]
+  },
+  'equalizer-show': {
+    name: 'EQUALIZER',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'vumeter' },
+      { startBeat: 16, endBeat: 32, pattern: 'vumeter' },
+      { startBeat: 32, endBeat: 48, pattern: 'strobe-sections', sections: 4, color: '#00ff00' },
+      { startBeat: 48, endBeat: 64, pattern: 'vumeter' }
+    ]
+  },
+  'dna-show': {
+    name: 'DNA HELIX',
+    steps: [
+      { startBeat: 0, endBeat: 16, pattern: 'dna-helix', speed: 0.5, color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 16, endBeat: 32, pattern: 'dna-helix', speed: 0.8, color: '#7c6aef', color2: '#2dd4a0' },
+      { startBeat: 32, endBeat: 48, pattern: 'dna-helix', speed: 1.2, color: '#ffdd00', color2: '#ff6b35' },
+      { startBeat: 48, endBeat: 64, pattern: 'random-sparkle', speed: 3, color: '#ffffff' }
+    ]
+  },
+  'lightning-storm': {
+    name: 'LIGHTNING',
+    steps: [
+      { startBeat: 0, endBeat: 8, pattern: 'breathe', color: '#0a0a1a' },
+      { startBeat: 8, endBeat: 12, pattern: 'lightning-bolt', color: '#ffffff' },
+      { startBeat: 12, endBeat: 20, pattern: 'breathe', color: '#050510' },
+      { startBeat: 20, endBeat: 24, pattern: 'lightning-bolt', color: '#aaddff' },
+      { startBeat: 24, endBeat: 28, pattern: 'breathe', color: '#0a0a1a' },
+      { startBeat: 28, endBeat: 30, pattern: 'lightning-bolt', color: '#ffffff' },
+      { startBeat: 30, endBeat: 31, pattern: 'lightning-bolt', color: '#aaddff' },
+      { startBeat: 31, endBeat: 32, pattern: 'ripple-center', speed: 3.0, color: '#ffffff' }
+    ]
+  },
+  'mega-show': {
+    name: 'MEGA SHOW',
+    steps: [
+      { startBeat: 0, endBeat: 8, pattern: 'breathe', color: '#110022' },
+      { startBeat: 8, endBeat: 16, pattern: 'scanner', speed: 0.8, color: '#00ff88' },
+      { startBeat: 16, endBeat: 24, pattern: 'spotlight-sweep', speed: 0.5, color: '#ffffff' },
+      { startBeat: 24, endBeat: 32, pattern: 'wave-lr', speed: 2.0, color: '#ff3c6e' },
+      { startBeat: 32, endBeat: 40, pattern: 'split-halves', color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 40, endBeat: 48, pattern: 'pulse-ring', speed: 1.5, color: '#7c6aef' },
+      { startBeat: 48, endBeat: 52, pattern: 'lightning-bolt', color: '#ffffff' },
+      { startBeat: 52, endBeat: 56, pattern: 'pixel-rain', speed: 3.0, color: '#00ff41' },
+      { startBeat: 56, endBeat: 60, pattern: 'color-wipe', speed: 2.0, color: '#ffdd00', color2: '#000000' },
+      { startBeat: 60, endBeat: 64, pattern: 'vumeter' },
+      { startBeat: 64, endBeat: 72, pattern: 'dna-helix', speed: 1.0, color: '#ff3c6e', color2: '#00b4d8' },
+      { startBeat: 72, endBeat: 80, pattern: 'ripple-center', speed: 2.0, color: '#ffffff' },
+      { startBeat: 80, endBeat: 88, pattern: 'rainbow-wave', speed: 0.4 },
+      { startBeat: 88, endBeat: 96, pattern: 'random-sparkle', speed: 5, color: '#ffffff' }
     ]
   }
 };
