@@ -18661,6 +18661,114 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- Position Calibration (Sound Time-of-Flight) ---
+  socket.on('dj-calibration-start', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    s.calibrationId = data.calibrationId;
+    s.calibrationEmitTime = data.emitTime;
+    s.calibrationResults = {};
+
+    // Send calibration command to all audience phones
+    io.to('dj-live:' + data.sessionId).emit('dj-calibration-pulse', {
+      calibrationId: data.calibrationId,
+      emitTime: data.emitTime,
+      frequency: data.frequency || 19200
+    });
+
+    console.log('[Calibration] Started:', data.calibrationId, 'for session', data.sessionId);
+  });
+
+  // Audience phone reports back its detected time
+  socket.on('dj-calibration-report', (data) => {
+    if (!data || !data.sessionId || !data.calibrationId) return;
+    const s = djSessions[data.sessionId];
+    if (!s || s.calibrationId !== data.calibrationId) return;
+
+    const deviceId = s.socketToDevice[socket.id] || socket.id;
+    const latencyMs = data.detectedTime - s.calibrationEmitTime;
+    // Sound travels at ~343 m/s
+    const distanceMeters = Math.max(0, (latencyMs / 1000) * 343);
+
+    s.calibrationResults[deviceId] = {
+      latency: latencyMs,
+      distance: distanceMeters,
+      detectedTime: data.detectedTime
+    };
+
+    // Send result to DJ panel
+    io.to('dj-ctrl:' + data.sessionId).emit('dj-calibration-result', {
+      deviceId: deviceId,
+      distance: distanceMeters,
+      latency: latencyMs
+    });
+
+    // Recalculate positions based on all results so far
+    const results = s.calibrationResults;
+    const sortedDevices = Object.entries(results)
+      .sort((a, b) => a[1].distance - b[1].distance);
+
+    if (sortedDevices.length > 0) {
+      const maxDist = Math.max(1, sortedDevices[sortedDevices.length - 1][1].distance);
+
+      sortedDevices.forEach(([devId, result], idx) => {
+        const y = sortedDevices.length > 1
+          ? idx / (sortedDevices.length - 1)  // 0 = front, 1 = back
+          : 0.5;
+        const x = sortedDevices.length > 1
+          ? idx / (sortedDevices.length - 1)  // Also spread on X until compass available
+          : 0.5;
+
+        // Send updated position to the specific device
+        const targetSocketId = s.deviceToSocket[devId];
+        if (targetSocketId) {
+          const targetSocket = io.sockets.sockets.get(targetSocketId);
+          if (targetSocket) {
+            targetSocket.emit('dj-position-update', {
+              x: x,
+              y: y,
+              source: 'calibration',
+              distance: result.distance
+            });
+          }
+        }
+      });
+    }
+
+    console.log('[Calibration] Device', deviceId, ': distance=' + distanceMeters.toFixed(1) + 'm, latency=' + latencyMs + 'ms');
+  });
+
+  // Reset calibration - revert to index-based positions
+  socket.on('dj-calibration-reset', (data) => {
+    if (!data || !data.sessionId) return;
+    const s = djSessions[data.sessionId];
+    if (!s) return;
+
+    s.calibrationResults = {};
+    s.calibrationId = null;
+
+    // Tell all devices to reset to index-based positioning
+    const devicesArr = Array.from(s.connectedDevices);
+    devicesArr.forEach((devId, idx) => {
+      const targetSocketId = s.deviceToSocket[devId];
+      if (targetSocketId) {
+        const targetSocket = io.sockets.sockets.get(targetSocketId);
+        if (targetSocket) {
+          const x = devicesArr.length > 1 ? idx / (devicesArr.length - 1) : 0.5;
+          targetSocket.emit('dj-position-update', {
+            x: x,
+            y: 0.5,
+            source: 'reset'
+          });
+        }
+      }
+    });
+
+    console.log('[Calibration] Reset positions for session', data.sessionId);
+  });
+
   // --- Operator starts DJ from operator panel ---
   socket.on('dj-operator-start', (data) => {
     if (!data || !data.eventId) return;
