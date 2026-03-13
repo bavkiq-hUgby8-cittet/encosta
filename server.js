@@ -1407,6 +1407,15 @@ function getMailTransporter() {
       auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD }
     });
   }
+  // Option 3: Resend (resend.com — free tier: 100 emails/day)
+  else if (process.env.RESEND_API_KEY) {
+    _mailTransporter = nodemailer.createTransport({
+      host: 'smtp.resend.com',
+      port: 465,
+      secure: true,
+      auth: { user: 'resend', pass: process.env.RESEND_API_KEY }
+    });
+  }
   return _mailTransporter;
 }
 
@@ -1567,8 +1576,20 @@ app.post('/api/guest/upgrade', async (req, res) => {
 });
 
 app.post('/api/auth/link', async (req, res) => {
-  const { firebaseUid, email, displayName, photoURL, phoneNumber, encUserId } = req.body;
+  const { firebaseUid, email, displayName, photoURL, phoneNumber, encUserId, nickname, birthdate } = req.body;
   if (!firebaseUid) return res.status(400).json({ error: 'Firebase UID obrigatório.' });
+
+  // ── Age verification if birthdate provided ──
+  if (birthdate) {
+    const birthParsed = new Date(birthdate + 'T00:00:00Z');
+    if (!isNaN(birthParsed.getTime())) {
+      const today = new Date();
+      let age = today.getUTCFullYear() - birthParsed.getUTCFullYear();
+      const m = today.getUTCMonth() - birthParsed.getUTCMonth();
+      if (m < 0 || (m === 0 && today.getUTCDate() < birthParsed.getUTCDate())) age--;
+      if (age < 18) return res.status(403).json({ error: 'O Touch? e exclusivo para maiores de 18 anos.' });
+    }
+  }
 
   // ═══ ACCOUNT UNIFICATION: Try to find existing user by multiple identifiers ═══
   // Priority: firebaseUid > encUserId > email > phone
@@ -1645,6 +1666,22 @@ app.post('/api/auth/link', async (req, res) => {
       existingUser.name = displayName;
       changed = true;
     }
+    // Update birthdate if provided and not yet set
+    if (birthdate && !existingUser.birthdate) {
+      existingUser.birthdate = birthdate;
+      changed = true;
+    }
+    // Update nickname if provided and not yet set (from registerWithEmail)
+    if (nickname && (!existingUser.nickname || existingUser.nickname === existingUser.name)) {
+      const oldNick = existingUser.nickname;
+      if (oldNick) IDX.nickname.delete(oldNick.toLowerCase());
+      if (!isNickTaken(nickname)) {
+        existingUser.nickname = nickname;
+        existingUser.name = existingUser.name || nickname;
+        IDX.nickname.set(nickname.toLowerCase(), existingUser.id);
+        changed = true;
+      }
+    }
     if (changed) saveDB('users');
     console.log(`[auth/link] Unified account matched by ${matchedBy}: ${existingUser.id} (${existingUser.nickname || existingUser.email})`);
     return res.json({ userId: existingUser.id, user: existingUser, linked: true, matchedBy, onboardingDone: !!existingUser.onboardingDone });
@@ -1652,7 +1689,8 @@ app.post('/api/auth/link', async (req, res) => {
 
   // ═══ NO MATCH: Create new ENCOSTA user from Firebase auth ═══
   const id = uuidv4();
-  const nick = (displayName || email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 20) || 'user' + Math.floor(Math.random() * 9999);
+  // Use provided nickname (from registerWithEmail) or fallback to displayName/email
+  const nick = (nickname || displayName || email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 20) || 'user' + Math.floor(Math.random() * 9999);
   let finalNick = nick;
   let suffix = 1;
   while (isNickTaken(finalNick)) {
@@ -1664,7 +1702,7 @@ app.post('/api/auth/link', async (req, res) => {
     id, nickname: finalNick, name: displayName || finalNick, email: email || null,
     phone: phoneNumber || null, firebaseUid, photoURL: photoURL || null,
     linkedFirebaseUids: [firebaseUid],
-    birthdate: null, avatar: null, color, createdAt: Date.now(),
+    birthdate: birthdate || null, avatar: null, color, createdAt: Date.now(),
     points: 0, pointLog: [], stars: [],
     registrationOrder: registrationCounter, topTag: null,
     likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []

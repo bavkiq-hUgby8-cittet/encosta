@@ -2187,7 +2187,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="nick-feedback" id="nickFeedbackLogin"></div>
     <div class="login-nick-explain" id="loginNickExplain" data-i18n="auth.nickname_warning">⚠️ Não coloque seu nome real! O nick é sua máscara — só você decide quando revelar.</div>
     <input type="email" class="login-input" id="regEmail" placeholder="E-mail" autocomplete="email" onblur="formatEmail(this)" data-i18n-placeholder="auth.email_placeholder">
-    <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password" data-i18n-placeholder="auth.password_hint">
+    <input type="password" class="login-input" id="regPass" placeholder="Crie uma senha (min. 6 caracteres)" autocomplete="new-password" data-i18n-placeholder="auth.password_hint">
+    <div class="birth-input-wrap" style="position:relative;width:100%">
+      <input type="text" class="login-input" id="regBirthText" placeholder="Data de nascimento (DD/MM/AAAA)" maxlength="10" autocomplete="bday" inputmode="numeric" style="padding-right:2.5rem" oninput="formatBirthInput(this)" onblur="validateBirthField('regBirthText','regBirthDate','regBirthAgeWarn')">
+      <input type="date" id="regBirthDate" style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);width:2rem;height:2rem;opacity:0;cursor:pointer" onchange="syncBirthFromPicker('regBirthDate','regBirthText','regBirthAgeWarn')">
+      <svg style="position:absolute;right:.7rem;top:50%;transform:translateY(-50%);width:18px;height:18px;pointer-events:none;opacity:.4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </div>
+    <div id="regBirthAgeWarn" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:.5rem .7rem;font-size:.72rem;color:#fca5a5;line-height:1.3"></div>
+    <div style="font-size:.6rem;color:#555;line-height:1.3;margin:-.1rem 0 .3rem" data-i18n="auth.age_notice">O Touch? e exclusivo para maiores de 18 anos.</div>
     <div class="tc" id="loginTermsUso" style="margin:.2rem 0"><input type="checkbox" id="loginTermsCheck"><span style="font-size:.78rem" data-i18n="auth.tos_required">Li e aceito os <a href="/termos" target="_blank" style="color:var(--ac);text-decoration:underline">Termos de Uso</a></span></div>
     <button class="bp" id="regBtn" onclick="registerWithEmail()" data-i18n="auth.register_btn">CRIAR CONTA</button>
     <div class="login-err" id="regErr"></div>
@@ -2261,7 +2268,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="fg"><label data-i18n="profile.nickname_label">Nickname</label><input type="text" id="regNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" oninput="checkNick(this.value)" data-i18n-placeholder="auth.nickname_placeholder"></div>
   <div class="nick-feedback" id="nickFeedback"></div>
   <div class="reg-nick-info" data-i18n="auth.nickname_warning">⚠️ Não coloque seu nome real! O nick protege sua identidade — só você decide quando revelar quem é. Seja criativo!</div>
-  <div class="fg"><label data-i18n="auth.birth_date_label">Data de nascimento</label><input type="date" id="regBirth" onchange="checkBirthAge(this.value)"></div>
+  <div class="fg"><label data-i18n="auth.birth_date_label">Data de nascimento</label>
+    <div class="birth-input-wrap" style="position:relative;width:100%">
+      <input type="text" class="login-input" id="regBirthText2" placeholder="DD/MM/AAAA" maxlength="10" autocomplete="bday" inputmode="numeric" style="padding-right:2.5rem;width:100%" oninput="formatBirthInput(this)" onblur="validateBirthField('regBirthText2','regBirth','regAgeWarning')">
+      <input type="date" id="regBirth" style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);width:2rem;height:2rem;opacity:0;cursor:pointer" onchange="syncBirthFromPicker('regBirth','regBirthText2','regAgeWarning')">
+      <svg style="position:absolute;right:.7rem;top:50%;transform:translateY(-50%);width:18px;height:18px;pointer-events:none;opacity:.4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </div>
+  </div>
   <div id="regAgeWarning" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:.6rem .8rem;margin:.3rem 0 .5rem;font-size:.75rem;color:#fca5a5;line-height:1.4"></div>
   <div style="font-size:.65rem;color:#666;margin:-.2rem 0 .6rem;line-height:1.3" data-i18n="auth.age_notice">O Touch? e exclusivo para maiores de 18 anos. Sua data de nascimento e usada para verificacao de idade e calculo de signo.</div>
   <div class="tc"><input type="checkbox" id="regTerms"><span data-i18n="auth.terms_temporary">Entendo e aceito que <strong>todas as relacoes aqui sao temporarias</strong>. Nada persiste sem encontro.</span></div>
@@ -3644,7 +3657,7 @@ async function linkFirebaseToEncosta(user){
     const r=await fetch('/api/auth/link',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,phoneNumber:user.phoneNumber||null,encUserId:state.userId||null,nickname:window._pendingNickname||null})
+      body:JSON.stringify({firebaseUid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL,phoneNumber:user.phoneNumber||null,encUserId:state.userId||null,nickname:window._pendingNickname||null,birthdate:window._pendingBirthdate||null})
     });
     const d=await r.json();
     if(d.matchedBy&&d.matchedBy!=='firebaseUid'&&d.linked){
@@ -3914,14 +3927,22 @@ async function registerWithEmail(){
   const nick=$('loginNick').value.trim();
   const email=$('regEmail').value.trim().toLowerCase();
   const pass=$('regPass').value;
+  const birthText=$('regBirthText')?$('regBirthText').value:'';
+  const birthISO=parseBirthText(birthText);
   $('regErr').textContent='';$('regErr').style.color='var(--err)';
   if(!nick||nick.length<2)return $('regErr').textContent=t('auth.nickname_too_short');
   if(!/^[a-zA-Z0-9_.-]+$/.test(nick))return $('regErr').textContent=t('auth.nickname_invalid');
+  if(!birthText)return $('regErr').textContent=t('auth.birth_required','Data de nascimento obrigatoria.');
+  if(!birthISO)return $('regErr').textContent='Formato invalido. Use DD/MM/AAAA.';
+  var regAge=calcAge(birthISO);
+  if(regAge<18)return $('regErr').textContent=t('auth.age_blocked_toast','Voce precisa ter 18 anos ou mais para usar o Touch?.');
+  if(regAge>120)return $('regErr').textContent='Data de nascimento invalida.';
   if(!email)return $('regErr').textContent=t('auth.login_error_email_required');
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return $('regErr').textContent=t('auth.email_invalid_ex');
   if(pass.length<6)return $('regErr').textContent=t('auth.password_min_error');
   if(!$('loginTermsCheck').checked)return $('regErr').textContent=t('auth.tos_required');
   window._pendingNickname=nick;
+  window._pendingBirthdate=birthISO;
   const btn=$('regBtn');if(btn){btn.textContent=t('auth.creating_account');btn.disabled=true;}
   try{
     const cred=await firebaseAuthInstance.createUserWithEmailAndPassword(email,pass);
@@ -6703,6 +6724,52 @@ function makeAvatar(nick,color,size,photo,verified,accessoryKey){
   if(verified) return '<div class="verified-wrap">'+inner+verifiedBadge(sizeClass)+'</div>';
   return inner;
 }
+// ═══ BIRTH DATE INPUT HELPERS ═══
+// Format text input as DD/MM/AAAA while typing
+function formatBirthInput(el){
+  var v=el.value.replace(/\D/g,'');
+  if(v.length>8)v=v.slice(0,8);
+  if(v.length>=5)v=v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+  else if(v.length>=3)v=v.slice(0,2)+'/'+v.slice(2);
+  el.value=v;
+}
+// Parse DD/MM/YYYY to YYYY-MM-DD
+function parseBirthText(text){
+  var p=text.replace(/\D/g,'');
+  if(p.length!==8)return null;
+  var dd=parseInt(p.slice(0,2),10),mm=parseInt(p.slice(2,4),10),yyyy=parseInt(p.slice(4,8),10);
+  if(dd<1||dd>31||mm<1||mm>12||yyyy<1900||yyyy>2099)return null;
+  return yyyy+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+}
+// Validate birth field and show age warning
+function validateBirthField(textId,dateId,warnId){
+  var textEl=$(textId);if(!textEl)return;
+  var iso=parseBirthText(textEl.value);
+  var dateEl=$(dateId);if(dateEl&&iso)dateEl.value=iso;
+  var w=$(warnId);if(!w)return;
+  if(!iso){
+    if(textEl.value.length>0&&textEl.value.length<10){w.innerHTML='Formato: DD/MM/AAAA';w.style.display='block'}
+    else w.style.display='none';
+    return;
+  }
+  var age=calcAge(iso);
+  if(age<18){
+    w.innerHTML='<strong>'+t('auth.age_blocked_title','Acesso nao permitido')+'</strong><br>'+t('auth.age_blocked_msg','O Touch? e exclusivo para maiores de 18 anos.');
+    w.style.display='block';
+  }else if(age>120){
+    w.innerHTML='Data de nascimento invalida.';w.style.display='block';
+  }else{
+    w.style.display='none';
+  }
+}
+// Sync from native date picker to text field
+function syncBirthFromPicker(dateId,textId,warnId){
+  var dateEl=$(dateId);var textEl=$(textId);
+  if(!dateEl||!textEl||!dateEl.value)return;
+  var parts=dateEl.value.split('-');
+  if(parts.length===3)textEl.value=parts[2]+'/'+parts[1]+'/'+parts[0];
+  validateBirthField(textId,dateId,warnId);
+}
 function calcAge(birthStr){
   if(!birthStr)return 0;
   var b=new Date(birthStr+'T00:00:00');
@@ -6714,18 +6781,22 @@ function calcAge(birthStr){
 }
 function checkBirthAge(val){
   var w=$('regAgeWarning');
-  if(!val){w.style.display='none';return;}
+  if(!val){if(w)w.style.display='none';return;}
   var age=calcAge(val);
   if(age<18){
-    w.innerHTML='<strong>'+t('auth.age_blocked_title','Acesso nao permitido')+'</strong><br>'+t('auth.age_blocked_msg','O Touch? e exclusivo para maiores de 18 anos. Voce nao pode criar uma conta com esta data de nascimento.');
-    w.style.display='block';
+    if(w){w.innerHTML='<strong>'+t('auth.age_blocked_title','Acesso nao permitido')+'</strong><br>'+t('auth.age_blocked_msg','O Touch? e exclusivo para maiores de 18 anos. Voce nao pode criar uma conta com esta data de nascimento.');
+    w.style.display='block';}
   }else{
-    w.style.display='none';
+    if(w)w.style.display='none';
   }
 }
 async function doRegister(){
-  const nick=$('regNick').value.trim(),birth=$('regBirth').value,terms=$('regTerms').checked,termsUso=$('regTermsUso').checked;
-  if(!nick||nick.length<2)return showToast('Escolha um nickname.');if(!birth)return showToast('Data de nascimento.');
+  const nick=$('regNick').value.trim(),terms=$('regTerms').checked,termsUso=$('regTermsUso').checked;
+  // Get birth from text field first, fallback to date picker
+  var birthText=$('regBirthText2')?$('regBirthText2').value:'';
+  var birth=parseBirthText(birthText)||($('regBirth')?$('regBirth').value:'');
+  if(!nick||nick.length<2)return showToast('Escolha um nickname.');
+  if(!birth)return showToast('Data de nascimento obrigatoria.');
   var age=calcAge(birth);
   if(age<18)return showToast(t('auth.age_blocked_toast','Voce precisa ter 18 anos ou mais para usar o Touch?.'));
   if(age>120)return showToast('Data de nascimento invalida.');
