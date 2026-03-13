@@ -910,9 +910,6 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button class="dj-anim-btn" data-anim="starfield" onclick="selectAnimation('starfield')">
           <span class="dj-anim-icon">Stars</span>Starfield
         </button>
-        <button class="dj-anim-btn" data-anim="galaxy" onclick="selectAnimation('galaxy')">
-          <span class="dj-anim-icon">Galaxy</span>Galaxy
-        </button>
         <button class="dj-anim-btn" data-anim="bars" onclick="selectAnimation('bars')">
           <span class="dj-anim-icon">Bars</span>Bars
         </button>
@@ -946,8 +943,8 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button class="dj-anim-btn" data-anim="bubbles" onclick="selectAnimation('bubbles')">
           <span class="dj-anim-icon">Bub</span>Bubbles
         </button>
-        <button class="dj-anim-btn" data-anim="neon" onclick="selectAnimation('neon')">
-          <span class="dj-anim-icon">Neon</span>Neon
+        <button class="dj-anim-btn" data-anim="crosslines" onclick="selectAnimation('crosslines')">
+          <span class="dj-anim-icon">//</span>Crosslines
         </button>
       </div>
     </div>
@@ -2345,7 +2342,7 @@ function renderPreview() {
     case 'waveform': pvWaveform(w, h, t, phase, bassHit, hex); break;
     case 'plasma': pvPlasma(w, h, t, hex); break;
     case 'starfield': pvStarfield(w, h, t, bassHit, hex); break;
-    case 'galaxy': pvGalaxy(w, h, t, bassHit, hex); break;
+
     case 'bars': pvBars(w, h, t, phase, bassHit, hex); break;
     case 'cascade': pvCascade(w, h, t, phase, hex); break;
     case 'lava': pvLava(w, h, t, bassHit, hex); break;
@@ -2357,7 +2354,7 @@ function renderPreview() {
     case 'glitch': pvGlitch(w, h, t, bassHit, hex); break;
     case 'tunnel': pvTunnel(w, h, t, bassHit, hex); break;
     case 'bubbles': pvBubbles(w, h, t, bassHit, hex); break;
-    case 'neon': pvNeon(w, h, t, bassHit, hex); break;
+    case 'crosslines': pvCrosslines(w, h, t, bassHit, hex); break;
     default: pvSolid(w, h, t, bassHit, hex);
   }
 
@@ -3643,6 +3640,112 @@ function pvNeon(w, h, t, bass, hex) {
   }
 }
 
+// CROSSLINES -- organized diagonal beams crossing the screen (Touch? signature style)
+// Inspired by the connection animation: parallel beams sweeping in both directions
+// When many phones show this together, it creates a beautiful crossing grid across the crowd
+function pvCrosslines(w, h, t, bass, hex) {
+  var rgb = hexToRgb(hex);
+  // Subtle fade for trail effect
+  previewCtx.fillStyle = 'rgba(0,0,0,0.88)';
+  previewCtx.fillRect(0, 0, w, h);
+
+  var diag = Math.sqrt(w * w + h * h);
+  var beamCount = 10;
+  var speed = 120 + bass * 200;
+  var globalAlpha = 0.5 + bass * 0.4;
+
+  previewCtx.save();
+  previewCtx.globalCompositeOperation = 'lighter';
+
+  // Direction 1: top-left to bottom-right (angle ~30deg)
+  var angle1 = Math.PI * 0.18;
+  for (var i = 0; i < beamCount; i++) {
+    var offset = ((t * speed * 0.8 + i * (diag / beamCount)) % (diag * 1.3)) - diag * 0.15;
+    _drawCrossBeam(previewCtx, w, h, angle1, offset, rgb, globalAlpha, bass, t, i);
+  }
+
+  // Direction 2: top-right to bottom-left (mirrored angle)
+  var angle2 = -Math.PI * 0.18;
+  for (var i = 0; i < beamCount; i++) {
+    var offset = ((t * speed * 0.65 + i * (diag / beamCount) + diag * 0.5) % (diag * 1.3)) - diag * 0.15;
+    _drawCrossBeam(previewCtx, w, h, angle2, offset, rgb, globalAlpha * 0.7, bass, t, i + beamCount);
+  }
+
+  // Intersection flashes -- bright points where beams would cross
+  if (bass > 0.15) {
+    var flashCount = 4 + Math.floor(bass * 8);
+    for (var i = 0; i < flashCount; i++) {
+      var fx = (Math.sin(t * 1.3 + i * 2.1) * 0.3 + 0.5) * w;
+      var fy = (Math.cos(t * 0.9 + i * 1.7) * 0.3 + 0.5) * h;
+      var fr = 2 + bass * 6;
+      var fa = bass * 0.5 * (0.5 + Math.sin(t * 4 + i) * 0.5);
+      var fGrad = previewCtx.createRadialGradient(fx, fy, 0, fx, fy, fr * 3);
+      fGrad.addColorStop(0, 'rgba(255,255,255,' + fa + ')');
+      fGrad.addColorStop(0.3, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + fa * 0.6 + ')');
+      fGrad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+      previewCtx.fillStyle = fGrad;
+      previewCtx.beginPath();
+      previewCtx.arc(fx, fy, fr * 3, 0, Math.PI * 2);
+      previewCtx.fill();
+    }
+  }
+
+  previewCtx.restore();
+}
+
+function _drawCrossBeam(ctx, w, h, angle, offset, rgb, alpha, bass, t, idx) {
+  ctx.save();
+  var cx = w / 2, cy = h / 2;
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  // Beam is a horizontal strip at y=offset, spanning full diagonal
+  var diag = Math.sqrt(w * w + h * h);
+  var beamY = offset - diag / 2;
+  var tubeH = 12 + bass * 20;
+  var breathe = 1 + Math.sin(t * 0.6 + idx * 0.7) * 0.08;
+  var th = tubeH * breathe;
+
+  // Outer glow
+  var g1 = ctx.createLinearGradient(0, beamY - th * 2, 0, beamY + th * 2);
+  g1.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  g1.addColorStop(0.35, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.08) + ')');
+  g1.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.15) + ')');
+  g1.addColorStop(0.65, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.08) + ')');
+  g1.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  ctx.fillStyle = g1;
+  ctx.fillRect(-diag, beamY - th * 2, diag * 2, th * 4);
+
+  // Core bright line
+  var g2 = ctx.createLinearGradient(0, beamY - th * 0.3, 0, beamY + th * 0.3);
+  g2.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  g2.addColorStop(0.5, 'rgba(' + Math.min(255, rgb.r + 60) + ',' + Math.min(255, rgb.g + 60) + ',' + Math.min(255, rgb.b + 60) + ',' + (alpha * 0.3) + ')');
+  g2.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(-diag, beamY - th * 0.3, diag * 2, th * 0.6);
+
+  // Hot wire center
+  ctx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.2) + ')';
+  ctx.fillRect(-diag, beamY - 0.5, diag * 2, 1);
+
+  // Flowing streak particles along the beam
+  for (var p = 0; p < 3; p++) {
+    var px = (((t * 150 * (1 + bass * 2) + p * diag / 3 + idx * 100) % (diag * 2)) - diag);
+    var pLen = 30 + Math.sin(t + p + idx) * 15;
+    var pAlpha = alpha * 0.25;
+    var pg = ctx.createLinearGradient(px, beamY, px - pLen, beamY);
+    pg.addColorStop(0, 'rgba(255,255,255,' + pAlpha + ')');
+    pg.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+    ctx.beginPath();
+    ctx.moveTo(px, beamY + Math.sin(t + p) * th * 0.15);
+    ctx.lineTo(px - pLen, beamY + Math.sin(t + p + 0.5) * th * 0.15);
+    ctx.strokeStyle = pg;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function stopPreview() {
   if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
   if (aquariumRaf) { cancelAnimationFrame(aquariumRaf); aquariumRaf = null; }
@@ -3884,7 +3987,7 @@ document.addEventListener('DOMContentLoaded', function() {
       case 'waveform': pvWaveform(w, h, t, phase, bassHit, hex); break;
       case 'plasma': pvPlasma(w, h, t, hex); break;
       case 'starfield': pvStarfield(w, h, t, bassHit, hex); break;
-      case 'galaxy': pvGalaxy(w, h, t, bassHit, hex); break;
+  
       case 'bars': pvBars(w, h, t, phase, bassHit, hex); break;
       case 'cascade': pvCascade(w, h, t, phase, hex); break;
       case 'lava': pvLava(w, h, t, bassHit, hex); break;
@@ -3896,7 +3999,7 @@ document.addEventListener('DOMContentLoaded', function() {
       case 'glitch': pvGlitch(w, h, t, bassHit, hex); break;
       case 'tunnel': pvTunnel(w, h, t, bassHit, hex); break;
       case 'bubbles': pvBubbles(w, h, t, bassHit, hex); break;
-      case 'neon': pvNeon(w, h, t, bassHit, hex); break;
+  
       default: pvSolid(w, h, t, bassHit, hex);
     }
 
