@@ -717,7 +717,7 @@ body.embedded .dj-main { padding-top: .5rem !important; }
           <div class="dj-stage-top">
             <div class="dj-stage-logo-area">
               <div class="dj-stage-logo" id="stageLogoWrap">
-                <span class="dj-stage-logo-placeholder" id="stageLogoPlaceholder">9835;</span>
+                <span class="dj-stage-logo-placeholder" id="stageLogoPlaceholder">&#9835;</span>
                 <img id="stageLogoImg" style="display:none" alt="DJ Logo">
               </div>
               <div class="dj-stage-info">
@@ -1459,6 +1459,12 @@ function onDjAuthSuccess(user) {
     }
     // Save to localStorage
     localStorage.setItem('dj_profile', JSON.stringify(DJ_PROFILE));
+    // If session is already active (restored from localStorage before auth resolved),
+    // update artistName and refresh stage overlay so the real name shows
+    if (DJ.sessionId && DJ_PROFILE.nickname) {
+      DJ.artistName = DJ_PROFILE.nickname;
+      syncStageOverlay();
+    }
     // Update UI
     showSessionStep();
     updateProfileBar();
@@ -1468,6 +1474,11 @@ function onDjAuthSuccess(user) {
     // Still allow login even if profile fetch fails
     DJ_PROFILE.nickname = user.displayName || user.email.split('@')[0] || 'DJ';
     DJ_PROFILE.email = user.email || '';
+    // If session already active, update artistName with real name
+    if (DJ.sessionId && DJ_PROFILE.nickname) {
+      DJ.artistName = DJ_PROFILE.nickname;
+      syncStageOverlay();
+    }
     showSessionStep();
     updateProfileBar();
   });
@@ -1755,10 +1766,11 @@ function init() {
   if (saved && DJ_PROFILE.userId) {
     try {
       var s = JSON.parse(saved);
-      if (s.sessionId && s.artistName) {
+      if (s.sessionId) {
         DJ.sessionId = s.sessionId;
-        DJ.sessionName = s.sessionName;
-        DJ.artistName = s.artistName;
+        DJ.sessionName = s.sessionName || '';
+        // Always prefer profile nickname over saved session name
+        DJ.artistName = DJ_PROFILE.nickname || s.artistName || 'DJ';
         DJ.venueFreq = s.venueFreq || 19200;
         DJ_PROFILE.selectedTier = s.tier || 'free';
         // Restore logo
