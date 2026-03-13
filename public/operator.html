@@ -8673,12 +8673,15 @@ function renderKaraokeNowPlaying(){
     $('karaokeNowName').textContent=KARAOKE.currentSinger.nickname||'--';
     $('karaokeNowSong').textContent=KARAOKE.currentSinger.song||'Escolhendo musica...';
     if(ph)ph.style.display='none';
-    if(KARAOKE.ytReady&&KARAOKE.currentSinger.videoId){
+    // Only load video if videoId changed (avoid restart on every socket update)
+    if(KARAOKE.ytReady&&KARAOKE.currentSinger.videoId&&KARAOKE._lastVideoId!==KARAOKE.currentSinger.videoId){
+      KARAOKE._lastVideoId=KARAOKE.currentSinger.videoId;
       KARAOKE.ytPlayer.loadVideoById(KARAOKE.currentSinger.videoId);
     }
   }else{
     np.style.display='none';
     if(ph)ph.style.display='flex';
+    KARAOKE._lastVideoId=null;
     if(KARAOKE.ytReady&&KARAOKE.ytPlayer&&KARAOKE.ytPlayer.stopVideo){
       try{KARAOKE.ytPlayer.stopVideo()}catch(e){}
     }
