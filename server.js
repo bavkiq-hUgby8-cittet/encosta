@@ -17832,6 +17832,27 @@ app.get('/api/dj/event/:eventId/active', (req, res) => {
   res.json({ sessionId: null, broadcasting: false });
 });
 
+// GET /api/dj/active -- list all broadcasting DJ sessions (for direct join without ultrasonic)
+app.get('/api/dj/active', (req, res) => {
+  const active = [];
+  for (const [sid, s] of Object.entries(djSessions)) {
+    if (s.broadcasting) {
+      active.push({
+        sessionId: sid,
+        sessionName: s.sessionName || '',
+        artistName: s.artistName || '',
+        color: s.color || '#ff6b35',
+        bpm: s.bpm || 128,
+        animation: s.animation || 'pulse',
+        venueFreq: s.venueFreq || 19000,
+        deviceCount: s.connectedDevices ? s.connectedDevices.size : 0,
+        eventLogo: s.logoDataUrl || ''
+      });
+    }
+  }
+  res.json({ sessions: active });
+});
+
 // Socket.IO events for DJ Live
 io.on('connection', (socket) => {
 

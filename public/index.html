@@ -2197,6 +2197,25 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div id="floatingEventBtn" style="display:none;position:absolute;bottom:28%;left:50%;transform:translateX(-50%);z-index:8;padding:.35rem .75rem;background:rgba(96,165,250,.1);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.2);border-radius:14px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
     <span style="font-size:.65rem;font-weight:600;color:#60a5fa;display:inline-flex;align-items:center;gap:.3rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> <span id="floatingEventName"></span></span>
   </div>
+  <!-- DJ Live Banner - visible when a DJ is broadcasting, tap to join directly -->
+  <div id="djLiveBanner" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:10;width:calc(100% - 32px);max-width:340px;padding:.6rem .8rem;background:linear-gradient(135deg,rgba(255,107,53,.15),rgba(255,60,100,.12));backdrop-filter:blur(16px);border:1px solid rgba(255,107,53,.35);border-radius:14px;cursor:pointer;animation:mi .35s ease both" onclick="djLiveBannerJoin()">
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#ff3c64);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.7rem;font-weight:700;color:#ff6b35;letter-spacing:.02em" id="djLiveBannerTitle">DJ Live</div>
+        <div style="font-size:.58rem;color:rgba(255,255,255,.7);margin-top:1px" id="djLiveBannerSub">Tap to join the live session</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <div style="width:6px;height:6px;border-radius:50%;background:#ff6b35;animation:djlPulse 1.5s infinite"></div>
+        <span style="font-size:.55rem;font-weight:600;color:rgba(255,255,255,.5)">LIVE</span>
+      </div>
+    </div>
+  </div>
+  <style>
+    @keyframes djlPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+  </style>
   <canvas id="homeNodesCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none"></canvas>
   <div class="ptr-indicator" id="ptrIndicator"><div class="ptr-spinner"></div></div>
   <div class="fire-overlay" id="fireOverlay">
@@ -24010,6 +24029,10 @@ function enterDJLive(data) {
   DJL.broadcasting = true;
   DJL.startTime = Date.now();
 
+  // Hide the DJ Live banner since we are entering
+  var djBanner = document.getElementById('djLiveBanner');
+  if (djBanner) djBanner.style.display = 'none';
+
   var overlay = document.getElementById('djLiveOverlay');
   overlay.style.display = 'block';
 
@@ -27142,6 +27165,104 @@ window.enterDJLive = enterDJLive;
 window.exitDJLive = exitDJLive;
 window.startDJListener = startDJListener;
 window.stopDJListener = stopDJListener;
+
+// =============================================
+// DJ LIVE BANNER -- polls /api/dj/active every 5s
+// Shows a visible "Join DJ Live" banner on the home screen
+// No ultrasonic needed, no link needed, just tap the banner
+// =============================================
+var _djBannerSession = null;
+var _djBannerPollTimer = null;
+
+function djLiveBannerPoll() {
+  if (DJL.active) {
+    // Already in a DJ live session, hide banner
+    var banner = document.getElementById('djLiveBanner');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  fetch('/api/dj/active')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var banner = document.getElementById('djLiveBanner');
+      if (!banner) return;
+      if (DJL.active) { banner.style.display = 'none'; return; }
+      if (data.sessions && data.sessions.length > 0) {
+        var s = data.sessions[0]; // Use first active session
+        _djBannerSession = s;
+        var title = document.getElementById('djLiveBannerTitle');
+        var sub = document.getElementById('djLiveBannerSub');
+        if (title) {
+          title.textContent = s.artistName || s.sessionName || 'DJ Live';
+        }
+        if (sub) {
+          var devCount = s.deviceCount || 0;
+          sub.textContent = devCount > 0
+            ? devCount + ' device' + (devCount !== 1 ? 's' : '') + ' connected -- Tap to join!'
+            : 'Tap to join the live session!';
+        }
+        banner.style.display = 'block';
+      } else {
+        _djBannerSession = null;
+        banner.style.display = 'none';
+      }
+    })
+    .catch(function() {
+      // Silently fail -- network issue, will retry in 5s
+    });
+}
+
+window.djLiveBannerJoin = function() {
+  if (!_djBannerSession) return;
+  if (DJL.active) return;
+  var s = _djBannerSession;
+  console.log('[DJ] Banner join: sessionId=' + s.sessionId);
+  // Join directly via socket
+  if (typeof socket !== 'undefined' && socket && socket.connected) {
+    DJL.detectedSessionId = s.sessionId;
+    socket.emit('dj-audience-join', {
+      sessionId: s.sessionId,
+      deviceId: _djlDeviceId
+    });
+    enterDJLive({
+      sessionId: s.sessionId,
+      color: s.color || '#ff6b35',
+      bpm: s.bpm || 128,
+      animation: s.animation || 'pulse'
+    });
+  } else {
+    // Socket not connected yet, wait and retry
+    var _retryCount = 0;
+    var _retryInterval = setInterval(function() {
+      _retryCount++;
+      if (_retryCount > 20) { clearInterval(_retryInterval); return; }
+      if (typeof socket !== 'undefined' && socket && socket.connected) {
+        clearInterval(_retryInterval);
+        DJL.detectedSessionId = s.sessionId;
+        socket.emit('dj-audience-join', {
+          sessionId: s.sessionId,
+          deviceId: _djlDeviceId
+        });
+        enterDJLive({
+          sessionId: s.sessionId,
+          color: s.color || '#ff6b35',
+          bpm: s.bpm || 128,
+          animation: s.animation || 'pulse'
+        });
+      }
+    }, 300);
+  }
+  // Hide banner after joining
+  var banner = document.getElementById('djLiveBanner');
+  if (banner) banner.style.display = 'none';
+};
+
+// Start polling when socket is ready
+(function startDJBannerPoll() {
+  // Poll immediately, then every 5 seconds
+  djLiveBannerPoll();
+  _djBannerPollTimer = setInterval(djLiveBannerPoll, 5000);
+})();
 
 })();
 </script>
