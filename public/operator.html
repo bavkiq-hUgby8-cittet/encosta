@@ -1404,6 +1404,19 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .karaoke-vote-stars{display:flex;justify-content:center;gap:.5rem;margin:.8rem 0}
 .karaoke-vote-stars span{font-size:1.8rem;cursor:pointer;opacity:.3;transition:all .2s}
 .karaoke-vote-stars span.active{opacity:1;transform:scale(1.15)}
+/* Karaoke reactions overlay */
+.karaoke-reactions{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden;z-index:2}
+.karaoke-reaction{position:absolute;bottom:-40px;font-size:1.8rem;animation:kk-float-up 3s ease-out forwards;pointer-events:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
+@keyframes kk-float-up{0%{transform:translateY(0) scale(.6);opacity:0}10%{opacity:1;transform:translateY(-20px) scale(1.1)}80%{opacity:.8}100%{transform:translateY(-450px) scale(.5) rotate(15deg);opacity:0}}
+.karaoke-star-pop{position:absolute;font-size:2rem;animation:kk-star-pop 1.5s ease-out forwards;pointer-events:none}
+@keyframes kk-star-pop{0%{transform:scale(0) rotate(-30deg);opacity:0}20%{transform:scale(1.4) rotate(10deg);opacity:1}60%{opacity:.7}100%{transform:scale(.3) translateY(-200px);opacity:0}}
+/* Karaoke QR section */
+.karaoke-qr-section{display:flex;align-items:center;gap:.8rem;padding:.6rem;background:rgba(236,72,153,.04);border:1px solid rgba(236,72,153,.12);border-radius:var(--radius-sm);margin-bottom:.6rem}
+.karaoke-qr-section img{width:90px;height:90px;border-radius:8px;border:2px solid rgba(236,72,153,.2);flex-shrink:0}
+.karaoke-qr-info{flex:1;min-width:0}
+.karaoke-qr-title{font-size:.75rem;font-weight:700;color:#ec4899;margin-bottom:.15rem}
+.karaoke-qr-desc{font-size:.6rem;color:var(--t3);line-height:1.4}
+.karaoke-qr-url{font-size:.55rem;color:var(--t3);opacity:.7;margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ═══ PROFILE MODULE VARS ═══ */
 .op-profile-panel{--mod-accent:#1877f2;--mod-accent2:#42a5f5;--mod-accent-30:rgba(24,119,242,.3);--mod-shadow:rgba(24,119,242,.2);--mod-glow:rgba(24,119,242,.08);--mod-glow2:rgba(66,165,245,.06);--mod-bg1:rgba(24,119,242,.1);--mod-bg2:rgba(66,165,245,.06);--mod-tab-bg:rgba(24,119,242,.12);--mod-tab-border:rgba(24,119,242,.3)}
@@ -2964,6 +2977,17 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
               <span style="font-size:.7rem">Aguardando primeiro cantor...</span>
             </div>
             <div id="karaokeYtPlayer"></div>
+            <!-- Live reactions overlay (floats on top of video) -->
+            <div class="karaoke-reactions" id="karaokeReactions"></div>
+          </div>
+          <!-- QR Code - always visible for audience to scan -->
+          <div class="karaoke-qr-section" id="karaokeQRSection">
+            <img id="karaokeQRImg" src="" alt="QR Code">
+            <div class="karaoke-qr-info">
+              <div class="karaoke-qr-title">Entre no karaoke!</div>
+              <div class="karaoke-qr-desc">Escaneie o QR Code, escolha sua musica e entre na fila</div>
+              <div class="karaoke-qr-url" id="karaokeQRUrl"></div>
+            </div>
           </div>
           <!-- Quick Controls -->
           <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
@@ -8621,6 +8645,7 @@ function openKaraokePanel(){
   loadAllKaraokeData();
   switchKaraokeTab('stage');
   karaokeInitYt();
+  karaokeInitQR();
 }
 function closeKaraokePanel(){$('opKaraokePanel').style.display='none'}
 
@@ -8918,16 +8943,64 @@ function bindKaraokeSocket(){
       var oldId=KARAOKE.currentSinger?KARAOKE.currentSinger.videoId:null;
       var newId=data.currentSinger?data.currentSinger.videoId:null;
       KARAOKE.currentSinger=data.currentSinger;
-      // Singer changed: reset video tracking so new video loads
-      if(oldId!==newId){
-        KARAOKE._lastVideoId=null;
-      }
+      if(oldId!==newId)KARAOKE._lastVideoId=null;
     }
     if(data.scores)KARAOKE.scores=data.scores;
+    // Spawn live reactions on the video overlay
+    if(data.type==='applause')karaokeSpawnReaction('\uD83D\uDC4F',3);
+    if(data.type==='vote')karaokeSpawnStars(3);
+    if(data.type==='queue')karaokeSpawnReaction('\uD83C\uDFA4',1);
     // Debounce renders: max 1 render per 200ms to prevent freeze
     if(_kkRenderTimer)clearTimeout(_kkRenderTimer);
     _kkRenderTimer=setTimeout(function(){renderKaraokeAll()},200);
   });
+}
+
+// ── Karaoke QR Code ──
+function karaokeInitQR(){
+  if(!S.currentEventId)return;
+  var url=window.location.origin+'/e/'+S.currentEventId;
+  var qrImg=$('karaokeQRImg');
+  var qrUrl=$('karaokeQRUrl');
+  if(qrImg)qrImg.src='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(url)+'&bgcolor=0d0d1a&color=ec4899&format=svg';
+  if(qrUrl)qrUrl.textContent=url;
+}
+
+// ── Karaoke Live Reactions ──
+function karaokeSpawnReaction(emoji,count){
+  var container=$('karaokeReactions');
+  if(!container)return;
+  var n=count||1;
+  for(var i=0;i<n;i++){
+    (function(delay){
+      setTimeout(function(){
+        var el=document.createElement('div');
+        el.className='karaoke-reaction';
+        el.textContent=emoji;
+        el.style.left=(10+Math.random()*80)+'%';
+        el.style.animationDuration=(2.5+Math.random()*1.5)+'s';
+        container.appendChild(el);
+        el.addEventListener('animationend',function(){el.remove()});
+      },delay);
+    })(i*150);
+  }
+}
+function karaokeSpawnStars(stars){
+  var container=$('karaokeReactions');
+  if(!container)return;
+  for(var i=0;i<stars;i++){
+    (function(delay){
+      setTimeout(function(){
+        var el=document.createElement('div');
+        el.className='karaoke-star-pop';
+        el.textContent='\u2B50';
+        el.style.left=(20+Math.random()*60)+'%';
+        el.style.top=(20+Math.random()*40)+'%';
+        container.appendChild(el);
+        el.addEventListener('animationend',function(){el.remove()});
+      },delay);
+    })(i*200);
+  }
 }
 
 function escHtml(t){var d=document.createElement('div');d.textContent=t||'';return d.innerHTML}
