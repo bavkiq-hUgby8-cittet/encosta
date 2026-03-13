@@ -632,6 +632,13 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
       </svg>
       <span class="dj-activate-label" id="activateLabel">Activate</span>
     </button>
+    <div id="djShareRow" style="display:none;margin-top:.4rem;display:flex;gap:.3rem">
+      <button id="djShareBtn" onclick="djShareLink()" style="flex:1;padding:.5rem;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--t2);font-size:.65rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share Join Link
+      </button>
+      <input id="djShareInput" readonly style="flex:2;padding:.4rem .5rem;border-radius:8px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);color:var(--t2);font-size:.55rem;font-family:monospace;display:none" onclick="this.select()">
+    </div>
   </section>
 
   <!-- MASTER DRAWER -->
@@ -1396,6 +1403,10 @@ function startBroadcast() {
   // Send initial animation state
   sendCommand(DJ.animation);
   showToast('Broadcasting started');
+
+  // Show share link row
+  var shareRow = document.getElementById('djShareRow');
+  if (shareRow) shareRow.style.display = 'flex';
 }
 
 function stopBroadcast() {
@@ -1416,7 +1427,32 @@ function stopBroadcast() {
   }
 
   showToast('Broadcast stopped');
+  // Hide share link row
+  var shareRow = document.getElementById('djShareRow');
+  if (shareRow) shareRow.style.display = 'none';
 }
+
+/* ---- SHARE JOIN LINK ---- */
+window.djShareLink = function() {
+  if (!DJ.sessionId) { showToast('No active session', true); return; }
+  var baseUrl = window.location.origin;
+  var link = baseUrl + '/?djlive=' + encodeURIComponent(DJ.sessionId);
+  var input = document.getElementById('djShareInput');
+  input.value = link;
+  input.style.display = 'block';
+  input.select();
+  // Try to copy to clipboard
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function() {
+      showToast('Link copied!');
+    }).catch(function() {
+      // Fallback
+      try { document.execCommand('copy'); showToast('Link copied!'); } catch(e) {}
+    });
+  } else {
+    try { document.execCommand('copy'); showToast('Link copied!'); } catch(e) { showToast('Select and copy the link'); }
+  }
+};
 
 /* ---- ULTRASONIC BROADCAST ---- */
 function startSonicBroadcast() {
