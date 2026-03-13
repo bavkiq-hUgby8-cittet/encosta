@@ -8765,9 +8765,9 @@ async function karaokeStartNext(){
 async function karaokeFinish(){
   if(!S.currentEventId||!KARAOKE.currentSinger)return;
   try{
-    var r=await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/finish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    var r=await fetch('/api/event/'+S.currentEventId+'/karaoke/finish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     var d=await r.json();
-    if(d.ok){KARAOKE.currentSinger=d.currentSinger;KARAOKE.scores=d.scores;renderKaraokeAll();showToast('Performance finalizada!')}
+    if(d.ok){KARAOKE.currentSinger=d.currentSinger;KARAOKE.scores=d.scores;KARAOKE._lastVideoId=null;renderKaraokeAll();showToast('Performance finalizada!')}
   }catch(e){console.error('karaokeFinish:',e)}
 }
 
@@ -8776,7 +8776,7 @@ async function karaokeSkip(){
   try{
     var r=await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/skip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     var d=await r.json();
-    if(d.ok){KARAOKE.currentSinger=d.currentSinger;renderKaraokeAll();showToast('Cantor pulado')}
+    if(d.ok){KARAOKE.currentSinger=d.currentSinger;KARAOKE._lastVideoId=null;renderKaraokeAll();showToast('Cantor pulado')}
   }catch(e){console.error('karaokeSkip:',e)}
 }
 
@@ -8848,31 +8848,35 @@ function karaokeInitYt(){
 function karaokeCreatePlayer(){
   if(KARAOKE.ytReady)return;
   var pDiv=$('karaokeYtPlayer');
-  if(!pDiv){console.error('[Karaoke] player div not found');return}
-  console.log('[Karaoke] Creating YT Player...');
+  if(!pDiv)return;
+  KARAOKE._ytLastState=null;
+  KARAOKE._autoFinishing=false;
   KARAOKE.ytPlayer=new YT.Player('karaokeYtPlayer',{
     height:'100%',width:'100%',
     playerVars:{autoplay:1,controls:1,modestbranding:1,rel:0,fs:1,origin:window.location.origin,playsinline:1},
     events:{
       onReady:function(){
         KARAOKE.ytReady=true;
-        console.log('[Karaoke] YT Player ready');
         if(KARAOKE.currentSinger&&KARAOKE.currentSinger.videoId){
-          console.log('[Karaoke] Auto-loading video:',KARAOKE.currentSinger.videoId);
+          KARAOKE._lastVideoId=KARAOKE.currentSinger.videoId;
           KARAOKE.ytPlayer.loadVideoById(KARAOKE.currentSinger.videoId);
         }
       },
       onStateChange:function(ev){
-        console.log('[Karaoke] YT state:',ev.data);
-        if(ev.data===YT.PlayerState.ENDED){
+        // Guard: only process meaningful state transitions, ignore rapid oscillation
+        if(ev.data===KARAOKE._ytLastState)return;
+        KARAOKE._ytLastState=ev.data;
+        // Video ended: auto-advance to next singer
+        if(ev.data===YT.PlayerState.ENDED&&!KARAOKE._autoFinishing){
           karaokeAutoFinish();
         }
       },
       onError:function(ev){
-        console.error('[Karaoke] YT Error:',ev.data);
-        if(ev.data===100||ev.data===101||ev.data===150){
-          showToast('Video indisponivel. Pulando...');
-          karaokeSkip();
+        console.warn('[Karaoke] YT Error:',ev.data);
+        // 100=not found, 101/150=embedding disabled
+        if((ev.data===100||ev.data===101||ev.data===150)&&!KARAOKE._autoFinishing){
+          showToast('Video indisponivel');
+          karaokeAutoFinish();
         }
       }
     }
@@ -8880,8 +8884,8 @@ function karaokeCreatePlayer(){
 }
 // Auto-finish when video ends -- calls public endpoint, no operator needed
 async function karaokeAutoFinish(){
-  if(!S.currentEventId)return;
-  console.log('[Karaoke] Auto-finish triggered');
+  if(!S.currentEventId||KARAOKE._autoFinishing)return;
+  KARAOKE._autoFinishing=true;
   try{
     var r=await fetch('/api/event/'+S.currentEventId+'/karaoke/finish',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})
@@ -8894,6 +8898,7 @@ async function karaokeAutoFinish(){
       renderKaraokeAll();
     }
   }catch(e){console.error('[Karaoke] autoFinish error:',e)}
+  KARAOKE._autoFinishing=false;
 }
 
 // YouTube Premium login - opens YouTube in new tab for login
@@ -8906,11 +8911,22 @@ function karaokeYtLogin(){
 function bindKaraokeSocket(){
   if(!S.socket||window._karaokeSocketBound)return;
   window._karaokeSocketBound=true;
+  var _kkRenderTimer=null;
   S.socket.on('karaoke-update',function(data){
     if(data.queue)KARAOKE.queue=data.queue;
-    if(data.currentSinger!==undefined)KARAOKE.currentSinger=data.currentSinger;
+    if(data.currentSinger!==undefined){
+      var oldId=KARAOKE.currentSinger?KARAOKE.currentSinger.videoId:null;
+      var newId=data.currentSinger?data.currentSinger.videoId:null;
+      KARAOKE.currentSinger=data.currentSinger;
+      // Singer changed: reset video tracking so new video loads
+      if(oldId!==newId){
+        KARAOKE._lastVideoId=null;
+      }
+    }
     if(data.scores)KARAOKE.scores=data.scores;
-    renderKaraokeAll();
+    // Debounce renders: max 1 render per 200ms to prevent freeze
+    if(_kkRenderTimer)clearTimeout(_kkRenderTimer);
+    _kkRenderTimer=setTimeout(function(){renderKaraokeAll()},200);
   });
 }
 
