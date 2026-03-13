@@ -8847,24 +8847,53 @@ function karaokeInitYt(){
 }
 function karaokeCreatePlayer(){
   if(KARAOKE.ytReady)return;
+  var pDiv=$('karaokeYtPlayer');
+  if(!pDiv){console.error('[Karaoke] player div not found');return}
+  console.log('[Karaoke] Creating YT Player...');
   KARAOKE.ytPlayer=new YT.Player('karaokeYtPlayer',{
     height:'100%',width:'100%',
-    playerVars:{autoplay:1,controls:1,modestbranding:1,rel:0,fs:1,origin:window.location.origin},
+    playerVars:{autoplay:1,controls:1,modestbranding:1,rel:0,fs:1,origin:window.location.origin,playsinline:1},
     events:{
       onReady:function(){
         KARAOKE.ytReady=true;
-        console.log('Karaoke YT Player pronto');
+        console.log('[Karaoke] YT Player ready');
         if(KARAOKE.currentSinger&&KARAOKE.currentSinger.videoId){
+          console.log('[Karaoke] Auto-loading video:',KARAOKE.currentSinger.videoId);
           KARAOKE.ytPlayer.loadVideoById(KARAOKE.currentSinger.videoId);
         }
       },
       onStateChange:function(ev){
-        if(ev.data===YT.PlayerState.ENDED&&KARAOKE.config.autoAdvance){
-          karaokeFinish();
+        console.log('[Karaoke] YT state:',ev.data);
+        if(ev.data===YT.PlayerState.ENDED){
+          karaokeAutoFinish();
+        }
+      },
+      onError:function(ev){
+        console.error('[Karaoke] YT Error:',ev.data);
+        if(ev.data===100||ev.data===101||ev.data===150){
+          showToast('Video indisponivel. Pulando...');
+          karaokeSkip();
         }
       }
     }
   });
+}
+// Auto-finish when video ends -- calls public endpoint, no operator needed
+async function karaokeAutoFinish(){
+  if(!S.currentEventId)return;
+  console.log('[Karaoke] Auto-finish triggered');
+  try{
+    var r=await fetch('/api/event/'+S.currentEventId+'/karaoke/finish',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})
+    });
+    var d=await r.json();
+    if(d.ok){
+      KARAOKE.currentSinger=d.currentSinger;
+      KARAOKE.scores=d.scores;
+      KARAOKE._lastVideoId=null;
+      renderKaraokeAll();
+    }
+  }catch(e){console.error('[Karaoke] autoFinish error:',e)}
 }
 
 // YouTube Premium login - opens YouTube in new tab for login

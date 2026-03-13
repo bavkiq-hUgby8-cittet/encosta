@@ -16024,9 +16024,18 @@ app.post('/api/event/:eventId/karaoke/join', (req, res) => {
   if (k.queue.find(q => q.userId === userId)) return res.status(400).json({ error: 'Voce ja esta na fila' });
   const entry = { id: 'kq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), userId, nickname, song: (song || '').slice(0, 200), videoId: videoId || '', thumbnail: thumbnail || '', joinedAt: Date.now(), status: 'waiting' };
   k.queue.push(entry);
+  // Auto-start: if no one is singing, start this person immediately
+  let autoStarted = false;
+  if (!k.currentSinger && k.queue.length === 1) {
+    const singer = k.queue.shift();
+    singer.status = 'singing';
+    singer.startedAt = Date.now();
+    k.currentSinger = singer;
+    autoStarted = true;
+  }
   saveDB('operatorEvents');
-  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'queue', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
-  res.json({ ok: true, position: k.queue.length, entry });
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: autoStarted ? 'start' : 'queue', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true, position: autoStarted ? 0 : k.queue.length, entry, autoStarted });
 });
 
 // POST update song choice (participant changes their song)
@@ -16099,6 +16108,36 @@ app.post('/api/operator/event/:eventId/karaoke/finish', (req, res) => {
   k.currentSinger = null;
   // Auto-advance: start next if enabled
   if (k.config?.autoAdvance && k.queue.length > 0) {
+    const next = k.queue.shift();
+    next.status = 'singing';
+    next.startedAt = Date.now();
+    k.currentSinger = next;
+  }
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'finish', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, finished });
+  res.json({ ok: true, scores: k.scores, currentSinger: k.currentSinger });
+});
+
+// POST finish singer (participant/auto -- video ended or singer clicked "Terminei")
+app.post('/api/event/:eventId/karaoke/finish', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
+  const finished = { ...k.currentSinger, finishedAt: Date.now(), status: 'finished' };
+  // Calculate final score
+  const scoreData = k.scores[finished.userId] || { applause: 0, votes: {}, points: 0 };
+  const voteValues = Object.values(scoreData.votes || {});
+  const avgStars = voteValues.length > 0 ? voteValues.reduce((a, b) => a + b, 0) / voteValues.length : 0;
+  scoreData.avgStars = avgStars;
+  scoreData.points = (avgStars * 10) + ((scoreData.applause || 0) * 0.5);
+  scoreData.name = finished.nickname;
+  scoreData.song = finished.song;
+  k.scores[finished.userId] = scoreData;
+  k.history.push(finished);
+  k.currentSinger = null;
+  // Auto-advance to next singer
+  if (k.queue.length > 0) {
     const next = k.queue.shift();
     next.status = 'singing';
     next.startedAt = Date.now();
