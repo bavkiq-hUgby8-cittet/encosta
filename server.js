@@ -18034,6 +18034,7 @@ const djSessions = {};
 
 // Route: DJ Panel standalone page
 app.get('/dj', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dj.html')));
+app.get('/dj-help', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dj-help.html')));
 
 // ====== DJ PROFILE & TIER MANAGEMENT ======
 
