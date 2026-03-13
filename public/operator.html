@@ -1417,6 +1417,34 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .karaoke-qr-title{font-size:.75rem;font-weight:700;color:#ec4899;margin-bottom:.15rem}
 .karaoke-qr-desc{font-size:.6rem;color:var(--t3);line-height:1.4}
 .karaoke-qr-url{font-size:.55rem;color:var(--t3);opacity:.7;margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Karaoke Voting Phase on TV */
+.karaoke-voting-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,rgba(13,13,26,.95),rgba(30,10,40,.95));display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:3;animation:kk-tv-fade-in .5s ease-out}
+@keyframes kk-tv-fade-in{0%{opacity:0}100%{opacity:1}}
+.kk-tv-voting-title{font-size:1.2rem;color:rgba(236,72,153,.85);text-transform:uppercase;letter-spacing:.2em;font-weight:700;margin-bottom:.3rem}
+.kk-tv-voting-singer{font-size:2rem;font-weight:900;color:#fff;margin-bottom:.15rem;text-shadow:0 2px 20px rgba(236,72,153,.4)}
+.kk-tv-voting-song{font-size:.9rem;color:rgba(255,255,255,.7);margin-bottom:1rem;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kk-tv-countdown{width:120px;height:120px;position:relative;margin:0 auto 1rem}
+.kk-tv-countdown svg{width:100%;height:100%}
+.kk-tv-countdown circle{fill:none;stroke-width:5;stroke-linecap:round;transform:rotate(-90deg);transform-origin:center}
+.kk-tv-countdown .tv-ring-bg{stroke:rgba(236,72,153,.15)}
+.kk-tv-countdown .tv-ring-fg{stroke:url(#tvVotingGrad);transition:stroke-dashoffset .5s linear}
+.kk-tv-countdown-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.5rem;font-weight:900;color:#ec4899;text-shadow:0 0 20px rgba(236,72,153,.5)}
+.kk-tv-voting-cta{font-size:1rem;color:rgba(255,255,255,.8);margin-bottom:.5rem;animation:kk-cta-pulse 2s ease-in-out infinite}
+@keyframes kk-cta-pulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
+.kk-tv-voting-qr{font-size:.7rem;color:rgba(255,255,255,.4)}
+.kk-tv-results-title{font-size:1.2rem;color:rgba(236,72,153,.85);text-transform:uppercase;letter-spacing:.2em;font-weight:700;margin-bottom:.5rem}
+.kk-tv-results-trophy{font-size:4rem;margin-bottom:.3rem;animation:kk-trophy-tv 1s ease-in-out infinite}
+@keyframes kk-trophy-tv{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-10px) scale(1.1)}}
+.kk-tv-results-singer{font-size:2.2rem;font-weight:900;color:#fff;text-shadow:0 2px 20px rgba(236,72,153,.4);margin-bottom:.15rem}
+.kk-tv-results-song{font-size:.9rem;color:rgba(255,255,255,.6);margin-bottom:1rem}
+.kk-tv-results-stats{display:flex;gap:2rem;align-items:center;justify-content:center;margin-bottom:.5rem}
+.kk-tv-results-stat{text-align:center}
+.kk-tv-results-stat-num{font-size:2rem;font-weight:800;color:#ec4899}
+.kk-tv-results-stat-label{font-size:.65rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em}
+.kk-tv-results-points{font-size:3rem;font-weight:900;background:linear-gradient(135deg,#ec4899,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:.3rem 0}
+.kk-tv-results-rank{font-size:1rem;color:rgba(255,255,255,.6);font-weight:500}
+.kk-tv-confetti{position:absolute;border-radius:50%;animation:kk-tv-confetti-fall 3s ease-in forwards;pointer-events:none}
+@keyframes kk-tv-confetti-fall{0%{transform:translateY(-20px) rotate(0deg) scale(1);opacity:1}100%{transform:translateY(400px) rotate(720deg) scale(0);opacity:0}}
 
 /* ═══ PROFILE MODULE VARS ═══ */
 .op-profile-panel{--mod-accent:#1877f2;--mod-accent2:#42a5f5;--mod-accent-30:rgba(24,119,242,.3);--mod-shadow:rgba(24,119,242,.2);--mod-glow:rgba(24,119,242,.08);--mod-glow2:rgba(66,165,245,.06);--mod-bg1:rgba(24,119,242,.1);--mod-bg2:rgba(66,165,245,.06);--mod-tab-bg:rgba(24,119,242,.12);--mod-tab-border:rgba(24,119,242,.3)}
@@ -8638,7 +8666,7 @@ function initChurchSocket(){
 }
 
 // ═══ KARAOKE MODULE ═══
-const KARAOKE={activeTab:'stage',config:{enabled:false,sessionName:'',maxQueue:50,autoAdvance:true,votingEnabled:true},queue:[],currentSinger:null,scores:{},history:[],ytPlayer:null,ytReady:false,selectedStars:0};
+const KARAOKE={activeTab:'stage',config:{enabled:false,sessionName:'',maxQueue:50,autoAdvance:true,votingEnabled:true},queue:[],currentSinger:null,scores:{},history:[],votingPhase:null,ytPlayer:null,ytReady:false,selectedStars:0};
 
 function openKaraokePanel(){
   $('opKaraokePanel').style.display='block';
@@ -8673,11 +8701,17 @@ async function loadAllKaraokeData(){
     KARAOKE.currentSinger=d.currentSinger||null;
     KARAOKE.scores=d.scores||{};
     KARAOKE.history=d.history||[];
+    KARAOKE.votingPhase=d.votingPhase||null;
     if($('karaokeEnabled'))$('karaokeEnabled').checked=KARAOKE.config.enabled;
     if($('karaokeSessionName'))$('karaokeSessionName').value=KARAOKE.config.sessionName||'';
     if($('karaokeMaxQueue'))$('karaokeMaxQueue').value=KARAOKE.config.maxQueue||50;
     if($('karaokeAutoAdvance'))$('karaokeAutoAdvance').checked=KARAOKE.config.autoAdvance!==false;
     if($('karaokeVotingEnabled'))$('karaokeVotingEnabled').checked=KARAOKE.config.votingEnabled!==false;
+    // Restore voting phase if operator loads mid-voting
+    if(KARAOKE.votingPhase){
+      if(KARAOKE.votingPhase.phase==='voting')karaokeTvStartVoting();
+      else if(KARAOKE.votingPhase.phase==='results')karaokeTvShowResults();
+    }
     renderKaraokeAll();
   }catch(e){console.error('loadAllKaraokeData:',e)}
 }
@@ -8693,6 +8727,12 @@ function renderKaraokeAll(){
 function renderKaraokeNowPlaying(){
   var np=$('karaokeNowPlaying');
   var ph=$('karaokePlaceholder');
+  // During voting phase, keep the overlay and hide normal UI
+  if(KARAOKE.votingPhase){
+    np.style.display='none';
+    if(ph)ph.style.display='none';
+    return;
+  }
   if(KARAOKE.currentSinger){
     np.style.display='flex';
     $('karaokeNowName').textContent=KARAOKE.currentSinger.nickname||'--';
@@ -8788,11 +8828,15 @@ async function karaokeStartNext(){
 }
 
 async function karaokeFinish(){
-  if(!S.currentEventId||!KARAOKE.currentSinger)return;
+  if(!S.currentEventId||(!KARAOKE.currentSinger&&!KARAOKE.votingPhase))return;
   try{
     var r=await fetch('/api/event/'+S.currentEventId+'/karaoke/finish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     var d=await r.json();
-    if(d.ok){KARAOKE.currentSinger=d.currentSinger;KARAOKE.scores=d.scores;KARAOKE._lastVideoId=null;renderKaraokeAll();showToast('Performance finalizada!')}
+    if(d.ok){
+      if(d.votingPhase){KARAOKE.votingPhase=d.votingPhase;KARAOKE.currentSinger=null;showToast('Votacao iniciada!')}
+      else{KARAOKE.currentSinger=d.currentSinger;KARAOKE.scores=d.scores;KARAOKE._lastVideoId=null;showToast('Performance finalizada!')}
+      renderKaraokeAll();
+    }
   }catch(e){console.error('karaokeFinish:',e)}
 }
 
@@ -8909,7 +8953,7 @@ function karaokeCreatePlayer(){
 }
 // Auto-finish when video ends -- calls public endpoint, no operator needed
 async function karaokeAutoFinish(){
-  if(!S.currentEventId||KARAOKE._autoFinishing)return;
+  if(!S.currentEventId||KARAOKE._autoFinishing||KARAOKE.votingPhase)return;
   KARAOKE._autoFinishing=true;
   try{
     var r=await fetch('/api/event/'+S.currentEventId+'/karaoke/finish',{
@@ -8946,6 +8990,11 @@ function bindKaraokeSocket(){
       if(oldId!==newId)KARAOKE._lastVideoId=null;
     }
     if(data.scores)KARAOKE.scores=data.scores;
+    if(data.votingPhase!==undefined)KARAOKE.votingPhase=data.votingPhase;
+    // Handle voting phase transitions
+    if(data.type==='voting-start')karaokeTvStartVoting();
+    if(data.type==='voting-results')karaokeTvShowResults();
+    if(data.type==='voting-end'){karaokeTvClearVoting();KARAOKE.votingPhase=null}
     // Spawn live reactions on the video overlay
     if(data.type==='applause')karaokeSpawnReaction('\uD83D\uDC4F',3);
     if(data.type==='vote')karaokeSpawnStars(3);
@@ -9000,6 +9049,115 @@ function karaokeSpawnStars(stars){
         el.addEventListener('animationend',function(){el.remove()});
       },delay);
     })(i*200);
+  }
+}
+
+// ── Karaoke TV Voting Phase ──
+var _karaokeTvVotingTimer=null;
+function karaokeTvStartVoting(){
+  karaokeTvClearVoting();
+  var wrap=document.querySelector('.karaoke-player-wrap');
+  if(!wrap)return;
+  var vp=KARAOKE.votingPhase;
+  if(!vp||!vp.singer)return;
+  // Stop the YouTube player
+  if(KARAOKE.ytReady&&KARAOKE.ytPlayer&&KARAOKE.ytPlayer.stopVideo){
+    try{KARAOKE.ytPlayer.stopVideo()}catch(e){}
+  }
+  var ov=document.createElement('div');
+  ov.className='karaoke-voting-overlay';
+  ov.id='karaokeTvVotingOverlay';
+  var singer=vp.singer;
+  ov.innerHTML='<div class="kk-tv-voting-title">Hora de votar!</div>'+
+    '<div class="kk-tv-voting-singer">'+escHtml(singer.nickname)+'</div>'+
+    '<div class="kk-tv-voting-song">'+escHtml(singer.song||'')+'</div>'+
+    '<div class="kk-tv-countdown" id="karaokeTvCountdown">'+
+      '<svg viewBox="0 0 120 120"><defs><linearGradient id="tvVotingGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#ec4899"/><stop offset="100%" style="stop-color:#a855f7"/></linearGradient></defs>'+
+      '<circle class="tv-ring-bg" cx="60" cy="60" r="54" stroke-dasharray="339.29" stroke-dashoffset="0"/>'+
+      '<circle class="tv-ring-fg" cx="60" cy="60" r="54" stroke-dasharray="339.29" stroke-dashoffset="0"/>'+
+      '</svg><div class="kk-tv-countdown-num" id="karaokeTvCountNum">15</div></div>'+
+    '<div class="kk-tv-voting-cta">Escaneie o QR Code e vote agora!</div>'+
+    '<div class="kk-tv-voting-qr">Aplausos e estrelas contam pontos</div>';
+  wrap.appendChild(ov);
+  // Countdown timer
+  var circumference=2*Math.PI*54;
+  _karaokeTvVotingTimer=setInterval(function(){
+    var vp2=KARAOKE.votingPhase;
+    if(!vp2||vp2.phase!=='voting'){karaokeTvStopTimer();return}
+    var remaining=Math.max(0,Math.ceil((vp2.votingEndsAt-Date.now())/1000));
+    var numEl=$('karaokeTvCountNum');
+    if(numEl)numEl.textContent=remaining;
+    var totalSec=Math.ceil((vp2.votingEndsAt-(vp2.startedAt||vp2.votingEndsAt-15000))/1000);
+    var pct=totalSec>0?(remaining/totalSec):0;
+    var dashOffset=circumference*(1-pct);
+    var ring=document.querySelector('#karaokeTvVotingOverlay .tv-ring-fg');
+    if(ring)ring.setAttribute('stroke-dashoffset',dashOffset);
+    if(remaining<=0)karaokeTvStopTimer();
+  },500);
+}
+function karaokeTvStopTimer(){
+  if(_karaokeTvVotingTimer){clearInterval(_karaokeTvVotingTimer);_karaokeTvVotingTimer=null}
+}
+function karaokeTvShowResults(){
+  karaokeTvStopTimer();
+  var wrap=document.querySelector('.karaoke-player-wrap');
+  if(!wrap)return;
+  // Remove voting overlay if present
+  var old=$('karaokeTvVotingOverlay');
+  if(old)old.remove();
+  var vp=KARAOKE.votingPhase;
+  if(!vp||!vp.singer)return;
+  var singer=vp.singer;
+  var fs=vp.finalScore||{};
+  var ov=document.createElement('div');
+  ov.className='karaoke-voting-overlay';
+  ov.id='karaokeTvResultsOverlay';
+  // Calculate rank
+  var allScores=Object.entries(KARAOKE.scores||{}).map(function(e){return{id:e[0],points:e[1].points||0}}).sort(function(a,b){return b.points-a.points});
+  var rank=allScores.findIndex(function(s){return s.id===singer.userId})+1;
+  var rankText=rank<=0?'':rank===1?'1o lugar!':rank===2?'2o lugar!':rank===3?'3o lugar!':rank+'o no ranking';
+  ov.innerHTML='<div class="kk-tv-results-trophy">&#127942;</div>'+
+    '<div class="kk-tv-results-title">Resultado</div>'+
+    '<div class="kk-tv-results-singer">'+escHtml(singer.nickname)+'</div>'+
+    '<div class="kk-tv-results-song">'+escHtml(singer.song||'')+'</div>'+
+    '<div class="kk-tv-results-stats">'+
+      '<div class="kk-tv-results-stat"><div class="kk-tv-results-stat-num">'+(fs.avgStars||0).toFixed(1)+'</div><div class="kk-tv-results-stat-label">Estrelas</div></div>'+
+      '<div class="kk-tv-results-stat"><div class="kk-tv-results-stat-num">'+(fs.applause||0)+'</div><div class="kk-tv-results-stat-label">Aplausos</div></div>'+
+    '</div>'+
+    '<div class="kk-tv-results-points">'+Math.round(fs.points||0)+' pts</div>'+
+    (rankText?'<div class="kk-tv-results-rank">'+rankText+'</div>':'')+
+    '<div id="karaokeTvConfettiBox" style="position:absolute;inset:0;pointer-events:none;overflow:hidden"></div>';
+  wrap.appendChild(ov);
+  // Spawn confetti
+  karaokeTvSpawnConfetti();
+}
+function karaokeTvClearVoting(){
+  karaokeTvStopTimer();
+  var ov=$('karaokeTvVotingOverlay');
+  if(ov)ov.remove();
+  var rv=$('karaokeTvResultsOverlay');
+  if(rv)rv.remove();
+}
+function karaokeTvSpawnConfetti(){
+  var box=$('karaokeTvConfettiBox');
+  if(!box)return;
+  var colors=['#ec4899','#a855f7','#fbbf24','#22c55e','#3b82f6','#ef4444','#f97316'];
+  for(var i=0;i<40;i++){
+    (function(delay){
+      setTimeout(function(){
+        var dot=document.createElement('div');
+        dot.className='kk-tv-confetti';
+        dot.style.left=(5+Math.random()*90)+'%';
+        dot.style.top='-10px';
+        dot.style.background=colors[Math.floor(Math.random()*colors.length)];
+        var size=(6+Math.random()*10)+'px';
+        dot.style.width=size;
+        dot.style.height=size;
+        dot.style.animationDuration=(2+Math.random()*2)+'s';
+        box.appendChild(dot);
+        dot.addEventListener('animationend',function(){dot.remove()});
+      },delay);
+    })(i*60);
   }
 }
 
