@@ -16173,7 +16173,8 @@ app.post('/api/event/:eventId/karaoke/applause', (req, res) => {
 app.get('/api/youtube/search', async (req, res) => {
   const q = req.query.q;
   if (!q) return res.status(400).json({ error: 'Query obrigatoria' });
-  const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyA3Qbdoyqg0EzUPrT0Qo_-HbygKLjTczoc';
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'YOUTUBE_API_KEY nao configurada no servidor' });
   try {
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + ' karaoke')}&type=video&key=${apiKey}&maxResults=8&videoEmbeddable=true`;
     const response = await fetch(url);
