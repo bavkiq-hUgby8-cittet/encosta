@@ -1940,6 +1940,28 @@ function connectSocket() {
     }
   });
 
+  // Position map updates from server (real device positions)
+  socket.on('dj-positions-map', function(data) {
+    if (data.sessionId !== DJ.sessionId) return;
+    var positions = data.positions || {};
+    // Update DJ._positionDevices for the canvas rendering
+    DJ._positionDevices = {};
+    var keys = Object.keys(positions);
+    for (var i = 0; i < keys.length; i++) {
+      var devId = keys[i];
+      var p = positions[devId];
+      DJ._positionDevices[devId] = {
+        x: p.x !== undefined ? p.x : 0.5,
+        y: p.y !== undefined ? p.y : 0.5,
+        source: p.source || 'unknown',
+        distance: p.distance || null
+      };
+    }
+    // Update device count display in position panel
+    var countEl = document.getElementById('posDeviceCount');
+    if (countEl) countEl.textContent = keys.length;
+  });
+
   // Sync real connected devices into venue map (no grid needed)
   function _syncRealDevicesToVenueMap() {
     var devKeys = Object.keys(DJ.realDevices);

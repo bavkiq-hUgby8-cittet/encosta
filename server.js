@@ -18304,7 +18304,7 @@ io.on('connection', (socket) => {
     const s = djSessions[data.sessionId];
     if (!s) return;
     if (!s.devicePositions) s.devicePositions = {};
-    const deviceId = socket.id;
+    const deviceId = s.socketToDevice[socket.id] || socket.id;
     s.devicePositions[deviceId] = {
       depth: data.depth || -1,
       compassHeading: data.compassHeading || -1,
@@ -18314,6 +18314,8 @@ io.on('connection', (socket) => {
     // Compute normalized position for this device
     const pos = computeDevicePosition(s, deviceId);
     socket.emit('dj-position-update', pos);
+    // Broadcast updated positions map to DJ panel
+    broadcastPositionsToDJ(s, data.sessionId);
   });
 
   // --- Positioning: Mesh neighbor report ---
@@ -18322,7 +18324,8 @@ io.on('connection', (socket) => {
     const s = djSessions[data.sessionId];
     if (!s) return;
     if (!s.meshReports) s.meshReports = {};
-    s.meshReports[socket.id] = {
+    const meshDevId = s.socketToDevice[socket.id] || socket.id;
+    s.meshReports[meshDevId] = {
       slot: data.mySlot,
       neighbors: data.neighbors || [],
       depth: data.depth || -1,
@@ -18343,7 +18346,8 @@ io.on('connection', (socket) => {
     const s = djSessions[data.sessionId];
     if (!s) return;
     if (!s.gpsData) s.gpsData = {};
-    s.gpsData[socket.id] = {
+    const gpsDevId = s.socketToDevice[socket.id] || socket.id;
+    s.gpsData[gpsDevId] = {
       lat: data.lat,
       lng: data.lng,
       accuracy: data.accuracy || 100,
@@ -18351,8 +18355,11 @@ io.on('connection', (socket) => {
       updatedAt: Date.now()
     };
     // Compute normalized position from GPS
-    const pos = computeGPSPosition(s, socket.id);
-    if (pos) socket.emit('dj-position-update', pos);
+    const pos = computeGPSPosition(s, gpsDevId);
+    if (pos) {
+      socket.emit('dj-position-update', pos);
+      broadcastPositionsToDJ(s, data.sessionId);
+    }
   });
 
   // --- Positioning: DJ triggers mesh discovery round ---
@@ -18512,6 +18519,9 @@ io.on('connection', (socket) => {
       totalDevices: s.connectedDevices.size
     });
 
+    // Broadcast positions map to DJ panel (new device needs to show up)
+    broadcastPositionsToDJ(s, data.sessionId);
+
     console.log('[DJ] Device joined:', deviceId, '| Total:', s.connectedDevices.size);
   });
 
@@ -18532,6 +18542,9 @@ io.on('connection', (socket) => {
       deviceId: deviceId,
       totalDevices: s.connectedDevices.size
     });
+
+    // Update DJ position map
+    broadcastPositionsToDJ(s, data.sessionId);
   });
 
   // --- DJ session end ---
@@ -18945,6 +18958,9 @@ io.on('connection', (socket) => {
       });
     }
 
+    // Broadcast updated positions map to DJ panel
+    broadcastPositionsToDJ(s, data.sessionId);
+
     console.log('[Calibration] Device', deviceId, ': distance=' + distanceMeters.toFixed(1) + 'm, latency=' + latencyMs + 'ms');
   });
 
@@ -18956,23 +18972,42 @@ io.on('connection', (socket) => {
 
     s.calibrationResults = {};
     s.calibrationId = null;
+    // Also clear device positions and mesh data
+    s.devicePositions = {};
+    s.meshReports = {};
 
     // Tell all devices to reset to index-based positioning
     const devicesArr = Array.from(s.connectedDevices);
+    const totalZones = s.totalZones || 4;
+    const zoneMode = s.zoneMode || 'alternate';
     devicesArr.forEach((devId, idx) => {
       const targetSocketId = s.deviceToSocket[devId];
       if (targetSocketId) {
         const targetSocket = io.sockets.sockets.get(targetSocketId);
         if (targetSocket) {
           const x = devicesArr.length > 1 ? idx / (devicesArr.length - 1) : 0.5;
+          // Recalculate zone
+          let zone;
+          if (zoneMode === 'half') {
+            zone = Math.min(totalZones - 1, Math.floor(idx * totalZones / Math.max(1, devicesArr.length)));
+          } else {
+            zone = idx % totalZones;
+          }
           targetSocket.emit('dj-position-update', {
             x: x,
             y: 0.5,
-            source: 'reset'
+            source: 'reset',
+            deviceIndex: idx,
+            totalDevices: devicesArr.length,
+            zone: zone,
+            totalZones: totalZones
           });
         }
       }
     });
+
+    // Broadcast reset positions to DJ panel
+    broadcastPositionsToDJ(s, data.sessionId);
 
     console.log('[Calibration] Reset positions for session', data.sessionId);
   });
@@ -19126,6 +19161,36 @@ console.log('[DJ LIVE] Touch? Live DJ engine loaded');
 
 // ── Position Computation Helpers ──
 
+// Broadcast all known device positions to DJ panel for the position map
+function broadcastPositionsToDJ(session, sessionId) {
+  const positions = {};
+  const devicesArr = Array.from(session.connectedDevices);
+  for (let i = 0; i < devicesArr.length; i++) {
+    const devId = devicesArr[i];
+    // Try calibration first, then computed position, then fallback to index-based
+    if (session.calibrationResults && session.calibrationResults[devId]) {
+      const sorted = Object.entries(session.calibrationResults)
+        .sort((a, b) => a[1].distance - b[1].distance);
+      const sortIdx = sorted.findIndex(e => e[0] === devId);
+      const y = sorted.length > 1 ? sortIdx / (sorted.length - 1) : 0.5;
+      const x = sorted.length > 1 ? sortIdx / (sorted.length - 1) : 0.5;
+      positions[devId] = { x, y, source: 'calibration', distance: session.calibrationResults[devId].distance };
+    } else if (session.devicePositions && session.devicePositions[devId]) {
+      const pos = computeDevicePosition(session, devId);
+      positions[devId] = { x: pos.x, y: pos.y, source: 'computed' };
+    } else {
+      // Fallback: grid layout by join order
+      const x = devicesArr.length > 1 ? i / (devicesArr.length - 1) : 0.5;
+      positions[devId] = { x, y: 0.5, source: 'index' };
+    }
+  }
+  io.to('dj-ctrl:' + sessionId).emit('dj-positions-map', {
+    sessionId,
+    positions,
+    totalDevices: devicesArr.length
+  });
+}
+
 function computeDevicePosition(session, deviceId) {
   const pos = session.devicePositions && session.devicePositions[deviceId];
   if (!pos) return { x: 0.5, y: 0.5 };
@@ -19250,9 +19315,10 @@ function computeMeshLayout(session) {
     }
   }
 
-  // Send computed positions to each device
+  // Send computed positions to each device (use deviceToSocket lookup)
   for (const id of deviceIds) {
-    const deviceSocket = io.sockets.sockets.get(id);
+    const targetSid = session.deviceToSocket[id] || id;
+    const deviceSocket = io.sockets.sockets.get(targetSid);
     if (deviceSocket) {
       deviceSocket.emit('dj-position-update', {
         x: positions[id].x,
@@ -19270,6 +19336,15 @@ function computeMeshLayout(session) {
       meshX: positions[id].x,
       meshY: positions[id].y
     };
+  }
+
+  // Broadcast to DJ panel for position map
+  // Find sessionId from session object
+  for (const [sid, s] of Object.entries(djSessions)) {
+    if (s === session) {
+      broadcastPositionsToDJ(session, sid);
+      break;
+    }
   }
 
   console.log('[Mesh] Layout computed for', deviceIds.length, 'devices');
