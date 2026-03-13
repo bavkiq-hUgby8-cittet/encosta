@@ -191,6 +191,11 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .dj-quick-btn:active{transform:scale(.95)}
 .dj-quick-btn:hover{filter:brightness(1.15)}
 
+/* ---- EMBEDDED MODE (inside operator iframe) ---- */
+body.embedded .dj-header { display: none !important; }
+body.embedded .dj-setup { display: none !important; }
+body.embedded .dj-main { padding-top: .5rem !important; }
+
 /* ---- SESSION SETUP (LOGIN) ---- */
 .dj-setup{position:fixed;inset:0;z-index:200;background:linear-gradient(135deg,#050508 0%,#0d0816 50%,#050508 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem}
 .dj-setup.hidden{display:none}
@@ -1223,11 +1228,52 @@ var COLOR_PRESETS = [
   '#7c6aef','#a855f7','#ffffff','#000000'
 ];
 
+/* ---- EMBEDDED MODE (inside operator.html iframe) ---- */
+var EMBEDDED = (function() {
+  var params = new URLSearchParams(window.location.search);
+  return {
+    active: params.get('embedded') === 'true',
+    eventId: params.get('eventId') || null,
+    token: params.get('token') || null
+  };
+})();
+
+// When embedded, notify parent of state changes
+function notifyParent(type, data) {
+  if (!EMBEDDED.active || !window.parent || window.parent === window) return;
+  window.parent.postMessage({ source: 'dj-panel', type: type, data: data }, '*');
+}
+
+// Listen for messages from parent (operator)
+if (EMBEDDED.active) {
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.source !== 'operator') return;
+    var msg = e.data;
+    if (msg.type === 'set-event') {
+      EMBEDDED.eventId = msg.data.eventId;
+    }
+  });
+}
+
 /* ---- INIT ---- */
 function init() {
   renderColorPresets();
   setupColorPicker();
   setupBPMSlider();
+
+  // EMBEDDED MODE: skip login, auto-create session
+  if (EMBEDDED.active) {
+    document.body.classList.add('embedded');
+    DJ.sessionId = 'dj_op_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    DJ.sessionName = 'Operator DJ';
+    DJ.artistName = 'Operator';
+    DJ.venueFreq = 19200;
+    showPanel();
+    connectSocket();
+    notifyParent('ready', { sessionId: DJ.sessionId });
+    return;
+  }
+
   // Check if already has a session in localStorage
   var saved = localStorage.getItem('dj_session');
   if (saved) {
@@ -1363,6 +1409,7 @@ function connectSocket() {
       DJ.connectedCount = DJ.deviceCount;
       _updateLiveCount();
       showToast('+1 device connected');
+      notifyParent('device-count', { count: DJ.deviceCount });
       // Add to real devices tracking
       var devId = data.deviceId || ('dev_' + DJ.deviceCount);
       var idx = Object.keys(DJ.realDevices).length;
@@ -1382,6 +1429,7 @@ function connectSocket() {
       DJ.deviceCount = data.totalDevices || Math.max(0, DJ.deviceCount - 1);
       DJ.connectedCount = DJ.deviceCount;
       _updateLiveCount();
+      notifyParent('device-count', { count: DJ.deviceCount });
       // Remove from real devices
       if (data.deviceId && DJ.realDevices[data.deviceId]) {
         delete DJ.realDevices[data.deviceId];
@@ -1528,6 +1576,7 @@ function startBroadcast() {
   // Send initial animation state
   sendCommand(DJ.animation);
   showToast('Broadcasting started');
+  notifyParent('broadcast-start', { sessionId: DJ.sessionId, bpm: DJ.bpm, color: DJ.color, animation: DJ.animation });
 
   // Show share link row + QR code
   var shareRow = document.getElementById('djShareRow');
@@ -1553,6 +1602,7 @@ function stopBroadcast() {
   }
 
   showToast('Broadcast stopped');
+  notifyParent('broadcast-stop', {});
   // Hide QR code
   var qrRow = document.getElementById('djQrRow');
   if (qrRow) qrRow.style.display = 'none';
