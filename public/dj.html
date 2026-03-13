@@ -414,6 +414,74 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .vm-float-resize:hover {
   opacity: 0.7;
 }
+/* ---- PHONE PREVIEW FLOAT (audience POV) ---- */
+.phone-float {
+  position: fixed;
+  z-index: 9998;
+  bottom: 16px;
+  left: 16px;
+  width: 120px;
+  background: rgba(0,0,0,0.95);
+  border: 2px solid rgba(255,107,53,0.4);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 20px rgba(255,107,53,0.1);
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.phone-float:active { cursor: grabbing; }
+.phone-float-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  background: rgba(255,107,53,0.08);
+  border-bottom: 1px solid rgba(255,107,53,0.15);
+  font-size: .45rem;
+  color: var(--t3);
+}
+.phone-float-bar span { color: #ff6b35; font-weight: 700; letter-spacing: .04em; }
+.phone-float-close {
+  background: none; border: none; color: var(--t3); font-size: .6rem;
+  cursor: pointer; padding: 1px 3px; border-radius: 4px; line-height: 1;
+}
+.phone-float-close:hover { background: rgba(255,255,255,0.08); color: var(--t1); }
+.phone-float canvas {
+  width: 100%;
+  aspect-ratio: 9/16;
+  display: block;
+}
+.phone-float-text {
+  display: flex;
+  gap: 2px;
+  padding: 3px 4px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.phone-float-text input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: #fff;
+  font-size: .5rem;
+  outline: none;
+  font-family: inherit;
+}
+.phone-float-text button {
+  background: #ff6b35;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #fff;
+  font-size: .45rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.phone-float-hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -519,7 +587,10 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
           <button class="dj-logo-upload-btn" onclick="document.getElementById('djLogoFileInput').click()">Upload Logo</button>
           <span class="dj-logo-upload-hint">Your logo on the stage display</span>
         </div>
-        <div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Stage Preview</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Stage Preview</div>
+          <button onclick="phoneFloatToggle()" style="font-size:.45rem;background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.25);border-radius:6px;padding:2px 8px;color:#ff6b35;cursor:pointer;font-weight:700;letter-spacing:.04em" title="Toggle floating phone preview showing what audience sees">PHONE VIEW</button>
+        </div>
       </div>
       <!-- AQUARIUM (people silhouettes entering) -->
       <div class="dj-aquarium" id="djAquarium">
@@ -944,6 +1015,15 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
         <button onclick="stopShow()" style="padding:.45rem 1rem;background:rgba(255,40,40,.25);border:1px solid rgba(255,60,60,.5);border-radius:8px;color:#ff4444;font-family:var(--font-display);font-size:.7rem;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:all .15s">STOP SHOW</button>
       </div>
 
+      <!-- LIVE TEXT (inline within Show Mode for quick access) -->
+      <div class="dj-section-divider" style="margin:.3rem 0"></div>
+      <div style="font-size:.55rem;color:var(--ac);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.06em">Live Text</div>
+      <div style="display:flex;gap:.4rem;margin-bottom:.5rem">
+        <input type="text" id="djLiveText" placeholder="Message for the audience..." style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.5rem .7rem;color:#fff;font-family:Inter,sans-serif;font-size:.75rem;outline:none">
+        <button onclick="sendLiveText()" style="background:var(--ac);border:none;border-radius:8px;padding:.5rem .8rem;color:#fff;font-weight:700;font-size:.65rem;cursor:pointer;white-space:nowrap">SEND</button>
+        <button onclick="clearLiveText()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.5rem .5rem;color:var(--t3);font-size:.65rem;cursor:pointer">X</button>
+      </div>
+
       <!-- Show Preview Label -->
       <div id="showPreviewLabel" style="display:none;font-size:.55rem;color:var(--ac);margin-bottom:.2rem;text-transform:uppercase;letter-spacing:.06em">Show Preview</div>
       <!-- Show Preview Canvas -->
@@ -1007,22 +1087,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
     </div>
   </div>
 
-  <!-- LIVE TEXT DRAWER -->
-  <div class="dj-drawer" id="liveTextDrawer">
-    <div class="dj-drawer-header" onclick="toggleDrawer('liveTextDrawer')">
-      <div class="dj-drawer-header-label">
-        Live Text
-      </div>
-      <div class="dj-drawer-toggle" id="liveTextToggle"></div>
-    </div>
-    <div class="dj-drawer-content collapsed">
-      <div style="display:flex;gap:.4rem">
-        <input type="text" id="djLiveText" placeholder="Type a message for the audience..." style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.6rem .8rem;color:#fff;font-family:Inter,sans-serif;font-size:.8rem;outline:none">
-        <button onclick="sendLiveText()" style="background:var(--ac);border:none;border-radius:8px;padding:.6rem 1rem;color:#fff;font-weight:700;font-size:.7rem;cursor:pointer;white-space:nowrap">SEND</button>
-        <button onclick="clearLiveText()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.6rem .6rem;color:var(--t3);font-size:.7rem;cursor:pointer">X</button>
-      </div>
-    </div>
-  </div>
+  <!-- Live Text moved into Show Mode drawer above -->
 
   <!-- POSITIONING DRAWER -->
   <div class="dj-drawer" id="positioningDrawer">
@@ -3041,6 +3106,269 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+/* ==== PHONE FLOAT -- Audience POV Preview ==== */
+(function() {
+  var _pfEl = null;        // container div
+  var _pfCanvas = null;    // canvas element
+  var _pfCtx = null;       // canvas 2d context
+  var _pfVisible = false;
+  var _pfDragState = null;
+  var _pfRaf = null;
+  var _pfStartTime = Date.now();
+
+  // Particle pools for phone-float (independent from main preview)
+  var _pfParticles = { fire: [], confetti: [], laser: [], stars: [], galaxyParts: [] };
+
+  function _pfInitParticles() {
+    _pfParticles.fire = [];
+    for (var i = 0; i < 40; i++) {
+      _pfParticles.fire.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, size: 0, active: false });
+    }
+    _pfParticles.confetti = [];
+    for (var i = 0; i < 20; i++) {
+      _pfParticles.confetti.push({
+        x: Math.random(), y: -Math.random(),
+        vx: (Math.random() - 0.5) * 0.01,
+        vy: 0.003 + Math.random() * 0.005,
+        rot: Math.random() * Math.PI * 2,
+        rotV: (Math.random() - 0.5) * 0.1,
+        size: 3 + Math.random() * 4,
+        shape: Math.floor(Math.random() * 3),
+        hue: Math.random() * 360
+      });
+    }
+    _pfParticles.laser = [];
+    for (var i = 0; i < 12; i++) {
+      _pfParticles.laser.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, alpha: 0, active: false });
+    }
+    _pfParticles.stars = [];
+    for (var i = 0; i < 60; i++) {
+      _pfParticles.stars.push({
+        x: (Math.random() - 0.5) * 2,
+        y: (Math.random() - 0.5) * 2,
+        z: Math.random(),
+        speed: 0.003 + Math.random() * 0.005
+      });
+    }
+    _pfParticles.galaxyParts = [];
+    for (var i = 0; i < 100; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var dist = 0.05 + Math.pow(Math.random(), 0.5) * 0.45;
+      _pfParticles.galaxyParts.push({
+        angle: angle, dist: dist,
+        speed: 0.2 + (0.5 - dist) * 0.6,
+        size: 1 + Math.random() * 2,
+        hue: Math.random() * 60,
+        brightness: 0.4 + Math.random() * 0.6
+      });
+    }
+  }
+
+  function _pfCreate() {
+    if (_pfEl) return;
+    var el = document.createElement('div');
+    el.className = 'phone-float phone-float-hidden';
+    el.id = 'phoneFloat';
+    el.innerHTML =
+      '<div class="phone-float-bar">' +
+        '<span>AUDIENCE VIEW</span>' +
+        '<button class="phone-float-close" onclick="phoneFloatClose()" title="Close">&times;</button>' +
+      '</div>' +
+      '<canvas id="pfCanvas" width="180" height="320"></canvas>' +
+      '<div class="phone-float-text">' +
+        '<input type="text" id="pfLiveText" placeholder="Text...">' +
+        '<button onclick="pfSendText()">GO</button>' +
+      '</div>';
+    document.body.appendChild(el);
+    _pfEl = el;
+    _pfCanvas = document.getElementById('pfCanvas');
+    _pfCtx = _pfCanvas.getContext('2d');
+
+    // Set canvas resolution for crisp rendering
+    _pfCanvas.width = 180;
+    _pfCanvas.height = 320;
+
+    // Drag events
+    el.addEventListener('pointerdown', _pfDragStart);
+    document.addEventListener('pointermove', _pfDragMove);
+    document.addEventListener('pointerup', _pfDragEnd);
+
+    // Enter key on inline text input
+    var pfInput = document.getElementById('pfLiveText');
+    if (pfInput) {
+      pfInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') window.pfSendText();
+      });
+    }
+
+    _pfInitParticles();
+  }
+
+  // Drag handlers
+  function _pfDragStart(e) {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+    e.preventDefault();
+    var rect = _pfEl.getBoundingClientRect();
+    _pfDragState = {
+      startX: e.clientX, startY: e.clientY,
+      origLeft: rect.left, origTop: rect.top
+    };
+    _pfEl.setPointerCapture(e.pointerId);
+  }
+
+  function _pfDragMove(e) {
+    if (!_pfDragState) return;
+    e.preventDefault();
+    var dx = e.clientX - _pfDragState.startX;
+    var dy = e.clientY - _pfDragState.startY;
+    var newLeft = _pfDragState.origLeft + dx;
+    var newTop = _pfDragState.origTop + dy;
+    var w = _pfEl.offsetWidth;
+    var h = _pfEl.offsetHeight;
+    newLeft = Math.max(0, Math.min(window.innerWidth - w, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - h, newTop));
+    _pfEl.style.left = newLeft + 'px';
+    _pfEl.style.top = newTop + 'px';
+    _pfEl.style.right = 'auto';
+    _pfEl.style.bottom = 'auto';
+  }
+
+  function _pfDragEnd() {
+    _pfDragState = null;
+  }
+
+  // Render loop -- draws the same animation the audience sees, but in portrait (9:16)
+  function _pfRender() {
+    if (!_pfCtx || !_pfVisible) { _pfRaf = null; return; }
+    var w = _pfCanvas.width;
+    var h = _pfCanvas.height;
+    var now = Date.now();
+    var t = (now - _pfStartTime) / 1000;
+    var beatMs = 60000 / (DJ.bpm || 128);
+    var phase = (now % beatMs) / beatMs;
+    var bassHit = phase < 0.1 ? Math.pow(1 - phase / 0.1, 3) : 0;
+    var hex = DJ.color || '#ff6b35';
+
+    _pfCtx.clearRect(0, 0, w, h);
+    _pfCtx.fillStyle = '#000';
+    _pfCtx.fillRect(0, 0, w, h);
+
+    // Save the main preview context and swap in the phone-float context temporarily
+    var savedCtx = previewCtx;
+    var savedW = previewCanvas ? previewCanvas.width : w;
+    var savedH = previewCanvas ? previewCanvas.height : h;
+    var savedParticles = _pvParticles;
+
+    // Temporarily redirect rendering to phone-float canvas
+    previewCtx = _pfCtx;
+    if (previewCanvas) {
+      previewCanvas._origWidth = previewCanvas.width;
+      previewCanvas._origHeight = previewCanvas.height;
+      previewCanvas.width = w;
+      previewCanvas.height = h;
+    }
+    _pvParticles = _pfParticles;
+
+    var anim = DJ.animation || 'pulse';
+    switch (anim) {
+      case 'pulse': pvPulse(w, h, t, phase, bassHit, hex); break;
+      case 'fire': pvFire(w, h, t, bassHit, hex); break;
+      case 'ocean': pvOcean(w, h, t, hex); break;
+      case 'solid': pvSolid(w, h, t, bassHit, hex); break;
+      case 'strobe': pvStrobe(w, h, t, phase, hex); break;
+      case 'rainbow': pvRainbow(w, h, t); break;
+      case 'laser': pvLaser(w, h, t, bassHit, hex); break;
+      case 'confetti': pvConfetti(w, h, t); break;
+      case 'electric': pvElectric(w, h, t, bassHit, hex); break;
+      case 'connect': pvConnect(w, h, t, bassHit, hex); break;
+      case 'mirror': pvMirror(w, h, t, hex); break;
+      case 'raffle': pvRaffle(w, h, t, hex); break;
+      case 'spectrum': pvSpectrum(w, h, t, phase, bassHit, hex); break;
+      case 'waveform': pvWaveform(w, h, t, phase, bassHit, hex); break;
+      case 'plasma': pvPlasma(w, h, t, hex); break;
+      case 'starfield': pvStarfield(w, h, t, bassHit, hex); break;
+      case 'galaxy': pvGalaxy(w, h, t, bassHit, hex); break;
+      case 'bars': pvBars(w, h, t, phase, bassHit, hex); break;
+      case 'cascade': pvCascade(w, h, t, phase, hex); break;
+      default: pvSolid(w, h, t, bassHit, hex);
+    }
+
+    // Draw live text overlay if active
+    var liveText = document.getElementById('djLiveText');
+    var txt = liveText ? liveText.value.trim() : '';
+    if (txt) {
+      _pfCtx.save();
+      var fontSize = Math.max(10, Math.min(20, w / (txt.length * 0.6)));
+      _pfCtx.font = '800 ' + fontSize + 'px Inter, sans-serif';
+      _pfCtx.textAlign = 'center';
+      _pfCtx.textBaseline = 'middle';
+      _pfCtx.shadowColor = 'rgba(0,0,0,0.8)';
+      _pfCtx.shadowBlur = 6;
+      _pfCtx.fillStyle = '#fff';
+      _pfCtx.fillText(txt, w / 2, h * 0.15);
+      _pfCtx.restore();
+    }
+
+    // Restore main preview context
+    previewCtx = savedCtx;
+    if (previewCanvas && previewCanvas._origWidth) {
+      previewCanvas.width = previewCanvas._origWidth;
+      previewCanvas.height = previewCanvas._origHeight;
+    }
+    _pvParticles = savedParticles;
+
+    _pfRaf = requestAnimationFrame(_pfRender);
+  }
+
+  // Show / Hide
+  function _pfShow() {
+    if (!_pfEl) _pfCreate();
+    _pfEl.classList.remove('phone-float-hidden');
+    _pfVisible = true;
+    _pfStartTime = Date.now();
+    if (!_pfRaf) _pfRaf = requestAnimationFrame(_pfRender);
+  }
+
+  function _pfHide() {
+    _pfVisible = false;
+    if (_pfEl) _pfEl.classList.add('phone-float-hidden');
+    if (_pfRaf) { cancelAnimationFrame(_pfRaf); _pfRaf = null; }
+  }
+
+  // Public API
+  window.phoneFloatShow = function() { _pfShow(); };
+  window.phoneFloatClose = function() { _pfHide(); };
+  window.phoneFloatToggle = function() {
+    if (_pfVisible) _pfHide(); else _pfShow();
+  };
+
+  // Send text from the inline phone-float input
+  window.pfSendText = function() {
+    var pfInput = document.getElementById('pfLiveText');
+    var mainInput = document.getElementById('djLiveText');
+    if (!pfInput) return;
+    var text = pfInput.value.trim();
+    if (!text) return;
+    // Sync to main input and send
+    if (mainInput) mainInput.value = text;
+    window.sendLiveText();
+    pfInput.value = '';
+  };
+
+  // Auto-show when broadcasting starts, hide when stops
+  var _pfOrigSetBroadcasting = null;
+  document.addEventListener('DOMContentLoaded', function() {
+    // Watch for broadcast state changes
+    // We hook into the interval that checks DJ.broadcasting
+    setInterval(function() {
+      if (DJ.broadcasting && !_pfVisible) {
+        _pfShow();
+      }
+    }, 2000);
+  });
+
+})();
 
 /* ---- ZONES ---- */
 DJ.totalZones = 4;
