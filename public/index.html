@@ -25152,6 +25152,16 @@ function startDJAnimation() {
       case 'galaxy': drawGalaxy(ctx, w, h, rgb, beatPhase, t); break;
       case 'bars': drawBars(ctx, w, h, rgb, beatPhase, t); break;
       case 'cascade': drawCascade(ctx, w, h, rgb, beatPhase, t); break;
+      case 'lava': drawLava(ctx, w, h, rgb, beatPhase, t); break;
+      case 'vortex': drawVortex(ctx, w, h, rgb, beatPhase, t); break;
+      case 'rain': drawRain(ctx, w, h, rgb, beatPhase, t); break;
+      case 'ripple': drawRipple(ctx, w, h, rgb, beatPhase, t); break;
+      case 'smoke': drawSmoke(ctx, w, h, rgb, beatPhase, t); break;
+      case 'heartbeat': drawHeartbeat(ctx, w, h, rgb, beatPhase, t); break;
+      case 'glitch': drawGlitch(ctx, w, h, rgb, beatPhase, t); break;
+      case 'tunnel': drawTunnel(ctx, w, h, rgb, beatPhase, t); break;
+      case 'bubbles': drawBubbles(ctx, w, h, rgb, beatPhase, t); break;
+      case 'neon': drawNeon(ctx, w, h, rgb, beatPhase, t); break;
       default: drawPulse(ctx, w, h, rgb, beatPhase, t, beatCount);
     }
 
@@ -26466,6 +26476,304 @@ function drawCascade(ctx, w, h, rgb, beat, t) {
   ctx.fillText('#' + (deviceIdx + 1), w / 2, h * 0.9);
 }
 
+/* ---- NEW ANIMATIONS (batch 2) -- audience side ---- */
+
+// Particle pools for audience animations
+var _djParticles = { lava: [], rain: [], smoke: [], bubbles: [] };
+var _djParticlesReady = false;
+
+function _initDjParticles() {
+  if (_djParticlesReady) return;
+  _djParticles.lava = [];
+  for (var i = 0; i < 12; i++) {
+    _djParticles.lava.push({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.002, vy: -0.001 - Math.random() * 0.002, r: 0.08 + Math.random() * 0.12, phase: Math.random() * Math.PI * 2 });
+  }
+  _djParticles.rain = [];
+  for (var i = 0; i < 100; i++) {
+    _djParticles.rain.push({ x: Math.random(), y: Math.random(), speed: 0.008 + Math.random() * 0.012, len: 0.02 + Math.random() * 0.04, alpha: 0.3 + Math.random() * 0.7 });
+  }
+  _djParticles.smoke = [];
+  for (var i = 0; i < 50; i++) {
+    _djParticles.smoke.push({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.003, vy: -0.001 - Math.random() * 0.002, size: 0.05 + Math.random() * 0.1, alpha: 0.1 + Math.random() * 0.4, life: Math.random() });
+  }
+  _djParticles.bubbles = [];
+  for (var i = 0; i < 30; i++) {
+    _djParticles.bubbles.push({ x: Math.random(), y: 1 + Math.random(), vy: -0.002 - Math.random() * 0.003, wobble: Math.random() * Math.PI * 2, wobbleSpeed: 0.02 + Math.random() * 0.03, r: 0.01 + Math.random() * 0.03, alpha: 0.3 + Math.random() * 0.5 });
+  }
+  _djParticlesReady = true;
+}
+
+function drawLava(ctx, w, h, rgb, beat, t) {
+  _initDjParticles();
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, 'rgba(' + Math.floor(rgb.r * 0.15) + ',' + Math.floor(rgb.g * 0.05) + ',0,1)');
+  grad.addColorStop(1, 'rgba(' + Math.floor(rgb.r * 0.3) + ',' + Math.floor(rgb.g * 0.1) + ',0,1)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  var blobs = _djParticles.lava;
+  for (var i = 0; i < blobs.length; i++) {
+    var b = blobs[i];
+    b.x += b.vx + Math.sin(t * 0.5 + b.phase) * 0.001;
+    b.y += b.vy + Math.sin(t * 0.3 + b.phase * 2) * 0.001;
+    if (b.x < 0.05) b.vx = Math.abs(b.vx);
+    if (b.x > 0.95) b.vx = -Math.abs(b.vx);
+    if (b.y < -b.r) { b.y = 1 + b.r; b.x = 0.1 + Math.random() * 0.8; }
+    var blobR = b.r * (1 + bassHit * 0.3 + Math.sin(t + b.phase) * 0.1);
+    var cx = b.x * w, cy = b.y * h, rPx = blobR * Math.min(w, h);
+    var grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, rPx);
+    grd.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + Math.floor(rgb.b * 0.3) + ',0.9)');
+    grd.addColorStop(0.5, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.5) + ',0,0.5)');
+    grd.addColorStop(1, 'rgba(' + rgb.r + ',0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(cx, cy, rPx, 0, Math.PI * 2); ctx.fill();
+  }
+  var btmGrad = ctx.createLinearGradient(0, h * 0.8, 0, h);
+  btmGrad.addColorStop(0, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.3) + ',0,0)');
+  btmGrad.addColorStop(1, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.5) + ',0,0.4)');
+  ctx.fillStyle = btmGrad;
+  ctx.fillRect(0, h * 0.8, w, h * 0.2);
+}
+
+function drawVortex(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+  var maxR = Math.sqrt(cx * cx + cy * cy);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  var arms = 5, segments = 80;
+  for (var a = 0; a < arms; a++) {
+    var baseAngle = (a / arms) * Math.PI * 2;
+    ctx.beginPath();
+    for (var s = 0; s < segments; s++) {
+      var frac = s / segments;
+      var dist = frac * maxR * (0.9 + bassHit * 0.2);
+      var twist = frac * 4 * Math.PI + t * 1.5 + baseAngle;
+      var px = cx + Math.cos(twist) * dist, py = cy + Math.sin(twist) * dist;
+      if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    var hueShift = (a * 60 + t * 30) % 360;
+    ctx.strokeStyle = 'hsla(' + hueShift + ',100%,60%,' + (0.6 + bassHit * 0.4) + ')';
+    ctx.lineWidth = 2 + bassHit * 4; ctx.stroke();
+  }
+  var cGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.15);
+  cGrad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.8)');
+  cGrad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  ctx.fillStyle = cGrad; ctx.fillRect(0, 0, w, h);
+}
+
+function drawRain(ctx, w, h, rgb, beat, t) {
+  _initDjParticles();
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.92)'; ctx.fillRect(0, 0, w, h);
+  var drops = _djParticles.rain;
+  for (var i = 0; i < drops.length; i++) {
+    var d = drops[i];
+    d.y += d.speed * (1 + bassHit * 0.5);
+    if (d.y > 1.1) { d.y = -d.len; d.x = Math.random(); }
+    var x = d.x * w, y1 = d.y * h, y2 = (d.y + d.len) * h;
+    var grd = ctx.createLinearGradient(x, y1, x, y2);
+    grd.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+    grd.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + d.alpha + ')');
+    ctx.strokeStyle = grd; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+    if (d.y > 0.95) {
+      ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + ((1 - (d.y - 0.95) / 0.15) * d.alpha * 0.5) + ')';
+      ctx.beginPath(); ctx.arc(x, h * 0.98, 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawRipple(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+  var maxR = Math.sqrt(cx * cx + cy * cy);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  for (var i = 0; i < 8; i++) {
+    var age = ((t * 0.5 + i / 8) % 1);
+    var radius = age * maxR * 1.2;
+    var alpha = (1 - age) * (0.5 + bassHit * 0.5);
+    var lineW = (1 - age) * 6 + 1;
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + alpha + ')';
+    ctx.lineWidth = lineW;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.9)';
+  ctx.beginPath(); ctx.arc(cx, cy, 4 + bassHit * 12, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawSmoke(ctx, w, h, rgb, beat, t) {
+  _initDjParticles();
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.fillRect(0, 0, w, h);
+  var wisps = _djParticles.smoke;
+  for (var i = 0; i < wisps.length; i++) {
+    var s = wisps[i];
+    s.life += 0.003;
+    if (s.life > 1) { s.x = Math.random(); s.y = 0.8 + Math.random() * 0.2; s.life = 0; s.alpha = 0.1 + Math.random() * 0.3; }
+    s.x += s.vx + Math.sin(t * 0.7 + i * 0.5) * 0.002;
+    s.y += s.vy;
+    if (s.x < -0.1) s.x = 1.1; if (s.x > 1.1) s.x = -0.1;
+    var lifeAlpha = s.alpha * (s.life < 0.1 ? s.life / 0.1 : s.life > 0.7 ? (1 - s.life) / 0.3 : 1);
+    var cx = s.x * w, cy = s.y * h, sz = s.size * w * (1 + bassHit * 0.3);
+    var grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, sz);
+    grd.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + lifeAlpha + ')');
+    grd.addColorStop(0.4, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + lifeAlpha * 0.5 + ')');
+    grd.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx, cy, sz, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawHeartbeat(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  var cx = w / 2, cy = h * 0.48;
+  var beatScale = 1 + bassHit * 0.35;
+  var baseSize = Math.min(w, h) * 0.3 * beatScale;
+  ctx.save(); ctx.translate(cx, cy);
+  for (var layer = 3; layer >= 0; layer--) {
+    var scale = baseSize * (1 + layer * 0.15);
+    var alpha = layer === 0 ? 0.9 : (0.15 - layer * 0.03);
+    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + alpha + ')';
+    ctx.beginPath();
+    for (var i = 0; i <= 60; i++) {
+      var angle = (i / 60) * Math.PI * 2;
+      var hx = scale * 0.8 * (16 * Math.pow(Math.sin(angle), 3)) / 16;
+      var hy = -scale * 0.8 * (13 * Math.cos(angle) - 5 * Math.cos(2 * angle) - 2 * Math.cos(3 * angle) - Math.cos(4 * angle)) / 16;
+      if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  if (bassHit > 0.3) {
+    var ringR = baseSize * (1.2 + (1 - bassHit) * 0.8);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (bassHit * 0.4) + ')';
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+function drawGlitch(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.15)'; ctx.fillRect(0, 0, w, h);
+  var sliceCount = 8 + Math.floor(bassHit * 20);
+  var intensity = 0.05 + bassHit * 0.3;
+  for (var i = 0; i < sliceCount; i++) {
+    var y = Math.random() * h, slH = 2 + Math.random() * (h * 0.08);
+    var ox = (Math.random() - 0.5) * w * intensity;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(' + Math.min(255, rgb.r + 100) + ',0,0,' + (0.3 + Math.random() * 0.4) + ')';
+    ctx.fillRect(ox - 3, y, w * (0.3 + Math.random() * 0.7), slH);
+    ctx.fillStyle = 'rgba(0,' + Math.min(255, rgb.g + 100) + ',0,' + (0.2 + Math.random() * 0.3) + ')';
+    ctx.fillRect(-ox + 2, y + 1, w * (0.3 + Math.random() * 0.7), slH);
+    ctx.fillStyle = 'rgba(0,0,' + Math.min(255, rgb.b + 100) + ',' + (0.2 + Math.random() * 0.3) + ')';
+    ctx.fillRect(ox * 0.5, y - 1, w * (0.3 + Math.random() * 0.7), slH);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  for (var y = 0; y < h; y += 3) { ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  if (bassHit > 0.5) {
+    ctx.fillStyle = 'rgba(255,255,255,' + (bassHit * 0.6) + ')';
+    ctx.fillRect(Math.random() * w * 0.7, Math.random() * h * 0.7, w * 0.1 + Math.random() * w * 0.3, h * 0.02 + Math.random() * h * 0.08);
+  }
+}
+
+function drawTunnel(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var cx = w / 2, cy = h / 2;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  var ringCount = 20, speed = t * 1.5;
+  for (var i = 0; i < ringCount; i++) {
+    var depth = ((i / ringCount + speed * 0.1) % 1);
+    var perspective = 0.05 + depth * 0.95;
+    var rw = (w * 0.6) * perspective, rh = (h * 0.6) * perspective;
+    var alpha = (1 - depth) * 0.7;
+    var wobX = Math.sin(t + i * 0.3) * 10 * perspective;
+    var wobY = Math.cos(t * 0.7 + i * 0.5) * 8 * perspective;
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + alpha + ')';
+    ctx.lineWidth = (1 - depth) * 3 + 1;
+    ctx.beginPath();
+    for (var s = 0; s <= 8; s++) {
+      var angle = (s / 8) * Math.PI * 2 + t * 0.3;
+      var px = cx + wobX + Math.cos(angle) * rw, py = cy + wobY + Math.sin(angle) * rh;
+      if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  var vpGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30 + bassHit * 20);
+  vpGrad.addColorStop(0, 'rgba(255,255,255,' + (0.5 + bassHit * 0.5) + ')');
+  vpGrad.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.2)');
+  vpGrad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  ctx.fillStyle = vpGrad; ctx.fillRect(0, 0, w, h);
+}
+
+function drawBubbles(ctx, w, h, rgb, beat, t) {
+  _initDjParticles();
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  var bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, 'rgba(0,0,' + Math.floor(rgb.b * 0.2) + ',1)');
+  bg.addColorStop(1, 'rgba(0,0,0,1)');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  var bubs = _djParticles.bubbles;
+  for (var i = 0; i < bubs.length; i++) {
+    var b = bubs[i];
+    b.y += b.vy * (1 + bassHit * 0.3);
+    b.wobble += b.wobbleSpeed;
+    b.x = b.x || Math.random();
+    b.x += Math.sin(b.wobble) * 0.02;
+    if (b.y < -b.r * 2) { b.y = 1 + b.r; b.x = Math.random(); b.r = 0.01 + Math.random() * 0.03; }
+    var bx = b.x * w, by = b.y * h, rPx = b.r * Math.min(w, h);
+    if (rPx < 2) continue;
+    var grd = ctx.createRadialGradient(bx - rPx * 0.3, by - rPx * 0.3, rPx * 0.1, bx, by, rPx);
+    var hue = ((i * 37 + t * 20) % 360);
+    grd.addColorStop(0, 'hsla(' + hue + ',80%,85%,' + (b.alpha * 0.3) + ')');
+    grd.addColorStop(0.6, 'hsla(' + ((hue + 60) % 360) + ',70%,60%,' + (b.alpha * 0.15) + ')');
+    grd.addColorStop(1, 'rgba(255,255,255,' + (b.alpha * 0.1) + ')');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(bx, by, rPx, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,' + (b.alpha * 0.5) + ')';
+    ctx.beginPath(); ctx.arc(bx - rPx * 0.25, by - rPx * 0.25, rPx * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (b.alpha * 0.15) + ')'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(bx, by, rPx, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+function drawNeon(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = 'rgba(5,0,15,0.95)'; ctx.fillRect(0, 0, w, h);
+  var horizon = h * 0.45;
+  var gridAlpha = 0.2 + bassHit * 0.3;
+  for (var i = 1; i <= 12; i++) {
+    var frac = i / 12;
+    var y = horizon + frac * frac * (h - horizon);
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + gridAlpha * (1 - frac * 0.5) + ')';
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  for (var i = 0; i <= 10; i++) {
+    var frac = i / 10;
+    ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + gridAlpha * 0.5 + ')';
+    ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(w * 0.3 + frac * w * 0.4, horizon); ctx.lineTo(frac * w, h); ctx.stroke();
+  }
+  for (var i = 0; i < 4; i++) {
+    var ty = horizon * 0.2 + (i / 4) * horizon * 0.6;
+    var pulse = Math.sin(t * 2 + i * 1.5) * 0.3 + 0.7;
+    var tubeHue = ((i * 90 + t * 15) % 360);
+    ctx.shadowColor = 'hsla(' + tubeHue + ',100%,60%,1)'; ctx.shadowBlur = 15 + bassHit * 15;
+    ctx.strokeStyle = 'hsla(' + tubeHue + ',100%,70%,' + (pulse * 0.7) + ')';
+    ctx.lineWidth = 3 + bassHit * 3;
+    ctx.beginPath(); ctx.moveTo(w * 0.1, ty); ctx.lineTo(w * 0.9, ty); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'hsla(' + tubeHue + ',100%,90%,' + (pulse * 0.9) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(w * 0.1, ty); ctx.lineTo(w * 0.9, ty); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  var sunR = Math.min(w, h) * 0.18;
+  var sunGrd = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR);
+  sunGrd.addColorStop(0, 'rgba(255,' + Math.floor(rgb.g * 0.5 + 50) + ',0,0.6)');
+  sunGrd.addColorStop(0.5, 'rgba(' + rgb.r + ',0,' + Math.floor(rgb.b * 0.5) + ',0.3)');
+  sunGrd.addColorStop(1, 'rgba(' + rgb.r + ',0,' + rgb.b + ',0)');
+  ctx.fillStyle = sunGrd; ctx.fillRect(0, 0, w, h);
+}
+
 function doFlash(duration) {
   if (!DJL.active || !DJL.ctx) return;
   var dpr = window.devicePixelRatio || 1;
@@ -26557,6 +26865,16 @@ function setupDJListeners() {
       case 'galaxy': DJL.animation = 'galaxy'; break;
       case 'bars': DJL.animation = 'bars'; break;
       case 'cascade': DJL.animation = 'cascade'; break;
+      case 'lava': DJL.animation = 'lava'; break;
+      case 'vortex': DJL.animation = 'vortex'; break;
+      case 'rain': DJL.animation = 'rain'; break;
+      case 'ripple': DJL.animation = 'ripple'; break;
+      case 'smoke': DJL.animation = 'smoke'; break;
+      case 'heartbeat': DJL.animation = 'heartbeat'; break;
+      case 'glitch': DJL.animation = 'glitch'; break;
+      case 'tunnel': DJL.animation = 'tunnel'; break;
+      case 'bubbles': DJL.animation = 'bubbles'; break;
+      case 'neon': DJL.animation = 'neon'; break;
       case 'raffle':
         DJL.animation = 'raffle';
         DJL.raffleState = 'scramble';
