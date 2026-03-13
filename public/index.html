@@ -2085,6 +2085,83 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
   <div class="onb-dots" id="onbDots"></div>
 </div>
 
+<!-- ====== DJ LIVE QUICK JOIN (nickname only, no full registration) ====== -->
+<div id="djQuickJoin" class="screen" style="display:none">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;text-align:center">
+    <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#ff3c64);display:flex;align-items:center;justify-content:center;margin-bottom:1rem">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+    </div>
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:900;color:#fff;margin-bottom:.3rem">DJ Live</div>
+    <div style="font-size:.75rem;color:var(--t3);margin-bottom:1.5rem;line-height:1.5" id="djQjArtistLabel">Entre na live e sinta a vibe</div>
+    <div style="width:100%;max-width:280px">
+      <div style="font-size:.7rem;color:var(--t2);text-align:left;margin-bottom:.3rem;font-weight:600">Escolha um nickname</div>
+      <input type="text" class="login-input" id="djQjNick" placeholder="apelido_criativo" maxlength="20" autocomplete="off" style="width:100%;margin-bottom:.2rem" oninput="djQjCheckNick(this.value)">
+      <div id="djQjNickHint" style="font-size:.6rem;color:var(--t3);min-height:1rem;margin-bottom:.8rem"></div>
+      <button class="bp" id="djQjEnterBtn" onclick="djQjEnter()" style="width:100%;background:linear-gradient(135deg,#ff6b35,#ff3c64);font-size:.85rem;font-weight:700;padding:.7rem">ENTRAR NA LIVE</button>
+      <div id="djQjErr" style="font-size:.65rem;color:#f87171;margin-top:.4rem;min-height:1rem"></div>
+    </div>
+    <div style="margin-top:1.5rem;font-size:.6rem;color:var(--t3);line-height:1.5;max-width:260px">
+      Ao entrar, voce aceita os <a href="/termos" target="_blank" style="color:var(--ac)">Termos de Uso</a>. Cadastro completo depois.
+    </div>
+    <div style="margin-top:1rem">
+      <span style="font-size:.65rem;color:var(--t3)">Ja tem conta?</span>
+      <span onclick="djQjGoLogin()" style="font-size:.65rem;color:var(--ac);cursor:pointer;font-weight:600;margin-left:.3rem">Entrar</span>
+    </div>
+  </div>
+</div>
+
+<!-- ====== DJ LIVE POST-LIVE FAREWELL SCREEN ====== -->
+<div id="djPostLive" class="screen" style="display:none">
+  <div style="display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1.5rem;background:linear-gradient(180deg,#0a0a0f 0%,#1a0a20 50%,#0a0a0f 100%)">
+    <!-- Header -->
+    <div style="margin-top:2rem;margin-bottom:1rem;text-align:center">
+      <div style="font-family:var(--font-display);font-size:1.2rem;font-weight:900;color:#fff;letter-spacing:.02em">Voce estava na Live!</div>
+      <div style="font-size:.7rem;color:var(--t3);margin-top:.2rem" id="djPostArtistName"></div>
+    </div>
+    <!-- Selfie area -->
+    <div id="djPostSelfieWrap" style="width:200px;height:200px;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.05);border:2px solid rgba(255,107,53,.3);margin-bottom:1rem;position:relative;display:flex;align-items:center;justify-content:center">
+      <video id="djPostSelfieVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:none;transform:scaleX(-1)"></video>
+      <canvas id="djPostSelfieCanvas" style="width:100%;height:100%;object-fit:cover;display:none"></canvas>
+      <div id="djPostSelfiePlaceholder" style="text-align:center;padding:1rem">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <div style="font-size:.6rem;color:var(--t3);margin-top:.4rem">Tire uma selfie da live!</div>
+      </div>
+    </div>
+    <!-- Selfie controls -->
+    <div style="display:flex;gap:.5rem;margin-bottom:1.2rem">
+      <button onclick="djPostTakeSelfie()" id="djPostSelfieBtn" style="padding:.5rem 1rem;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:.7rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Selfie
+      </button>
+      <button onclick="djPostDownload()" id="djPostDownloadBtn" style="display:none;padding:.5rem 1rem;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:.7rem;font-weight:600;cursor:pointer;align-items:center;gap:.3rem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Salvar
+      </button>
+      <button onclick="djPostRetake()" id="djPostRetakeBtn" style="display:none;padding:.5rem 1rem;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:.7rem;font-weight:600;cursor:pointer">
+        Tirar outra
+      </button>
+    </div>
+    <!-- Tip section -->
+    <div id="djPostTipSection" style="width:100%;max-width:300px;padding:.8rem;background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.15);border-radius:14px;margin-bottom:1rem;text-align:center">
+      <div style="font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem;font-weight:600">Curtiu a live? Deixa uma gorjeta</div>
+      <div style="display:flex;gap:.4rem;justify-content:center;flex-wrap:wrap" id="djPostTipAmounts">
+        <button class="djpost-tip-btn" onclick="djPostSelectTip(5)" data-amount="5" style="padding:.4rem .8rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:.75rem;font-weight:600;cursor:pointer">$5</button>
+        <button class="djpost-tip-btn" onclick="djPostSelectTip(10)" data-amount="10" style="padding:.4rem .8rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:.75rem;font-weight:600;cursor:pointer">$10</button>
+        <button class="djpost-tip-btn" onclick="djPostSelectTip(20)" data-amount="20" style="padding:.4rem .8rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:.75rem;font-weight:600;cursor:pointer">$20</button>
+        <button class="djpost-tip-btn" onclick="djPostSelectTip(0)" data-amount="0" style="padding:.4rem .8rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--t3);font-size:.65rem;cursor:pointer">Pular</button>
+      </div>
+      <div id="djPostTipConfirm" style="display:none;margin-top:.5rem">
+        <button onclick="djPostSendTip()" style="width:100%;padding:.5rem;border-radius:10px;background:linear-gradient(135deg,#ff6b35,#ff3c64);border:none;color:#fff;font-size:.75rem;font-weight:700;cursor:pointer" id="djPostTipPayBtn">Enviar gorjeta</button>
+      </div>
+    </div>
+    <!-- Exit button -->
+    <button onclick="djPostClose()" style="width:100%;max-width:300px;padding:.7rem;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;margin-bottom:1rem">
+      Fechar
+    </button>
+    <div style="font-size:.5rem;color:var(--t3);opacity:.5">Touch? -- encontros reais</div>
+  </div>
+</div>
+
 <div id="login" class="screen">
   <div class="login-logo">Touch?</div>
   <div class="login-sub" data-i18n="auth.subtitle">encontros reais, conexões efêmeras</div>
@@ -23702,6 +23779,291 @@ var _djlDeviceId = (function() {
   return id;
 })();
 
+// =============================================
+// DJ QUICK JOIN (nickname-only entry for QR code / link)
+// =============================================
+var _djQjPendingSession = null; // sessionId waiting after quick join
+var _djQjNickTimer = null;
+
+window.djQjCheckNick = function(val) {
+  var nick = val.trim();
+  var hint = document.getElementById('djQjNickHint');
+  if (!hint) return;
+  if (!nick || nick.length < 2) {
+    hint.textContent = 'minimo 2 caracteres';
+    hint.style.color = 'var(--t3)';
+    return;
+  }
+  if (!/^[a-zA-Z0-9_.\-]+$/.test(nick)) {
+    hint.textContent = 'so letras, numeros, _ . -';
+    hint.style.color = '#f87171';
+    return;
+  }
+  hint.textContent = 'verificando...';
+  hint.style.color = 'var(--t3)';
+  clearTimeout(_djQjNickTimer);
+  _djQjNickTimer = setTimeout(function() {
+    fetch('/api/check-nick/' + encodeURIComponent(nick))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.available) {
+          hint.textContent = '"' + nick + '" esta livre!';
+          hint.style.color = '#4ade80';
+        } else {
+          hint.textContent = 'ja existe -- tente outro';
+          hint.style.color = '#f87171';
+        }
+      })
+      .catch(function() { hint.textContent = ''; });
+  }, 400);
+};
+
+window.djQjEnter = async function() {
+  var nick = (document.getElementById('djQjNick').value || '').trim();
+  var err = document.getElementById('djQjErr');
+  if (!nick || nick.length < 2) { err.textContent = 'Escolha um nickname (min 2 caracteres)'; return; }
+  if (!/^[a-zA-Z0-9_.\-]+$/.test(nick)) { err.textContent = 'So letras, numeros, _ . -'; return; }
+  err.textContent = '';
+  // Quick register: create account with nickname, fake birthdate (will be asked later), acceptTerms
+  try {
+    var body = { nickname: nick, birthdate: '2000-01-01', acceptedTerms: true, quickJoin: true };
+    if (state.userId) body.userId = state.userId;
+    var r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var d = await r.json();
+    if (d.error) { err.textContent = d.error; return; }
+    if (d.userId) {
+      state.userId = d.userId;
+      state.userName = nick;
+      state.userColor = d.user.color || '';
+      state.isGuest = true;
+      lsSet('touch_userId', d.userId);
+      lsSet('touch_userName', nick);
+      lsSet('touch_userColor', d.user.color || '');
+      lsSet('touch_isGuest', 'true');
+      // Init socket if not yet
+      if (typeof initSocket === 'function' && (!socket || !socket.connected)) {
+        initSocket();
+      }
+      // Now join the DJ Live
+      if (_djQjPendingSession) {
+        localStorage.removeItem('touch_pending_djlive');
+        showScreen('home');
+        setTimeout(function() {
+          _djDoJoin(_djQjPendingSession);
+          _djQjPendingSession = null;
+        }, 500);
+      } else {
+        showScreen('home');
+      }
+    }
+  } catch(e) {
+    err.textContent = 'Erro ao entrar. Tente novamente.';
+  }
+};
+
+window.djQjGoLogin = function() {
+  // Keep the pending session, go to normal login
+  showScreen('login');
+};
+
+function showDJQuickJoin(sessionId) {
+  _djQjPendingSession = sessionId;
+  localStorage.setItem('touch_pending_djlive', sessionId);
+  var label = document.getElementById('djQjArtistLabel');
+  if (label) label.textContent = 'Entre na live e sinta a vibe';
+  document.getElementById('djQjNick').value = '';
+  document.getElementById('djQjNickHint').textContent = '';
+  document.getElementById('djQjErr').textContent = '';
+  showScreen('djQuickJoin');
+}
+
+// =============================================
+// DJ POST-LIVE FAREWELL SCREEN
+// =============================================
+var _djPostState = {
+  sessionId: null,
+  artistName: '',
+  selfieStream: null,
+  selfieTaken: false,
+  tipAmount: 0,
+  djUserId: null
+};
+
+window.djPostTakeSelfie = function() {
+  var video = document.getElementById('djPostSelfieVideo');
+  var canvas = document.getElementById('djPostSelfieCanvas');
+  var placeholder = document.getElementById('djPostSelfiePlaceholder');
+  var downloadBtn = document.getElementById('djPostDownloadBtn');
+  var retakeBtn = document.getElementById('djPostRetakeBtn');
+  var selfieBtn = document.getElementById('djPostSelfieBtn');
+
+  if (_djPostState.selfieTaken) return; // already taken, use retake
+
+  // Start camera
+  if (!_djPostState.selfieStream) {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 400, height: 400 }, audio: false })
+      .then(function(stream) {
+        _djPostState.selfieStream = stream;
+        video.srcObject = stream;
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+        // After 500ms, take the photo
+        setTimeout(function() {
+          _djPostCapture();
+        }, 1500);
+      })
+      .catch(function() {
+        placeholder.innerHTML = '<div style="font-size:.6rem;color:#f87171">Camera indisponivel</div>';
+      });
+  } else {
+    _djPostCapture();
+  }
+};
+
+function _djPostCapture() {
+  var video = document.getElementById('djPostSelfieVideo');
+  var canvas = document.getElementById('djPostSelfieCanvas');
+  var ctx = canvas.getContext('2d');
+  canvas.width = video.videoWidth || 400;
+  canvas.height = video.videoHeight || 400;
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  // Add overlay text
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Touch? Live', canvas.width / 2, canvas.height - 28);
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText(_djPostState.artistName || 'DJ Live', canvas.width / 2, canvas.height - 12);
+
+  video.style.display = 'none';
+  canvas.style.display = 'block';
+  _djPostState.selfieTaken = true;
+
+  // Stop camera
+  if (_djPostState.selfieStream) {
+    _djPostState.selfieStream.getTracks().forEach(function(t) { t.stop(); });
+    _djPostState.selfieStream = null;
+  }
+
+  // Toggle buttons
+  document.getElementById('djPostSelfieBtn').style.display = 'none';
+  document.getElementById('djPostDownloadBtn').style.display = 'flex';
+  document.getElementById('djPostRetakeBtn').style.display = 'block';
+}
+
+window.djPostDownload = function() {
+  var canvas = document.getElementById('djPostSelfieCanvas');
+  if (!canvas) return;
+  var link = document.createElement('a');
+  link.download = 'touch-live-selfie.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+};
+
+window.djPostRetake = function() {
+  _djPostState.selfieTaken = false;
+  _djPostState.selfieStream = null;
+  var video = document.getElementById('djPostSelfieVideo');
+  var canvas = document.getElementById('djPostSelfieCanvas');
+  var placeholder = document.getElementById('djPostSelfiePlaceholder');
+  video.style.display = 'none';
+  canvas.style.display = 'none';
+  placeholder.style.display = 'block';
+  placeholder.innerHTML = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg><div style="font-size:.6rem;color:var(--t3);margin-top:.4rem">Tire uma selfie da live!</div>';
+  document.getElementById('djPostSelfieBtn').style.display = 'flex';
+  document.getElementById('djPostDownloadBtn').style.display = 'none';
+  document.getElementById('djPostRetakeBtn').style.display = 'none';
+  // Re-start camera
+  djPostTakeSelfie();
+};
+
+window.djPostSelectTip = function(amount) {
+  _djPostState.tipAmount = amount;
+  // Highlight selected button
+  var btns = document.querySelectorAll('.djpost-tip-btn');
+  for (var i = 0; i < btns.length; i++) {
+    var btn = btns[i];
+    if (parseInt(btn.getAttribute('data-amount')) === amount) {
+      btn.style.background = 'rgba(255,107,53,.3)';
+      btn.style.borderColor = '#ff6b35';
+      btn.style.color = '#ff6b35';
+    } else {
+      btn.style.background = 'rgba(255,255,255,.06)';
+      btn.style.borderColor = 'rgba(255,255,255,.12)';
+      btn.style.color = '#fff';
+    }
+  }
+  var confirm = document.getElementById('djPostTipConfirm');
+  if (amount > 0) {
+    confirm.style.display = 'block';
+    document.getElementById('djPostTipPayBtn').textContent = 'Enviar $' + amount;
+  } else {
+    confirm.style.display = 'none';
+  }
+};
+
+window.djPostSendTip = function() {
+  if (!_djPostState.tipAmount || !_djPostState.djUserId) {
+    // If no DJ userId, just show thanks
+    if (typeof showToast === 'function') showToast('Gorjeta requer cadastro completo');
+    return;
+  }
+  // Use existing tip system
+  if (typeof showTipScreen === 'function') {
+    showTipScreen(_djPostState.djUserId);
+  }
+};
+
+window.djPostClose = function() {
+  // Stop camera if still running
+  if (_djPostState.selfieStream) {
+    _djPostState.selfieStream.getTracks().forEach(function(t) { t.stop(); });
+    _djPostState.selfieStream = null;
+  }
+  _djPostState.selfieTaken = false;
+  showScreen('home');
+};
+
+function showDJPostLive(sessionId, artistName, djUserId) {
+  _djPostState.sessionId = sessionId;
+  _djPostState.artistName = artistName || 'DJ Live';
+  _djPostState.djUserId = djUserId || null;
+  _djPostState.selfieTaken = false;
+  _djPostState.tipAmount = 0;
+  _djPostState.selfieStream = null;
+
+  var artistEl = document.getElementById('djPostArtistName');
+  if (artistEl) artistEl.textContent = artistName || 'DJ Live';
+
+  // Reset UI
+  var video = document.getElementById('djPostSelfieVideo');
+  var canvas = document.getElementById('djPostSelfieCanvas');
+  var placeholder = document.getElementById('djPostSelfiePlaceholder');
+  if (video) video.style.display = 'none';
+  if (canvas) canvas.style.display = 'none';
+  if (placeholder) placeholder.style.display = 'block';
+  document.getElementById('djPostSelfieBtn').style.display = 'flex';
+  document.getElementById('djPostDownloadBtn').style.display = 'none';
+  document.getElementById('djPostRetakeBtn').style.display = 'none';
+  document.getElementById('djPostTipConfirm').style.display = 'none';
+  // Reset tip buttons
+  var btns = document.querySelectorAll('.djpost-tip-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].style.background = 'rgba(255,255,255,.06)';
+    btns[i].style.borderColor = 'rgba(255,255,255,.12)';
+    btns[i].style.color = '#fff';
+  }
+
+  showScreen('djPostLive');
+}
+
 var DJL = {
   active: false,
   sessionId: null,
@@ -23709,6 +24071,8 @@ var DJL = {
   bpm: 128,
   animation: 'pulse',
   broadcasting: false,
+  artistName: '',
+  djUserId: null,
   canvas: null,
   ctx: null,
   raf: null,
@@ -24028,6 +24392,9 @@ function enterDJLive(data) {
   DJL.animation = data.animation || 'pulse';
   DJL.broadcasting = true;
   DJL.startTime = Date.now();
+  // Store DJ info for post-live farewell
+  if (data.artistName) DJL.artistName = data.artistName;
+  if (data.djUserId) DJL.djUserId = data.djUserId;
 
   // Hide the DJ Live banner since we are entering
   var djBanner = document.getElementById('djLiveBanner');
@@ -24326,6 +24693,12 @@ function djLiveCamClose() {
 
 function exitDJLive() {
   if (!DJL.active) return;
+
+  // Save DJ info before clearing
+  var _exitArtistName = DJL.artistName || '';
+  var _exitDjUserId = DJL.djUserId || null;
+  var _exitSessionId = DJL.sessionId || null;
+
   DJL.active = false;
   DJL.broadcasting = false;
 
@@ -24335,9 +24708,9 @@ function exitDJLive() {
   document.getElementById('djLiveOverlay').style.display = 'none';
   if (DJL.raf) { cancelAnimationFrame(DJL.raf); DJL.raf = null; }
 
-  if (typeof socket !== 'undefined' && socket && socket.connected && DJL.sessionId) {
+  if (typeof socket !== 'undefined' && socket && socket.connected && _exitSessionId) {
     socket.emit('dj-audience-leave', {
-      sessionId: DJL.sessionId,
+      sessionId: _exitSessionId,
       deviceId: _djlDeviceId
     });
   }
@@ -24358,6 +24731,12 @@ function exitDJLive() {
   DJL.promptShown = false;
   // Clear connection health
   djLiveConnHealthStop();
+
+  // Show post-live farewell screen instead of just going home
+  if (typeof showDJPostLive === 'function') {
+    console.log('[DJ] Showing post-live farewell screen');
+    showDJPostLive(_exitSessionId, _exitArtistName, _exitDjUserId);
+  }
 
   // Restart DJ listener so the phone can detect the DJ again and reconnect
   // Small delay to let socket leave the room first
@@ -26201,6 +26580,9 @@ function setupDJListeners() {
     if (data.deviceIndex !== undefined) DJL.deviceIndex = data.deviceIndex;
     if (data.totalDevices !== undefined) DJL.totalDevices = data.totalDevices;
     if (data.autoMode !== undefined) DJL.autoMode = data.autoMode;
+    // Store DJ metadata for post-live farewell screen
+    if (data.artistName) DJL.artistName = data.artistName;
+    if (data.djUserId) DJL.djUserId = data.djUserId;
     if (data.broadcasting && !DJL.active) {
       DJL.color = data.color || DJL.color;
       DJL.bpm = data.bpm || DJL.bpm;
@@ -27165,20 +27547,22 @@ var _djInitInterval = setInterval(function() {
 
       // CHECK LOGIN: user must be logged in to join DJ Live
       if (!state.userId) {
-        console.log('[DJ] User not logged in -- saving pending DJ Live join and waiting for login');
-        localStorage.setItem('touch_pending_djlive', djliveParam);
-        // The user will see the login screen. After login, the page reloads
-        // or state changes, and this code runs again with the pending value.
-        // Poll for login completion
-        var _djLoginWait = setInterval(function() {
-          if (state.userId) {
-            clearInterval(_djLoginWait);
-            console.log('[DJ] User logged in! Now joining DJ Live: ' + djliveParam);
-            localStorage.removeItem('touch_pending_djlive');
-            _djDoJoin(djliveParam);
-          }
-        }, 500);
-        setTimeout(function() { clearInterval(_djLoginWait); }, 120000); // 2min timeout
+        console.log('[DJ] User not logged in -- showing quick-join screen');
+        // Show quick-join (nickname-only) instead of full login
+        if (typeof showDJQuickJoin === 'function') {
+          showDJQuickJoin(djliveParam);
+        } else {
+          // Fallback: save pending and wait for login
+          localStorage.setItem('touch_pending_djlive', djliveParam);
+          var _djLoginWait = setInterval(function() {
+            if (state.userId) {
+              clearInterval(_djLoginWait);
+              localStorage.removeItem('touch_pending_djlive');
+              _djDoJoin(djliveParam);
+            }
+          }, 500);
+          setTimeout(function() { clearInterval(_djLoginWait); }, 120000);
+        }
       } else {
         _djDoJoin(djliveParam);
       }
@@ -27248,6 +27632,13 @@ window.djLiveBannerJoin = function() {
   if (DJL.active) return;
   var s = _djBannerSession;
   console.log('[DJ] Banner join: sessionId=' + s.sessionId);
+  // Check login -- show quick-join if not logged in
+  if (!state.userId) {
+    if (typeof showDJQuickJoin === 'function') {
+      showDJQuickJoin(s.sessionId);
+    }
+    return;
+  }
   // Join directly via socket
   if (typeof socket !== 'undefined' && socket && socket.connected) {
     DJL.detectedSessionId = s.sessionId;
@@ -27259,7 +27650,8 @@ window.djLiveBannerJoin = function() {
       sessionId: s.sessionId,
       color: s.color || '#ff6b35',
       bpm: s.bpm || 128,
-      animation: s.animation || 'pulse'
+      animation: s.animation || 'pulse',
+      artistName: s.artistName || ''
     });
   } else {
     // Socket not connected yet, wait and retry
@@ -27278,7 +27670,8 @@ window.djLiveBannerJoin = function() {
           sessionId: s.sessionId,
           color: s.color || '#ff6b35',
           bpm: s.bpm || 128,
-          animation: s.animation || 'pulse'
+          animation: s.animation || 'pulse',
+          artistName: s.artistName || ''
         });
       }
     }, 300);

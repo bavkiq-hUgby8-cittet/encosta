@@ -2751,7 +2751,7 @@ app.get('/api/check-nick/:nick', (req, res) => {
 });
 
 app.post('/api/register', (req, res) => {
-  const { nickname, birthdate, acceptedTerms, userId } = req.body;
+  const { nickname, birthdate, acceptedTerms, userId, quickJoin } = req.body;
   if (!nickname || !birthdate || !acceptedTerms) return res.status(400).json({ error: 'Campos obrigatórios faltando.' });
   const nick = nickname.trim();
   if (nick.length < 2 || nick.length > 20) return res.status(400).json({ error: 'Nickname deve ter 2 a 20 caracteres.' });
@@ -2794,7 +2794,8 @@ app.post('/api/register', (req, res) => {
     id, nickname: nick, name: nick, birthdate, avatar: null, color, createdAt: Date.now(),
     points: 0, pointLog: [], stars: [],
     registrationOrder: registrationCounter, topTag: null,
-    likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: []
+    likedBy: [], likesCount: 0, touchers: 0, canSee: {}, revealedTo: [],
+    quickJoin: !!quickJoin, needsFullRegistration: !!quickJoin
   };
   recalcAllTopTags();
   idxAddUser(db.users[id]);
@@ -18327,7 +18328,9 @@ io.on('connection', (socket) => {
       totalDevices: totalDevices,
       zone: zone,
       totalZones: totalZones,
-      autoMode: s.autoMode || false
+      autoMode: s.autoMode || false,
+      artistName: s.artistName || 'DJ',
+      djUserId: s.creatorId || null
     };
     socket.emit('dj-live-state', statePayload);
 
