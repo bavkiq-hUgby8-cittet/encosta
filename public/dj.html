@@ -1515,8 +1515,11 @@ function startSonicBroadcast() {
     DJ.sonicOsc.frequency.setValueAtTime(DJ.venueFreq, DJ.sonicCtx.currentTime);
 
     DJ.sonicGain = DJ.sonicCtx.createGain();
-    // Higher volume for PA system broadcast (0.5 = 50%)
-    DJ.sonicGain.gain.setValueAtTime(0.5, DJ.sonicCtx.currentTime);
+    // Moderate-high volume for DJ broadcast (0.65 = 65%)
+    // Safe for hearing (19kHz+ is inaudible to most adults at this level)
+    // Range is maximized by making the DETECTOR more sensitive, not by blasting louder
+    // Volume is kept under 0.7 to protect children and animals who can hear higher frequencies
+    DJ.sonicGain.gain.setValueAtTime(0.65, DJ.sonicCtx.currentTime);
 
     DJ.sonicOsc.connect(DJ.sonicGain);
     DJ.sonicGain.connect(DJ.sonicCtx.destination);
@@ -3222,9 +3225,9 @@ function emitCalibrationPulse(freq) {
     osc.frequency.setValueAtTime(freq, ctx.currentTime);
 
     var gain = ctx.createGain();
-    // Start loud, then cut
-    gain.gain.setValueAtTime(0.9, ctx.currentTime);
-    gain.gain.setValueAtTime(0.9, ctx.currentTime + 0.15);
+    // Calibration pulse -- brief burst, moderate-high volume (safe for hearing)
+    gain.gain.setValueAtTime(0.75, ctx.currentTime);
+    gain.gain.setValueAtTime(0.75, ctx.currentTime + 0.15);
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
 
     osc.connect(gain);
