@@ -68,7 +68,8 @@ Deploy: Render -> touch-irl.com (Cloudflare DNS)
 Ultrasom, Chat 24h, Reveal, Constelacao, Eventos, Estrelas, Presentes,
 Boarding Pass, Selfie, Voice Agent 3-Tier, TouchGames (11 jogos),
 Assinaturas (Plus/Selo), Gorjetas (MP + Stripe), Extrato, Swipe-back,
-Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
+Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade,
+Karaoke (YouTube IFrame Player + fila + votacao + microfone).
 
 ## SEGURANCA ULTRASSONICA (LEITURA OBRIGATORIA SE MEXER EM AUDIO)
 
@@ -96,7 +97,8 @@ Eventos tem modulos selecionaveis via checkboxes no Perfil:
 - Treinos (verde #10b981) -- antes "Academia", cobre qualquer esporte, mural, WiFi
 - Igreja (roxo #8b5cf6) -- dizimos, cultos, celulas
 - Barbearia (dourado #d4a745) -- barbeiros, servicos, horarios, agendamento com pagamento antecipado
-Armazenados em ev.modules = {restaurant: bool, parking: bool, gym: bool, church: bool, barber: bool}
+- Karaoke (rosa #ec4899) -- YouTube player, fila de cantores, votacao, placar, microfone
+Armazenados em ev.modules = {restaurant: bool, parking: bool, gym: bool, church: bool, barber: bool, karaoke: bool}
 FABs dos modulos so aparecem se o modulo esta ativo.
 
 ### Touch Feedback nos Modulos
@@ -206,6 +208,7 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 | docs/CHANGELOG.md | Historico de todas as sessoes de desenvolvimento |
 | docs/ULTIMATEDEV.md | Documentacao detalhada do Voice Agent UltimateDEV |
 | docs/API.md | Documentacao completa das APIs REST |
+| docs/KARAOKE.md | Modulo Karaoke: endpoints, fluxo, YouTube, pontuacao, config |
 
 ## PROMPTS DE AGENTES ESPECIALIZADOS
 
@@ -246,6 +249,7 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - Auto-deploy: ativado (push na main = deploy automatico em ~90 segundos)
 - Dominio customizado: touch-irl.com (DNS via Cloudflare, 301 do onrender)
 - Env vars: configuradas no painel do Render (ver docs/ARQUITETURA.md ou .env.example)
+- YOUTUBE_API_KEY: obrigatoria para busca de musicas no modulo Karaoke (YouTube Data API v3)
 - render.yaml: Infrastructure as Code na raiz do repositorio
 - IMPORTANTE: apos cada push, aguardar ~90s para o deploy concluir no Render
 
@@ -256,7 +260,8 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - Stripe implementado no codigo (pendente ativar chaves no Render)
 - Dashboard financeiro admin completo (receita, taxas, payouts, prestadores)
 - Painel operacional com glass morphism, modulos, perfil, notificacoes de chat
-- 5 modulos operacionais: Restaurante, Estacionamento, Treinos, Barbearia, Igreja
+- 6 modulos operacionais: Restaurante, Estacionamento, Treinos, Barbearia, Igreja, Karaoke
+- Modulo Karaoke COMPLETO: YouTube IFrame Player na TV, busca de musicas via YouTube Data API v3 (proxy server-side), fila em tempo real, votacao por estrelas, aplausos, placar com pontuacao, microfone com visualizador de energia (Web Audio API), auto-avanco, botao YouTube Premium login pra remover ads. Doc completo em docs/KARAOKE.md
 - Modulo Treinos (ex-Academia): renomeado para cobrir CrossFit e qualquer esporte, mural de anuncios com prioridade/validade, WiFi auto-share
 - Modulo Barbearia COMPLETO: agendamento com pagamento antecipado, fluxo aceitar/recusar pelo barbeiro, reembolso em caso de recusa, view completa do barbeiro (agenda/pendentes/historico), conclusao de servico
 - Touch feedback nos modulos: banners animados IN-PANEL (pulsacao + barras de onda) em vez de sair da tela do modulo
