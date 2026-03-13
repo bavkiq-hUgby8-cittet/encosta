@@ -24145,8 +24145,8 @@ var DJL = {
 
 // Ultrasonic detection constants (same as main system)
 var DJ_FFT_SIZE = 8192;
-var DJ_DETECT_THRESHOLD = 120; // Lower than main (165) because PA speakers are louder
-var DJ_CONFIRM_COUNT = 5;      // More confirmations for reliability
+var DJ_DETECT_THRESHOLD = 55;  // Very sensitive -- DJ signal is weak at distance (main Touch = 165)
+var DJ_CONFIRM_COUNT = 3;      // 3 confirmations (~50ms) -- fast detection at range
 var DJ_FREQ_MIN = 18000;
 var DJ_FREQ_MAX = 20000;
 
@@ -24220,7 +24220,9 @@ function startDJListener() {
     var source = DJL.listenerCtx.createMediaStreamSource(stream);
     DJL.listenerAnalyser = DJL.listenerCtx.createAnalyser();
     DJL.listenerAnalyser.fftSize = DJ_FFT_SIZE;
-    DJL.listenerAnalyser.smoothingTimeConstant = 0.3;
+    DJL.listenerAnalyser.smoothingTimeConstant = 0.5; // Higher smoothing helps detect weak signals at distance
+    DJL.listenerAnalyser.minDecibels = -100; // More sensitive floor (default is -100, but explicit)
+    DJL.listenerAnalyser.maxDecibels = -10;  // Wider dynamic range for distant signals
     source.connect(DJL.listenerAnalyser);
 
     var bufLen = DJL.listenerAnalyser.frequencyBinCount;
@@ -24270,7 +24272,8 @@ function startDJListener() {
           }
         }
       } else {
-        if (confirmHits > 0) confirmHits--;
+        // Slow decay for weak distant signals (only decrement every 3rd miss)
+        if (confirmHits > 0 && debugCounter % 3 === 0) confirmHits--;
       }
 
       DJL.listenerRaf = requestAnimationFrame(scan);
