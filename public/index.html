@@ -20457,9 +20457,13 @@ async function karaokeSelectSong(videoId,title,thumbnail){
     });
     var d=await r.json();
     if(d.ok){
-      _karaokeInQueue=true;
+      _karaokeInQueue=!d.autoStarted;
       _karaokeSearchCache='';
-      showToast('Na fila! Posicao #'+d.position);
+      if(d.autoStarted){
+        showToast('Sua vez! Suba no palco!');
+      }else{
+        showToast('Na fila! Posicao #'+d.position);
+      }
       loadKaraokeParticipant();
     }else{
       showToast(d.error||'Erro ao entrar na fila');
@@ -20515,7 +20519,14 @@ async function karaokeParticipantVote(stars){
   }catch(e){console.error('karaokeParticipantVote:',e)}
 }
 
-function karaokeFinishSinging(){
+async function karaokeFinishSinging(){
+  if(_karaokeEventId){
+    try{
+      await fetch('/api/event/'+_karaokeEventId+'/karaoke/finish',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})
+      });
+    }catch(e){console.error('karaokeFinishSinging:',e)}
+  }
   closeKaraokeOverlay();
   showToast('Performance finalizada!');
 }
