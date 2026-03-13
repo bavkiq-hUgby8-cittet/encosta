@@ -1435,6 +1435,103 @@ async function sendTouchEmail(to, subject, html) {
   }
 }
 
+// ── Zito Welcome Email (sent on first registration) ──
+function getZitoWelcomeEmail(lang, nickname) {
+  const nick = nickname || 'stranger';
+  const content = {
+    'pt-br': {
+      subject: 'Oi, ' + nick + '. Eu sou o Zito.',
+      preheader: 'O criador do Touch? tem algo pra te dizer.',
+      greeting: 'Oi, ' + nick + '.',
+      intro: 'Eu sou o Zito. Criei o Touch? e ninguem sabe quem eu sou. Prefiro assim.',
+      p1: 'Voce acabou de entrar numa rede social que nao existe na internet. Ela existe no mundo real. Dois celulares se tocam, uma conexao nasce, e dura 24 horas. Depois, desaparece. A nao ser que voces se encontrem de novo.',
+      p2: 'Sem feed infinito. Sem algoritmo decidindo o que voce ve. Sem likes vazios. Aqui, cada conexao custa um gesto fisico: aproximar seu celular do celular de outra pessoa.',
+      p3: 'Ganhe estrelas a cada 7 dias consecutivos de encontro com a mesma pessoa. Estrelas ficam no seu perfil pra sempre. Sao a prova de que voce constroi vinculos reais. Quanto mais estrelas, mais influente voce e -- de verdade.',
+      provocation: 'E nao se assuste -- isso nao e um episodio de Black Mirror. Esse dia chegou. A diferenca e que aqui, o ser humano esta no controle.',
+      cta: 'Abrir Touch?',
+      sign: '-- Zito',
+      subtitle: 'Fundador do Touch?',
+      footer: 'Touch? -- encontros reais, conexoes efemeras'
+    },
+    'en': {
+      subject: 'Hey, ' + nick + '. I\'m Zito.',
+      preheader: 'The creator of Touch? has something to tell you.',
+      greeting: 'Hey, ' + nick + '.',
+      intro: 'I\'m Zito. I created Touch? and nobody knows who I am. I prefer it that way.',
+      p1: 'You just joined a social network that doesn\'t exist on the internet. It exists in the real world. Two phones touch, a connection is born, and it lasts 24 hours. Then it disappears. Unless you meet again.',
+      p2: 'No infinite feed. No algorithm deciding what you see. No empty likes. Here, each connection costs a physical gesture: bringing your phone close to someone else\'s.',
+      p3: 'Earn stars every 7 consecutive days of encounters with the same person. Stars stay on your profile forever. They\'re proof that you build real bonds. The more stars, the more truly influential you are.',
+      provocation: 'And don\'t worry -- this isn\'t a Black Mirror episode. That day has arrived. The difference is that here, the human is in control.',
+      cta: 'Open Touch?',
+      sign: '-- Zito',
+      subtitle: 'Founder of Touch?',
+      footer: 'Touch? -- real encounters, ephemeral connections'
+    },
+    'es': {
+      subject: 'Hola, ' + nick + '. Soy Zito.',
+      preheader: 'El creador de Touch? tiene algo que decirte.',
+      greeting: 'Hola, ' + nick + '.',
+      intro: 'Soy Zito. Cree Touch? y nadie sabe quien soy. Lo prefiero asi.',
+      p1: 'Acabas de entrar en una red social que no existe en internet. Existe en el mundo real. Dos celulares se tocan, nace una conexion, y dura 24 horas. Despues, desaparece. A menos que se vuelvan a encontrar.',
+      p2: 'Sin feed infinito. Sin algoritmo decidiendo lo que ves. Sin likes vacios. Aqui, cada conexion cuesta un gesto fisico: acercar tu celular al de otra persona.',
+      p3: 'Gana estrellas cada 7 dias consecutivos de encuentro con la misma persona. Las estrellas quedan en tu perfil para siempre. Son la prueba de que construyes vinculos reales. Cuantas mas estrellas, mas influyente eres de verdad.',
+      provocation: 'Y no te asustes -- esto no es un episodio de Black Mirror. Ese dia llego. La diferencia es que aqui, el ser humano tiene el control.',
+      cta: 'Abrir Touch?',
+      sign: '-- Zito',
+      subtitle: 'Fundador de Touch?',
+      footer: 'Touch? -- encuentros reales, conexiones efimeras'
+    }
+  };
+  const t = content[lang] || content['en'];
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">
+</head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0f;color:#e0e0e0;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden">${t.preheader}</div>
+<div style="max-width:520px;margin:0 auto;padding:2.5rem 1.5rem">
+<div style="text-align:center;margin-bottom:2rem">
+<span style="font-size:2.2rem;font-weight:800;color:#ff6b35;letter-spacing:.15em">Touch?</span>
+</div>
+<div style="text-align:center;margin-bottom:1.8rem">
+<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid rgba(255,107,53,.3);margin:0 auto;overflow:hidden">
+<table role="presentation" width="80" height="80" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" style="font-size:36px;line-height:80px;color:#ff6b35">?</td></tr></table>
+</div>
+</div>
+<div style="background:#12121c;border-radius:20px;padding:2rem 1.8rem;border:1px solid rgba(255,255,255,.05)">
+<p style="color:#fff;font-size:1.1rem;font-weight:600;margin:0 0 1rem;line-height:1.4">${t.greeting}</p>
+<p style="color:#c8c8d8;font-size:.92rem;line-height:1.7;margin:0 0 1rem">${t.intro}</p>
+<p style="color:#a8a8b8;font-size:.88rem;line-height:1.7;margin:0 0 1rem">${t.p1}</p>
+<p style="color:#a8a8b8;font-size:.88rem;line-height:1.7;margin:0 0 1rem">${t.p2}</p>
+<div style="background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.12);border-radius:14px;padding:1.1rem 1.2rem;margin:1.2rem 0">
+<p style="color:#ff9060;font-size:.88rem;line-height:1.7;margin:0">${t.p3}</p>
+</div>
+<p style="color:#c8c8d8;font-size:.92rem;line-height:1.7;margin:1.2rem 0;font-style:italic">${t.provocation}</p>
+<div style="text-align:center;margin:1.8rem 0 .5rem">
+<a href="https://touch-irl.com" style="display:inline-block;padding:.9rem 2.5rem;background:linear-gradient(135deg,#ff6b35,#ff4500);color:#fff;text-decoration:none;border-radius:14px;font-weight:700;font-size:.95rem;letter-spacing:.03em">${t.cta}</a>
+</div>
+</div>
+<div style="margin-top:1.8rem;padding:0 .5rem">
+<p style="color:#ff6b35;font-size:1rem;font-weight:700;margin:0;letter-spacing:.02em">${t.sign}</p>
+<p style="color:#666;font-size:.78rem;margin:.2rem 0 0;font-style:italic">${t.subtitle}</p>
+</div>
+<div style="text-align:center;margin-top:2rem;padding-top:1.2rem;border-top:1px solid rgba(255,255,255,.04)">
+<p style="color:#444;font-size:.7rem;margin:0">${t.footer}</p>
+<p style="color:#333;font-size:.6rem;margin:.5rem 0 0">touch-irl.com</p>
+</div>
+</div></body></html>`;
+  return { subject: t.subject, html };
+}
+
+// Send Zito welcome email (non-blocking, fire-and-forget)
+function sendZitoWelcome(email, lang, nickname) {
+  if (!email) return;
+  try {
+    const wel = getZitoWelcomeEmail(lang || 'en', nickname);
+    sendTouchEmail(email, wel.subject, wel.html);
+  } catch (e) {
+    console.error('[zito-email] Failed to queue welcome email:', e.message);
+  }
+}
+
 function emailTemplate(title, body, btnText, btnUrl) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0">
 <div style="max-width:480px;margin:0 auto;padding:2rem 1.5rem">
@@ -1444,7 +1541,7 @@ function emailTemplate(title, body, btnText, btnUrl) {
 <p style="color:#a0a0b0;font-size:.9rem;line-height:1.6;margin:0 0 1.2rem">${body}</p>
 <div style="text-align:center"><a href="${btnUrl}" style="display:inline-block;padding:.75rem 2rem;background:linear-gradient(135deg,#ff6b35,#ff4500);color:#fff;text-decoration:none;border-radius:12px;font-weight:700;font-size:.9rem">${btnText}</a></div>
 </div>
-<p style="text-align:center;color:#555;font-size:.7rem;margin-top:1.5rem">Touch? — encontros reais, conexões efêmeras</p>
+<p style="text-align:center;color:#555;font-size:.7rem;margin-top:1.5rem">Touch? -- encontros reais, conexoes efemeras</p>
 </div></body></html>`;
 }
 
@@ -1572,6 +1669,11 @@ app.post('/api/guest/upgrade', async (req, res) => {
   user.authMethod = method || 'unknown';
   saveDB('users');
   console.log('[guest-upgrade] User', userId, 'upgraded via', method);
+  // Send Zito welcome email on guest upgrade (first time getting email)
+  if (user.email) {
+    const userLang = user.lang || 'en';
+    sendZitoWelcome(user.email, userLang, user.nickname);
+  }
   res.json({ ok: true, user: { id: user.id, nickname: user.nickname, email: user.email, profilePhoto: user.profilePhoto } });
 });
 
@@ -1714,6 +1816,10 @@ app.post('/api/auth/link', async (req, res) => {
   if (phoneNumber) IDX.phone.set(phoneNumber, id);
   saveDB('users');
   console.log(`[auth/link] New account created: ${id} (${finalNick})`);
+  // Send Zito welcome email to new users
+  if (email) {
+    sendZitoWelcome(email, 'en', finalNick);
+  }
   res.json({ userId: id, user: db.users[id], linked: false, onboardingDone: false });
 });
 
@@ -2838,6 +2944,11 @@ app.post('/api/register', (req, res) => {
   recalcAllTopTags();
   idxAddUser(db.users[id]);
   saveDB('users');
+  // Send Zito welcome email if user has email (from Firebase auth link)
+  if (db.users[id].email) {
+    const userLang = db.users[id].lang || 'pt-br';
+    sendZitoWelcome(db.users[id].email, userLang, nick);
+  }
   res.json({ userId: id, user: db.users[id] });
 });
 
@@ -15988,7 +16099,7 @@ app.get('/api/operator/event/:eventId/karaoke', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.json({ enabled: false, config: {}, queue: [], currentSinger: null, scores: {}, history: [] });
   const k = ensureKaraoke(ev);
-  res.json({ enabled: k.enabled, config: k.config || {}, queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, history: k.history });
+  res.json({ enabled: k.enabled, config: k.config || {}, queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, history: k.history, votingPhase: k.votingPhase || null });
 });
 
 // GET karaoke state (participant)
@@ -15996,7 +16107,7 @@ app.get('/api/event/:eventId/karaoke', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.json({ enabled: false, queue: [], currentSinger: null, scores: {} });
   const k = ensureKaraoke(ev);
-  res.json({ enabled: k.enabled, config: { enabled: k.enabled, sessionName: k.config?.sessionName || '', votingEnabled: k.config?.votingEnabled !== false, maxQueue: k.config?.maxQueue || 50 }, queue: k.queue || [], currentSinger: k.currentSinger || null, scores: k.scores || {} });
+  res.json({ enabled: k.enabled, config: { enabled: k.enabled, sessionName: k.config?.sessionName || '', votingEnabled: k.config?.votingEnabled !== false, maxQueue: k.config?.maxQueue || 50 }, queue: k.queue || [], currentSinger: k.currentSinger || null, scores: k.scores || {}, votingPhase: k.votingPhase || null });
 });
 
 // POST karaoke config (operator)
@@ -16119,33 +16230,77 @@ app.post('/api/operator/event/:eventId/karaoke/finish', (req, res) => {
 });
 
 // POST finish singer (participant/auto -- video ended or singer clicked "Terminei")
+// Now starts a VOTING PHASE instead of immediately advancing
 app.post('/api/event/:eventId/karaoke/finish', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
   const k = ensureKaraoke(ev);
+  // If already in voting phase, ignore duplicate calls
+  if (k.votingPhase) return res.json({ ok: true, votingPhase: k.votingPhase, scores: k.scores });
   if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
   const finished = { ...k.currentSinger, finishedAt: Date.now(), status: 'finished' };
-  // Calculate final score
-  const scoreData = k.scores[finished.userId] || { applause: 0, votes: {}, points: 0 };
-  const voteValues = Object.values(scoreData.votes || {});
-  const avgStars = voteValues.length > 0 ? voteValues.reduce((a, b) => a + b, 0) / voteValues.length : 0;
-  scoreData.avgStars = avgStars;
-  scoreData.points = (avgStars * 10) + ((scoreData.applause || 0) * 0.5);
-  scoreData.name = finished.nickname;
-  scoreData.song = finished.song;
-  k.scores[finished.userId] = scoreData;
-  k.history.push(finished);
+  const VOTING_DURATION = 15000; // 15 seconds for voting
+  const RESULTS_DURATION = 7000; // 7 seconds for results display
+  // Set voting phase - keep singer info for votes/applause to target
+  k.votingPhase = {
+    singer: finished,
+    startedAt: Date.now(),
+    votingEndsAt: Date.now() + VOTING_DURATION,
+    resultsEndsAt: Date.now() + VOTING_DURATION + RESULTS_DURATION,
+    phase: 'voting' // 'voting' -> 'results' -> done
+  };
   k.currentSinger = null;
-  // Auto-advance to next singer
-  if (k.queue.length > 0) {
-    const next = k.queue.shift();
-    next.status = 'singing';
-    next.startedAt = Date.now();
-    k.currentSinger = next;
-  }
+  k.history.push(finished);
   saveDB('operatorEvents');
-  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'finish', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, finished });
-  res.json({ ok: true, scores: k.scores, currentSinger: k.currentSinger });
+  const eventId = req.params.eventId;
+  io.to('event:' + eventId).emit('karaoke-update', {
+    type: 'voting-start', queue: k.queue, currentSinger: null,
+    scores: k.scores, votingPhase: k.votingPhase
+  });
+  // Timer: voting ends -> show results
+  setTimeout(() => {
+    const ev2 = db.operatorEvents[eventId];
+    if (!ev2) return;
+    const k2 = ensureKaraoke(ev2);
+    if (!k2.votingPhase || k2.votingPhase.singer.userId !== finished.userId) return;
+    // Calculate final score with all accumulated votes
+    const scoreData = k2.scores[finished.userId] || { applause: 0, votes: {}, points: 0 };
+    const voteValues = Object.values(scoreData.votes || {});
+    const avgStars = voteValues.length > 0 ? voteValues.reduce((a, b) => a + b, 0) / voteValues.length : 0;
+    scoreData.avgStars = avgStars;
+    scoreData.points = (avgStars * 10) + ((scoreData.applause || 0) * 0.5);
+    scoreData.name = finished.nickname;
+    scoreData.song = finished.song;
+    k2.scores[finished.userId] = scoreData;
+    k2.votingPhase.phase = 'results';
+    k2.votingPhase.finalScore = scoreData;
+    saveDB('operatorEvents');
+    io.to('event:' + eventId).emit('karaoke-update', {
+      type: 'voting-results', queue: k2.queue, currentSinger: null,
+      scores: k2.scores, votingPhase: k2.votingPhase
+    });
+    // Timer: results shown -> advance to next singer
+    setTimeout(() => {
+      const ev3 = db.operatorEvents[eventId];
+      if (!ev3) return;
+      const k3 = ensureKaraoke(ev3);
+      if (!k3.votingPhase || k3.votingPhase.singer.userId !== finished.userId) return;
+      k3.votingPhase = null;
+      // Auto-advance to next singer
+      if (k3.queue.length > 0) {
+        const next = k3.queue.shift();
+        next.status = 'singing';
+        next.startedAt = Date.now();
+        k3.currentSinger = next;
+      }
+      saveDB('operatorEvents');
+      io.to('event:' + eventId).emit('karaoke-update', {
+        type: 'voting-end', queue: k3.queue, currentSinger: k3.currentSinger,
+        scores: k3.scores, votingPhase: null
+      });
+    }, RESULTS_DURATION);
+  }, VOTING_DURATION);
+  res.json({ ok: true, votingPhase: k.votingPhase, scores: k.scores });
 });
 
 // POST skip singer (operator skips without scoring)
@@ -16169,16 +16324,19 @@ app.post('/api/operator/event/:eventId/karaoke/skip', (req, res) => {
   res.json({ ok: true, currentSinger: k.currentSinger });
 });
 
-// POST vote (participant votes for current singer)
+// POST vote (participant votes for current singer or during voting phase)
 app.post('/api/event/:eventId/karaoke/vote', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
   const k = ensureKaraoke(ev);
-  if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
+  // Allow voting during voting phase OR while someone is singing
+  const singerId = k.currentSinger ? k.currentSinger.userId : (k.votingPhase ? k.votingPhase.singer.userId : null);
+  const singerName = k.currentSinger ? k.currentSinger.nickname : (k.votingPhase ? k.votingPhase.singer.nickname : null);
+  const singerSong = k.currentSinger ? k.currentSinger.song : (k.votingPhase ? k.votingPhase.singer.song : null);
+  if (!singerId) return res.status(400).json({ error: 'Ninguem cantando agora' });
   const { voterId, stars } = req.body;
   if (!voterId || !stars || stars < 1 || stars > 5) return res.status(400).json({ error: 'voterId e stars (1-5) obrigatorios' });
-  const singerId = k.currentSinger.userId;
-  if (!k.scores[singerId]) k.scores[singerId] = { applause: 0, votes: {}, points: 0, name: k.currentSinger.nickname, song: k.currentSinger.song };
+  if (!k.scores[singerId]) k.scores[singerId] = { applause: 0, votes: {}, points: 0, name: singerName, song: singerSong };
   k.scores[singerId].votes[voterId] = parseInt(stars);
   // Recalculate points
   const vv = Object.values(k.scores[singerId].votes);
@@ -16186,25 +16344,28 @@ app.post('/api/event/:eventId/karaoke/vote', (req, res) => {
   k.scores[singerId].avgStars = avg;
   k.scores[singerId].points = (avg * 10) + ((k.scores[singerId].applause || 0) * 0.5);
   saveDB('operatorEvents');
-  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'vote', scores: k.scores, currentSinger: k.currentSinger, queue: k.queue });
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'vote', scores: k.scores, currentSinger: k.currentSinger, queue: k.queue, votingPhase: k.votingPhase || null });
   res.json({ ok: true, score: k.scores[singerId] });
 });
 
-// POST applause (participant applauds current singer)
+// POST applause (participant applauds current singer or during voting phase)
 app.post('/api/event/:eventId/karaoke/applause', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
   const k = ensureKaraoke(ev);
-  if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
-  const singerId = k.currentSinger.userId;
-  if (!k.scores[singerId]) k.scores[singerId] = { applause: 0, votes: {}, points: 0, name: k.currentSinger.nickname, song: k.currentSinger.song };
+  // Allow applause during voting phase OR while someone is singing
+  const singerId = k.currentSinger ? k.currentSinger.userId : (k.votingPhase ? k.votingPhase.singer.userId : null);
+  const singerName = k.currentSinger ? k.currentSinger.nickname : (k.votingPhase ? k.votingPhase.singer.nickname : null);
+  const singerSong = k.currentSinger ? k.currentSinger.song : (k.votingPhase ? k.votingPhase.singer.song : null);
+  if (!singerId) return res.status(400).json({ error: 'Ninguem cantando agora' });
+  if (!k.scores[singerId]) k.scores[singerId] = { applause: 0, votes: {}, points: 0, name: singerName, song: singerSong };
   k.scores[singerId].applause = (k.scores[singerId].applause || 0) + 1;
   // Recalculate points
   const vv = Object.values(k.scores[singerId].votes || {});
   const avg = vv.length > 0 ? vv.reduce((a, b) => a + b, 0) / vv.length : 0;
   k.scores[singerId].points = (avg * 10) + (k.scores[singerId].applause * 0.5);
   saveDB('operatorEvents');
-  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'applause', scores: k.scores, currentSinger: k.currentSinger, queue: k.queue });
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'applause', scores: k.scores, currentSinger: k.currentSinger, queue: k.queue, votingPhase: k.votingPhase || null });
   res.json({ ok: true, applause: k.scores[singerId].applause });
 });
 
