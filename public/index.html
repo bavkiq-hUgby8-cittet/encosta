@@ -27105,10 +27105,35 @@ var _djInitInterval = setInterval(function() {
     clearInterval(_djInitInterval);
     setupDJListeners();
 
-    // DJ listener ONLY starts after user presses Touch.
-    // Touch requests mic permission naturally. When Touch ends,
-    // stopHomeSonic() calls startDJListener() — no surprise popups.
-    console.log('[DJ] Ready. Listener starts after first Touch.');
+    // Check URL for direct DJ Live join link (?djlive=sessionId)
+    var urlParams = new URLSearchParams(window.location.search);
+    var djliveParam = urlParams.get('djlive');
+    if (djliveParam) {
+      console.log('[DJ] Direct join link detected: ' + djliveParam);
+      // Clean URL without reloading
+      var cleanUrl = window.location.pathname;
+      try { window.history.replaceState({}, '', cleanUrl); } catch(e) {}
+      // Wait for socket connection, then join directly
+      var _djDirectJoinInterval = setInterval(function() {
+        if (socket && socket.connected) {
+          clearInterval(_djDirectJoinInterval);
+          console.log('[DJ] Joining live via direct link: ' + djliveParam);
+          DJL.detectedSessionId = djliveParam;
+          socket.emit('dj-audience-join', {
+            sessionId: djliveParam,
+            deviceId: _djlDeviceId
+          });
+          enterDJLive({ sessionId: djliveParam, color: '#ff6b35', bpm: 128, animation: 'pulse' });
+        }
+      }, 300);
+      // Safety: stop trying after 10s
+      setTimeout(function() { clearInterval(_djDirectJoinInterval); }, 10000);
+    } else {
+      // DJ listener ONLY starts after user presses Touch.
+      // Touch requests mic permission naturally. When Touch ends,
+      // stopHomeSonic() calls startDJListener() — no surprise popups.
+      console.log('[DJ] Ready. Listener starts after first Touch.');
+    }
   }
 }, 500);
 
