@@ -15996,7 +15996,7 @@ app.get('/api/event/:eventId/karaoke', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.json({ enabled: false, queue: [], currentSinger: null, scores: {} });
   const k = ensureKaraoke(ev);
-  res.json({ enabled: k.enabled, config: { sessionName: k.config?.sessionName || '', votingEnabled: k.config?.votingEnabled !== false }, queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ enabled: k.enabled, config: { enabled: k.enabled, sessionName: k.config?.sessionName || '', votingEnabled: k.config?.votingEnabled !== false, maxQueue: k.config?.maxQueue || 50 }, queue: k.queue || [], currentSinger: k.currentSinger || null, scores: k.scores || {} });
 });
 
 // POST karaoke config (operator)
