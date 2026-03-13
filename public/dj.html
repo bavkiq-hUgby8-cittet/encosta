@@ -1131,6 +1131,16 @@ function init() {
         DJ.sessionName = s.sessionName;
         DJ.artistName = s.artistName;
         DJ.venueFreq = s.venueFreq || 19200;
+        // Restore logo
+        if (s.logoDataUrl) {
+          DJ.logoDataUrl = s.logoDataUrl;
+          setTimeout(function() {
+            var img = document.getElementById('stageLogoImg');
+            var placeholder = document.getElementById('stageLogoPlaceholder');
+            if (img) { img.src = DJ.logoDataUrl; img.style.display = 'block'; }
+            if (placeholder) placeholder.style.display = 'none';
+          }, 100);
+        }
         showPanel();
         connectSocket();
         return;
@@ -1159,7 +1169,8 @@ window.startDJSession = function() {
     sessionId: DJ.sessionId,
     sessionName: DJ.sessionName,
     artistName: DJ.artistName,
-    venueFreq: DJ.venueFreq
+    venueFreq: DJ.venueFreq,
+    logoDataUrl: DJ.logoDataUrl || null
   }));
 
   showPanel();
@@ -2060,6 +2071,15 @@ function setupLogoUpload() {
         });
       }
       showToast('Logo uploaded');
+      // Persist logo in localStorage with session
+      var savedSession = localStorage.getItem('dj_session');
+      if (savedSession) {
+        try {
+          var ss = JSON.parse(savedSession);
+          ss.logoDataUrl = DJ.logoDataUrl;
+          localStorage.setItem('dj_session', JSON.stringify(ss));
+        } catch(e) {}
+      }
     };
     reader.readAsDataURL(file);
   });

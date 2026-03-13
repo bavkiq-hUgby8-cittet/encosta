@@ -27122,6 +27122,23 @@ setInterval(function() {
   if (DJL.active) updateFinalPosition();
 }, 500);
 
+// Helper: join DJ Live session (waits for socket connection)
+function _djDoJoin(sessionId) {
+  var _djDirectJoinInterval = setInterval(function() {
+    if (socket && socket.connected) {
+      clearInterval(_djDirectJoinInterval);
+      console.log('[DJ] Joining live: ' + sessionId);
+      DJL.detectedSessionId = sessionId;
+      socket.emit('dj-audience-join', {
+        sessionId: sessionId,
+        deviceId: _djlDeviceId
+      });
+      enterDJLive({ sessionId: sessionId, color: '#ff6b35', bpm: 128, animation: 'pulse' });
+    }
+  }, 300);
+  setTimeout(function() { clearInterval(_djDirectJoinInterval); }, 10000);
+}
+
 // Init
 var _djInitInterval = setInterval(function() {
   if (typeof socket !== 'undefined' && socket) {
@@ -27131,26 +27148,40 @@ var _djInitInterval = setInterval(function() {
     // Check URL for direct DJ Live join link (?djlive=sessionId)
     var urlParams = new URLSearchParams(window.location.search);
     var djliveParam = urlParams.get('djlive');
+    // Also check localStorage for pending DJ Live join (set before login redirect)
+    if (!djliveParam) {
+      var pendingDJ = localStorage.getItem('touch_pending_djlive');
+      if (pendingDJ) {
+        djliveParam = pendingDJ;
+        localStorage.removeItem('touch_pending_djlive');
+        console.log('[DJ] Restored pending DJ Live join from localStorage: ' + djliveParam);
+      }
+    }
     if (djliveParam) {
       console.log('[DJ] Direct join link detected: ' + djliveParam);
       // Clean URL without reloading
       var cleanUrl = window.location.pathname;
       try { window.history.replaceState({}, '', cleanUrl); } catch(e) {}
-      // Wait for socket connection, then join directly
-      var _djDirectJoinInterval = setInterval(function() {
-        if (socket && socket.connected) {
-          clearInterval(_djDirectJoinInterval);
-          console.log('[DJ] Joining live via direct link: ' + djliveParam);
-          DJL.detectedSessionId = djliveParam;
-          socket.emit('dj-audience-join', {
-            sessionId: djliveParam,
-            deviceId: _djlDeviceId
-          });
-          enterDJLive({ sessionId: djliveParam, color: '#ff6b35', bpm: 128, animation: 'pulse' });
-        }
-      }, 300);
-      // Safety: stop trying after 10s
-      setTimeout(function() { clearInterval(_djDirectJoinInterval); }, 10000);
+
+      // CHECK LOGIN: user must be logged in to join DJ Live
+      if (!state.userId) {
+        console.log('[DJ] User not logged in -- saving pending DJ Live join and waiting for login');
+        localStorage.setItem('touch_pending_djlive', djliveParam);
+        // The user will see the login screen. After login, the page reloads
+        // or state changes, and this code runs again with the pending value.
+        // Poll for login completion
+        var _djLoginWait = setInterval(function() {
+          if (state.userId) {
+            clearInterval(_djLoginWait);
+            console.log('[DJ] User logged in! Now joining DJ Live: ' + djliveParam);
+            localStorage.removeItem('touch_pending_djlive');
+            _djDoJoin(djliveParam);
+          }
+        }, 500);
+        setTimeout(function() { clearInterval(_djLoginWait); }, 120000); // 2min timeout
+      } else {
+        _djDoJoin(djliveParam);
+      }
     } else {
       // DJ listener ONLY starts after user presses Touch.
       // Touch requests mic permission naturally. When Touch ends,
