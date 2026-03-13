@@ -27380,6 +27380,13 @@ function setupDJListeners() {
   // DJ Live stopped
   socket.on('dj-live-stopped', function() { exitDJLive(); });
 
+  // DJ join rejected (tier limit)
+  socket.on('dj-join-rejected', function(data) {
+    console.warn('[DJ] Join rejected:', data.reason, data.message);
+    if (typeof showToast === 'function') showToast(data.message || 'Event is full', true);
+    exitDJLive();
+  });
+
   // DJ command
   socket.on('dj-command', function(data) {
     if (typeof djLiveCommandReceived === 'function') djLiveCommandReceived();

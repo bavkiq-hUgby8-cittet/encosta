@@ -17780,6 +17780,102 @@ const djSessions = {};
 // Route: DJ Panel standalone page
 app.get('/dj', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dj.html')));
 
+// ====== DJ PROFILE & TIER MANAGEMENT ======
+
+// GET /api/dj/profile -- fetch DJ-specific profile data
+app.get('/api/dj/profile', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    userId: user.id,
+    nickname: user.nickname || user.name || '',
+    email: user.email || '',
+    photoURL: user.photoURL || '',
+    showCount: user.djShowCount || 0,
+    verified: user.djVerified || false,
+    plusSubscription: user.djPlusSubscription || false,
+    plusExpiresAt: user.djPlusExpiresAt || null,
+    totalDevicesServed: user.djTotalDevicesServed || 0,
+    createdAt: user.createdAt
+  });
+});
+
+// POST /api/dj/start-event -- register a new DJ event (increments show count on end)
+app.post('/api/dj/start-event', (req, res) => {
+  const { userId, sessionId, sessionName, tier } = req.body;
+  if (!userId || !sessionId) return res.status(400).json({ error: 'userId and sessionId required' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // Tier limits
+  const tierLimits = { free: 10, basic: 500, pro: 5000, arena: 99999 };
+  const maxDevices = tierLimits[tier] || 10;
+
+  // Store event info in djSessions
+  if (!djSessions[sessionId]) {
+    djSessions[sessionId] = {
+      eventId: null,
+      creatorId: userId,
+      artistName: user.nickname || user.name || 'DJ',
+      sessionName: sessionName || '',
+      tier: tier || 'free',
+      maxDevices: maxDevices,
+      broadcasting: false,
+      deviceCount: 0,
+      createdAt: Date.now()
+    };
+  } else {
+    djSessions[sessionId].tier = tier || 'free';
+    djSessions[sessionId].maxDevices = maxDevices;
+    djSessions[sessionId].creatorId = userId;
+  }
+
+  console.log(`[DJ] Event started: ${sessionId} by ${user.nickname || userId} tier=${tier} max=${maxDevices}`);
+  res.json({ ok: true, sessionId, tier, maxDevices });
+});
+
+// POST /api/dj/end-event -- end a DJ event (increments show count)
+app.post('/api/dj/end-event', (req, res) => {
+  const { userId, sessionId, peakDevices } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // Increment show count
+  if (!user.djShowCount) user.djShowCount = 0;
+  user.djShowCount++;
+  // Track total devices served
+  if (!user.djTotalDevicesServed) user.djTotalDevicesServed = 0;
+  user.djTotalDevicesServed += (peakDevices || 0);
+
+  console.log(`[DJ] Event ended: ${sessionId} by ${user.nickname || userId} shows=${user.djShowCount}`);
+  scheduleSave();
+  res.json({ ok: true, showCount: user.djShowCount, totalDevicesServed: user.djTotalDevicesServed });
+});
+
+// POST /api/dj/update-profile -- update DJ profile (verified, plus, etc.)
+app.post('/api/dj/update-profile', async (req, res) => {
+  const { userId, verified, plusSubscription, plusExpiresAt, nickname } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (typeof verified === 'boolean') user.djVerified = verified;
+  if (typeof plusSubscription === 'boolean') user.djPlusSubscription = plusSubscription;
+  if (plusExpiresAt) user.djPlusExpiresAt = plusExpiresAt;
+  if (nickname) user.nickname = nickname;
+
+  scheduleSave();
+  res.json({ ok: true, user: {
+    djShowCount: user.djShowCount || 0,
+    djVerified: user.djVerified || false,
+    djPlusSubscription: user.djPlusSubscription || false,
+    djPlusExpiresAt: user.djPlusExpiresAt || null
+  }});
+});
+
 // API: Create DJ session for an event
 app.post('/api/dj/session/create', (req, res) => {
   const { eventId, sessionName, artistName, venueFreq } = req.body;
@@ -17997,6 +18093,18 @@ io.on('connection', (socket) => {
     const s = djSessions[data.sessionId];
     if (!s) return;
     s.broadcasting = false;
+
+    // Increment show count for the DJ creator
+    if (s.creatorId && db.users[s.creatorId]) {
+      const djUser = db.users[s.creatorId];
+      if (!djUser.djShowCount) djUser.djShowCount = 0;
+      djUser.djShowCount++;
+      const peakDevices = s.connectedDevices ? s.connectedDevices.size : 0;
+      if (!djUser.djTotalDevicesServed) djUser.djTotalDevicesServed = 0;
+      djUser.djTotalDevicesServed += peakDevices;
+      console.log('[DJ] Show count updated for', djUser.nickname || s.creatorId, ':', djUser.djShowCount);
+      scheduleSave();
+    }
 
     if (s.eventId && db.operatorEvents[s.eventId]) {
       const ev = db.operatorEvents[s.eventId];
@@ -18325,7 +18433,18 @@ io.on('connection', (socket) => {
     const s = djSessions[data.sessionId];
     if (!s) return;
 
+    // Tier-based device limit enforcement
+    const maxDevices = s.maxDevices || 10;
     const deviceId = data.deviceId || socket.id;
+    const isNewDevice = !s.connectedDevices.has(deviceId);
+    if (isNewDevice && s.connectedDevices.size >= maxDevices) {
+      socket.emit('dj-join-rejected', {
+        reason: 'tier-limit',
+        message: 'This event has reached its audience limit (' + maxDevices + ' devices).',
+        tier: s.tier || 'free'
+      });
+      return;
+    }
     // Clean up old mapping if this socket previously had a different deviceId
     const oldDeviceId = s.socketToDevice[socket.id];
     if (oldDeviceId && oldDeviceId !== deviceId) {
