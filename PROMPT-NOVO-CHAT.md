@@ -70,6 +70,16 @@ Boarding Pass, Selfie, Voice Agent 3-Tier, TouchGames (11 jogos),
 Assinaturas (Plus/Selo), Gorjetas (MP + Stripe), Extrato, Swipe-back,
 Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade.
 
+## SEGURANCA ULTRASSONICA (LEITURA OBRIGATORIA SE MEXER EM AUDIO)
+
+Touch? emite som ultrassonico (18-20kHz) pra detectar proximidade. E SEGURO pra humanos e animais.
+- **Touch Normal:** gain 0.35, alcance 20-25cm, duracao 3-10s. Risco ZERO pra pets.
+- **DJ Live:** gain 0.65 (MAX 0.70), alcance 10-15m, continu. Risco NEGLIGIVEL pra pets.
+- Caes e gatos OUVEM 19kHz mas o volume e ~30 dB SPL (mais baixo que um sussurro).
+- Estrategia: "sussurrar alto, ouvir com forca" -- detector sensivel (threshold 55) em vez de volume alto.
+- **REGRA:** NUNCA aumentar gain acima de 0.70. NUNCA usar onda square/sawtooth. SEMPRE sine.
+- **Doc completo:** docs/ULTRASONIC-SAFETY.md (tecnico) e docs/ULTRASONIC-SAFETY-REPORT.docx (marketing)
+
 ## PAINEL OPERACIONAL (operator.html) -- CONTEXTO DETALHADO
 
 ### Arquitetura do Painel
