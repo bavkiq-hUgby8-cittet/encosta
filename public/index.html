@@ -9672,7 +9672,20 @@ async function initMuralFab() {
 async function _openMuralWithGeoRetry() {
   showToast('Carregando localizacao...');
   try {
-    // Tentar pedir GPS primeiro
+    // Check permission state first (if API available)
+    var permState = null;
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        var perm = await navigator.permissions.query({ name: 'geolocation' });
+        permState = perm.state; // 'granted', 'denied', 'prompt'
+      }
+    } catch (e) { /* permissions API not available, continue normally */ }
+    // If permanently denied, show help modal immediately
+    if (permState === 'denied') {
+      _showGpsHelpModal();
+      return;
+    }
+    // Tentar pedir GPS (will trigger native prompt if state is 'prompt')
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(async function(pos) {
         try {
@@ -9688,13 +9701,25 @@ async function _openMuralWithGeoRetry() {
         } else {
           showToast('Nao foi possivel detectar sua cidade. Verifique o GPS.');
         }
-      }, async function() {
-        // GPS negado - tentar pelo IP/rede (geocode endpoint sem GPS)
-        await _fetchMuralGeo();
-        if (_muralState.channels && _muralState.channels.length > 0) {
-          openMural();
+      }, async function(err) {
+        // GPS negado ou erro
+        if (err && err.code === 1) {
+          // PERMISSION_DENIED — show help modal
+          // Try IP fallback first
+          await _fetchMuralGeo();
+          if (_muralState.channels && _muralState.channels.length > 0) {
+            openMural();
+          } else {
+            _showGpsHelpModal();
+          }
         } else {
-          showToast('Ative o GPS para acessar o mural');
+          // POSITION_UNAVAILABLE or TIMEOUT — try IP fallback
+          await _fetchMuralGeo();
+          if (_muralState.channels && _muralState.channels.length > 0) {
+            openMural();
+          } else {
+            showToast('Nao foi possivel obter localizacao. Tente novamente.');
+          }
         }
       }, { timeout: 8000, maximumAge: 300000 });
     } else {
@@ -9703,12 +9728,93 @@ async function _openMuralWithGeoRetry() {
       if (_muralState.channels && _muralState.channels.length > 0) {
         openMural();
       } else {
-        showToast('Ative o GPS para acessar o mural');
+        _showGpsHelpModal();
       }
     }
   } catch (e) {
     showToast('Erro ao carregar localizacao');
   }
+}
+function _showGpsHelpModal() {
+  var existing = document.getElementById('gpsHelpOverlay');
+  if (existing) existing.remove();
+  // Detect platform for specific instructions
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  var isAndroid = /Android/.test(navigator.userAgent);
+  var isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+  var isChrome = /Chrome/.test(navigator.userAgent) && !/Edge/.test(navigator.userAgent);
+  var steps = '';
+  if (isIOS && isSafari) {
+    steps = '<div style="text-align:left;font-size:.72rem;color:rgba(255,255,255,.8);line-height:1.6">'
+      + '<div style="margin-bottom:.5rem"><strong style="color:#fff">No iPhone (Safari):</strong></div>'
+      + '<div>1. Abra <strong>Ajustes</strong> do iPhone</div>'
+      + '<div>2. Role ate <strong>Safari</strong></div>'
+      + '<div>3. Toque em <strong>Localizacao</strong></div>'
+      + '<div>4. Selecione <strong>Permitir</strong> ou <strong>Perguntar</strong></div>'
+      + '<div>5. Volte aqui e tente novamente</div>'
+      + '</div>';
+  } else if (isAndroid && isChrome) {
+    steps = '<div style="text-align:left;font-size:.72rem;color:rgba(255,255,255,.8);line-height:1.6">'
+      + '<div style="margin-bottom:.5rem"><strong style="color:#fff">No Android (Chrome):</strong></div>'
+      + '<div>1. Toque no <strong>cadeado</strong> ao lado do endereco</div>'
+      + '<div>2. Toque em <strong>Permissoes</strong></div>'
+      + '<div>3. Ative a <strong>Localizacao</strong></div>'
+      + '<div>4. Recarregue a pagina</div>'
+      + '</div>';
+  } else if (isIOS && isChrome) {
+    steps = '<div style="text-align:left;font-size:.72rem;color:rgba(255,255,255,.8);line-height:1.6">'
+      + '<div style="margin-bottom:.5rem"><strong style="color:#fff">No iPhone (Chrome):</strong></div>'
+      + '<div>1. Abra <strong>Ajustes</strong> do iPhone</div>'
+      + '<div>2. Role ate <strong>Chrome</strong></div>'
+      + '<div>3. Ative <strong>Localizacao</strong></div>'
+      + '<div>5. Volte aqui e tente novamente</div>'
+      + '</div>';
+  } else {
+    steps = '<div style="text-align:left;font-size:.72rem;color:rgba(255,255,255,.8);line-height:1.6">'
+      + '<div style="margin-bottom:.5rem"><strong style="color:#fff">Como liberar:</strong></div>'
+      + '<div>1. Toque no <strong>cadeado</strong> (ou icone) ao lado do endereco</div>'
+      + '<div>2. Procure <strong>Permissoes do site</strong></div>'
+      + '<div>3. Ative a <strong>Localizacao</strong></div>'
+      + '<div>4. Recarregue a pagina</div>'
+      + '</div>';
+  }
+  var overlay = document.createElement('div');
+  overlay.id = 'gpsHelpOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:1.2rem;animation:fadeIn .25s ease';
+  overlay.innerHTML = '<div style="background:var(--c2,#1a1a2e);border-radius:20px;padding:1.5rem;width:100%;max-width:340px;border:1px solid rgba(59,130,246,.2);box-shadow:0 0 40px rgba(59,130,246,.1)">'
+    + '<div style="text-align:center;margin-bottom:1rem">'
+    + '<div style="width:52px;height:52px;border-radius:50%;background:rgba(59,130,246,.12);display:flex;align-items:center;justify-content:center;margin:0 auto .8rem"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>'
+    + '<div style="font-size:.95rem;font-weight:700;color:#fff;margin-bottom:.4rem">Localizacao necessaria</div>'
+    + '<div style="font-size:.68rem;color:rgba(255,255,255,.5);margin-bottom:1rem">O Mural precisa saber sua cidade para mostrar posts da sua regiao</div>'
+    + '</div>'
+    + steps
+    + '<div style="display:flex;gap:.5rem;margin-top:1.2rem">'
+    + '<button onclick="document.getElementById(\'gpsHelpOverlay\').remove()" style="flex:1;padding:.65rem;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit">Fechar</button>'
+    + '<button onclick="document.getElementById(\'gpsHelpOverlay\').remove();_retryGpsForMural()" style="flex:1;padding:.65rem;border-radius:12px;border:none;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit">Tentar de novo</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+}
+function _retryGpsForMural() {
+  if (!navigator.geolocation) { showToast('GPS nao disponivel neste navegador'); return; }
+  showToast('Solicitando localizacao...');
+  navigator.geolocation.getCurrentPosition(async function(pos) {
+    try {
+      await apiFetch('/api/location/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: state.userId, lat: pos.coords.latitude, lng: pos.coords.longitude })
+      });
+    } catch (e) { /* ignore */ }
+    await _fetchMuralGeo();
+    if (_muralState.channels && _muralState.channels.length > 0) {
+      openMural();
+    } else {
+      showToast('Ainda nao foi possivel detectar sua cidade.');
+    }
+  }, function() {
+    showToast('GPS continua bloqueado. Siga os passos acima.');
+  }, { timeout: 10000 });
 }
 
 async function _fetchMuralGeo() {
