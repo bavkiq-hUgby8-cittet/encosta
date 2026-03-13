@@ -8040,6 +8040,17 @@ function createSonicConnection(userIdA, userIdB) {
           icon: 'barber'
         });
       }
+      if (ev.modules.karaoke) {
+        moduleWelcome.push({
+          key: 'karaoke',
+          label: 'Karaoke',
+          message: ev.karaoke?.config?.sessionName || 'Entre na fila e cante!',
+          action: 'karaoke',
+          actionLabel: 'Cantar',
+          color: '#ec4899',
+          icon: 'karaoke'
+        });
+      }
     }
 
     const checkinData = {
@@ -13421,6 +13432,14 @@ app.post('/api/operator/event/create', async (req, res) => {
       barbers: [],
       appointments: []
     },
+    karaoke: {
+      enabled: false,
+      config: { sessionName: '', maxQueue: 50, autoAdvance: true, votingEnabled: true },
+      queue: [],
+      currentSinger: null,
+      scores: {},
+      history: []
+    },
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
     paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
@@ -13431,8 +13450,9 @@ app.post('/api/operator/event/create', async (req, res) => {
       gym: !!modules.gym,
       church: !!modules.church,
       barber: !!modules.barber,
-      dj: !!modules.dj
-    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false },
+      dj: !!modules.dj,
+      karaoke: !!modules.karaoke
+    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false },
     siteConfig: {
       enabled: false,
       slug: '',
@@ -13855,7 +13875,8 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       gym: !!modules.gym,
       church: !!modules.church,
       barber: !!modules.barber,
-      dj: !!modules.dj
+      dj: !!modules.dj,
+      karaoke: !!modules.karaoke
     };
   }
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
@@ -13946,7 +13967,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -13972,7 +13993,7 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
     eventLogo: proxyStorageUrl(ev.eventLogo || null),
-    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false },
+    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false },
     djLive: ev.djLive || null
   });
 });
@@ -15950,6 +15971,239 @@ app.get('/api/operator/event/:eventId/church', (req, res) => {
   if (!ev) return res.json({enabled:false, config:{}, tithes:{}, campaigns:{}, services:{}, prayers:{}, cells:{}, announcements:{}});
   const c = ev.church || {};
   res.json({enabled:c.enabled, config:c.config||{}, tithes:c.tithes||{}, campaigns:c.campaigns||{}, services:c.services||{}, prayers:c.prayers||{}, cells:c.cells||{}, announcements:c.announcements||{}});
+});
+
+// ═══ KARAOKE MODULE API ═══
+
+function ensureKaraoke(ev) {
+  if (!ev.karaoke) ev.karaoke = { enabled: false, config: { sessionName: '', maxQueue: 50, autoAdvance: true, votingEnabled: true }, queue: [], currentSinger: null, scores: {}, history: [] };
+  if (!ev.karaoke.queue) ev.karaoke.queue = [];
+  if (!ev.karaoke.scores) ev.karaoke.scores = {};
+  if (!ev.karaoke.history) ev.karaoke.history = [];
+  return ev.karaoke;
+}
+
+// GET karaoke state (operator)
+app.get('/api/operator/event/:eventId/karaoke', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.json({ enabled: false, config: {}, queue: [], currentSinger: null, scores: {}, history: [] });
+  const k = ensureKaraoke(ev);
+  res.json({ enabled: k.enabled, config: k.config || {}, queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, history: k.history });
+});
+
+// GET karaoke state (participant)
+app.get('/api/event/:eventId/karaoke', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.json({ enabled: false, queue: [], currentSinger: null, scores: {} });
+  const k = ensureKaraoke(ev);
+  res.json({ enabled: k.enabled, config: { sessionName: k.config?.sessionName || '', votingEnabled: k.config?.votingEnabled !== false }, queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+});
+
+// POST karaoke config (operator)
+app.post('/api/operator/event/:eventId/karaoke/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  const { enabled, sessionName, maxQueue, autoAdvance, votingEnabled } = req.body;
+  k.enabled = !!enabled;
+  k.config = { sessionName: (sessionName || '').slice(0, 100), maxQueue: Math.min(parseInt(maxQueue) || 50, 200), autoAdvance: autoAdvance !== false, votingEnabled: votingEnabled !== false };
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'config', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true, config: k.config });
+});
+
+// POST join queue (participant adds themselves)
+app.post('/api/event/:eventId/karaoke/join', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  const { userId, nickname, song, videoId, thumbnail } = req.body;
+  if (!userId || !nickname) return res.status(400).json({ error: 'userId e nickname obrigatorios' });
+  if (k.queue.length >= (k.config?.maxQueue || 50)) return res.status(400).json({ error: 'Fila cheia' });
+  // Check if already in queue
+  if (k.queue.find(q => q.userId === userId)) return res.status(400).json({ error: 'Voce ja esta na fila' });
+  const entry = { id: 'kq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), userId, nickname, song: (song || '').slice(0, 200), videoId: videoId || '', thumbnail: thumbnail || '', joinedAt: Date.now(), status: 'waiting' };
+  k.queue.push(entry);
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'queue', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true, position: k.queue.length, entry });
+});
+
+// POST update song choice (participant changes their song)
+app.post('/api/event/:eventId/karaoke/update-song', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  const { userId, song, videoId, thumbnail } = req.body;
+  const entry = k.queue.find(q => q.userId === userId);
+  if (!entry) return res.status(404).json({ error: 'Nao esta na fila' });
+  entry.song = (song || '').slice(0, 200);
+  entry.videoId = videoId || '';
+  entry.thumbnail = thumbnail || '';
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'queue', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true });
+});
+
+// POST leave queue (participant removes themselves)
+app.post('/api/event/:eventId/karaoke/leave', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  const { userId } = req.body;
+  k.queue = k.queue.filter(q => q.userId !== userId);
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'queue', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true });
+});
+
+// POST start singer (operator calls next singer to stage)
+app.post('/api/operator/event/:eventId/karaoke/start', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  const { singerId } = req.body;
+  let singer = null;
+  if (singerId) {
+    const idx = k.queue.findIndex(q => q.id === singerId);
+    if (idx >= 0) { singer = k.queue.splice(idx, 1)[0]; }
+  } else if (k.queue.length > 0) {
+    singer = k.queue.shift();
+  }
+  if (!singer) return res.status(400).json({ error: 'Ninguem na fila' });
+  singer.status = 'singing';
+  singer.startedAt = Date.now();
+  k.currentSinger = singer;
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'start', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true, currentSinger: singer });
+});
+
+// POST finish singer (operator ends current performance)
+app.post('/api/operator/event/:eventId/karaoke/finish', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
+  const finished = { ...k.currentSinger, finishedAt: Date.now(), status: 'finished' };
+  // Calculate final score
+  const scoreData = k.scores[finished.userId] || { applause: 0, votes: {}, points: 0 };
+  const voteValues = Object.values(scoreData.votes || {});
+  const avgStars = voteValues.length > 0 ? voteValues.reduce((a, b) => a + b, 0) / voteValues.length : 0;
+  scoreData.avgStars = avgStars;
+  scoreData.points = (avgStars * 10) + ((scoreData.applause || 0) * 0.5);
+  scoreData.name = finished.nickname;
+  scoreData.song = finished.song;
+  k.scores[finished.userId] = scoreData;
+  k.history.push(finished);
+  k.currentSinger = null;
+  // Auto-advance: start next if enabled
+  if (k.config?.autoAdvance && k.queue.length > 0) {
+    const next = k.queue.shift();
+    next.status = 'singing';
+    next.startedAt = Date.now();
+    k.currentSinger = next;
+  }
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'finish', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, finished });
+  res.json({ ok: true, scores: k.scores, currentSinger: k.currentSinger });
+});
+
+// POST skip singer (operator skips without scoring)
+app.post('/api/operator/event/:eventId/karaoke/skip', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  if (k.currentSinger) {
+    k.currentSinger.status = 'skipped';
+    k.history.push({ ...k.currentSinger, finishedAt: Date.now() });
+  }
+  k.currentSinger = null;
+  if (k.config?.autoAdvance && k.queue.length > 0) {
+    const next = k.queue.shift();
+    next.status = 'singing';
+    next.startedAt = Date.now();
+    k.currentSinger = next;
+  }
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'skip', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  res.json({ ok: true, currentSinger: k.currentSinger });
+});
+
+// POST vote (participant votes for current singer)
+app.post('/api/event/:eventId/karaoke/vote', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
+  const { voterId, stars } = req.body;
+  if (!voterId || !stars || stars < 1 || stars > 5) return res.status(400).json({ error: 'voterId e stars (1-5) obrigatorios' });
+  const singerId = k.currentSinger.userId;
+  if (!k.scores[singerId]) k.scores[singerId] = { applause: 0, votes: {}, points: 0, name: k.currentSinger.nickname, song: k.currentSinger.song };
+  k.scores[singerId].votes[voterId] = parseInt(stars);
+  // Recalculate points
+  const vv = Object.values(k.scores[singerId].votes);
+  const avg = vv.reduce((a, b) => a + b, 0) / vv.length;
+  k.scores[singerId].avgStars = avg;
+  k.scores[singerId].points = (avg * 10) + ((k.scores[singerId].applause || 0) * 0.5);
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'vote', scores: k.scores, currentSinger: k.currentSinger, queue: k.queue });
+  res.json({ ok: true, score: k.scores[singerId] });
+});
+
+// POST applause (participant applauds current singer)
+app.post('/api/event/:eventId/karaoke/applause', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
+  const singerId = k.currentSinger.userId;
+  if (!k.scores[singerId]) k.scores[singerId] = { applause: 0, votes: {}, points: 0, name: k.currentSinger.nickname, song: k.currentSinger.song };
+  k.scores[singerId].applause = (k.scores[singerId].applause || 0) + 1;
+  // Recalculate points
+  const vv = Object.values(k.scores[singerId].votes || {});
+  const avg = vv.length > 0 ? vv.reduce((a, b) => a + b, 0) / vv.length : 0;
+  k.scores[singerId].points = (avg * 10) + (k.scores[singerId].applause * 0.5);
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'applause', scores: k.scores, currentSinger: k.currentSinger, queue: k.queue });
+  res.json({ ok: true, applause: k.scores[singerId].applause });
+});
+
+// GET YouTube search proxy (keeps API key server-side)
+app.get('/api/youtube/search', async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.status(400).json({ error: 'Query obrigatoria' });
+  const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyA3Qbdoyqg0EzUPrT0Qo_-HbygKLjTczoc';
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + ' karaoke')}&type=video&key=${apiKey}&maxResults=8&videoEmbeddable=true`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.error) return res.status(400).json({ error: data.error.message || 'YouTube API error' });
+    const items = (data.items || []).map(item => ({
+      videoId: item.id?.videoId,
+      title: item.snippet?.title,
+      thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url,
+      channel: item.snippet?.channelTitle
+    }));
+    res.json({ items });
+  } catch (e) {
+    console.error('YouTube search error:', e.message);
+    res.status(500).json({ error: 'Erro ao buscar no YouTube' });
+  }
+});
+
+// POST reset karaoke session (operator)
+app.post('/api/operator/event/:eventId/karaoke/reset', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  k.queue = [];
+  k.currentSinger = null;
+  k.scores = {};
+  k.history = [];
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'reset', queue: [], currentSinger: null, scores: {} });
+  res.json({ ok: true });
 });
 
 // ═══ BARBER MODULE API ═══
