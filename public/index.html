@@ -25338,6 +25338,11 @@ function startDJAnimation() {
       case 'tunnel': drawTunnel(ctx, w, h, rgb, beatPhase, t); break;
       case 'bubbles': drawBubbles(ctx, w, h, rgb, beatPhase, t); break;
       case 'crosslines': drawCrosslines(ctx, w, h, rgb, beatPhase, t); break;
+      case 'mosaicwave': drawMosaicWave(ctx, w, h, rgb, beatPhase, t); break;
+      case 'giantheart': drawGiantHeart(ctx, w, h, rgb, beatPhase, t); break;
+      case 'firewall': drawFireWall(ctx, w, h, rgb, beatPhase, t); break;
+      case 'textscroll': drawTextScroll(ctx, w, h, rgb, beatPhase, t); break;
+      case 'inftunnel': drawInfTunnel(ctx, w, h, rgb, beatPhase, t); break;
       default: drawPulse(ctx, w, h, rgb, beatPhase, t, beatCount);
     }
 
@@ -27032,6 +27037,296 @@ function _drawCrossBeamAud(ctx, w, h, angle, offset, rgb, alpha, bass, t, idx) {
   ctx.restore();
 }
 
+// ======== MULTI-PHONE ALIGNMENT ANIMATIONS ========
+// Each phone renders its "slice" of a larger image based on deviceIndex/totalDevices.
+// When phones are aligned side by side, the slices form a continuous picture.
+
+function drawMosaicWave(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  var idx = DJL.deviceIndex || 0;
+  var total = Math.max(1, DJL.totalDevices || 1);
+  // This phone shows slice [idx/total .. (idx+1)/total] of the total virtual canvas
+  var sliceStart = idx / total;
+  var sliceEnd = (idx + 1) / total;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // Draw flowing sine waves that are continuous across all phones
+  for (var layer = 0; layer < 6; layer++) {
+    var freq = 1.5 + layer * 0.8;
+    var amp = h * (0.08 + layer * 0.04) * (1 + bassHit * 0.5);
+    var speed = 0.8 + layer * 0.3;
+    var yBase = h * (0.2 + layer * 0.11);
+    var alpha = 0.6 - layer * 0.07;
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (var x = 0; x <= w; x += 2) {
+      var globalX = sliceStart + (x / w) * (sliceEnd - sliceStart);
+      var y = yBase + Math.sin((globalX * freq + t * speed) * Math.PI * 2) * amp;
+      y += Math.sin((globalX * freq * 2.3 + t * speed * 1.7) * Math.PI * 2) * amp * 0.3;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    var hue = ((layer * 60 + t * 30) % 360);
+    var grd = ctx.createLinearGradient(0, yBase - amp, 0, h);
+    grd.addColorStop(0, 'hsla(' + hue + ',90%,60%,' + alpha + ')');
+    grd.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (alpha * 0.6) + ')');
+    grd.addColorStop(1, 'hsla(' + ((hue + 40) % 360) + ',80%,30%,' + (alpha * 0.3) + ')');
+    ctx.fillStyle = grd;
+    ctx.fill();
+  }
+  // Sparkle particles
+  for (var s = 0; s < 15; s++) {
+    var globalSX = sliceStart + ((t * 0.15 + s / 15) % 1) * (sliceEnd - sliceStart);
+    var sx = ((globalSX - sliceStart) / (sliceEnd - sliceStart)) * w;
+    if (sx < 0 || sx > w) continue;
+    var sy = h * 0.35 + Math.sin((globalSX * 2.3 + t * 1.1) * Math.PI * 2) * h * 0.12;
+    var sparkAlpha = 0.3 + Math.sin(t * 3 + s) * 0.3;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2 + bassHit * 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,' + sparkAlpha + ')';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawGiantHeart(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  var idx = DJL.deviceIndex || 0;
+  var total = Math.max(1, DJL.totalDevices || 1);
+  var sliceStart = idx / total;
+  var sliceEnd = (idx + 1) / total;
+  // The heart spans the full virtual width of all phones combined
+  var virtualW = w * total;
+  var pulse = 1 + Math.sin(t * 2) * 0.06 + bassHit * 0.15;
+  var cx = virtualW / 2;
+  var cy = h * 0.45;
+  var scale = Math.min(virtualW * 0.6, h * 0.8) * 0.35 * pulse;
+  ctx.save();
+  // Offset canvas so this phone shows its slice of the virtual canvas
+  ctx.translate(-idx * w, 0);
+  // Heart path
+  ctx.beginPath();
+  for (var a = 0; a < Math.PI * 2; a += 0.02) {
+    var hx = 16 * Math.pow(Math.sin(a), 3);
+    var hy = -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a));
+    var px = cx + hx * scale / 16;
+    var py = cy + hy * scale / 16;
+    if (a === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  var hGrd = ctx.createRadialGradient(cx, cy, 0, cx, cy, scale);
+  hGrd.addColorStop(0, 'rgba(' + Math.min(255, rgb.r + 80) + ',' + Math.floor(rgb.g * 0.3) + ',' + Math.floor(rgb.b * 0.3) + ',0.9)');
+  hGrd.addColorStop(0.6, 'rgba(' + rgb.r + ',0,' + Math.floor(rgb.b * 0.2) + ',0.7)');
+  hGrd.addColorStop(1, 'rgba(' + Math.floor(rgb.r * 0.3) + ',0,0,0.4)');
+  ctx.fillStyle = hGrd;
+  ctx.fill();
+  // Inner glow
+  ctx.beginPath();
+  for (var a = 0; a < Math.PI * 2; a += 0.02) {
+    var hx = 16 * Math.pow(Math.sin(a), 3);
+    var hy = -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a));
+    var px = cx + hx * scale * 0.65 / 16;
+    var py = cy + hy * scale * 0.65 / 16;
+    if (a === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,' + Math.floor(50 + bassHit * 100) + ',' + Math.floor(50 + bassHit * 80) + ',0.3)';
+  ctx.fill();
+  // Floating particles
+  for (var s = 0; s < 20; s++) {
+    var angle = (s / 20) * Math.PI * 2 + t * 0.5;
+    var dist = scale * (0.4 + Math.sin(t + s) * 0.3);
+    var sx = cx + Math.cos(angle) * dist;
+    var riseY = (t * 30 + s * 40) % (h * 0.4);
+    var sy = cy + Math.sin(angle) * dist * 0.7 - riseY;
+    var sAlpha = 0.6 - riseY / (h * 0.4);
+    if (sAlpha > 0) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2 + bassHit * 4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.5 + 50) + ',' + Math.floor(rgb.b * 0.5) + ',' + Math.max(0, sAlpha) + ')';
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawFireWall(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.92)';
+  ctx.fillRect(0, 0, w, h);
+  var idx = DJL.deviceIndex || 0;
+  var total = Math.max(1, DJL.totalDevices || 1);
+  var sliceStart = idx / total;
+  var sliceEnd = (idx + 1) / total;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // Fire columns continuous across all phones
+  var flameCount = 40;
+  for (var f = 0; f < flameCount; f++) {
+    var globalX = f / flameCount;
+    // Only draw flames that fall within this phone's slice
+    if (globalX < sliceStart - 0.05 || globalX > sliceEnd + 0.05) continue;
+    var localX = ((globalX - sliceStart) / (sliceEnd - sliceStart)) * w;
+    var baseH = h * (0.35 + Math.sin(globalX * 5 + t * 2) * 0.15 + bassHit * 0.25);
+    var flicker = Math.sin(t * 8 + f * 2.7) * 0.1 + Math.sin(t * 13 + f * 4.1) * 0.05;
+    var fh = baseH * (1 + flicker);
+    var grd = ctx.createLinearGradient(localX, h, localX, h - fh);
+    grd.addColorStop(0, 'rgba(' + Math.min(255, rgb.r + 40) + ',' + Math.floor(rgb.g * 0.8 + 80) + ',0,0.8)');
+    grd.addColorStop(0.3, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.4 + 30) + ',0,0.5)');
+    grd.addColorStop(0.7, 'rgba(' + Math.floor(rgb.r * 0.6) + ',0,0,0.2)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    var fw = w / (flameCount / total) * 1.8;
+    ctx.beginPath();
+    ctx.moveTo(localX - fw / 2, h);
+    var segments = 8;
+    for (var s = 0; s <= segments; s++) {
+      var sy = h - (fh * s / segments);
+      var wobble = Math.sin(t * 4 + f + s * 0.8) * fw * 0.3 * (s / segments);
+      ctx.lineTo(localX + wobble, sy);
+    }
+    ctx.lineTo(localX + fw / 2, h);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Ember particles
+  for (var e = 0; e < 20; e++) {
+    var seed = e * 7.31 + 0.5;
+    var ex = ((Math.sin(seed) * 0.5 + 0.5) * w);
+    var ey = h - ((t * 60 + e * 50) % h);
+    var eAlpha = 0.8 - (h - ey) / h;
+    if (eAlpha > 0) {
+      ctx.beginPath();
+      ctx.arc(ex, ey, 1 + Math.sin(t + e) * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,' + Math.floor(120 + Math.sin(e) * 80) + ',0,' + eAlpha + ')';
+      ctx.fill();
+    }
+  }
+  // Heat haze at bottom
+  var hazeGrd = ctx.createLinearGradient(0, h, 0, h * 0.7);
+  hazeGrd.addColorStop(0, 'rgba(' + rgb.r + ',' + Math.floor(rgb.g * 0.3) + ',0,0.15)');
+  hazeGrd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hazeGrd;
+  ctx.fillRect(0, h * 0.7, w, h * 0.3);
+  ctx.restore();
+}
+
+function drawTextScroll(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  var idx = DJL.deviceIndex || 0;
+  var total = Math.max(1, DJL.totalDevices || 1);
+  // Giant scrolling text across all phones
+  var text = 'TOUCH? ';
+  var fontSize = h * 0.5;
+  ctx.font = '900 ' + fontSize + 'px Inter, Arial, sans-serif';
+  var textW = ctx.measureText(text).width;
+  var totalScrollW = textW * 3;
+  // Scroll position: continuous across the total virtual width
+  var virtualW = w * total;
+  var scrollSpeed = 100;
+  var globalScrollX = -((t * scrollSpeed) % totalScrollW);
+  ctx.save();
+  // Offset for this phone's position in the lineup
+  ctx.translate(-idx * w, 0);
+  ctx.textBaseline = 'middle';
+  var yPos = h / 2 + Math.sin(t * 1.5) * h * 0.05;
+  // Glow
+  ctx.shadowColor = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (0.6 + bassHit * 0.4) + ')';
+  ctx.shadowBlur = 20 + bassHit * 30;
+  // Gradient fill
+  var tGrd = ctx.createLinearGradient(0, yPos - fontSize / 2, 0, yPos + fontSize / 2);
+  tGrd.addColorStop(0, 'rgba(' + Math.min(255, rgb.r + 60) + ',' + Math.min(255, rgb.g + 60) + ',' + Math.min(255, rgb.b + 60) + ',1)');
+  tGrd.addColorStop(0.5, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',1)');
+  tGrd.addColorStop(1, 'rgba(' + Math.floor(rgb.r * 0.6) + ',' + Math.floor(rgb.g * 0.6) + ',' + Math.floor(rgb.b * 0.6) + ',1)');
+  ctx.fillStyle = tGrd;
+  // Draw text repeated enough times to cover the full virtual width
+  var repeats = Math.ceil(virtualW / textW) + 2;
+  for (var rep = -1; rep < repeats; rep++) {
+    ctx.fillText(text, globalScrollX + rep * textW, yPos);
+  }
+  ctx.shadowBlur = 0;
+  ctx.restore();
+  // Scan lines
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var y = 0; y < h; y += 4) {
+    ctx.fillRect(0, y, w, 1);
+  }
+}
+
+function drawInfTunnel(ctx, w, h, rgb, beat, t) {
+  var bassHit = beat < 0.1 ? Math.pow(1 - beat / 0.1, 3) : 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillRect(0, 0, w, h);
+  var idx = DJL.deviceIndex || 0;
+  var total = Math.max(1, DJL.totalDevices || 1);
+  // Vanishing point at center of the total phone lineup
+  var virtualW = w * total;
+  var vpX = virtualW / 2;
+  var vpY = h / 2;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // Offset for this phone
+  ctx.translate(-idx * w, 0);
+  var ringCount = 25;
+  for (var r = 0; r < ringCount; r++) {
+    var depth = ((r / ringCount + t * 0.3) % 1);
+    var scale = Math.pow(depth, 1.5) * Math.max(virtualW, h) * 0.8;
+    if (scale < 2) continue;
+    var sides = 6;
+    var rotation = t * 0.5 + depth * 2;
+    var alpha = (1 - depth) * 0.5 * (0.6 + bassHit * 0.4);
+    var hue = (depth * 120 + t * 40) % 360;
+    ctx.beginPath();
+    for (var s = 0; s <= sides; s++) {
+      var angle = (s / sides) * Math.PI * 2 + rotation;
+      var sx = vpX + Math.cos(angle) * scale;
+      var sy = vpY + Math.sin(angle) * scale * 0.7;
+      if (s === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'hsla(' + hue + ',80%,60%,' + alpha + ')';
+    ctx.lineWidth = 1.5 + bassHit * 2;
+    ctx.stroke();
+  }
+  // Central glow
+  var glowR = 40 + bassHit * 50;
+  var glow = ctx.createRadialGradient(vpX, vpY, 0, vpX, vpY, glowR);
+  glow.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.5)');
+  glow.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(vpX - glowR, vpY - glowR, glowR * 2, glowR * 2);
+  // Speed lines
+  for (var l = 0; l < 16; l++) {
+    var la = (l / 16) * Math.PI * 2 + t * 0.3;
+    var ld1 = (0.1 + ((t * 2 + l * 0.5) % 1)) * Math.max(virtualW, h) * 0.4;
+    var ld2 = ld1 + 20 + bassHit * 30;
+    var lx1 = vpX + Math.cos(la) * ld1;
+    var ly1 = vpY + Math.sin(la) * ld1 * 0.7;
+    var lx2 = vpX + Math.cos(la) * ld2;
+    var ly2 = vpY + Math.sin(la) * ld2 * 0.7;
+    var lineAlpha = 0.3 * (1 - ld1 / (Math.max(virtualW, h) * 0.4));
+    if (lineAlpha > 0) {
+      ctx.beginPath();
+      ctx.moveTo(lx1, ly1);
+      ctx.lineTo(lx2, ly2);
+      ctx.strokeStyle = 'rgba(255,255,255,' + Math.max(0, lineAlpha) + ')';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function doFlash(duration) {
   if (!DJL.active || !DJL.ctx) return;
   var dpr = window.devicePixelRatio || 1;
@@ -27132,6 +27427,11 @@ function setupDJListeners() {
       case 'tunnel': DJL.animation = 'tunnel'; break;
       case 'bubbles': DJL.animation = 'bubbles'; break;
       case 'crosslines': DJL.animation = 'crosslines'; break;
+      case 'mosaicwave': DJL.animation = 'mosaicwave'; break;
+      case 'giantheart': DJL.animation = 'giantheart'; break;
+      case 'firewall': DJL.animation = 'firewall'; break;
+      case 'textscroll': DJL.animation = 'textscroll'; break;
+      case 'inftunnel': DJL.animation = 'inftunnel'; break;
       case 'raffle':
         DJL.animation = 'raffle';
         DJL.raffleState = 'scramble';
