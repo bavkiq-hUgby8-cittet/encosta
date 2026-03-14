@@ -1492,9 +1492,7 @@ function getZitoWelcomeEmail(lang, nickname) {
 <span style="font-size:2.2rem;font-weight:800;color:#ff6b35;letter-spacing:.15em">Touch?</span>
 </div>
 <div style="text-align:center;margin-bottom:1.8rem">
-<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid rgba(255,107,53,.3);margin:0 auto;overflow:hidden">
-<table role="presentation" width="80" height="80" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" style="font-size:36px;line-height:80px;color:#ff6b35">?</td></tr></table>
-</div>
+<img src="https://touch-irl.com/icons/zito-avatar.png" alt="Zito" width="80" height="80" style="width:80px;height:80px;border-radius:50%;border:2px solid rgba(255,107,53,.3);display:block;margin:0 auto">
 </div>
 <div style="background:#12121c;border-radius:20px;padding:2rem 1.8rem;border:1px solid rgba(255,255,255,.05)">
 <p style="color:#fff;font-size:1.1rem;font-weight:600;margin:0 0 1rem;line-height:1.4">${t.greeting}</p>
