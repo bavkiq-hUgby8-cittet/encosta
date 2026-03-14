@@ -2943,17 +2943,16 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         // to let the audio finish playing before advancing.
         if(msg.type === 'response.done'){
           if(inTour){
-            // Estimate: ~130 words/min speech = ~2.2 words/sec
-            // response.done fires when generation is done, but audio
-            // buffer can be 3-8 seconds behind depending on length.
+            // response.done fires when generation completes, but audio
+            // buffer may still be playing. Small buffer to let it finish.
             var wordCount = lastTourTranscript ? lastTourTranscript.split(/\s+/).length : 0;
-            // Base 4s buffer + 350ms per word as safety margin
-            // Short response (10 words) = 4 + 3.5 = 7.5s
-            // Medium response (30 words) = 4 + 10.5 = 14.5s
-            // Long response (50 words) = 4 + 17.5 = 21.5s
-            // Cap between 5s and 25s
-            var bufferDelay = Math.max(5000, Math.min(25000, 4000 + (wordCount * 350)));
-            console.log('[WebRTC] Response DONE - words:', wordCount, 'waiting', bufferDelay, 'ms before next section');
+            // Base 2s buffer + 150ms per word
+            // Short (10 words) = 2 + 1.5 = 3.5s
+            // Medium (30 words) = 2 + 4.5 = 6.5s
+            // Long (50 words) = 2 + 7.5 = 9.5s
+            // Cap between 2.5s and 12s
+            var bufferDelay = Math.max(2500, Math.min(12000, 2000 + (wordCount * 150)));
+            console.log('[WebRTC] Response DONE - words:', wordCount, 'buffer:', bufferDelay, 'ms');
             lastTourTranscript = '';
             setTimeout(function(){ advanceTourStep(); }, bufferDelay);
           }
