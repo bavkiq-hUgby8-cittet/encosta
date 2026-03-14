@@ -3022,6 +3022,15 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
             <button class="mod-btn primary" onclick="karaokeStartNext()" style="flex:1;font-size:.7rem">Proximo Cantor</button>
             <button class="mod-btn" onclick="karaokeReset()" style="font-size:.7rem;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)">Reset</button>
           </div>
+          <!-- Mirror to TV button -->
+          <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+            <button class="mod-btn" onclick="karaokeMirrorOpen()" style="flex:1;font-size:.7rem;background:linear-gradient(135deg,rgba(236,72,153,.15),rgba(168,85,247,.1));color:#ec4899;border:1px solid rgba(236,72,153,.3)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Espelhar em outra tela
+            </button>
+            <button class="mod-btn" onclick="karaokeMirrorCopy()" style="font-size:.7rem;background:rgba(255,255,255,.05);color:var(--t2);border:1px solid rgba(255,255,255,.1)" title="Copiar link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
           <!-- Mini Queue Preview -->
           <div class="mod-card" style="padding:.5rem">
             <div style="font-size:.65rem;font-weight:600;color:var(--t2);margin-bottom:.3rem">Proximos na fila</div>
@@ -9003,6 +9012,27 @@ function bindKaraokeSocket(){
     if(_kkRenderTimer)clearTimeout(_kkRenderTimer);
     _kkRenderTimer=setTimeout(function(){renderKaraokeAll()},200);
   });
+}
+
+// ── Karaoke Mirror / Cast to TV ──
+function karaokeMirrorOpen(){
+  if(!S.currentEventId){showToast('Nenhum evento aberto');return}
+  var url=window.location.origin+'/karaoke-screen.html?event='+S.currentEventId;
+  window.open(url,'karaoke-tv','width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+  showToast('Tela do karaoke aberta! Arraste para a TV ou use Cast.');
+}
+function karaokeMirrorCopy(){
+  if(!S.currentEventId){showToast('Nenhum evento aberto');return}
+  var url=window.location.origin+'/karaoke-screen.html?event='+S.currentEventId;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){showToast('Link copiado! Cole no navegador da TV.')}).catch(function(){karaokeFallbackCopy(url)});
+  }else{karaokeFallbackCopy(url)}
+}
+function karaokeFallbackCopy(url){
+  var ta=document.createElement('textarea');ta.value=url;ta.style.position='fixed';ta.style.left='-9999px';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');showToast('Link copiado!')}catch(e){showToast('Link: '+url)}
+  document.body.removeChild(ta);
 }
 
 // ── Karaoke QR Code ──
