@@ -6155,10 +6155,12 @@ async function renderWifiUI(){
         el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">WiFi nao disponivel neste evento</div>';
         return;
       }
+      var wifiQRStr='WIFI:T:WPA;S:'+d.ssid.replace(/[\\;,:]/g,'\\$&')+';P:'+d.password.replace(/[\\;,:]/g,'\\$&')+';;';
       el.innerHTML='<div style="padding:1.5rem .5rem;text-align:center">'
         +'<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
         +'<div style="font-size:1rem;font-weight:700;color:#22d3ee;margin-top:.8rem">WiFi do evento</div>'
-        +'<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;margin-bottom:1.5rem">Conecte-se a rede do evento</div>'
+        +'<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;margin-bottom:1.2rem">Aponte a camera pro QR ou copie a senha</div>'
+        +'<div id="wifiOverlayQR" style="display:flex;align-items:center;justify-content:center;min-height:160px;margin-bottom:1rem;background:rgba(255,255,255,.95);border-radius:12px;padding:.8rem"></div>'
         +'<div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:14px;padding:1.2rem;margin-bottom:1rem;text-align:left">'
         +'<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:.3rem">Rede</div>'
         +'<div style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:.8rem;word-break:break-all">'+escH(d.ssid)+'</div>'
@@ -6168,6 +6170,9 @@ async function renderWifiUI(){
         +'<button onclick="copyWifiPass(\''+escH(d.password).replace(/'/g,"\\'")+'\')" style="width:100%;padding:.7rem;background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.3);border-radius:12px;color:#22d3ee;font-size:.8rem;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:.6rem">Copiar senha</button>'
         +'<button onclick="copyWifiAll(\''+escH(d.ssid).replace(/'/g,"\\'")+'\',\''+escH(d.password).replace(/'/g,"\\'")+'\') " style="width:100%;padding:.6rem;background:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;color:var(--t2);font-size:.72rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar rede + senha</button>'
         +'</div>';
+      // Generate WiFi QR in overlay
+      var qrOvBox=document.getElementById('wifiOverlayQR');
+      if(qrOvBox&&typeof QRCode!=='undefined'){new QRCode(qrOvBox,{text:wifiQRStr,width:150,height:150,colorDark:'#0a0a0f',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}
     }
   }catch(e){
     el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Erro ao carregar WiFi</div>';
@@ -6198,6 +6203,55 @@ function copyWifiAll(ssid,pass){
 }
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// Check for pending WiFi from guest check-in redirect
+function checkPendingWifi(){
+  try{
+    var wifiStr=localStorage.getItem('pendingWifi');
+    var evName=localStorage.getItem('pendingWifiEvent')||'Evento';
+    if(wifiStr){
+      localStorage.removeItem('pendingWifi');
+      localStorage.removeItem('pendingWifiEvent');
+      var w=JSON.parse(wifiStr);
+      if(w&&w.ssid)setTimeout(function(){showWifiAutoConnect(w.ssid,w.password,evName)},1500);
+    }
+  }catch(e){console.warn('[wifi] pending check error:',e)}
+}
+
+// WiFi auto-connect popup after check-in
+function showWifiAutoConnect(ssid,password,eventName){
+  if(!ssid)return;
+  // Build WiFi QR string (standard format recognized by iOS and Android cameras)
+  var wifiQR='WIFI:T:WPA;S:'+ssid.replace(/[\\;,:]/g,'\\$&')+';P:'+password.replace(/[\\;,:]/g,'\\$&')+';;';
+  var ov=document.createElement('div');
+  ov.className='wifi-auto-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .3s ease';
+  ov.innerHTML=''
+    +'<div style="background:linear-gradient(135deg,#111118,#0d1520);border-radius:20px;padding:1.5rem;max-width:340px;width:100%;text-align:center;border:1px solid rgba(6,182,212,.2);box-shadow:0 8px 40px rgba(6,182,212,.15)">'
+    +'<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:.6rem"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
+    +'<div style="font-size:.95rem;font-weight:700;color:#22d3ee;margin-bottom:.3rem">WiFi disponivel!</div>'
+    +'<div style="font-size:.68rem;color:var(--t3,#888);margin-bottom:1rem">'+escH(eventName||'Evento')+' compartilhou o WiFi com voce</div>'
+    +'<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);border-radius:12px;padding:.8rem;margin-bottom:1rem;text-align:left">'
+    +'<div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:var(--t3,#888)">Rede</div>'
+    +'<div style="font-size:.9rem;font-weight:700;color:#fff;margin-bottom:.4rem">'+escH(ssid)+'</div>'
+    +'<div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:var(--t3,#888)">Senha</div>'
+    +'<div style="font-size:.9rem;font-weight:700;color:#fff;font-family:monospace;letter-spacing:.08em">'+escH(password)+'</div>'
+    +'</div>'
+    +'<div id="wifiAutoQR" style="display:flex;align-items:center;justify-content:center;min-height:160px;margin-bottom:.8rem;background:rgba(255,255,255,.95);border-radius:12px;padding:.8rem"></div>'
+    +'<div style="font-size:.58rem;color:var(--t3,#888);margin-bottom:.8rem">Aponte a camera do celular para o QR acima para conectar automaticamente</div>'
+    +'<button onclick="copyWifiPass(\''+escH(password).replace(/'/g,"\\'")+'\');this.textContent=\'Copiado!\';var _b=this;setTimeout(function(){_b.textContent=\'Copiar senha\'},1500)" style="width:100%;padding:.65rem;background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.3);border-radius:12px;color:#22d3ee;font-size:.78rem;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:.5rem">Copiar senha</button>'
+    +'<button onclick="this.closest(\'.wifi-auto-overlay\').remove()" style="width:100%;padding:.5rem;background:none;border:none;color:var(--t3,#888);font-size:.7rem;cursor:pointer;font-family:inherit">Fechar</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.onclick=function(e){if(e.target===ov)ov.remove()};
+  // Generate WiFi QR code
+  var qrBox=ov.querySelector('#wifiAutoQR');
+  if(typeof QRCode!=='undefined'){
+    new QRCode(qrBox,{text:wifiQR,width:150,height:150,colorDark:'#0a0a0f',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+  }else{
+    qrBox.innerHTML='<div style="font-size:.7rem;color:#666">QR indisponivel</div>';
+  }
+}
 
 async function renderChurchUI(){
   if(!evViewEventId)return;
@@ -21147,6 +21201,9 @@ window.addEventListener('load',()=>{
               localStorage.setItem('activeEventId',_joinEvent);
               localStorage.setItem('activeEventName',jd.eventName||'Evento');
               localStorage.setItem('activeEventRole','visitor');
+              // Show WiFi popup after check-in if available
+              var _wifiCheckin=jd.wifi;
+              var _wifiEvName=jd.eventName||'Evento';
               // If we got a relation, show animation
               if(jd.relationId){
                 const rv=await fetch('/api/relation-reveal/'+jd.relationId+'/'+state.userId);
@@ -21162,17 +21219,20 @@ window.addEventListener('load',()=>{
                       stopElectricTouch();if(navigator.vibrate)navigator.vibrate(0);
                       co.classList.remove('active','first','renewed');
                       showScreen('reveal');doReveal(revealData);
+                      if(_wifiCheckin)setTimeout(function(){showWifiAutoConnect(_wifiCheckin.ssid,_wifiCheckin.password,_wifiEvName)},1500);
                     },2500);
-                  }else{showScreen('reveal');doReveal(revealData)}
+                  }else{showScreen('reveal');doReveal(revealData);if(_wifiCheckin)setTimeout(function(){showWifiAutoConnect(_wifiCheckin.ssid,_wifiCheckin.password,_wifiEvName)},1500)}
                 }else{
                   showToast('Check-in feito!');
                   showFloatingEventBtn(_joinEvent,jd.eventName||'Evento');
                   showEventView(_joinEvent,jd.eventName||'Evento');
+                  if(_wifiCheckin)setTimeout(function(){showWifiAutoConnect(_wifiCheckin.ssid,_wifiCheckin.password,_wifiEvName)},1000);
                 }
               }else{
                 showToast('Check-in feito!');
                 showFloatingEventBtn(_joinEvent,jd.eventName||'Evento');
                 showEventView(_joinEvent,jd.eventName||'Evento');
+                if(_wifiCheckin)setTimeout(function(){showWifiAutoConnect(_wifiCheckin.ssid,_wifiCheckin.password,_wifiEvName)},1000);
               }
             }catch(e){console.error('[joinEvent] error:',e);showToast('Erro ao fazer check-in.')}
           },400);
@@ -21208,12 +21268,14 @@ window.addEventListener('load',()=>{
                   co.classList.remove('active','first','renewed');
                   window._guestAnimating=false;
                   showScreen('reveal');doReveal(revealData);
+                  checkPendingWifi();
                 },isQuick?2500:4200);
               }else{
                 window._guestAnimating=false;
                 showScreen('reveal');doReveal(revealData);
+                checkPendingWifi();
               }
-            }catch(e){console.warn('[guest] Error loading reveal:',e);window._guestAnimating=false;showToast('Conexao criada!')}
+            }catch(e){console.warn('[guest] Error loading reveal:',e);window._guestAnimating=false;showToast('Conexao criada!');checkPendingWifi()}
           },300);
         }else if(qr){showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>';setTimeout(()=>{$('joinCodeInput').value=qr;showScreen('encounter');showPhase('phaseChoose');joinSession();history.replaceState({},'','/')},300)}
         else{showScreen('home');$('homeGreeting').innerHTML=t('home.greeting')+', <span class="hg-nick">'+esc(state.userName)+'</span>'}
