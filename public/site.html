@@ -2834,15 +2834,18 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 
     // Show narration text
     var narration = textTourNarration[mode] && textTourNarration[mode][step.signal];
+    var text = '';
     if(narration){
-      var text = narration[getLang()] || narration.en || '';
+      text = narration[getLang()] || narration.en || '';
       if(text) addMessage(text, 'bot');
     }
 
     tourStepIndex++;
 
-    // Schedule next step (6s per section for reading)
-    textTourTimer = setTimeout(function(){ textTourNextStep(mode); }, 6000);
+    // Dynamic delay based on text length: ~55ms per character, min 8s, max 20s
+    var charCount = text ? text.length : 0;
+    var delay = Math.max(8000, Math.min(20000, charCount * 55));
+    textTourTimer = setTimeout(function(){ textTourNextStep(mode); }, delay);
   }
 
   // ── OpenAI Realtime Voice Call (WebRTC) ──
