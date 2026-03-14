@@ -2930,7 +2930,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   }
 
   function connectWebRTC(token, tourModeParam, connectTimeout){
-    console.log('[WebRTC] Creating PeerConnection...');
+    console.log('[WebRTC] Creating PeerConnection... tourMode:', tourModeParam);
     var pc = new RTCPeerConnection();
     peerConnection = pc;
 
@@ -2954,46 +2954,49 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     pc.dc = dc;
 
     dc.onopen = function(){
-      // Connection succeeded -- clear the timeout
       if(connectTimeout) clearTimeout(connectTimeout);
       console.log('[WebRTC] Data channel OPEN - connected!');
 
       voiceStatus.textContent = t('voiceLive');
       addMessage(t('voiceLive'), 'bot');
 
-      // Trigger initial response
+      // Trigger initial response (the opening speech)
       dc.send(JSON.stringify({ type: 'response.create' }));
 
-      // In tour mode, start first section after 4s
-      if(tourModeParam){
-        setTimeout(function(){ advanceTourStep(); }, 4000);
-      }
+      // In tour mode, DON'T advance yet -- wait for response.done
     };
 
     dc.onmessage = function(e){
       try {
         var msg = JSON.parse(e.data);
-        // Show transcripts in chat
+        console.log('[WebRTC] msg:', msg.type);
+
+        // Show transcript when audio for a response part is done
         if(msg.type === 'response.audio_transcript.done' && msg.transcript){
           addMessage(msg.transcript, 'bot');
-          // In tour mode, advance to next section after each response
+        }
+
+        // response.done = the model finished speaking entirely
+        // THIS is when we advance to next section (not on transcript)
+        if(msg.type === 'response.done'){
+          console.log('[WebRTC] Response DONE - model finished speaking');
           if(inTour){
-            setTimeout(function(){ advanceTourStep(); }, 2000);
+            // Wait 1.5s for scroll animation, then advance
+            setTimeout(function(){ advanceTourStep(); }, 1500);
           }
         }
-        if(msg.type === 'conversation.item.input_audio_transcription.completed' && msg.transcript){
+
+        // Show user speech transcript (only in non-tour / general mode)
+        if(!tourModeParam && msg.type === 'conversation.item.input_audio_transcription.completed' && msg.transcript){
           addMessage(msg.transcript, 'user');
         }
       } catch(ex){}
     };
 
-    // Step 1: Get mic (or proceed without for tour mode)
-    // Step 2: Add audio track to PeerConnection BEFORE creating offer
-    // Step 3: Create SDP offer and send to OpenAI
+    // SDP offer creation
     function proceedWithOffer(){
       console.log('[WebRTC] Creating SDP offer...');
       pc.createOffer().then(function(offer){
-        console.log('[WebRTC] SDP offer created, setting local description...');
         return pc.setLocalDescription(offer);
       }).then(function(){
         console.log('[WebRTC] Sending SDP to OpenAI Realtime...');
@@ -3011,34 +3014,24 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
           });
         }
         return r.text();
-      })
-      .then(function(sdp){
-        console.log('[WebRTC] SDP answer received (' + sdp.length + ' bytes), setting remote description...');
+      }).then(function(sdp){
+        console.log('[WebRTC] SDP answer received, setting remote description...');
         return pc.setRemoteDescription({ type: 'answer', sdp: sdp });
       }).then(function(){
-        console.log('[WebRTC] Remote description set. Waiting for data channel to open...');
+        console.log('[WebRTC] Remote description set. Waiting for data channel...');
       }).catch(function(e){
         if(connectTimeout) clearTimeout(connectTimeout);
-        console.error('WebRTC error:', e);
+        console.error('[WebRTC] error:', e);
         addMessage({pt:'Conexao de voz falhou. Use o chat de texto!', en:'Voice connection failed. Use text chat!', es:'Conexion de voz fallo. Usa el chat de texto!'}[getLang()] || 'Voice connection failed.', 'bot');
         endVoiceCall();
         if(tourModeParam) runTextTour(tourModeParam);
       });
     }
 
-    // Get microphone first, then create offer (audio track must exist in SDP)
-    console.log('[WebRTC] Requesting microphone access...');
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
-      console.log('[WebRTC] Mic acquired, adding track to PeerConnection');
-      stream.getTracks().forEach(function(track){ pc.addTrack(track, stream); });
-      proceedWithOffer();
-    }).catch(function(micErr){
-      console.warn('[WebRTC] Mic not available:', micErr.message);
-      if(!tourModeParam){
-        addMessage({pt:'Microfone nao disponivel.', en:'Microphone not available.', es:'Microfono no disponible.'}[getLang()] || 'Microphone not available.', 'bot');
-      }
-      // In tour mode, proceed without mic (listen-only)
-      // Add a silent audio track so SDP has audio section
+    // TOUR MODE: Always use silent track (no mic = no VAD interruptions)
+    // GENERAL MODE: Request real mic for conversation
+    if(tourModeParam){
+      console.log('[WebRTC] Tour mode: using silent audio track (no mic)');
       try {
         var ctx = new (window.AudioContext || window.webkitAudioContext)();
         var oscillator = ctx.createOscillator();
@@ -3046,14 +3039,35 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         oscillator.connect(dest);
         oscillator.start();
         var silentTrack = dest.stream.getAudioTracks()[0];
-        // Mute it immediately
         silentTrack.enabled = false;
         pc.addTrack(silentTrack, dest.stream);
       } catch(audioErr){
-        console.warn('Could not create silent audio track:', audioErr);
+        console.warn('[WebRTC] Could not create silent track:', audioErr);
       }
       proceedWithOffer();
-    });
+    } else {
+      console.log('[WebRTC] General mode: requesting microphone...');
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+        console.log('[WebRTC] Mic acquired');
+        stream.getTracks().forEach(function(track){ pc.addTrack(track, stream); });
+        proceedWithOffer();
+      }).catch(function(micErr){
+        console.warn('[WebRTC] Mic not available:', micErr.message);
+        addMessage({pt:'Microfone nao disponivel.', en:'Microphone not available.', es:'Microfono no disponible.'}[getLang()] || 'Microphone not available.', 'bot');
+        // Fallback: silent track
+        try {
+          var ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+          var osc2 = ctx2.createOscillator();
+          var dest2 = ctx2.createMediaStreamDestination();
+          osc2.connect(dest2);
+          osc2.start();
+          var st2 = dest2.stream.getAudioTracks()[0];
+          st2.enabled = false;
+          pc.addTrack(st2, dest2.stream);
+        } catch(ae){}
+        proceedWithOffer();
+      });
+    }
   }
 
   function endVoiceCall(){
