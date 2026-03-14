@@ -2410,6 +2410,19 @@ function recordEncounter(userAId, userBId, phrase, type = 'physical', relationId
   updateStreak(userAId, userBId, today);
   // Check star eligibility (streak + milestone)
   checkStarEligibility(userAId, userBId);
+  // -- Flag collection: track countries from connections --
+  if (uB && uB.country) {
+    if (!uA.countriesCollected) uA.countriesCollected = [];
+    if (!uA.countriesCollected.includes(uB.country)) {
+      uA.countriesCollected.push(uB.country);
+    }
+  }
+  if (uA && uA.country) {
+    if (!uB.countriesCollected) uB.countriesCollected = [];
+    if (!uB.countriesCollected.includes(uA.country)) {
+      uB.countriesCollected.push(uA.country);
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -7183,6 +7196,7 @@ app.get('/api/myprofile/:userId', (req, res) => {
     giftsReceived: (db.gifts[req.params.userId] || []).length,
     likesGiven: user.likesGiven || 0, declarationsReceived: (db.declarations ? Object.values(db.declarations).filter(d => d.toUserId === req.params.userId).length : 0),
     avatarAccessory: user.avatarAccessory || null,
+    countriesCollected: user.countriesCollected || [],
     isTop1: (() => { if (user.topTag === 'top1') return true; if (user.registrationOrder === 1) return true; const scores = Object.keys(db.users).map(uid => ({ uid, score: calcScore(uid) })).sort((a, b) => b.score - a.score); return scores.length > 0 && scores[0].uid === req.params.userId; })()
   });
 });
