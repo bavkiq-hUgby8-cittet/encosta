@@ -2861,38 +2861,45 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 
   function startVoiceCall(tourModeParam){
     if(inVoiceCall) return;
-    if(getCallCount() >= 2){
-      addMessage(t('noCallsLeft'), 'bot');
-      if(tourModeParam) runTextTour(tourModeParam); // fallback to text tour
-      return;
-    }
+    // Limit temporarily disabled for testing
+    // if(getCallCount() >= 2){
+    //   addMessage(t('noCallsLeft'), 'bot');
+    //   if(tourModeParam) runTextTour(tourModeParam);
+    //   return;
+    // }
 
     inVoiceCall = true;
     voiceBar.style.display = 'flex';
     voiceStatus.textContent = t('voiceCalling');
     voiceBtn.classList.add('recording');
     incrementCallCount();
+    console.log('[Voice] Starting voice call, tourMode:', tourModeParam, 'lang:', getLang());
 
-    // Timeout: if not connected in 20s, fallback to text
+    // Timeout: if not connected in 25s, fallback to text
+    var voiceTimedOut = false;
     var connectTimeout = setTimeout(function(){
-      if(inVoiceCall && voiceStatus.textContent === t('voiceCalling')){
-        console.warn('Voice connection timeout after 20s');
+      if(inVoiceCall){
+        voiceTimedOut = true;
+        console.warn('[Voice] Connection timeout after 25s');
         endVoiceCall();
         addMessage({pt:'Voz nao conectou. Vou fazer a apresentacao por texto!', en:'Voice did not connect. I will present via text!', es:'Voz no conecto. Presentare por texto!'}[getLang()] || 'Voice timeout. Using text!', 'bot');
         if(tourModeParam) runTextTour(tourModeParam);
       }
-    }, 20000);
+    }, 25000);
 
+    console.log('[Voice] Fetching session from server...');
     fetch('/api/site-assistant/session', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ lang: getLang(), visitorId: visitorId, tourMode: tourModeParam || null })
     })
     .then(function(r){
+      console.log('[Voice] Server response status:', r.status);
       if(!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     })
     .then(function(data){
-      console.log('Session response:', JSON.stringify(data));
+      if(voiceTimedOut) return; // already timed out
+      console.log('[Voice] Session data received:', data.session_id, 'hasSecret:', !!data.client_secret, 'remaining:', data.callsRemaining);
       if(data.error){
         clearTimeout(connectTimeout);
         if(data.error === 'limit_reached'){ addMessage(t('noCallsLeft'), 'bot'); }
@@ -2903,17 +2910,19 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       }
       if(!data.client_secret){
         clearTimeout(connectTimeout);
-        console.error('No client_secret in response:', data);
+        console.error('[Voice] No client_secret in response:', JSON.stringify(data));
         addMessage({pt:'Voz indisponivel. Usando texto!', en:'Voice unavailable. Using text!', es:'Voz no disponible. Usando texto!'}[getLang()] || 'Voice unavailable.', 'bot');
         endVoiceCall();
         if(tourModeParam) runTextTour(tourModeParam);
         return;
       }
+      console.log('[Voice] Got client_secret, starting WebRTC...');
       connectWebRTC(data.client_secret, tourModeParam, connectTimeout);
     })
     .catch(function(e){
+      if(voiceTimedOut) return;
       clearTimeout(connectTimeout);
-      console.error('Voice session error:', e);
+      console.error('[Voice] Session fetch error:', e.message, e);
       endVoiceCall();
       addMessage({pt:'Nao consegui conectar a voz. Usando texto!', en:'Could not connect voice. Using text!', es:'No pude conectar voz. Usando texto!'}[getLang()] || 'Voice error.', 'bot');
       if(tourModeParam) runTextTour(tourModeParam);
@@ -2921,13 +2930,24 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   }
 
   function connectWebRTC(token, tourModeParam, connectTimeout){
+    console.log('[WebRTC] Creating PeerConnection...');
     var pc = new RTCPeerConnection();
     peerConnection = pc;
+
+    pc.oniceconnectionstatechange = function(){
+      console.log('[WebRTC] ICE state:', pc.iceConnectionState);
+    };
+    pc.onconnectionstatechange = function(){
+      console.log('[WebRTC] Connection state:', pc.connectionState);
+    };
 
     // Audio output
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
-    pc.ontrack = function(e){ audioEl.srcObject = e.streams[0]; };
+    pc.ontrack = function(e){
+      console.log('[WebRTC] Got remote audio track');
+      audioEl.srcObject = e.streams[0];
+    };
 
     // Data channel for sending signals
     var dc = pc.createDataChannel('oai-events');
@@ -2936,10 +2956,10 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     dc.onopen = function(){
       // Connection succeeded -- clear the timeout
       if(connectTimeout) clearTimeout(connectTimeout);
+      console.log('[WebRTC] Data channel OPEN - connected!');
 
       voiceStatus.textContent = t('voiceLive');
-      var remaining = 2 - getCallCount();
-      addMessage(t('voiceLive') + ' (' + remaining + ' ' + t('callsLeft') + ')', 'bot');
+      addMessage(t('voiceLive'), 'bot');
 
       // Trigger initial response
       dc.send(JSON.stringify({ type: 'response.create' }));
@@ -2971,27 +2991,32 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     // Step 2: Add audio track to PeerConnection BEFORE creating offer
     // Step 3: Create SDP offer and send to OpenAI
     function proceedWithOffer(){
+      console.log('[WebRTC] Creating SDP offer...');
       pc.createOffer().then(function(offer){
+        console.log('[WebRTC] SDP offer created, setting local description...');
         return pc.setLocalDescription(offer);
       }).then(function(){
-        console.log('SDP offer created, sending to OpenAI...');
+        console.log('[WebRTC] Sending SDP to OpenAI Realtime...');
         return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/sdp' },
           body: pc.localDescription.sdp
         });
       }).then(function(r){
+        console.log('[WebRTC] OpenAI SDP response status:', r.status);
         if(!r.ok){
           return r.text().then(function(txt){
-            console.error('OpenAI SDP error:', r.status, txt);
+            console.error('[WebRTC] OpenAI SDP error:', r.status, txt);
             throw new Error('SDP exchange failed: ' + r.status);
           });
         }
         return r.text();
       })
       .then(function(sdp){
-        console.log('SDP answer received, setting remote description...');
+        console.log('[WebRTC] SDP answer received (' + sdp.length + ' bytes), setting remote description...');
         return pc.setRemoteDescription({ type: 'answer', sdp: sdp });
+      }).then(function(){
+        console.log('[WebRTC] Remote description set. Waiting for data channel to open...');
       }).catch(function(e){
         if(connectTimeout) clearTimeout(connectTimeout);
         console.error('WebRTC error:', e);
@@ -3002,11 +3027,13 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     }
 
     // Get microphone first, then create offer (audio track must exist in SDP)
+    console.log('[WebRTC] Requesting microphone access...');
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      console.log('[WebRTC] Mic acquired, adding track to PeerConnection');
       stream.getTracks().forEach(function(track){ pc.addTrack(track, stream); });
       proceedWithOffer();
     }).catch(function(micErr){
-      console.warn('Mic not available:', micErr.message);
+      console.warn('[WebRTC] Mic not available:', micErr.message);
       if(!tourModeParam){
         addMessage({pt:'Microfone nao disponivel.', en:'Microphone not available.', es:'Microfono no disponible.'}[getLang()] || 'Microphone not available.', 'bot');
       }

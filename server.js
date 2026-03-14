@@ -20927,7 +20927,7 @@ const assistantKnowledge = require('./assistant-knowledge');
 
 // ── Site Assistant: OpenAI Realtime voice session (2 calls/day) ──
 const siteAssistantCallTracker = {}; // { visitorId: { date: 'YYYY-MM-DD', count: N } }
-const SITE_ASSISTANT_MAX_CALLS = 2;
+const SITE_ASSISTANT_MAX_CALLS = 999; // Temporarily unlimited for testing (was 2)
 
 app.post('/api/site-assistant/session', async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'Voice not available' });
@@ -21098,6 +21098,7 @@ REGRAS:
   }
 
   try {
+    console.log('[SiteAssistant] Creating OpenAI Realtime session...', { tourMode: tourMode || 'general', lang: validLang, keyPrefix: OPENAI_API_KEY.substring(0, 8) + '...' });
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -21110,19 +21111,22 @@ REGRAS:
         instructions
       })
     });
+    console.log('[SiteAssistant] OpenAI response status:', r.status);
     if (!r.ok) {
       const e = await r.text();
-      console.error('Site assistant session err:', r.status, e);
+      console.error('[SiteAssistant] OpenAI error:', r.status, e);
       return res.status(502).json({ error: 'Failed to create voice session', detail: r.status });
     }
     const d = await r.json();
     const clientSecret = d.client_secret?.value || d.client_secret;
-    console.log('Site assistant session created:', {
+    console.log('[SiteAssistant] Session created:', {
       hasSecret: !!clientSecret,
       secretPrefix: clientSecret ? clientSecret.substring(0, 8) + '...' : 'none',
+      secretType: typeof d.client_secret,
       sessionId: d.id,
       tourMode: tourMode || 'general',
-      lang: validLang
+      lang: validLang,
+      responseKeys: Object.keys(d).join(',')
     });
     if (!clientSecret) {
       console.error('No client_secret in OpenAI response:', JSON.stringify(d).substring(0, 500));
