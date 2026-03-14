@@ -1440,7 +1440,7 @@ function getZitoWelcomeEmail(lang, nickname) {
   const nick = nickname || 'stranger';
   const content = {
     'pt-br': {
-      subject: 'Oi, ' + nick + '. Eu sou o Zito.',
+      subject: 'Touch?. A rede social com conex\u00f5es reais!',
       preheader: 'O fundador do Touch? tem algo pra te dizer.',
       greeting: 'Oi, ' + nick + '.',
       line1: 'Eu sou o Zito. Fundador do Touch?.',
@@ -1455,7 +1455,7 @@ function getZitoWelcomeEmail(lang, nickname) {
       footer: 'touch-irl.com'
     },
     'en': {
-      subject: 'Hey, ' + nick + '. I\'m Zito.',
+      subject: 'Touch?. The social network with real connections!',
       preheader: 'The founder of Touch? has something to tell you.',
       greeting: 'Hey, ' + nick + '.',
       line1: 'I\'m Zito. Founder of Touch?.',
@@ -1470,7 +1470,7 @@ function getZitoWelcomeEmail(lang, nickname) {
       footer: 'touch-irl.com'
     },
     'es': {
-      subject: 'Hola, ' + nick + '. Soy Zito.',
+      subject: 'Touch?. La red social con conexiones reales!',
       preheader: 'El fundador de Touch? tiene algo que decirte.',
       greeting: 'Hola, ' + nick + '.',
       line1: 'Soy Zito. Fundador de Touch?.',
@@ -1596,7 +1596,7 @@ app.post('/api/auth/send-verification', authLimiter, async (req, res) => {
     const link = await firebaseAuth.generateEmailVerificationLink(email, { url: appUrl });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
-      'Verifique seu email \u2014 Touch?',
+      'Touch?. A rede social com conex\u00f5es reais!',
       emailTemplate('Verifica\u00e7\u00e3o de email',
         'Clique no bot\u00e3o abaixo para verificar seu email e ativar sua conta Touch?.',
         'Verificar email', link)
@@ -1625,7 +1625,7 @@ app.post('/api/auth/send-magic-link', authLimiter, async (req, res) => {
     });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
-      'Seu link de acesso \u2014 Touch?',
+      'Touch?. A rede social com conex\u00f5es reais!',
       emailTemplate('Login sem senha',
         'Voc\u00ea solicitou acesso ao Touch? sem senha. Clique no bot\u00e3o abaixo para entrar. Este link expira em 1 hora.',
         'Entrar no Touch?', link)
@@ -1653,7 +1653,7 @@ app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
     const link = await firebaseAuth.generatePasswordResetLink(email, { url: appUrl });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
-      'Recuperar senha \u2014 Touch?',
+      'Touch?. A rede social com conex\u00f5es reais!',
       emailTemplate('Recupera\u00e7\u00e3o de senha',
         'Voc\u00ea solicitou a recupera\u00e7\u00e3o da sua senha do Touch?. Clique no bot\u00e3o abaixo para criar uma nova senha.',
         'Redefinir senha', link)
