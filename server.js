@@ -20753,21 +20753,13 @@ app.get('/api/operator/materials/download/:eventId/:templateId', async (req, res
     const slug = event.slug || eventId;
     const url = `https://touch-irl.com/e/${slug}`;
 
-    const qrBuffer = await QRCode.toBuffer(url, {
-      type: 'png',
-      width: 512,
-      margin: 0,
-      color: { dark: '#ffffff', light: '#00000000' }
-    });
-
-    const templateImage = sharp(templatePath);
-    const metadata = await templateImage.metadata();
-
+    // Read template metadata first (separate sharp instance)
+    const metadata = await sharp(templatePath).metadata();
     const templateWidth = metadata.width || 1000;
     const templateHeight = metadata.height || 1000;
 
     // Per-template QR positioning (x%, y%, size% of width)
-    // Each template has the QR placeholder in a different spot
+    // Each template has a QR placeholder area in a specific spot
     const qrPositions = {
       'banner-rollup': { xPct: 0.50, yPct: 0.38, sizePct: 0.45 },
       'tent-card-mesa': { xPct: 0.50, yPct: 0.48, sizePct: 0.45 },
@@ -20785,11 +20777,24 @@ app.get('/api/operator/materials/download/:eventId/:templateId', async (req, res
     const qrX = Math.round(templateWidth * pos.xPct - qrSize / 2);
     const qrY = Math.round(templateHeight * pos.yPct - qrSize / 2);
 
-    const resizedQr = await sharp(qrBuffer).resize(qrSize, qrSize, { fit: 'contain' }).png().toBuffer();
+    // Generate QR code with WHITE background (opaque) so it covers template placeholder completely
+    const qrBuffer = await QRCode.toBuffer(url, {
+      type: 'png',
+      width: qrSize,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' }
+    });
 
-    const finalImage = await templateImage
+    // Resize QR to exact target size
+    const resizedQr = await sharp(qrBuffer)
+      .resize(qrSize, qrSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png()
+      .toBuffer();
+
+    // Composite QR on template (fresh sharp instance to avoid stream issues)
+    const finalImage = await sharp(templatePath)
       .composite([{ input: resizedQr, left: qrX, top: qrY }])
-      .png({ quality: 95, progressive: true })
+      .png({ quality: 95 })
       .toBuffer();
 
     res.setHeader('Content-Type', 'image/png');
