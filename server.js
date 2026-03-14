@@ -1535,7 +1535,7 @@ function sendZitoWelcome(email, lang, nickname) {
 // Test endpoint: send Zito welcome email to any address (admin only)
 app.get('/api/admin/test-zito-email', async (req, res) => {
   const { email, lang, nick, adminId } = req.query;
-  if (!adminId || !ADMIN_IDS.includes(adminId)) return res.status(403).json({ error: 'Admin only.' });
+  if (!adminId || adminId !== '72a10d64-05f2-4790-a67a-bdd98f43f0b0') return res.status(403).json({ error: 'Admin only.' });
   if (!email) return res.status(400).json({ error: 'Email required. Usage: ?email=x@y.com&lang=pt-br&nick=zito&adminId=YOUR_ID' });
   const wel = getZitoWelcomeEmail(lang || 'pt-br', nick || 'stranger');
   const sent = await sendTouchEmail(email, wel.subject, wel.html);
