@@ -21113,19 +21113,31 @@ REGRAS:
     if (!r.ok) {
       const e = await r.text();
       console.error('Site assistant session err:', r.status, e);
-      return res.status(502).json({ error: 'Failed to create voice session' });
+      return res.status(502).json({ error: 'Failed to create voice session', detail: r.status });
     }
     const d = await r.json();
+    const clientSecret = d.client_secret?.value || d.client_secret;
+    console.log('Site assistant session created:', {
+      hasSecret: !!clientSecret,
+      secretPrefix: clientSecret ? clientSecret.substring(0, 8) + '...' : 'none',
+      sessionId: d.id,
+      tourMode: tourMode || 'general',
+      lang: validLang
+    });
+    if (!clientSecret) {
+      console.error('No client_secret in OpenAI response:', JSON.stringify(d).substring(0, 500));
+      return res.status(502).json({ error: 'No client_secret received' });
+    }
     res.json({
-      client_secret: d.client_secret?.value,
+      client_secret: clientSecret,
       session_id: d.id,
       expires_at: d.client_secret?.expires_at,
       callsRemaining: SITE_ASSISTANT_MAX_CALLS - siteAssistantCallTracker[vid].count,
       tourMode: tourMode || null
     });
   } catch (e) {
-    console.error('Site assistant session err:', e.message);
-    res.status(500).json({ error: 'Internal error' });
+    console.error('Site assistant session err:', e.message, e.stack);
+    res.status(500).json({ error: 'Internal error', detail: e.message });
   }
 });
 

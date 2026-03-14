@@ -2873,15 +2873,15 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     voiceBtn.classList.add('recording');
     incrementCallCount();
 
-    // Timeout: if not connected in 12s, fallback
+    // Timeout: if not connected in 20s, fallback to text
     var connectTimeout = setTimeout(function(){
       if(inVoiceCall && voiceStatus.textContent === t('voiceCalling')){
-        console.warn('Voice connection timeout');
+        console.warn('Voice connection timeout after 20s');
         endVoiceCall();
         addMessage({pt:'Voz nao conectou. Vou fazer a apresentacao por texto!', en:'Voice did not connect. I will present via text!', es:'Voz no conecto. Presentare por texto!'}[getLang()] || 'Voice timeout. Using text!', 'bot');
         if(tourModeParam) runTextTour(tourModeParam);
       }
-    }, 12000);
+    }, 20000);
 
     fetch('/api/site-assistant/session', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -2892,10 +2892,19 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       return r.json();
     })
     .then(function(data){
+      console.log('Session response:', JSON.stringify(data));
       if(data.error){
         clearTimeout(connectTimeout);
         if(data.error === 'limit_reached'){ addMessage(t('noCallsLeft'), 'bot'); }
         else { addMessage({pt:'Voz indisponivel agora. Usando texto!', en:'Voice unavailable. Using text!', es:'Voz no disponible. Usando texto!'}[getLang()] || 'Voice unavailable.', 'bot'); }
+        endVoiceCall();
+        if(tourModeParam) runTextTour(tourModeParam);
+        return;
+      }
+      if(!data.client_secret){
+        clearTimeout(connectTimeout);
+        console.error('No client_secret in response:', data);
+        addMessage({pt:'Voz indisponivel. Usando texto!', en:'Voice unavailable. Using text!', es:'Voz no disponible. Usando texto!'}[getLang()] || 'Voice unavailable.', 'bot');
         endVoiceCall();
         if(tourModeParam) runTextTour(tourModeParam);
         return;
@@ -2919,14 +2928,6 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
     pc.ontrack = function(e){ audioEl.srcObject = e.streams[0]; };
-
-    // Mic input
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
-      stream.getTracks().forEach(function(track){ pc.addTrack(track, stream); });
-    }).catch(function(){
-      // No mic? Still allow listening in tour mode
-      if(!tourModeParam){ addMessage({pt:'Microfone nao disponivel.', en:'Microphone not available.', es:'Microfono no disponible.'}[getLang()] || 'Microphone not available.', 'bot'); }
-    });
 
     // Data channel for sending signals
     var dc = pc.createDataChannel('oai-events');
@@ -2966,24 +2967,65 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       } catch(ex){}
     };
 
-    // Create offer
-    pc.createOffer().then(function(offer){
-      return pc.setLocalDescription(offer);
-    }).then(function(){
-      return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/sdp' },
-        body: pc.localDescription.sdp
+    // Step 1: Get mic (or proceed without for tour mode)
+    // Step 2: Add audio track to PeerConnection BEFORE creating offer
+    // Step 3: Create SDP offer and send to OpenAI
+    function proceedWithOffer(){
+      pc.createOffer().then(function(offer){
+        return pc.setLocalDescription(offer);
+      }).then(function(){
+        console.log('SDP offer created, sending to OpenAI...');
+        return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/sdp' },
+          body: pc.localDescription.sdp
+        });
+      }).then(function(r){
+        if(!r.ok){
+          return r.text().then(function(txt){
+            console.error('OpenAI SDP error:', r.status, txt);
+            throw new Error('SDP exchange failed: ' + r.status);
+          });
+        }
+        return r.text();
+      })
+      .then(function(sdp){
+        console.log('SDP answer received, setting remote description...');
+        return pc.setRemoteDescription({ type: 'answer', sdp: sdp });
+      }).catch(function(e){
+        if(connectTimeout) clearTimeout(connectTimeout);
+        console.error('WebRTC error:', e);
+        addMessage({pt:'Conexao de voz falhou. Use o chat de texto!', en:'Voice connection failed. Use text chat!', es:'Conexion de voz fallo. Usa el chat de texto!'}[getLang()] || 'Voice connection failed.', 'bot');
+        endVoiceCall();
+        if(tourModeParam) runTextTour(tourModeParam);
       });
-    }).then(function(r){ return r.text(); })
-    .then(function(sdp){
-      pc.setRemoteDescription({ type: 'answer', sdp: sdp });
-    }).catch(function(e){
-      if(connectTimeout) clearTimeout(connectTimeout);
-      console.error('WebRTC error:', e);
-      addMessage({pt:'Conexao de voz falhou. Use o chat de texto!', en:'Voice connection failed. Use text chat!', es:'Conexion de voz fallo. Usa el chat de texto!'}[getLang()] || 'Voice connection failed.', 'bot');
-      endVoiceCall();
-      if(tourModeParam) runTextTour(tourModeParam);
+    }
+
+    // Get microphone first, then create offer (audio track must exist in SDP)
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      stream.getTracks().forEach(function(track){ pc.addTrack(track, stream); });
+      proceedWithOffer();
+    }).catch(function(micErr){
+      console.warn('Mic not available:', micErr.message);
+      if(!tourModeParam){
+        addMessage({pt:'Microfone nao disponivel.', en:'Microphone not available.', es:'Microfono no disponible.'}[getLang()] || 'Microphone not available.', 'bot');
+      }
+      // In tour mode, proceed without mic (listen-only)
+      // Add a silent audio track so SDP has audio section
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var oscillator = ctx.createOscillator();
+        var dest = ctx.createMediaStreamDestination();
+        oscillator.connect(dest);
+        oscillator.start();
+        var silentTrack = dest.stream.getAudioTracks()[0];
+        // Mute it immediately
+        silentTrack.enabled = false;
+        pc.addTrack(silentTrack, dest.stream);
+      } catch(audioErr){
+        console.warn('Could not create silent audio track:', audioErr);
+      }
+      proceedWithOffer();
     });
   }
 
