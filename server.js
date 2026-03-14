@@ -20920,6 +20920,38 @@ app.get('/api/operator/materials/kit/:eventId', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
+// ═══ SITE ASSISTANT — Chat endpoint for Touch? knowledge base ═══
+// ══════════════════════════════════════════════════════════════
+
+const assistantKnowledge = require('./assistant-knowledge');
+
+app.post('/api/assistant/chat', express.json(), (req, res) => {
+  try {
+    const { message, lang } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const validLang = ['pt', 'en', 'es'].includes(lang) ? lang : 'pt';
+    const result = assistantKnowledge.findBestAnswer(message.trim(), validLang);
+
+    res.json({
+      answer: result.answer,
+      topicId: result.topicId,
+      lang: validLang
+    });
+  } catch (error) {
+    console.error('Assistant chat error:', error.message);
+    res.status(500).json({ error: 'Assistant error' });
+  }
+});
+
+app.get('/api/assistant/welcome', (req, res) => {
+  const lang = ['pt', 'en', 'es'].includes(req.query.lang) ? req.query.lang : 'pt';
+  res.json({ message: assistantKnowledge.getWelcome(lang), lang });
+});
+
+// ══════════════════════════════════════════════════════════════
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, cleaning up...');
