@@ -1444,15 +1444,15 @@ function getZitoWelcomeEmail(lang, nickname) {
       preheader: 'O fundador do Touch? tem algo pra te dizer.',
       greeting: 'Oi, ' + nick + '.',
       line1: 'Eu sou o Zito. Fundador do Touch?.',
-      line2: 'Eu uso meu nickname. Prefiro assim. Voce agora tambem tem essa opcao!',
-      line3: 'Voce acabou de entrar numa rede social que conecta o fisico com o digital. Dois celulares se tocam, uma conexao nasce!',
-      line4: 'Sem feed infinito. Sem likes vazios. Aqui, cada conexao custa um gesto fisico: Touch!',
-      line5: 'Ganhe estrelas! Quanto mais estrelas, mais influente voce e -- de verdade.',
-      provocation: 'E nao se assuste -- isso nao e um episodio de Black Mirror. Esse dia chegou!',
+      line2: 'Eu uso meu nickname. Prefiro assim. Voc\u00ea agora tamb\u00e9m tem essa op\u00e7\u00e3o!',
+      line3: 'Voc\u00ea acabou de entrar numa rede social que conecta o f\u00edsico com o digital. Dois celulares se tocam, uma conex\u00e3o nasce!',
+      line4: 'Sem feed infinito. Sem likes vazios. Aqui, cada conex\u00e3o custa um gesto f\u00edsico: Touch!',
+      line5: 'Ganhe estrelas! Quanto mais estrelas, mais influente voc\u00ea \u00e9 -- de verdade.',
+      provocation: 'E n\u00e3o se assuste -- isso n\u00e3o \u00e9 um epis\u00f3dio de Black Mirror. Esse dia chegou!',
       cta: 'Abrir Touch?',
       sign: '-- Zito',
       subtitle: 'Fundador do Touch?',
-      footer: 'Touch? -- encontros reais, conexoes efemeras'
+      footer: 'touch-irl.com'
     },
     'en': {
       subject: 'Hey, ' + nick + '. I\'m Zito.',
@@ -1467,22 +1467,22 @@ function getZitoWelcomeEmail(lang, nickname) {
       cta: 'Open Touch?',
       sign: '-- Zito',
       subtitle: 'Founder of Touch?',
-      footer: 'Touch? -- real encounters, ephemeral connections'
+      footer: 'touch-irl.com'
     },
     'es': {
       subject: 'Hola, ' + nick + '. Soy Zito.',
       preheader: 'El fundador de Touch? tiene algo que decirte.',
       greeting: 'Hola, ' + nick + '.',
       line1: 'Soy Zito. Fundador de Touch?.',
-      line2: 'Uso mi nickname. Lo prefiero asi. Ahora tu tambien tienes esa opcion!',
-      line3: 'Acabas de entrar en una red social que conecta lo fisico con lo digital. Dos celulares se tocan, nace una conexion!',
-      line4: 'Sin feed infinito. Sin likes vacios. Aqui, cada conexion cuesta un gesto fisico: Touch!',
-      line5: 'Gana estrellas! Cuantas mas estrellas, mas influyente eres -- de verdad.',
-      provocation: 'Y no te asustes -- esto no es un episodio de Black Mirror. Ese dia llego!',
+      line2: 'Uso mi nickname. Lo prefiero as\u00ed. \u00a1Ahora t\u00fa tambi\u00e9n tienes esa opci\u00f3n!',
+      line3: '\u00a1Acabas de entrar en una red social que conecta lo f\u00edsico con lo digital. Dos celulares se tocan, nace una conexi\u00f3n!',
+      line4: 'Sin feed infinito. Sin likes vac\u00edos. Aqu\u00ed, cada conexi\u00f3n cuesta un gesto f\u00edsico: \u00a1Touch!',
+      line5: '\u00a1Gana estrellas! Cuantas m\u00e1s estrellas, m\u00e1s influyente eres -- de verdad.',
+      provocation: 'Y no te asustes -- esto no es un episodio de Black Mirror. \u00a1Ese d\u00eda lleg\u00f3!',
       cta: 'Abrir Touch?',
       sign: '-- Zito',
       subtitle: 'Fundador de Touch?',
-      footer: 'Touch? -- encuentros reales, conexiones efimeras'
+      footer: 'touch-irl.com'
     }
   };
   const t = content[lang] || content['en'];
@@ -1523,7 +1523,6 @@ function getZitoWelcomeEmail(lang, nickname) {
 
 <tr><td align="center" style="padding:24px 0 0;border-top:1px solid rgba(255,255,255,0.04)">
 <p style="color:#444444;font-size:11px;margin:16px 0 0">${t.footer}</p>
-<p style="color:#333333;font-size:10px;margin:6px 0 0">touch-irl.com</p>
 </td></tr>
 
 </table>
