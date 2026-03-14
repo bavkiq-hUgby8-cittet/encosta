@@ -2969,6 +2969,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       // In tour mode, DON'T advance yet -- wait for response.done
     };
 
+    var lastTourTranscript = '';
+
     dc.onmessage = function(e){
       try {
         var msg = JSON.parse(e.data);
@@ -2977,15 +2979,28 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         // Show transcript when audio for a response part is done
         if(msg.type === 'response.audio_transcript.done' && msg.transcript){
           addMessage(msg.transcript, 'bot');
+          if(inTour) lastTourTranscript = msg.transcript;
         }
 
-        // response.done = the model finished speaking entirely
-        // THIS is when we advance to next section (not on transcript)
+        // response.done = the model finished GENERATING audio
+        // But audio may still be in the WebRTC buffer playing.
+        // We calculate a dynamic delay based on transcript length
+        // to let the audio finish playing before advancing.
         if(msg.type === 'response.done'){
-          console.log('[WebRTC] Response DONE - model finished speaking');
           if(inTour){
-            // Wait 1.5s for scroll animation, then advance
-            setTimeout(function(){ advanceTourStep(); }, 1500);
+            // Estimate: ~130 words/min speech = ~2.2 words/sec
+            // response.done fires when generation is done, but audio
+            // buffer can be 3-8 seconds behind depending on length.
+            var wordCount = lastTourTranscript ? lastTourTranscript.split(/\s+/).length : 0;
+            // Base 4s buffer + 350ms per word as safety margin
+            // Short response (10 words) = 4 + 3.5 = 7.5s
+            // Medium response (30 words) = 4 + 10.5 = 14.5s
+            // Long response (50 words) = 4 + 17.5 = 21.5s
+            // Cap between 5s and 25s
+            var bufferDelay = Math.max(5000, Math.min(25000, 4000 + (wordCount * 350)));
+            console.log('[WebRTC] Response DONE - words:', wordCount, 'waiting', bufferDelay, 'ms before next section');
+            lastTourTranscript = '';
+            setTimeout(function(){ advanceTourStep(); }, bufferDelay);
           }
         }
 
