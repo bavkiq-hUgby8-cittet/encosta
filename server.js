@@ -16276,8 +16276,8 @@ app.post('/api/event/:eventId/karaoke/finish', (req, res) => {
   if (k.votingPhase) return res.json({ ok: true, votingPhase: k.votingPhase, scores: k.scores });
   if (!k.currentSinger) return res.status(400).json({ error: 'Ninguem cantando agora' });
   const finished = { ...k.currentSinger, finishedAt: Date.now(), status: 'finished' };
-  const VOTING_DURATION = 8000; // 8 seconds for voting
-  const RESULTS_DURATION = 4000; // 4 seconds for results display
+  const VOTING_DURATION = 12000; // 12 seconds for voting
+  const RESULTS_DURATION = 5000; // 5 seconds for results display
   // Set voting phase - keep singer info for votes/applause to target
   k.votingPhase = {
     singer: finished,
