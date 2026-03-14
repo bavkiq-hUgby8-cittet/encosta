@@ -20802,6 +20802,7 @@ app.get('/api/operator/materials/download/:eventId/:templateId', async (req, res
 });
 
 // Route 4: GET /api/operator/materials/download-audio/:eventId
+// Gera um WAV com tom ultrassonico (19kHz) que codifica o ID do evento
 app.get('/api/operator/materials/download-audio/:eventId', (req, res) => {
   try {
     const { eventId } = req.params;
@@ -20815,16 +20816,58 @@ app.get('/api/operator/materials/download-audio/:eventId', (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const slug = event.slug || eventId;
+    // Gera um WAV de 60 segundos com tom ultrassonico (19000 Hz)
+    // Inaudivel para humanos, detectavel pelo microfone do celular
+    const sampleRate = 44100;
+    const duration = 60; // 60 segundos, o parceiro coloca em loop
+    const frequency = 19000; // 19 kHz - inaudivel pra maioria dos humanos
+    const amplitude = 0.8;
+    const numSamples = sampleRate * duration;
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const dataSize = numSamples * blockAlign;
+    const fileSize = 44 + dataSize;
 
-    res.json({
-      message: 'Audio generation coming soon',
-      eventId,
-      url: `https://touch-irl.com/e/${slug}`
-    });
+    const buffer = Buffer.alloc(fileSize);
+    let offset = 0;
+
+    // WAV header
+    buffer.write('RIFF', offset); offset += 4;
+    buffer.writeUInt32LE(fileSize - 8, offset); offset += 4;
+    buffer.write('WAVE', offset); offset += 4;
+    buffer.write('fmt ', offset); offset += 4;
+    buffer.writeUInt32LE(16, offset); offset += 4; // chunk size
+    buffer.writeUInt16LE(1, offset); offset += 2; // PCM
+    buffer.writeUInt16LE(numChannels, offset); offset += 2;
+    buffer.writeUInt32LE(sampleRate, offset); offset += 4;
+    buffer.writeUInt32LE(byteRate, offset); offset += 4;
+    buffer.writeUInt16LE(blockAlign, offset); offset += 2;
+    buffer.writeUInt16LE(bitsPerSample, offset); offset += 2;
+    buffer.write('data', offset); offset += 4;
+    buffer.writeUInt32LE(dataSize, offset); offset += 4;
+
+    // Gera samples com tom de 19kHz
+    // Modula levemente com um hash do eventId pra ser unico
+    const hash = crypto.createHash('md5').update(eventId).digest();
+    const modFreq = 19000 + (hash[0] % 200); // 19000-19200 Hz
+
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const sample = Math.sin(2 * Math.PI * modFreq * t) * amplitude;
+      const intSample = Math.max(-32768, Math.min(32767, Math.round(sample * 32767)));
+      buffer.writeInt16LE(intSample, offset);
+      offset += 2;
+    }
+
+    const slug = event.slug || event.name || eventId.substring(0, 8);
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Disposition', `attachment; filename="touch-audio-${slug}.wav"`);
+    res.send(buffer);
   } catch (error) {
     console.error('Audio download error:', error.message);
-    res.status(500).json({ error: 'Failed to retrieve audio' });
+    res.status(500).json({ error: 'Failed to generate audio' });
   }
 });
 
