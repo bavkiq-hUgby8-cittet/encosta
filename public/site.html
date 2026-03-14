@@ -2324,16 +2324,79 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 .tour-overlay.active{opacity:1}
 
 /* ── Tour Choice Buttons ── */
-.ta-tour-choice{display:flex;flex-direction:column;gap:8px;margin:8px 0}
-.ta-tour-btn{padding:10px 14px;border-radius:10px;border:1px solid rgba(255,107,53,.2);background:rgba(255,107,53,.06);color:var(--orange);font-size:.78rem;font-weight:600;cursor:pointer;text-align:left;transition:.2s}
-.ta-tour-btn:hover{background:rgba(255,107,53,.12);border-color:rgba(255,107,53,.35)}
-.ta-tour-btn small{display:block;font-weight:400;color:var(--t3);margin-top:2px;font-size:.68rem}
+/* FLOATING TOUR BUTTON */
+.tour-fab{position:fixed;bottom:96px;right:24px;z-index:9998;display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:40px;background:linear-gradient(135deg,rgba(20,20,28,.92),rgba(30,30,42,.95));border:1px solid rgba(255,107,53,.25);cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.04);transition:transform .25s,box-shadow .25s,opacity .3s;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.tour-fab:hover{transform:translateY(-2px);box-shadow:0 6px 32px rgba(255,107,53,.35),0 0 0 1px rgba(255,107,53,.2)}
+.tour-fab svg{width:18px;height:18px;fill:none;stroke:var(--orange);stroke-width:1.8;flex-shrink:0}
+.tour-fab-text{font-size:.75rem;font-weight:600;color:#fff;letter-spacing:.02em;white-space:nowrap}
+.tour-fab-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);animation:taPulse 2s ease-out infinite;flex-shrink:0}
+.tour-fab.hidden{opacity:0;pointer-events:none;transform:translateY(10px)}
+
+/* TOUR CHOICE MODAL */
+.tour-modal-overlay{position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+.tour-modal-overlay.active{opacity:1;pointer-events:auto}
+.tour-modal{background:linear-gradient(145deg,rgba(22,22,30,.98),rgba(28,28,38,.98));border:1px solid rgba(255,107,53,.15);border-radius:24px;padding:2rem 1.8rem;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.5);transform:scale(.9);transition:transform .3s}
+.tour-modal-overlay.active .tour-modal{transform:scale(1)}
+.tour-modal-title{font-size:1.1rem;font-weight:700;color:#fff;text-align:center;margin-bottom:.4rem}
+.tour-modal-sub{font-size:.78rem;color:var(--t3);text-align:center;margin-bottom:1.5rem;line-height:1.5}
+.tour-modal-options{display:flex;flex-direction:column;gap:10px}
+.tour-modal-btn{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,107,53,.15);background:rgba(255,107,53,.04);cursor:pointer;transition:.25s;text-align:left}
+.tour-modal-btn:hover{background:rgba(255,107,53,.1);border-color:rgba(255,107,53,.35);transform:translateX(4px)}
+.tour-modal-btn-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tour-modal-btn-icon.b2c{background:rgba(244,114,182,.1)}
+.tour-modal-btn-icon.b2b{background:rgba(52,211,153,.1)}
+.tour-modal-btn-icon svg{width:20px;height:20px;fill:none;stroke-width:1.8}
+.tour-modal-btn-icon.b2c svg{stroke:var(--pink)}
+.tour-modal-btn-icon.b2b svg{stroke:var(--green)}
+.tour-modal-btn-text h4{font-size:.85rem;font-weight:600;color:#fff;margin:0 0 2px}
+.tour-modal-btn-text p{font-size:.7rem;color:var(--t3);margin:0;line-height:1.4}
+.tour-modal-close{display:block;margin:1.2rem auto 0;padding:8px 20px;border-radius:8px;border:none;background:transparent;color:var(--t3);font-size:.75rem;cursor:pointer;transition:.2s}
+.tour-modal-close:hover{color:var(--t2)}
 
 @media(max-width:480px){
   .ta-win{bottom:0;right:0;width:100%;max-width:100%;height:100vh;max-height:100vh;border-radius:0}
   .ta-fab{bottom:16px;right:16px;width:54px;height:54px}
+  .tour-fab{bottom:82px;right:16px;padding:8px 14px}
+  .tour-fab-text{font-size:.7rem}
+  .tour-modal{padding:1.5rem 1.2rem}
 }
 </style>
+
+<!-- Floating Tour Button -->
+<button class="tour-fab" id="tourFab">
+  <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M9 3h6v4H9z"/><path d="M9 12h6M9 16h4"/></svg>
+  <span class="tour-fab-text" id="tourFabText">Guided Tour</span>
+  <span class="tour-fab-dot"></span>
+</button>
+
+<!-- Tour Choice Modal -->
+<div class="tour-modal-overlay" id="tourModalOverlay">
+  <div class="tour-modal">
+    <div class="tour-modal-title" id="tourModalTitle">Choose your experience</div>
+    <div class="tour-modal-sub" id="tourModalSub">We will walk you through the site step by step</div>
+    <div class="tour-modal-options">
+      <button class="tour-modal-btn" id="tourBtnB2C">
+        <div class="tour-modal-btn-icon b2c">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div class="tour-modal-btn-text">
+          <h4 id="tourB2CTitle">I am a person</h4>
+          <p id="tourB2CSub">Connections, tipping, social features</p>
+        </div>
+      </button>
+      <button class="tour-modal-btn" id="tourBtnB2B">
+        <div class="tour-modal-btn-icon b2b">
+          <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v2"/></svg>
+        </div>
+        <div class="tour-modal-btn-text">
+          <h4 id="tourB2BTitle">I have a business</h4>
+          <p id="tourB2BSub">Modules, dashboard, whitelabel site</p>
+        </div>
+      </button>
+    </div>
+    <button class="tour-modal-close" id="tourModalClose">Maybe later</button>
+  </div>
+</div>
 
 <!-- Chat FAB Button -->
 <button class="ta-fab" id="taFab" aria-label="Chat assistant">
@@ -2449,6 +2512,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   function getLang(){ return window.currentLang || 'en'; }
 
   window._taSetLang = function(){ updateLabels(); };
+  window._taStartTour = function(mode){ startGuidedTour(mode); };
+  window._taInTour = function(){ return inTour; };
 
   var i18n = {
     pt: { name:'Assistente Touch?', status:'Online agora', placeholder:'Pergunte qualquer coisa...', voiceCall:'Falar com assistente', voiceCalling:'Conectando...', voiceLive:'Chamada ativa', voiceEnd:'Encerrar', callsLeft:'chamadas restantes hoje', noCallsLeft:'Voce ja usou suas 2 chamadas hoje. Volta amanha!', tourAsk:'Quer uma apresentacao guiada?', tourB2C:'Sou uma pessoa, quero conhecer', tourB2CDesc:'Conexoes, gorjetas, vida social', tourB2B:'Tenho um estabelecimento', tourB2BDesc:'Modulos, painel, site whitelabel', tourSkip:'Pular, quero perguntar', tourStarting:'Iniciando apresentacao...' },
@@ -2525,32 +2590,6 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     });
   }
 
-  // ── Tour Choice ──
-  function showTourChoice(){
-    var html = '<div style="margin-bottom:6px;font-weight:600">' + t('tourAsk') + '</div>';
-    html += '<div class="ta-tour-choice">';
-    html += '<button class="ta-tour-btn" data-tour="b2c">' + t('tourB2C') + '<small>' + t('tourB2CDesc') + '</small></button>';
-    html += '<button class="ta-tour-btn" data-tour="b2b">' + t('tourB2B') + '<small>' + t('tourB2BDesc') + '</small></button>';
-    html += '<button class="ta-tour-btn" data-tour="skip" style="background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:var(--t2)">' + t('tourSkip') + '</button>';
-    html += '</div>';
-    addHtml(html);
-    // Attach events to the buttons just added
-    setTimeout(function(){
-      msgs.querySelectorAll('.ta-tour-btn').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var mode = btn.getAttribute('data-tour');
-          // Disable all tour buttons
-          msgs.querySelectorAll('.ta-tour-btn').forEach(function(b){ b.style.pointerEvents='none'; b.style.opacity='.4'; });
-          if(mode === 'skip'){
-            showSuggestions();
-          } else {
-            startGuidedTour(mode);
-          }
-        });
-      });
-    }, 100);
-  }
-
   // ── Guided Tour (auto-scroll + OpenAI Realtime narrator) ──
   var tourSections = {
     b2c: [
@@ -2583,6 +2622,16 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     tourMode = mode;
     inTour = true;
     tourStepIndex = 0;
+    // Open chat window to show tour progress
+    if(!isOpen){
+      isOpen = true;
+      win.classList.add('visible');
+      fab.classList.add('open');
+      if(!hasGreeted){
+        hasGreeted = true;
+        updateLabels();
+      }
+    }
     addMessage(t('tourStarting'), 'bot');
 
     // Create overlay
@@ -2634,6 +2683,9 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     if(tourOverlay){ tourOverlay.classList.remove('active'); setTimeout(function(){ if(tourOverlay && tourOverlay.parentNode) tourOverlay.parentNode.removeChild(tourOverlay); tourOverlay = null; }, 500); }
     // End voice call too if active
     if(inVoiceCall) endVoiceCall();
+    // Show tour fab button again
+    var tf = document.getElementById('tourFab');
+    if(tf) tf.classList.remove('hidden');
     showSuggestions();
   }
 
@@ -2971,8 +3023,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       updateLabels();
       fetch('/api/assistant/welcome?lang=' + getLang())
         .then(function(r){ return r.json(); })
-        .then(function(data){ addMessage(data.message, 'bot'); showTourChoice(); })
-        .catch(function(){ addMessage('Hi! I am the Touch? assistant.', 'bot'); showTourChoice(); });
+        .then(function(data){ addMessage(data.message, 'bot'); showSuggestions(); })
+        .catch(function(){ addMessage('Hi! I am the Touch? assistant.', 'bot'); showSuggestions(); });
     }
     if(isOpen) input.focus();
   });
@@ -2990,6 +3042,108 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   });
   sendBtn.addEventListener('click', function(){ sendTextMessage(input.value); });
 
+})();
+
+// ============================================================
+// FLOATING TOUR BUTTON + MODAL
+// ============================================================
+(function(){
+  var tourFab = document.getElementById('tourFab');
+  var tourFabText = document.getElementById('tourFabText');
+  var overlay = document.getElementById('tourModalOverlay');
+  var modalTitle = document.getElementById('tourModalTitle');
+  var modalSub = document.getElementById('tourModalSub');
+  var btnB2C = document.getElementById('tourBtnB2C');
+  var btnB2B = document.getElementById('tourBtnB2B');
+  var b2cTitle = document.getElementById('tourB2CTitle');
+  var b2cSub = document.getElementById('tourB2CSub');
+  var b2bTitle = document.getElementById('tourB2BTitle');
+  var b2bSub = document.getElementById('tourB2BSub');
+  var modalClose = document.getElementById('tourModalClose');
+
+  var tourI18n = {
+    en: { fab: 'Guided Tour', title: 'Choose your experience', sub: 'A guided walkthrough of the entire site, narrated step by step', b2cH: 'I am a person', b2cP: 'Connections, tipping, social life', b2bH: 'I have a business', b2bP: 'Modules, dashboard, whitelabel site', close: 'Maybe later' },
+    pt: { fab: 'Tour Guiado', title: 'Escolha sua experiencia', sub: 'Uma apresentacao guiada pelo site inteiro, passo a passo', b2cH: 'Sou uma pessoa', b2cP: 'Conexoes, gorjetas, vida social', b2bH: 'Tenho um estabelecimento', b2bP: 'Modulos, painel, site whitelabel', close: 'Depois' },
+    es: { fab: 'Tour Guiado', title: 'Elige tu experiencia', sub: 'Un recorrido guiado por todo el sitio, paso a paso', b2cH: 'Soy una persona', b2cP: 'Conexiones, propinas, vida social', b2bH: 'Tengo un negocio', b2bP: 'Modulos, panel, sitio whitelabel', close: 'Despues' }
+  };
+
+  function tt(key){
+    var lang = window.currentLang || 'en';
+    return (tourI18n[lang] || tourI18n.en)[key] || tourI18n.en[key] || '';
+  }
+
+  function updateTourLabels(){
+    tourFabText.textContent = tt('fab');
+    modalTitle.textContent = tt('title');
+    modalSub.textContent = tt('sub');
+    b2cTitle.textContent = tt('b2cH');
+    b2cSub.textContent = tt('b2cP');
+    b2bTitle.textContent = tt('b2bH');
+    b2bSub.textContent = tt('b2bP');
+    modalClose.textContent = tt('close');
+  }
+  updateTourLabels();
+
+  // Update labels when language changes
+  var origSetLang = window._taSetLang;
+  window._taSetLang = function(lang){
+    if(origSetLang) origSetLang(lang);
+    updateTourLabels();
+  };
+
+  // Open modal
+  tourFab.addEventListener('click', function(){
+    updateTourLabels();
+    overlay.classList.add('active');
+  });
+
+  // Close modal
+  modalClose.addEventListener('click', function(){
+    overlay.classList.remove('active');
+  });
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) overlay.classList.remove('active');
+  });
+
+  // Start B2C tour
+  btnB2C.addEventListener('click', function(){
+    overlay.classList.remove('active');
+    tourFab.classList.add('hidden');
+    if(window._taStartTour) window._taStartTour('b2c');
+  });
+
+  // Start B2B tour
+  btnB2B.addEventListener('click', function(){
+    overlay.classList.remove('active');
+    tourFab.classList.add('hidden');
+    if(window._taStartTour) window._taStartTour('b2b');
+  });
+
+  // Show tour button again when tour ends (check periodically)
+  setInterval(function(){
+    if(tourFab.classList.contains('hidden') && window._taInTour && !window._taInTour()){
+      tourFab.classList.remove('hidden');
+    }
+  }, 2000);
+
+  // Hide tour button when chat is fullscreen on mobile
+  var chatFab = document.getElementById('taFab');
+  var chatWin = document.getElementById('taWin');
+  var resizeCheck = function(){
+    if(window.innerWidth <= 480 && chatWin.classList.contains('visible')){
+      tourFab.style.display = 'none';
+    } else {
+      tourFab.style.display = '';
+    }
+  };
+  if(chatFab){
+    chatFab.addEventListener('click', function(){ setTimeout(resizeCheck, 50); });
+  }
+  var taClose = document.getElementById('taClose');
+  if(taClose){
+    taClose.addEventListener('click', function(){ setTimeout(function(){ tourFab.style.display = ''; }, 50); });
+  }
+  window.addEventListener('resize', resizeCheck);
 })();
 </script>
 
