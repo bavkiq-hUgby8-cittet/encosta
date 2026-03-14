@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kit de Materiais - Touch?</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050508;
+      --card: #0a0a12;
+      --orange: #ff6b35;
+      --t1: #f0f0f5;
+      --t2: #a0a0b8;
+      --border: #1a1a2e;
+      --hover: #141420;
+      --success: #10b981;
+      --error: #ef4444;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--bg);
+      color: var(--t1);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .back-btn {
+      background: none;
+      border: none;
+      color: var(--orange);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .back-btn:hover {
+      background-color: var(--card);
+    }
+
+    .header-content h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--t1);
+    }
+
+    .header-content p {
+      font-size: 13px;
+      color: var(--t2);
+      margin-top: 4px;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 12px;
+    }
+
+    .lang-btn {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      color: var(--t2);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .lang-btn.active {
+      background-color: var(--orange);
+      color: white;
+      border-color: var(--orange);
+    }
+
+    .lang-btn:hover:not(.active) {
+      border-color: var(--orange);
+      color: var(--t1);
+    }
+
+    .section {
+      margin-bottom: 60px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--t1);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background-color: var(--orange);
+      border-radius: 2px;
+    }
+
+    .qr-card {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 500px;
+    }
+
+    .qr-preview {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+    }
+
+    .qr-preview img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .qr-url {
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 24px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: var(--orange);
+      word-break: break-all;
+      text-align: center;
+    }
+
+    .download-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background-color: var(--orange);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background-color: #ff5a1f;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(255, 107, 53, 0.3);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background-color: var(--card);
+      color: var(--t1);
+      border: 1px solid var(--border);
+      width: 100%;
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--hover);
+      border-color: var(--orange);
+    }
+
+    .btn.loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .audio-card {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 600px;
+    }
+
+    .audio-instructions {
+      background-color: var(--bg);
+      border-left: 4px solid var(--orange);
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .audio-instructions ol {
+      margin-left: 20px;
+      color: var(--t2);
+      font-size: 14px;
+    }
+
+    .audio-instructions li {
+      margin-bottom: 8px;
+    }
+
+    .audio-instructions strong {
+      color: var(--t1);
+    }
+
+    .audio-note {
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 13px;
+      color: var(--t2);
+      margin-top: 16px;
+    }
+
+    .templates-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .templates-header .btn-primary {
+      width: auto;
+    }
+
+    .templates-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .template-card {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+
+    .template-card:hover {
+      border-color: var(--orange);
+      box-shadow: 0 8px 24px rgba(255, 107, 53, 0.1);
+      transform: translateY(-4px);
+    }
+
+    .template-thumbnail {
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, var(--bg) 0%, var(--hover) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--t2);
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .template-info {
+      padding: 16px;
+    }
+
+    .template-name {
+      font-weight: 600;
+      color: var(--t1);
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .template-size {
+      font-size: 12px;
+      color: var(--t2);
+      margin-bottom: 16px;
+    }
+
+    .template-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .template-actions .btn {
+      flex: 1;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
+    .tips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .tip-card {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      border-left: 4px solid var(--orange);
+    }
+
+    .tip-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--t1);
+      margin-bottom: 8px;
+    }
+
+    .tip-card p {
+      font-size: 13px;
+      color: var(--t2);
+      line-height: 1.5;
+    }
+
+    .error-message {
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--error);
+      border-radius: 8px;
+      padding: 16px;
+      color: #fca5a5;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .success-message {
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid var(--success);
+      border-radius: 8px;
+      padding: 16px;
+      color: #86efac;
+      margin-bottom: 20px;
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      max-width: 300px;
+    }
+
+    .success-message.show {
+      display: block;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .header-left {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .header-right {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .templates-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .qr-card {
+        max-width: 100%;
+      }
+
+      .audio-card {
+        max-width: 100%;
+      }
+
+      .container {
+        padding: 16px;
+      }
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <button class="back-btn" onclick="goBack()">&larr;</button>
+        <div class="header-content">
+          <h1 data-i18n="kit_title">Kit de Impressao e Downloads</h1>
+          <p data-i18n="kit_subtitle">Materiais de marketing e impressao para seu negocio</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="lang-btn active" onclick="setLanguage('pt')" data-lang="pt">Portugu</button>
+        <button class="lang-btn" onclick="setLanguage('en')" data-lang="en">English</button>
+        <button class="lang-btn" onclick="setLanguage('es')" data-lang="es">Espaol</button>
+      </div>
+    </header>
+
+    <div class="error-message" id="errorMessage"></div>
+    <div class="success-message" id="successMessage"></div>
+
+    <!-- Section 1: QR Code -->
+    <section class="section">
+      <h2 class="section-title" data-i18n="qr_title">QR Code do Seu Negocio</h2>
+      <div class="qr-card">
+        <div class="qr-preview" id="qrPreview">
+          <div style="text-align: center; color: var(--t2);">
+            <div class="loading-spinner"></div>
+            <p style="margin-top: 12px;" data-i18n="loading">Carregando...</p>
+          </div>
+        </div>
+        <div class="qr-url" id="qrUrl">touch-irl.com/e/...</div>
+        <div class="download-group">
+          <button class="btn btn-primary" onclick="downloadQR('1024')" data-i18n="qr_download_1024">PNG Alta Resolucao (1024px)</button>
+          <button class="btn btn-primary" onclick="downloadQR('2048')" data-i18n="qr_download_2048">PNG Extra HD (2048px)</button>
+          <button class="btn btn-secondary" onclick="downloadQR('svg')" data-i18n="qr_download_svg">SVG Vetorial</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Audio -->
+    <section class="section">
+      <h2 class="section-title" data-i18n="audio_title">Audio Ultrassonico</h2>
+      <div class="audio-card">
+        <p style="color: var(--t2); margin-bottom: 20px;" data-i18n="audio_description">
+          Baixe o audio ultrassonico do seu estabelecimento para tocar em qualquer caixa de som. O som nao sera audivel para humanos, mas clientes com Touch aberto nas proximidades farao check-in automaticamente.
+        </p>
+        <div class="audio-instructions">
+          <strong data-i18n="audio_steps">Como usar:</strong>
+          <ol>
+            <li data-i18n="audio_step1">Baixe o arquivo MP3</li>
+            <li data-i18n="audio_step2">Coloque em qualquer caixa de som</li>
+            <li data-i18n="audio_step3">Toque em loop na entrada do seu estabelecimento</li>
+          </ol>
+        </div>
+        <button class="btn btn-primary" onclick="downloadAudio()" id="audioBtn" data-i18n="audio_download">Baixar Audio MP3</button>
+        <div class="audio-note" data-i18n="audio_note">
+          O som e inaudivel. Clientes com Touch? aberto fazem check-in automaticamente.
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Templates -->
+    <section class="section">
+      <div class="templates-header">
+        <h2 class="section-title" style="margin-bottom: 0;" data-i18n="templates_title">Materiais para Impressao</h2>
+        <button class="btn btn-primary" onclick="downloadCompleteKit()" id="downloadKitBtn" data-i18n="templates_download_all">Baixar Kit Completo</button>
+      </div>
+      <div class="templates-grid" id="templatesGrid">
+        <div style="grid-column: 1/-1; text-align: center; color: var(--t2);">
+          <div class="loading-spinner"></div>
+          <p style="margin-top: 12px;" data-i18n="loading">Carregando templates...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Tips -->
+    <section class="section">
+      <h2 class="section-title" data-i18n="tips_title">Dicas de Impressao</h2>
+      <div class="tips-grid">
+        <div class="tip-card">
+          <h3 data-i18n="tip1_title">Papel para Tent Cards</h3>
+          <p data-i18n="tip1_text">Use papel couce 300g para tent cards e cartoes para um acabamento profissional</p>
+        </div>
+        <div class="tip-card">
+          <h3 data-i18n="tip2_title">Banners em Lona</h3>
+          <p data-i18n="tip2_text">Para banners, procure uma grafica local com impressao em lona para maior durabilidade</p>
+        </div>
+        <div class="tip-card">
+          <h3 data-i18n="tip3_title">Adesivos Vinil</h3>
+          <p data-i18n="tip3_text">Adesivos: use vinil adesivo para maior durabilidade em ambientes externos</p>
+        </div>
+        <div class="tip-card">
+          <h3 data-i18n="tip4_title">Resolucao Minima</h3>
+          <p data-i18n="tip4_text">Sempre use resolucao minima de 300 DPI para garantir qualidade profissional na impressao</p>
+        </div>
+        <div class="tip-card">
+          <h3 data-i18n="tip5_title">Cores Vibrantes</h3>
+          <p data-i18n="tip5_text">Para cores mais vibrantes, solicite impressao em CMYK em vez de RGB</p>
+        </div>
+        <div class="tip-card">
+          <h3 data-i18n="tip6_title">Margem de Seguranca</h3>
+          <p data-i18n="tip6_text">Deixe pelo menos 5mm de margem em todos os lados para evitar cortes desalinhados</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const translations = {
+      pt: {
+        kit_title: 'Kit de Impressao e Downloads',
+        kit_subtitle: 'Materiais de marketing e impressao para seu negocio',
+        qr_title: 'QR Code do Seu Negocio',
+        qr_download_1024: 'PNG Alta Resolucao (1024px)',
+        qr_download_2048: 'PNG Extra HD (2048px)',
+        qr_download_svg: 'SVG Vetorial',
+        audio_title: 'Audio Ultrassonico',
+        audio_description: 'Baixe o audio ultrassonico do seu estabelecimento para tocar em qualquer caixa de som. O som nao sera audivel para humanos, mas clientes com Touch? aberto nas proximidades farao check-in automaticamente.',
+        audio_steps: 'Como usar:',
+        audio_step1: 'Baixe o arquivo MP3',
+        audio_step2: 'Coloque em qualquer caixa de som',
+        audio_step3: 'Toque em loop na entrada do seu estabelecimento',
+        audio_download: 'Baixar Audio MP3',
+        audio_note: 'O som e inaudivel. Clientes com Touch? aberto fazem check-in automaticamente.',
+        templates_title: 'Materiais para Impressao',
+        templates_download_all: 'Baixar Kit Completo',
+        templates_download_with_qr: 'Baixar com meu QR Code',
+        tips_title: 'Dicas de Impressao',
+        tip1_title: 'Papel para Tent Cards',
+        tip1_text: 'Use papel couce 300g para tent cards e cartoes para um acabamento profissional',
+        tip2_title: 'Banners em Lona',
+        tip2_text: 'Para banners, procure uma grafica local com impressao em lona para maior durabilidade',
+        tip3_title: 'Adesivos Vinil',
+        tip3_text: 'Adesivos: use vinil adesivo para maior durabilidade em ambientes externos',
+        tip4_title: 'Resolucao Minima',
+        tip4_text: 'Sempre use resolucao minima de 300 DPI para garantir qualidade profissional na impressao',
+        tip5_title: 'Cores Vibrantes',
+        tip5_text: 'Para cores mais vibrantes, solicite impressao em CMYK em vez de RGB',
+        tip6_title: 'Margem de Seguranca',
+        tip6_text: 'Deixe pelo menos 5mm de margem em todos os lados para evitar cortes desalinhados',
+        loading: 'Carregando...',
+        error_auth: 'Autenticacao falhou. Por favor, volte para o painel do operador.',
+        error_qr: 'Erro ao carregar QR Code',
+        error_templates: 'Erro ao carregar templates',
+        error_download: 'Erro ao baixar arquivo',
+        success_download: 'Arquivo baixado com sucesso!',
+      },
+      en: {
+        kit_title: 'Print Kit & Downloads',
+        kit_subtitle: 'Marketing and printing materials for your business',
+        qr_title: 'Your Business QR Code',
+        qr_download_1024: 'High Resolution PNG (1024px)',
+        qr_download_2048: 'Extra HD PNG (2048px)',
+        qr_download_svg: 'Vector SVG',
+        audio_title: 'Ultrasonic Audio',
+        audio_description: 'Download the ultrasonic audio for your establishment to play on any speaker. The sound will be inaudible to humans, but customers with Touch? open nearby will check in automatically.',
+        audio_steps: 'How to use:',
+        audio_step1: 'Download the MP3 file',
+        audio_step2: 'Put it on any speaker',
+        audio_step3: 'Play on loop at your establishment entrance',
+        audio_download: 'Download Audio MP3',
+        audio_note: 'The sound is inaudible. Customers with Touch? open will check in automatically.',
+        templates_title: 'Printing Materials',
+        templates_download_all: 'Download Complete Kit',
+        templates_download_with_qr: 'Download with my QR Code',
+        tips_title: 'Printing Tips',
+        tip1_title: 'Paper for Tent Cards',
+        tip1_text: 'Use 300g couche paper for tent cards and business cards for professional finish',
+        tip2_title: 'Canvas Banners',
+        tip2_text: 'For banners, find a local print shop with canvas printing for durability',
+        tip3_title: 'Vinyl Stickers',
+        tip3_text: 'Use vinyl adhesive stickers for greater durability in outdoor environments',
+        tip4_title: 'Minimum Resolution',
+        tip4_text: 'Always use minimum resolution of 300 DPI to ensure professional print quality',
+        tip5_title: 'Vibrant Colors',
+        tip5_text: 'For vibrant colors, request CMYK printing instead of RGB',
+        tip6_title: 'Safety Margin',
+        tip6_text: 'Leave at least 5mm margin on all sides to avoid misaligned cuts',
+        loading: 'Loading...',
+        error_auth: 'Authentication failed. Please go back to the operator panel.',
+        error_qr: 'Error loading QR Code',
+        error_templates: 'Error loading templates',
+        error_download: 'Error downloading file',
+        success_download: 'File downloaded successfully!',
+      },
+      es: {
+        kit_title: 'Kit de Impresion y Descargas',
+        kit_subtitle: 'Materiales de marketing e impresion para su negocio',
+        qr_title: 'Codigo QR de su Negocio',
+        qr_download_1024: 'PNG de Alta Resolucion (1024px)',
+        qr_download_2048: 'PNG Extra HD (2048px)',
+        qr_download_svg: 'SVG Vectorial',
+        audio_title: 'Audio Ultrasonica',
+        audio_description: 'Descargue el audio ultrasonica de su establecimiento para reproducir en cualquier altavoz. El sonido sera inaudible para los humanos, pero los clientes con Touch? abierto se registraran automaticamente.',
+        audio_steps: 'Como usar:',
+        audio_step1: 'Descargue el archivo MP3',
+        audio_step2: 'Pongalo en cualquier altavoz',
+        audio_step3: 'Reproduzca en bucle en la entrada de su establecimiento',
+        audio_download: 'Descargar Audio MP3',
+        audio_note: 'El sonido es inaudible. Los clientes con Touch? abierto se registraran automaticamente.',
+        templates_title: 'Materiales de Impresion',
+        templates_download_all: 'Descargar Kit Completo',
+        templates_download_with_qr: 'Descargar con mi codigo QR',
+        tips_title: 'Consejos de Impresion',
+        tip1_title: 'Papel para Tarjetas de Mesa',
+        tip1_text: 'Use papel couche de 300g para tarjetas de mesa y tarjetas de visita para acabado profesional',
+        tip2_title: 'Banners en Lona',
+        tip2_text: 'Para banners, busque una imprenta local con impresion en lona para mayor durabilidad',
+        tip3_title: 'Pegatinas de Vinilo',
+        tip3_text: 'Use pegatinas de vinilo adhesivo para mayor durabilidad en ambientes externos',
+        tip4_title: 'Resolucion Minima',
+        tip4_text: 'Siempre use resolucion minima de 300 DPI para garantizar calidad profesional en la impresion',
+        tip5_title: 'Colores Vibrates',
+        tip5_text: 'Para colores mas vibrantes, solicite impresion en CMYK en lugar de RGB',
+        tip6_title: 'Margen de Seguridad',
+        tip6_text: 'Deje al menos 5mm de margen en todos los lados para evitar cortes desalineados',
+        loading: 'Cargando...',
+        error_auth: 'Autenticacion fallida. Por favor, vuelva al panel del operador.',
+        error_qr: 'Error al cargar el codigo QR',
+        error_templates: 'Error al cargar plantillas',
+        error_download: 'Error al descargar archivo',
+        success_download: 'Archivo descargado exitosamente!',
+      }
+    };
+
+    let currentLang = localStorage.getItem('touch_lang') || 'pt';
+    let opId = null;
+    let currentEventId = null;
+    let templates = [];
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('touch_lang', lang);
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang] && translations[lang][key]) {
+          el.textContent = translations[lang][key];
+        }
+      });
+
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-lang') === lang) {
+          btn.classList.add('active');
+        }
+      });
+
+      renderTemplates();
+    }
+
+    function goBack() {
+      window.location.href = '/operator.html';
+    }
+
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
+      setTimeout(() => {
+        errorEl.classList.remove('show');
+      }, 5000);
+    }
+
+    function showSuccess(message) {
+      const successEl = document.getElementById('successMessage');
+      successEl.textContent = message;
+      successEl.classList.add('show');
+      setTimeout(() => {
+        successEl.classList.remove('show');
+      }, 3000);
+    }
+
+    function checkAuthentication() {
+      opId = localStorage.getItem('opId');
+      currentEventId = localStorage.getItem('currentEventId');
+
+      if (!opId || !currentEventId) {
+        showError(translations[currentLang].error_auth);
+        setTimeout(() => {
+          window.location.href = '/operator.html';
+        }, 2000);
+        return false;
+      }
+      return true;
+    }
+
+    async function loadQRCode() {
+      try {
+        const response = await fetch(`/api/operator/materials/qrcode/${currentEventId}?size=1024`);
+        if (!response.ok) throw new Error('QR load failed');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+
+        const preview = document.getElementById('qrPreview');
+        preview.innerHTML = '';
+        preview.appendChild(img);
+
+        const eventSlug = localStorage.getItem('currentEventSlug') || 'event';
+        document.getElementById('qrUrl').textContent = `touch-irl.com/e/${eventSlug}`;
+      } catch (error) {
+        console.error('QR Code load error:', error);
+        showError(translations[currentLang].error_qr);
+      }
+    }
+
+    async function downloadQR(size) {
+      const btn = event.target;
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/operator/materials/qrcode/${currentEventId}?size=${size}`);
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `qrcode_${size}.${size === 'svg' ? 'svg' : 'png'}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess(translations[currentLang].success_download);
+      } catch (error) {
+        console.error('QR download error:', error);
+        showError(translations[currentLang].error_download);
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    }
+
+    async function downloadAudio() {
+      const btn = document.getElementById('audioBtn');
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/operator/materials/download-audio/${currentEventId}`);
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ultrasonic_audio.mp3';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess(translations[currentLang].success_download);
+      } catch (error) {
+        console.error('Audio download error:', error);
+        showError(translations[currentLang].error_download);
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const response = await fetch(`/api/operator/materials/templates/${currentEventId}`);
+        if (!response.ok) throw new Error('Templates load failed');
+
+        templates = await response.json();
+        renderTemplates();
+      } catch (error) {
+        console.error('Templates load error:', error);
+        showError(translations[currentLang].error_templates);
+      }
+    }
+
+    function renderTemplates() {
+      const grid = document.getElementById('templatesGrid');
+
+      if (templates.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--t2);">
+          <p data-i18n="loading">${translations[currentLang].loading}</p>
+        </div>`;
+        return;
+      }
+
+      grid.innerHTML = templates.map(template => `
+        <div class="template-card">
+          <div class="template-thumbnail">
+            ${template.thumbnailUrl ? `<img src="${template.thumbnailUrl}" style="width: 100%; height: 100%; object-fit: cover;">` : template.name}
+          </div>
+          <div class="template-info">
+            <div class="template-name">${template.name}</div>
+            <div class="template-size">${template.size}</div>
+            <div class="template-actions">
+              <button class="btn btn-primary" onclick="downloadTemplate('${template.id}')" style="flex: 1;">
+                ${translations[currentLang].templates_download_with_qr}
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function downloadTemplate(templateId) {
+      const btn = event.target;
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/operator/materials/download/${currentEventId}/${templateId}`);
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const template = templates.find(t => t.id === templateId);
+        a.download = `${template.name.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess(translations[currentLang].success_download);
+      } catch (error) {
+        console.error('Template download error:', error);
+        showError(translations[currentLang].error_download);
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    }
+
+    async function downloadCompleteKit() {
+      const btn = document.getElementById('downloadKitBtn');
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/operator/materials/download-kit/${currentEventId}`);
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'touch_materials_kit.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess(translations[currentLang].success_download);
+      } catch (error) {
+        console.error('Kit download error:', error);
+        showError(translations[currentLang].error_download);
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!checkAuthentication()) return;
+
+      setLanguage(currentLang);
+      loadQRCode();
+      loadTemplates();
+    });
+  </script>
+</body>
+</html>

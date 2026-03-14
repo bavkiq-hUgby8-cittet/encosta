@@ -10,6 +10,8 @@ const admin = require('firebase-admin');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
+const QRCode = require('qrcode');
+const sharp = require('sharp');
 
 // ── Crash protection: prevent server from dying on unhandled errors ──
 process.on('uncaughtException', (err) => {
@@ -20579,6 +20581,300 @@ var DRONE_SHOW_LIBRARY = {
     ]
   }
 };
+
+// ══════════════════════════════════════════════════════════════
+// Marketing Materials API Routes
+// ══════════════════════════════════════════════════════════════
+
+// Route 1: GET /api/operator/materials/qrcode/:eventId
+app.get('/api/operator/materials/qrcode/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { size = 1024, format = 'png' } = req.query;
+    const parsedSize = Math.min(Math.max(parseInt(size) || 1024, 256), 2048);
+
+    if (!db || !db.operatorEvents) {
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+
+    const event = db.operatorEvents[eventId];
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const slug = event.slug || eventId;
+    const url = `https://touch-irl.com/e/${slug}`;
+
+    if (format === 'svg') {
+      const qrSvg = await QRCode.toString(url, { type: 'image/svg+xml', width: parsedSize });
+      res.setHeader('Content-Type', 'image/svg+xml');
+      return res.send(qrSvg);
+    }
+
+    const qrPng = await QRCode.toBuffer(url, {
+      type: 'png',
+      width: parsedSize,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' }
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(qrPng);
+  } catch (error) {
+    console.error('QR code generation error:', error.message);
+    res.status(500).json({ error: 'Failed to generate QR code' });
+  }
+});
+
+// Route 2: GET /api/operator/materials/templates
+app.get('/api/operator/materials/templates', (req, res) => {
+  const templates = [
+    {
+      id: 'banner-rollup',
+      name: 'Banner Roll-up',
+      nameEn: 'Roll-up Banner',
+      description: 'Banner vertical 80x200cm para entrada',
+      descriptionEn: 'Vertical banner 80x200cm for entrance',
+      file: 'banner-rollup.png',
+      printSize: '80x200cm',
+      category: 'entrance'
+    },
+    {
+      id: 'tent-card-mesa',
+      name: 'Tent Card Mesa',
+      nameEn: 'Table Tent Card',
+      description: 'Cartao triangular 10x15cm para mesas',
+      descriptionEn: 'Triangular card 10x15cm for tables',
+      file: 'tent-card-mesa.png',
+      printSize: '10x15cm',
+      category: 'table'
+    },
+    {
+      id: 'poster-a3-horizontal',
+      name: 'Poster A3',
+      nameEn: 'A3 Poster',
+      description: 'Poster horizontal 42x30cm para parede',
+      descriptionEn: 'Horizontal poster 42x30cm for wall',
+      file: 'poster-a3-horizontal.png',
+      printSize: '42x30cm',
+      category: 'wall'
+    },
+    {
+      id: 'adesivo-circular',
+      name: 'Adesivo Circular',
+      nameEn: 'Round Sticker',
+      description: 'Adesivo redondo 8cm para superficies',
+      descriptionEn: 'Round sticker 8cm for surfaces',
+      file: 'adesivo-circular.png',
+      printSize: '8cm',
+      category: 'sticker'
+    },
+    {
+      id: 'adesivo-vitrine',
+      name: 'Adesivo de Vitrine',
+      nameEn: 'Window Decal',
+      description: 'Adesivo 20x20cm para vidro/porta',
+      descriptionEn: 'Decal 20x20cm for glass door',
+      file: 'adesivo-vitrine.png',
+      printSize: '20x20cm',
+      category: 'window'
+    },
+    {
+      id: 'placa-parede',
+      name: 'Placa de Parede',
+      nameEn: 'Wall Sign',
+      description: 'Placa rigida 20x30cm para parede',
+      descriptionEn: 'Rigid sign 20x30cm for wall',
+      file: 'placa-parede.png',
+      printSize: '20x30cm',
+      category: 'wall'
+    },
+    {
+      id: 'cartao-visita',
+      name: 'Cartao de Visita',
+      nameEn: 'Business Card',
+      description: 'Cartao 8.5x5.5cm frente e verso',
+      descriptionEn: 'Card 8.5x5.5cm front and back',
+      file: 'cartao-visita.png',
+      printSize: '8.5x5.5cm',
+      category: 'card'
+    },
+    {
+      id: 'display-balcao',
+      name: 'Display de Balcao',
+      nameEn: 'Counter Display',
+      description: 'Display A5 para balcao/recepcao',
+      descriptionEn: 'A5 display for counter/reception',
+      file: 'display-balcao.png',
+      printSize: 'A5',
+      category: 'counter'
+    },
+    {
+      id: 'display-balcao-v2',
+      name: 'Display de Balcao v2',
+      nameEn: 'Counter Display v2',
+      description: 'Display alternativo com icones',
+      descriptionEn: 'Alternative display with icons',
+      file: 'display-balcao-v2.png',
+      printSize: 'A5',
+      category: 'counter'
+    }
+  ];
+
+  res.json(templates);
+});
+
+// Route 3: GET /api/operator/materials/download/:eventId/:templateId
+app.get('/api/operator/materials/download/:eventId/:templateId', async (req, res) => {
+  try {
+    const { eventId, templateId } = req.params;
+    const userId = req.query.userId;
+
+    if (!db || !db.operatorEvents) {
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+
+    const event = db.operatorEvents[eventId];
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (userId && event.creatorId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const templatePath = path.join(__dirname, 'public', 'img', 'material-templates', `${templateId}.png`);
+
+    if (!fs.existsSync(templatePath)) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const slug = event.slug || eventId;
+    const url = `https://touch-irl.com/e/${slug}`;
+
+    const qrBuffer = await QRCode.toBuffer(url, {
+      type: 'png',
+      width: 512,
+      margin: 0,
+      color: { dark: '#ffffff', light: '#00000000' }
+    });
+
+    const templateImage = sharp(templatePath);
+    const metadata = await templateImage.metadata();
+
+    const templateWidth = metadata.width || 1000;
+    const templateHeight = metadata.height || 1000;
+
+    // Per-template QR positioning (x%, y%, size% of width)
+    // Each template has the QR placeholder in a different spot
+    const qrPositions = {
+      'banner-rollup': { xPct: 0.50, yPct: 0.38, sizePct: 0.45 },
+      'tent-card-mesa': { xPct: 0.50, yPct: 0.48, sizePct: 0.45 },
+      'poster-a3-horizontal': { xPct: 0.78, yPct: 0.45, sizePct: 0.22 },
+      'adesivo-circular': { xPct: 0.165, yPct: 0.50, sizePct: 0.22 },
+      'adesivo-vitrine': { xPct: 0.30, yPct: 0.48, sizePct: 0.25 },
+      'placa-parede': { xPct: 0.35, yPct: 0.48, sizePct: 0.30 },
+      'cartao-visita': { xPct: 0.36, yPct: 0.50, sizePct: 0.16 },
+      'display-balcao': { xPct: 0.265, yPct: 0.48, sizePct: 0.24 },
+      'display-balcao-v2': { xPct: 0.265, yPct: 0.48, sizePct: 0.24 }
+    };
+
+    const pos = qrPositions[templateId] || { xPct: 0.50, yPct: 0.50, sizePct: 0.30 };
+    const qrSize = Math.round(templateWidth * pos.sizePct);
+    const qrX = Math.round(templateWidth * pos.xPct - qrSize / 2);
+    const qrY = Math.round(templateHeight * pos.yPct - qrSize / 2);
+
+    const resizedQr = await sharp(qrBuffer).resize(qrSize, qrSize, { fit: 'contain' }).png().toBuffer();
+
+    const finalImage = await templateImage
+      .composite([{ input: resizedQr, left: qrX, top: qrY }])
+      .png({ quality: 95, progressive: true })
+      .toBuffer();
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${templateId}-${eventId}.png"`);
+    res.send(finalImage);
+  } catch (error) {
+    console.error('Material download error:', error.message);
+    res.status(500).json({ error: 'Failed to generate material' });
+  }
+});
+
+// Route 4: GET /api/operator/materials/download-audio/:eventId
+app.get('/api/operator/materials/download-audio/:eventId', (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!db || !db.operatorEvents) {
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+
+    const event = db.operatorEvents[eventId];
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const slug = event.slug || eventId;
+
+    res.json({
+      message: 'Audio generation coming soon',
+      eventId,
+      url: `https://touch-irl.com/e/${slug}`
+    });
+  } catch (error) {
+    console.error('Audio download error:', error.message);
+    res.status(500).json({ error: 'Failed to retrieve audio' });
+  }
+});
+
+// Route 5: GET /api/operator/materials/kit/:eventId
+app.get('/api/operator/materials/kit/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.query.userId;
+
+    if (!db || !db.operatorEvents) {
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+
+    const event = db.operatorEvents[eventId];
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (userId && event.creatorId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const templates = [
+      'banner-rollup',
+      'tent-card-mesa',
+      'poster-a3-horizontal',
+      'adesivo-circular',
+      'adesivo-vitrine',
+      'placa-parede',
+      'cartao-visita',
+      'display-balcao',
+      'display-balcao-v2'
+    ];
+
+    const downloadLinks = templates.map(templateId => ({
+      templateId,
+      downloadUrl: `/api/operator/materials/download/${eventId}/${templateId}?userId=${userId || 'public'}`
+    }));
+
+    res.json({
+      eventId,
+      eventName: event.name,
+      totalTemplates: templates.length,
+      downloads: downloadLinks
+    });
+  } catch (error) {
+    console.error('Material kit error:', error.message);
+    res.status(500).json({ error: 'Failed to retrieve material kit' });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 
