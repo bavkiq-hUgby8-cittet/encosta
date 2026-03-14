@@ -2822,6 +2822,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
         <div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--ac)" id="bpScore">0</div><div style="font-size:.45rem;color:var(--t3);letter-spacing:.06em">moedas</div></div>
       </div>
       <div style="margin-top:.2rem"><span id="bpTag" style="font-size:.55rem;font-weight:700;color:#ffd700;background:rgba(255,215,0,.08);padding:.12rem .45rem;border-radius:8px">—</span></div>
+      <div id="bpFlags" style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;margin-top:.3rem;max-width:220px;margin-left:auto;margin-right:auto"></div>
     </div>
     <div class="bp-footer">TUDO NASCE NO GESTO</div>
   </div>
@@ -6583,6 +6584,7 @@ async function refreshHome(){
       if(mp.email)state.email=mp.email;
       if(mp.cpf)state.userCpf=mp.cpf;
       state.userGiftsReceived=mp.giftsReceived||0;
+      state.userCountriesCollected=mp.countriesCollected||[];
       const rnEl=$('homeRealName');
       if(rnEl){rnEl.textContent=mp.realName&&mp.realName!==state.userName?mp.realName:''}
       // Check for pending stars that need donation
@@ -16538,6 +16540,13 @@ async function showBoardingPass(){
     $('bpStars').textContent=d.stars;
     $('bpPeople').textContent=d.uniquePeople;
     $('bpLikes').textContent=d.likesCount||0;
+    var bpFlagsEl=$('bpFlags');
+    if(bpFlagsEl){
+      var cc=state.userCountriesCollected||[];
+      if(cc.length>0){
+        bpFlagsEl.innerHTML=cc.map(function(code){return '<span style="font-size:.75rem" title="'+code+'">'+(COUNTRY_FLAGS[code]||code)+'</span>';}).join('');
+      } else { bpFlagsEl.innerHTML=''; }
+    }
     const tagEl=$('bpTag');if(tagEl)tagEl.textContent=d.topTag?d.topTag.replace('top','TOP '):'—';
     const bpvb=$('bpVerifiedBadge');if(bpvb){if(state.userVerified)bpvb.classList.remove('hidden');else bpvb.classList.add('hidden')}
     await loadTouchLink();
@@ -16764,7 +16773,19 @@ function showMyProfileSheet(){
     +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#60a5fa">'+(state.userScore||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.score_label')+'</div></div>'
     +'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:var(--t1)">'+(state.userUniqueConnections||0)+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.connections_label')+'</div></div>'
     +(state.userGiftsReceived>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#f472b6">'+state.userGiftsReceived+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.gifts_label')+'</div></div>':'')
+    +((state.userCountriesCollected||[]).length>0?'<div style="text-align:center"><div style="font-size:.85rem;font-weight:800;color:#34d399">'+(state.userCountriesCollected||[]).length+'</div><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+t('profile.flags_collected')+'</div></div>':'')
     +'</div>'
+    // Flag collection row
+    +(function(){
+      var cc=state.userCountriesCollected||[];
+      if(cc.length===0) return '<div style="text-align:center;margin-bottom:.4rem"><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem">'+t('profile.flags_collected')+'</div><div style="font-size:.5rem;color:var(--t3);opacity:.5">'+t('profile.flags_empty')+'</div></div>';
+      var flags='';
+      cc.forEach(function(code){
+        var emoji=COUNTRY_FLAGS[code]||code;
+        flags+='<span title="'+code+'" style="font-size:.9rem;margin:1px">'+emoji+'</span>';
+      });
+      return '<div style="text-align:center;margin-bottom:.4rem"><div style="font-size:.42rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem">'+t('profile.flags_collected')+' <span style="color:var(--ac);font-weight:700">'+cc.length+'</span></div><div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:220px;margin:0 auto">'+flags+'</div></div>';
+    })()
     // Star slots in my profile
     +'<div id="myProfileStarSlots" style="margin-bottom:.4rem"></div>'
     // Menu buttons — compact
