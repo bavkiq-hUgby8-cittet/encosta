@@ -2439,5 +2439,408 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 })();
 </script>
 
+<!-- ═══ TOUCH? SITE ASSISTANT — Floating Chat Widget ═══ -->
+<style>
+/* ── Chat Bubble FAB ── */
+.ta-fab{position:fixed;bottom:24px;right:24px;z-index:9999;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#ff8c5a);border:none;cursor:pointer;box-shadow:0 4px 20px rgba(255,107,53,.45);display:flex;align-items:center;justify-content:center;transition:transform .25s,box-shadow .25s}
+.ta-fab:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(255,107,53,.6)}
+.ta-fab svg{width:28px;height:28px;fill:#fff;transition:transform .3s}
+.ta-fab.open svg{transform:rotate(90deg)}
+.ta-fab-pulse{position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(255,107,53,.5);animation:taPulse 2s ease-out infinite;pointer-events:none}
+@keyframes taPulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.4);opacity:0}}
+
+/* ── Chat Window ── */
+.ta-win{position:fixed;bottom:96px;right:24px;z-index:9998;width:380px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 140px);background:#0a0a12;border:1px solid rgba(255,107,53,.15);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(20px) scale(.95);pointer-events:none;transition:opacity .3s,transform .3s;box-shadow:0 12px 50px rgba(0,0,0,.6),0 0 0 1px rgba(255,107,53,.08)}
+.ta-win.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+
+/* ── Header ── */
+.ta-head{background:linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,60,110,.06));padding:16px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.ta-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#ff3c6e);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;color:#fff;flex-shrink:0}
+.ta-head-info{flex:1}
+.ta-head-name{font-weight:700;font-size:.9rem;color:#f0f0f5}
+.ta-head-status{font-size:.68rem;color:#34d399;display:flex;align-items:center;gap:4px}
+.ta-head-status::before{content:'';width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block}
+.ta-close{background:none;border:none;color:#a0a0b8;cursor:pointer;padding:6px;border-radius:8px;transition:.2s;font-size:1.1rem;line-height:1}
+.ta-close:hover{background:rgba(255,255,255,.06);color:#f0f0f5}
+
+/* ── Messages Area ── */
+.ta-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.ta-msgs::-webkit-scrollbar{width:4px}
+.ta-msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+
+.ta-msg{max-width:88%;padding:10px 14px;border-radius:14px;font-size:.82rem;line-height:1.55;word-wrap:break-word;white-space:pre-wrap;animation:taFadeIn .3s ease}
+@keyframes taFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ta-msg.bot{align-self:flex-start;background:rgba(255,255,255,.06);color:#e0e0ec;border-bottom-left-radius:4px}
+.ta-msg.user{align-self:flex-end;background:linear-gradient(135deg,rgba(255,107,53,.2),rgba(255,107,53,.1));color:#f0f0f5;border-bottom-right-radius:4px}
+.ta-msg.bot .ta-msg-label{font-size:.65rem;font-weight:600;color:#ff6b35;margin-bottom:3px}
+
+/* ── Typing indicator ── */
+.ta-typing{align-self:flex-start;padding:10px 18px;background:rgba(255,255,255,.06);border-radius:14px;border-bottom-left-radius:4px;display:none;gap:4px;align-items:center}
+.ta-typing.show{display:flex}
+.ta-dot{width:6px;height:6px;border-radius:50%;background:#a0a0b8;animation:taDotBounce 1.4s infinite}
+.ta-dot:nth-child(2){animation-delay:.2s}
+.ta-dot:nth-child(3){animation-delay:.4s}
+@keyframes taDotBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+/* ── Input Area ── */
+.ta-input-area{padding:12px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;align-items:center;flex-shrink:0;background:rgba(5,5,8,.5)}
+.ta-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:#f0f0f5;font-size:.82rem;font-family:inherit;outline:none;resize:none;max-height:80px;transition:border-color .2s}
+.ta-input:focus{border-color:rgba(255,107,53,.3)}
+.ta-input::placeholder{color:#606078}
+
+.ta-btn-voice,.ta-btn-send{width:38px;height:38px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;flex-shrink:0}
+.ta-btn-send{background:#ff6b35;color:#fff}
+.ta-btn-send:hover{background:#ff8c5a}
+.ta-btn-send:disabled{opacity:.4;cursor:default}
+.ta-btn-send svg{width:18px;height:18px;fill:#fff}
+.ta-btn-voice{background:rgba(255,255,255,.06);color:#a0a0b8}
+.ta-btn-voice:hover{background:rgba(255,255,255,.1);color:#f0f0f5}
+.ta-btn-voice.recording{background:rgba(255,60,110,.2);color:#ff3c6e;animation:taRecPulse 1s ease-in-out infinite}
+@keyframes taRecPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,60,110,.3)}50%{box-shadow:0 0 0 8px rgba(255,60,110,0)}}
+.ta-btn-voice svg{width:18px;height:18px;fill:currentColor}
+
+/* ── Suggestions ── */
+.ta-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}
+.ta-sug{font-size:.72rem;padding:5px 12px;border-radius:20px;background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.15);color:#ff8c5a;cursor:pointer;transition:.2s;white-space:nowrap}
+.ta-sug:hover{background:rgba(255,107,53,.15);border-color:rgba(255,107,53,.3)}
+
+/* ── Voice output indicator ── */
+.ta-speaking{display:none;align-items:center;gap:6px;padding:4px 12px;font-size:.68rem;color:#60a5fa;background:rgba(96,165,250,.08);border-radius:8px;margin:0 16px 8px}
+.ta-speaking.show{display:flex}
+.ta-speaking-bars{display:flex;gap:2px;align-items:center;height:14px}
+.ta-speaking-bars span{width:3px;background:#60a5fa;border-radius:2px;animation:taSpeakBar .8s ease-in-out infinite}
+.ta-speaking-bars span:nth-child(1){height:6px;animation-delay:0s}
+.ta-speaking-bars span:nth-child(2){height:10px;animation-delay:.15s}
+.ta-speaking-bars span:nth-child(3){height:14px;animation-delay:.3s}
+.ta-speaking-bars span:nth-child(4){height:10px;animation-delay:.45s}
+.ta-speaking-bars span:nth-child(5){height:6px;animation-delay:.6s}
+@keyframes taSpeakBar{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
+
+@media(max-width:480px){
+  .ta-win{bottom:0;right:0;width:100%;max-width:100%;height:100vh;max-height:100vh;border-radius:0}
+  .ta-fab{bottom:16px;right:16px;width:54px;height:54px}
+}
+</style>
+
+<!-- Chat FAB Button -->
+<button class="ta-fab" id="taFab" aria-label="Chat assistant">
+  <span class="ta-fab-pulse"></span>
+  <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7z"/></svg>
+</button>
+
+<!-- Chat Window -->
+<div class="ta-win" id="taWin">
+  <div class="ta-head">
+    <div class="ta-avatar">T?</div>
+    <div class="ta-head-info">
+      <div class="ta-head-name" id="taHeadName">Touch? Assistant</div>
+      <div class="ta-head-status" id="taHeadStatus">Online</div>
+    </div>
+    <button class="ta-close" id="taClose" aria-label="Close">&times;</button>
+  </div>
+  <div class="ta-msgs" id="taMsgs"></div>
+  <div class="ta-speaking" id="taSpeaking">
+    <div class="ta-speaking-bars"><span></span><span></span><span></span><span></span><span></span></div>
+    <span id="taSpeakLabel">Speaking...</span>
+  </div>
+  <div class="ta-suggestions" id="taSuggestions"></div>
+  <div class="ta-input-area">
+    <button class="ta-btn-voice" id="taVoiceBtn" aria-label="Voice input" title="Hold to speak">
+      <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+    </button>
+    <input class="ta-input" id="taInput" placeholder="Ask anything about Touch?..." maxlength="500" autocomplete="off">
+    <button class="ta-btn-send" id="taSendBtn" aria-label="Send">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+// ═══ TOUCH? ASSISTANT — Logic ═══
+(function(){
+  var fab = document.getElementById('taFab');
+  var win = document.getElementById('taWin');
+  var closeBtn = document.getElementById('taClose');
+  var msgs = document.getElementById('taMsgs');
+  var input = document.getElementById('taInput');
+  var sendBtn = document.getElementById('taSendBtn');
+  var voiceBtn = document.getElementById('taVoiceBtn');
+  var sugBox = document.getElementById('taSuggestions');
+  var speakingEl = document.getElementById('taSpeaking');
+  var speakLabel = document.getElementById('taSpeakLabel');
+  var headName = document.getElementById('taHeadName');
+  var headStatus = document.getElementById('taHeadStatus');
+
+  var isOpen = false;
+  var hasGreeted = false;
+  var currentLang = 'en';
+  var isRecording = false;
+  var isSpeaking = false;
+  var recognition = null;
+  var synth = window.speechSynthesis || null;
+
+  // Detect page language
+  var langBtns = document.querySelectorAll('.lang-btn');
+  langBtns.forEach(function(b){
+    if(b.classList.contains('active')){
+      var l = b.getAttribute('data-lang') || b.textContent.trim().toLowerCase();
+      if(l==='pt'||l==='en'||l==='es') currentLang = l;
+    }
+  });
+
+  // i18n labels
+  var i18n = {
+    pt: { name:'Assistente Touch?', status:'Online agora', placeholder:'Pergunte qualquer coisa...', speaking:'Falando...', send:'Enviar', voice:'Segurar pra falar' },
+    en: { name:'Touch? Assistant', status:'Online now', placeholder:'Ask anything about Touch?...', speaking:'Speaking...', send:'Send', voice:'Hold to speak' },
+    es: { name:'Asistente Touch?', status:'En linea ahora', placeholder:'Pregunta lo que quieras...', speaking:'Hablando...', send:'Enviar', voice:'Mantener para hablar' }
+  };
+
+  function updateLabels(){
+    var t = i18n[currentLang] || i18n.en;
+    headName.textContent = t.name;
+    headStatus.innerHTML = '<span></span> ' + t.status;
+    input.placeholder = t.placeholder;
+    speakLabel.textContent = t.speaking;
+  }
+
+  // Listen for language changes on the page
+  langBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      var l = b.getAttribute('data-lang') || b.textContent.trim().toLowerCase();
+      if(l==='pt'||l==='en'||l==='es'){
+        currentLang = l;
+        updateLabels();
+      }
+    });
+  });
+
+  // Suggestions per language
+  var suggestions = {
+    pt: ['O que e o Touch?','Tenho um food truck','Como funciona pra bar?','Quanto custa?','Como comeco?'],
+    en: ['What is Touch?','I have a food truck','How does it work for bars?','How much does it cost?','How do I start?'],
+    es: ['Que es Touch?','Tengo un food truck','Como funciona para bares?','Cuanto cuesta?','Como empiezo?']
+  };
+
+  function showSuggestions(){
+    sugBox.innerHTML = '';
+    var sugs = suggestions[currentLang] || suggestions.en;
+    sugs.forEach(function(s){
+      var btn = document.createElement('button');
+      btn.className = 'ta-sug';
+      btn.textContent = s;
+      btn.addEventListener('click', function(){ sendMessage(s); });
+      sugBox.appendChild(btn);
+    });
+  }
+
+  function addMessage(text, type){
+    var div = document.createElement('div');
+    div.className = 'ta-msg ' + type;
+    if(type === 'bot'){
+      div.innerHTML = '<div class="ta-msg-label">Touch?</div>' + escapeHtml(text).replace(/\n/g, '<br>');
+    } else {
+      div.textContent = text;
+    }
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function escapeHtml(str){
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+
+  function showTyping(){
+    var typing = document.createElement('div');
+    typing.className = 'ta-typing show';
+    typing.id = 'taTyping';
+    typing.innerHTML = '<div class="ta-dot"></div><div class="ta-dot"></div><div class="ta-dot"></div>';
+    msgs.appendChild(typing);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function hideTyping(){
+    var t = document.getElementById('taTyping');
+    if(t) t.remove();
+  }
+
+  function sendMessage(text){
+    if(!text || !text.trim()) return;
+    addMessage(text.trim(), 'user');
+    input.value = '';
+    sugBox.innerHTML = '';
+    showTyping();
+
+    fetch('/api/assistant/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text.trim(), lang: currentLang })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      hideTyping();
+      if(data.answer){
+        // Simulate slight delay for natural feel
+        setTimeout(function(){
+          addMessage(data.answer, 'bot');
+          // Auto-speak if user used voice
+          if(lastInputWasVoice && synth){
+            speakText(data.answer);
+          }
+          lastInputWasVoice = false;
+        }, 300);
+      }
+    })
+    .catch(function(){
+      hideTyping();
+      var errMsg = {pt:'Desculpa, tive um problema. Tenta de novo?', en:'Sorry, I had a problem. Try again?', es:'Disculpa, tuve un problema. Intenta de nuevo?'};
+      addMessage(errMsg[currentLang] || errMsg.en, 'bot');
+    });
+  }
+
+  var lastInputWasVoice = false;
+
+  // ── Open / Close ──
+  fab.addEventListener('click', function(){
+    isOpen = !isOpen;
+    win.classList.toggle('visible', isOpen);
+    fab.classList.toggle('open', isOpen);
+    if(isOpen && !hasGreeted){
+      hasGreeted = true;
+      updateLabels();
+      // Fetch welcome message
+      fetch('/api/assistant/welcome?lang=' + currentLang)
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          addMessage(data.message, 'bot');
+          showSuggestions();
+        })
+        .catch(function(){
+          var fallback = {
+            pt: 'Ola! Sou o assistente do Touch?. Pergunte qualquer coisa sobre a plataforma!',
+            en: 'Hi! I am the Touch? assistant. Ask me anything about the platform!',
+            es: 'Hola! Soy el asistente de Touch?. Pregunta lo que quieras sobre la plataforma!'
+          };
+          addMessage(fallback[currentLang] || fallback.en, 'bot');
+          showSuggestions();
+        });
+    }
+    if(isOpen) input.focus();
+  });
+
+  closeBtn.addEventListener('click', function(){
+    isOpen = false;
+    win.classList.remove('visible');
+    fab.classList.remove('open');
+  });
+
+  // ── Send on Enter ──
+  input.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      sendMessage(input.value);
+    }
+  });
+
+  sendBtn.addEventListener('click', function(){
+    sendMessage(input.value);
+  });
+
+  // ── Voice Input (Web Speech API) ──
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(SpeechRecognition){
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = function(event){
+      var transcript = event.results[0][0].transcript;
+      if(transcript){
+        lastInputWasVoice = true;
+        input.value = transcript;
+        sendMessage(transcript);
+      }
+    };
+    recognition.onerror = function(){
+      isRecording = false;
+      voiceBtn.classList.remove('recording');
+    };
+    recognition.onend = function(){
+      isRecording = false;
+      voiceBtn.classList.remove('recording');
+    };
+
+    voiceBtn.addEventListener('click', function(){
+      if(isRecording){
+        recognition.stop();
+        isRecording = false;
+        voiceBtn.classList.remove('recording');
+      } else {
+        // Set language for recognition
+        var langMap = {pt:'pt-BR', en:'en-US', es:'es-ES'};
+        recognition.lang = langMap[currentLang] || 'en-US';
+        recognition.start();
+        isRecording = true;
+        voiceBtn.classList.add('recording');
+      }
+    });
+  } else {
+    // Hide voice button if not supported
+    voiceBtn.style.display = 'none';
+  }
+
+  // ── Voice Output (Speech Synthesis) ──
+  function speakText(text){
+    if(!synth) return;
+    synth.cancel();
+    // Clean text: remove markdown-like formatting
+    var clean = text.replace(/[-*#]/g, '').replace(/\n{2,}/g, '. ').replace(/\n/g, '. ');
+    if(clean.length > 600) clean = clean.substring(0, 600) + '...';
+
+    var utter = new SpeechSynthesisUtterance(clean);
+    var langMap = {pt:'pt-BR', en:'en-US', es:'es-ES'};
+    utter.lang = langMap[currentLang] || 'en-US';
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+
+    utter.onstart = function(){
+      isSpeaking = true;
+      speakingEl.classList.add('show');
+    };
+    utter.onend = function(){
+      isSpeaking = false;
+      speakingEl.classList.remove('show');
+    };
+    utter.onerror = function(){
+      isSpeaking = false;
+      speakingEl.classList.remove('show');
+    };
+
+    // Try to find a good voice
+    var voices = synth.getVoices();
+    var targetLang = langMap[currentLang] || 'en-US';
+    var found = voices.find(function(v){ return v.lang === targetLang; }) ||
+                voices.find(function(v){ return v.lang.startsWith(currentLang); });
+    if(found) utter.voice = found;
+
+    synth.speak(utter);
+  }
+
+  // Click on speaking indicator to stop
+  speakingEl.addEventListener('click', function(){
+    if(synth) synth.cancel();
+    isSpeaking = false;
+    speakingEl.classList.remove('show');
+  });
+
+  // Pre-load voices
+  if(synth && synth.onvoiceschanged !== undefined){
+    synth.onvoiceschanged = function(){};
+  }
+
+})();
+</script>
+
 </body>
 </html>
