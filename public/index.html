@@ -3428,6 +3428,8 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <button id="evBarberBtn" onclick="openEventBarber()" style="display:none;position:absolute;bottom:310px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#d4a745,#e6c06e);border:none;color:#1a1a2e;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(212,167,69,.4);z-index:5;transition:transform .2s;display:none;align-items:center;gap:.4rem;letter-spacing:.03em"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M16 8V5a1 1 0 00-1-1H9a1 1 0 00-1 1v3"/><path d="M8 16v3a1 1 0 001 1h6a1 1 0 001-1v-3"/></svg> Barbearia</button>
     <!-- Karaoke FAB (only if event has karaoke) -->
     <button id="evKaraokeBtn" onclick="openKaraokeFromNetwork(evViewEventId)" style="display:none;position:absolute;bottom:370px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#ec4899,#a855f7);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(236,72,153,.4);z-index:5;transition:transform .2s;display:none;align-items:center;gap:.4rem;letter-spacing:.03em"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Karaoke</button>
+    <!-- WiFi FAB (only if event has wifi configured) -->
+    <button id="evWifiBtn" onclick="openEventWifi()" style="display:none;position:absolute;bottom:430px;right:16px;padding:.6rem 1rem;border-radius:16px;background:linear-gradient(135deg,#06b6d4,#22d3ee);border:none;color:#fff;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(6,182,212,.4);z-index:5;transition:transform .2s;align-items:center;gap:.4rem;letter-spacing:.03em"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg> WiFi</button>
     <div id="evCartBadge" style="display:none;position:absolute;bottom:102px;right:12px;background:#ef4444;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.55rem;font-weight:700;text-align:center;line-height:20px;z-index:6;pointer-events:none">0</div>
     <!-- Order history FAB -->
     <button id="evOrderHistoryBtn" onclick="openOrderHistory()" style="display:none;position:absolute;bottom:70px;left:16px;padding:.5rem .8rem;border-radius:14px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);color:#f97316;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;z-index:5;backdrop-filter:blur(8px);display:none;align-items:center;gap:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg> Pedidos</button>
@@ -3509,6 +3511,14 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
       <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem;color:#d4a745">Barbearia</div>
     </div>
     <div id="evBarberContent" style="padding:.8rem"></div>
+  </div>
+  <!-- WIFI OVERLAY -->
+  <div id="evWifiOverlay" style="display:none;position:absolute;inset:0;background:rgba(5,5,12,.97);z-index:10;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:linear-gradient(135deg,rgba(10,10,20,.98),rgba(6,182,212,.08));backdrop-filter:blur(20px);padding:.7rem 1rem;display:flex;align-items:center;z-index:2;border-bottom:1px solid rgba(6,182,212,.2)">
+      <button onclick="closeEventWifi()" style="background:none;border:none;color:#22d3ee;font-size:1.2rem;padding:0;cursor:pointer">&#8592;</button>
+      <div style="flex:1;text-align:center;font-weight:700;font-size:.85rem;color:#22d3ee">WiFi</div>
+    </div>
+    <div id="evWifiContent" style="padding:.8rem"></div>
   </div>
 </div>
 
@@ -5221,6 +5231,7 @@ async function showEventView(eventId,eventName){
   loadChurchConfig(eventId);
   loadBarberConfig(eventId);
   loadKaraokeConfig(eventId);
+  loadWifiConfig(eventId);
   if(socket){
     socket.off('event-attendee-joined');
     socket.off('event-attendee-left');
@@ -5454,8 +5465,8 @@ function closeEventView(){
   const savedName=$('evViewName')?.textContent||'Evento';
   evViewEventId=null;evNodes.length=0;evBolts.length=0;evViewCtx=null;
   // Close menu/cart/parking/gym/church/checkout/receipt/history overlays
-  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evCheckoutOverlay').style.display='none';$('evReceiptOverlay').style.display='none';$('evOrderHistoryOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';if($('evBarberOverlay'))$('evBarberOverlay').style.display='none';
-  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evOrderHistoryBtn').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';if($('evBarberBtn'))$('evBarberBtn').style.display='none';if($('evKaraokeBtn'))$('evKaraokeBtn').style.display='none';if($('karaokeOverlay'))$('karaokeOverlay').style.display='none';
+  $('evMenuOverlay').style.display='none';$('evCartOverlay').style.display='none';$('evCheckoutOverlay').style.display='none';$('evReceiptOverlay').style.display='none';$('evOrderHistoryOverlay').style.display='none';$('evParkingOverlay').style.display='none';$('evGymOverlay').style.display='none';$('evChurchOverlay').style.display='none';if($('evBarberOverlay'))$('evBarberOverlay').style.display='none';if($('evWifiOverlay'))$('evWifiOverlay').style.display='none';
+  $('evMenuBtn').style.display='none';$('evCartBadge').style.display='none';$('evOrderHistoryBtn').style.display='none';$('evParkBtn').style.display='none';$('evGymBtn').style.display='none';$('evChurchBtn').style.display='none';if($('evBarberBtn'))$('evBarberBtn').style.display='none';if($('evKaraokeBtn'))$('evKaraokeBtn').style.display='none';if($('karaokeOverlay'))$('karaokeOverlay').style.display='none';if($('evWifiBtn'))$('evWifiBtn').style.display='none';
   if(socket){socket.off('event-attendee-joined');socket.off('event-attendee-left');socket.off('event-ended');socket.off('event-match')}
   // Persist active event in localStorage for floating button
   if(savedId){
@@ -6087,6 +6098,107 @@ async function openEventChurch(){
 
 function closeEventChurch(){$('evChurchOverlay').style.display='none'}
 
+// ═══ WIFI MODULE ═══
+async function loadWifiConfig(eventId){
+  try{
+    const r=await fetch('/api/event/'+eventId+'/wifi?userId='+encodeURIComponent(state.userId||''));
+    const d=await r.json();
+    if(d.enabled&&$('evWifiBtn'))$('evWifiBtn').style.display='flex';
+    else if($('evWifiBtn'))$('evWifiBtn').style.display='none';
+  }catch(e){if($('evWifiBtn'))$('evWifiBtn').style.display='none';}
+}
+
+async function openEventWifi(){
+  $('evWifiOverlay').style.display='';
+  renderWifiUI();
+}
+
+function closeEventWifi(){$('evWifiOverlay').style.display='none'}
+
+async function renderWifiUI(){
+  if(!evViewEventId)return;
+  const el=$('evWifiContent');
+  const isOp=localStorage.getItem('activeEventRole')==='operator';
+  try{
+    if(isOp){
+      // Operator view: show config form
+      const r=await fetch('/api/operator/event/'+evViewEventId+'/wifi');
+      const d=await r.json();
+      el.innerHTML='<div style="padding:1rem .5rem">'
+        +'<div style="text-align:center;margin-bottom:1.5rem">'
+        +'<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
+        +'<div style="font-size:.85rem;font-weight:700;color:#22d3ee;margin-top:.5rem">Compartilhar WiFi</div>'
+        +'<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem">Clientes que fizerem check-in podem acessar o WiFi automaticamente</div>'
+        +'</div>'
+        +'<div style="margin-bottom:1rem">'
+        +'<label style="font-size:.65rem;color:var(--t3);display:flex;align-items:center;gap:.5rem;cursor:pointer">'
+        +'<input type="checkbox" id="wifiEnabled" '+(d.enabled?'checked':'')+' style="accent-color:#22d3ee">'
+        +' Ativar compartilhamento de WiFi'
+        +'</label></div>'
+        +'<div style="margin-bottom:.8rem">'
+        +'<label style="font-size:.6rem;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);margin-bottom:.3rem;display:block">Nome da rede (SSID)</label>'
+        +'<input id="wifiSsid" type="text" value="'+((d.ssid||'').replace(/"/g,'&quot;'))+'" placeholder="Ex: MeuWiFi" maxlength="64" style="width:100%;padding:.6rem .8rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:.8rem;font-family:inherit;box-sizing:border-box">'
+        +'</div>'
+        +'<div style="margin-bottom:1.2rem">'
+        +'<label style="font-size:.6rem;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);margin-bottom:.3rem;display:block">Senha</label>'
+        +'<div style="position:relative">'
+        +'<input id="wifiPass" type="password" value="'+((d.password||'').replace(/"/g,'&quot;'))+'" placeholder="Senha do WiFi" maxlength="64" style="width:100%;padding:.6rem .8rem;padding-right:2.5rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:.8rem;font-family:inherit;box-sizing:border-box">'
+        +'<button onclick="var i=$(\'wifiPass\');i.type=i.type===\'password\'?\'text\':\'password\'" style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);font-size:.7rem;cursor:pointer;padding:.2rem">ver</button>'
+        +'</div></div>'
+        +'<button onclick="saveWifiConfig()" style="width:100%;padding:.7rem;background:#22d3ee;color:#000;border:none;border-radius:12px;font-size:.8rem;font-weight:700;font-family:inherit;cursor:pointer">Salvar WiFi</button>'
+        +'</div>';
+    }else{
+      // Client view: show WiFi credentials
+      const r=await fetch('/api/event/'+evViewEventId+'/wifi?userId='+encodeURIComponent(state.userId||''));
+      const d=await r.json();
+      if(!d.enabled){
+        el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">WiFi nao disponivel neste evento</div>';
+        return;
+      }
+      el.innerHTML='<div style="padding:1.5rem .5rem;text-align:center">'
+        +'<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
+        +'<div style="font-size:1rem;font-weight:700;color:#22d3ee;margin-top:.8rem">WiFi do evento</div>'
+        +'<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;margin-bottom:1.5rem">Conecte-se a rede do evento</div>'
+        +'<div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:14px;padding:1.2rem;margin-bottom:1rem;text-align:left">'
+        +'<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:.3rem">Rede</div>'
+        +'<div style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:.8rem;word-break:break-all">'+escH(d.ssid)+'</div>'
+        +'<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:.3rem">Senha</div>'
+        +'<div id="wifiPassDisplay" style="font-size:1rem;font-weight:700;color:#fff;font-family:monospace;word-break:break-all;letter-spacing:.1em">'+escH(d.password)+'</div>'
+        +'</div>'
+        +'<button onclick="copyWifiPass(\''+escH(d.password).replace(/'/g,"\\'")+'\')" style="width:100%;padding:.7rem;background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.3);border-radius:12px;color:#22d3ee;font-size:.8rem;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:.6rem">Copiar senha</button>'
+        +'<button onclick="copyWifiAll(\''+escH(d.ssid).replace(/'/g,"\\'")+'\',\''+escH(d.password).replace(/'/g,"\\'")+'\') " style="width:100%;padding:.6rem;background:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;color:var(--t2);font-size:.72rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar rede + senha</button>'
+        +'</div>';
+    }
+  }catch(e){
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Erro ao carregar WiFi</div>';
+  }
+}
+
+async function saveWifiConfig(){
+  if(!evViewEventId)return;
+  var enabled=!!$('wifiEnabled').checked;
+  var ssid=($('wifiSsid').value||'').trim();
+  var pass=($('wifiPass').value||'').trim();
+  if(enabled&&!ssid){showToast('Digite o nome da rede');return}
+  try{
+    const r=await fetch('/api/operator/event/'+evViewEventId+'/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:enabled,ssid:ssid,password:pass})});
+    const d=await r.json();
+    if(d.ok){showToast(enabled?'WiFi compartilhado!':'WiFi desativado');renderWifiUI()}
+    else showToast(d.error||'Erro');
+  }catch(e){showToast('Erro ao salvar WiFi')}
+}
+
+function copyWifiPass(pass){
+  navigator.clipboard.writeText(pass).then(function(){showToast('Senha copiada!')}).catch(function(){showToast('Erro ao copiar')});
+}
+
+function copyWifiAll(ssid,pass){
+  var text='Rede: '+ssid+'\nSenha: '+pass;
+  navigator.clipboard.writeText(text).then(function(){showToast('Rede e senha copiados!')}).catch(function(){showToast('Erro ao copiar')});
+}
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
 async function renderChurchUI(){
   if(!evViewEventId)return;
   const el=$('evChurchContent');
@@ -6160,6 +6272,7 @@ async function quickOpenModule(eventId,mod){
       else if(_pendingQuickModule==='gym')openEventGym();
       else if(_pendingQuickModule==='church')openEventChurch();
       else if(_pendingQuickModule==='karaoke'){if(typeof openKaraokeFromNetwork==='function')openKaraokeFromNetwork(eventId)}
+      else if(_pendingQuickModule==='wifi')openEventWifi();
       _pendingQuickModule=null;
     },600);
   }catch(e){showToast('Erro ao abrir evento');_pendingQuickModule=null;}
@@ -9826,6 +9939,7 @@ async function showRelations(){
         if(em.gym)quickActions+='<button class="ev-qa-btn" style="color:#10b981;border-color:rgba(16,185,129,.3)" onclick="event.stopPropagation();quickOpenModule(\''+eid+'\',\'gym\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6.5 6.5h11M6.5 17.5h11"/><path d="M4 10h16M4 14h16"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/></svg> Check-in</button>';
         if(em.church)quickActions+='<button class="ev-qa-btn" style="color:#8b5cf6;border-color:rgba(139,92,246,.3)" onclick="event.stopPropagation();quickOpenModule(\''+eid+'\',\'church\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v8M8 6h8M6 22V10h12v12"/><path d="M10 22v-4a2 2 0 014 0v4"/></svg> Igreja</button>';
         if(em.karaoke)quickActions+='<button class="ev-qa-btn" style="color:#ec4899;border-color:rgba(236,72,153,.3)" onclick="event.stopPropagation();openKaraokeFromNetwork(\''+eid+'\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg> Karaoke</button>';
+        if(em.wifi)quickActions+='<button class="ev-qa-btn" style="color:#22d3ee;border-color:rgba(6,182,212,.3)" onclick="event.stopPropagation();quickOpenModule(\''+eid+'\',\'wifi\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg> WiFi</button>';
       }
       const quickHtml=quickActions?'<div class="ev-quick-actions">'+quickActions+'</div>':'';
       card.innerHTML=photoHtml+'<div class="ri">'+nameHtml+previewHtml+quickHtml+'</div><div class="rtm-wrap">'+gameBtn+unreadBadge+'<div class="rtm '+tc+'">'+h+'h '+m+'m</div><div class="rtm-label">'+timeLabel+'</div></div>';
