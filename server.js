@@ -1532,6 +1532,17 @@ function sendZitoWelcome(email, lang, nickname) {
   }
 }
 
+// Test endpoint: send Zito welcome email to any address (admin only)
+app.get('/api/admin/test-zito-email', async (req, res) => {
+  const { email, lang, nick, adminId } = req.query;
+  if (!adminId || !ADMIN_IDS.includes(adminId)) return res.status(403).json({ error: 'Admin only.' });
+  if (!email) return res.status(400).json({ error: 'Email required. Usage: ?email=x@y.com&lang=pt-br&nick=zito&adminId=YOUR_ID' });
+  const wel = getZitoWelcomeEmail(lang || 'pt-br', nick || 'stranger');
+  const sent = await sendTouchEmail(email, wel.subject, wel.html);
+  if (sent) return res.json({ ok: true, message: 'Zito email sent to ' + email });
+  return res.status(500).json({ error: 'Failed to send. Check RESEND_API_KEY.' });
+});
+
 function emailTemplate(title, body, btnText, btnUrl) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0">
 <div style="max-width:480px;margin:0 auto;padding:2rem 1.5rem">
