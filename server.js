@@ -1443,10 +1443,11 @@ function getZitoWelcomeEmail(lang, nickname) {
       subject: 'Oi, ' + nick + '. Eu sou o Zito.',
       preheader: 'O fundador do Touch? tem algo pra te dizer.',
       greeting: 'Oi, ' + nick + '.',
-      intro: 'Eu sou o Zito. Fundei o Touch? e uso meu nickname. Prefiro assim.',
-      p1: 'Voce acabou de entrar numa rede social que conecta o fisico com o digital. Ela existe no mundo real. Dois celulares se tocam, uma conexao nasce!',
-      p2: 'Sem feed infinito. Sem algoritmo decidindo o que voce ve. Sem likes vazios. Aqui, cada conexao custa um gesto fisico: Touch!',
-      p3: 'Ganhe estrelas a cada 7 dias consecutivos de encontro com a mesma pessoa. Estrelas ficam no seu perfil pra sempre. Quanto mais estrelas, mais influente voce e -- de verdade.',
+      line1: 'Eu sou o Zito. Fundador do Touch?.',
+      line2: 'Eu uso meu nickname. Prefiro assim. Voce agora tambem tem essa opcao!',
+      line3: 'Voce acabou de entrar numa rede social que conecta o fisico com o digital. Dois celulares se tocam, uma conexao nasce!',
+      line4: 'Sem feed infinito. Sem likes vazios. Aqui, cada conexao custa um gesto fisico: Touch!',
+      line5: 'Ganhe estrelas! Quanto mais estrelas, mais influente voce e -- de verdade.',
       provocation: 'E nao se assuste -- isso nao e um episodio de Black Mirror. Esse dia chegou!',
       cta: 'Abrir Touch?',
       sign: '-- Zito',
@@ -1457,10 +1458,11 @@ function getZitoWelcomeEmail(lang, nickname) {
       subject: 'Hey, ' + nick + '. I\'m Zito.',
       preheader: 'The founder of Touch? has something to tell you.',
       greeting: 'Hey, ' + nick + '.',
-      intro: 'I\'m Zito. I founded Touch? and I go by my nickname. I prefer it that way.',
-      p1: 'You just joined a social network that connects the physical with the digital. It exists in the real world. Two phones touch, a connection is born!',
-      p2: 'No infinite feed. No algorithm deciding what you see. No empty likes. Here, each connection costs a physical gesture: Touch!',
-      p3: 'Earn stars every 7 consecutive days of encounters with the same person. Stars stay on your profile forever. The more stars, the more truly influential you are.',
+      line1: 'I\'m Zito. Founder of Touch?.',
+      line2: 'I go by my nickname. I prefer it that way. Now you have that option too!',
+      line3: 'You just joined a social network that connects the physical with the digital. Two phones touch, a connection is born!',
+      line4: 'No infinite feed. No empty likes. Here, each connection costs a physical gesture: Touch!',
+      line5: 'Earn stars! The more stars you have, the more influential you are -- for real.',
       provocation: 'And don\'t worry -- this isn\'t a Black Mirror episode. That day has arrived!',
       cta: 'Open Touch?',
       sign: '-- Zito',
@@ -1471,10 +1473,11 @@ function getZitoWelcomeEmail(lang, nickname) {
       subject: 'Hola, ' + nick + '. Soy Zito.',
       preheader: 'El fundador de Touch? tiene algo que decirte.',
       greeting: 'Hola, ' + nick + '.',
-      intro: 'Soy Zito. Funde Touch? y uso mi nickname. Lo prefiero asi.',
-      p1: 'Acabas de entrar en una red social que conecta lo fisico con lo digital. Existe en el mundo real. Dos celulares se tocan, nace una conexion!',
-      p2: 'Sin feed infinito. Sin algoritmo decidiendo lo que ves. Sin likes vacios. Aqui, cada conexion cuesta un gesto fisico: Touch!',
-      p3: 'Gana estrellas cada 7 dias consecutivos de encuentro con la misma persona. Las estrellas quedan en tu perfil para siempre. Cuantas mas estrellas, mas influyente eres -- de verdad.',
+      line1: 'Soy Zito. Fundador de Touch?.',
+      line2: 'Uso mi nickname. Lo prefiero asi. Ahora tu tambien tienes esa opcion!',
+      line3: 'Acabas de entrar en una red social que conecta lo fisico con lo digital. Dos celulares se tocan, nace una conexion!',
+      line4: 'Sin feed infinito. Sin likes vacios. Aqui, cada conexion cuesta un gesto fisico: Touch!',
+      line5: 'Gana estrellas! Cuantas mas estrellas, mas influyente eres -- de verdad.',
       provocation: 'Y no te asustes -- esto no es un episodio de Black Mirror. Ese dia llego!',
       cta: 'Abrir Touch?',
       sign: '-- Zito',
@@ -1483,39 +1486,49 @@ function getZitoWelcomeEmail(lang, nickname) {
     }
   };
   const t = content[lang] || content['en'];
+  const avatarUrl = 'https://touch-irl.com/icons/zito-avatar.png';
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">
-</head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0f;color:#e0e0e0;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden">${t.preheader}</div>
-<div style="max-width:520px;margin:0 auto;padding:2.5rem 1.5rem">
-<div style="text-align:center;margin-bottom:2rem">
-<span style="font-size:2.2rem;font-weight:800;color:#ff6b35;letter-spacing:.15em">Touch?</span>
-</div>
-<div style="text-align:center;margin-bottom:1.8rem">
-<img src="https://touch-irl.com/icons/zito-avatar.png" alt="Zito" width="80" height="80" style="width:80px;height:80px;border-radius:50%;border:2px solid rgba(255,107,53,.3);display:block;margin:0 auto">
-</div>
-<div style="background:#12121c;border-radius:20px;padding:2rem 1.8rem;border:1px solid rgba(255,255,255,.05)">
-<p style="color:#fff;font-size:1.1rem;font-weight:600;margin:0 0 1rem;line-height:1.4">${t.greeting}</p>
-<p style="color:#c8c8d8;font-size:.92rem;line-height:1.7;margin:0 0 1rem">${t.intro}</p>
-<p style="color:#a8a8b8;font-size:.88rem;line-height:1.7;margin:0 0 1rem">${t.p1}</p>
-<p style="color:#a8a8b8;font-size:.88rem;line-height:1.7;margin:0 0 1rem">${t.p2}</p>
-<div style="background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.12);border-radius:14px;padding:1.1rem 1.2rem;margin:1.2rem 0">
-<p style="color:#ff9060;font-size:.88rem;line-height:1.7;margin:0">${t.p3}</p>
-</div>
-<p style="color:#c8c8d8;font-size:.92rem;line-height:1.7;margin:1.2rem 0;font-style:italic">${t.provocation}</p>
-<div style="text-align:center;margin:1.8rem 0 .5rem">
-<a href="https://touch-irl.com" style="display:inline-block;padding:.9rem 2.5rem;background:linear-gradient(135deg,#ff6b35,#ff4500);color:#fff;text-decoration:none;border-radius:14px;font-weight:700;font-size:.95rem;letter-spacing:.03em">${t.cta}</a>
-</div>
-</div>
-<div style="margin-top:1.8rem;padding:0 .5rem">
-<p style="color:#ff6b35;font-size:1rem;font-weight:700;margin:0;letter-spacing:.02em">${t.sign}</p>
-<p style="color:#666;font-size:.78rem;margin:.2rem 0 0;font-style:italic">${t.subtitle}</p>
-</div>
-<div style="text-align:center;margin-top:2rem;padding-top:1.2rem;border-top:1px solid rgba(255,255,255,.04)">
-<p style="color:#444;font-size:.7rem;margin:0">${t.footer}</p>
-<p style="color:#333;font-size:.6rem;margin:.5rem 0 0">touch-irl.com</p>
-</div>
-</div></body></html>`;
+<style>body{margin:0;padding:0;background:#0a0a0f;color:#e0e0e0}a{color:#ff6b35}</style>
+</head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0f;color:#e0e0e0">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${t.preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0a0a0f"><tr><td align="center" style="padding:30px 15px">
+<table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%">
+
+<tr><td align="center" style="padding:0 0 24px">
+<span style="font-size:28px;font-weight:800;color:#ff6b35;letter-spacing:4px">Touch?</span>
+</td></tr>
+
+<tr><td align="center" style="padding:0 0 24px">
+<img src="${avatarUrl}" alt="Zito" width="90" height="90" style="width:90px;height:90px;border-radius:50%;border:2px solid rgba(255,107,53,0.3);display:block">
+</td></tr>
+
+<tr><td style="background:#12121c;border-radius:16px;padding:28px 24px;border:1px solid rgba(255,255,255,0.05)">
+<p style="color:#ffffff;font-size:17px;font-weight:600;margin:0 0 16px;line-height:1.4">${t.greeting}</p>
+<p style="color:#d0d0e0;font-size:15px;line-height:1.7;margin:0 0 6px"><strong style="color:#fff">${t.line1}</strong></p>
+<p style="color:#b0b0c0;font-size:14px;line-height:1.7;margin:0 0 18px">${t.line2}</p>
+<p style="color:#b0b0c0;font-size:14px;line-height:1.7;margin:0 0 14px">${t.line3}</p>
+<p style="color:#b0b0c0;font-size:14px;line-height:1.7;margin:0 0 14px">${t.line4}</p>
+<p style="color:#ff9060;font-size:14px;line-height:1.7;margin:0 0 18px;font-weight:600">${t.line5}</p>
+<p style="color:#d0d0e0;font-size:15px;line-height:1.7;margin:0 0 24px;font-style:italic">${t.provocation}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
+<a href="https://touch-irl.com" style="display:inline-block;padding:14px 40px;background:#ff6b35;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:15px;letter-spacing:0.5px">${t.cta}</a>
+</td></tr></table>
+</td></tr>
+
+<tr><td style="padding:22px 6px 0">
+<p style="color:#ff6b35;font-size:16px;font-weight:700;margin:0">${t.sign}</p>
+<p style="color:#666666;font-size:12px;margin:3px 0 0;font-style:italic">${t.subtitle}</p>
+</td></tr>
+
+<tr><td align="center" style="padding:24px 0 0;border-top:1px solid rgba(255,255,255,0.04)">
+<p style="color:#444444;font-size:11px;margin:16px 0 0">${t.footer}</p>
+<p style="color:#333333;font-size:10px;margin:6px 0 0">touch-irl.com</p>
+</td></tr>
+
+</table>
+</td></tr></table>
+</body></html>`;
   return { subject: t.subject, html };
 }
 
