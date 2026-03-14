@@ -1554,16 +1554,32 @@ app.get('/api/admin/test-zito-email', async (req, res) => {
 });
 
 function emailTemplate(title, body, btnText, btnUrl) {
-  return `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0">
-<div style="max-width:480px;margin:0 auto;padding:2rem 1.5rem">
-<div style="text-align:center;margin-bottom:1.5rem"><span style="font-size:2rem;font-weight:800;color:#ff6b35;letter-spacing:.2em">Touch?</span></div>
-<div style="background:#1a1a24;border-radius:16px;padding:1.5rem;border:1px solid rgba(255,255,255,.06)">
-<h2 style="margin:0 0 .8rem;color:#fff;font-size:1.1rem">${title}</h2>
-<p style="color:#a0a0b0;font-size:.9rem;line-height:1.6;margin:0 0 1.2rem">${body}</p>
-<div style="text-align:center"><a href="${btnUrl}" style="display:inline-block;padding:.75rem 2rem;background:linear-gradient(135deg,#ff6b35,#ff4500);color:#fff;text-decoration:none;border-radius:12px;font-weight:700;font-size:.9rem">${btnText}</a></div>
-</div>
-<p style="text-align:center;color:#555;font-size:.7rem;margin-top:1.5rem">Touch? -- encontros reais, conexoes efemeras</p>
-</div></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">
+<style>body{margin:0;padding:0;background:#0a0a0f;color:#e0e0e0}a{color:#ff6b35}</style>
+</head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0f;color:#e0e0e0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0a0a0f"><tr><td align="center" style="padding:30px 15px">
+<table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%">
+
+<tr><td align="center" style="padding:0 0 24px">
+<span style="font-size:28px;font-weight:800;color:#ff6b35;letter-spacing:4px">Touch?</span>
+</td></tr>
+
+<tr><td style="background:#12121c;border-radius:16px;padding:28px 24px;border:1px solid rgba(255,255,255,0.05)">
+<h2 style="color:#ffffff;font-size:18px;font-weight:600;margin:0 0 14px;line-height:1.4">${title}</h2>
+<p style="color:#b0b0c0;font-size:14px;line-height:1.7;margin:0 0 22px">${body}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
+<a href="${btnUrl}" style="display:inline-block;padding:14px 40px;background:#ff6b35;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;font-size:15px;letter-spacing:0.5px">${btnText}</a>
+</td></tr></table>
+</td></tr>
+
+<tr><td align="center" style="padding:20px 0 0">
+<p style="color:#444444;font-size:11px;margin:0">touch-irl.com</p>
+</td></tr>
+
+</table>
+</td></tr></table>
+</body></html>`;
 }
 
 app.post('/api/auth/send-verification', authLimiter, async (req, res) => {
@@ -1580,9 +1596,9 @@ app.post('/api/auth/send-verification', authLimiter, async (req, res) => {
     const link = await firebaseAuth.generateEmailVerificationLink(email, { url: appUrl });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
-      'Verifique seu email — Touch?',
-      emailTemplate('Verificação de email',
-        'Clique no botão abaixo para verificar seu email e ativar sua conta Touch?.',
+      'Verifique seu email \u2014 Touch?',
+      emailTemplate('Verifica\u00e7\u00e3o de email',
+        'Clique no bot\u00e3o abaixo para verificar seu email e ativar sua conta Touch?.',
         'Verificar email', link)
     );
     if (sent) {
@@ -1609,9 +1625,9 @@ app.post('/api/auth/send-magic-link', authLimiter, async (req, res) => {
     });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
-      'Seu link de acesso — Touch?',
+      'Seu link de acesso \u2014 Touch?',
       emailTemplate('Login sem senha',
-        'Você solicitou acesso ao Touch? sem senha. Clique no botão abaixo para entrar. Este link expira em 1 hora.',
+        'Voc\u00ea solicitou acesso ao Touch? sem senha. Clique no bot\u00e3o abaixo para entrar. Este link expira em 1 hora.',
         'Entrar no Touch?', link)
     );
     if (sent) {
@@ -1637,9 +1653,9 @@ app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
     const link = await firebaseAuth.generatePasswordResetLink(email, { url: appUrl });
     // Send via nodemailer
     const sent = await sendTouchEmail(email,
-      'Recuperar senha — Touch?',
-      emailTemplate('Recuperação de senha',
-        'Você solicitou a recuperação da sua senha do Touch?. Clique no botão abaixo para criar uma nova senha.',
+      'Recuperar senha \u2014 Touch?',
+      emailTemplate('Recupera\u00e7\u00e3o de senha',
+        'Voc\u00ea solicitou a recupera\u00e7\u00e3o da sua senha do Touch?. Clique no bot\u00e3o abaixo para criar uma nova senha.',
         'Redefinir senha', link)
     );
     if (sent) {
