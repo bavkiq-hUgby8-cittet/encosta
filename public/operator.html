@@ -4338,13 +4338,31 @@ function initSocket(){
   setInterval(()=>{
     if(!S.currentEventId&&$('opEvents')&&$('opEvents').style.display!=='none')showEventsScreen();
   },30000);
-  // Entry fee paid notification
+  // Entry fee paid notification + update participant badge
   S.socket.on('entry-paid',d=>{
     const toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
-    toast.textContent='🎫 '+esc(d.nickname)+' pagou ingresso R$'+d.amount.toFixed(2).replace('.',',');
+    toast.textContent=''+esc(d.nickname)+' pagou ingresso R$'+d.amount.toFixed(2).replace('.',',');
     document.body.appendChild(toast);
     setTimeout(()=>toast.remove(),4000);
+    // Update participant badge from "$ Pago?" to "Pago"
+    if(d.userId){
+      var ci=S.checkins.find(function(c){return c.userId===d.userId});
+      if(ci){ci.paidPresencial=true;ci.entryStatus='paid';}
+      var wraps=document.querySelectorAll('.op-ci-wrap');
+      wraps.forEach(function(w){
+        if(w.dataset.userId===d.userId){
+          var paidBtns=w.querySelectorAll('.op-ci-action-btn.paid, .op-ci-action-btn[onclick*="markPaid"]');
+          paidBtns.forEach(function(btn){
+            var span=document.createElement('span');
+            span.className='op-ci-action-btn';
+            span.style.cssText='font-size:.48rem;padding:.12rem .3rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px';
+            span.textContent='Pago';
+            btn.parentNode.replaceChild(span,btn);
+          });
+        }
+      });
+    }
   });
   // Chat messages with notification system
   S.socket.on('new-message',({relationId,message})=>{
@@ -4409,13 +4427,56 @@ function initSocket(){
   S.socket.on('event-attendee-left',d=>{
     if(!d||!d.userId)return;
     S.checkins=S.checkins.filter(c=>c.userId!==d.userId);
-    const items=document.querySelectorAll('.op-checkin-item');
-    items.forEach(it=>{if(it.dataset.userId===d.userId)it.remove()});
-    const idx=nodes.findIndex(n=>n.userId===d.userId);
+    var wraps=document.querySelectorAll('.op-ci-wrap');
+    wraps.forEach(function(w){if(w.dataset.userId===d.userId)w.remove()});
+    var idx=nodes.findIndex(n=>n.userId===d.userId);
     if(idx>=0)nodes.splice(idx,1);
     $('opCount').textContent=S.checkins.length;
     $('opListCount').textContent=S.checkins.length;
-    if(S.checkins.length===0){const e=$('opEmpty');if(e)e.style.display=''}
+    if(S.checkins.length===0){var e=$('opEmpty');if(e)e.style.display=''}
+  });
+  // Attendee went offline (disconnected but not removed from event)
+  S.socket.on('attendee-offline',function(d){
+    if(!d||!d.userId)return;
+    var wraps=document.querySelectorAll('.op-ci-wrap');
+    wraps.forEach(function(w){
+      if(w.dataset.userId===d.userId){
+        var item=w.querySelector('.op-checkin-item');
+        if(item&&!item.classList.contains('offline')){
+          item.classList.add('offline');
+          item.style.opacity='0.45';
+          var meta=item.querySelector('.op-ci-meta');
+          if(meta&&!meta.querySelector('.offline-tag')){
+            var tag=document.createElement('span');
+            tag.className='offline-tag';
+            tag.style.cssText='font-size:.45rem;color:#ef4444;background:rgba(239,68,68,.12);padding:.1rem .3rem;border-radius:4px;margin-left:.3rem;font-weight:600';
+            tag.textContent='Offline';
+            meta.appendChild(tag);
+          }
+        }
+      }
+    });
+    // Also dim canvas node
+    var node=nodes.find(function(n){return n.userId===d.userId});
+    if(node)node.offline=true;
+  });
+  // Attendee came back online
+  S.socket.on('attendee-online',function(d){
+    if(!d||!d.userId)return;
+    var wraps=document.querySelectorAll('.op-ci-wrap');
+    wraps.forEach(function(w){
+      if(w.dataset.userId===d.userId){
+        var item=w.querySelector('.op-checkin-item');
+        if(item){
+          item.classList.remove('offline');
+          item.style.opacity='1';
+          var tag=item.querySelector('.offline-tag');
+          if(tag)tag.remove();
+        }
+      }
+    });
+    var node=nodes.find(function(n){return n.userId===d.userId});
+    if(node)node.offline=false;
   });
   S.socket.on('sonic-matched',()=>{
     // Operator STAYS in sonicQueue after connection (server keeps it).

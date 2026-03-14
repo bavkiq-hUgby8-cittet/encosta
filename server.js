@@ -8886,7 +8886,20 @@ io.on('connection', (socket) => {
     socket.join(`user:${userId}`);
     // Track online presence
     if (!global._onlineUsers) global._onlineUsers = {};
+    const wasOffline = !global._onlineUsers[userId];
     global._onlineUsers[userId] = Date.now();
+    // Notify operator if user came back online (was in an event)
+    if (wasOffline) {
+      for (const evId in db.operatorEvents) {
+        const ev = db.operatorEvents[evId];
+        if (!ev || !ev.participants) continue;
+        const isParticipant = ev.participants.some(p => p.id === userId || p.visitorId === userId);
+        if (isParticipant) {
+          io.to('event:' + evId).emit('attendee-online', { userId, eventId: evId });
+          io.to('user:' + ev.creatorId).emit('attendee-online', { userId, eventId: evId });
+        }
+      }
+    }
     // NAO auto-join em rooms do mural aqui
     // O join acontece via join-mural quando o usuario ABRE o mural
   });
@@ -9301,6 +9314,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    const disconnectedUserId = currentUserId;
     // Remove from online tracking after a grace period
     if (currentUserId && global._onlineUsers) {
       setTimeout(() => {
@@ -9323,6 +9337,23 @@ io.on('connection', (socket) => {
         const chKey = room.replace('mural-view:', '');
         setTimeout(() => _broadcastMuralOnline(chKey), 200);
       }
+    }
+    // Notify operator if user was in an event (after grace period for reconnection)
+    if (disconnectedUserId) {
+      setTimeout(() => {
+        const userRoom = io.sockets.adapter.rooms.get(`user:${disconnectedUserId}`);
+        if (userRoom && userRoom.size > 0) return; // User reconnected, skip
+        // Check all events this user is participating in
+        for (const evId in db.operatorEvents) {
+          const ev = db.operatorEvents[evId];
+          if (!ev || !ev.participants) continue;
+          const isParticipant = ev.participants.some(p => p.id === disconnectedUserId || p.visitorId === disconnectedUserId);
+          if (isParticipant) {
+            io.to('event:' + evId).emit('attendee-offline', { userId: disconnectedUserId, eventId: evId });
+            io.to('user:' + ev.creatorId).emit('attendee-offline', { userId: disconnectedUserId, eventId: evId });
+          }
+        }
+      }, 10000); // 10s grace period for reconnection
     }
   });
 });
