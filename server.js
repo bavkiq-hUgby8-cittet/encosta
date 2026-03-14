@@ -21020,13 +21020,7 @@ SECTION:SETUP — "A configuracao e super rapida, leva so 2 minutos. Voce coloca
 
 SECTION:TOOLS — "No painel do operador, voce gerencia tudo num so lugar. Restaurantes ganham cardapios digitais e um kanban pra cozinha. Barbearias tem agendamento e fila digital. Academias usam check-in por proximidade. Estacionamentos e guardadores tem entrada e saida. Tudo administrado de forma simples num painel unico."
 
-SECTION:WHITELABEL — "Cada negocio ganha um mini-site personalizado com a propria marca dentro do Touch?. Da pra colocar seu logo, suas cores, seu cardapio, horario de funcionamento. Os clientes acessam ele direto pelo seu QR code, tudo com a cara do seu negocio."
-
-SECTION:MATERIALS — "No painel, voce tambem baixa materiais de marketing prontinhos: banners, adesivos de mesa, cartazes, todos ja com o seu QR code. E so imprimir e colocar."
-
-SECTION:ANALYTICS — "E o melhor: voce tem um painel de analise em tempo real. Quantos clientes entraram hoje, quais os horarios de pico, ticket medio, clientes novos versus recorrentes."
-
-SECTION:CTA — "Em resumo: com um alto-falante voce transforma qualquer espaco num negocio conectado. E simples, rapido e poderoso. Acesse touch-irl.com e comece agora."`;
+SECTION:WHITELABEL — "Cada negocio ganha um mini-site personalizado com a propria marca dentro do Touch?. Da pra colocar seu logo, suas cores, seu cardapio, horario de funcionamento."`;
   } else {
     // General assistant mode (no tour)
     instructions = `Voce e a assistente de voz do site Touch? (touch-irl.com).
