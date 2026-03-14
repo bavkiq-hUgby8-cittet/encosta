@@ -1,82 +1,96 @@
 # PROMPTS GEMINI -- CAIXA DE SOM COM QR CODE (Touch? Point)
 
 ## O QUE GERAR
-Imagens realisticas da caixinha de som do Touch? com QR code integrado.
-O "terminal" fisico do Touch? no mundo real. Dois caminhos numa coisa so:
-ja usa? encosta o celular. primeira vez? escaneia o QR.
+Imagens realisticas de uma caixinha de som Bluetooth com QR code IMPRESSO
+DIRETAMENTE NA SUPERFICIE DA CAIXA DE SOM. O QR code e NA CAIXA, nao no
+celular. O celular so aparece escaneando ou encostando na caixa.
+
+IMPORTANTE PRA TODOS OS PROMPTS:
+- O QR code esta FISICAMENTE IMPRESSO na caixa de som (gravado ou serigrafia)
+- O QR code NAO esta no celular
+- O celular so aparece apontando a camera PRA CAIXA ou encostando na caixa
+- A caixa de som e o protagonista da imagem, nao o celular
 
 ---
 
-## PROMPT 1 -- Caixa de som no balcao do bar (hero shot)
+## PROMPT 1 -- Caixa de som sozinha no balcao (hero shot, SEM celular)
 
 ```
-Product photography, ultra realistic. A small sleek matte black Bluetooth speaker sitting on a dark wood bar counter. The speaker has a minimalist cylindrical design with a subtle orange LED ring around the base. On the front face of the speaker there is a clean white QR code printed directly on the surface, and below the QR code in small orange text it says "Scan or Touch". The speaker is about the size of a coffee cup. Behind it, out of focus, a bartender is making cocktails in a warm ambient bar with Edison bulb lighting. Next to the speaker there is a small elegant acrylic stand with text: "First time? Scan. Already here? Touch." in clean sans-serif font. Premium product photography, shallow depth of field, warm bar lighting, the speaker looks like an Apple product -- minimal and beautiful. No logos other than a tiny "Touch?" text engraved on the top of the speaker.
-```
-
----
-
-## PROMPT 2 -- Close-up da caixa com celular escaneando o QR
-
-```
-Ultra realistic close-up photo. A person's hand holding an iPhone scanning a QR code on a small matte black cylindrical Bluetooth speaker sitting on a restaurant table. The phone camera is pointed at the QR code on the speaker. On the phone screen we can see the camera app recognizing the QR code with a yellow highlight around it. The speaker has a subtle orange LED ring at the base and small text "Scan or Touch" below the QR code. The table has a plate of food and a glass of wine slightly out of focus in the background. Warm restaurant lighting. The photo feels natural, like a real customer discovering Touch? for the first time. Product photography mixed with lifestyle, shallow depth of field.
-```
-
----
-
-## PROMPT 3 -- Caixa na recepcao da barbearia
-
-```
-Realistic photo. A modern barbershop front desk. On the counter sits a small matte black Bluetooth speaker with an orange LED ring and a white QR code on its front face. Below the QR code it says "Scan or Touch" in small orange text. Next to the speaker is a small black card that reads "Check in here -- scan QR or touch your phone to the speaker" in clean white text. Behind the counter, a barber in a black apron is cutting someone's hair, visible through a mirror. The barbershop has warm wood tones, leather chairs, brass fixtures. The speaker looks premium and intentional, like it belongs there. Lifestyle product photography, warm tones, shallow depth of field.
+Product photography on a dark wood bar counter, ultra realistic. The main subject is ONLY a small matte black cylindrical Bluetooth speaker, about the size of a coffee cup. The speaker has a QR code physically printed in white ink directly on the front surface of the speaker body. Below the QR code, engraved in orange on the speaker surface, it reads "Scan or Touch". There is a subtle orange LED ring glowing around the base of the speaker. NO phone in the image. NO cellphone. ONLY the speaker. Behind the speaker, completely out of focus, a warm bar with Edison bulb lighting and bottles on shelves. A tiny acrylic table card next to the speaker reads "First time? Scan. Already here? Touch." The speaker is the star of the photo -- it looks like a premium Apple or Bang & Olufsen product. Shallow depth of field focused on the speaker and the QR code on its surface. Warm amber lighting.
 ```
 
 ---
 
-## PROMPT 4 -- Duas opcoes lado a lado (ja usa / primeira vez)
+## PROMPT 2 -- Celular apontando a camera PRA CAIXA (escaneando o QR)
 
 ```
-Split screen instructional photo, ultra realistic. Left side: a hand holding a phone with the Touch? app open (showing the orange TOUCHING... circle on screen), pressing the phone against a small matte black Bluetooth speaker on a table -- the phone and speaker are screen-to-surface, about to connect via sound. Text overlay on left: "Already use Touch?" Right side: a different hand holding a phone with the camera app open, scanning the QR code on the same model of speaker. The phone screen shows the camera recognizing the QR code. Text overlay on right: "First time? Scan the QR." Both sides have warm cafe lighting. The speaker has an orange LED ring and "Scan or Touch" text below the QR code. Clean, instructional, Apple-style product photography. The message is clear: two paths, one device.
-```
-
----
-
-## PROMPT 5 -- Caixa de som na mesa do restaurante (contexto de uso)
-
-```
-Realistic lifestyle photo taken from a customer's perspective at a restaurant table. On the table: a plate of pasta, a glass of red wine, utensils, and in the corner near the edge a small matte black cylindrical speaker with a white QR code and orange LED ring. The speaker is unobtrusive but visible. A small table tent next to it reads "Order from your phone -- scan QR code" with the Touch? logo. The scene feels natural and inviting, like you're about to have dinner and you notice the speaker for the first time. Warm Italian restaurant ambiance, candlelight, white tablecloth. The speaker blends in naturally as part of the dining experience. Overhead angle, food photography mixed with tech product, warm color grade.
+Ultra realistic photo. A person's hand holds an iPhone with the camera open, pointing the camera TOWARD a small matte black Bluetooth speaker that is sitting on a table. The speaker has a white QR code physically printed on its front surface and a glowing orange LED ring at its base. The phone screen shows the live camera view capturing the QR code ON THE SPEAKER with a yellow detection box around it. Important: the QR code is ON THE SPEAKER, not on the phone. The phone is just the camera scanning the QR that is printed on the speaker surface. The speaker is on a restaurant table with a plate of food and wine glass blurred in the background. Warm restaurant lighting. The composition clearly shows: QR code lives on the speaker, the phone is just reading it.
 ```
 
 ---
 
-## PROMPT 6 -- Varias caixas em contextos diferentes (collage)
+## PROMPT 3 -- Close-up extremo da caixa mostrando o QR impresso nela
 
 ```
-Realistic photo collage, 4 panels in a 2x2 grid, each showing the same small matte black Bluetooth speaker with QR code and orange LED ring in a different location. Top left: on a bar counter with cocktails in background. Top right: on a barbershop front desk next to scissors and combs. Bottom left: on a gym reception desk with dumbbells visible behind. Bottom right: on a church pew armrest with stained glass window light. Each speaker is the same model but naturally placed in its environment. The message: Touch? works everywhere. Clean product photography in each panel, consistent speaker design, different warm lighting per location.
-```
-
----
-
-## PROMPT 7 -- Sticker/adesivo QR code pra colar na caixa existente
-
-```
-Product mockup, ultra realistic. A small circular adhesive sticker (about 4cm diameter) with a QR code in the center, surrounded by an orange ring border, and text around the edge that reads "TOUCH? -- SCAN TO CONNECT" in small clean font. The sticker is shown being applied to a regular black JBL Bluetooth speaker. One photo shows the sticker peeled from its backing paper, another shows it already stuck on the speaker surface. The idea: any business can turn their existing speaker into a Touch? point by just sticking this on. White background, product photography, clean and minimal.
+Extreme close-up product photography of a matte black Bluetooth speaker surface. The focus is on a white QR code that is physically printed, engraved, or silk-screened directly onto the black surface of the speaker. You can see the texture of the matte black material and the white ink of the QR code sitting on top of it. Below the QR code, small orange text reads "Scan or Touch" also printed on the speaker body. At the bottom edge of the frame, the orange LED ring at the speaker base glows softly. NO phone in this image. This is purely a close-up of the speaker showing that the QR code is a physical part of the device, printed on its body like a serial number would be. Macro product photography, shallow depth of field, dark background with warm accent lighting highlighting the orange LED and QR code.
 ```
 
 ---
 
-## PROMPT 8 -- Totem/display de chao pra eventos grandes
+## PROMPT 4 -- Caixa na barbearia com plaquinha explicativa
 
 ```
-Realistic photo of a sleek freestanding black totem display at the entrance of a music festival at golden hour. The totem is about 4 feet tall, slim and modern, with a large QR code displayed on an LED screen at eye level. Below the QR code, orange text reads "Scan to join the show -- Touch? Live". Above the QR code, the Touch? logo glows in orange. People in festival clothing are walking past, one person has stopped to scan the QR code with their phone. The totem has a small Bluetooth speaker built into its base emitting a subtle orange LED glow. Festival entrance with wristband check area visible in the background. Golden hour lighting, festival energy, premium but accessible design.
+Realistic photo of a modern barbershop reception counter. On the counter sits a small matte black cylindrical Bluetooth speaker with a white QR code printed directly on the front face of the speaker and an orange LED ring at the base. The QR code is clearly visible as being physically ON the speaker surface, not on a screen or phone. Next to the speaker is a small black acrylic card that reads "Check in: scan the QR code on the speaker or touch your phone to it" with an arrow pointing at the speaker. Behind the counter, a barber in a black apron is cutting hair, visible in a large mirror. Warm wood tones, leather barber chairs, brass fixtures. The speaker with its QR code is the focal point on the counter. Lifestyle product photography, warm tones.
 ```
 
 ---
 
-## NOTAS
+## PROMPT 5 -- Duas situacoes: alguem escaneando + alguem encostando o celular
 
-- Manter a caixa de som SEMPRE preta fosca com anel LED laranja
-- QR code SEMPRE branco no fundo preto da caixa
-- Texto "Scan or Touch" SEMPRE presente abaixo do QR
-- O design deve parecer premium tipo Apple/Bang & Olufsen
-- A caixa e PEQUENA (tamanho de copo de cafe) pra nao atrapalhar
-- O prompt 7 (adesivo) e importante pq no inicio os locais
-  vao usar caixas que ja tem, so colam o adesivo
+```
+Two-panel realistic photo side by side. BOTH panels show the same small matte black Bluetooth speaker with a white QR code printed on its front surface and an orange LED ring, sitting on a bar counter. LEFT PANEL: a hand holds a phone with the camera pointing AT the speaker, scanning the QR code that is on the speaker body. The phone screen shows the camera detecting the QR code on the speaker. A text label says "New here? Scan the speaker." RIGHT PANEL: a different hand holds a phone face-down, pressing the phone screen against the top of the same speaker. The phone and speaker are touching. A text label says "Already use Touch? Just touch the speaker." In both panels the QR code is clearly visible ON THE SPEAKER, not on the phones. Warm bar lighting, clean instructional composition, Apple-style product photography.
+```
+
+---
+
+## PROMPT 6 -- Mesa de restaurante com a caixa entre a comida
+
+```
+Overhead lifestyle photo of a restaurant table. On the table: a plate of spaghetti, a glass of red wine, bread basket, utensils on a white tablecloth. Near the edge of the table sits a small matte black Bluetooth speaker with a white QR code printed directly on its top surface, visible from this overhead angle. The orange LED ring at the base of the speaker glows softly. Next to the speaker, a small table tent card reads "Order & pay -- scan the QR on the speaker." The QR code is clearly printed ON the physical speaker surface, like a product label. NO phone in this image. The speaker sits naturally among the tableware like it belongs there. Candlelight, warm Italian restaurant ambiance. Food photography style mixed with product placement.
+```
+
+---
+
+## PROMPT 7 -- Adesivo QR code pra colar em caixa existente
+
+```
+Product photography on clean white background. A circular adhesive sticker (about 5cm diameter) with a QR code in the center, surrounded by an orange circular border. Around the border edge in small text: "TOUCH? -- SCAN TO CONNECT". The image shows THREE stages: 1) the sticker on its peel-off paper backing, 2) a hand peeling the sticker off the backing, 3) the sticker already applied on the surface of a regular black JBL Flip Bluetooth speaker. The QR code sticker is now physically ON the speaker, stuck to its surface. The message is clear: stick this QR code ON your existing speaker and it becomes a Touch? point. Clean product photography, white background, step-by-step visual. The sticker must look high quality, not cheap -- premium matte finish.
+```
+
+---
+
+## PROMPT 8 -- Collage: mesma caixa em 4 locais diferentes
+
+```
+Photo collage, 2x2 grid, ultra realistic. Each panel shows the SAME small matte black Bluetooth speaker with a white QR code printed on its front surface and orange LED ring at the base. The speaker is the consistent element, placed in 4 different environments. Top left: on a dark wood bar counter with cocktails behind. Top right: on a barbershop front desk with scissors and combs. Bottom left: on a gym reception desk with weights visible. Bottom right: on a church wooden ledge with stained glass light. In ALL four panels, the QR code is clearly visible as being physically printed ON the speaker body. NO phones in any panel. The speaker is the star. Each environment has different lighting but the speaker design is identical across all four. The message: one device, any business. Clean consistent product photography.
+```
+
+---
+
+## PROMPT 9 -- Totem de chao pra eventos grandes (com QR grande)
+
+```
+Realistic photo of a sleek freestanding matte black totem at the entrance of an outdoor music festival at golden hour. The totem is about 4 feet tall, slim and modern. At eye level, a large white QR code is printed directly on the surface of the totem -- NOT on a screen, physically printed or vinyl applied onto the black totem surface. Below the QR code in orange text: "Scan to join the show." Above it, the Touch? logo in orange. At the base of the totem, a built-in Bluetooth speaker with an orange LED glow. One person in festival clothing has stopped and is pointing their phone camera at the QR code on the totem to scan it. Other people walking past. The QR code is BIG and clearly visible as being on the physical totem surface. Festival entrance vibes, golden hour lighting.
+```
+
+---
+
+## REGRAS PRA TODOS OS PROMPTS
+
+1. O QR code esta IMPRESSO / GRAVADO / COLADO na superficie da caixa de som
+2. O QR code NUNCA aparece na tela de um celular
+3. Quando um celular aparece, ele esta APONTANDO A CAMERA pra caixa OU ENCOSTANDO nela
+4. A caixa de som e SEMPRE: preta fosca, cilindrica, anel LED laranja, tamanho de copo
+5. "Scan or Touch" aparece NA CAIXA abaixo do QR, nao no celular
+6. Design premium tipo Apple / Bang & Olufsen / Sonos
+7. Se o Gemini gerar QR code no celular, refazer enfatizando: "the QR code is physically printed on the speaker body, NOT on any phone screen"
