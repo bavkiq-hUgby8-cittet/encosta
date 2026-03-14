@@ -7431,6 +7431,7 @@ async function checkin(){
     localStorage.setItem('activeEventId','${eventId}');
     localStorage.setItem('activeEventName','${eventName.replace(/'/g, "\\'")}');
     localStorage.setItem('activeEventRole','visitor');
+    if(d.wifi&&d.wifi.ssid){localStorage.setItem('pendingWifi',JSON.stringify(d.wifi));localStorage.setItem('pendingWifiEvent','${eventName.replace(/'/g, "\\'")}')}
     window.location.href='/?guestEvent=${eventId}&guest='+d.userId+'&rel='+(d.relationId||'');
   }catch(e){btn.disabled=false;btn.textContent='Fazer check-in';alert('Erro de conexao.')}
 }
@@ -7538,7 +7539,13 @@ app.post('/api/event/quick-checkin', (req, res) => {
     });
   }
 
-  res.json({ ok: true, userId: user.id, userColor: user.color, eventName: ev.name, relationId: existingRel ? existingRel.id : relationId });
+  // Include WiFi data if available
+  var wifiData = null;
+  if (opEv && opEv.wifi && opEv.wifi.enabled && opEv.wifi.ssid) {
+    wifiData = { ssid: opEv.wifi.ssid, password: opEv.wifi.password };
+  }
+
+  res.json({ ok: true, userId: user.id, userColor: user.color, eventName: ev.name, relationId: existingRel ? existingRel.id : relationId, wifi: wifiData });
   } catch (e) {
     console.error('[quick-checkin] 500:', e.message, e.stack);
     res.status(500).json({ error: 'Erro interno no check-in: ' + e.message });
@@ -7590,12 +7597,26 @@ app.post('/api/event/join', (req, res) => {
   // Prevent duplicate check-in
   if (ev.participants.includes(userId)) return res.json({ ok: true, alreadyCheckedIn: true, eventId });
   if (!ev.participants.includes(userId)) ev.participants.push(userId);
+  // Also update operatorEvents
+  const opEvJoin = db.operatorEvents ? db.operatorEvents[eventId] : null;
+  if (opEvJoin) {
+    if (!Array.isArray(opEvJoin.participants)) opEvJoin.participants = [];
+    if (!opEvJoin.participants.includes(userId)) {
+      opEvJoin.participants.push(userId);
+      opEvJoin.checkinCount = opEvJoin.participants.length;
+    }
+  }
   saveDB('operatorEvents');
   // Notify others in event
   ev.participants.forEach(pid => {
     if (pid !== userId) io.to(`user:${pid}`).emit('event-join', { eventId, user: { id: userId, nickname: db.users[userId].nickname, color: db.users[userId].color } });
   });
-  res.json({ ok: true, event: ev });
+  // Include WiFi data if available
+  var wifiJoin = null;
+  if (opEvJoin && opEvJoin.wifi && opEvJoin.wifi.enabled && opEvJoin.wifi.ssid) {
+    wifiJoin = { ssid: opEvJoin.wifi.ssid, password: opEvJoin.wifi.password };
+  }
+  res.json({ ok: true, event: ev, wifi: wifiJoin });
 });
 
 // Get event details + participants
