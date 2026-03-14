@@ -6100,7 +6100,27 @@ function closeEventChurch(){$('evChurchOverlay').style.display='none'}
 
 // ═══ WIFI MODULE ═══
 async function loadWifiConfig(eventId){
+  var isOp=localStorage.getItem('activeEventRole')==='operator';
   try{
+    if(isOp){
+      // Operator always sees WiFi button (to configure it)
+      if($('evWifiBtn')){
+        $('evWifiBtn').style.display='flex';
+        // Check if already configured to show status
+        try{
+          var wr=await fetch('/api/operator/event/'+eventId+'/wifi');
+          var wd=await wr.json();
+          if(wd.enabled&&wd.ssid){
+            $('evWifiBtn').innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg> WiFi ON';
+          }else{
+            $('evWifiBtn').innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg> WiFi';
+            $('evWifiBtn').style.background='linear-gradient(135deg,rgba(6,182,212,.3),rgba(34,211,238,.3))';
+            $('evWifiBtn').style.border='1px dashed rgba(6,182,212,.5)';
+          }
+        }catch(e){}
+      }
+      return;
+    }
     const r=await fetch('/api/event/'+eventId+'/wifi?userId='+encodeURIComponent(state.userId||''));
     const d=await r.json();
     if(d.enabled&&$('evWifiBtn'))$('evWifiBtn').style.display='flex';
