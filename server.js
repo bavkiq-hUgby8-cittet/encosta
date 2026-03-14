@@ -13633,6 +13633,11 @@ app.post('/api/operator/event/create', async (req, res) => {
       scores: {},
       history: []
     },
+    wifi: {
+      enabled: false,
+      ssid: '',
+      password: ''
+    },
     // Payment account: 'operator' (default - uses operator's own accounts) or 'custom' (separate Stripe account for this event)
     paymentAccount: paymentAccount === 'custom' ? 'custom' : 'operator',
     paymentStripeAccountId: null, // set when event-specific Stripe Connect is completed
@@ -13644,8 +13649,9 @@ app.post('/api/operator/event/create', async (req, res) => {
       church: !!modules.church,
       barber: !!modules.barber,
       dj: !!modules.dj,
-      karaoke: !!modules.karaoke
-    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false },
+      karaoke: !!modules.karaoke,
+      wifi: !!modules.wifi
+    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false },
     siteConfig: {
       enabled: false,
       slug: '',
@@ -14069,7 +14075,8 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       church: !!modules.church,
       barber: !!modules.barber,
       dj: !!modules.dj,
-      karaoke: !!modules.karaoke
+      karaoke: !!modules.karaoke,
+      wifi: !!modules.wifi
     };
   }
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
@@ -14160,7 +14167,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null });
+    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null, wifiEnabled: !!(ev.wifi && ev.wifi.enabled && ev.wifi.ssid) });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -14186,7 +14193,7 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
     eventLogo: proxyStorageUrl(ev.eventLogo || null),
-    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false },
+    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false },
     djLive: ev.djLive || null
   });
 });
@@ -16203,6 +16210,50 @@ app.post('/api/operator/event/:eventId/karaoke/config', (req, res) => {
   saveDB('operatorEvents');
   io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'config', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
   res.json({ ok: true, config: k.config });
+});
+
+// ═══ WIFI MODULE ═══
+
+// Operator configures WiFi for the event
+app.post('/api/operator/event/:eventId/wifi', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const { enabled, ssid, password } = req.body;
+  ev.wifi = {
+    enabled: !!enabled,
+    ssid: (ssid || '').trim().slice(0, 64),
+    password: (password || '').trim().slice(0, 64)
+  };
+  if (!ev.modules) ev.modules = {};
+  ev.modules.wifi = !!enabled;
+  saveDB('operatorEvents');
+  console.log('[wifi] config updated for event:', req.params.eventId, 'enabled:', !!enabled, 'ssid:', ev.wifi.ssid);
+  res.json({ ok: true, wifi: { enabled: ev.wifi.enabled, ssid: ev.wifi.ssid } });
+});
+
+// Client retrieves WiFi (only if checked in / participant)
+app.get('/api/event/:eventId/wifi', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const userId = req.query.userId;
+  if (!ev.wifi || !ev.wifi.enabled || !ev.wifi.ssid) {
+    return res.json({ enabled: false });
+  }
+  // Check if user is participant or operator
+  const isParticipant = (ev.participants || []).includes(userId);
+  const isOperator = ev.creatorId === userId;
+  if (!isParticipant && !isOperator) {
+    return res.status(403).json({ error: 'Faca check-in primeiro para acessar o WiFi.' });
+  }
+  res.json({ enabled: true, ssid: ev.wifi.ssid, password: ev.wifi.password });
+});
+
+// Operator gets current WiFi config
+app.get('/api/operator/event/:eventId/wifi', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const w = ev.wifi || { enabled: false, ssid: '', password: '' };
+  res.json({ enabled: w.enabled, ssid: w.ssid, password: w.password });
 });
 
 // POST join queue (participant adds themselves)
