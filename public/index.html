@@ -21457,22 +21457,15 @@ async function charevelaVote(choice){
   if(!vid){vid='anon_'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('visitorId',vid)}catch(e){}}
   var vname='Anonimo';
   try{vname=state.userName||localStorage.getItem('userName')||localStorage.getItem('touchUserName')||'Anonimo'}catch(e){}
-  console.log('[charevela] voting:',choice,'voter:',vid,'event:',eid);
   try{
-    var url=window.location.origin+'/api/event/'+encodeURIComponent(eid)+'/charevela/vote';
-    console.log('[charevela] POST',url);
-    var payload=JSON.stringify({voterId:String(vid),voterName:String(vname),choice:String(choice)});
-    console.log('[charevela] payload:',payload);
-    var r=await fetch(url,{
+    var r=await fetch('/api/event/'+eid+'/charevela/vote',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:payload
+      body:JSON.stringify({voterId:vid,voterName:vname,choice:choice})
     });
-    console.log('[charevela] response status:',r.status);
     var txt=await r.text();
-    console.log('[charevela] response body:',txt);
     var d;
-    try{d=JSON.parse(txt)}catch(pe){showToast('Erro servidor: '+txt.slice(0,60));return}
+    try{d=JSON.parse(txt)}catch(pe){showToast('Erro ao votar. Tente novamente.');return}
     if(r.ok){
       _charevelaMyVote=choice;
       if(d.results&&_charevelaData){_charevelaData.results=d.results}
@@ -21482,8 +21475,7 @@ async function charevelaVote(choice){
       showToast(d.error||'Erro ao votar');
     }
   }catch(e){
-    console.error('[charevela] vote error:',e.name,e.message,e.stack);
-    showToast('Erro: '+(e.message||'falha na conexao'));
+    showToast('Erro de conexao. Tente novamente.');
   }
 }
 
