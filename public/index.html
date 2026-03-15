@@ -21534,10 +21534,68 @@ function showCharevelaRevealAnimation(data){
 
   var videoReady=false;
   var countdownDone=false;
+  var videoFailed=false;
+  var revealStarted=false;
+
+  // Fallback: show beautiful color animation if video fails
+  function showFallbackReveal(){
+    if(revealStarted)return;
+    revealStarted=true;
+    console.log('[reveal] showing fallback animation (no video)');
+    var wrap=$('crCountdownWrap');
+    if(wrap)wrap.style.display='none';
+    vid.style.display='none';
+    // Create animated gradient background
+    var bg=document.createElement('div');
+    bg.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;background:radial-gradient(circle at 50% 50%,'+color+','+color+'80,#000);animation:cr-count-pulse 2s ease-in-out infinite';
+    ov.appendChild(bg);
+    // Confetti particles
+    for(var i=0;i<30;i++){
+      var p=document.createElement('div');
+      var sz=Math.random()*12+4;
+      var x=Math.random()*100;
+      var delay=Math.random()*2;
+      p.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;border-radius:'+(Math.random()>.5?'50%':'2px')+';background:'+color+';left:'+x+'%;top:-20px;z-index:2;opacity:0.8;animation:cr-confetti-fall '+(2+Math.random()*3)+'s ease-in '+delay+'s infinite';
+      ov.appendChild(p);
+    }
+    // Show label immediately
+    showRevealLabel();
+    // Show baby name after 2s
+    if(babyName){setTimeout(function(){showBabyName()},2000)}
+    // Auto-close after 15s
+    setTimeout(function(){closeCharevelaReveal()},15000);
+  }
+
+  function showRevealLabel(){
+    var labelEl=document.createElement('div');
+    labelEl.className='cr-reveal-text';
+    labelEl.style.cssText='position:absolute;top:30%;left:0;right:0;z-index:4;font-size:2.5rem;text-align:center';
+    labelEl.textContent=label;
+    if(ov.parentNode)ov.appendChild(labelEl);
+  }
+
+  function showBabyName(){
+    if(!babyName)return;
+    var nameWrap=document.createElement('div');
+    nameWrap.className='cr-baby-name-bg';
+    nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
+    if(ov.parentNode)ov.appendChild(nameWrap);
+  }
 
   // Function to start playing video when BOTH video is ready AND countdown is done
   function tryPlayVideo(){
-    if(!videoReady||!countdownDone)return;
+    if(!countdownDone)return;
+    if(videoFailed||!videoReady){
+      // If countdown done but no video, wait a bit more then fallback
+      if(!videoReady&&!videoFailed){
+        console.log('[reveal] countdown done, waiting for video...');
+        return;
+      }
+      showFallbackReveal();
+      return;
+    }
+    if(revealStarted)return;
+    revealStarted=true;
     console.log('[reveal] both ready, starting playback');
     var wrap=$('crCountdownWrap');
     if(wrap)wrap.style.display='none';
@@ -21548,59 +21606,57 @@ function showCharevelaRevealAnimation(data){
     if(playP&&playP.then){
       playP.then(function(){
         console.log('[reveal] video playing OK');
-        // Try unmuting (works if user interacted recently)
-        try{vid.muted=false;console.log('[reveal] unmuted OK')}catch(e){console.log('[reveal] unmute failed')}
+        try{vid.muted=false}catch(e){}
       }).catch(function(e){
         console.error('[reveal] play() failed:',e.message);
-        // Force: try again
         vid.muted=true;
-        vid.play().catch(function(e2){console.error('[reveal] retry play failed:',e2.message)});
+        vid.play().catch(function(e2){
+          console.error('[reveal] retry play failed:',e2.message);
+          showFallbackReveal();
+        });
       });
     }
     if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
-
-    // Show baby name overlay near the reveal moment (~8s)
-    if(babyName){
-      setTimeout(function(){
-        var nameWrap=document.createElement('div');
-        nameWrap.className='cr-baby-name-bg';
-        nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
-        if(ov.parentNode)ov.appendChild(nameWrap);
-      },7000);
-    }
-    // Show label (Menino/Menina)
-    setTimeout(function(){
-      var labelEl=document.createElement('div');
-      labelEl.className='cr-reveal-text';
-      labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
-      labelEl.textContent=label;
-      if(ov.parentNode)ov.appendChild(labelEl);
-    },8500);
+    // Show baby name overlay near the reveal moment (~7s)
+    if(babyName){setTimeout(function(){showBabyName()},7000)}
+    // Show label
+    setTimeout(function(){showRevealLabel()},8500);
     // Auto-close after video ends + 5s
-    vid.onended=function(){
-      setTimeout(function(){closeCharevelaReveal()},5000);
-    };
+    vid.onended=function(){setTimeout(function(){closeCharevelaReveal()},5000)};
     // Fallback auto-close
     setTimeout(function(){closeCharevelaReveal()},30000);
   }
 
   // Wait for video to be ready to play
-  vid.addEventListener('canplay',function(){
+  function onVideoReady(){
     if(videoReady)return;
     videoReady=true;
-    console.log('[reveal] video canplay fired');
+    console.log('[reveal] video ready');
     tryPlayVideo();
-  });
+  }
+  vid.addEventListener('canplay',onVideoReady);
+  vid.addEventListener('canplaythrough',onVideoReady);
+  vid.addEventListener('loadeddata',onVideoReady);
   vid.addEventListener('error',function(e){
     console.error('[reveal] video error:',vid.error?vid.error.message:'unknown');
-    var lbl=$('crCountdownLabel');
-    if(lbl)lbl.textContent='Erro ao carregar video';
+    videoFailed=true;
+    if(countdownDone)showFallbackReveal();
+    else{var lbl=$('crCountdownLabel');if(lbl)lbl.textContent='Preparando revelacao...'}
   });
 
   // Start loading the video
   vid.src=videoSrc;
   vid.load();
   console.log('[reveal] loading video:',videoSrc);
+
+  // Timeout: if video not ready after 12s, use fallback
+  setTimeout(function(){
+    if(!videoReady&&!videoFailed){
+      console.log('[reveal] video timeout, using fallback');
+      videoFailed=true;
+      if(countdownDone)showFallbackReveal();
+    }
+  },12000);
 
   // Show progress updates
   vid.addEventListener('progress',function(){
