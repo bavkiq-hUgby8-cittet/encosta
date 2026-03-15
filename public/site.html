@@ -2246,7 +2246,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 
 /* ── Input Area ── */
 .ta-input-area{padding:12px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;align-items:center;flex-shrink:0;background:rgba(5,5,8,.5)}
-.ta-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:#f0f0f5;font-size:.82rem;font-family:inherit;outline:none;resize:none;max-height:80px;transition:border-color .2s}
+.ta-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:#f0f0f5;font-size:16px;font-family:inherit;outline:none;resize:none;max-height:80px;transition:border-color .2s}
 .ta-input:focus{border-color:rgba(255,107,53,.3)}
 .ta-input::placeholder{color:#606078}
 
@@ -2876,6 +2876,18 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     console.log('[WebRTC] Creating PeerConnection... tourMode:', tourModeParam);
     var pc = new RTCPeerConnection();
     peerConnection = pc;
+    var micTrack = null;
+    var micMuteTimer = null;
+
+    function muteMicDuringResponse(){
+      if(micTrack){ micTrack.enabled = false; console.log('[AntiEcho] Mic muted'); }
+    }
+    function unmuteMicAfterResponse(){
+      if(micMuteTimer) clearTimeout(micMuteTimer);
+      micMuteTimer = setTimeout(function(){
+        if(micTrack){ micTrack.enabled = true; console.log('[AntiEcho] Mic unmuted'); }
+      }, 1500);
+    }
 
     pc.oniceconnectionstatechange = function(){
       console.log('[WebRTC] ICE state:', pc.iceConnectionState);
@@ -2916,6 +2928,11 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         var msg = JSON.parse(e.data);
         console.log('[WebRTC] msg:', msg.type);
 
+        // Anti-echo: mute mic when assistant starts speaking
+        if(msg.type === 'response.audio.delta' || msg.type === 'response.created'){
+          muteMicDuringResponse();
+        }
+
         // Show transcript when audio for a response part is done
         if(msg.type === 'response.audio_transcript.done' && msg.transcript){
           addMessage(msg.transcript, 'bot');
@@ -2927,6 +2944,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         // We calculate a dynamic delay based on transcript length
         // to let the audio finish playing before advancing.
         if(msg.type === 'response.done'){
+          unmuteMicAfterResponse();
           if(inTour){
             // response.done fires when generation completes, but audio
             // buffer may still be playing. Small buffer to let it finish.
@@ -3004,8 +3022,9 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       proceedWithOffer();
     } else {
       console.log('[WebRTC] General mode: requesting microphone...');
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
-        console.log('[WebRTC] Mic acquired');
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function(stream){
+        console.log('[WebRTC] Mic acquired with echo cancellation');
+        micTrack = stream.getAudioTracks()[0];
         stream.getTracks().forEach(function(track){ pc.addTrack(track, stream); });
         proceedWithOffer();
       }).catch(function(micErr){
