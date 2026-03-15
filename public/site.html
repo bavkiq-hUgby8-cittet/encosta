@@ -582,7 +582,7 @@ section{padding:7rem 1.5rem;position:relative}
 
     <div class="hero-cta">
       <a href="/" class="btn btn-main" data-i="hero-cta1">Try Touch? now</a>
-      <a href="#how" class="btn btn-outline" data-i="hero-cta2">See how it works</a>
+      <a href="#how" class="btn btn-outline" data-i="hero-cta2" id="heroCta2">See how it works</a>
     </div>
 
     <div class="hero-badges">
@@ -2333,7 +2333,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 </style>
 
 <!-- Floating Tour Button -->
-<button class="tour-fab" id="tourFab">
+<button class="tour-fab" id="tourFab" style="display:none">
   <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M9 3h6v4H9z"/><path d="M9 12h6M9 16h4"/></svg>
   <span class="tour-fab-text" id="tourFabText">Presentation</span>
   <span class="tour-fab-dot"></span>
@@ -3150,11 +3150,21 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     updateTourLabels();
   };
 
-  // Open modal
-  tourFab.addEventListener('click', function(){
+  // Open modal from tour FAB (hidden now) or hero CTA2 button
+  function openTourModal(){
     updateTourLabels();
     overlay.classList.add('active');
-  });
+  }
+  tourFab.addEventListener('click', openTourModal);
+
+  // Wire hero "See how it works" / "Veja como funciona" button to open tour modal
+  var heroCta2 = document.getElementById('heroCta2');
+  if(heroCta2){
+    heroCta2.addEventListener('click', function(e){
+      e.preventDefault();
+      openTourModal();
+    });
+  }
 
   // Close modal
   modalClose.addEventListener('click', function(){
