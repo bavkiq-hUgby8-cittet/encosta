@@ -8659,22 +8659,33 @@ function doReveal(data){
     if(evModules.charevela&&evId){
       h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>','Cha Revelacao',"openCharevelaFromNetwork('"+evId+"')",'');
     }
+    // WiFi button (if event has wifi configured)
+    if(data.wifiData&&data.wifiData.ssid&&evId){
+      h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>','WiFi',"showWifiAutoConnect('"+esc(data.wifiData.ssid)+"','"+esc(data.wifiData.password||'')+"','"+esc(evName)+"')",'');
+    }
     // Tip button (if event accepts tips)
     if(hasTips){
       h+=_rvBtn(_rvIco.tip,'Gorjeta',"openTipFromReveal()",'tip');
     }
-    // Enter event
-    h+=_rvBtn(_rvIco.skip,'Entrar',enterEvAction+guestFlag,'skip');
     iconRow.innerHTML=h;
     // Set receiverId on tip button if exists
     if(hasTips){
       const tipB=iconRow.querySelector('.rv-icon-btn.tip');
       if(tipB){tipB.id='revealTipBtn';tipB.dataset.receiverId=opId}
     }
-    if(entryPrice>0&&secRow){
-      const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
-      secRow.innerHTML='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.3rem;line-height:1.5">Entrada: '+priceLabel+'</div>';
-    }else if(secRow){secRow.style.display='none'}
+    // Show "Entrar" as prominent button below the icon row + entry price
+    if(secRow){
+      var secH='';
+      if(entryPrice>0){
+        var priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
+        secH+='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.2rem 0;line-height:1.5">Entrada: '+priceLabel+'</div>';
+      }
+      secH+='<div style="display:flex;gap:.4rem;justify-content:center;padding:.3rem .5rem">';
+      secH+='<button onclick="'+enterEvAction+guestFlag+'" style="flex:1;max-width:200px;padding:.6rem 1rem;background:linear-gradient(135deg,#6366f1,#818cf8);border:none;border-radius:12px;color:#fff;font-size:.8rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 15px rgba(99,102,241,.3)">Entrar no Evento</button>';
+      secH+='</div>';
+      secRow.innerHTML=secH;
+      secRow.style.display='';
+    }
     // WiFi auto-connect after checkin Touch
     if(data.wifiData&&data.wifiData.ssid){
       setTimeout(function(){showWifiAutoConnect(data.wifiData.ssid,data.wifiData.password||'',evName)},2000);
