@@ -3221,7 +3221,7 @@ app.post('/api/session/join', (req, res) => {
       operatorId: sessionOperatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
-      eventModules: sessionEventObj ? (sessionEventObj.modules || null) : null,
+      eventModules: sessionEventObj ? getActiveModules(sessionEventObj) : null,
       acceptsTips: sessionEventObj ? !!sessionEventObj.acceptsTips : false,
       wifiData: (sessionEventObj && sessionEventObj.wifi && sessionEventObj.wifi.enabled && sessionEventObj.wifi.ssid) ? { ssid: sessionEventObj.wifi.ssid, password: sessionEventObj.wifi.password } : null,
       eventLogo: sessionEventObj ? proxyStorageUrl(sessionEventObj.eventLogo || null) : null,
@@ -3312,7 +3312,7 @@ app.get('/api/relations/:userId', (req, res) => {
       partnerVerified: isEvent ? !!(evObj && evObj.verified) : !!(p && p.verified),
       partnerAccessory: isEvent ? null : (p?.avatarAccessory || null),
       eventLogo: isEvent && evObj ? proxyStorageUrl(evObj.eventLogo || null) : null,
-      eventModules: isEvent && evObj ? (evObj.modules || null) : null,
+      eventModules: isEvent && evObj ? getActiveModules(evObj) : null,
       eventAcceptsTips: isEvent && evObj ? !!evObj.acceptsTips : false
     };
   });
@@ -3349,7 +3349,7 @@ app.get('/api/relation-reveal/:relationId/:userId', (req, res) => {
     encounterCount: pairEncounters, encounterCount24h: pairEncounters24h,
     isCheckin, isServiceTouch: isService, eventId: evId,
     eventName: opEv ? opEv.name : null, entryPrice: opEv ? (opEv.entryPrice || 0) : 0,
-    eventModules: opEv ? (opEv.modules || null) : null, acceptsTips: opEv ? !!opEv.acceptsTips : false,
+    eventModules: opEv ? getActiveModules(opEv) : null, acceptsTips: opEv ? !!opEv.acceptsTips : false,
     wifiData: (opEv && opEv.wifi && opEv.wifi.enabled && opEv.wifi.ssid) ? { ssid: opEv.wifi.ssid, password: opEv.wifi.password } : null,
     eventLogo: opEv ? (opEv.eventLogo || null) : null,
     operatorId: isCheckin ? partnerId : null, operatorName: isCheckin ? (partner.nickname || '') : null,
@@ -8116,7 +8116,7 @@ function createSonicConnection(userIdA, userIdB) {
       operatorId: operatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
-      eventModules: eventObj ? (eventObj.modules || null) : null,
+      eventModules: eventObj ? getActiveModules(eventObj) : null,
       acceptsTips: eventObj ? !!eventObj.acceptsTips : false,
       wifiData: (eventObj && eventObj.wifi && eventObj.wifi.enabled && eventObj.wifi.ssid) ? { ssid: eventObj.wifi.ssid, password: eventObj.wifi.password } : null,
       eventLogo: eventObj ? proxyStorageUrl(eventObj.eventLogo || null) : null,
@@ -14574,7 +14574,7 @@ app.get('/api/operator/event/:eventId/attendees', (req, res) => {
       } catch (e) { console.error('[attendees] error mapping uid:', uid, e.message); return null; }
     }).filter(Boolean);
     console.log('[attendees] eventId:', req.params.eventId, 'eventLogo:', ev.eventLogo ? ev.eventLogo.substring(0, 60) + '...' : 'null');
-    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false }, acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null, wifiEnabled: !!(ev.wifi && ev.wifi.enabled && ev.wifi.ssid) });
+    res.json({ attendees, eventName: ev.name, active: ev.active, creatorId: ev.creatorId || null, isOperator, welcomePhrase: ev.welcomePhrase || '', quickPhrases: ev.quickPhrases || [], businessProfile: ev.businessProfile || null, eventLogo: proxyStorageUrl(ev.eventLogo || null), modules: getActiveModules(ev), acceptsTips: ev.acceptsTips || false, entryPrice: ev.entryPrice || 0, revealMode: ev.revealMode || 'optional', verified: !!ev.verified, verifiedAt: ev.verifiedAt || null, djLive: ev.djLive || null, wifiEnabled: !!(ev.wifi && ev.wifi.enabled && ev.wifi.ssid) });
   } catch (e) {
     console.error('[attendees] 500:', e.message, e.stack);
     res.status(500).json({ error: e.message });
@@ -17364,6 +17364,23 @@ app.post('/api/event/:eventId/barber/appointment/:appointmentId/complete', (req,
 });
 
 // ═══ CHA REVELACAO (Gender Reveal) MODULE ═══
+
+// Returns only modules that are truly active and configured
+function getActiveModules(ev) {
+  if (!ev) return {};
+  const m = ev.modules || {};
+  return {
+    restaurant: !!(m.restaurant && (ev.menu || []).length > 0),
+    parking: !!(m.parking && ev.parking && ev.parking.enabled),
+    gym: !!(m.gym && ev.gym && ev.gym.enabled),
+    church: !!(m.church && ev.church && ev.church.enabled),
+    barber: !!(m.barber && ev.barber && ev.barber.enabled),
+    dj: !!(m.dj),
+    karaoke: !!(m.karaoke),
+    wifi: !!(m.wifi && ev.wifi && ev.wifi.enabled && ev.wifi.ssid),
+    charevela: !!(m.charevela)
+  };
+}
 
 function ensureChaRevela(ev) {
   if (!ev.charevela || typeof ev.charevela !== 'object') ev.charevela = { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } };
