@@ -6395,7 +6395,7 @@ async function renderWifiUI(){
         +'<button onclick="saveWifiConfig()" style="width:100%;padding:.7rem;background:#22d3ee;color:#000;border:none;border-radius:12px;font-size:.8rem;font-weight:700;font-family:inherit;cursor:pointer">Salvar WiFi</button>'
         +'</div>';
     }else{
-      // Client view: show WiFi QR code + connect button
+      // Client view: clean connect button (no QR - camera is on same device)
       const r=await fetch('/api/event/'+evViewEventId+'/wifi?userId='+encodeURIComponent(state.userId||''));
       const d=await r.json();
       if(!d.enabled){
@@ -6406,41 +6406,32 @@ async function renderWifiUI(){
       var _ua=navigator.userAgent||'';
       var _isIOS=/iPad|iPhone|iPod/.test(_ua)||(/Macintosh/.test(_ua)&&'ontouchend' in document);
       var _isAndroid=/Android/i.test(_ua);
-      // Build WiFi QR string
-      var wifiQRStr='WIFI:T:WPA;S:'+_wSsid.replace(/[\\;,:]/g,'\\$&')+';P:'+_wPass.replace(/[\\;,:]/g,'\\$&')+';;';
-      el.innerHTML='<div style="padding:1rem .5rem;text-align:center">'
-        +'<div style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:.2rem">WiFi do evento</div>'
-        +'<div style="font-size:.6rem;color:var(--t3);margin-bottom:1rem">Aponte a camera do celular para o QR e conecte automaticamente</div>'
-        /* QR Code area */
-        +'<div style="display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:16px;padding:1rem;margin-bottom:.8rem" id="wifiClientQR"></div>'
-        /* Network info - only SSID, no password visible */
-        +'<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);border-radius:14px;padding:.7rem 1rem;margin-bottom:.8rem">'
-        +'<div style="text-align:center">'
-        +'<div style="font-size:.45rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3)">Rede</div>'
-        +'<div style="font-size:.95rem;font-weight:700;color:#fff;font-family:monospace">'+escH(_wSsid)+'</div>'
-        +'</div></div>'
-        /* Connect button - same action as scanning QR code */
-        +'<button id="wifiOverlayConnect" style="width:100%;padding:.8rem;background:linear-gradient(135deg,#06b6d4,#22d3ee);color:#000;border:none;border-radius:14px;font-size:.85rem;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:.5rem;box-shadow:0 4px 20px rgba(6,182,212,.3);display:flex;align-items:center;justify-content:center;gap:8px">'
-        +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
+      el.innerHTML='<div style="padding:1.5rem 1rem;text-align:center">'
+        /* WiFi icon */
+        +'<div style="margin-bottom:1rem">'
+        +'<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#22d3ee"/></svg>'
+        +'</div>'
+        /* Network name */
+        +'<div style="font-size:.5rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-bottom:.3rem">Rede WiFi do evento</div>'
+        +'<div style="font-size:1.2rem;font-weight:800;color:#fff;font-family:monospace;margin-bottom:1.2rem">'+escH(_wSsid)+'</div>'
+        /* Connect button */
+        +'<button id="wifiOverlayConnect" style="width:100%;padding:1rem;background:linear-gradient(135deg,#06b6d4,#22d3ee);color:#000;border:none;border-radius:14px;font-size:.95rem;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:.3rem;box-shadow:0 4px 20px rgba(6,182,212,.3);display:flex;align-items:center;justify-content:center;gap:8px">'
+        +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
         +'Conectar</button>'
-        /* Copy password only */
-        +'<button id="wifiOverlayCopy" style="width:100%;padding:.5rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t2);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar senha</button>'
+        +'<div style="font-size:.5rem;color:var(--t3);margin-bottom:.8rem">Copia a senha e abre o WiFi para voce selecionar a rede</div>'
+        /* Copy password */
+        +'<button id="wifiOverlayCopy" style="width:100%;padding:.6rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t2);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar senha</button>'
         +'</div>';
-      // Generate QR code
-      var qrBox=document.getElementById('wifiClientQR');
-      if(qrBox&&typeof QRCode!=='undefined'){
-        new QRCode(qrBox,{text:wifiQRStr,width:200,height:200,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
-      }else if(qrBox){
-        qrBox.innerHTML='<div style="color:#666;padding:1rem;font-size:.7rem">QR indisponivel</div>';
-      }
       // Bind connect button - copies password + opens WiFi settings
       var cBtn=document.getElementById('wifiOverlayConnect');
       if(cBtn){cBtn.onclick=function(){
         navigator.clipboard.writeText(_wPass).then(function(){}).catch(function(){});
-        showToast('Senha copiada! Selecione "'+_wSsid+'" e cole');
-        if(_isAndroid){try{window.location.href='intent:#Intent;action=android.settings.WIFI_SETTINGS;end'}catch(e){}}
-        else if(_isIOS){window.location.href='App-Prefs:WIFI'}
-        else{showToast('Abra as configuracoes WiFi e conecte em "'+_wSsid+'"')}
+        showToast('Senha copiada! Selecione "'+_wSsid+'" e cole a senha');
+        setTimeout(function(){
+          if(_isAndroid){try{window.location.href='intent:#Intent;action=android.settings.WIFI_SETTINGS;end'}catch(e){}}
+          else if(_isIOS){window.location.href='App-Prefs:WIFI'}
+          else{showToast('Abra as configuracoes WiFi e conecte em "'+_wSsid+'"')}
+        },600);
       }}
       // Bind copy button
       var cpBtn=document.getElementById('wifiOverlayCopy');
@@ -6495,50 +6486,38 @@ function checkPendingWifi(){
   }catch(e){console.warn('[wifi] pending check error:',e)}
 }
 
-// WiFi auto-connect popup after check-in
+// WiFi auto-connect popup after check-in (no QR - camera is on same device)
 function showWifiAutoConnect(ssid,password,eventName){
   if(!ssid)return;
   password=password||'';
-  /* Auto-copy password to clipboard immediately */
-  if(password)try{navigator.clipboard.writeText(password).catch(function(){})}catch(e){}
   /* Detect platform */
   var ua=navigator.userAgent||'';
   var isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&'ontouchend' in document);
   var isAndroid=/Android/i.test(ua);
-  /* WiFi QR string */
-  var wifiQRStr='WIFI:T:WPA;S:'+ssid.replace(/[\\;,:]/g,'\\$&')+';P:'+password.replace(/[\\;,:]/g,'\\$&')+';;';
   var ov=document.createElement('div');
   ov.className='wifi-auto-overlay';
   ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .3s ease;overflow-y:auto';
   ov.innerHTML=''
     +'<div style="background:linear-gradient(135deg,#111118,#0d1520);border-radius:20px;padding:1.5rem;max-width:340px;width:100%;text-align:center;border:1px solid rgba(6,182,212,.3);box-shadow:0 8px 40px rgba(6,182,212,.2)">'
-    /* Title */
-    +'<div style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:.2rem">WiFi do evento</div>'
-    +'<div style="font-size:.6rem;color:var(--t3,#888);margin-bottom:.8rem">Aponte a camera para o QR e conecte automaticamente</div>'
-    /* QR Code */
-    +'<div style="display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:16px;padding:.8rem;margin-bottom:.8rem" id="wifiAutoQR"></div>'
-    /* Network info card - only SSID, no password visible */
-    +'<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);border-radius:14px;padding:.7rem 1rem;margin-bottom:.8rem">'
-    +'<div style="text-align:center">'
-    +'<div style="font-size:.45rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3,#888)">Rede</div>'
-    +'<div style="font-size:.9rem;font-weight:700;color:#fff;font-family:monospace">'+escH(ssid)+'</div>'
-    +'</div></div>'
-    /* Connect button - same action as scanning QR code */
-    +'<button id="wifiConnectBtn" style="width:100%;padding:.75rem;background:linear-gradient(135deg,#06b6d4,#22d3ee);color:#000;border:none;border-radius:14px;font-size:.85rem;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:.5rem;box-shadow:0 4px 20px rgba(6,182,212,.3);display:flex;align-items:center;justify-content:center;gap:8px">'
-    +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
+    /* WiFi icon */
+    +'<div style="margin-bottom:.8rem">'
+    +'<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#22d3ee"/></svg>'
+    +'</div>'
+    /* Network name */
+    +'<div style="font-size:.5rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3,#888);margin-bottom:.2rem">WiFi do evento</div>'
+    +'<div style="font-size:1.1rem;font-weight:800;color:#fff;font-family:monospace;margin-bottom:1rem">'+escH(ssid)+'</div>'
+    /* Connect button */
+    +'<button id="wifiConnectBtn" style="width:100%;padding:.85rem;background:linear-gradient(135deg,#06b6d4,#22d3ee);color:#000;border:none;border-radius:14px;font-size:.9rem;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:.3rem;box-shadow:0 4px 20px rgba(6,182,212,.3);display:flex;align-items:center;justify-content:center;gap:8px">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>'
     +'Conectar</button>'
+    +'<div style="font-size:.5rem;color:var(--t3,#888);margin-bottom:.7rem">Copia a senha e abre o WiFi para voce selecionar a rede</div>'
     /* Bottom buttons */
     +'<div style="display:flex;gap:.4rem">'
-    +'<button id="wifiCopyManual" style="flex:1;padding:.45rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t2,#ccc);font-size:.62rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar senha</button>'
-    +'<button onclick="this.closest(\'.wifi-auto-overlay\').remove()" style="flex:1;padding:.45rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:var(--t3,#888);font-size:.62rem;font-family:inherit;cursor:pointer">Depois</button>'
+    +'<button id="wifiCopyManual" style="flex:1;padding:.5rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t2,#ccc);font-size:.62rem;font-weight:600;font-family:inherit;cursor:pointer">Copiar senha</button>'
+    +'<button onclick="this.closest(\'.wifi-auto-overlay\').remove()" style="flex:1;padding:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:var(--t3,#888);font-size:.62rem;font-family:inherit;cursor:pointer">Depois</button>'
     +'</div>'
     +'</div>';
   document.body.appendChild(ov);
-  /* Generate QR code */
-  var qrEl=ov.querySelector('#wifiAutoQR');
-  if(qrEl&&typeof QRCode!=='undefined'){
-    new QRCode(qrEl,{text:wifiQRStr,width:180,height:180,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
-  }
   ov.onclick=function(e){if(e.target===ov)ov.remove()};
   /* Main connect button: copy password + open WiFi settings */
   var connBtn=ov.querySelector('#wifiConnectBtn');
@@ -6546,19 +6525,12 @@ function showWifiAutoConnect(ssid,password,eventName){
     connBtn.onclick=function(){
       if(password)navigator.clipboard.writeText(password).then(function(){}).catch(function(){});
       showToast('Senha copiada! Selecione "'+ssid+'" e cole a senha');
-      /* Open WiFi settings based on platform */
-      if(isAndroid){
-        var intentUrl='intent:#Intent;action=android.settings.WIFI_SETTINGS;end';
-        try{window.location.href=intentUrl}catch(e){}
-      }else if(isIOS){
-        /* iOS: open WiFi settings */
-        window.location.href='App-Prefs:WIFI';
-      }else{
-        /* Desktop: just show toast */
-        showToast('Abra as configuracoes WiFi do seu dispositivo e conecte em "'+ssid+'"');
-      }
-      /* Close overlay after brief delay */
-      setTimeout(function(){ov.remove()},800);
+      setTimeout(function(){
+        if(isAndroid){try{window.location.href='intent:#Intent;action=android.settings.WIFI_SETTINGS;end'}catch(e){}}
+        else if(isIOS){window.location.href='App-Prefs:WIFI'}
+        else{showToast('Abra as configuracoes WiFi e conecte em "'+ssid+'"')}
+      },600);
+      setTimeout(function(){ov.remove()},1000);
     };
   }
   /* Manual copy button */
