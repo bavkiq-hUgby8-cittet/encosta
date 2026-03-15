@@ -2637,7 +2637,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
           type: 'conversation.item.create',
           item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'SECTION:' + step.signal }] }
         }));
-        peerConnection.dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
+        peerConnection.dc.send(JSON.stringify({ type: 'response.create' }));
       } catch(e){}
     }
   }
@@ -2921,7 +2921,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       addMessage(t('voiceLive'), 'bot');
 
       // Trigger initial response (the opening speech)
-      dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
+      dc.send(JSON.stringify({ type: 'response.create' }));
 
       // In tour mode, DON'T advance yet -- wait for response.done
     };
@@ -2958,6 +2958,14 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         // We calculate a dynamic delay based on transcript length
         // to let the audio finish playing before advancing.
         if(msg.type === 'response.done'){
+          var rStatus = msg.response ? msg.response.status : 'unknown';
+          var rOutput = msg.response && msg.response.output ? msg.response.output.length : 0;
+          var rStatusDetail = msg.response && msg.response.status_details ? JSON.stringify(msg.response.status_details) : 'none';
+          console.log('[WebRTC] response.done status:', rStatus, 'outputs:', rOutput, 'details:', rStatusDetail);
+          if(rStatus === 'cancelled' || rStatus === 'failed'){
+            console.error('[WebRTC] Response FAILED/CANCELLED:', JSON.stringify(msg.response).substring(0, 500));
+            addMessage({pt:'Erro na voz: ' + rStatus, en:'Voice error: ' + rStatus, es:'Error de voz: ' + rStatus}[getLang()] || 'Voice error: ' + rStatus, 'bot');
+          }
           unmuteMicAfterResponse();
           if(inTour){
             // response.done fires when generation completes, but audio
