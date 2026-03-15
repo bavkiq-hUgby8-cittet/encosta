@@ -6,96 +6,107 @@
 <title>Revelacao</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;overflow:hidden;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100vw;height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center}
-video{position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover}
-#count{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;z-index:2;background:#000}
-#count span{font-size:10rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.5)}
-#nameBox{position:fixed;bottom:10%;left:0;right:0;text-align:center;z-index:3;opacity:0;transition:opacity 1s}
-#nameBox.show{opacity:1}
-#nameBox div{display:inline-block;background:rgba(0,0,0,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:1rem 2.5rem;border-radius:16px}
-#nameBox h1{font-size:2.5rem;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,255,255,.4)}
-#nameBox p{font-size:1.1rem;font-weight:700;margin-top:.3rem}
-#closeBtn{position:fixed;top:12px;right:12px;z-index:10;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
-#err{color:#ef4444;font-size:1.2rem;font-weight:600}
+body{background:#000;overflow:hidden;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100vw;height:100vh;height:100dvh}
+#tapScreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#tapScreen .circle{width:140px;height:140px;border-radius:50%;border:3px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;animation:glow 2s ease-in-out infinite}
+#tapScreen .circle span{font-size:1.1rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.08em;text-align:center;line-height:1.3}
+#tapScreen .hint{font-size:.85rem;color:rgba(255,255,255,.4);margin-top:1rem}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(255,255,255,.1)}50%{box-shadow:0 0 40px rgba(255,255,255,.25)}}
+#countScreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:5;background:#000;display:none;align-items:center;justify-content:center}
+#countScreen span{font-size:10rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.5)}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+video{position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1;display:none}
+#nameBox{position:fixed;top:0;left:0;width:100%;height:100%;z-index:8;display:none;flex-direction:column;align-items:center;justify-content:center}
+#nameBox div{background:rgba(0,0,0,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:1.5rem 3rem;border-radius:16px;text-align:center}
+#nameBox h1{font-size:2.8rem;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,255,255,.4)}
+#nameBox p{font-size:1.2rem;font-weight:700;margin-top:.4rem}
+#closeBtn{position:fixed;top:12px;right:12px;z-index:20;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer;display:none;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
 
-<div id="count"><span id="num"></span></div>
+<div id="tapScreen">
+  <div class="circle"><span>Toque para revelar</span></div>
+  <div class="hint">Preparado?</div>
+</div>
+
+<div id="countScreen"><span id="num">5</span></div>
+
 <video id="vid" playsinline webkit-playsinline muted preload="auto"></video>
+
 <div id="nameBox"><div><h1 id="bname"></h1><p id="blabel"></p></div></div>
+
 <button id="closeBtn" onclick="window.history.back()">X</button>
 
 <script>
 var params=new URLSearchParams(window.location.search);
 var eventId=params.get('event')||params.get('e')||'';
+var revealData=null;
 
 if(!eventId){
-  document.getElementById('num').outerHTML='<span id="err">Evento nao encontrado</span>';
+  document.getElementById('tapScreen').innerHTML='<div style="color:#ef4444;font-size:1.2rem;font-weight:600">Evento nao encontrado</div>';
 }else{
-  // Fetch reveal data from API
+  // Fetch data immediately
   fetch('/api/event/'+eventId+'/charevela')
     .then(function(r){return r.json()})
     .then(function(d){
-      if(!d.config||!d.config.revealed||!d.config.answer){
-        // Not revealed yet - wait for socket
-        document.getElementById('num').textContent='';
-        document.getElementById('count').innerHTML='<span style="font-size:1.2rem;color:rgba(255,255,255,.7);font-weight:600">Aguardando a revelacao...</span>';
-        waitForSocket();
-        return;
+      if(d.config && d.config.revealed && d.config.answer){
+        var a=d.config.answer;
+        revealData={
+          videoSrc: a==='optionA'?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4',
+          babyName: d.config.babyName||'',
+          label: a==='optionA'?(d.config.optionA||'Menino'):(d.config.optionB||'Menina'),
+          color: a==='optionA'?(d.config.colorA||'#3b82f6'):(d.config.colorB||'#ec4899')
+        };
+        // Preload video
+        var v=document.getElementById('vid');
+        v.src=revealData.videoSrc;
+        v.load();
+      }else{
+        // Not revealed yet - show waiting, connect socket
+        document.getElementById('tapScreen').innerHTML='<div style="font-size:1.2rem;color:rgba(255,255,255,.7);font-weight:600;animation:pulse 1.5s infinite">Aguardando a revelacao...</div>';
+        loadSocket();
       }
-      // Already revealed - run the full experience
-      var answer=d.config.answer;
-      var label=answer==='optionA'?(d.config.optionA||'Menino'):(d.config.optionB||'Menina');
-      var color=answer==='optionA'?(d.config.colorA||'#3b82f6'):(d.config.colorB||'#ec4899');
-      var babyName=d.config.babyName||'';
-      var videoSrc=answer==='optionA'?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4';
-      runReveal(videoSrc,babyName,label,color);
     })
-    .catch(function(e){
-      document.getElementById('num').outerHTML='<span id="err">Erro ao carregar</span>';
+    .catch(function(){
+      document.getElementById('tapScreen').innerHTML='<div style="color:#ef4444;font-size:1.2rem;font-weight:600">Erro ao carregar</div>';
     });
 }
 
-function waitForSocket(){
+function loadSocket(){
   var s=document.createElement('script');
   s.src='/socket.io/socket.io.js';
   s.onload=function(){
-    var socket=io();
-    socket.emit('join-event-room',eventId);
-    socket.on('charevela-reveal',function(data){
+    var sock=io();
+    sock.emit('join-event-room',eventId);
+    sock.on('charevela-reveal',function(data){
       if(data.eventId!==eventId)return;
-      var answer=data.answer||'';
-      var label=data.answerLabel||'???';
-      var color=data.color||'#ec4899';
-      var babyName=data.babyName||'';
-      var videoSrc=answer==='optionA'?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4';
-      runReveal(videoSrc,babyName,label,color);
+      revealData={
+        videoSrc: data.answer==='optionA'?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4',
+        babyName: data.babyName||'',
+        label: data.answerLabel||'???',
+        color: data.color||'#ec4899'
+      };
+      var v=document.getElementById('vid');
+      v.src=revealData.videoSrc;
+      v.load();
+      // Show tap button
+      document.getElementById('tapScreen').innerHTML='<div class="circle"><span>Toque para revelar</span></div><div class="hint">Preparado?</div>';
     });
   };
   document.body.appendChild(s);
 }
 
-function runReveal(videoSrc,babyName,label,color){
-  // Step 1: preload video immediately
-  var vid=document.getElementById('vid');
-  vid.src=videoSrc;
-  vid.load();
-
-  // Step 2: countdown 5..1
-  var countEl=document.getElementById('count');
+// TAP = start everything (guarantees user gesture for video)
+document.getElementById('tapScreen').addEventListener('click',function(){
+  if(!revealData)return;
+  // Hide tap screen
+  this.style.display='none';
+  // Show countdown
+  var cs=document.getElementById('countScreen');
+  cs.style.display='flex';
   var numEl=document.getElementById('num');
-  if(!numEl){
-    // recreate if we replaced it earlier (waiting state)
-    countEl.innerHTML='<span id="num">5</span>';
-    countEl.style.background='#000';
-    numEl=document.getElementById('num');
-    numEl.style.fontSize='10rem';
-    numEl.style.fontWeight='900';
-    numEl.style.color='#fff';
-    numEl.style.textShadow='0 0 60px rgba(255,255,255,.5)';
-  }
-  numEl.textContent='5';
+  var color=revealData.color;
 
   if(navigator.vibrate)navigator.vibrate([200,100,200]);
 
@@ -104,12 +115,15 @@ function runReveal(videoSrc,babyName,label,color){
     c--;
     if(c>0){
       numEl.textContent=c;
+      numEl.style.animation='pulse .5s ease-in-out';
       if(c<=2)numEl.style.color=color;
       if(navigator.vibrate)navigator.vibrate(c<=2?100:50);
     }else{
       clearInterval(t);
-      // Step 3: hide countdown, play video
-      countEl.style.display='none';
+      // Hide countdown, show and play video
+      cs.style.display='none';
+      var vid=document.getElementById('vid');
+      vid.style.display='block';
       vid.currentTime=0;
       vid.muted=true;
       vid.play().then(function(){
@@ -119,18 +133,21 @@ function runReveal(videoSrc,babyName,label,color){
       });
       if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
 
-      // Step 4: show name only AFTER video ends
+      // Show name ONLY after video ends
       vid.onended=function(){
-        if(babyName)document.getElementById('bname').textContent=babyName;
+        vid.style.display='none';
+        var nb=document.getElementById('nameBox');
+        if(revealData.babyName)document.getElementById('bname').textContent=revealData.babyName;
         var lbl=document.getElementById('blabel');
-        lbl.textContent=label;
-        lbl.style.color=color;
-        document.getElementById('nameBox').classList.add('show');
-        document.body.style.background='radial-gradient(circle,'+color+'33,#000)';
+        lbl.textContent=revealData.label;
+        lbl.style.color=revealData.color;
+        nb.style.display='flex';
+        document.body.style.background='radial-gradient(circle,'+revealData.color+'33,#000)';
+        document.getElementById('closeBtn').style.display='flex';
       };
     }
   },1000);
-}
+});
 </script>
 </body>
 </html>
