@@ -435,8 +435,33 @@ section{padding:7rem 1.5rem;position:relative}
 .cofounder-section{background:linear-gradient(180deg,transparent,rgba(255,107,53,.02),transparent)}
 .cofounder-card{max-width:500px;margin:0 auto;padding:2rem;background:var(--card);border:1px solid var(--border);border-radius:24px;text-align:center}
 .cofounder-p{font-size:.95rem;color:var(--t2);line-height:1.6}
-.cofounder-cta{display:inline-block;padding:.6rem 1.8rem;border-radius:100px;background:transparent;color:var(--orange);font-weight:600;font-size:.8rem;text-decoration:none;transition:.3s;border:1px solid rgba(255,107,53,.3)}
+.cofounder-cta{display:inline-block;padding:.6rem 1.8rem;border-radius:100px;background:transparent;color:var(--orange);font-weight:600;font-size:.8rem;text-decoration:none;transition:.3s;border:1px solid rgba(255,107,53,.3);cursor:pointer}
 .cofounder-cta:hover{background:rgba(255,107,53,.08);border-color:var(--orange);transform:translateY(-1px)}
+
+/* CO-FOUNDER MODAL */
+.cf-modal-overlay{position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s;overflow-y:auto;padding:1rem}
+.cf-modal-overlay.active{opacity:1;pointer-events:auto}
+.cf-modal{background:linear-gradient(145deg,rgba(16,16,22,.98),rgba(22,22,30,.98));border:1px solid rgba(255,107,53,.12);border-radius:24px;padding:2.2rem 1.8rem;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5);transform:scale(.92);transition:transform .3s;max-height:90vh;overflow-y:auto}
+.cf-modal-overlay.active .cf-modal{transform:scale(1)}
+.cf-modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--t3);font-size:1.4rem;cursor:pointer;padding:.3rem;line-height:1}
+.cf-modal-close:hover{color:var(--t1)}
+.cf-modal-tag{font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:.6rem}
+.cf-modal-h{font-size:1.3rem;font-weight:800;color:var(--t1);line-height:1.3;margin-bottom:1rem;letter-spacing:-.02em}
+.cf-modal-story{font-size:.85rem;color:var(--t2);line-height:1.8;margin-bottom:1.5rem}
+.cf-modal-story strong{color:var(--t1);font-weight:600}
+.cf-modal-q{font-size:.95rem;font-weight:700;color:var(--orange);margin-bottom:1rem;line-height:1.4}
+.cf-modal-form{display:flex;flex-direction:column;gap:.8rem}
+.cf-modal-input{padding:.7rem 1rem;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.3);color:var(--t1);font-size:.85rem;font-family:'Inter',sans-serif;outline:none;transition:.3s}
+.cf-modal-input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,107,53,.1)}
+.cf-modal-input::placeholder{color:var(--t3)}
+.cf-modal-textarea{min-height:100px;resize:vertical}
+.cf-modal-btn{padding:.75rem 1.5rem;border-radius:12px;background:var(--orange);color:#fff;font-weight:700;font-size:.85rem;border:none;cursor:pointer;transition:.3s}
+.cf-modal-btn:hover{background:var(--orange2);transform:translateY(-1px)}
+.cf-modal-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.cf-modal-sent{text-align:center;padding:2rem 0}
+.cf-modal-sent svg{width:48px;height:48px;stroke:var(--green);fill:none;stroke-width:2;margin-bottom:1rem}
+.cf-modal-sent p{color:var(--t2);font-size:.9rem;line-height:1.6}
+@media(max-width:480px){.cf-modal{padding:1.5rem 1.2rem;border-radius:18px}.cf-modal-h{font-size:1.1rem}}
 
 /* FAQ */
 .faq-list{margin-top:2.5rem;max-width:700px}
@@ -1521,11 +1546,38 @@ section{padding:7rem 1.5rem;position:relative}
     <div class="cofounder-card reveal-scale">
       <p class="cofounder-p" style="margin-bottom:.3rem;font-weight:600;color:var(--t1)" data-i="cf-p1">Built solo. Scaling together.</p>
       <p class="cofounder-p" style="margin-bottom:1rem;font-size:.85rem" data-i="cf-p2">Looking for a US-based co-founder.</p>
-      <a href="mailto:contact@touch-irl.com?subject=Touch%3F%20Co-Founder&body=Hi%2C%20I%20saw%20Touch%3F%20and%20I%27m%20interested.%20Here%27s%20a%20bit%20about%20me%3A" class="cofounder-cta" id="cfBtn" data-i="cf-cta" onclick="document.getElementById('cfEmail').style.display='block'">Tell me more</a>
-      <p id="cfEmail" style="display:none;margin-top:.8rem;font-size:.8rem;color:var(--orange);user-select:all;cursor:text;letter-spacing:.02em">contact@touch-irl.com</p>
+      <button class="cofounder-cta" id="cfBtn" data-i="cf-cta" onclick="document.getElementById('cfModalOverlay').classList.add('active')">Tell me more</button>
     </div>
   </div>
 </section>
+
+<!-- CO-FOUNDER MODAL -->
+<div class="cf-modal-overlay" id="cfModalOverlay" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="cf-modal" style="position:relative">
+    <button class="cf-modal-close" onclick="document.getElementById('cfModalOverlay').classList.remove('active')">&times;</button>
+    <div id="cfModalContent">
+      <div class="cf-modal-tag" data-i="cfm-tag">CO-FOUNDER</div>
+      <div class="cf-modal-h" data-i="cfm-h">Why I am looking for a partner</div>
+      <div class="cf-modal-story" data-i="cfm-story">
+        I am Ramon, a Brazilian entrepreneur who built Touch? from scratch using AI as my only development team. <strong>No coding background, no investors, no team</strong> -- just one person with a vision and the discipline to execute it.<br><br>
+        Touch? is a proximity platform that connects people through ultrasonic sound. It works in the browser, no app download. Tips, check-ins, menus, social connections -- all with a simple gesture of bringing two phones close.<br><br>
+        The product is <strong>built, live, and working</strong> at touch-irl.com. But to scale in the US market, I need a partner who understands the American business landscape, can open doors, and is ready to build something big together.<br><br>
+        I bring the product, the tech, the vision, and the relentless execution. <strong>What do you bring?</strong>
+      </div>
+      <div class="cf-modal-q" data-i="cfm-q">How could you help Touch? grow in the US?</div>
+      <form class="cf-modal-form" id="cfForm" onsubmit="return sendCfForm(event)">
+        <input type="text" class="cf-modal-input" id="cfName" placeholder="Your name" data-i-ph="cfm-name" required>
+        <input type="email" class="cf-modal-input" id="cfEmailInput" placeholder="Your email" required>
+        <textarea class="cf-modal-input cf-modal-textarea" id="cfMessage" data-i-ph="cfm-msg" placeholder="Tell me about yourself and how you could help Touch? grow..." required></textarea>
+        <button type="submit" class="cf-modal-btn" id="cfSubmitBtn" data-i="cfm-send">Send message</button>
+      </form>
+    </div>
+    <div id="cfModalSent" class="cf-modal-sent" style="display:none">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>
+      <p data-i="cfm-thanks"><strong>Message sent!</strong><br>Thank you for reaching out. I will get back to you soon.</p>
+    </div>
+  </div>
+</div>
 
 <!-- FAQ -->
 <section id="faq" style="background:rgba(255,107,53,.006)">
@@ -1809,6 +1861,7 @@ const i18n={
     'proof-origin':'Touch? was built entirely by one person with the help of AI.',
     'proof-days-label':'days since the first commit',
     'cf-p1':'Built solo. Scaling together.','cf-p2':'Looking for a US-based co-founder.','cf-cta':'Tell me more',
+    'cfm-tag':'CO-FOUNDER','cfm-h':'Why I am looking for a partner','cfm-story':'I am Ramon, a Brazilian entrepreneur who built Touch? from scratch using AI as my only development team. <strong>No coding background, no investors, no team</strong> -- just one person with a vision and the discipline to execute it.<br><br>Touch? is a proximity platform that connects people through ultrasonic sound. It works in the browser, no app download. Tips, check-ins, menus, social connections -- all with a simple gesture of bringing two phones close.<br><br>The product is <strong>built, live, and working</strong> at touch-irl.com. But to scale in the US market, I need a partner who understands the American business landscape, can open doors, and is ready to build something big together.<br><br>I bring the product, the tech, the vision, and the relentless execution. <strong>What do you bring?</strong>','cfm-q':'How could you help Touch? grow in the US?','cfm-send':'Send message','cfm-thanks':'<strong>Message sent!</strong><br>Thank you for reaching out. I will get back to you soon.',
     'faq-h':'Common questions',
     'fq1':'Do I need to download an app?','fa1':'No. Touch? works in your browser. Go to touch-irl.com, create an account, and start connecting. No app store needed.',
     'fq2':'How does the sound connection work?','fa2':'Your phone emits an ultrasonic signal through its speaker - a frequency too high for humans to hear. When another phone is close enough, it detects the signal through its microphone, creating a secure handshake. It takes about 2-3 seconds.',
@@ -1908,6 +1961,7 @@ const i18n={
     'proof-origin':'Touch? foi construido inteiramente por uma unica pessoa com a ajuda de IA.',
     'proof-days-label':'dias desde o primeiro commit',
     'cf-p1':'Construido solo. Escalando junto.','cf-p2':'Procurando um co-fundador nos EUA.','cf-cta':'Saiba mais',
+    'cfm-tag':'CO-FUNDADOR','cfm-h':'Por que estou procurando um socio','cfm-story':'Eu sou o Ramon, um empreendedor brasileiro que construiu o Touch? do zero usando IA como minha unica equipe de desenvolvimento. <strong>Sem saber programar, sem investidores, sem equipe</strong> -- so uma pessoa com uma visao e disciplina pra executar.<br><br>O Touch? e uma plataforma de proximidade que conecta pessoas por som ultrassonico. Funciona no navegador, sem baixar app. Gorjetas, check-in, cardapios, conexoes sociais -- tudo com um simples gesto de aproximar dois celulares.<br><br>O produto esta <strong>construido, no ar e funcionando</strong> em touch-irl.com. Mas pra escalar no mercado americano, preciso de um parceiro que entenda o cenario de negocios dos EUA, que abra portas e esteja pronto pra construir algo grande junto.<br><br>Eu trago o produto, a tecnologia, a visao e a execucao incansavel. <strong>O que voce traz?</strong>','cfm-q':'Como voce poderia ajudar o Touch? a crescer nos EUA?','cfm-send':'Enviar mensagem','cfm-thanks':'<strong>Mensagem enviada!</strong><br>Obrigado por entrar em contato. Vou te responder em breve.',
     'faq-h':'Duvidas frequentes',
     'fq1':'Preciso baixar algum app?','fa1':'Nao. Touch? funciona no navegador. Acesse touch-irl.com, crie uma conta e comece a conectar. Sem app store.',
     'fq2':'Como funciona a conexao por som?','fa2':'Seu celular emite um sinal ultrassonico pelo alto-falante - uma frequencia alta demais pra humanos ouvirem. Quando outro celular esta perto, detecta o sinal pelo microfone, criando um handshake seguro. Leva cerca de 2-3 segundos.',
@@ -2007,6 +2061,7 @@ const i18n={
     'proof-origin':'Touch? fue construido completamente por una sola persona con la ayuda de IA.',
     'proof-days-label':'dias desde el primer commit',
     'cf-p1':'Construido solo. Escalando juntos.','cf-p2':'Buscando un co-fundador en EE.UU.','cf-cta':'Saber mas',
+    'cfm-tag':'CO-FUNDADOR','cfm-h':'Por que busco un socio','cfm-story':'Soy Ramon, un emprendedor brasileno que construyo Touch? desde cero usando IA como mi unico equipo de desarrollo. <strong>Sin saber programar, sin inversores, sin equipo</strong> -- solo una persona con una vision y la disciplina para ejecutarla.<br><br>Touch? es una plataforma de proximidad que conecta personas por sonido ultrasonico. Funciona en el navegador, sin descargar app. Propinas, check-in, menus, conexiones sociales -- todo con un simple gesto de acercar dos telefonos.<br><br>El producto esta <strong>construido, en linea y funcionando</strong> en touch-irl.com. Pero para escalar en el mercado estadounidense, necesito un socio que entienda el panorama de negocios de EE.UU., que abra puertas y este listo para construir algo grande juntos.<br><br>Yo traigo el producto, la tecnologia, la vision y la ejecucion incansable. <strong>Que traes tu?</strong>','cfm-q':'Como podrias ayudar a Touch? a crecer en EE.UU.?','cfm-send':'Enviar mensaje','cfm-thanks':'<strong>Mensaje enviado!</strong><br>Gracias por contactarme. Te respondere pronto.',
     'faq-h':'Preguntas frecuentes',
     'fq1':'Necesito descargar una app?','fa1':'No. Touch? funciona en tu navegador. Ve a touch-irl.com, crea una cuenta y empieza a conectar. Sin app store.',
     'fq2':'Como funciona la conexion por sonido?','fa2':'Tu telefono emite una senal ultrasonica por su altavoz - una frecuencia demasiado alta para humanos. Cuando otro telefono esta cerca, detecta la senal por su microfono, creando un handshake seguro. Toma 2-3 segundos.',
@@ -2125,6 +2180,34 @@ else if(bl.startsWith('es'))setLang('es');
   var el=document.getElementById('daysSinceFirstCommit');
   if(el)el.textContent=diff;
 })();
+
+// Co-founder form submission
+function sendCfForm(e){
+  e.preventDefault();
+  var btn = document.getElementById('cfSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  var data = {
+    name: document.getElementById('cfName').value,
+    email: document.getElementById('cfEmailInput').value,
+    message: document.getElementById('cfMessage').value
+  };
+  fetch('/api/cofounder-contact', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r){ return r.json(); })
+  .then(function(){
+    document.getElementById('cfModalContent').style.display = 'none';
+    document.getElementById('cfModalSent').style.display = 'block';
+  }).catch(function(){
+    // Fallback: open mailto
+    window.location.href = 'mailto:contact@touch-irl.com?subject=Touch%3F%20Co-Founder%20-%20' + encodeURIComponent(data.name) + '&body=' + encodeURIComponent(data.message + '\n\nFrom: ' + data.name + ' <' + data.email + '>');
+    document.getElementById('cfModalContent').style.display = 'none';
+    document.getElementById('cfModalSent').style.display = 'block';
+  });
+  return false;
+}
 
 // Track CTA clicks for paid traffic optimization
 document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){

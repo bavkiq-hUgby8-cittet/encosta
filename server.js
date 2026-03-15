@@ -492,6 +492,49 @@ app.post('/api/waitlist', express.json(), async (req, res) => {
   }
 });
 
+// Co-founder contact form
+app.post('/api/cofounder-contact', express.json(), async (req, res) => {
+  try {
+    const { name, email, message } = req.body;
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'All fields required' });
+    }
+    // Store in Firebase
+    const admin = require('firebase-admin');
+    if (admin.apps.length) {
+      const db = admin.database();
+      await db.ref('cofounder_leads').push({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        message: message.trim(),
+        createdAt: new Date().toISOString(),
+        ip: req.ip
+      });
+    }
+    // Send email via nodemailer
+    try {
+      const sent = await sendTouchEmail(
+        'contact@touch-irl.com',
+        `Touch? Co-Founder Lead: ${name.trim()}`,
+        `<h2>New Co-Founder Interest</h2>
+<p><strong>Name:</strong> ${name.trim()}</p>
+<p><strong>Email:</strong> ${email.trim()}</p>
+<p><strong>Message:</strong></p>
+<p>${message.trim().replace(/\n/g, '<br>')}</p>
+<hr>
+<p style="color:#888;font-size:12px">Sent from touch-irl.com co-founder form</p>`
+      );
+      if (!sent) console.log('[CoFounder] Email not sent (no SMTP configured), but saved to Firebase');
+    } catch (mailErr) {
+      console.error('[CoFounder] Email send error:', mailErr.message);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[CoFounder] Error:', err.message);
+    res.json({ ok: true });
+  }
+});
+
 // ── Firebase Admin SDK ──
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT;
 const FIREBASE_DB_URL = process.env.FIREBASE_DATABASE_URL || 'https://encosta-f32e7-default-rtdb.firebaseio.com';
