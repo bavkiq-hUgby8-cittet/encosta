@@ -16646,16 +16646,11 @@ app.post('/api/operator/event/:eventId/wifi', (req, res) => {
 app.get('/api/event/:eventId/wifi', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
-  const userId = req.query.userId;
   if (!ev.wifi || !ev.wifi.enabled || !ev.wifi.ssid) {
     return res.json({ enabled: false });
   }
-  // Check if user is participant or operator
-  const isParticipant = (ev.participants || []).includes(userId);
-  const isOperator = ev.creatorId === userId;
-  if (!isParticipant && !isOperator) {
-    return res.status(403).json({ error: 'Faca check-in primeiro para acessar o WiFi.' });
-  }
+  // WiFi is shared with all event participants - if wifi is enabled, share it
+  // The event view already requires being part of the event
   res.json({ enabled: true, ssid: ev.wifi.ssid, password: ev.wifi.password });
 });
 

@@ -5258,6 +5258,12 @@ async function showEventView(eventId,eventName){
       };
       _eLogo.src=logoUrl;
     }else{console.log('[eventView] no eventLogo in API response')}
+    // Use modules from attendees response to show/hide WiFi FAB immediately
+    var mods=d.modules||{};
+    if(mods.wifi&&$('evWifiBtn')){
+      $('evWifiBtn').style.display='flex';
+      console.log('[eventView] wifi module active, showing button');
+    }
   }catch(e){console.error('[eventView] load error:',e)}
   loadEventMenu(eventId);
   loadParkingConfig(eventId);
@@ -6323,7 +6329,6 @@ async function loadWifiConfig(eventId){
       // Operator always sees WiFi button (to configure it)
       if($('evWifiBtn')){
         $('evWifiBtn').style.display='flex';
-        // Check if already configured to show status
         try{
           var wr=await fetch('/api/operator/event/'+eventId+'/wifi');
           var wd=await wr.json();
@@ -6338,11 +6343,16 @@ async function loadWifiConfig(eventId){
       }
       return;
     }
-    const r=await fetch('/api/event/'+eventId+'/wifi?userId='+encodeURIComponent(state.userId||''));
-    const d=await r.json();
-    if(d.enabled&&$('evWifiBtn'))$('evWifiBtn').style.display='flex';
-    else if($('evWifiBtn'))$('evWifiBtn').style.display='none';
-  }catch(e){if($('evWifiBtn'))$('evWifiBtn').style.display='none';}
+    // For participants: try the WiFi API but don't hide the button if it was already shown by modules check
+    var r=await fetch('/api/event/'+eventId+'/wifi?userId='+encodeURIComponent(state.userId||''));
+    if(r.ok){
+      var d=await r.json();
+      if(d.enabled&&$('evWifiBtn'))$('evWifiBtn').style.display='flex';
+    }
+    // If API fails (403 etc), don't hide - the modules check already showed it
+  }catch(e){
+    console.log('[wifi] loadWifiConfig error (button stays if modules.wifi=true):',e.message);
+  }
 }
 
 async function openEventWifi(){
