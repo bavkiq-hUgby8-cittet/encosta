@@ -15843,6 +15843,10 @@ app.get('/api/site/:slug', (req, res) => {
       barbers: (ev.barber.barbers || []).map(b => ({ id: b.id, name: b.name, photo: b.photo || null, specialties: b.specialties || [] })),
       services: (ev.barber.barbers || []).flatMap(b => (b.services || []).map(s => ({ barberId: b.id, barberName: b.name, ...s })))
     } : null,
+    charevela: mods.charevela && ev.charevela ? {
+      config: { eventName: (ev.charevela.config || {}).eventName || '', optionA: (ev.charevela.config || {}).optionA || 'Menino', optionB: (ev.charevela.config || {}).optionB || 'Menina', colorA: (ev.charevela.config || {}).colorA || '#3b82f6', colorB: (ev.charevela.config || {}).colorB || '#ec4899', votingOpen: (ev.charevela.config || {}).votingOpen || false, revealed: (ev.charevela.config || {}).revealed || false },
+      results: ev.charevela.results || { optionA: 0, optionB: 0, total: 0 }
+    } : null,
     eventId: ev.id
   };
   res.json(data);
