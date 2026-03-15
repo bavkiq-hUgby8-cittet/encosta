@@ -14055,8 +14055,9 @@ app.post('/api/operator/event/create', async (req, res) => {
       barber: !!modules.barber,
       dj: !!modules.dj,
       karaoke: !!modules.karaoke,
-      wifi: !!modules.wifi
-    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false },
+      wifi: !!modules.wifi,
+      charevela: !!modules.charevela
+    } : { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false, charevela: false },
     siteConfig: {
       enabled: false,
       slug: '',
@@ -14481,7 +14482,8 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       barber: !!modules.barber,
       dj: !!modules.dj,
       karaoke: !!modules.karaoke,
-      wifi: !!modules.wifi
+      wifi: !!modules.wifi,
+      charevela: !!modules.charevela
     };
   }
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
@@ -14598,7 +14600,7 @@ app.get('/api/event/:eventId/business-profile', (req, res) => {
     hasMenu: (ev.menu || []).length > 0,
     createdAt: ev.createdAt,
     eventLogo: proxyStorageUrl(ev.eventLogo || null),
-    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false },
+    modules: ev.modules || { restaurant: true, parking: false, gym: false, church: false, barber: false, dj: false, karaoke: false, wifi: false, charevela: false },
     djLive: ev.djLive || null
   });
 });
@@ -17369,7 +17371,10 @@ app.post('/api/event/:eventId/barber/appointment/:appointmentId/complete', (req,
 // ═══ CHA REVELACAO (Gender Reveal) MODULE ═══
 
 function ensureChaRevela(ev) {
-  if (!ev.charevela) ev.charevela = { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } };
+  if (!ev.charevela || typeof ev.charevela !== 'object') ev.charevela = { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } };
+  if (!ev.charevela.config || typeof ev.charevela.config !== 'object') ev.charevela.config = { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false };
+  if (!ev.charevela.votes || typeof ev.charevela.votes !== 'object') ev.charevela.votes = {};
+  if (!ev.charevela.results || typeof ev.charevela.results !== 'object') ev.charevela.results = { optionA: 0, optionB: 0, total: 0 };
   return ev.charevela;
 }
 
@@ -17485,8 +17490,8 @@ app.post('/api/event/:eventId/charevela/vote', (req, res) => {
     io.to('event:' + ev.id).emit('charevela-vote-updated', { eventId: ev.id, results: cr.results, voterName: voterName || 'Alguem', choice });
     res.json({ ok: true, results: cr.results });
   } catch (err) {
-    console.error('[charevela] vote error:', err);
-    res.status(500).json({ error: 'Erro interno ao votar.' });
+    console.error('[charevela] vote error:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro interno ao votar: ' + (err.message || 'unknown') });
   }
 });
 
