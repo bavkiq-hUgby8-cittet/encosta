@@ -21447,22 +21447,32 @@ function renderCharevelaResults(res,colorA,colorB,labelA,labelB){
 }
 
 async function charevelaVote(choice){
-  if(!_charevelaEventId){console.warn('[charevela] no eventId');return}
-  var vid=state.userId||localStorage.getItem('visitorId')||localStorage.getItem('touchUserId');
+  var eid=_charevelaEventId;
+  if(!eid||typeof eid!=='string'||eid==='undefined'||eid==='null'){
+    console.warn('[charevela] invalid eventId:',eid);showToast('Erro: evento nao encontrado');return;
+  }
+  var vid='';
+  try{vid=state.userId||''}catch(e){}
+  if(!vid)try{vid=localStorage.getItem('visitorId')||localStorage.getItem('touchUserId')||''}catch(e){}
   if(!vid){vid='anon_'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('visitorId',vid)}catch(e){}}
-  var vname=state.userName||localStorage.getItem('userName')||localStorage.getItem('touchUserName')||'Anonimo';
-  console.log('[charevela] voting:',choice,'voter:',vid,'event:',_charevelaEventId);
+  var vname='Anonimo';
+  try{vname=state.userName||localStorage.getItem('userName')||localStorage.getItem('touchUserName')||'Anonimo'}catch(e){}
+  console.log('[charevela] voting:',choice,'voter:',vid,'event:',eid);
   try{
-    var url='/api/event/'+_charevelaEventId+'/charevela/vote';
+    var url=window.location.origin+'/api/event/'+encodeURIComponent(eid)+'/charevela/vote';
     console.log('[charevela] POST',url);
+    var payload=JSON.stringify({voterId:String(vid),voterName:String(vname),choice:String(choice)});
+    console.log('[charevela] payload:',payload);
     var r=await fetch(url,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({voterId:vid,voterName:vname,choice:choice})
+      body:payload
     });
     console.log('[charevela] response status:',r.status);
-    var d=await r.json();
-    console.log('[charevela] response:',d);
+    var txt=await r.text();
+    console.log('[charevela] response body:',txt);
+    var d;
+    try{d=JSON.parse(txt)}catch(pe){showToast('Erro servidor: '+txt.slice(0,60));return}
     if(r.ok){
       _charevelaMyVote=choice;
       if(d.results&&_charevelaData){_charevelaData.results=d.results}
@@ -21472,8 +21482,8 @@ async function charevelaVote(choice){
       showToast(d.error||'Erro ao votar');
     }
   }catch(e){
-    console.error('[charevela] vote error:',e);
-    showToast('Erro: '+e.message);
+    console.error('[charevela] vote error:',e.name,e.message,e.stack);
+    showToast('Erro: '+(e.message||'falha na conexao'));
   }
 }
 
