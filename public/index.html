@@ -583,11 +583,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 @keyframes rv-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 /* Bottom actions — icon buttons like card profile */
 .rv-actions{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:.4rem;align-items:center;padding:.5rem 1rem calc(env(safe-area-inset-bottom,.5rem) + .6rem);opacity:0;animation:rv-fi .6s ease 6s forwards;z-index:5}
-.rv-btn-row{display:flex;gap:.15rem;justify-content:center}
+.rv-btn-row{display:flex;gap:.15rem;justify-content:center;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 .5rem;max-width:100%;scrollbar-width:none}.rv-btn-row::-webkit-scrollbar{display:none}
 .rv-sec-row{display:flex;gap:.5rem;justify-content:center}
-.rv-icon-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:.3rem .5rem;border-radius:10px;border:none;background:none;color:rgba(255,255,255,.5);font-size:.52rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;min-width:52px}
+.rv-icon-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:.3rem .4rem;border-radius:10px;border:none;background:none;color:rgba(255,255,255,.5);font-size:.5rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;min-width:48px;flex-shrink:0}
 .rv-icon-btn:active{transform:scale(.93);background:rgba(255,255,255,.06)}
-.rv-icon-btn .rv-ic{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:all .15s}
+.rv-icon-btn .rv-ic{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:all .15s}
 .rv-icon-btn .rv-ic svg{width:18px;height:18px}
 .rv-icon-btn.primary .rv-ic{background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.25)}
 .rv-icon-btn.primary{color:#a5b4fc}
@@ -21447,12 +21447,15 @@ function renderCharevelaResults(res,colorA,colorB,labelA,labelB){
 }
 
 async function charevelaVote(choice){
-  if(!_charevelaEventId)return;
+  if(!_charevelaEventId){console.warn('[charevela] no eventId');return}
+  var vid=state.userId||localStorage.getItem('visitorId')||('anon_'+Math.random().toString(36).slice(2,10));
+  var vname=state.userName||localStorage.getItem('userName')||'Anonimo';
+  console.log('[charevela] voting:',choice,'voter:',vid,'event:',_charevelaEventId);
   try{
     var r=await fetch('/api/event/'+_charevelaEventId+'/charevela/vote',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({voterId:state.userId,voterName:state.userName||'Anonimo',choice:choice})
+      body:JSON.stringify({voterId:vid,voterName:vname,choice:choice})
     });
     var d=await r.json();
     if(r.ok){
