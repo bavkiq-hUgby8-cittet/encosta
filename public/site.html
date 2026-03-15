@@ -2883,14 +2883,30 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     };
     pc.onconnectionstatechange = function(){
       console.log('[WebRTC] Connection state:', pc.connectionState);
+      if(pc.connectionState === 'failed' || pc.connectionState === 'disconnected'){
+        console.error('[WebRTC] Connection lost:', pc.connectionState);
+        if(inVoiceCall){
+          endVoiceCall();
+          addMessage({pt:'Conexao de voz perdida.', en:'Voice connection lost.', es:'Conexion de voz perdida.'}[getLang()] || 'Voice connection lost.', 'bot');
+        }
+      }
     };
 
-    // Audio output
+    // Audio output — must be in DOM and call play() for mobile browsers
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
+    audioEl.playsInline = true;
+    audioEl.style.display = 'none';
+    document.body.appendChild(audioEl);
     pc.ontrack = function(e){
-      console.log('[WebRTC] Got remote audio track');
+      console.log('[WebRTC] Got remote audio track, streams:', e.streams.length);
       audioEl.srcObject = e.streams[0];
+      var playPromise = audioEl.play();
+      if(playPromise && playPromise.catch){
+        playPromise.catch(function(err){
+          console.warn('[WebRTC] Audio play() blocked:', err.message);
+        });
+      }
     };
 
     // Data channel for sending signals
@@ -2964,7 +2980,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         return pc.setLocalDescription(offer);
       }).then(function(){
         console.log('[WebRTC] Sending SDP to OpenAI Realtime...');
-        return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+        return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/sdp' },
           body: pc.localDescription.sdp
@@ -3044,7 +3060,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       peerConnection = null;
     }
     if(audioEl){
-      try { audioEl.srcObject = null; } catch(e){}
+      try { audioEl.pause(); audioEl.srcObject = null; } catch(e){}
+      try { if(audioEl.parentNode) audioEl.parentNode.removeChild(audioEl); } catch(e){}
       audioEl = null;
     }
     if(inTour) endTour();
