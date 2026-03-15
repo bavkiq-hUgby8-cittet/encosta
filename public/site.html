@@ -2579,6 +2579,28 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 
   var tourStepIndex = 0;
   var tourOverlay = null;
+  var tourTabInterval = null;
+  var tourTabIndex = 0;
+
+  // Auto-carousel for usecase tabs during USE_CASES tour step
+  function startUsecaseCarousel(){
+    stopUsecaseCarousel();
+    var tabs = document.querySelectorAll('.usecase-tab');
+    if(!tabs.length) return;
+    tourTabIndex = 0;
+    // Click second tab immediately (first is already active/visible)
+    tourTabInterval = setInterval(function(){
+      tourTabIndex = (tourTabIndex + 1) % tabs.length;
+      tabs[tourTabIndex].click();
+    }, 3000);
+  }
+
+  function stopUsecaseCarousel(){
+    if(tourTabInterval){
+      clearInterval(tourTabInterval);
+      tourTabInterval = null;
+    }
+  }
 
   function startGuidedTour(mode){
     tourMode = mode;
@@ -2611,9 +2633,13 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     var sections = tourSections[tourMode];
     if(!sections || tourStepIndex >= sections.length) {
       // Last step already played; add extra delay so audio finishes before ending
+      stopUsecaseCarousel();
       setTimeout(function(){ endTour(); }, 4000);
       return;
     }
+
+    // Stop carousel from previous step if it was USE_CASES
+    stopUsecaseCarousel();
 
     // Remove previous highlight
     var prev = document.querySelector('.tour-highlight');
@@ -2628,6 +2654,12 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       el.classList.add('tour-highlight');
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+
+    // Start usecase tab carousel when entering USE_CASES section
+    if(step.signal === 'USE_CASES'){
+      startUsecaseCarousel();
+    }
+
     tourStepIndex++;
 
     // Delay voice signal 1s so user sees the section before narration starts
@@ -2648,6 +2680,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     inTour = false;
     tourMode = null;
     tourStepIndex = 0;
+    stopUsecaseCarousel();
     if(textTourTimer){ clearTimeout(textTourTimer); textTourTimer = null; }
     var prev = document.querySelector('.tour-highlight');
     if(prev) prev.classList.remove('tour-highlight');
@@ -2728,6 +2761,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     var sections = tourSections[mode];
     if(!sections || tourStepIndex >= sections.length){
       // Tour finished
+      stopUsecaseCarousel();
       addMessage({
         pt: 'Fim da apresenta\u00e7\u00e3o! Tem alguma d\u00favida? Pode perguntar aqui no chat.',
         en: 'End of the tour! Any questions? Feel free to ask here in the chat.',
@@ -2736,6 +2770,9 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       endTour();
       return;
     }
+
+    // Stop carousel from previous step
+    stopUsecaseCarousel();
 
     // Remove previous highlight
     var prev = document.querySelector('.tour-highlight');
@@ -2749,6 +2786,11 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       if(el.classList.contains('reveal') || el.classList.contains('reveal-scale') || el.classList.contains('reveal-left') || el.classList.contains('reveal-right')) el.classList.add('visible');
       el.classList.add('tour-highlight');
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Start usecase tab carousel when entering USE_CASES section
+    if(step.signal === 'USE_CASES'){
+      startUsecaseCarousel();
     }
 
     // Show narration text
