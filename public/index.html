@@ -21490,35 +21490,36 @@ function showCharevelaRevealAnimation(data){
   var babyName=data.babyName||'';
   var videoSrc=(data.answer==='optionA')?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4';
 
-  // Fullscreen overlay (stays in same page = keeps user gesture context)
-  var ov=document.createElement('div');
-  ov.id='crRevealOv';
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center';
+  // Use native DOM elements (already in HTML, NOT created by JS)
+  var ov=document.getElementById('crRevealOv');
+  var numEl=document.getElementById('crCountNum');
+  var vid=document.getElementById('crRevealVid');
+  var nameBox=document.getElementById('crNameBox');
+  var closeBtn=document.getElementById('crRevealClose');
 
-  var cb=document.createElement('button');
-  cb.textContent='X';
-  cb.style.cssText='position:fixed;top:12px;right:12px;z-index:100001;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer';
-  cb.onclick=function(){ov.remove()};
-  ov.appendChild(cb);
-
-  // Countdown number
-  var numEl=document.createElement('div');
+  // Reset state
   numEl.textContent='5';
-  numEl.style.cssText='font-size:10rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.5);z-index:100000;position:absolute';
-  ov.appendChild(numEl);
+  numEl.style.color='#fff';
+  numEl.style.display='';
+  vid.style.opacity='0';
+  nameBox.style.display='none';
+  nameBox.innerHTML='';
 
-  // Video - create now so browser buffers during countdown
-  var vid=document.createElement('video');
-  vid.setAttribute('playsinline','');
-  vid.setAttribute('webkit-playsinline','');
-  vid.muted=true;
-  vid.preload='auto';
+  // Set video source and start loading
   vid.src=videoSrc;
-  vid.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0';
-  ov.appendChild(vid);
+  vid.muted=true;
   vid.load();
 
-  document.body.appendChild(ov);
+  // Show overlay
+  ov.style.display='flex';
+  ov.style.background='#000';
+
+  closeBtn.onclick=function(){
+    ov.style.display='none';
+    vid.pause();
+    vid.src='';
+  };
+
   if(navigator.vibrate)navigator.vibrate([200,100,200]);
 
   // Countdown 5..1 then play
@@ -21538,6 +21539,7 @@ function showCharevelaRevealAnimation(data){
       var p=vid.play();
       if(p&&p.then){
         p.then(function(){
+          console.log('[reveal] video playing OK');
           try{vid.muted=false}catch(e){}
         }).catch(function(e){console.warn('[reveal] play err:',e)});
       }
@@ -21546,50 +21548,36 @@ function showCharevelaRevealAnimation(data){
       // Baby name after video ends - grand finale
       vid.onended=function(){
         vid.style.opacity='0';
-        // Animated background with color glow
         ov.style.background='radial-gradient(circle at 50% 50%,'+color+'55 0%,'+color+'22 40%,#000 80%)';
         ov.style.flexDirection='column';
-        ov.style.transition='background 2s';
-        setTimeout(function(){ov.style.background='radial-gradient(circle at 50% 50%,'+color+'44 0%,'+color+'18 50%,#000 90%)'},100);
 
         // Sparkle particles
+        var sparkles=[];
         for(var i=0;i<20;i++){
           (function(idx){
             setTimeout(function(){
               var sp=document.createElement('div');
               var sz=Math.random()*6+3;
-              var x=Math.random()*100;
-              var y=Math.random()*100;
-              var dur=Math.random()*2+2;
-              sp.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;background:'+color+';border-radius:50%;left:'+x+'%;top:'+y+'%;opacity:0;box-shadow:0 0 '+(sz*3)+'px '+color+',0 0 '+(sz*6)+'px '+color+'80;animation:crSparkle '+dur+'s ease-in-out infinite;z-index:99999';
+              sp.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;background:'+color+';border-radius:50%;left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;opacity:0;box-shadow:0 0 '+(sz*3)+'px '+color+',0 0 '+(sz*6)+'px '+color+'80;animation:crSparkle '+(Math.random()*2+2)+'s ease-in-out infinite;z-index:99999';
               ov.appendChild(sp);
+              sparkles.push(sp);
             },idx*150);
           })(i);
         }
 
-        // Inject sparkle animation
-        if(!document.getElementById('crSparkleStyle')){
-          var st=document.createElement('style');
-          st.id='crSparkleStyle';
-          st.textContent='@keyframes crSparkle{0%{opacity:0;transform:scale(0) translateY(0)}30%{opacity:1;transform:scale(1.2)}70%{opacity:.8;transform:scale(1) translateY(-20px)}100%{opacity:0;transform:scale(0) translateY(-40px)}}@keyframes crNameIn{0%{opacity:0;transform:scale(.5) translateY(30px)}60%{opacity:1;transform:scale(1.05) translateY(-5px)}100%{opacity:1;transform:scale(1) translateY(0)}}@keyframes crGlow{0%,100%{text-shadow:0 0 20px '+color+'80,0 0 40px '+color+'40,0 0 80px '+color+'20}50%{text-shadow:0 0 30px '+color+'aa,0 0 60px '+color+'66,0 0 100px '+color+'33}}@keyframes crLabelIn{0%{opacity:0;transform:translateY(15px)}100%{opacity:1;transform:translateY(0)}}';
-          document.head.appendChild(st);
-        }
-
-        // Name card with animation
+        // Name card
         setTimeout(function(){
-          var nb=document.createElement('div');
-          nb.style.cssText='text-align:center;padding:2rem 3.5rem;border-radius:20px;background:rgba(0,0,0,.4);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid '+color+'33;box-shadow:0 0 40px '+color+'22,0 8px 32px rgba(0,0,0,.5);animation:crNameIn .8s ease-out forwards;z-index:100000';
+          nameBox.style.cssText='display:block;text-align:center;padding:2rem 3.5rem;border-radius:20px;background:rgba(0,0,0,.4);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid '+color+'33;box-shadow:0 0 40px '+color+'22,0 8px 32px rgba(0,0,0,.5);animation:crNameIn .8s ease-out forwards;z-index:100000;position:absolute';
           if(babyName){
             var h=document.createElement('div');
             h.textContent=babyName;
-            h.style.cssText='font-size:3.2rem;font-weight:900;color:#fff;animation:crGlow 3s ease-in-out infinite;letter-spacing:.02em';
-            nb.appendChild(h);
+            h.style.cssText='font-size:3.2rem;font-weight:900;color:#fff;text-shadow:0 0 20px '+color+'80,0 0 40px '+color+'40,0 0 80px '+color+'20;letter-spacing:.02em';
+            nameBox.appendChild(h);
           }
           var lb=document.createElement('div');
           lb.textContent=label;
           lb.style.cssText='font-size:1.1rem;font-weight:700;margin-top:.5rem;color:'+color+';text-transform:uppercase;letter-spacing:.15em;opacity:0;animation:crLabelIn .6s ease-out .4s forwards';
-          nb.appendChild(lb);
-          ov.appendChild(nb);
+          nameBox.appendChild(lb);
           if(navigator.vibrate)navigator.vibrate([100,80,100,80,300]);
         },400);
       };
@@ -30063,6 +30051,19 @@ window.djLiveBannerJoin = function() {
 
 })();
 </script>
+
+<!-- Reveal video overlay (native in DOM for mobile compatibility) -->
+<div id="crRevealOv" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;align-items:center;justify-content:center">
+  <button id="crRevealClose" style="position:absolute;top:12px;right:12px;z-index:100001;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer">X</button>
+  <div id="crCountNum" style="font-size:10rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.5);z-index:100000;position:absolute">5</div>
+  <video id="crRevealVid" playsinline webkit-playsinline muted preload="none" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0"></video>
+  <div id="crNameBox" style="display:none;text-align:center;padding:2rem 3.5rem;border-radius:20px;z-index:100000;position:absolute"></div>
+</div>
+<style>
+@keyframes crSparkle{0%{opacity:0;transform:scale(0) translateY(0)}30%{opacity:1;transform:scale(1.2)}70%{opacity:.8;transform:scale(1) translateY(-20px)}100%{opacity:0;transform:scale(0) translateY(-40px)}}
+@keyframes crNameIn{0%{opacity:0;transform:scale(.5) translateY(30px)}60%{opacity:1;transform:scale(1.05) translateY(-5px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes crLabelIn{0%{opacity:0;transform:translateY(15px)}100%{opacity:1;transform:translateY(0)}}
+</style>
 
 </body>
 </html>
