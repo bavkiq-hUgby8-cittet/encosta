@@ -2927,6 +2927,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     };
 
     var lastTourTranscript = '';
+    var emptyResponseCount = 0;
 
     dc.onmessage = function(e){
       try {
@@ -2961,10 +2962,28 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
           var rStatus = msg.response ? msg.response.status : 'unknown';
           var rOutput = msg.response && msg.response.output ? msg.response.output.length : 0;
           var rStatusDetail = msg.response && msg.response.status_details ? JSON.stringify(msg.response.status_details) : 'none';
-          console.log('[WebRTC] response.done status:', rStatus, 'outputs:', rOutput, 'details:', rStatusDetail);
+          var hasAudio = msg.response && msg.response.output && msg.response.output.some(function(o){ return o.content && o.content.some(function(c){ return c.type === 'audio'; }); });
+          console.log('[WebRTC] response.done status:', rStatus, 'outputs:', rOutput, 'hasAudio:', hasAudio, 'details:', rStatusDetail);
           if(rStatus === 'cancelled' || rStatus === 'failed'){
             console.error('[WebRTC] Response FAILED/CANCELLED:', JSON.stringify(msg.response).substring(0, 500));
             addMessage({pt:'Erro na voz: ' + rStatus, en:'Voice error: ' + rStatus, es:'Error de voz: ' + rStatus}[getLang()] || 'Voice error: ' + rStatus, 'bot');
+          }
+          // Detect empty responses (likely billing/quota issue)
+          if(rStatus === 'completed' && !hasAudio){
+            emptyResponseCount++;
+            console.warn('[WebRTC] Empty response #' + emptyResponseCount);
+            if(emptyResponseCount >= 2){
+              addMessage({
+                pt:'A voz nao esta funcionando (possivelmente sem saldo na OpenAI). Alternando para texto...',
+                en:'Voice is not working (possibly out of OpenAI credits). Switching to text...',
+                es:'La voz no funciona (posiblemente sin saldo en OpenAI). Cambiando a texto...'
+              }[getLang()] || 'Voice not working. Switching to text...', 'bot');
+              endVoiceCall();
+              if(tourModeParam) runTextTour(tourModeParam);
+              return;
+            }
+          } else if(hasAudio){
+            emptyResponseCount = 0;
           }
           unmuteMicAfterResponse();
           if(inTour){
