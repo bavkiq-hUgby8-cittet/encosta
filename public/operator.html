@@ -7737,10 +7737,11 @@ function renderParkVehicles(){
     const card=document.createElement('div');
     card.className='park-vcard';
     const modelStr=v.vehicleModel?esc(v.vehicleModel)+(v.vehicleColor?' - '+esc(v.vehicleColor):''):'';
+    var linkedBadge=(v.userId&&v.userId!=='operador')?'<span style="display:inline-block;background:rgba(59,130,246,.15);color:#3b82f6;font-size:.5rem;padding:.1rem .3rem;border-radius:4px;margin-left:.3rem;font-weight:700">Vinculado</span>':'';
     card.innerHTML=
       '<div class="park-vcard-head">'+
         '<div>'+
-          '<div class="park-vcard-plate">'+esc(v.plate)+'</div>'+
+          '<div class="park-vcard-plate">'+esc(v.plate)+linkedBadge+'</div>'+
           (modelStr?'<div class="park-vcard-model">'+modelStr+'</div>':'')+
         '</div>'+
         '<div class="park-vcard-timer">'+formatParkTime(elapsed)+'</div>'+
@@ -7760,24 +7761,49 @@ function renderParkVehicles(){
   });
 }
 
-// Quick entry from vehicles tab
+// Quick entry from vehicles tab - checks internal user plate index first
 async function parkQuickEntry(){
   const plate=($('parkQuickPlate').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
   if(!plate||plate.length<7){showToast('Placa invalida. Use formato ABC1D23');return}
   if(!S.currentEventId)return;
-  // Check if plate lookup has info
   try{
-    const lr=await fetch('/api/plate-lookup/'+plate);
-    const ld=await lr.json();
-    const nickname=(ld.owners&&ld.owners.length>0)?ld.owners[0].nickname:'Visitante';
+    // First check internal user plate lookup
+    var userId=null,nickname='Visitante',vehicleModel='',vehicleColor='';
+    try{
+      const ilr=await fetch('/api/operator/event/'+S.currentEventId+'/parking/plate-lookup/'+plate);
+      const ild=await ilr.json();
+      if(ild.found&&ild.alreadyParked){showToast('Veiculo ja estacionado!');return}
+      if(ild.found&&ild.userId){
+        userId=ild.userId;
+        nickname=ild.nickname||'Visitante';
+        vehicleModel=ild.vehicleModel||'';
+        vehicleColor=ild.vehicleColor||'';
+        showToast('Usuario encontrado: '+nickname);
+      }
+    }catch(e){}
+    // If not found internally, try external plate API
+    if(!userId){
+      try{
+        const lr=await fetch('/api/plate-lookup/'+plate);
+        const ld=await lr.json();
+        if(ld.owners&&ld.owners.length>0){
+          nickname=ld.owners[0].nickname||'Visitante';
+          userId=ld.owners[0].userId||null;
+        }
+        if(ld.model)vehicleModel=ld.model;
+        if(ld.color)vehicleColor=ld.color;
+      }catch(e){}
+    }
     const r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-entry',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({plate:plate,nickname:nickname,vehicleModel:ld.model||'',vehicleBrand:ld.brand||'',vehicleColor:ld.color||'',notes:'',userId:ld.owners&&ld.owners[0]?ld.owners[0].userId:null})
+      body:JSON.stringify({plate:plate,nickname:nickname,vehicleModel:vehicleModel,vehicleColor:vehicleColor,notes:'',userId:userId})
     });
     const d=await r.json();
     if(d.ok){
       $('parkQuickPlate').value='';
       loadParkVehicles();
+      if(d.linkedUser)showToast('Entrada registrada - usuario vinculado: '+nickname);
+      else showToast('Entrada registrada');
     }else{
       showToast(d.error||'Erro ao registrar');
     }
@@ -7858,8 +7884,27 @@ function showParkReceipt(vehicle,hours,amount){
       '<div>Duracao<br><strong>'+hours+'h</strong></div>'+
     '</div>'+
     '<div style="font-size:1.3rem;font-weight:800;color:#2dd4a0;margin-top:.5rem">'+(_userCurrencySymbol||'R$')+' '+(amount||0).toFixed(2).replace('.',',')+'</div>'+
-    '<div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">'+(vehicle.paymentMode==='prepaid'?'Pre-pago':'Pos-pago - pagar na saida')+'</div>';
+    '<div style="font-size:.55rem;color:var(--t3);margin-top:.2rem">'+(vehicle.paymentMode==='prepaid'?'Pre-pago':'Pos-pago - pagar na saida')+'</div>'+
+    (vehicle.userId&&vehicle.userId!=='operador'?'<div style="margin-top:.5rem;font-size:.6rem;color:#3b82f6">Usuario vinculado: '+esc(vehicle.nickname||'')+'</div>':'')+
+    '<div style="display:flex;gap:.4rem;margin-top:.8rem">'+
+      '<button class="mod-btn primary" onclick="parkConfirmManualPayment(\''+esc(vehicle.plate)+'\','+amount+')">Confirmar Pagamento</button>'+
+      '<button class="mod-btn" onclick="closeParkReceipt()">Fechar</button>'+
+    '</div>';
   $('parkReceiptBg').style.display='flex';
+}
+async function parkConfirmManualPayment(plate,amount){
+  if(!S.currentEventId)return;
+  try{
+    var method=prompt('Forma de pagamento (dinheiro, pix, cartao):','dinheiro');
+    if(!method)return;
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-payment',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({plate:plate,amount:amount,method:method})
+    });
+    var d=await r.json();
+    if(d.ok){showToast('Pagamento confirmado!');closeParkReceipt();loadParkVehicles();loadParkHistory()}
+    else showToast(d.error||'Erro');
+  }catch(e){showToast('Erro ao confirmar pagamento')}
 }
 function closeParkReceipt(){$('parkReceiptBg').style.display='none'}
 

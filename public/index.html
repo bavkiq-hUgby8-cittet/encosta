@@ -3208,6 +3208,13 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cp-field"><label>Hobbies / Música <span style="font-size:.55rem;color:var(--t3);font-weight:400">(até 2)</span></label>
       <div id="cpHobbiesGrid" class="cp-tag-grid"></div>
     </div>
+    <!-- Veiculo -->
+    <div class="cp-section-title">Veiculo</div>
+    <div class="cp-note" style="margin:-.2rem 0 .5rem;font-size:.6rem;color:var(--t3)">Cadastre sua placa para entrada automatica em estacionamentos</div>
+    <div class="cp-field"><label>Placa do veiculo</label><input type="text" id="cpVehiclePlate" placeholder="Ex: ABC1D23" maxlength="8" style="text-transform:uppercase;font-family:monospace;letter-spacing:.1em" autocomplete="off" autocorrect="off" autocapitalize="characters"></div>
+    <div class="cp-field"><label>Modelo <span style="font-size:.55rem;color:var(--t3);font-weight:400">(opcional)</span></label><input type="text" id="cpVehicleModel" placeholder="Ex: Civic, Corolla, HB20..." maxlength="40"></div>
+    <div class="cp-field"><label>Cor <span style="font-size:.55rem;color:var(--t3);font-weight:400">(opcional)</span></label><input type="text" id="cpVehicleColor" placeholder="Ex: Preto, Branco, Prata..." maxlength="20"></div>
+
     <!-- Nacionalidade -->
     <div class="cp-section-title">Nacionalidade</div>
     <div class="cp-field">
@@ -4539,6 +4546,29 @@ function initSocket(){
       showToast('Novo agendamento: '+d.appointment.customerName+' - '+d.appointment.serviceName);
       // Refresh barber view if open
       if(typeof renderBarberStaffView==='function')renderBarberStaffView();
+    }
+  });
+
+  // Parking notifications
+  socket.on('parking-entry-confirmed',d=>{
+    if(d.plate){
+      showToast('Veiculo '+d.plate+' registrado em '+d.eventName);
+      localStorage.setItem('touch_myPlate',d.plate);
+    }
+  });
+  socket.on('parking-exit-ready',d=>{
+    if(d.plate){
+      var msg='Saida registrada: '+d.plate+' - '+d.hoursParked+'h - R$ '+(d.amountDue||0).toFixed(2).replace('.',',');
+      showToast(msg);
+      // Refresh parking UI if open
+      if(typeof renderParkingUI==='function'&&$('evParkingOverlay')&&$('evParkingOverlay').style.display!=='none'){
+        renderParkingUI();
+      }
+    }
+  });
+  socket.on('parking-payment-confirmed',d=>{
+    if(d.plate){
+      showToast('Pagamento confirmado: '+d.plate+' - R$ '+(d.amount||0).toFixed(2).replace('.',','));
     }
   });
 
@@ -5915,40 +5945,57 @@ async function renderParkingUI(){
   if(!evViewEventId)return;
 
   try{
-    const r=await fetch('/api/event/'+evViewEventId+'/parking');
+    const r=await fetch('/api/event/'+evViewEventId+'/parking?userId='+encodeURIComponent(state.userId||''));
     const d=await r.json();
     if(!d.enabled){
-      el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Estacionamento não está disponível neste evento</div>';
+      el.innerHTML='<div style="text-align:center;color:var(--t3);padding:2rem;font-size:.75rem">Estacionamento nao esta disponivel neste evento</div>';
       return;
     }
 
-    var savedVehicles=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
-    var vehiclesHtml='';
-    if(savedVehicles.length>0){
-      vehiclesHtml='<div style="margin-bottom:.8rem"><div style="font-size:.65rem;color:var(--t2);margin-bottom:.4rem">Meus Veiculos Salvos</div><div style="display:flex;flex-wrap:wrap;gap:.4rem">';
-      for(var v of savedVehicles){
-        vehiclesHtml+='<div style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);border-radius:8px;padding:.4rem .6rem;font-size:.65rem;color:#34d399;display:flex;align-items:center;justify-content:space-between;gap:.4rem">'+
-          '<span style="cursor:pointer;font-weight:600" onclick="$'+('\'userParkPlate\'').replace(/'/g,"'")+'.value='+("'"+v+"'").replace(/'/g,"'")+';$'+('\'userParkPlate\'').replace(/'/g,"'")+'.focus()">'+v+'</span>'+
-          '<button onclick="removeUserVehicle('+("'"+v+"'").replace(/'/g,"'")+'" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.7rem;padding:0">x</button>'+
-        '</div>';
-      }
-      vehiclesHtml+='</div></div>';
+    // Check if user has a vehicle parked here
+    var myVehicle=null;
+    if(d.activeVehicles&&d.activeVehicles.length>0){
+      myVehicle=d.activeVehicles[0];
     }
+
+    // If user has a vehicle parked, show status
+    if(myVehicle){
+      var elapsed=Date.now()-myVehicle.entryTime;
+      var totalMin=Math.floor(elapsed/60000);
+      var h=Math.floor(totalMin/60);var m=totalMin%60;
+      var timeStr=h>0?h+'h '+m+'min':m+'min';
+      var hours=Math.ceil(elapsed/3600000);
+      var estCost=hours*(d.hourlyRate||10)+(d.fixedRate||0);
+      el.innerHTML=
+        '<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:16px;padding:1.2rem;text-align:center;margin-bottom:1rem">'
+        +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>'
+        +'<div style="font-size:1.3rem;font-weight:800;color:#fff;font-family:monospace;letter-spacing:.15em;margin:.5rem 0">'+escH(myVehicle.plate)+'</div>'
+        +(myVehicle.vehicleModel?'<div style="font-size:.7rem;color:var(--t2)">'+escH(myVehicle.vehicleModel)+(myVehicle.vehicleColor?' - '+escH(myVehicle.vehicleColor):'')+'</div>':'')
+        +'<div style="display:flex;justify-content:center;gap:1.5rem;margin-top:.8rem">'
+        +'<div><div style="font-size:.45rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3)">Tempo</div><div style="font-size:1rem;font-weight:700;color:#3b82f6">'+timeStr+'</div></div>'
+        +'<div><div style="font-size:.45rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3)">Estimativa</div><div style="font-size:1rem;font-weight:700;color:#2dd4a0">R$ '+estCost.toFixed(2).replace('.',',')+'</div></div>'
+        +'</div>'
+        +'<div style="font-size:.55rem;color:var(--t3);margin-top:.5rem">Entrada: '+new Date(myVehicle.entryTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</div>'
+        +'</div>'
+        +'<div style="font-size:.6rem;color:var(--t3);text-align:center">Seu veiculo esta registrado. O operador fara a baixa na saida.</div>';
+      return;
+    }
+
+    // No vehicle parked - show registration form
     el.innerHTML=
       '<div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
         '<div style="font-size:.7rem;font-weight:600;color:#3b82f6;margin-bottom:.5rem">Como funciona</div>' +
         '<div style="font-size:.65rem;color:var(--t2);line-height:1.6">' +
           (d.mode==='prepaid'?'Pagamento antecipado. Informe sua placa e pague antes de entrar.':'') +
-          (d.mode==='postpaid'?'Pagamento ao sair. Seu estacionamento será cobrado por hora.':'') +
-          (d.mode==='both'?'Você pode escolher pagar antes ou depois.':'') +
+          (d.mode==='postpaid'?'Pagamento ao sair. Seu estacionamento sera cobrado por hora.':'') +
+          (d.mode==='both'?'Voce pode escolher pagar antes ou depois.':'') +
           '<br><strong>Taxa:</strong> R$' + (d.hourlyRate||10).toFixed(2) + '/hora' +
         '</div>' +
       '</div>' +
-      vehiclesHtml +
       '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:1rem">' +
-        '<div style="font-size:.7rem;font-weight:600;color:var(--t1);margin-bottom:.6rem">Registrar Veículo</div>' +
+        '<div style="font-size:.7rem;font-weight:600;color:var(--t1);margin-bottom:.6rem">Registrar Veiculo</div>' +
         '<div style="margin-bottom:.6rem">' +
-          '<label style="font-size:.65rem;color:var(--t2);display:block;margin-bottom:.2rem">Placa do Veículo</label>' +
+          '<label style="font-size:.65rem;color:var(--t2);display:block;margin-bottom:.2rem">Placa do Veiculo</label>' +
           '<input id="userParkPlate" placeholder="ABC1D23" maxlength="10" style="width:100%;padding:.55rem .7rem;background:var(--bg);border:1px solid var(--b1);border-radius:10px;color:var(--t1);font-size:.8rem;font-family:inherit;text-transform:uppercase;outline:none" onfocus="this.style.borderColor=\'#3b82f6\'" onblur="this.style.borderColor=\'var(--b1)\'">' +
         '</div>' +
         '<div style="display:flex;gap:.5rem;margin-bottom:.6rem">' +
@@ -16021,6 +16068,13 @@ async function openCompleteProfile(){
     // Load accessory selector
     state._selectedAccessory=d.avatarAccessory||null;
     renderAccessoryGrid(d.isTop1?'top1':d.isSubscriber?'plus':'free');
+    // Load vehicle data
+    if(d.vehicles&&d.vehicles.length>0){
+      var v=d.vehicles[0];
+      if($('cpVehiclePlate'))$('cpVehiclePlate').value=v.plate||'';
+      if($('cpVehicleModel'))$('cpVehicleModel').value=v.model||'';
+      if($('cpVehicleColor'))$('cpVehicleColor').value=v.color||'';
+    }
     // Load profession, sports, hobbies
     if(d.profession)$('cpProfession').value=d.profession;
     state._selectedSports=(d.sports||[]).slice(0,2);
@@ -16192,6 +16246,9 @@ async function saveCompleteProfile(){
     twitter:$('cpTwitter').value.trim(),
     profilePhoto:cpPhotoData||undefined,
     avatarAccessory:state._selectedAccessory||null,
+    vehiclePlate:$('cpVehiclePlate')?$('cpVehiclePlate').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,''):'',
+    vehicleModel:$('cpVehicleModel')?$('cpVehicleModel').value.trim():'',
+    vehicleColor:$('cpVehicleColor')?$('cpVehicleColor').value.trim():'',
     country:state.userCountry||null,
     city:$('cpCity')?$('cpCity').value.trim():'',
     privacy:{
