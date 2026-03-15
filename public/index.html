@@ -21507,10 +21507,10 @@ function showCharevelaRevealAnimation(data){
   ov.className='cr-reveal-overlay';
   ov.style.background='#000';
 
-  // Phase 1: Countdown (automatic, no tap needed, synced for everyone)
+  // Show loading while video downloads
   ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap">'+
-    '<div class="cr-countdown-num" id="crCountdownNum">5</div>'+
-    '<div class="cr-countdown-label">A revelacao vai comecar...</div>'+
+    '<div class="cr-countdown-num" id="crCountdownNum" style="font-size:3rem;animation:cr-count-pulse 1.5s ease-in-out infinite">...</div>'+
+    '<div class="cr-countdown-label" id="crCountdownLabel">Preparando a revelacao...</div>'+
     '</div>'+
     '<button class="cr-reveal-close" onclick="closeCharevelaReveal()" style="z-index:10">X</button>';
   document.body.appendChild(ov);
@@ -21518,100 +21518,129 @@ function showCharevelaRevealAnimation(data){
   // Vibrate to alert
   if(navigator.vibrate)navigator.vibrate([200,100,200,100,200]);
 
-  // Preload video MUTED (mobile autoplay works when muted, no user gesture needed)
+  // Create video element
   var vid=document.createElement('video');
   vid.className='cr-reveal-video';
-  vid.src=videoSrc;
   vid.playsInline=true;
   vid.setAttribute('playsinline','');
   vid.setAttribute('webkit-playsinline','');
   vid.preload='auto';
   vid.muted=true;
+  vid.loop=false;
   vid.style.display='none';
   ov.appendChild(vid);
 
-  // Also preload audio separately via Web Audio API (bypasses autoplay restrictions)
-  var audioCtx=null;
-  var audioBuffer=null;
-  try{
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    fetch(videoSrc).then(function(r){return r.arrayBuffer()}).then(function(buf){
-      return audioCtx.decodeAudioData(buf);
-    }).then(function(decoded){
-      audioBuffer=decoded;
-      console.log('[reveal] audio preloaded via Web Audio API');
-    }).catch(function(e){console.warn('[reveal] audio preload failed:',e.message)});
-  }catch(e){console.warn('[reveal] Web Audio API not available:',e.message)}
+  var videoReady=false;
+  var countdownDone=false;
 
-  // Automatic countdown - same timing for everyone
+  // Function to start playing video when BOTH video is ready AND countdown is done
+  function tryPlayVideo(){
+    if(!videoReady||!countdownDone)return;
+    console.log('[reveal] both ready, starting playback');
+    var wrap=$('crCountdownWrap');
+    if(wrap)wrap.style.display='none';
+    vid.style.display='block';
+    vid.currentTime=0;
+    vid.muted=true;
+    var playP=vid.play();
+    if(playP&&playP.then){
+      playP.then(function(){
+        console.log('[reveal] video playing OK');
+        // Try unmuting (works if user interacted recently)
+        try{vid.muted=false;console.log('[reveal] unmuted OK')}catch(e){console.log('[reveal] unmute failed')}
+      }).catch(function(e){
+        console.error('[reveal] play() failed:',e.message);
+        // Force: try again
+        vid.muted=true;
+        vid.play().catch(function(e2){console.error('[reveal] retry play failed:',e2.message)});
+      });
+    }
+    if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+
+    // Show baby name overlay near the reveal moment (~8s)
+    if(babyName){
+      setTimeout(function(){
+        var nameWrap=document.createElement('div');
+        nameWrap.className='cr-baby-name-bg';
+        nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
+        if(ov.parentNode)ov.appendChild(nameWrap);
+      },7000);
+    }
+    // Show label (Menino/Menina)
+    setTimeout(function(){
+      var labelEl=document.createElement('div');
+      labelEl.className='cr-reveal-text';
+      labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
+      labelEl.textContent=label;
+      if(ov.parentNode)ov.appendChild(labelEl);
+    },8500);
+    // Auto-close after video ends + 5s
+    vid.onended=function(){
+      setTimeout(function(){closeCharevelaReveal()},5000);
+    };
+    // Fallback auto-close
+    setTimeout(function(){closeCharevelaReveal()},30000);
+  }
+
+  // Wait for video to be ready to play
+  vid.addEventListener('canplay',function(){
+    if(videoReady)return;
+    videoReady=true;
+    console.log('[reveal] video canplay fired');
+    tryPlayVideo();
+  });
+  vid.addEventListener('error',function(e){
+    console.error('[reveal] video error:',vid.error?vid.error.message:'unknown');
+    var lbl=$('crCountdownLabel');
+    if(lbl)lbl.textContent='Erro ao carregar video';
+  });
+
+  // Start loading the video
+  vid.src=videoSrc;
+  vid.load();
+  console.log('[reveal] loading video:',videoSrc);
+
+  // Show progress updates
+  vid.addEventListener('progress',function(){
+    try{
+      if(vid.buffered.length>0){
+        var pct=Math.round((vid.buffered.end(vid.buffered.length-1)/vid.duration)*100);
+        var lbl=$('crCountdownLabel');
+        if(lbl&&!countdownDone)lbl.textContent='Carregando... '+pct+'%';
+      }
+    }catch(e){}
+  });
+
+  // Start countdown (min 5s, but wait for video if not ready)
   var count=5;
   var countEl=$('crCountdownNum');
-  var countInterval=setInterval(function(){
-    count--;
+  // Wait 1s then start countdown
+  setTimeout(function(){
+    if(countEl)countEl.style.fontSize='8rem';
     if(countEl)countEl.textContent=count;
-    if(navigator.vibrate)navigator.vibrate(count<=2?100:50);
-    if(count<=3&&countEl){
-      countEl.style.fontSize='12rem';
-      countEl.style.color=(count<=1)?color:'#fff';
-    }
-    if(count<=0){
-      clearInterval(countInterval);
-      // Phase 2: Play video (muted = guaranteed autoplay on mobile)
-      var wrap=$('crCountdownWrap');
-      if(wrap)wrap.style.display='none';
-      vid.style.display='block';
-      vid.currentTime=0;
-      vid.play().then(function(){
-        console.log('[reveal] video playing (muted)');
-        // Try to unmute after play started (some browsers allow this)
-        try{vid.muted=false}catch(e){}
-      }).catch(function(e){
-        console.warn('[reveal] muted autoplay failed:',e.message);
-      });
-
-      // Play audio via Web Audio API (works without user gesture on most browsers)
-      if(audioCtx&&audioBuffer){
-        try{
-          audioCtx.resume().then(function(){
-            var source=audioCtx.createBufferSource();
-            source.buffer=audioBuffer;
-            source.connect(audioCtx.destination);
-            source.start(0);
-            console.log('[reveal] Web Audio playing');
-          }).catch(function(e){console.warn('[reveal] audioCtx resume failed:',e.message)});
-        }catch(e){console.warn('[reveal] Web Audio play failed:',e.message)}
+    var lbl=$('crCountdownLabel');
+    if(lbl)lbl.textContent='A revelacao vai comecar...';
+    var countInterval=setInterval(function(){
+      count--;
+      if(countEl)countEl.textContent=count;
+      if(navigator.vibrate)navigator.vibrate(count<=2?100:50);
+      if(count<=3&&countEl){
+        countEl.style.fontSize='12rem';
+        countEl.style.color=(count<=1)?color:'#fff';
       }
-
-      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
-
-      // Phase 3: Show baby name overlay near the reveal moment (~8s into video)
-      if(babyName){
-        setTimeout(function(){
-          var nameWrap=document.createElement('div');
-          nameWrap.className='cr-baby-name-bg';
-          nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
-          if(ov.parentNode)ov.appendChild(nameWrap);
-        },7000);
+      if(count<=0){
+        clearInterval(countInterval);
+        countdownDone=true;
+        // If video not ready yet, show "loading" message
+        if(!videoReady){
+          if(countEl)countEl.textContent='...';
+          if(countEl)countEl.style.fontSize='3rem';
+          var lbl2=$('crCountdownLabel');
+          if(lbl2)lbl2.textContent='Quase la...';
+        }
+        tryPlayVideo();
       }
-      // Show label (Menino/Menina)
-      setTimeout(function(){
-        var labelEl=document.createElement('div');
-        labelEl.className='cr-reveal-text';
-        labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
-        labelEl.textContent=label;
-        if(ov.parentNode)ov.appendChild(labelEl);
-      },8500);
-      // Auto-close after video ends + 5s
-      vid.onended=function(){
-        if(audioCtx){try{audioCtx.close()}catch(e){}}
-        setTimeout(function(){closeCharevelaReveal()},5000);
-      };
-      // Fallback auto-close after 25s
-      setTimeout(function(){
-        if(audioCtx){try{audioCtx.close()}catch(e){}}
-        closeCharevelaReveal();
-      },25000);
-    }
+    },1000);
   },1000);
 }
 
