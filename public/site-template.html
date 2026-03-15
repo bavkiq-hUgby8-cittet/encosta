@@ -740,8 +740,8 @@ function renderInfoBar() {
 }
 
 // ── Module Tabs ──
-const MODULE_LABELS = {restaurant:'Cardapio',parking:'Estacionamento',gym:'Treinos',church:'Igreja',barber:'Barbearia'};
-const MODULE_ORDER = ['restaurant','parking','gym','church','barber'];
+const MODULE_LABELS = {restaurant:'Cardapio',parking:'Estacionamento',gym:'Treinos',church:'Igreja',barber:'Barbearia',charevela:'Cha Revelacao'};
+const MODULE_ORDER = ['restaurant','parking','gym','church','barber','charevela'];
 
 function renderModuleTabs() {
   const tabs = document.getElementById('modTabs');
@@ -782,6 +782,7 @@ function renderActiveModule() {
     case 'gym': renderGym(el); break;
     case 'church': renderChurch(el); break;
     case 'barber': renderBarber(el); break;
+    case 'charevela': renderChaRevelacao(el); break;
   }
 }
 
@@ -1878,6 +1879,93 @@ function renderBarber(el) {
     html = '<div class="empty-state"><p>Barbearia em construcao.</p></div>';
   }
   el.innerHTML = html;
+}
+
+// ── Cha Revelacao Module ──
+var _siteCharevelaVote = null;
+
+function renderChaRevelacao(el) {
+  const data = SITE_DATA.charevela;
+  if (!data) { el.innerHTML = '<div class="empty-state"><p>Cha Revelacao nao disponivel.</p></div>'; return; }
+  const cfg = data.config || {};
+  const res = data.results || { optionA: 0, optionB: 0, total: 0 };
+  const colorA = cfg.colorA || '#3b82f6';
+  const colorB = cfg.colorB || '#ec4899';
+  const labelA = cfg.optionA || 'Opcao A';
+  const labelB = cfg.optionB || 'Opcao B';
+  let html = '';
+
+  // Event name
+  if (cfg.eventName) {
+    html += '<div style="text-align:center;margin-bottom:1rem"><div style="font-size:1.1rem;font-weight:800;background:linear-gradient(135deg,' + colorA + ',' + colorB + ');-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">' + esc(cfg.eventName) + '</div></div>';
+  }
+
+  // Already revealed
+  if (cfg.revealed) {
+    html += '<div style="text-align:center;padding:1.5rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;margin-bottom:1rem">';
+    html += '<div style="font-size:.7rem;color:var(--site-text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">Resultado Revelado</div>';
+    html += '<div style="font-size:1.4rem;font-weight:900;color:var(--site-text)">A revelacao ja aconteceu!</div>';
+    html += '<div style="font-size:.75rem;color:var(--site-text2);margin-top:.3rem">Acesse o app Touch? para ver os detalhes.</div>';
+    html += '</div>';
+  } else if (cfg.votingOpen) {
+    // Voting is open
+    html += '<div style="padding:1rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;margin-bottom:1rem">';
+    html += '<div style="font-size:.7rem;font-weight:700;color:var(--site-text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;text-align:center">Vote agora!</div>';
+    html += '<div style="display:flex;gap:.6rem">';
+    html += '<button id="crVoteBtnA" onclick="siteCharevelaVote(\'optionA\')" style="flex:1;padding:.8rem;border:2px solid ' + colorA + '30;border-radius:14px;background:' + (_siteCharevelaVote === 'optionA' ? colorA + '20' : 'transparent') + ';color:var(--site-text);font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s">' + esc(labelA) + '</button>';
+    html += '<button id="crVoteBtnB" onclick="siteCharevelaVote(\'optionB\')" style="flex:1;padding:.8rem;border:2px solid ' + colorB + '30;border-radius:14px;background:' + (_siteCharevelaVote === 'optionB' ? colorB + '20' : 'transparent') + ';color:var(--site-text);font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s">' + esc(labelB) + '</button>';
+    html += '</div></div>';
+  } else {
+    html += '<div style="text-align:center;padding:1.5rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;margin-bottom:1rem">';
+    html += '<div style="font-size:.85rem;font-weight:600;color:var(--site-text)">Votacao ainda nao aberta</div>';
+    html += '<div style="font-size:.7rem;color:var(--site-text2);margin-top:.3rem">Aguarde o organizador abrir a votacao.</div>';
+    html += '</div>';
+  }
+
+  // Results bar
+  if (res.total > 0) {
+    var pctA = Math.round((res.optionA / res.total) * 100);
+    var pctB = 100 - pctA;
+    html += '<div style="padding:.8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px">';
+    html += '<div style="font-size:.65rem;font-weight:700;color:var(--site-text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">Votos (' + res.total + ')</div>';
+    html += '<div style="height:28px;border-radius:14px;overflow:hidden;display:flex;background:rgba(255,255,255,.04)">';
+    html += '<div style="width:' + pctA + '%;background:' + colorA + ';display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;transition:width .5s">' + pctA + '%</div>';
+    html += '<div style="width:' + pctB + '%;background:' + colorB + ';display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;transition:width .5s">' + pctB + '%</div>';
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-top:.4rem">';
+    html += '<span style="font-size:.6rem;color:' + colorA + ';font-weight:600">' + esc(labelA) + ' (' + res.optionA + ')</span>';
+    html += '<span style="font-size:.6rem;color:' + colorB + ';font-weight:600">' + esc(labelB) + ' (' + res.optionB + ')</span>';
+    html += '</div></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+async function siteCharevelaVote(choice) {
+  if (!SITE_DATA.eventId) return;
+  var voterId = 'site-' + (Math.random().toString(36).slice(2, 10));
+  var storedVoterId = localStorage.getItem('cr_voter_' + SITE_DATA.eventId);
+  if (storedVoterId) voterId = storedVoterId;
+  else localStorage.setItem('cr_voter_' + SITE_DATA.eventId, voterId);
+  try {
+    var r = await fetch('/api/event/' + SITE_DATA.eventId + '/charevela/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voterId: voterId, voterName: 'Visitante do Site', choice: choice })
+    });
+    var d = await r.json();
+    if (r.ok) {
+      _siteCharevelaVote = choice;
+      if (d.results && SITE_DATA.charevela) SITE_DATA.charevela.results = d.results;
+      var el = document.getElementById('mod-charevela');
+      if (el) { el.dataset.rendered = ''; renderChaRevelacao(el); el.dataset.rendered = '1'; }
+      showToast('Voto registrado!');
+    } else {
+      showToast(d.error || 'Erro ao votar');
+    }
+  } catch (e) {
+    showToast('Erro de conexao');
+  }
 }
 
 // ── Footer ──
