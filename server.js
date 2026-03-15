@@ -12503,6 +12503,313 @@ async function anthropicFetch(body, timeoutMs = 30000, maxRetries = 3) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// ══ OPERATOR AI ASSISTANT — Agente inteligente pro painel ══
+// ══════════════════════════════════════════════════════════════
+
+function buildOperatorContext(userId, eventId) {
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return { context: 'Evento nao encontrado.', eventName: '', modules: {} };
+  const mods = ev.modules || {};
+  const checkins = ev.attendees ? Object.values(ev.attendees) : [];
+  const activeCheckins = checkins.filter(a => a.status !== 'left');
+  const now = Date.now();
+
+  let ctx = `EVENTO ATUAL: "${ev.name}" (ID: ${ev.id})\n`;
+  ctx += `Status: ${ev.status || 'active'}\n`;
+  ctx += `Criado em: ${new Date(ev.createdAt || now).toLocaleString('pt-BR')}\n`;
+  ctx += `Modulos ativos: ${Object.keys(mods).filter(m => mods[m]).join(', ') || 'nenhum'}\n`;
+  ctx += `Participantes: ${activeCheckins.length} ativos de ${checkins.length} total\n\n`;
+
+  // Entry fees
+  if (ev.entryPrice > 0) {
+    const paid = checkins.filter(a => a.entryPaid);
+    ctx += `ENTRADA: R$${(ev.entryPrice||0).toFixed(2)} | ${paid.length}/${checkins.length} pagos\n\n`;
+  }
+
+  // Restaurant module
+  if (mods.restaurant && ev.restaurant) {
+    const orders = ev.restaurant.orders || [];
+    const pending = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
+    const ready = orders.filter(o => o.status === 'ready');
+    const totalRevenue = orders.filter(o => o.status === 'delivered' || o.status === 'paid').reduce((s, o) => s + (o.total || 0), 0);
+    ctx += `RESTAURANTE:\n`;
+    ctx += `- Menu: ${(ev.restaurant.menu||[]).length} itens\n`;
+    ctx += `- Pedidos pendentes: ${pending.length}\n`;
+    ctx += `- Pedidos prontos (aguardando retirada): ${ready.length}\n`;
+    ctx += `- Total pedidos: ${orders.length}\n`;
+    ctx += `- Receita total: R$${totalRevenue.toFixed(2)}\n`;
+    if (pending.length > 0) {
+      ctx += `- ALERTA: ${pending.length} pedido(s) aguardando preparo!\n`;
+      pending.slice(0, 3).forEach(o => {
+        const mins = Math.round((now - (o.createdAt || now)) / 60000);
+        ctx += `  * Pedido #${(o.id||'').slice(-4)} de ${o.nickname||'Anonimo'} - ${mins}min atras - R$${(o.total||0).toFixed(2)}\n`;
+      });
+    }
+    ctx += '\n';
+  }
+
+  // Parking module
+  if (mods.parking && ev.parking) {
+    const vehicles = ev.parking.vehicles || {};
+    const active = Object.values(vehicles).filter(v => v.status === 'parked');
+    const exited = Object.values(vehicles).filter(v => v.status === 'exited');
+    const totalParking = exited.reduce((s, v) => s + (v.amountDue || 0), 0);
+    ctx += `ESTACIONAMENTO:\n`;
+    ctx += `- Veiculos estacionados: ${active.length}\n`;
+    ctx += `- Vagas totais: ${ev.parking.totalSpots || '?'}\n`;
+    ctx += `- Taxa: R$${(ev.parking.hourlyRate||10).toFixed(2)}/hora\n`;
+    ctx += `- Modo: ${ev.parking.mode || 'postpaid'}\n`;
+    ctx += `- Receita (saidas): R$${totalParking.toFixed(2)}\n`;
+    active.forEach(v => {
+      const hrs = ((now - (v.entryTime || now)) / 3600000).toFixed(1);
+      ctx += `  * ${v.plate} - ${v.nickname||'?'} - ${hrs}h estacionado\n`;
+    });
+    ctx += '\n';
+  }
+
+  // Gym module
+  if (mods.gym && ev.gym) {
+    const members = ev.gym.members || {};
+    const activeMembers = Object.values(members).filter(m => m.checkedIn);
+    ctx += `ACADEMIA:\n`;
+    ctx += `- Membros cadastrados: ${Object.keys(members).length}\n`;
+    ctx += `- Presentes agora: ${activeMembers.length}\n`;
+    ctx += '\n';
+  }
+
+  // Church module
+  if (mods.church && ev.church) {
+    const tithes = ev.church.tithes || [];
+    const totalTithes = tithes.reduce((s, t) => s + (t.amount || 0), 0);
+    const prayers = ev.church.prayers || [];
+    const unreadPrayers = prayers.filter(p => !p.read);
+    ctx += `IGREJA:\n`;
+    ctx += `- Dizimos: ${tithes.length} (R$${totalTithes.toFixed(2)})\n`;
+    ctx += `- Pedidos de oracao: ${prayers.length} (${unreadPrayers.length} nao lidos)\n`;
+    ctx += '\n';
+  }
+
+  // Barber module
+  if (mods.barber && ev.barber) {
+    const barbers = ev.barber.barbers || [];
+    const allAppts = barbers.flatMap(b => (b.appointments || []).map(a => ({...a, barberName: b.name})));
+    const todayAppts = allAppts.filter(a => {
+      const d = new Date(a.date || a.datetime);
+      const today = new Date();
+      return d.toDateString() === today.toDateString();
+    });
+    ctx += `BARBEARIA:\n`;
+    ctx += `- Barbeiros: ${barbers.length}\n`;
+    ctx += `- Agendamentos hoje: ${todayAppts.length}\n`;
+    ctx += '\n';
+  }
+
+  // Charevela module
+  if (mods.charevela && ev.charevela) {
+    const cr = ev.charevela;
+    ctx += `CHA REVELACAO:\n`;
+    ctx += `- Opcoes: ${cr.config.optionA} vs ${cr.config.optionB}\n`;
+    ctx += `- Votos: ${cr.results.optionA} x ${cr.results.optionB} (total: ${cr.results.total})\n`;
+    ctx += `- Votacao ${cr.config.votingOpen ? 'ABERTA' : 'FECHADA'}\n`;
+    ctx += `- Revelado: ${cr.config.revealed ? 'SIM (' + (cr.config.answer === 'optionA' ? cr.config.optionA : cr.config.optionB) + ')' : 'NAO'}\n`;
+    ctx += '\n';
+  }
+
+  // Financial summary (tips)
+  const opUser = db.users[userId];
+  if (opUser) {
+    const tips = db.tips ? Object.values(db.tips).filter(t => t.receiverId === userId) : [];
+    const totalTips = tips.reduce((s, t) => s + (t.amount || 0), 0);
+    ctx += `GORJETAS RECEBIDAS: ${tips.length} (R$${totalTips.toFixed(2)})\n\n`;
+  }
+
+  // Active participants with details
+  if (activeCheckins.length > 0) {
+    ctx += `PARTICIPANTES ATIVOS (${activeCheckins.length}):\n`;
+    activeCheckins.slice(0, 20).forEach(a => {
+      ctx += `- ${a.nickname || 'Anonimo'}${a.entryPaid ? ' [PAGO]' : ''}${a.online === false ? ' [OFFLINE]' : ''}\n`;
+    });
+    ctx += '\n';
+  }
+
+  return { context: ctx, eventName: ev.name, modules: mods };
+}
+
+// Endpoint: get operator context (for tool calls during session)
+app.get('/api/agent/operator-context/:userId/:eventId', async (req, res) => {
+  const { userId, eventId } = req.params;
+  if (!userId || !eventId) return res.status(400).json({ error: 'userId e eventId obrigatorios' });
+  const data = buildOperatorContext(userId, eventId);
+  res.json({ context: data.context, ts: Date.now() });
+});
+
+// Endpoint: create operator AI assistant session
+app.post('/api/agent/operator-session', vaLimiter, async (req, res) => {
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY nao configurada.' });
+  const { userId, eventId } = req.body;
+  if (!userId || !eventId) return res.status(400).json({ error: 'userId e eventId obrigatorios.' });
+
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+
+  const user = db.users[userId] || {};
+  const userName = (user.name || user.nickname || '').split(' ')[0] || 'Operador';
+  const { context, modules } = buildOperatorContext(userId, eventId);
+
+  // Load conversation history
+  const opConvos = getVaConversations(userId, 'operator').slice(-30);
+  const convHistory = opConvos.length
+    ? `\n\n=== HISTORICO DE CONVERSAS ANTERIORES ===\n${opConvos.map(c => `${c.role === 'user' ? 'Operador' : 'Assistente'}: ${c.content}`).join('\n')}\n=== FIM ===`
+    : '';
+
+  const openingText = `Oi ${userName}! Estou monitorando tudo. O que precisa?`;
+
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-realtime-preview',
+        voice: 'ash',
+        modalities: ['audio', 'text'],
+        input_audio_transcription: { model: 'whisper-1' },
+        turn_detection: { type: 'server_vad', threshold: 0.92, prefix_padding_ms: 400, silence_duration_ms: 1200 },
+        instructions: `Voce e o ASSISTENTE DO OPERADOR do Touch? — um agente inteligente que ajuda a gerenciar negocios e eventos.
+
+IDIOMA: Portugues brasileiro. Se o operador falar em ingles ou espanhol, responda no idioma dele.
+
+PERSONALIDADE:
+- Profissional mas acessivel. Tom de consultor de negocios experiente.
+- Otimista e proativo. Sempre busca solucoes.
+- Direto ao ponto — maximo 3 frases por resposta.
+- Usa numeros e dados concretos sempre que possivel.
+- Nunca diz "nao sei" sem oferecer alternativa.
+- Conhece PROFUNDAMENTE o sistema Touch? e todos os modulos.
+
+NOME DO OPERADOR: ${userName}
+
+SEU PAPEL:
+1. MONITORAR: Acompanhar pedidos, estacionamento, checkins, financeiro em tempo real
+2. ALERTAR: Avisar sobre problemas (pedidos atrasados, vagas acabando, pagamentos pendentes)
+3. GUIAR: Ensinar a usar o painel passo-a-passo, indicar onde clicar
+4. SUGERIR: Recomendar acoes, rotinas, melhorias
+5. CALCULAR: Fazer contas rapidas (ticket medio, receita estimada, custo)
+6. RESOLVER: Abrir chamados, diagnosticar problemas
+
+REGRA CRITICA — DADOS ATUALIZADOS:
+Voce DEVE chamar consultar_painel ANTES de responder qualquer pergunta sobre:
+- Pedidos, estacionamento, financeiro, participantes, status de modulos
+Os dados nas instrucoes sao uma FOTO do inicio da sessao. A ferramenta retorna dados REAIS.
+
+MODULOS DO SISTEMA TOUCH?:
+- Restaurante: Cardapio digital, pedidos em tempo real, mesas, dashboard de vendas
+- Estacionamento: Registro de veiculos, controle de entrada/saida, calculo automatico, OCR de placas
+- Academia: Treinos, aulas, planos, check-in de membros
+- Igreja: Dizimos, pedidos de oracao, cultos, celulas, anuncios
+- Barbearia: Agenda, equipe de barbeiros, servicos, horarios
+- Karaoke: Fila de cantores, votacao, placar
+- Cha Revelacao: Votacao boy/girl, revelacao sincronizada
+- DJ Live: Shows ao vivo, controle de luz e som, interacao
+- WiFi: Rede do evento
+- Site: Site white-label do negocio
+
+TAXAS E VALORES:
+- Stripe: 2.9% + $0.30 por transacao (cartao)
+- Pix: 0% (free no Brasil)
+- Touch? cobra: definido pelo plano do operador
+- O operador define seus proprios precos de cardapio, estacionamento, etc.
+
+NAVEGACAO DO PAINEL:
+Quando o operador precisar de ajuda, use a ferramenta navegar_painel para:
+- Trocar de aba: aquarium, dashboard, restaurant, parking, gym, church, barber, dj, finance
+- Abrir paineis: restaurante, estacionamento, academia, igreja, barbearia, karaoke, charevela, wifi, dj, site, financeiro
+- Trocar sub-abas dentro dos paineis (ex: pedidos, menu, mesas dentro do restaurante)
+SEJA ESPECIFICO: diga exatamente onde clicar e o que fazer em cada passo.
+
+COMO GUIAR:
+Quando explicar algo, faca passo-a-passo numerado:
+1. "Primeiro, vou abrir o painel de [modulo]"
+2. "Agora clique na aba [nome]"
+3. "Ali voce vai ver [elemento], clique nele"
+Use a ferramenta navegar_painel para executar a navegacao automaticamente.
+
+${context}
+${convHistory}
+
+IMPORTANTE: NAO fale automaticamente ao iniciar. Espere o comando response.create do cliente.`,
+        tools: [{
+          type: 'function',
+          name: 'consultar_painel',
+          description: 'OBRIGATORIO: Busca dados ATUALIZADOS em tempo real do painel do operador. DEVE chamar ANTES de responder sobre pedidos, estacionamento, financeiro, participantes. Retorna estado REAL do banco AGORA.',
+          parameters: { type: 'object', properties: {}, required: [] }
+        },{
+          type: 'function',
+          name: 'navegar_painel',
+          description: 'Navega para uma tela/aba/painel especifico do operador. Use para guiar o operador ou executar navegacao. Destinos: aquarium (mapa de participantes), dashboard (resumo geral), restaurant (restaurante), parking (estacionamento), gym (academia), church (igreja), barber (barbearia), karaoke, charevela, dj, wifi, site, finance (financeiro). Sub-abas: restaurant.menu, restaurant.orders, restaurant.tables, restaurant.dashboard, parking.vehicles, parking.history, parking.config, gym.workouts, gym.classes, gym.plans, gym.members, gym.config, church.tithes, church.prayers, church.services, church.announcements, barber.agenda, barber.team, barber.config.',
+          parameters: {
+            type: 'object',
+            properties: {
+              destino: { type: 'string', description: 'ID do painel ou aba (ex: restaurant, parking.vehicles, church.tithes)' },
+              mensagem: { type: 'string', description: 'Mensagem curta para mostrar ao operador junto com a navegacao (ex: "Veja os pedidos pendentes aqui")' }
+            },
+            required: ['destino']
+          }
+        },{
+          type: 'function',
+          name: 'destacar_elemento',
+          description: 'Destaca visualmente um elemento no painel para guiar o operador. Mostra um balao com seta apontando para o elemento. Use quando explicar onde clicar.',
+          parameters: {
+            type: 'object',
+            properties: {
+              seletor: { type: 'string', description: 'CSS selector do elemento a destacar (ex: #fabRestaurant, .op-tab[data-mod=orders])' },
+              mensagem: { type: 'string', description: 'Texto do balao (ex: "Clique aqui para ver os pedidos")' }
+            },
+            required: ['seletor', 'mensagem']
+          }
+        },{
+          type: 'function',
+          name: 'criar_alerta',
+          description: 'Cria um alerta/observacao visivel no painel. Use para avisar sobre problemas urgentes, sugestoes ou lembretes. Tipos: urgente (vermelho), atencao (amarelo), info (azul), sucesso (verde).',
+          parameters: {
+            type: 'object',
+            properties: {
+              tipo: { type: 'string', description: 'Tipo do alerta: urgente, atencao, info, sucesso' },
+              titulo: { type: 'string', description: 'Titulo curto do alerta (max 50 chars)' },
+              mensagem: { type: 'string', description: 'Corpo do alerta (max 200 chars)' },
+              acao: { type: 'string', description: 'ID do painel/aba para navegar ao clicar no alerta (opcional)' }
+            },
+            required: ['tipo', 'titulo', 'mensagem']
+          }
+        },{
+          type: 'function',
+          name: 'calcular',
+          description: 'Faz calculos financeiros para o operador. Tipos: ticket_medio (media por pedido), receita_estimada (projecao), custo_operacao (taxas), margem (lucro). Retorna resultado formatado.',
+          parameters: {
+            type: 'object',
+            properties: {
+              tipo: { type: 'string', description: 'Tipo de calculo: ticket_medio, receita_estimada, custo_operacao, margem, personalizado' },
+              descricao: { type: 'string', description: 'Descricao do calculo desejado' }
+            },
+            required: ['tipo']
+          }
+        }]
+      })
+    });
+    if (!r.ok) { const e = await r.text(); console.error('OpenAI operator session err:', r.status, e); return res.status(502).json({ error: 'Erro ao criar sessao' }); }
+    const d = await r.json();
+    res.json({
+      client_secret: d.client_secret?.value,
+      session_id: d.id,
+      expires_at: d.client_secret?.expires_at,
+      openingText,
+      tier: 'operator',
+      modules,
+      eventName: ev.name
+    });
+  } catch (e) { console.error('Operator session err:', e.message); res.status(500).json({ error: 'Erro interno' }); }
+});
+
 // ══ DEV PING — teste rapido de conexao com Claude (nao precisa admin) ══
 app.post('/api/dev/ping', vaLimiter, async (req, res) => {
   const { userId } = req.body;
