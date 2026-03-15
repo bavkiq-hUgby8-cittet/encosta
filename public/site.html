@@ -2626,20 +2626,22 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
       el.querySelectorAll('.reveal:not(.visible),.reveal-scale:not(.visible),.reveal-left:not(.visible),.reveal-right:not(.visible)').forEach(function(r){ r.classList.add('visible'); });
       if(el.classList.contains('reveal') || el.classList.contains('reveal-scale') || el.classList.contains('reveal-left') || el.classList.contains('reveal-right')) el.classList.add('visible');
       el.classList.add('tour-highlight');
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     tourStepIndex++;
 
-    // Send section signal to OpenAI via data channel
-    if(peerConnection && peerConnection.dc){
-      try {
-        peerConnection.dc.send(JSON.stringify({
-          type: 'conversation.item.create',
-          item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'SECTION:' + step.signal }] }
-        }));
-        peerConnection.dc.send(JSON.stringify({ type: 'response.create' }));
-      } catch(e){}
-    }
+    // Delay voice signal 1s so user sees the section before narration starts
+    setTimeout(function(){
+      if(peerConnection && peerConnection.dc){
+        try {
+          peerConnection.dc.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'SECTION:' + step.signal }] }
+          }));
+          peerConnection.dc.send(JSON.stringify({ type: 'response.create' }));
+        } catch(e){}
+      }
+    }, 1000);
   }
 
   function endTour(){
@@ -2976,14 +2978,16 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
           unmuteMicAfterResponse();
           if(inTour){
             // response.done fires when generation completes, but audio
-            // buffer may still be playing. Small buffer to let it finish.
+            // is still playing in the WebRTC buffer. Model speaks at ~170 wpm
+            // (~350ms/word). response.done arrives ~3-5s after audio starts,
+            // so remaining audio = total_speech - generation_time.
+            // Formula: 2.5s base + 250ms/word (accounts for generation overlap)
             var wordCount = lastTourTranscript ? lastTourTranscript.split(/\s+/).length : 0;
-            // Base 2s buffer + 150ms per word
-            // Short (10 words) = 2 + 1.5 = 3.5s
-            // Medium (30 words) = 2 + 4.5 = 6.5s
-            // Long (50 words) = 2 + 7.5 = 9.5s
-            // Cap between 2.5s and 12s
-            var bufferDelay = Math.max(2500, Math.min(12000, 2000 + (wordCount * 150)));
+            // Short (18 words) = 2.5 + 4.5 = 7s
+            // Medium (38 words) = 2.5 + 9.5 = 12s
+            // Long (44 words) = 2.5 + 11 = 13.5s
+            // Cap between 4s and 20s
+            var bufferDelay = Math.max(4000, Math.min(20000, 2500 + (wordCount * 250)));
             console.log('[WebRTC] Response DONE - words:', wordCount, 'buffer:', bufferDelay, 'ms');
             lastTourTranscript = '';
             setTimeout(function(){ advanceTourStep(); }, bufferDelay);
