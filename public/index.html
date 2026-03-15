@@ -21448,16 +21448,21 @@ function renderCharevelaResults(res,colorA,colorB,labelA,labelB){
 
 async function charevelaVote(choice){
   if(!_charevelaEventId){console.warn('[charevela] no eventId');return}
-  var vid=state.userId||localStorage.getItem('visitorId')||('anon_'+Math.random().toString(36).slice(2,10));
-  var vname=state.userName||localStorage.getItem('userName')||'Anonimo';
+  var vid=state.userId||localStorage.getItem('visitorId')||localStorage.getItem('touchUserId');
+  if(!vid){vid='anon_'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('visitorId',vid)}catch(e){}}
+  var vname=state.userName||localStorage.getItem('userName')||localStorage.getItem('touchUserName')||'Anonimo';
   console.log('[charevela] voting:',choice,'voter:',vid,'event:',_charevelaEventId);
   try{
-    var r=await fetch('/api/event/'+_charevelaEventId+'/charevela/vote',{
+    var url='/api/event/'+_charevelaEventId+'/charevela/vote';
+    console.log('[charevela] POST',url);
+    var r=await fetch(url,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({voterId:vid,voterName:vname,choice:choice})
     });
+    console.log('[charevela] response status:',r.status);
     var d=await r.json();
+    console.log('[charevela] response:',d);
     if(r.ok){
       _charevelaMyVote=choice;
       if(d.results&&_charevelaData){_charevelaData.results=d.results}
@@ -21467,7 +21472,8 @@ async function charevelaVote(choice){
       showToast(d.error||'Erro ao votar');
     }
   }catch(e){
-    showToast('Erro de conexao');
+    console.error('[charevela] vote error:',e);
+    showToast('Erro: '+e.message);
   }
 }
 
