@@ -17466,23 +17466,28 @@ app.get('/api/event/:eventId/charevela', (req, res) => {
 
 // Public: cast vote
 app.post('/api/event/:eventId/charevela/vote', (req, res) => {
-  const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
-  const cr = ensureChaRevela(ev);
-  if (!cr.config.votingOpen) return res.status(400).json({ error: 'Votacao fechada.' });
-  if (cr.config.revealed) return res.status(400).json({ error: 'Revelacao ja aconteceu.' });
-  const { voterId, voterName, choice } = req.body;
-  if (!voterId || !choice) return res.status(400).json({ error: 'Voto invalido.' });
-  if (choice !== 'optionA' && choice !== 'optionB') return res.status(400).json({ error: 'Opcao invalida.' });
-  // Remove old vote if switching
-  const oldChoice = cr.votes[voterId] ? cr.votes[voterId].choice : null;
-  if (oldChoice && cr.results[oldChoice] > 0) cr.results[oldChoice]--;
-  cr.votes[voterId] = { choice, name: sanitizeStr(voterName || 'Anonimo', 30), timestamp: Date.now() };
-  cr.results[choice]++;
-  cr.results.total = Object.keys(cr.votes).length;
-  saveDB('operatorEvents');
-  io.to('event:' + ev.id).emit('charevela-vote-updated', { eventId: ev.id, results: cr.results, voterName: voterName || 'Alguem', choice });
-  res.json({ ok: true, results: cr.results });
+  try {
+    const ev = db.operatorEvents[req.params.eventId];
+    if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+    const cr = ensureChaRevela(ev);
+    if (!cr.config.votingOpen) return res.status(400).json({ error: 'Votacao fechada.' });
+    if (cr.config.revealed) return res.status(400).json({ error: 'Revelacao ja aconteceu.' });
+    const { voterId, voterName, choice } = req.body || {};
+    if (!voterId || !choice) return res.status(400).json({ error: 'Voto invalido. voterId e choice obrigatorios.' });
+    if (choice !== 'optionA' && choice !== 'optionB') return res.status(400).json({ error: 'Opcao invalida.' });
+    // Remove old vote if switching
+    const oldChoice = cr.votes[voterId] ? cr.votes[voterId].choice : null;
+    if (oldChoice && cr.results[oldChoice] > 0) cr.results[oldChoice]--;
+    cr.votes[voterId] = { choice, name: sanitizeStr(voterName || 'Anonimo', 30), timestamp: Date.now() };
+    cr.results[choice]++;
+    cr.results.total = Object.keys(cr.votes).length;
+    saveDB('operatorEvents');
+    io.to('event:' + ev.id).emit('charevela-vote-updated', { eventId: ev.id, results: cr.results, voterName: voterName || 'Alguem', choice });
+    res.json({ ok: true, results: cr.results });
+  } catch (err) {
+    console.error('[charevela] vote error:', err);
+    res.status(500).json({ error: 'Erro interno ao votar.' });
+  }
 });
 
 // ═══ STRIPE — Full Payment Integration ═══
