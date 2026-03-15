@@ -7392,13 +7392,14 @@ app.post('/api/event/create', (req, res) => {
     acceptsTips: false, serviceLabel: '',
     entryPrice: 0, revenue: 0, paidCheckins: 0,
     createdAt: Date.now(),
-    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false, dj: false },
+    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false, dj: false, charevela: false },
     staff: [], menu: [], tables: 0, orders: [],
     parking: { enabled: false, mode: 'postpaid', hourlyRate: 10.00, fixedRate: 0, maxHours: 24, vehicles: {} },
     gym: { enabled: false, config: { maxCapacity: 50, openTime: '06:00', closeTime: '22:00' }, classes: {}, plans: {}, members: {}, workouts: {} },
     church: { enabled: false, config: { churchName: '', pastorName: '', denomination: '' }, tithes: {}, campaigns: {}, services: {}, prayers: {}, cells: {}, announcements: [] },
     barber: { enabled: false, config: { barberName: '', welcomeMessage: '' }, barbers: [], appointments: [] },
-    djLive: { enabled: false, broadcasting: false, color: '#ff6b35', bpm: 128, animation: 'pulse', venueFreq: 19200, connectedDevices: {} }
+    djLive: { enabled: false, broadcasting: false, color: '#ff6b35', bpm: 128, animation: 'pulse', venueFreq: 19200, connectedDevices: {} },
+    charevela: { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } }
   };
   // Add to index so it shows in operator's event list
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
@@ -8277,6 +8278,17 @@ function createSonicConnection(userIdA, userIdB) {
           actionLabel: 'Cantar',
           color: '#ec4899',
           icon: 'karaoke'
+        });
+      }
+      if (ev.modules.charevela) {
+        moduleWelcome.push({
+          key: 'charevela',
+          label: 'Cha Revelacao',
+          message: ev.charevela?.config?.eventName || 'Vote no Cha Revelacao!',
+          action: 'charevela',
+          actionLabel: 'Votar',
+          color: '#ec4899',
+          icon: 'charevela'
         });
       }
     }
@@ -16968,6 +16980,123 @@ app.post('/api/event/:eventId/barber/appointment/:appointmentId/complete', (req,
   res.json({ ok: true, appointment: apt });
 });
 
+// ═══ CHA REVELACAO (Gender Reveal) MODULE ═══
+
+function ensureChaRevela(ev) {
+  if (!ev.charevela) ev.charevela = { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } };
+  return ev.charevela;
+}
+
+// Operator: get module data
+app.get('/api/operator/event/:eventId/charevela', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const cr = ensureChaRevela(ev);
+  res.json({ ok: true, config: cr.config, votes: cr.votes, results: cr.results });
+});
+
+// Operator: save config
+app.post('/api/operator/event/:eventId/charevela/config', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const cr = ensureChaRevela(ev);
+  const { eventName, optionA, optionB, colorA, colorB, answer, votingOpen } = req.body;
+  cr.config.eventName = sanitizeStr(eventName || '', 100);
+  cr.config.optionA = sanitizeStr(optionA || 'Menino', 30);
+  cr.config.optionB = sanitizeStr(optionB || 'Menina', 30);
+  cr.config.colorA = (colorA || '#3b82f6').slice(0, 7);
+  cr.config.colorB = (colorB || '#ec4899').slice(0, 7);
+  cr.config.answer = (answer === 'optionA' || answer === 'optionB') ? answer : '';
+  if (typeof votingOpen === 'boolean') cr.config.votingOpen = votingOpen;
+  ev.modules.charevela = true;
+  cr.enabled = true;
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('charevela-config-updated', { eventId: ev.id, config: cr.config });
+  res.json({ ok: true, config: cr.config });
+});
+
+// Operator: toggle voting open/closed
+app.post('/api/operator/event/:eventId/charevela/toggle-voting', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const cr = ensureChaRevela(ev);
+  cr.config.votingOpen = !cr.config.votingOpen;
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('charevela-voting-toggled', { eventId: ev.id, votingOpen: cr.config.votingOpen });
+  res.json({ ok: true, votingOpen: cr.config.votingOpen });
+});
+
+// Operator: trigger the reveal animation on all connected devices
+app.post('/api/operator/event/:eventId/charevela/reveal', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const cr = ensureChaRevela(ev);
+  if (!cr.config.answer) return res.status(400).json({ error: 'Defina a resposta antes de revelar.' });
+  cr.config.revealed = true;
+  cr.config.votingOpen = false;
+  saveDB('operatorEvents');
+  // Broadcast reveal animation to ALL devices in this event
+  const revealData = {
+    eventId: ev.id,
+    answer: cr.config.answer,
+    answerLabel: cr.config.answer === 'optionA' ? cr.config.optionA : cr.config.optionB,
+    color: cr.config.answer === 'optionA' ? cr.config.colorA : cr.config.colorB,
+    results: cr.results,
+    config: cr.config
+  };
+  io.emit('charevela-reveal', revealData);
+  io.to('event:' + ev.id).emit('charevela-reveal', revealData);
+  res.json({ ok: true, reveal: revealData });
+});
+
+// Operator: reset (clear votes, allow new round)
+app.post('/api/operator/event/:eventId/charevela/reset', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const cr = ensureChaRevela(ev);
+  cr.votes = {};
+  cr.results = { optionA: 0, optionB: 0, total: 0 };
+  cr.config.revealed = false;
+  cr.config.votingOpen = false;
+  cr.config.answer = '';
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('charevela-reset', { eventId: ev.id });
+  res.json({ ok: true });
+});
+
+// Public: get module data for participants
+app.get('/api/event/:eventId/charevela', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.json({ enabled: false });
+  const cr = ensureChaRevela(ev);
+  res.json({
+    enabled: ev.modules.charevela || false,
+    config: { eventName: cr.config.eventName, optionA: cr.config.optionA, optionB: cr.config.optionB, colorA: cr.config.colorA, colorB: cr.config.colorB, votingOpen: cr.config.votingOpen, revealed: cr.config.revealed },
+    results: cr.results
+  });
+});
+
+// Public: cast vote
+app.post('/api/event/:eventId/charevela/vote', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const cr = ensureChaRevela(ev);
+  if (!cr.config.votingOpen) return res.status(400).json({ error: 'Votacao fechada.' });
+  if (cr.config.revealed) return res.status(400).json({ error: 'Revelacao ja aconteceu.' });
+  const { voterId, voterName, choice } = req.body;
+  if (!voterId || !choice) return res.status(400).json({ error: 'Voto invalido.' });
+  if (choice !== 'optionA' && choice !== 'optionB') return res.status(400).json({ error: 'Opcao invalida.' });
+  // Remove old vote if switching
+  const oldChoice = cr.votes[voterId] ? cr.votes[voterId].choice : null;
+  if (oldChoice && cr.results[oldChoice] > 0) cr.results[oldChoice]--;
+  cr.votes[voterId] = { choice, name: sanitizeStr(voterName || 'Anonimo', 30), timestamp: Date.now() };
+  cr.results[choice]++;
+  cr.results.total = Object.keys(cr.votes).length;
+  saveDB('operatorEvents');
+  io.to('event:' + ev.id).emit('charevela-vote-updated', { eventId: ev.id, results: cr.results, voterName: voterName || 'Alguem', choice });
+  res.json({ ok: true, results: cr.results });
+});
+
 // ═══ STRIPE — Full Payment Integration ═══
 // Payment Element (Card, Link, Apple Pay, Google Pay), Subscriptions, Connect
 // Activates when STRIPE_SECRET_KEY + STRIPE_PUBLIC_KEY are set in environment
@@ -21024,7 +21153,7 @@ OPENING (speak immediately when session starts):
 
 SECTION:HERO — "O segredo ta no ultrassom de proximidade. Voce encosta um celular no outro, as caixinhas de som emitem uma frequencia que a gente nem escuta, e em dois segundos ta conectado. E rapido, e simples e parece magica."
 
-SECTION:USE_CASES — "E o que fazer com isso? Dar uma gorjeta pro bartender, fazer check-in na academia, conhecer alguem num show, pedir comida nos restaurantes. Tudo com o mesmo gesto de aproximar os celulares. E versatil demais!"
+SECTION:USE_CASES — "E o que fazer com isso? Dar gorjeta pro guardador de carro, fazer check-in no CrossFit, pedir comida no food truck, iluminar um cha de revelacao, liberar o wifi pros clientes. Tudo com o mesmo gesto de aproximar os celulares. E versatil demais!"
 
 SECTION:TIPPING — "Com o Touch?, gorjeta e instantanea: voce so aproxima o celular, escolhe o valor e acabou! Sem complicacao."
 
@@ -21053,11 +21182,11 @@ REFERENCE SCRIPT (follow this content closely, adapt naturally to the language):
 OPENING (speak immediately when session starts):
 "Touch e uma plataforma completa de gestao por proximidade. Os clientes chegam, encostam o celular no alto-falante ou escaneiam o QR code, e pronto: estao conectados. Check-in, cardapio digital, pagamento, gorjetas — tudo sem precisar baixar nenhum app."
 
-SECTION:BUSINESS — "Funciona para qualquer negocio presencial: restaurantes, bares, barbearias, academias, estacionamentos, eventos, food trucks. Cada um recebe modulos especificos no painel do operador."
+SECTION:BUSINESS — "Funciona para qualquer negocio presencial: restaurantes, bares, barbearias, academias, CrossFit, estacionamentos, guardadores de carro, eventos, DJs, food trucks, chas de revelacao. Cada um recebe modulos especificos no painel do operador."
 
 SECTION:SETUP — "A configuracao e super rapida, leva so 2 minutos. Voce coloca o alto-falante Bluetooth na entrada, um QR code ali, e pronto. Clientes encostam o celular e conectam em 1 segundo. Clientes novos so escaneiam o QR e colocam um apelido. Ja estao dentro."
 
-SECTION:TOOLS — "No painel do operador, voce gerencia tudo num so lugar. Restaurantes ganham cardapios digitais e um kanban pra cozinha. Barbearias tem agendamento e fila digital. Academias usam check-in por proximidade. Estacionamentos e guardadores tem entrada e saida. Tudo administrado de forma simples num painel unico."
+SECTION:TOOLS — "No painel do operador, voce gerencia tudo num so lugar. Restaurantes ganham cardapios digitais e um kanban pra cozinha. Barbearias tem agendamento e fila digital. Academias e CrossFit usam check-in por proximidade com ranking. Estacionamentos e guardadores tem entrada e saida. DJs controlam as luzes dos celulares da plateia. WiFi automatico pros clientes. Tudo administrado num painel unico."
 
 SECTION:WHITELABEL — "Cada negocio ganha um mini-site personalizado com a propria marca dentro do Touch?. Da pra colocar seu logo, suas cores, seu cardapio, horario de funcionamento."`;
   } else {
@@ -21073,19 +21202,23 @@ Dois celulares se aproximam tela contra tela, os alto-falantes emitem sons em 18
 Funciona 100% no navegador, sem baixar app. URL: touch-irl.com
 
 CASOS DE USO:
-- Gorjetas digitais (bartenders, valets, musicos de rua, barbeiros, personal trainers)
-- Check-in (academia, CrossFit, eventos, coworking, igrejas)
+- Gorjetas digitais (bartenders, valets, guardadores de carro, musicos de rua, barbeiros, personal trainers)
+- Check-in (academia, CrossFit, box, eventos, coworking, igrejas)
 - Conexoes sociais (conhecer pessoas em shows, bares, festas)
 - Pedidos e pagamento (restaurantes, food trucks, delivery)
-- Estacionamento (entrada/saida automatica)
+- Estacionamento (entrada/saida automatica, guardadores de carro)
 - Barbearia (agendamento, fila digital)
+- Shows e eventos (DJ controla luzes dos celulares da plateia em tempo real)
+- WiFi automatico (cliente faz check-in e conecta no wifi sem pedir senha)
+- Cha de revelacao (celulares acendem azul ou rosa ao mesmo tempo)
+- Festas e eventos especiais (aniversarios, casamentos, formaturas)
 
 PARA NEGOCIOS:
 - Uma caixa de som Bluetooth de $10 na entrada e tudo que precisa
 - Painel do operador completo: cardapio, pedidos, check-in, gorjetas, analytics
 - Site whitelabel personalizado por estabelecimento
 - Kit de marketing com QR code (banner, adesivos, cartao de mesa)
-- Modulos: restaurante, barbearia, academia, estacionamento, igreja, eventos
+- Modulos: restaurante, barbearia, academia, CrossFit, estacionamento, guardador, igreja, eventos, DJ, wifi
 
 PRECOS:
 - Starter (gratis): ate 100 check-ins/mes

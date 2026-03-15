@@ -16,33 +16,42 @@ const KNOWLEDGE = [
 
 Tudo acontece pelo navegador, sem precisar baixar app nenhum. Funciona pra:
 
-- Check-in automatico em estabelecimentos (bares, restaurantes, barbearias, academias)
-- Pagamentos e gorjetas instantaneas
+- Check-in automatico em estabelecimentos (bares, restaurantes, barbearias, academias, CrossFit, coworkings)
+- Pagamentos e gorjetas instantaneas (garcom, guardador de carro, musico, personal trainer)
 - Conexao entre pessoas (tipo trocar contato, so que melhor)
 - Cardapio digital, pedidos e pagamentos sem fila
-- Shows e eventos com luzes sincronizadas nos celulares da plateia
+- Shows e eventos com luzes sincronizadas nos celulares da plateia (DJ controla tudo)
+- Estacionamentos e valets
+- WiFi automatico pra clientes
+- Chas de revelacao, festas e eventos especiais
 
 O som que conecta e de 18-22 kHz -- completamente inaudivel pro ouvido humano, mas o microfone do celular detecta.`,
     en: `Touch? is a proximity connection platform. It works like this: two phones get close with screens facing each other (screen-to-screen), the speakers communicate via ultrasonic sound (inaudible), and a connection is born.
 
 Everything happens in the browser, no app download needed. It works for:
 
-- Automatic check-in at businesses (bars, restaurants, barbershops, gyms)
-- Instant payments and tips
+- Automatic check-in at businesses (bars, restaurants, barbershops, gyms, CrossFit, coworkings)
+- Instant payments and tips (bartender, valet, musician, personal trainer)
 - Connecting people (like exchanging contacts, but better)
 - Digital menu, orders and payments without lines
-- Shows and events with synchronized lights on the audience's phones
+- Shows and events with synchronized lights on the audience's phones (DJ controls everything)
+- Parking lots and valets
+- Automatic wifi for customers
+- Gender reveals, parties and special events
 
 The connecting sound is 18-22 kHz -- completely inaudible to the human ear, but the phone's microphone detects it.`,
     es: `Touch? es una plataforma de conexion por proximidad. Funciona asi: dos celulares se acercan con las pantallas una frente a la otra (pantalla contra pantalla), los altavoces conversan por sonido ultrasonico (inaudible), y una conexion nace.
 
 Todo sucede en el navegador, sin necesidad de descargar ninguna app. Funciona para:
 
-- Check-in automatico en establecimientos (bares, restaurantes, barberias, gimnasios)
-- Pagos y propinas instantaneas
+- Check-in automatico en establecimientos (bares, restaurantes, barberias, gimnasios, CrossFit, coworkings)
+- Pagos y propinas instantaneas (mesero, valet, musico, entrenador personal)
 - Conexion entre personas (como intercambiar contacto, pero mejor)
 - Menu digital, pedidos y pagos sin fila
-- Shows y eventos con luces sincronizadas en los celulares del publico
+- Shows y eventos con luces sincronizadas en los celulares del publico (el DJ controla todo)
+- Estacionamientos y valet
+- WiFi automatico para clientes
+- Revelaciones de genero, fiestas y eventos especiales
 
 El sonido de conexion es de 18-22 kHz -- completamente inaudible para el oido humano, pero el microfono del celular lo detecta.`
   },
@@ -439,7 +448,7 @@ Para la administracion:
   // ── ESTACIONAMENTO ──
   {
     id: 'parking',
-    keywords: ['estacionamento', 'parking', 'estacionamiento', 'carro', 'car', 'auto', 'veiculo', 'vehicle', 'vehiculo', 'vaga', 'spot', 'cancela', 'barrier', 'pedagio', 'toll'],
+    keywords: ['estacionamento', 'parking', 'estacionamiento', 'carro', 'car', 'auto', 'veiculo', 'vehicle', 'vehiculo', 'vaga', 'spot', 'cancela', 'barrier', 'pedagio', 'toll', 'garagem', 'garage'],
     weight: 2,
     pt: `Pra estacionamentos, o Touch? elimina filas e maquininhas:
 
@@ -764,6 +773,266 @@ Todos los materiales vienen con tu codigo QR personalizado integrado. Descargas 
 Accede por el panel del operador > pestana "Materiales".`
   },
 
+  // ── GUARDADOR DE CARRO / VALET ──
+  {
+    id: 'valet',
+    keywords: ['guardador', 'flanelinha', 'valet', 'manobrista', 'guardar carro', 'cuida do carro', 'park my car', 'cuidar carro', 'guarda carro', 'parking attendant', 'car watch', 'cuidacoches', 'valetero', 'guardacoches'],
+    weight: 3,
+    pt: `Pra guardadores de carro e manobristas, o Touch? resolve o maior problema: receber pagamento digital.
+
+Como funciona:
+1. O guardador se cadastra no Touch? e ativa o modo servico
+2. Quando o motorista chega, o guardador mostra o QR code ou encosta o celular
+3. O motorista paga a gorjeta/taxa pelo celular, na hora
+4. O dinheiro vai pra conta do guardador
+
+Vantagens pro guardador:
+- Recebe de quem nao tem dinheiro fisico (a maioria hoje)
+- Historico de todos os pagamentos recebidos
+- Pode mostrar avaliacao (estrelas) pros clientes confiarem
+- Funciona com qualquer celular basico com navegador
+
+Vantagens pro motorista:
+- Nao precisa ter dinheiro trocado
+- Paga o valor justo sem constrangimento
+- Pode avaliar o servico`,
+    en: `For parking attendants and valets, Touch? solves the biggest problem: receiving digital payments.
+
+How it works:
+1. The attendant signs up on Touch? and activates service mode
+2. When the driver arrives, attendant shows QR code or brings phones close
+3. Driver pays the tip/fee by phone, on the spot
+4. Money goes to the attendant's account
+
+Benefits for the attendant:
+- Gets paid by people who don't carry cash (most people today)
+- History of all payments received
+- Can show ratings (stars) so clients trust them
+- Works on any basic phone with a browser
+
+Benefits for the driver:
+- No need to carry change
+- Pay the fair amount without awkwardness
+- Can rate the service`,
+    es: `Para cuidacoches y valet, Touch? resuelve el mayor problema: recibir pagos digitales.
+
+Como funciona:
+1. El cuidacoches se registra en Touch? y activa el modo servicio
+2. Cuando llega el conductor, muestra el codigo QR o acerca el celular
+3. El conductor paga la propina/tarifa por celular, al momento
+4. El dinero va a la cuenta del cuidacoches
+
+Ventajas para el cuidacoches:
+- Cobra de quien no tiene efectivo (la mayoria hoy)
+- Historial de todos los pagos recibidos
+- Puede mostrar calificacion (estrellas) para que los clientes confien
+- Funciona con cualquier celular basico con navegador
+
+Ventajas para el conductor:
+- No necesita tener cambio
+- Paga el valor justo sin incomodidad
+- Puede calificar el servicio`
+  },
+
+  // ── WIFI SHARING ──
+  {
+    id: 'wifi',
+    keywords: ['wifi', 'wi-fi', 'internet', 'senha wifi', 'wifi password', 'compartilhar wifi', 'share wifi', 'rede', 'network', 'conexao wifi', 'wireless', 'hotspot'],
+    weight: 3,
+    pt: `Com o Touch?, estabelecimentos podem compartilhar wifi automaticamente:
+
+1. O cliente chega e encosta o celular na caixa de som (ou escaneia QR)
+2. O Touch? faz o check-in E conecta o celular do cliente na rede wifi automaticamente
+3. Sem pedir senha, sem digitar nada
+
+Pra voce como dono:
+- Acabou aquele "qual e a senha do wifi?" repetitivo
+- Controle de quem ta usando sua rede
+- Pode limitar tempo de uso ou velocidade
+- Sabe quantas pessoas estao conectadas
+
+Funciona perfeitamente com bares, cafes, restaurantes, coworkings, hoteis, clinicas -- qualquer lugar que oferece wifi pros clientes.`,
+    en: `With Touch?, businesses can share wifi automatically:
+
+1. Customer arrives and touches phone to speaker (or scans QR)
+2. Touch? checks them in AND connects their phone to wifi automatically
+3. No asking for password, no typing anything
+
+For you as owner:
+- No more "what's the wifi password?" on repeat
+- Control over who's using your network
+- Can limit usage time or speed
+- Know how many people are connected
+
+Works perfectly for bars, cafes, restaurants, coworkings, hotels, clinics -- anywhere that offers wifi to customers.`,
+    es: `Con Touch?, los negocios pueden compartir wifi automaticamente:
+
+1. El cliente llega y acerca su celular al altavoz (o escanea QR)
+2. Touch? hace el check-in Y conecta el celular del cliente al wifi automaticamente
+3. Sin pedir contrasena, sin digitar nada
+
+Para ti como dueno:
+- Se acabo el "cual es la clave del wifi?" repetitivo
+- Control de quien esta usando tu red
+- Puedes limitar tiempo de uso o velocidad
+- Sabes cuantas personas estan conectadas
+
+Funciona perfecto para bares, cafes, restaurantes, coworkings, hoteles, clinicas -- cualquier lugar que ofrece wifi a los clientes.`
+  },
+
+  // ── CHA REVELACAO / GENDER REVEAL ──
+  {
+    id: 'gender-reveal',
+    keywords: ['cha revelacao', 'cha de bebe', 'gender reveal', 'baby shower', 'revelacao', 'reveal party', 'menino ou menina', 'boy or girl', 'nino o nina', 'cha de fraldas', 'gravida', 'pregnant', 'embarazada', 'bebe', 'baby'],
+    weight: 3,
+    pt: `O Touch? cria momentos incriveis em chas de revelacao e chas de bebe:
+
+Como funciona:
+1. O organizador configura o evento no Touch? (escolhe a cor: azul ou rosa)
+2. Na hora H, todos os convidados abrem o Touch? no celular
+3. O som do ambiente (caixa de som) emite o sinal ultrassonico
+4. TODOS os celulares dos convidados acendem ao mesmo tempo na cor certa -- azul ou rosa!
+
+Imagina: 50, 100 celulares acendendo juntos revelando o sexo do bebe. E muito mais impactante que fumaça ou balao. E fica registrado -- cada convidado guarda a "conexao" do momento.
+
+Tambem funciona pra:
+- Cha de bebe com check-in dos convidados
+- Lista de presentes digital
+- Fotos do momento sincronizadas
+- Mensagens dos convidados pro bebe`,
+    en: `Touch? creates amazing moments at gender reveals and baby showers:
+
+How it works:
+1. The organizer sets up the event on Touch? (picks the color: blue or pink)
+2. At the big moment, all guests open Touch? on their phones
+3. The room's speaker emits the ultrasonic signal
+4. ALL guests' phones light up at the same time in the right color -- blue or pink!
+
+Imagine: 50, 100 phones lighting up together revealing the baby's gender. Way more impactful than smoke or balloons. And it's recorded -- each guest keeps the "connection" from that moment.
+
+Also works for:
+- Baby shower with guest check-in
+- Digital gift registry
+- Synchronized moment photos
+- Guest messages for the baby`,
+    es: `Touch? crea momentos increibles en fiestas de revelacion de genero y baby showers:
+
+Como funciona:
+1. El organizador configura el evento en Touch? (elige el color: azul o rosa)
+2. En el momento clave, todos los invitados abren Touch? en su celular
+3. El altavoz del ambiente emite la senal ultrasonica
+4. TODOS los celulares de los invitados se encienden al mismo tiempo en el color correcto -- azul o rosa!
+
+Imagina: 50, 100 celulares encendiendose juntos revelando el genero del bebe. Mucho mas impactante que humo o globos. Y queda registrado -- cada invitado guarda la "conexion" del momento.
+
+Tambien funciona para:
+- Baby shower con check-in de invitados
+- Lista de regalos digital
+- Fotos del momento sincronizadas
+- Mensajes de los invitados para el bebe`
+  },
+
+  // ── CROSSFIT / TREINOS ESPECIFICOS ──
+  {
+    id: 'crossfit',
+    keywords: ['crossfit', 'cross fit', 'box', 'wod', 'treino funcional', 'functional training', 'entrenamiento funcional', 'calistenia', 'calisthenics', 'hiit', 'bootcamp', 'circuito', 'circuit', 'personal', 'personal trainer', 'treinador'],
+    weight: 3,
+    pt: `Pra boxes de CrossFit e treinos funcionais, o Touch? e perfeito:
+
+1. O aluno chega no box, encosta o celular na caixa de som da entrada
+2. Check-in automatico -- o coach ja sabe quem chegou
+3. O WOD do dia aparece no celular do aluno
+4. Durante o treino, pode registrar tempo, reps e pesos
+5. Ranking automatico entre os alunos do dia
+
+Pra voce como coach/dono:
+- Controle de frequencia sem planilha
+- Sabe quem faltou e pode mandar mensagem
+- Ranking e competicoes entre alunos motivam a galera
+- Historico de evolucao de cada aluno
+- Pode cobrar mensalidade e controlar acesso pelo Touch?
+
+O legal pro CrossFit: a cultura da comunidade combina perfeitamente com o Touch?. Cada "touch" na entrada vira uma estrela, um registro de que voce apareceu e treinou.`,
+    en: `For CrossFit boxes and functional training, Touch? is perfect:
+
+1. Member arrives at the box, touches phone to the entrance speaker
+2. Automatic check-in -- the coach already knows who showed up
+3. Today's WOD appears on the member's phone
+4. During workout, can log time, reps, and weights
+5. Automatic ranking among the day's athletes
+
+For you as coach/owner:
+- Attendance tracking without spreadsheets
+- Know who missed and can send a message
+- Rankings and competitions between members keep motivation high
+- Progress history for each member
+- Can charge memberships and control access through Touch?
+
+What's great for CrossFit: the community culture matches perfectly with Touch?. Each "touch" at the entrance becomes a star, a record that you showed up and trained.`,
+    es: `Para boxes de CrossFit y entrenamiento funcional, Touch? es perfecto:
+
+1. El miembro llega al box, acerca su celular al altavoz de la entrada
+2. Check-in automatico -- el coach ya sabe quien llego
+3. El WOD del dia aparece en el celular del miembro
+4. Durante el entrenamiento, puede registrar tiempo, reps y pesos
+5. Ranking automatico entre los atletas del dia
+
+Para ti como coach/dueno:
+- Control de asistencia sin planillas
+- Sabes quien falto y puedes enviar mensaje
+- Rankings y competencias entre miembros mantienen la motivacion alta
+- Historial de evolucion de cada miembro
+- Puedes cobrar mensualidades y controlar acceso por Touch?
+
+Lo genial para CrossFit: la cultura de comunidad combina perfectamente con Touch?. Cada "touch" en la entrada se vuelve una estrella, un registro de que apareciste y entrenaste.`
+  },
+
+  // ── COMO FUNCIONA (PASSO A PASSO) ──
+  {
+    id: 'how-it-works',
+    keywords: ['como funciona', 'how does it work', 'como trabalha', 'passo a passo', 'step by step', 'paso a paso', 'tutorial', 'comecar', 'start', 'empezar', 'usar', 'use', 'instrucao', 'instruction', 'instruccion'],
+    weight: 1,
+    pt: `O Touch? funciona em 3 passos simples:
+
+1. ABRIR -- Acesse touch-irl.com no navegador do celular. Crie uma conta (nickname + email). Pronto, voce ja tem o Touch?.
+
+2. TOCAR -- Aproxime seu celular de outro celular (tela contra tela) ou de uma caixa de som de um estabelecimento. O som ultrassonico faz a conexao em 2-3 segundos. Voce nao ouve nada -- e inaudivel pro ouvido humano.
+
+3. CONECTAR -- Dependendo do contexto:
+   - Pessoa: uma conexao nasce, chat por 24h, reveal opcional
+   - Estabelecimento: check-in automatico, menu, pagamento
+   - Gorjeta: escolha o valor e pague na hora
+   - Evento: seu celular entra no show de luzes
+
+Nao precisa baixar app. Funciona em qualquer celular com navegador moderno (Chrome, Safari, Firefox). O som ultrassonico e de 18-22 kHz, completamente seguro e inaudivel.`,
+    en: `Touch? works in 3 simple steps:
+
+1. OPEN -- Go to touch-irl.com on your phone's browser. Create an account (nickname + email). Done, you have Touch?.
+
+2. TOUCH -- Bring your phone close to another phone (screen-to-screen) or to a business's speaker. Ultrasonic sound makes the connection in 2-3 seconds. You hear nothing -- it's inaudible to the human ear.
+
+3. CONNECT -- Depending on the context:
+   - Person: a connection is born, 24h chat, optional reveal
+   - Business: automatic check-in, menu, payment
+   - Tip: choose the amount and pay on the spot
+   - Event: your phone joins the light show
+
+No app download needed. Works on any phone with a modern browser (Chrome, Safari, Firefox). Ultrasonic sound is 18-22 kHz, completely safe and inaudible.`,
+    es: `Touch? funciona en 3 pasos simples:
+
+1. ABRIR -- Ve a touch-irl.com en el navegador de tu celular. Crea una cuenta (nickname + email). Listo, ya tienes Touch?.
+
+2. TOCAR -- Acerca tu celular a otro celular (pantalla contra pantalla) o al altavoz de un negocio. El sonido ultrasonico hace la conexion en 2-3 segundos. No escuchas nada -- es inaudible para el oido humano.
+
+3. CONECTAR -- Dependiendo del contexto:
+   - Persona: una conexion nace, chat por 24h, reveal opcional
+   - Negocio: check-in automatico, menu, pago
+   - Propina: elige el monto y paga al momento
+   - Evento: tu celular entra al show de luces
+
+No necesitas descargar app. Funciona en cualquier celular con navegador moderno (Chrome, Safari, Firefox). El sonido ultrasonico es de 18-22 kHz, completamente seguro e inaudible.`
+  },
+
   // ── FALLBACK ──
   {
     id: 'fallback',
@@ -773,10 +1042,11 @@ Accede por el panel del operador > pestana "Materiales".`
 
 Posso te explicar sobre:
 - Como funciona o Touch? (som ultrassonico, QR code)
-- Solucoes pra seu negocio (restaurante, bar, barbearia, academia, igreja, food truck, estacionamento)
-- Shows e eventos (Touch? Live, controle de luzes)
-- Sistema de gorjetas digitais
+- Solucoes pra seu negocio (restaurante, bar, barbearia, academia, CrossFit, igreja, food truck, estacionamento, guardador de carro)
+- Shows e eventos (Touch? Live, controle de luzes, cha revelacao)
+- Sistema de gorjetas digitais (garcom, valet, musico, personal)
 - Conexao entre pessoas
+- WiFi automatico pra clientes
 - Precos e planos
 - Seguranca e privacidade
 - Como comecar (setup em 2 minutos)
@@ -787,10 +1057,11 @@ Pode perguntar qualquer coisa!`,
 
 I can explain about:
 - How Touch? works (ultrasonic sound, QR code)
-- Solutions for your business (restaurant, bar, barbershop, gym, church, food truck, parking)
-- Shows and events (Touch? Live, light control)
-- Digital tipping system
+- Solutions for your business (restaurant, bar, barbershop, gym, CrossFit, church, food truck, parking, valet)
+- Shows and events (Touch? Live, light control, gender reveal)
+- Digital tipping system (bartender, valet, musician, trainer)
 - Connecting people
+- Automatic wifi for customers
 - Pricing and plans
 - Security and privacy
 - How to get started (2-minute setup)
@@ -801,10 +1072,11 @@ Feel free to ask anything!`,
 
 Puedo explicarte sobre:
 - Como funciona Touch? (sonido ultrasonico, codigo QR)
-- Soluciones para tu negocio (restaurante, bar, barberia, gimnasio, iglesia, food truck, estacionamiento)
-- Shows y eventos (Touch? Live, control de luces)
-- Sistema de propinas digitales
+- Soluciones para tu negocio (restaurante, bar, barberia, gimnasio, CrossFit, iglesia, food truck, estacionamiento, valet)
+- Shows y eventos (Touch? Live, control de luces, revelacion de genero)
+- Sistema de propinas digitales (mesero, valet, musico, entrenador)
 - Conexion entre personas
+- WiFi automatico para clientes
 - Precios y planes
 - Seguridad y privacidad
 - Como empezar (configuracion en 2 minutos)
