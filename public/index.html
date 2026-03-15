@@ -21485,9 +21485,85 @@ async function charevelaVote(choice){
 }
 
 function showCharevelaRevealAnimation(data){
-  // Open dedicated reveal page (full-page HTML with native video = 100% mobile compatible)
-  var eid=_charevelaEventId||'';
-  window.location.href='/reveal.html?event='+encodeURIComponent(eid);
+  var color=data.color||'#ec4899';
+  var label=data.answerLabel||'???';
+  var babyName=data.babyName||'';
+  var videoSrc=(data.answer==='optionA')?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4';
+
+  // Fullscreen overlay (stays in same page = keeps user gesture context)
+  var ov=document.createElement('div');
+  ov.id='crRevealOv';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center';
+
+  var cb=document.createElement('button');
+  cb.textContent='X';
+  cb.style.cssText='position:fixed;top:12px;right:12px;z-index:100001;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer';
+  cb.onclick=function(){ov.remove()};
+  ov.appendChild(cb);
+
+  // Countdown number
+  var numEl=document.createElement('div');
+  numEl.textContent='5';
+  numEl.style.cssText='font-size:10rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.5);z-index:100000;position:absolute';
+  ov.appendChild(numEl);
+
+  // Video - create now so browser buffers during countdown
+  var vid=document.createElement('video');
+  vid.setAttribute('playsinline','');
+  vid.setAttribute('webkit-playsinline','');
+  vid.muted=true;
+  vid.preload='auto';
+  vid.src=videoSrc;
+  vid.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0';
+  ov.appendChild(vid);
+  vid.load();
+
+  document.body.appendChild(ov);
+  if(navigator.vibrate)navigator.vibrate([200,100,200]);
+
+  // Countdown 5..1 then play
+  var c=5;
+  var ti=setInterval(function(){
+    c--;
+    if(c>0){
+      numEl.textContent=c;
+      if(c<=2)numEl.style.color=color;
+      if(navigator.vibrate)navigator.vibrate(c<=2?100:50);
+    }else{
+      clearInterval(ti);
+      numEl.style.display='none';
+      vid.style.opacity='1';
+      vid.currentTime=0;
+      vid.muted=true;
+      var p=vid.play();
+      if(p&&p.then){
+        p.then(function(){
+          try{vid.muted=false}catch(e){}
+        }).catch(function(e){console.warn('[reveal] play err:',e)});
+      }
+      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+
+      // Baby name after video ends
+      vid.onended=function(){
+        vid.style.opacity='0';
+        ov.style.background='radial-gradient(circle,'+color+'33,#000)';
+        ov.style.flexDirection='column';
+        var nb=document.createElement('div');
+        nb.style.cssText='text-align:center;background:rgba(0,0,0,.5);backdrop-filter:blur(12px);padding:1.5rem 3rem;border-radius:16px';
+        if(babyName){
+          var h=document.createElement('div');
+          h.textContent=babyName;
+          h.style.cssText='font-size:2.8rem;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,255,255,.4)';
+          nb.appendChild(h);
+        }
+        var lb=document.createElement('div');
+        lb.textContent=label;
+        lb.style.cssText='font-size:1.2rem;font-weight:700;margin-top:.4rem;color:'+color;
+        nb.appendChild(lb);
+        ov.appendChild(nb);
+      };
+    }
+  },1000);
 }
 
 function shiftColor(hex,amount){
