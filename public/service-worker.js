@@ -21,7 +21,8 @@ const NO_CACHE_PATTERNS = [
   /\/operator/,
   /\/admin/,
   /hot-update/,
-  /\.map$/
+  /\.map$/,
+  /\.mp4(\?|$)/
 ];
 
 // Patterns for cache-first strategy (static assets)

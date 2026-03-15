@@ -7404,7 +7404,7 @@ app.post('/api/event/create', (req, res) => {
     church: { enabled: false, config: { churchName: '', pastorName: '', denomination: '' }, tithes: {}, campaigns: {}, services: {}, prayers: {}, cells: {}, announcements: [] },
     barber: { enabled: false, config: { barberName: '', welcomeMessage: '' }, barbers: [], appointments: [] },
     djLive: { enabled: false, broadcasting: false, color: '#ff6b35', bpm: 128, animation: 'pulse', venueFreq: 19200, connectedDevices: {} },
-    charevela: { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } }
+    charevela: { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', babyName: '', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } }
   };
   // Add to index so it shows in operator's event list
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
@@ -17386,12 +17386,13 @@ app.post('/api/operator/event/:eventId/charevela/config', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const cr = ensureChaRevela(ev);
-  const { eventName, optionA, optionB, colorA, colorB, answer, votingOpen } = req.body;
+  const { eventName, optionA, optionB, colorA, colorB, babyName, answer, votingOpen } = req.body;
   cr.config.eventName = sanitizeStr(eventName || '', 100);
   cr.config.optionA = sanitizeStr(optionA || 'Menino', 30);
   cr.config.optionB = sanitizeStr(optionB || 'Menina', 30);
   cr.config.colorA = (colorA || '#3b82f6').slice(0, 7);
   cr.config.colorB = (colorB || '#ec4899').slice(0, 7);
+  cr.config.babyName = sanitizeStr(babyName || '', 50);
   cr.config.answer = (answer === 'optionA' || answer === 'optionB') ? answer : '';
   if (typeof votingOpen === 'boolean') cr.config.votingOpen = votingOpen;
   ev.modules.charevela = true;
@@ -17427,6 +17428,7 @@ app.post('/api/operator/event/:eventId/charevela/reveal', (req, res) => {
     answer: cr.config.answer,
     answerLabel: cr.config.answer === 'optionA' ? cr.config.optionA : cr.config.optionB,
     color: cr.config.answer === 'optionA' ? cr.config.colorA : cr.config.colorB,
+    babyName: cr.config.babyName || '',
     results: cr.results,
     config: cr.config
   };

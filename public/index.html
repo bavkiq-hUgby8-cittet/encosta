@@ -1012,7 +1012,15 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 .cr-bar-a{height:100%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;transition:width .5s ease;min-width:0}
 .cr-bar-b{height:100%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;transition:width .5s ease;min-width:0}
 .cr-reveal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.cr-reveal-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.cr-countdown-wrap{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%}
+.cr-countdown-num{font-size:8rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.6),0 0 120px rgba(255,255,255,.3);animation:cr-count-pulse .9s ease-in-out infinite;font-family:'Inter',system-ui,sans-serif;line-height:1}
+.cr-countdown-label{font-size:1rem;font-weight:600;color:rgba(255,255,255,.8);margin-top:.5rem;letter-spacing:.1em;text-transform:uppercase}
+@keyframes cr-count-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.7}}
 .cr-reveal-text{font-size:2.2rem;font-weight:900;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.5);z-index:2;text-align:center;animation:cr-text-pop .6s ease-out both;animation-delay:.5s}
+.cr-baby-name{font-size:2.8rem;font-weight:900;color:#fff;text-shadow:0 0 40px rgba(255,255,255,.5),0 4px 30px rgba(0,0,0,.5);z-index:4;position:absolute;bottom:15%;left:0;right:0;text-align:center;animation:cr-name-float 3s ease-in-out infinite;pointer-events:none}
+.cr-baby-name-bg{position:absolute;bottom:10%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:.8rem 2rem;border-radius:16px;z-index:3;animation:cr-text-pop .6s ease-out both;animation-delay:.3s}
+@keyframes cr-name-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .cr-reveal-sub{font-size:1rem;font-weight:600;color:rgba(255,255,255,.85);z-index:2;margin-top:.5rem;animation:cr-text-pop .6s ease-out both;animation-delay:.8s}
 @keyframes cr-text-pop{0%{transform:scale(0);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
 .cr-confetti{position:absolute;width:10px;height:10px;border-radius:2px;animation:cr-confetti-fall 3s ease-in forwards;pointer-events:none;z-index:1}
@@ -21484,29 +21492,81 @@ function showCharevelaRevealAnimation(data){
   if(existing)existing.remove();
   var color=data.color||'#ec4899';
   var label=data.answerLabel||'???';
+  var babyName=data.babyName||'';
+  // Determine video: boy (optionA/blue) or girl (optionB/pink)
+  var videoSrc=(data.answer==='optionA')?'/reveal-boy.mp4':'/reveal-girl.mp4';
   var ov=document.createElement('div');
   ov.id='crRevealOverlay';
   ov.className='cr-reveal-overlay';
-  ov.style.background='linear-gradient(135deg,'+color+','+shiftColor(color,30)+')';
-  var confettiHtml='';
-  var confettiColors=[color,'#ffffff','#fbbf24','#a855f7','#22d3ee','#34d399'];
-  for(var i=0;i<60;i++){
-    var c=confettiColors[Math.floor(Math.random()*confettiColors.length)];
-    var left=Math.random()*100;
-    var delay=Math.random()*2;
-    var size=6+Math.random()*8;
-    var rot=Math.random()*360;
-    confettiHtml+='<div class="cr-confetti" style="left:'+left+'%;top:-20px;width:'+size+'px;height:'+size+'px;background:'+c+';animation-delay:'+delay+'s;transform:rotate('+rot+'deg)"></div>';
-  }
-  ov.innerHTML=confettiHtml+
-    '<div class="cr-reveal-text">'+esc(label)+'</div>'+
-    '<div class="cr-reveal-sub">'+esc(data.config?.eventName||'Cha Revelacao')+'</div>'+
-    '<button class="cr-reveal-close" onclick="closeCharevelaReveal()">X</button>';
+  ov.style.background='#000';
+
+  // Phase 1: Countdown (10 seconds)
+  ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap">'+
+    '<div class="cr-countdown-num" id="crCountdownNum">10</div>'+
+    '<div class="cr-countdown-label">A revelacao vai comecar...</div>'+
+    '</div>'+
+    '<button class="cr-reveal-close" onclick="closeCharevelaReveal()" style="z-index:10">X</button>';
   document.body.appendChild(ov);
-  // Vibrate if supported
-  if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
-  // Auto-close after 12s
-  setTimeout(function(){closeCharevelaReveal()},12000);
+
+  // Vibrate countdown start
+  if(navigator.vibrate)navigator.vibrate([100,50,100]);
+
+  // Preload video while countdown runs
+  var vid=document.createElement('video');
+  vid.className='cr-reveal-video';
+  vid.src=videoSrc;
+  vid.playsInline=true;
+  vid.preload='auto';
+  vid.muted=false;
+  vid.style.display='none';
+  ov.appendChild(vid);
+
+  var count=10;
+  var countEl=$('crCountdownNum');
+  var countInterval=setInterval(function(){
+    count--;
+    if(countEl)countEl.textContent=count;
+    // Vibrate each second
+    if(navigator.vibrate)navigator.vibrate(50);
+    // Last 3 seconds get bigger
+    if(count<=3&&countEl){
+      countEl.style.fontSize='12rem';
+      countEl.style.color=(count===1)?color:'#fff';
+    }
+    if(count<=0){
+      clearInterval(countInterval);
+      // Phase 2: Play video
+      var wrap=$('crCountdownWrap');
+      if(wrap)wrap.style.display='none';
+      vid.style.display='block';
+      vid.play().catch(function(e){console.warn('Reveal video play blocked:',e.message)});
+      // Big vibrate for reveal!
+      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+      // Phase 3: Show baby name overlay after video gets to the reveal moment (~8s)
+      if(babyName){
+        setTimeout(function(){
+          var nameWrap=document.createElement('div');
+          nameWrap.className='cr-baby-name-bg';
+          nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
+          ov.appendChild(nameWrap);
+        },7000);
+      }
+      // Show label (Menino/Menina) after name
+      setTimeout(function(){
+        var labelEl=document.createElement('div');
+        labelEl.className='cr-reveal-text';
+        labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
+        labelEl.textContent=label;
+        ov.appendChild(labelEl);
+      },8500);
+      // Auto-close after video ends (12s) + extra 5s to show name
+      vid.onended=function(){
+        setTimeout(function(){closeCharevelaReveal()},5000);
+      };
+      // Fallback auto-close after 25s
+      setTimeout(function(){closeCharevelaReveal()},25000);
+    }
+  },1000);
 }
 
 function shiftColor(hex,amount){
