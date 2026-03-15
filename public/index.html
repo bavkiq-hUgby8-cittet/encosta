@@ -21508,19 +21508,10 @@ function showCharevelaRevealAnimation(data){
   ov.id='crRevealOverlay';
   ov.className='cr-reveal-overlay';
   ov.style.background='#000';
-
-  // Show loading while video downloads
-  ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap">'+
-    '<div class="cr-countdown-num" id="crCountdownNum" style="font-size:3rem;animation:cr-count-pulse 1.5s ease-in-out infinite">...</div>'+
-    '<div class="cr-countdown-label" id="crCountdownLabel">Preparando a revelacao...</div>'+
-    '</div>'+
-    '<button class="cr-reveal-close" onclick="closeCharevelaReveal()" style="z-index:10">X</button>';
   document.body.appendChild(ov);
 
-  // Vibrate to alert
-  if(navigator.vibrate)navigator.vibrate([200,100,200,100,200]);
-
-  // Create video element
+  // Video element: VISIBLE from start (z-index 1), plays behind countdown
+  // CRITICAL: display:none prevents mobile browsers from initializing video decoder
   var vid=document.createElement('video');
   vid.className='cr-reveal-video';
   vid.playsInline=true;
@@ -21529,139 +21520,152 @@ function showCharevelaRevealAnimation(data){
   vid.preload='auto';
   vid.muted=true;
   vid.loop=false;
-  vid.style.display='none';
+  vid.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1;opacity:0';
   ov.appendChild(vid);
 
-  var videoReady=false;
+  // Countdown overlay sits ON TOP of video (z-index 5)
+  var countWrap=document.createElement('div');
+  countWrap.id='crCountdownWrap';
+  countWrap.className='cr-countdown-wrap';
+  countWrap.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000';
+  countWrap.innerHTML='<div class="cr-countdown-num" id="crCountdownNum" style="font-size:3rem;animation:cr-count-pulse 1.5s ease-in-out infinite">...</div>'+
+    '<div class="cr-countdown-label" id="crCountdownLabel">Preparando a revelacao...</div>';
+  ov.appendChild(countWrap);
+
+  // Close button on top of everything
+  var closeBtn=document.createElement('button');
+  closeBtn.className='cr-reveal-close';
+  closeBtn.style.zIndex='10';
+  closeBtn.textContent='X';
+  closeBtn.onclick=function(){closeCharevelaReveal()};
+  ov.appendChild(closeBtn);
+
+  if(navigator.vibrate)navigator.vibrate([200,100,200,100,200]);
+
+  var videoPlaying=false;
   var countdownDone=false;
   var videoFailed=false;
-  var revealStarted=false;
 
-  // Fallback: show beautiful color animation if video fails
-  function showFallbackReveal(){
-    if(revealStarted)return;
-    revealStarted=true;
-    console.log('[reveal] showing fallback animation (no video)');
-    var wrap=$('crCountdownWrap');
-    if(wrap)wrap.style.display='none';
+  function showRevealLabel(){
+    var el=document.createElement('div');
+    el.className='cr-reveal-text';
+    el.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:6;font-size:2.5rem;text-align:center';
+    el.textContent=label;
+    if(ov.parentNode)ov.appendChild(el);
+  }
+  function showBabyName(){
+    if(!babyName)return;
+    var w=document.createElement('div');
+    w.className='cr-baby-name-bg';
+    w.style.zIndex='6';
+    w.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
+    if(ov.parentNode)ov.appendChild(w);
+  }
+  function showFallback(){
+    console.log('[reveal] fallback (no video)');
+    countWrap.style.display='none';
     vid.style.display='none';
-    // Create animated gradient background
     var bg=document.createElement('div');
     bg.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;background:radial-gradient(circle at 50% 50%,'+color+','+color+'80,#000);animation:cr-count-pulse 2s ease-in-out infinite';
     ov.appendChild(bg);
-    // Confetti particles
     for(var i=0;i<30;i++){
       var p=document.createElement('div');
-      var sz=Math.random()*12+4;
-      var x=Math.random()*100;
-      var delay=Math.random()*2;
-      p.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;border-radius:'+(Math.random()>.5?'50%':'2px')+';background:'+color+';left:'+x+'%;top:-20px;z-index:2;opacity:0.8;animation:cr-confetti-fall '+(2+Math.random()*3)+'s ease-in '+delay+'s infinite';
+      p.style.cssText='position:absolute;width:'+(Math.random()*12+4)+'px;height:'+(Math.random()*12+4)+'px;border-radius:'+(Math.random()>.5?'50%':'2px')+';background:'+color+';left:'+(Math.random()*100)+'%;top:-20px;z-index:2;opacity:.8;animation:cr-confetti-fall '+(2+Math.random()*3)+'s ease-in '+(Math.random()*2)+'s infinite';
       ov.appendChild(p);
     }
-    // Show label immediately
     showRevealLabel();
-    // Show baby name after 2s
-    if(babyName){setTimeout(function(){showBabyName()},2000)}
-    // Auto-close after 15s
+    if(babyName)setTimeout(showBabyName,2000);
     setTimeout(function(){closeCharevelaReveal()},15000);
   }
 
-  function showRevealLabel(){
-    var labelEl=document.createElement('div');
-    labelEl.className='cr-reveal-text';
-    labelEl.style.cssText='position:absolute;top:30%;left:0;right:0;z-index:4;font-size:2.5rem;text-align:center';
-    labelEl.textContent=label;
-    if(ov.parentNode)ov.appendChild(labelEl);
-  }
-
-  function showBabyName(){
-    if(!babyName)return;
-    var nameWrap=document.createElement('div');
-    nameWrap.className='cr-baby-name-bg';
-    nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
-    if(ov.parentNode)ov.appendChild(nameWrap);
-  }
-
-  // Function to start playing video when BOTH video is ready AND countdown is done
-  function tryPlayVideo(){
-    if(!countdownDone)return;
-    if(videoFailed||!videoReady){
-      // If countdown done but no video, wait a bit more then fallback
-      if(!videoReady&&!videoFailed){
-        console.log('[reveal] countdown done, waiting for video...');
-        return;
-      }
-      showFallbackReveal();
-      return;
+  // When countdown ends: reveal the video (or fallback)
+  function onCountdownEnd(){
+    countdownDone=true;
+    if(videoPlaying){
+      // Video already playing behind countdown — just fade out countdown
+      countWrap.style.transition='opacity .5s';
+      countWrap.style.opacity='0';
+      setTimeout(function(){countWrap.style.display='none'},600);
+      // Seek to start for clean reveal
+      vid.currentTime=0;
+      vid.style.opacity='1';
+      try{vid.muted=false}catch(e){}
+      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+      if(babyName)setTimeout(showBabyName,7000);
+      setTimeout(showRevealLabel,8500);
+      vid.onended=function(){setTimeout(function(){closeCharevelaReveal()},5000)};
+      setTimeout(function(){closeCharevelaReveal()},30000);
+    } else if(videoFailed){
+      showFallback();
+    } else {
+      // Video still loading — show waiting message, will reveal when ready
+      var lbl=$('crCountdownLabel');
+      if(lbl)lbl.textContent='Quase la...';
+      var num=$('crCountdownNum');
+      if(num){num.textContent='...';num.style.fontSize='3rem'}
     }
-    if(revealStarted)return;
-    revealStarted=true;
-    console.log('[reveal] both ready, starting playback');
-    var wrap=$('crCountdownWrap');
-    if(wrap)wrap.style.display='none';
-    vid.style.display='block';
-    vid.currentTime=0;
+  }
+
+  // Start playing video as soon as it's ready (hidden behind countdown)
+  function onVideoCanPlay(){
+    if(videoPlaying)return;
+    videoPlaying=true;
+    console.log('[reveal] video canplay — starting muted playback behind countdown');
     vid.muted=true;
-    var playP=vid.play();
-    if(playP&&playP.then){
-      playP.then(function(){
-        console.log('[reveal] video playing OK');
-        try{vid.muted=false}catch(e){}
+    vid.style.opacity='0';
+    var p=vid.play();
+    if(p&&p.then){
+      p.then(function(){
+        console.log('[reveal] video playing behind countdown OK');
+        // If countdown already ended, reveal now
+        if(countdownDone){
+          countWrap.style.transition='opacity .5s';
+          countWrap.style.opacity='0';
+          setTimeout(function(){countWrap.style.display='none'},600);
+          vid.currentTime=0;
+          vid.style.opacity='1';
+          try{vid.muted=false}catch(e){}
+          if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+          if(babyName)setTimeout(showBabyName,7000);
+          setTimeout(showRevealLabel,8500);
+          vid.onended=function(){setTimeout(function(){closeCharevelaReveal()},5000)};
+          setTimeout(function(){closeCharevelaReveal()},30000);
+        }
       }).catch(function(e){
-        console.error('[reveal] play() failed:',e.message);
-        vid.muted=true;
-        vid.play().catch(function(e2){
-          console.error('[reveal] retry play failed:',e2.message);
-          showFallbackReveal();
-        });
+        console.error('[reveal] play() failed even muted:',e.message);
+        videoPlaying=false;
+        videoFailed=true;
+        if(countdownDone)showFallback();
       });
     }
-    if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
-    // Show baby name overlay near the reveal moment (~7s)
-    if(babyName){setTimeout(function(){showBabyName()},7000)}
-    // Show label
-    setTimeout(function(){showRevealLabel()},8500);
-    // Auto-close after video ends + 5s
-    vid.onended=function(){setTimeout(function(){closeCharevelaReveal()},5000)};
-    // Fallback auto-close
-    setTimeout(function(){closeCharevelaReveal()},30000);
   }
-
-  // Wait for video to be ready to play
-  function onVideoReady(){
-    if(videoReady)return;
-    videoReady=true;
-    console.log('[reveal] video ready');
-    tryPlayVideo();
-  }
-  vid.addEventListener('canplay',onVideoReady);
-  vid.addEventListener('canplaythrough',onVideoReady);
-  vid.addEventListener('loadeddata',onVideoReady);
-  vid.addEventListener('error',function(e){
+  vid.addEventListener('canplay',onVideoCanPlay);
+  vid.addEventListener('canplaythrough',onVideoCanPlay);
+  vid.addEventListener('loadeddata',onVideoCanPlay);
+  vid.addEventListener('error',function(){
     console.error('[reveal] video error:',vid.error?vid.error.message:'unknown');
     videoFailed=true;
-    if(countdownDone)showFallbackReveal();
-    else{var lbl=$('crCountdownLabel');if(lbl)lbl.textContent='Preparando revelacao...'}
+    if(countdownDone)showFallback();
   });
 
-  // Start loading the video
+  // Load video
   vid.src=videoSrc;
   vid.load();
   console.log('[reveal] loading video:',videoSrc);
 
-  // Timeout: if video not ready after 12s, use fallback
+  // Video load timeout (15s)
   setTimeout(function(){
-    if(!videoReady&&!videoFailed){
-      console.log('[reveal] video timeout, using fallback');
+    if(!videoPlaying&&!videoFailed){
+      console.log('[reveal] video timeout');
       videoFailed=true;
-      if(countdownDone)showFallbackReveal();
+      if(countdownDone)showFallback();
     }
-  },12000);
+  },15000);
 
-  // Show progress updates
+  // Progress indicator
   vid.addEventListener('progress',function(){
     try{
-      if(vid.buffered.length>0){
+      if(vid.buffered.length>0&&vid.duration>0){
         var pct=Math.round((vid.buffered.end(vid.buffered.length-1)/vid.duration)*100);
         var lbl=$('crCountdownLabel');
         if(lbl&&!countdownDone)lbl.textContent='Carregando... '+pct+'%';
@@ -21669,35 +21673,19 @@ function showCharevelaRevealAnimation(data){
     }catch(e){}
   });
 
-  // Start countdown (min 5s, but wait for video if not ready)
+  // Countdown: 1s delay then 5 seconds
   var count=5;
-  var countEl=$('crCountdownNum');
-  // Wait 1s then start countdown
   setTimeout(function(){
-    if(countEl)countEl.style.fontSize='8rem';
-    if(countEl)countEl.textContent=count;
+    var countEl=$('crCountdownNum');
+    if(countEl){countEl.style.fontSize='8rem';countEl.textContent=count}
     var lbl=$('crCountdownLabel');
     if(lbl)lbl.textContent='A revelacao vai comecar...';
-    var countInterval=setInterval(function(){
+    var ci=setInterval(function(){
       count--;
       if(countEl)countEl.textContent=count;
       if(navigator.vibrate)navigator.vibrate(count<=2?100:50);
-      if(count<=3&&countEl){
-        countEl.style.fontSize='12rem';
-        countEl.style.color=(count<=1)?color:'#fff';
-      }
-      if(count<=0){
-        clearInterval(countInterval);
-        countdownDone=true;
-        // If video not ready yet, show "loading" message
-        if(!videoReady){
-          if(countEl)countEl.textContent='...';
-          if(countEl)countEl.style.fontSize='3rem';
-          var lbl2=$('crCountdownLabel');
-          if(lbl2)lbl2.textContent='Quase la...';
-        }
-        tryPlayVideo();
-      }
+      if(count<=3&&countEl){countEl.style.fontSize='12rem';countEl.style.color=(count<=1)?color:'#fff'}
+      if(count<=0){clearInterval(ci);onCountdownEnd()}
     },1000);
   },1000);
 }
