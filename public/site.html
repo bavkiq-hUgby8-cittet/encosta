@@ -2320,8 +2320,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 .tour-modal-close:hover{color:var(--t2)}
 
 @media(max-width:480px){
-  .ta-win{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100vh;max-height:100dvh;border-radius:0;border:none}
-  .ta-win.visible~.tour-fab,.ta-win.visible~.ta-fab{opacity:0;pointer-events:none}
+  .ta-win{bottom:0;right:0;left:0;width:100%;max-width:100%;height:55vh;max-height:55dvh;border-radius:16px 16px 0 0;border:none;border-top:1px solid rgba(255,107,53,.15)}
+  .ta-win.visible~.ta-fab{opacity:0;pointer-events:none}
   .ta-fab{bottom:16px;right:16px;width:54px;height:54px}
   .tour-fab{bottom:80px;right:16px;padding:8px 14px}
   .tour-fab-text{font-size:.7rem}
@@ -2330,7 +2330,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   .ta-sug{font-size:.68rem;padding:4px 10px}
   .ta-msgs{padding:12px}
   .ta-msg{max-width:92%;font-size:.8rem}
-  .ta-input-area{padding:8px 10px}
+  .ta-input-area{padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  .ta-head{position:sticky;top:0;z-index:2}
 }
 </style>
 
@@ -2611,7 +2612,11 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   function advanceTourStep(){
     if(!inTour || !tourMode) return;
     var sections = tourSections[tourMode];
-    if(!sections || tourStepIndex >= sections.length) { endTour(); return; }
+    if(!sections || tourStepIndex >= sections.length) {
+      // Last step already played; add extra delay so audio finishes before ending
+      setTimeout(function(){ endTour(); }, 4000);
+      return;
+    }
 
     // Remove previous highlight
     var prev = document.querySelector('.tour-highlight');
@@ -3084,6 +3089,44 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendTextMessage(input.value); }
   });
   sendBtn.addEventListener('click', function(){ sendTextMessage(input.value); });
+
+  // ── Mobile keyboard handler: resize chat panel when keyboard opens ──
+  if(window.visualViewport && /Mobi|Android|iPhone/i.test(navigator.userAgent)){
+    var origHeight = window.innerHeight;
+    window.visualViewport.addEventListener('resize', function(){
+      if(!isOpen) return;
+      var vpH = window.visualViewport.height;
+      var kbOpen = (origHeight - vpH) > 100;
+      if(kbOpen){
+        win.style.height = vpH + 'px';
+        win.style.maxHeight = vpH + 'px';
+        win.style.bottom = (window.innerHeight - vpH) + 'px';
+      } else {
+        win.style.height = '';
+        win.style.maxHeight = '';
+        win.style.bottom = '';
+      }
+    });
+    input.addEventListener('focus', function(){
+      setTimeout(function(){
+        if(window.visualViewport){
+          var vpH = window.visualViewport.height;
+          if((origHeight - vpH) > 100){
+            win.style.height = vpH + 'px';
+            win.style.maxHeight = vpH + 'px';
+            win.style.bottom = (window.innerHeight - vpH) + 'px';
+          }
+        }
+      }, 300);
+    });
+    input.addEventListener('blur', function(){
+      setTimeout(function(){
+        win.style.height = '';
+        win.style.maxHeight = '';
+        win.style.bottom = '';
+      }, 100);
+    });
+  }
 
 })();
 
