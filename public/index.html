@@ -21543,24 +21543,55 @@ function showCharevelaRevealAnimation(data){
       }
       if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
 
-      // Baby name after video ends
+      // Baby name after video ends - grand finale
       vid.onended=function(){
         vid.style.opacity='0';
-        ov.style.background='radial-gradient(circle,'+color+'33,#000)';
+        // Animated background with color glow
+        ov.style.background='radial-gradient(circle at 50% 50%,'+color+'55 0%,'+color+'22 40%,#000 80%)';
         ov.style.flexDirection='column';
-        var nb=document.createElement('div');
-        nb.style.cssText='text-align:center;background:rgba(0,0,0,.5);backdrop-filter:blur(12px);padding:1.5rem 3rem;border-radius:16px';
-        if(babyName){
-          var h=document.createElement('div');
-          h.textContent=babyName;
-          h.style.cssText='font-size:2.8rem;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,255,255,.4)';
-          nb.appendChild(h);
+        ov.style.transition='background 2s';
+        setTimeout(function(){ov.style.background='radial-gradient(circle at 50% 50%,'+color+'44 0%,'+color+'18 50%,#000 90%)'},100);
+
+        // Sparkle particles
+        for(var i=0;i<20;i++){
+          (function(idx){
+            setTimeout(function(){
+              var sp=document.createElement('div');
+              var sz=Math.random()*6+3;
+              var x=Math.random()*100;
+              var y=Math.random()*100;
+              var dur=Math.random()*2+2;
+              sp.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;background:'+color+';border-radius:50%;left:'+x+'%;top:'+y+'%;opacity:0;box-shadow:0 0 '+(sz*3)+'px '+color+',0 0 '+(sz*6)+'px '+color+'80;animation:crSparkle '+dur+'s ease-in-out infinite;z-index:99999';
+              ov.appendChild(sp);
+            },idx*150);
+          })(i);
         }
-        var lb=document.createElement('div');
-        lb.textContent=label;
-        lb.style.cssText='font-size:1.2rem;font-weight:700;margin-top:.4rem;color:'+color;
-        nb.appendChild(lb);
-        ov.appendChild(nb);
+
+        // Inject sparkle animation
+        if(!document.getElementById('crSparkleStyle')){
+          var st=document.createElement('style');
+          st.id='crSparkleStyle';
+          st.textContent='@keyframes crSparkle{0%{opacity:0;transform:scale(0) translateY(0)}30%{opacity:1;transform:scale(1.2)}70%{opacity:.8;transform:scale(1) translateY(-20px)}100%{opacity:0;transform:scale(0) translateY(-40px)}}@keyframes crNameIn{0%{opacity:0;transform:scale(.5) translateY(30px)}60%{opacity:1;transform:scale(1.05) translateY(-5px)}100%{opacity:1;transform:scale(1) translateY(0)}}@keyframes crGlow{0%,100%{text-shadow:0 0 20px '+color+'80,0 0 40px '+color+'40,0 0 80px '+color+'20}50%{text-shadow:0 0 30px '+color+'aa,0 0 60px '+color+'66,0 0 100px '+color+'33}}@keyframes crLabelIn{0%{opacity:0;transform:translateY(15px)}100%{opacity:1;transform:translateY(0)}}';
+          document.head.appendChild(st);
+        }
+
+        // Name card with animation
+        setTimeout(function(){
+          var nb=document.createElement('div');
+          nb.style.cssText='text-align:center;padding:2rem 3.5rem;border-radius:20px;background:rgba(0,0,0,.4);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid '+color+'33;box-shadow:0 0 40px '+color+'22,0 8px 32px rgba(0,0,0,.5);animation:crNameIn .8s ease-out forwards;z-index:100000';
+          if(babyName){
+            var h=document.createElement('div');
+            h.textContent=babyName;
+            h.style.cssText='font-size:3.2rem;font-weight:900;color:#fff;animation:crGlow 3s ease-in-out infinite;letter-spacing:.02em';
+            nb.appendChild(h);
+          }
+          var lb=document.createElement('div');
+          lb.textContent=label;
+          lb.style.cssText='font-size:1.1rem;font-weight:700;margin-top:.5rem;color:'+color+';text-transform:uppercase;letter-spacing:.15em;opacity:0;animation:crLabelIn .6s ease-out .4s forwards';
+          nb.appendChild(lb);
+          ov.appendChild(nb);
+          if(navigator.vibrate)navigator.vibrate([100,80,100,80,300]);
+        },400);
       };
     }
   },1000);
