@@ -21466,23 +21466,31 @@ async function charevelaVote(choice){
   var vname='Anonimo';
   try{vname=state.userName||localStorage.getItem('userName')||localStorage.getItem('touchUserName')||'Anonimo'}catch(e){}
   try{
+    console.log('[charevela] voting:', eid, choice, vid);
     var r=await fetch('/api/event/'+eid+'/charevela/vote',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({voterId:vid,voterName:vname,choice:choice})
     });
     var txt=await r.text();
+    console.log('[charevela] vote response:', r.status, txt.substring(0,200));
     var d;
-    try{d=JSON.parse(txt)}catch(pe){showToast('Erro ao votar. Tente novamente.');return}
+    try{d=JSON.parse(txt)}catch(pe){
+      console.error('[charevela] vote response not JSON:', txt.substring(0,500));
+      showToast('Erro ao votar (status '+r.status+'). Tente novamente.');
+      return;
+    }
     if(r.ok){
       _charevelaMyVote=choice;
       if(d.results&&_charevelaData){_charevelaData.results=d.results}
       renderCharevelaParticipant();
       showToast('Voto registrado!');
     }else{
+      console.warn('[charevela] vote error:', d.error);
       showToast(d.error||'Erro ao votar');
     }
   }catch(e){
+    console.error('[charevela] vote fetch error:', e);
     showToast('Erro de conexao. Tente novamente.');
   }
 }
