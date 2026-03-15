@@ -21256,7 +21256,7 @@ REGRAS:
       method: 'POST',
       headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview',
+        model: 'gpt-4o-realtime-preview-2024-12-17',
         voice: 'shimmer',
         modalities: ['audio', 'text'],
         input_audio_transcription: tourMode ? null : { model: 'whisper-1' },
