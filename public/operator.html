@@ -3106,9 +3106,14 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
             </div>
           </div>
           <!-- Quick Controls -->
-          <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+          <div style="display:flex;gap:.4rem;margin-bottom:.4rem">
             <button class="mod-btn primary" onclick="karaokeStartNext()" style="flex:1;font-size:.7rem">Proximo Cantor</button>
-            <button class="mod-btn" onclick="karaokeReset()" style="font-size:.7rem;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)">Reset</button>
+            <button class="mod-btn" onclick="karaokeSkipVoting()" id="karaokeSkipVotingBtn" style="flex:1;font-size:.7rem;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3);display:none">Pular Votacao</button>
+          </div>
+          <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
+            <button class="mod-btn" onclick="karaokeStopMusic()" style="flex:1;font-size:.65rem;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)">Parar Musica</button>
+            <button class="mod-btn" onclick="karaokeResetScores()" style="flex:1;font-size:.65rem;background:rgba(168,85,247,.1);color:#a855f7;border:1px solid rgba(168,85,247,.2)">Zerar Placar</button>
+            <button class="mod-btn" onclick="karaokeReset()" style="font-size:.65rem;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)">Reset Tudo</button>
           </div>
           <!-- Mirror to TV button -->
           <div style="display:flex;gap:.4rem;margin-bottom:.6rem">
@@ -9055,12 +9060,15 @@ function renderKaraokeAll(){
 function renderKaraokeNowPlaying(){
   var np=$('karaokeNowPlaying');
   var ph=$('karaokePlaceholder');
-  // During voting phase, keep the overlay and hide normal UI
+  var skipVBtn=$('karaokeSkipVotingBtn');
+  // During voting phase, show skip voting button, hide now-playing
   if(KARAOKE.votingPhase){
     np.style.display='none';
     if(ph)ph.style.display='none';
+    if(skipVBtn)skipVBtn.style.display='';
     return;
   }
+  if(skipVBtn)skipVBtn.style.display='none';
   if(KARAOKE.currentSinger){
     np.style.display='flex';
     $('karaokeNowName').textContent=KARAOKE.currentSinger.nickname||'--';
@@ -9173,7 +9181,7 @@ async function karaokeSkip(){
   try{
     var r=await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/skip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     var d=await r.json();
-    if(d.ok){KARAOKE.currentSinger=d.currentSinger;KARAOKE._lastVideoId=null;renderKaraokeAll();showToast('Cantor pulado')}
+    if(d.ok){KARAOKE.votingPhase=null;KARAOKE.currentSinger=d.currentSinger;KARAOKE._lastVideoId=null;karaokeTvClearVoting();renderKaraokeAll();showToast('Cantor pulado')}
   }catch(e){console.error('karaokeSkip:',e)}
 }
 
@@ -9191,10 +9199,50 @@ async function karaokeReset(){
   if(!confirm('Resetar toda a sessao de karaoke? Fila, placar e historico serao apagados.'))return;
   try{
     await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
-    KARAOKE.queue=[];KARAOKE.currentSinger=null;KARAOKE.scores={};KARAOKE.history=[];
+    KARAOKE.queue=[];KARAOKE.currentSinger=null;KARAOKE.scores={};KARAOKE.history=[];KARAOKE.votingPhase=null;
+    KARAOKE._lastVideoId=null;
+    if(KARAOKE.ytReady&&KARAOKE.ytPlayer&&KARAOKE.ytPlayer.stopVideo){try{KARAOKE.ytPlayer.stopVideo()}catch(e){}}
+    karaokeTvClearVoting();
     renderKaraokeAll();
     showToast('Karaoke resetado!');
   }catch(e){console.error('karaokeReset:',e)}
+}
+
+async function karaokeSkipVoting(){
+  if(!S.currentEventId)return;
+  try{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/skip-voting',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    var d=await r.json();
+    if(d.ok){
+      KARAOKE.votingPhase=null;KARAOKE.currentSinger=d.currentSinger;KARAOKE._lastVideoId=null;
+      karaokeTvClearVoting();
+      renderKaraokeAll();
+      showToast('Votacao pulada');
+    }
+  }catch(e){console.error('karaokeSkipVoting:',e)}
+}
+
+async function karaokeStopMusic(){
+  if(!S.currentEventId)return;
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/stop-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    KARAOKE.votingPhase=null;KARAOKE.currentSinger=null;KARAOKE._lastVideoId=null;
+    if(KARAOKE.ytReady&&KARAOKE.ytPlayer&&KARAOKE.ytPlayer.stopVideo){try{KARAOKE.ytPlayer.stopVideo()}catch(e){}}
+    karaokeTvClearVoting();
+    renderKaraokeAll();
+    showToast('Musica parada');
+  }catch(e){console.error('karaokeStopMusic:',e)}
+}
+
+async function karaokeResetScores(){
+  if(!S.currentEventId)return;
+  if(!confirm('Zerar placar? A fila e quem esta cantando continuam.'))return;
+  try{
+    await fetch('/api/operator/event/'+S.currentEventId+'/karaoke/reset-scores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    KARAOKE.scores={};
+    renderKaraokeAll();
+    showToast('Placar zerado! Novo campeonato!');
+  }catch(e){console.error('karaokeResetScores:',e)}
 }
 
 // Vote Modal

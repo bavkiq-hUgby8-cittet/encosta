@@ -16850,6 +16850,8 @@ app.post('/api/operator/event/:eventId/karaoke/skip', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
   const k = ensureKaraoke(ev);
+  // Clear voting phase if active (operator force-skip)
+  k.votingPhase = null;
   if (k.currentSinger) {
     k.currentSinger.status = 'skipped';
     k.history.push({ ...k.currentSinger, finishedAt: Date.now() });
@@ -16862,8 +16864,60 @@ app.post('/api/operator/event/:eventId/karaoke/skip', (req, res) => {
     k.currentSinger = next;
   }
   saveDB('operatorEvents');
-  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'skip', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores });
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'voting-end', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, votingPhase: null });
   res.json({ ok: true, currentSinger: k.currentSinger });
+});
+
+// Operator: skip voting/results phase and advance immediately
+app.post('/api/operator/event/:eventId/karaoke/skip-voting', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  if (!k.votingPhase) return res.json({ ok: true, currentSinger: k.currentSinger });
+  // Calculate final score before clearing
+  const finished = k.votingPhase.singer;
+  if (finished && k.scores[finished.userId]) {
+    const scoreData = k.scores[finished.userId];
+    const voteValues = Object.values(scoreData.votes || {});
+    if (voteValues.length > 0) {
+      scoreData.avgStars = voteValues.reduce((a, b) => a + b, 0) / voteValues.length;
+      scoreData.points = (scoreData.avgStars * 10) + ((scoreData.applause || 0) * 0.5);
+    }
+  }
+  k.votingPhase = null;
+  // Auto-advance to next singer
+  if (k.queue.length > 0) {
+    const next = k.queue.shift();
+    next.status = 'singing';
+    next.startedAt = Date.now();
+    k.currentSinger = next;
+  }
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'voting-end', queue: k.queue, currentSinger: k.currentSinger, scores: k.scores, votingPhase: null });
+  res.json({ ok: true, currentSinger: k.currentSinger });
+});
+
+// Operator: stop current music without starting voting
+app.post('/api/operator/event/:eventId/karaoke/stop-music', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  k.votingPhase = null;
+  k.currentSinger = null;
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'voting-end', queue: k.queue, currentSinger: null, scores: k.scores, votingPhase: null });
+  res.json({ ok: true });
+});
+
+// Operator: reset scores only (for new championship round)
+app.post('/api/operator/event/:eventId/karaoke/reset-scores', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+  const k = ensureKaraoke(ev);
+  k.scores = {};
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'scores-reset', queue: k.queue, currentSinger: k.currentSinger, scores: {}, votingPhase: k.votingPhase || null });
+  res.json({ ok: true });
 });
 
 // POST vote (participant votes for current singer or during voting phase)
@@ -16944,8 +16998,9 @@ app.post('/api/operator/event/:eventId/karaoke/reset', (req, res) => {
   k.currentSinger = null;
   k.scores = {};
   k.history = [];
+  k.votingPhase = null;
   saveDB('operatorEvents');
-  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'reset', queue: [], currentSinger: null, scores: {} });
+  io.to('event:' + req.params.eventId).emit('karaoke-update', { type: 'reset', queue: [], currentSinger: null, scores: {}, votingPhase: null });
   res.json({ ok: true });
 });
 
