@@ -10,7 +10,7 @@ const KNOWLEDGE = [
   // ── O QUE E O TOUCH? ──
   {
     id: 'what-is',
-    keywords: ['o que e', 'what is', 'que es', 'explica', 'explain', 'sobre o touch', 'about touch', 'pra que serve', 'what for', 'what is touch'],
+    keywords: ['o que e', 'what is', 'que es', 'explica', 'explain', 'sobre o touch', 'about touch', 'pra que serve', 'what for', 'what is touch', 'como funciona', 'how does it work', 'como funciona touch', 'como trabalha'],
     weight: 1,
     pt: `O Touch? e uma plataforma de conexao por proximidade. Funciona assim: dois celulares se aproximam com as telas viradas um pro outro (tela contra tela), os alto-falantes conversam por som ultrassonico (inaudivel), e uma conexao nasce.
 
@@ -90,7 +90,7 @@ El alcance es de aproximadamente 1-3 metros, perfecto para proximidad real.`
   // ── RESTAURANTE / BAR ──
   {
     id: 'restaurant',
-    keywords: ['restaurante', 'restaurant', 'bar', 'cafe', 'lanchonete', 'pizzaria', 'cardapio', 'menu', 'pedido', 'order', 'comida', 'food', 'bebida', 'drink', 'garcom', 'waiter', 'mesa', 'table'],
+    keywords: ['restaurante', 'restaurant', 'bar', 'cafe', 'lanchonete', 'pizzaria', 'cardapio', 'menu', 'pedido', 'order', 'comida', 'food', 'bebida', 'drink', 'garcom', 'waiter', 'mesa', 'table', 'hamburguer', 'hamburgueria', 'sushi', 'pub', 'bistrô', 'bistro', 'churrascaria', 'padaria', 'bakery', 'cerveja', 'beer'],
     weight: 2,
     pt: `Pra restaurantes, bares e cafes, o Touch? funciona assim:
 
@@ -133,7 +133,7 @@ La configuracion es simple: coloca un altavoz en la entrada reproduciendo audio 
   // ── FOOD TRUCK ──
   {
     id: 'foodtruck',
-    keywords: ['food truck', 'foodtruck', 'trailer', 'ambulante', 'food cart', 'caminhao', 'truck'],
+    keywords: ['food truck', 'foodtruck', 'trailer', 'ambulante', 'food cart', 'caminhao', 'truck', 'food trailer', 'comida de rua', 'street food'],
     weight: 3,
     pt: `Pra food trucks, o Touch? e perfeito porque resolve o maior problema: a fila.
 
@@ -179,7 +179,7 @@ Para ti como dueno: no necesitas maquina de tarjeta, ni cambio, ves todos los pe
   // ── BARBEARIA ──
   {
     id: 'barber',
-    keywords: ['barbearia', 'barbershop', 'barber', 'barberia', 'cabelo', 'hair', 'corte', 'cut', 'barba', 'beard', 'salao', 'salon'],
+    keywords: ['barbearia', 'barbershop', 'barber', 'barberia', 'cabelo', 'hair', 'corte', 'cut', 'barba', 'beard', 'salao', 'salon', 'manicure', 'nail', 'estetica', 'beauty', 'spa', 'cabeleireiro', 'hairdresser'],
     weight: 2,
     pt: `Pra barbearias e saloes, o Touch? transforma a experiencia:
 
@@ -231,7 +231,7 @@ Para ti como dueno:
   // ── ACADEMIA / GYM ──
   {
     id: 'gym',
-    keywords: ['academia', 'gym', 'gimnasio', 'treino', 'workout', 'ejercicio', 'musculacao', 'fitness', 'crossfit', 'personal', 'catraca', 'turnstile'],
+    keywords: ['academia', 'gym', 'gimnasio', 'treino', 'workout', 'ejercicio', 'musculacao', 'fitness', 'crossfit', 'cross fit', 'personal trainer', 'catraca', 'turnstile', 'pilates', 'yoga', 'spinning', 'zumba', 'funcional'],
     weight: 2,
     pt: `Pra academias, o Touch? substitui carteirinha, catraca e recepcao:
 
@@ -280,7 +280,7 @@ Para ti como dueno:
   // ── GORJETA / TIP ──
   {
     id: 'tips',
-    keywords: ['gorjeta', 'tip', 'propina', 'tipping', 'pagar', 'pay', 'pagamento', 'payment', 'pago', 'dinheiro', 'money', 'dinero', 'musico', 'musician', 'musico', 'artista', 'artist'],
+    keywords: ['gorjeta', 'tip', 'propina', 'tipping', 'pagamento', 'payment', 'pago', 'dinheiro', 'money', 'dinero', 'musico', 'musician', 'artista', 'artist', 'valet', 'manobrista', 'entregador', 'delivery', 'garcom', 'bartender', 'barman'],
     weight: 2,
     pt: `O sistema de gorjetas do Touch? e um dos recursos mais poderosos. Funciona assim:
 
@@ -288,13 +288,13 @@ Para ti como dueno:
 2. O cliente so encosta o celular no do prestador (ou escaneia o QR)
 3. Escolhe o valor da gorjeta
 4. Paga por cartao, Pix ou Apple Pay
-5. O dinheiro vai direto pra pessoa
+5. O valor e processado e repassado ao prestador
 
-Pra musicos de rua e street: coloca uma caixa de som no chao com QR code. As pessoas passam, escaneiam, e dap a gorjeta sem precisar de dinheiro trocado.
+Pra musicos de rua e street: coloca uma caixa de som no chao com QR code. As pessoas passam, escaneiam, e dao a gorjeta sem precisar de dinheiro trocado.
 
-Pra garcons: no final da refeicao, o cliente pode dar gorjeta direto pelo celular sem precisar pedir ao caixa.
+Pra garcons: no final da refeicao, o cliente pode dar gorjeta pelo celular sem precisar pedir ao caixa.
 
-A taxa e de apenas 5-10% sobre a gorjeta. O resto vai integralmente pro trabalhador.
+A plataforma cobra uma taxa sobre a gorjeta. Os detalhes das taxas ficam disponiveis no cadastro do prestador. A maior parte vai pro trabalhador.
 
 Mercado de gorjetas digitais nos EUA: mais de $50 bilhoes por ano.`,
     en: `Touch?'s tipping system is one of the most powerful features. Here's how it works:
@@ -303,13 +303,13 @@ Mercado de gorjetas digitais nos EUA: mais de $50 bilhoes por ano.`,
 2. The customer just touches their phone to the worker's (or scans the QR)
 3. Chooses the tip amount
 4. Pays by card, mobile pay
-5. Money goes directly to the person
+5. The tip is processed and sent to the worker
 
 For street musicians: place a speaker on the ground with a QR code. People walk by, scan, and tip without needing cash.
 
-For waiters: at the end of the meal, the customer can tip directly through their phone without asking the cashier.
+For waiters: at the end of the meal, the customer can tip through their phone without asking the cashier.
 
-The fee is only 5-10% on the tip. The rest goes entirely to the worker.
+The platform charges a transparent fee on tips. Fee details are available during signup. The majority goes to the worker.
 
 Digital tipping market in the US: over $50 billion per year.`,
     es: `El sistema de propinas de Touch? es uno de los recursos mas poderosos. Funciona asi:
@@ -318,13 +318,13 @@ Digital tipping market in the US: over $50 billion per year.`,
 2. El cliente solo acerca su celular al del trabajador (o escanea el QR)
 3. Elige el monto de la propina
 4. Paga por tarjeta o pago movil
-5. El dinero va directo a la persona
+5. El valor es procesado y enviado al trabajador
 
 Para musicos callejeros: coloca un altavoz en el suelo con codigo QR. La gente pasa, escanea, y da propina sin necesitar efectivo.
 
-Para meseros: al final de la comida, el cliente puede dar propina directo por su celular sin pedir al cajero.
+Para meseros: al final de la comida, el cliente puede dar propina por su celular sin pedir al cajero.
 
-La comision es de solo 5-10% sobre la propina. El resto va integramente al trabajador.
+La plataforma cobra una comision transparente sobre las propinas. Los detalles de las comisiones estan disponibles al registrarte. La mayor parte va al trabajador.
 
 Mercado de propinas digitales en EE.UU.: mas de $50 mil millones al ano.`
   },
@@ -332,7 +332,7 @@ Mercado de propinas digitales en EE.UU.: mas de $50 mil millones al ano.`
   // ── SHOWS / DJ / EVENTOS ──
   {
     id: 'events-dj',
-    keywords: ['show', 'evento', 'event', 'dj', 'festival', 'concerto', 'concert', 'concierto', 'luz', 'light', 'led', 'celular', 'phone', 'plateia', 'audience', 'publico', 'crowd', 'coldplay', 'live', 'palco', 'stage'],
+    keywords: ['show', 'evento', 'event', 'dj', 'festival', 'concerto', 'concert', 'concierto', 'luz', 'light', 'led', 'plateia', 'audience', 'publico', 'crowd', 'coldplay', 'live', 'palco', 'stage', 'festa', 'party', 'fiesta', 'balada', 'nightclub', 'club', 'boate', 'rave'],
     weight: 2,
     pt: `O Touch? Live transforma shows e eventos. O DJ ou artista controla os celulares da plateia em tempo real:
 
@@ -494,7 +494,7 @@ Para ti como dueno:
   // ── PRECO / CUSTO ──
   {
     id: 'pricing',
-    keywords: ['preco', 'price', 'precio', 'custo', 'cost', 'costo', 'quanto custa', 'how much', 'cuanto cuesta', 'gratis', 'free', 'gratuito', 'plano', 'plan', 'assinatura', 'subscription', 'suscripcion', 'pagar', 'cobrar'],
+    keywords: ['preco', 'price', 'precio', 'custo', 'cost', 'costo', 'quanto custa', 'how much', 'cuanto cuesta', 'gratis', 'free', 'gratuito', 'plano', 'plan', 'assinatura', 'subscription', 'suscripcion', 'cobrar', 'valor', 'mensalidade', 'monthly', 'barato', 'cheap'],
     weight: 2,
     pt: `O Touch? tem opcoes pra todos os tamanhos:
 
@@ -815,8 +815,15 @@ Pregunta lo que quieras!`
 ];
 
 // ── FUNCAO DE MATCHING ──
+function normalize(str) {
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
 function findBestAnswer(question, lang) {
-  const q = question.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const q = normalize(question);
+  const qNoSpaces = q.replace(/\s+/g, '');
+  const qWords = q.split(/\s+/).filter(w => w.length > 1);
+
   let bestMatch = null;
   let bestScore = 0;
 
@@ -825,9 +832,38 @@ function findBestAnswer(question, lang) {
     let score = 0;
 
     for (const kw of topic.keywords) {
-      const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const kwNorm = normalize(kw);
+      const kwNoSpaces = kwNorm.replace(/\s+/g, '');
+
+      // Exact substring match (original logic)
       if (q.includes(kwNorm)) {
         score += topic.weight + kwNorm.length;
+        continue;
+      }
+
+      // Match ignoring spaces (e.g. "cross fit" matches "crossfit")
+      if (qNoSpaces.includes(kwNoSpaces) && kwNoSpaces.length > 3) {
+        score += topic.weight + kwNoSpaces.length;
+        continue;
+      }
+
+      // Word-level match: if keyword is a single word, check if any query word starts with it or vice-versa
+      if (!kwNorm.includes(' ')) {
+        for (const w of qWords) {
+          if (w.length >= 3 && kwNorm.length >= 3) {
+            if (w.startsWith(kwNorm) || kwNorm.startsWith(w)) {
+              score += topic.weight + Math.min(w.length, kwNorm.length);
+              break;
+            }
+          }
+        }
+      } else {
+        // Multi-word keyword: check if ALL words appear in the query
+        const kwWords = kwNorm.split(/\s+/);
+        const allFound = kwWords.every(kw2 => qWords.some(w => w.includes(kw2) || kw2.includes(w)));
+        if (allFound && kwWords.length > 0) {
+          score += topic.weight + kwNorm.length;
+        }
       }
     }
 
