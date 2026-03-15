@@ -21299,6 +21299,60 @@ REGRAS:
   }
 });
 
+// ── Voice Health Check — detect OpenAI quota/billing issues ──
+const voiceHealthStatus = { lastCheck: null, ok: true, error: null, consecutiveFailures: 0 };
+
+app.get('/api/health/voice', async (req, res) => {
+  if (!OPENAI_API_KEY) return res.json({ ok: false, error: 'OPENAI_API_KEY not configured', lastCheck: null });
+  res.json({
+    ok: voiceHealthStatus.ok,
+    error: voiceHealthStatus.error,
+    lastCheck: voiceHealthStatus.lastCheck,
+    consecutiveFailures: voiceHealthStatus.consecutiveFailures,
+    keyPrefix: OPENAI_API_KEY.substring(0, 8) + '...'
+  });
+});
+
+// Proactive check: test OpenAI Realtime API on startup and every 30 min
+async function checkVoiceHealth() {
+  if (!OPENAI_API_KEY) return;
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-4o-realtime-preview', voice: 'shimmer', modalities: ['text'], instructions: 'Health check. Say OK.' })
+    });
+    voiceHealthStatus.lastCheck = new Date().toISOString();
+    if (!r.ok) {
+      const errText = await r.text();
+      voiceHealthStatus.ok = false;
+      voiceHealthStatus.error = 'HTTP ' + r.status + ': ' + errText.substring(0, 200);
+      voiceHealthStatus.consecutiveFailures++;
+      console.error('[VoiceHealth] OpenAI Realtime FAILED:', r.status, errText.substring(0, 200));
+      if (voiceHealthStatus.consecutiveFailures >= 2) {
+        console.error('[VoiceHealth] ALERTA: OpenAI Realtime com falha consecutiva! Verificar saldo/API key em platform.openai.com');
+      }
+    } else {
+      const d = await r.json();
+      const hasSecret = !!(d.client_secret?.value || d.client_secret);
+      voiceHealthStatus.ok = hasSecret;
+      voiceHealthStatus.error = hasSecret ? null : 'Session created but no client_secret';
+      voiceHealthStatus.consecutiveFailures = hasSecret ? 0 : voiceHealthStatus.consecutiveFailures + 1;
+      console.log('[VoiceHealth] OpenAI Realtime OK. Session:', d.id, 'hasSecret:', hasSecret);
+    }
+  } catch (e) {
+    voiceHealthStatus.lastCheck = new Date().toISOString();
+    voiceHealthStatus.ok = false;
+    voiceHealthStatus.error = e.message;
+    voiceHealthStatus.consecutiveFailures++;
+    console.error('[VoiceHealth] Check failed:', e.message);
+  }
+}
+
+// Check on startup (after 10s delay) and every 30 minutes
+setTimeout(checkVoiceHealth, 10000);
+setInterval(checkVoiceHealth, 30 * 60 * 1000);
+
 app.post('/api/assistant/chat', express.json(), (req, res) => {
   try {
     const { message, lang } = req.body;
