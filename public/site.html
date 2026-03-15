@@ -2931,7 +2931,16 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     dc.onmessage = function(e){
       try {
         var msg = JSON.parse(e.data);
-        console.log('[WebRTC] msg:', msg.type);
+        console.log('[WebRTC] msg:', msg.type, msg.type === 'error' ? JSON.stringify(msg) : '');
+
+        // Log session events and errors for debugging
+        if(msg.type === 'session.created' || msg.type === 'session.updated'){
+          console.log('[WebRTC] Session info:', JSON.stringify(msg).substring(0, 300));
+        }
+        if(msg.type === 'error'){
+          console.error('[WebRTC] ERROR from OpenAI:', JSON.stringify(msg));
+          addMessage('Error: ' + (msg.error && msg.error.message ? msg.error.message : 'unknown'), 'bot');
+        }
 
         // Anti-echo: mute mic when assistant starts speaking
         if(msg.type === 'response.audio.delta' || msg.type === 'response.created'){
@@ -2980,7 +2989,7 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
         return pc.setLocalDescription(offer);
       }).then(function(){
         console.log('[WebRTC] Sending SDP to OpenAI Realtime...');
-        return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17', {
+        return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/sdp' },
           body: pc.localDescription.sdp

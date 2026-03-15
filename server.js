@@ -21255,14 +21255,15 @@ REGRAS:
     const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview-2024-12-17',
+      body: JSON.stringify(Object.assign({
+        model: 'gpt-4o-realtime-preview',
         voice: 'shimmer',
         modalities: ['audio', 'text'],
-        input_audio_transcription: tourMode ? null : { model: 'whisper-1' },
-        turn_detection: tourMode ? null : { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 500, silence_duration_ms: 1500 },
         instructions
-      })
+      }, tourMode ? {} : {
+        input_audio_transcription: { model: 'whisper-1' },
+        turn_detection: { type: 'server_vad', threshold: 0.95, prefix_padding_ms: 500, silence_duration_ms: 1500 }
+      }))
     });
     console.log('[SiteAssistant] OpenAI response status:', r.status);
     if (!r.ok) {
