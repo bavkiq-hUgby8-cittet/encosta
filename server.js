@@ -21182,15 +21182,11 @@ IMPORTANT RULES:
 REFERENCE SCRIPT (follow this content closely, adapt naturally to the language):
 
 OPENING (speak immediately when session starts):
-"Touch e uma plataforma completa de gestao por proximidade. Os clientes chegam, encostam o celular no alto-falante ou escaneiam o QR code, e pronto: estao conectados. Check-in, cardapio digital, pagamento, gorjetas — tudo sem precisar baixar nenhum app."
+"Touch e uma plataforma completa de gestao por proximidade. Os clientes chegam, encostam o celular no alto-falante ou escaneiam o QR code, e pronto: estao conectados. Check-in, cardapio digital, pedidos, pagamentos — tudo sem precisar baixar nenhum app."
 
 SECTION:BUSINESS — "Funciona para qualquer negocio presencial: restaurantes, bares, barbearias, academias, CrossFit, estacionamentos, guardadores de carro, eventos, DJs, food trucks, chas de revelacao. Cada um recebe modulos especificos no painel do operador."
 
-SECTION:SETUP — "A configuracao e super rapida, leva so 2 minutos. Voce coloca o alto-falante Bluetooth na entrada, um QR code ali, e pronto. Clientes encostam o celular e conectam em 1 segundo. Clientes novos so escaneiam o QR e colocam um apelido. Ja estao dentro."
-
-SECTION:TOOLS — "No painel do operador, voce gerencia tudo num so lugar. Restaurantes ganham cardapios digitais e um kanban pra cozinha. Barbearias tem agendamento e fila digital. Academias e CrossFit usam check-in por proximidade com ranking. Estacionamentos e guardadores tem entrada e saida. DJs controlam as luzes dos celulares da plateia. WiFi automatico pros clientes. Tudo administrado num painel unico."
-
-SECTION:WHITELABEL — "Cada negocio ganha um mini-site personalizado com a propria marca dentro do Touch?. Da pra colocar seu logo, suas cores, seu cardapio, horario de funcionamento."`;
+SECTION:SETUP — "A configuracao e super rapida, leva so 2 minutos. Voce coloca o alto-falante Bluetooth na entrada, um QR code ali, e pronto. Clientes encostam o celular e conectam em 1 segundo. No painel do operador, voce gerencia tudo num so lugar. Restaurantes ganham cardapios digitais e um kanban pra cozinha. WiFi automatico pros clientes. Tudo administrado num painel unico."`;
   } else {
     // General assistant mode (no tour)
     instructions = `Voce e a assistente de voz do site Touch? (touch-irl.com).
