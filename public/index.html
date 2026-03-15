@@ -21501,80 +21501,109 @@ function showCharevelaRevealAnimation(data){
   var color=data.color||'#ec4899';
   var label=data.answerLabel||'???';
   var babyName=data.babyName||'';
-  // Determine video: boy (optionA/blue) or girl (optionB/pink)
   var videoSrc=(data.answer==='optionA')?'/reveal-boy.mp4':'/reveal-girl.mp4';
   var ov=document.createElement('div');
   ov.id='crRevealOverlay';
   ov.className='cr-reveal-overlay';
   ov.style.background='#000';
 
-  // Phase 1: Countdown (10 seconds)
-  ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap">'+
-    '<div class="cr-countdown-num" id="crCountdownNum">10</div>'+
-    '<div class="cr-countdown-label">A revelacao vai comecar...</div>'+
+  // Phase 1: "Tap to reveal" screen (user gesture needed for autoplay with audio)
+  ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap" style="cursor:pointer">'+
+    '<div style="font-size:1.5rem;font-weight:800;color:#fff;text-align:center;margin-bottom:1rem;animation:cr-count-pulse 1.5s ease-in-out infinite;text-shadow:0 0 30px rgba(255,255,255,.4)">A REVELACAO VAI COMECAR!</div>'+
+    '<div id="crTapBtn" style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#ec4899);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;animation:cr-count-pulse 1.5s ease-in-out infinite;box-shadow:0 0 40px rgba(236,72,153,.4),0 0 80px rgba(59,130,246,.2);cursor:pointer">'+
+    '<svg width="40" height="40" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>'+
+    '<div style="font-size:.9rem;color:rgba(255,255,255,.7);font-weight:600">TOQUE PARA REVELAR</div>'+
     '</div>'+
     '<button class="cr-reveal-close" onclick="closeCharevelaReveal()" style="z-index:10">X</button>';
   document.body.appendChild(ov);
 
-  // Vibrate countdown start
-  if(navigator.vibrate)navigator.vibrate([100,50,100]);
+  // Vibrate to alert user
+  if(navigator.vibrate)navigator.vibrate([200,100,200,100,200]);
 
-  // Preload video while countdown runs
+  // Preload video (muted first, unmute after user gesture)
   var vid=document.createElement('video');
   vid.className='cr-reveal-video';
   vid.src=videoSrc;
   vid.playsInline=true;
+  vid.setAttribute('playsinline','');
+  vid.setAttribute('webkit-playsinline','');
   vid.preload='auto';
-  vid.muted=false;
+  vid.muted=true;
   vid.style.display='none';
   ov.appendChild(vid);
 
-  var count=10;
-  var countEl=$('crCountdownNum');
-  var countInterval=setInterval(function(){
-    count--;
-    if(countEl)countEl.textContent=count;
-    // Vibrate each second
+  // When user taps: start countdown then play video
+  var tapArea=$('crCountdownWrap');
+  function onUserTap(){
+    tapArea.removeEventListener('click',onUserTap);
     if(navigator.vibrate)navigator.vibrate(50);
-    // Last 3 seconds get bigger
-    if(count<=3&&countEl){
-      countEl.style.fontSize='12rem';
-      countEl.style.color=(count===1)?color:'#fff';
-    }
-    if(count<=0){
-      clearInterval(countInterval);
-      // Phase 2: Play video
-      var wrap=$('crCountdownWrap');
-      if(wrap)wrap.style.display='none';
-      vid.style.display='block';
-      vid.play().catch(function(e){console.warn('Reveal video play blocked:',e.message)});
-      // Big vibrate for reveal!
-      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
-      // Phase 3: Show baby name overlay after video gets to the reveal moment (~8s)
-      if(babyName){
-        setTimeout(function(){
-          var nameWrap=document.createElement('div');
-          nameWrap.className='cr-baby-name-bg';
-          nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
-          ov.appendChild(nameWrap);
-        },7000);
+
+    // Try to unlock audio context right on user gesture
+    try{var ac=new(window.AudioContext||window.webkitAudioContext)();ac.resume();setTimeout(function(){ac.close()},1000)}catch(e){}
+
+    // Start muted playback immediately (on user gesture = guaranteed to work)
+    vid.muted=true;
+    vid.play().catch(function(e){console.warn('[reveal] preplay err:',e.message)});
+    vid.pause();
+    vid.currentTime=0;
+
+    // Show countdown
+    tapArea.innerHTML='<div class="cr-countdown-num" id="crCountdownNum">5</div>'+
+      '<div class="cr-countdown-label">Preparados...</div>';
+    var count=5;
+    var countEl=$('crCountdownNum');
+    var countInterval=setInterval(function(){
+      count--;
+      if(countEl)countEl.textContent=count;
+      if(navigator.vibrate)navigator.vibrate(count<=2?100:50);
+      if(count<=3&&countEl){
+        countEl.style.fontSize='12rem';
+        countEl.style.color=(count<=1)?color:'#fff';
       }
-      // Show label (Menino/Menina) after name
-      setTimeout(function(){
-        var labelEl=document.createElement('div');
-        labelEl.className='cr-reveal-text';
-        labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
-        labelEl.textContent=label;
-        ov.appendChild(labelEl);
-      },8500);
-      // Auto-close after video ends (12s) + extra 5s to show name
-      vid.onended=function(){
-        setTimeout(function(){closeCharevelaReveal()},5000);
-      };
-      // Fallback auto-close after 25s
-      setTimeout(function(){closeCharevelaReveal()},25000);
-    }
-  },1000);
+      if(count<=0){
+        clearInterval(countInterval);
+        // Phase 2: Play video WITH audio (user gesture chain)
+        var wrap=$('crCountdownWrap');
+        if(wrap)wrap.style.display='none';
+        vid.style.display='block';
+        vid.currentTime=0;
+        vid.muted=false;
+        vid.play().then(function(){
+          console.log('[reveal] video playing with audio');
+        }).catch(function(e){
+          console.warn('[reveal] unmuted play blocked, trying muted:', e.message);
+          vid.muted=true;
+          vid.play().catch(function(e2){console.error('[reveal] even muted play failed:',e2.message)});
+        });
+        if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+
+        // Phase 3: Show baby name overlay near the reveal moment (~8s into video)
+        if(babyName){
+          setTimeout(function(){
+            var nameWrap=document.createElement('div');
+            nameWrap.className='cr-baby-name-bg';
+            nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
+            if(ov.parentNode)ov.appendChild(nameWrap);
+          },7000);
+        }
+        // Show label (Menino/Menina)
+        setTimeout(function(){
+          var labelEl=document.createElement('div');
+          labelEl.className='cr-reveal-text';
+          labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
+          labelEl.textContent=label;
+          if(ov.parentNode)ov.appendChild(labelEl);
+        },8500);
+        // Auto-close after video ends + 5s
+        vid.onended=function(){
+          setTimeout(function(){closeCharevelaReveal()},5000);
+        };
+        // Fallback auto-close after 25s
+        setTimeout(function(){closeCharevelaReveal()},25000);
+      }
+    },1000);
+  }
+  tapArea.addEventListener('click',onUserTap);
 }
 
 function shiftColor(hex,amount){
