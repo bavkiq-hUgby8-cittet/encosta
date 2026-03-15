@@ -938,6 +938,7 @@ const IDX = {
   revealByFrom: new Map(),    // fromUserId -> Set of revealRequestIds (pending)
   revealByPair: new Map(),    // "from_to" -> revealRequestId (pending)
   prestador: new Set(),       // set of userIds that are prestadores
+  plate: new Map(),            // vehiclePlate (uppercase, digits/letters only) -> userId
 };
 
 function rebuildIndexes() {
@@ -945,7 +946,7 @@ function rebuildIndexes() {
   IDX.relationPair.clear(); IDX.relationsByUser.clear();
   IDX.donationsByFrom.clear(); IDX.donationsByPair.clear();
   IDX.operatorByCreator.clear();
-  IDX.email.clear(); IDX.phone.clear(); IDX.cpf.clear();
+  IDX.email.clear(); IDX.phone.clear(); IDX.cpf.clear(); IDX.plate.clear();
   IDX.tipsByPayer.clear(); IDX.tipsByReceiver.clear();
   IDX.likedBy.clear(); IDX.revealByTo.clear(); IDX.revealByFrom.clear(); IDX.revealByPair.clear();
   IDX.prestador.clear();
@@ -957,6 +958,9 @@ function rebuildIndexes() {
     if (u.phone) IDX.phone.set(u.phone, uid);
     if (u.cpf) IDX.cpf.set(u.cpf.replace(/\D/g, ''), uid);
     if (u.isPrestador) IDX.prestador.add(uid);
+    if (u.vehicles && u.vehicles.length > 0) {
+      u.vehicles.forEach(v => { if (v.plate) IDX.plate.set(v.plate, uid); });
+    }
   }
   for (const [rid, r] of Object.entries(db.relations)) {
     if (r.userA && r.userB) {
@@ -4460,7 +4464,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', requireAuth, async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city, vehiclePlate, vehicleModel, vehicleColor } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -4564,6 +4568,41 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Acessório inválido.' });
     }
     user.avatarAccessory = avatarAccessory || null;
+  }
+  // Vehicle plate management
+  if (vehiclePlate !== undefined) {
+    const cleanPlate = (vehiclePlate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!user.vehicles) user.vehicles = [];
+    if (cleanPlate) {
+      // Check if plate already registered to another user
+      const plateOwner = Object.values(db.users).find(u => u !== user && u.vehicles && u.vehicles.some(v => v.plate === cleanPlate));
+      if (plateOwner) {
+        return res.status(400).json({ error: 'Esta placa ja esta vinculada a outra conta.' });
+      }
+      // Update or add vehicle
+      const existingIdx = user.vehicles.findIndex(v => v.plate === cleanPlate || user.vehicles.length === 1);
+      const vData = { plate: cleanPlate, model: vehicleModel || '', color: vehicleColor || '', addedAt: Date.now() };
+      if (existingIdx >= 0) {
+        user.vehicles[existingIdx] = vData;
+      } else if (user.vehicles.length === 0) {
+        user.vehicles.push(vData);
+      } else {
+        // Replace primary vehicle (first slot)
+        user.vehicles[0] = vData;
+      }
+      // Index plate -> userId for fast lookup
+      if (!IDX.plate) IDX.plate = new Map();
+      // Remove old plates from index
+      user.vehicles.forEach(v => { if (v.plate !== cleanPlate) IDX.plate.delete(v.plate); });
+      IDX.plate.set(cleanPlate, userId);
+    } else {
+      // Clear vehicle
+      if (user.vehicles.length > 0) {
+        if (!IDX.plate) IDX.plate = new Map();
+        user.vehicles.forEach(v => IDX.plate.delete(v.plate));
+        user.vehicles = [];
+      }
+    }
   }
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
 
@@ -7247,6 +7286,7 @@ app.get('/api/myprofile/:userId', (req, res) => {
     likesGiven: user.likesGiven || 0, declarationsReceived: (db.declarations ? Object.values(db.declarations).filter(d => d.toUserId === req.params.userId).length : 0),
     avatarAccessory: user.avatarAccessory || null,
     countriesCollected: user.countriesCollected || [],
+    vehicles: user.vehicles || [],
     isTop1: (() => { if (user.topTag === 'top1') return true; if (user.registrationOrder === 1) return true; const scores = Object.keys(db.users).map(uid => ({ uid, score: calcScore(uid) })).sort((a, b) => b.score - a.score); return scores.length > 0 && scores[0].uid === req.params.userId; })()
   });
 });
@@ -15468,9 +15508,12 @@ app.get('/api/operator/event/:eventId/fiscal-summary', (req, res) => {
 // Get parking config + active vehicles (public)
 app.get('/api/event/:eventId/parking', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
-  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const parking = ev.parking || { enabled: false, vehicles: {} };
   const activeVehicles = Object.values(parking.vehicles || {}).filter(v => v.status === 'parked');
+  const userId = req.query.userId || null;
+  // Return full vehicle data for vehicles belonging to requesting user
+  const myVehicles = userId ? activeVehicles.filter(v => v.userId === userId) : [];
   res.json({
     enabled: parking.enabled,
     mode: parking.mode,
@@ -15481,7 +15524,12 @@ app.get('/api/event/:eventId/parking', (req, res) => {
     tolerance: parking.tolerance || 10,
     totalSpots: parking.totalSpots || 50,
     periods: parking.periods || [],
-    activeVehicles: activeVehicles.length
+    activeCount: activeVehicles.length,
+    activeVehicles: myVehicles.map(v => ({
+      plate: v.plate, userId: v.userId, entryTime: v.entryTime,
+      vehicleModel: v.vehicleModel || '', vehicleColor: v.vehicleColor || '',
+      status: v.status, nickname: v.nickname || ''
+    }))
   });
 });
 
@@ -15592,7 +15640,44 @@ app.post('/api/operator/event/:eventId/parking/exit', (req, res) => {
   if (ev.parking.fixedRate > 0) vehicle.amountDue += ev.parking.fixedRate;
   saveDB('operatorEvents');
   io.emit('parking-vehicle-exited', { eventId: ev.id, plate: plateTrimmed, amountDue: vehicle.amountDue });
+  // Notify user if linked
+  if (vehicle.userId && vehicle.userId !== 'operador') {
+    io.to(vehicle.userId).emit('parking-exit-ready', {
+      eventId: ev.id,
+      eventName: ev.name || 'Estacionamento',
+      plate: plateTrimmed,
+      hoursParked,
+      amountDue: vehicle.amountDue,
+      entryTime: vehicle.entryTime,
+      exitTime: vehicle.exitTime
+    });
+  }
   res.json({ ok: true, vehicle, hoursParked, amountDue: vehicle.amountDue });
+});
+
+// Manual payment confirmation by operator (cash/pix/physical)
+app.post('/api/operator/event/:eventId/parking/manual-payment', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { plate, amount, method } = req.body;
+  const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!ev.parking || !ev.parking.vehicles || !ev.parking.vehicles[plateTrimmed]) {
+    return res.status(404).json({ error: 'Veiculo nao encontrado.' });
+  }
+  const vehicle = ev.parking.vehicles[plateTrimmed];
+  vehicle.amountPaid = parseFloat(amount) || vehicle.amountDue || 0;
+  vehicle.paymentMethod = method || 'fisico';
+  vehicle.paidAt = Date.now();
+  vehicle.status = 'paid';
+  saveDB('operatorEvents');
+  // Notify user
+  if (vehicle.userId && vehicle.userId !== 'operador') {
+    io.to(vehicle.userId).emit('parking-payment-confirmed', {
+      eventId: ev.id, plate: plateTrimmed, amount: vehicle.amountPaid, method: vehicle.paymentMethod
+    });
+  }
+  io.emit('parking-payment-received', { eventId: ev.id, plate: plateTrimmed, amount: vehicle.amountPaid, status: 'paid' });
+  res.json({ ok: true, vehicle });
 });
 
 // Pay parking (user)
@@ -15630,16 +15715,57 @@ app.get('/api/event/:eventId/parking/vehicle/:plate', (req, res) => {
 });
 
 // Manual vehicle entry (operator)
+// Lookup user by plate (operator use)
+app.get('/api/operator/event/:eventId/parking/plate-lookup/:plate', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const plateTrimmed = (req.params.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!plateTrimmed) return res.status(400).json({ error: 'Placa invalida.' });
+  // Check if already parked
+  if (ev.parking && ev.parking.vehicles && ev.parking.vehicles[plateTrimmed] && ev.parking.vehicles[plateTrimmed].status === 'parked') {
+    return res.json({ found: true, alreadyParked: true, vehicle: ev.parking.vehicles[plateTrimmed] });
+  }
+  // Lookup in user index
+  const uid = IDX.plate.get(plateTrimmed);
+  if (uid && db.users[uid]) {
+    const u = db.users[uid];
+    const veh = (u.vehicles || []).find(v => v.plate === plateTrimmed);
+    return res.json({
+      found: true, alreadyParked: false,
+      userId: uid, nickname: u.nickname || u.name || 'Anonimo',
+      profilePhoto: u.profilePhoto || u.photoURL || null,
+      vehicleModel: veh ? veh.model : '', vehicleColor: veh ? veh.color : '',
+      isAttendee: !!(ev.attendees && ev.attendees[uid])
+    });
+  }
+  res.json({ found: false });
+});
+
+// Manual parking entry (operator) - auto-links user by plate if registered
 app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   if (!ev.parking || !ev.parking.enabled) return res.status(400).json({ error: 'Estacionamento desativado.' });
-  const { plate, nickname, notes, userId, vehicleModel, vehicleBrand, vehicleColor } = req.body;
+  let { plate, nickname, notes, userId, vehicleModel, vehicleBrand, vehicleColor } = req.body;
   const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!plateTrimmed) return res.status(400).json({ error: 'Placa obrigatoria.' });
   if (!ev.parking.vehicles) ev.parking.vehicles = {};
   const existing = ev.parking.vehicles[plateTrimmed];
   if (existing && existing.status === 'parked') return res.status(400).json({ error: 'Veiculo ja estacionado.' });
+  // Auto-link user by plate if not provided
+  if (!userId) {
+    const plateOwner = IDX.plate.get(plateTrimmed);
+    if (plateOwner && db.users[plateOwner]) {
+      userId = plateOwner;
+      const u = db.users[plateOwner];
+      if (!nickname) nickname = u.nickname || u.name || 'Anonimo';
+      const veh = (u.vehicles || []).find(v => v.plate === plateTrimmed);
+      if (veh) {
+        if (!vehicleModel) vehicleModel = veh.model || '';
+        if (!vehicleColor) vehicleColor = veh.color || '';
+      }
+    }
+  }
   // If userId provided, save plate to user profile (shared vehicle support)
   if (userId && db.users[userId]) {
     const user = db.users[userId];
@@ -15666,8 +15792,18 @@ app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
     notes: notes || ''
   };
   saveDB('operatorEvents');
-  io.emit('parking-vehicle-registered', { eventId: ev.id, plate: plateTrimmed, nickname: ev.parking.vehicles[plateTrimmed].nickname });
-  res.json({ ok: true, vehicle: ev.parking.vehicles[plateTrimmed] });
+  // Notify user via socket if linked
+  if (userId && userId !== 'operador') {
+    io.to(userId).emit('parking-entry-confirmed', {
+      eventId: ev.id,
+      eventName: ev.name || 'Estacionamento',
+      plate: plateTrimmed,
+      entryTime: ev.parking.vehicles[plateTrimmed].entryTime,
+      mode: ev.parking.mode
+    });
+  }
+  io.emit('parking-vehicle-registered', { eventId: ev.id, plate: plateTrimmed, nickname: ev.parking.vehicles[plateTrimmed].nickname, userId: userId || null });
+  res.json({ ok: true, vehicle: ev.parking.vehicles[plateTrimmed], linkedUser: userId || null });
 });
 
 // Plate lookup API (consulta placa)
