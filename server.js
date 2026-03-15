@@ -17464,7 +17464,7 @@ app.get('/api/event/:eventId/charevela', (req, res) => {
   const cr = ensureChaRevela(ev);
   res.json({
     enabled: ev.modules.charevela || false,
-    config: { eventName: cr.config.eventName, optionA: cr.config.optionA, optionB: cr.config.optionB, colorA: cr.config.colorA, colorB: cr.config.colorB, votingOpen: cr.config.votingOpen, revealed: cr.config.revealed },
+    config: Object.assign({ eventName: cr.config.eventName, optionA: cr.config.optionA, optionB: cr.config.optionB, colorA: cr.config.colorA, colorB: cr.config.colorB, votingOpen: cr.config.votingOpen, revealed: cr.config.revealed }, cr.config.revealed ? { answer: cr.config.answer, babyName: cr.config.babyName || '' } : {}),
     results: cr.results
   });
 });
