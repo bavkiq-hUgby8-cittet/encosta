@@ -21161,9 +21161,7 @@ SECTION:USE_CASES — "E o que fazer com isso? Dar gorjeta pro guardador de carr
 
 SECTION:TIPPING — "Com o Touch?, gorjeta e instantanea: voce so aproxima o celular, escolhe o valor e acabou! Sem complicacao."
 
-SECTION:CONNECT — "Cada pessoa que voce encontra vira uma estrela na sua constelacao. E tipo um mapa visual da sua vida social de verdade. So conexoes reais."
-
-SECTION:PRIVACY — "Privacidade em primeiro lugar: voce fica anonimo por padrao. Ninguem ve seu nome real, a menos que voce queira mostrar. E as conversas somem em 24 horas, a nao ser que os dois queiram manter. E isso! Se ficou curioso, vai la em touch-irl.com e experimenta. Tamo junto!"`;
+SECTION:CONNECT — "Cada pessoa que voce encontra vira uma estrela na sua constelacao. E tipo um mapa visual da sua vida social de verdade. So conexoes reais. E isso! Se ficou curioso, vai la em touch-irl.com e experimenta. Tamo junto!"`;
   } else if (tourMode === 'b2b') {
     instructions = `You are Touch, the voice guide for the Touch? website (touch-irl.com).
 You are giving a GUIDED TOUR of Touch? for a BUSINESS OWNER (B2B).
