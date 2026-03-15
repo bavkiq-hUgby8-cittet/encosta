@@ -1843,6 +1843,20 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <span class="tab-label">Barbearia</span>
         <span class="tab-badge" id="tabBadgeBarber" style="background:var(--mod-barber)">0</span>
       </div>
+      <div class="op-tab-item" data-mod="karaoke" onclick="switchToTab('karaoke')">
+        <span class="tab-icon" style="background:#a855f7"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg></span>
+        <span class="tab-label">Karaoke</span>
+        <span class="tab-badge" id="tabBadgeKaraoke" style="background:#a855f7">0</span>
+      </div>
+      <div class="op-tab-item" data-mod="charevela" onclick="switchToTab('charevela')">
+        <span class="tab-icon" style="background:linear-gradient(135deg,#3b82f6,#ec4899)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></span>
+        <span class="tab-label">Cha Revelacao</span>
+        <span class="tab-badge" id="tabBadgeChaRevela" style="background:#ec4899">0</span>
+      </div>
+      <div class="op-tab-item" data-mod="wifi" onclick="switchToTab('wifi')">
+        <span class="tab-icon" style="background:#06b6d4"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#fff"/></svg></span>
+        <span class="tab-label">WiFi</span>
+      </div>
       <div class="op-tab-item" data-mod="finance" onclick="switchToTab('finance')">
         <span class="tab-icon" style="background:var(--mod-finance)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
         <span class="tab-label">Financeiro</span>
@@ -3950,6 +3964,9 @@ function switchToTab(mod){
     else if(mod==='church'){openChurchPanel()}
     else if(mod==='barber'){openBarberPanel()}
     else if(mod==='dj'){openDjPanel()}
+    else if(mod==='karaoke'){openKaraokePanel()}
+    else if(mod==='charevela'){openChaRevPanel()}
+    else if(mod==='wifi'){openWifiPanel()}
     else if(mod==='finance'){showFinancialPanel()}
     else if(mod==='materials'){openMaterialsPanel()}
   }
@@ -4056,7 +4073,12 @@ function updateFabVisibility(modules){
   var tabItems=document.querySelectorAll('.op-tab-item[data-mod]');
   tabItems.forEach(function(item){
     var mod=item.getAttribute('data-mod');
-    if(mod==='aquarium'||mod==='finance'){item.style.display='';return}
+    if(mod==='aquarium'||mod==='finance'||mod==='materials'){item.style.display='';return}
+    if(mod==='wifi'){
+      var ev=S.currentEventId&&S.events?S.events[S.currentEventId]:null;
+      var hasWifi=ev&&ev.wifi&&ev.wifi.enabled;
+      item.style.display=hasWifi?'':'none';return;
+    }
     if(modules&&modules[mod])item.style.display='';
     else item.style.display='none';
   });
