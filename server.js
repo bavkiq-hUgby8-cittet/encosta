@@ -3221,6 +3221,10 @@ app.post('/api/session/join', (req, res) => {
       operatorId: sessionOperatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
+      eventModules: sessionEventObj ? (sessionEventObj.modules || null) : null,
+      acceptsTips: sessionEventObj ? !!sessionEventObj.acceptsTips : false,
+      wifiData: (sessionEventObj && sessionEventObj.wifi && sessionEventObj.wifi.enabled && sessionEventObj.wifi.ssid) ? { ssid: sessionEventObj.wifi.ssid, password: sessionEventObj.wifi.password } : null,
+      eventLogo: sessionEventObj ? proxyStorageUrl(sessionEventObj.eventLogo || null) : null,
       userA: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: zodiacInfoB, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', verified: !!userB.verified },
       userB: { id: 'evt:' + sessionEventId, name: sessionEventObj ? sessionEventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, verified: !!(sessionEventObj && sessionEventObj.verified), eventLogo: sessionEventObj ? proxyStorageUrl(sessionEventObj.eventLogo || null) : null },
       zodiacPhrase: null
@@ -3346,6 +3350,7 @@ app.get('/api/relation-reveal/:relationId/:userId', (req, res) => {
     isCheckin, isServiceTouch: isService, eventId: evId,
     eventName: opEv ? opEv.name : null, entryPrice: opEv ? (opEv.entryPrice || 0) : 0,
     eventModules: opEv ? (opEv.modules || null) : null, acceptsTips: opEv ? !!opEv.acceptsTips : false,
+    wifiData: (opEv && opEv.wifi && opEv.wifi.enabled && opEv.wifi.ssid) ? { ssid: opEv.wifi.ssid, password: opEv.wifi.password } : null,
     eventLogo: opEv ? (opEv.eventLogo || null) : null,
     operatorId: isCheckin ? partnerId : null, operatorName: isCheckin ? (partner.nickname || '') : null,
     userA: { id: partnerId, name: partner.nickname, realName: partner.realName || null, color: partner.color, profilePhoto: partner.profilePhoto || null, photoURL: partner.photoURL || null, score: calcScore(partnerId), stars: (partner.stars || []).length, sign: signPartner, signInfo: signPartner ? ZODIAC_INFO[signPartner] : null, isPrestador: !!partner.isPrestador, serviceLabel: partner.serviceLabel || '', verified: !!partner.verified, accessory: partner.avatarAccessory || null },
@@ -8111,6 +8116,10 @@ function createSonicConnection(userIdA, userIdB) {
       operatorId: operatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
+      eventModules: eventObj ? (eventObj.modules || null) : null,
+      acceptsTips: eventObj ? !!eventObj.acceptsTips : false,
+      wifiData: (eventObj && eventObj.wifi && eventObj.wifi.enabled && eventObj.wifi.ssid) ? { ssid: eventObj.wifi.ssid, password: eventObj.wifi.password } : null,
+      eventLogo: eventObj ? proxyStorageUrl(eventObj.eventLogo || null) : null,
       // userA = visitor, userB = event (virtual)
       userA: { id: visitorUser.id, name: visitorUser.nickname || visitorUser.name, color: visitorUser.color, profilePhoto: visitorUser.profilePhoto || null, photoURL: visitorUser.photoURL || null, score: calcScore(visitorUser.id), stars: (visitorUser.stars || []).length, sign: vSign, signInfo: vSign ? ZODIAC_INFO[vSign] : null, isPrestador: !!visitorUser.isPrestador, serviceLabel: visitorUser.serviceLabel || '' },
       userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, eventLogo: eventObj ? proxyStorageUrl(eventObj.eventLogo || null) : null },
@@ -8289,6 +8298,17 @@ function createSonicConnection(userIdA, userIdB) {
           actionLabel: 'Votar',
           color: '#ec4899',
           icon: 'charevela'
+        });
+      }
+      if (ev.modules.wifi && ev.wifi && ev.wifi.enabled && ev.wifi.ssid) {
+        moduleWelcome.push({
+          key: 'wifi',
+          label: 'WiFi',
+          message: 'Conecte-se a rede ' + ev.wifi.ssid,
+          action: 'wifi',
+          actionLabel: 'Conectar',
+          color: '#06b6d4',
+          icon: 'wifi'
         });
       }
     }
