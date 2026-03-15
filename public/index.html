@@ -21507,20 +21507,18 @@ function showCharevelaRevealAnimation(data){
   ov.className='cr-reveal-overlay';
   ov.style.background='#000';
 
-  // Phase 1: "Tap to reveal" screen (user gesture needed for autoplay with audio)
-  ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap" style="cursor:pointer">'+
-    '<div style="font-size:1.5rem;font-weight:800;color:#fff;text-align:center;margin-bottom:1rem;animation:cr-count-pulse 1.5s ease-in-out infinite;text-shadow:0 0 30px rgba(255,255,255,.4)">A REVELACAO VAI COMECAR!</div>'+
-    '<div id="crTapBtn" style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#ec4899);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;animation:cr-count-pulse 1.5s ease-in-out infinite;box-shadow:0 0 40px rgba(236,72,153,.4),0 0 80px rgba(59,130,246,.2);cursor:pointer">'+
-    '<svg width="40" height="40" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>'+
-    '<div style="font-size:.9rem;color:rgba(255,255,255,.7);font-weight:600">TOQUE PARA REVELAR</div>'+
+  // Phase 1: Countdown (automatic, no tap needed, synced for everyone)
+  ov.innerHTML='<div class="cr-countdown-wrap" id="crCountdownWrap">'+
+    '<div class="cr-countdown-num" id="crCountdownNum">5</div>'+
+    '<div class="cr-countdown-label">A revelacao vai comecar...</div>'+
     '</div>'+
     '<button class="cr-reveal-close" onclick="closeCharevelaReveal()" style="z-index:10">X</button>';
   document.body.appendChild(ov);
 
-  // Vibrate to alert user
+  // Vibrate to alert
   if(navigator.vibrate)navigator.vibrate([200,100,200,100,200]);
 
-  // Preload video (muted first, unmute after user gesture)
+  // Preload video MUTED (mobile autoplay works when muted, no user gesture needed)
   var vid=document.createElement('video');
   vid.className='cr-reveal-video';
   vid.src=videoSrc;
@@ -21532,78 +21530,89 @@ function showCharevelaRevealAnimation(data){
   vid.style.display='none';
   ov.appendChild(vid);
 
-  // When user taps: start countdown then play video
-  var tapArea=$('crCountdownWrap');
-  function onUserTap(){
-    tapArea.removeEventListener('click',onUserTap);
-    if(navigator.vibrate)navigator.vibrate(50);
+  // Also preload audio separately via Web Audio API (bypasses autoplay restrictions)
+  var audioCtx=null;
+  var audioBuffer=null;
+  try{
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    fetch(videoSrc).then(function(r){return r.arrayBuffer()}).then(function(buf){
+      return audioCtx.decodeAudioData(buf);
+    }).then(function(decoded){
+      audioBuffer=decoded;
+      console.log('[reveal] audio preloaded via Web Audio API');
+    }).catch(function(e){console.warn('[reveal] audio preload failed:',e.message)});
+  }catch(e){console.warn('[reveal] Web Audio API not available:',e.message)}
 
-    // Try to unlock audio context right on user gesture
-    try{var ac=new(window.AudioContext||window.webkitAudioContext)();ac.resume();setTimeout(function(){ac.close()},1000)}catch(e){}
+  // Automatic countdown - same timing for everyone
+  var count=5;
+  var countEl=$('crCountdownNum');
+  var countInterval=setInterval(function(){
+    count--;
+    if(countEl)countEl.textContent=count;
+    if(navigator.vibrate)navigator.vibrate(count<=2?100:50);
+    if(count<=3&&countEl){
+      countEl.style.fontSize='12rem';
+      countEl.style.color=(count<=1)?color:'#fff';
+    }
+    if(count<=0){
+      clearInterval(countInterval);
+      // Phase 2: Play video (muted = guaranteed autoplay on mobile)
+      var wrap=$('crCountdownWrap');
+      if(wrap)wrap.style.display='none';
+      vid.style.display='block';
+      vid.currentTime=0;
+      vid.play().then(function(){
+        console.log('[reveal] video playing (muted)');
+        // Try to unmute after play started (some browsers allow this)
+        try{vid.muted=false}catch(e){}
+      }).catch(function(e){
+        console.warn('[reveal] muted autoplay failed:',e.message);
+      });
 
-    // Start muted playback immediately (on user gesture = guaranteed to work)
-    vid.muted=true;
-    vid.play().catch(function(e){console.warn('[reveal] preplay err:',e.message)});
-    vid.pause();
-    vid.currentTime=0;
-
-    // Show countdown
-    tapArea.innerHTML='<div class="cr-countdown-num" id="crCountdownNum">5</div>'+
-      '<div class="cr-countdown-label">Preparados...</div>';
-    var count=5;
-    var countEl=$('crCountdownNum');
-    var countInterval=setInterval(function(){
-      count--;
-      if(countEl)countEl.textContent=count;
-      if(navigator.vibrate)navigator.vibrate(count<=2?100:50);
-      if(count<=3&&countEl){
-        countEl.style.fontSize='12rem';
-        countEl.style.color=(count<=1)?color:'#fff';
+      // Play audio via Web Audio API (works without user gesture on most browsers)
+      if(audioCtx&&audioBuffer){
+        try{
+          audioCtx.resume().then(function(){
+            var source=audioCtx.createBufferSource();
+            source.buffer=audioBuffer;
+            source.connect(audioCtx.destination);
+            source.start(0);
+            console.log('[reveal] Web Audio playing');
+          }).catch(function(e){console.warn('[reveal] audioCtx resume failed:',e.message)});
+        }catch(e){console.warn('[reveal] Web Audio play failed:',e.message)}
       }
-      if(count<=0){
-        clearInterval(countInterval);
-        // Phase 2: Play video WITH audio (user gesture chain)
-        var wrap=$('crCountdownWrap');
-        if(wrap)wrap.style.display='none';
-        vid.style.display='block';
-        vid.currentTime=0;
-        vid.muted=false;
-        vid.play().then(function(){
-          console.log('[reveal] video playing with audio');
-        }).catch(function(e){
-          console.warn('[reveal] unmuted play blocked, trying muted:', e.message);
-          vid.muted=true;
-          vid.play().catch(function(e2){console.error('[reveal] even muted play failed:',e2.message)});
-        });
-        if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
 
-        // Phase 3: Show baby name overlay near the reveal moment (~8s into video)
-        if(babyName){
-          setTimeout(function(){
-            var nameWrap=document.createElement('div');
-            nameWrap.className='cr-baby-name-bg';
-            nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
-            if(ov.parentNode)ov.appendChild(nameWrap);
-          },7000);
-        }
-        // Show label (Menino/Menina)
+      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+
+      // Phase 3: Show baby name overlay near the reveal moment (~8s into video)
+      if(babyName){
         setTimeout(function(){
-          var labelEl=document.createElement('div');
-          labelEl.className='cr-reveal-text';
-          labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
-          labelEl.textContent=label;
-          if(ov.parentNode)ov.appendChild(labelEl);
-        },8500);
-        // Auto-close after video ends + 5s
-        vid.onended=function(){
-          setTimeout(function(){closeCharevelaReveal()},5000);
-        };
-        // Fallback auto-close after 25s
-        setTimeout(function(){closeCharevelaReveal()},25000);
+          var nameWrap=document.createElement('div');
+          nameWrap.className='cr-baby-name-bg';
+          nameWrap.innerHTML='<div class="cr-baby-name" style="position:relative;bottom:auto;animation-delay:0s">'+esc(babyName)+'</div>';
+          if(ov.parentNode)ov.appendChild(nameWrap);
+        },7000);
       }
-    },1000);
-  }
-  tapArea.addEventListener('click',onUserTap);
+      // Show label (Menino/Menina)
+      setTimeout(function(){
+        var labelEl=document.createElement('div');
+        labelEl.className='cr-reveal-text';
+        labelEl.style.cssText='position:absolute;top:12%;left:0;right:0;z-index:4;font-size:1.6rem';
+        labelEl.textContent=label;
+        if(ov.parentNode)ov.appendChild(labelEl);
+      },8500);
+      // Auto-close after video ends + 5s
+      vid.onended=function(){
+        if(audioCtx){try{audioCtx.close()}catch(e){}}
+        setTimeout(function(){closeCharevelaReveal()},5000);
+      };
+      // Fallback auto-close after 25s
+      setTimeout(function(){
+        if(audioCtx){try{audioCtx.close()}catch(e){}}
+        closeCharevelaReveal();
+      },25000);
+    }
+  },1000);
 }
 
 function shiftColor(hex,amount){
