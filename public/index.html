@@ -6053,6 +6053,188 @@ async function userRunOCR(base64){
   }
 }
 
+// ═══ PARKING CHECKIN FLOW (inline from reveal screen) ═══
+var _parkCheckinEventId=null;
+var _parkCheckinEvName=null;
+var _parkCheckinOpId=null;
+var _parkCheckinConfig=null;
+
+async function openParkingCheckinFlow(eventId,evName,opId){
+  _parkCheckinEventId=eventId;
+  _parkCheckinEvName=evName;
+  _parkCheckinOpId=opId;
+  // Create or show overlay
+  if(!$('parkCheckinOverlay')){
+    var ov=document.createElement('div');
+    ov.id='parkCheckinOverlay';
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:250;background:rgba(5,5,12,.97);display:flex;flex-direction:column;overflow:hidden';
+    ov.innerHTML='<div style="display:flex;align-items:center;padding:.7rem 1rem;background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(52,211,153,.06));border-bottom:1px solid rgba(59,130,246,.15);gap:.6rem">'+
+      '<button onclick="closeParkingCheckinFlow()" style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(59,130,246,.2);background:rgba(59,130,246,.06);color:#3b82f6;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">&#8592;</button>'+
+      '<div style="flex:1"><div style="text-align:center;font-size:.82rem;font-weight:700;color:#3b82f6;letter-spacing:.02em">Estacionamento</div>'+
+      '<div style="font-size:.55rem;color:var(--t3);text-align:center" id="parkCheckinEvName"></div></div>'+
+      '<div style="width:34px"></div></div>'+
+      '<div id="parkCheckinBody" style="flex:1;overflow-y:auto;padding:1rem;-webkit-overflow-scrolling:touch"></div>';
+    document.body.appendChild(ov);
+  }
+  $('parkCheckinOverlay').style.display='';
+  if($('parkCheckinEvName'))$('parkCheckinEvName').textContent=evName||'';
+  // Load config and render
+  var body=$('parkCheckinBody');
+  body.innerHTML='<div style="padding:2rem;text-align:center;color:var(--t3);font-size:.75rem">Carregando...</div>';
+  try{
+    var r=await fetch('/api/event/'+eventId+'/parking');
+    var d=await r.json();
+    _parkCheckinConfig=d;
+    renderParkCheckinFlow();
+  }catch(e){
+    body.innerHTML='<div style="padding:2rem;text-align:center;color:#ef4444;font-size:.75rem">Erro ao carregar estacionamento</div>';
+  }
+}
+
+function closeParkingCheckinFlow(){
+  if($('parkCheckinOverlay'))$('parkCheckinOverlay').style.display='none';
+}
+
+function renderParkCheckinFlow(){
+  var body=$('parkCheckinBody');
+  if(!body||!_parkCheckinConfig)return;
+  var d=_parkCheckinConfig;
+  var savedVehicles=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
+  var h='';
+  // Pricing info
+  var rateText='';
+  if(d.pricingMode==='periods'&&d.periods&&d.periods.length>0){
+    rateText=d.periods.map(function(p){return p.label+': R$'+Number(p.price||0).toFixed(2)}).join(' | ');
+  }else{
+    rateText='R$'+Number(d.hourlyRate||10).toFixed(2)+'/hora';
+  }
+  var modeText=d.mode==='prepaid'?'Pagar na entrada':d.mode==='postpaid'?'Pagar na saida':'Flexivel';
+  h+='<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:14px;padding:.8rem;margin-bottom:1rem;text-align:center">';
+  h+='<div style="font-size:.65rem;color:#3b82f6;font-weight:600;margin-bottom:.3rem">'+modeText+'</div>';
+  h+='<div style="font-size:.55rem;color:var(--t3)">'+rateText+'</div>';
+  if(d.tolerance&&d.tolerance>0)h+='<div style="font-size:.5rem;color:var(--t3);margin-top:.2rem">Tolerancia: '+d.tolerance+' min gratis</div>';
+  h+='</div>';
+
+  // If user has saved vehicles, show them for quick confirm
+  if(savedVehicles.length>0){
+    h+='<div style="margin-bottom:1rem">';
+    h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">Seus veiculos salvos</div>';
+    for(var i=0;i<savedVehicles.length;i++){
+      var plate=savedVehicles[i];
+      h+='<div style="display:flex;align-items:center;gap:.6rem;padding:.7rem;background:rgba(52,211,153,.06);border:1.5px solid rgba(52,211,153,.2);border-radius:12px;margin-bottom:.5rem;cursor:pointer" onclick="confirmParkCheckin(\''+plate+'\')">';
+      h+='<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg></div>';
+      h+='<div style="flex:1"><div style="font-size:.85rem;font-weight:800;color:var(--t1);letter-spacing:.1em">'+esc(plate)+'</div>';
+      h+='<div style="font-size:.55rem;color:var(--t3)">Toque para confirmar entrada</div></div>';
+      h+='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+      h+='</div>';
+    }
+    h+='</div>';
+    h+='<div style="text-align:center;margin-bottom:1rem"><div style="font-size:.55rem;color:var(--t3)">ou cadastre um novo veiculo</div></div>';
+  }
+
+  // New vehicle form
+  h+='<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:1rem">';
+  h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.6rem">'+(savedVehicles.length>0?'Novo veiculo':'Cadastrar veiculo')+'</div>';
+  h+='<div style="margin-bottom:.6rem">';
+  h+='<input id="parkCheckinPlate" placeholder="ABC1D23" maxlength="10" style="width:100%;padding:.6rem .8rem;background:var(--bg);border:1.5px solid rgba(59,130,246,.2);border-radius:12px;color:var(--t1);font-size:.9rem;font-family:inherit;text-transform:uppercase;outline:none;text-align:center;letter-spacing:.15em;font-weight:700" onfocus="this.style.borderColor=\'#3b82f6\'" onblur="this.style.borderColor=\'rgba(59,130,246,.2)\'">';
+  h+='</div>';
+  h+='<button onclick="submitParkCheckinNewPlate()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit;letter-spacing:.02em">Registrar e Entrar</button>';
+  h+='<div id="parkCheckinStatus" style="font-size:.6rem;text-align:center;min-height:1.2em;margin-top:.5rem;color:var(--t3)"></div>';
+  h+='</div>';
+
+  body.innerHTML=h;
+}
+
+async function confirmParkCheckin(plate){
+  if(!_parkCheckinEventId||!state.userId)return;
+  var body=$('parkCheckinBody');
+  // Show confirmation loading
+  body.innerHTML='<div style="text-align:center;padding:2rem">'+
+    '<div style="font-size:1.2rem;font-weight:800;color:var(--t1);letter-spacing:.15em;margin-bottom:.5rem">'+esc(plate)+'</div>'+
+    '<div style="font-size:.7rem;color:var(--t3);margin-bottom:1rem">Registrando entrada...</div>'+
+    '<div style="width:40px;height:40px;border:3px solid rgba(59,130,246,.2);border-top-color:#3b82f6;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite"></div>'+
+    '</div>';
+  try{
+    var r=await fetch('/api/event/'+_parkCheckinEventId+'/parking/register',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,plate:plate})
+    });
+    var d=await r.json();
+    if(r.ok&&d.ok){
+      showParkCheckinSuccess(plate);
+    }else{
+      showParkCheckinError(d.error||'Erro ao registrar');
+    }
+  }catch(e){
+    showParkCheckinError('Erro de conexao');
+  }
+}
+
+async function submitParkCheckinNewPlate(){
+  var plateEl=$('parkCheckinPlate');
+  var statusEl=$('parkCheckinStatus');
+  if(!plateEl||!_parkCheckinEventId)return;
+  var plate=(plateEl.value||'').toUpperCase().trim();
+  if(!plate){
+    if(statusEl){statusEl.textContent='Digite a placa do veiculo';statusEl.style.color='#ef4444'}
+    return;
+  }
+  if(statusEl){statusEl.textContent='Registrando...';statusEl.style.color='#3b82f6'}
+  try{
+    var r=await fetch('/api/event/'+_parkCheckinEventId+'/parking/register',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,plate:plate})
+    });
+    var d=await r.json();
+    if(r.ok&&d.ok){
+      // Save to localStorage
+      var saved=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
+      if(!saved.includes(plate)){saved.push(plate);localStorage.setItem('touch_my_vehicles',JSON.stringify(saved))}
+      showParkCheckinSuccess(plate);
+    }else{
+      if(statusEl){statusEl.textContent=d.error||'Erro ao registrar';statusEl.style.color='#ef4444'}
+    }
+  }catch(e){
+    if(statusEl){statusEl.textContent='Erro de conexao';statusEl.style.color='#ef4444'}
+  }
+}
+
+function showParkCheckinSuccess(plate){
+  var body=$('parkCheckinBody');
+  if(!body)return;
+  var d=_parkCheckinConfig||{};
+  var rateText=d.pricingMode==='periods'&&d.periods&&d.periods.length>0
+    ?d.periods.map(function(p){return p.label+': R$'+Number(p.price||0).toFixed(2)}).join(' | ')
+    :'R$'+Number(d.hourlyRate||10).toFixed(2)+'/hora';
+  var now=new Date();
+  var timeStr=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+  body.innerHTML='<div style="text-align:center;padding:1.5rem">'+
+    '<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#34d399,#10b981);display:flex;align-items:center;justify-content:center;margin:0 auto .8rem"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>'+
+    '<div style="font-size:1rem;font-weight:800;color:#34d399;margin-bottom:.3rem">Veiculo registrado!</div>'+
+    '<div style="font-size:1.3rem;font-weight:900;color:var(--t1);letter-spacing:.15em;margin:.5rem 0">'+esc(plate)+'</div>'+
+    '<div style="font-size:.65rem;color:var(--t3);margin-bottom:.3rem">Entrada: '+timeStr+'</div>'+
+    '<div style="font-size:.6rem;color:var(--t3)">'+rateText+'</div>'+
+    '<div style="margin-top:1.5rem;padding:.6rem;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:10px">';
+  if(d.mode==='postpaid'||d.mode==='both'){
+    body.innerHTML+='<div style="font-size:.6rem;color:#3b82f6">O tempo comecou a contar. Pague ao sair.</div>';
+  }else{
+    body.innerHTML+='<div style="font-size:.6rem;color:#3b82f6">Entrada confirmada.</div>';
+  }
+  body.innerHTML+='</div>'+
+    '<button onclick="closeParkingCheckinFlow();showEventView(\''+_parkCheckinEventId+'\',\''+esc(_parkCheckinEvName||'Evento')+'\')" style="margin-top:1.5rem;width:100%;padding:.7rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit">Entrar no Evento</button>'+
+    '</div>';
+}
+
+function showParkCheckinError(msg){
+  var body=$('parkCheckinBody');
+  if(!body)return;
+  body.innerHTML='<div style="text-align:center;padding:2rem">'+
+    '<div style="width:64px;height:64px;border-radius:50%;background:rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center;margin:0 auto .8rem"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>'+
+    '<div style="font-size:.85rem;font-weight:700;color:#ef4444;margin-bottom:.5rem">'+esc(msg)+'</div>'+
+    '<button onclick="renderParkCheckinFlow()" style="margin-top:1rem;padding:.6rem 1.5rem;border-radius:12px;border:1px solid rgba(59,130,246,.3);background:rgba(59,130,246,.06);color:#3b82f6;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">Tentar novamente</button>'+
+    '</div>';
+}
+
 // ═══════════════════════════════════════════════════
 // ═══ GYM USER VIEW ═══
 // ═══════════════════════════════════════════════════
@@ -8417,6 +8599,22 @@ function doReveal(data){
     // Menu button (if event has restaurant module)
     if(hasMenu&&evId){
       h+=_rvBtn(_menuIco,'Cardapio',"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"');setTimeout(function(){openEventMenu()},400)",'');
+    }
+    // Parking button (if event has parking module) - opens inline parking flow
+    if(evModules.parking&&evId){
+      h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>','Estacionar',"openParkingCheckinFlow('"+evId+"','"+esc(evName)+"','"+opId+"')",'');
+    }
+    // Gym button (if event has gym module)
+    if(evModules.gym&&evId){
+      h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11"/><path d="M4 10h16M4 14h16"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/></svg>','Academia',"quickOpenModule('"+evId+"','gym')",'');
+    }
+    // Church button (if event has church module)
+    if(evModules.church&&evId){
+      h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8M8 6h8M6 22V10h12v12"/><path d="M10 22v-4a2 2 0 014 0v4"/></svg>','Igreja',"quickOpenModule('"+evId+"','church')",'');
+    }
+    // Barber button (if event has barber module)
+    if(evModules.barber&&evId){
+      h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8V5a1 1 0 00-1-1H9a1 1 0 00-1 1v3"/><path d="M8 16v3a1 1 0 001 1h6a1 1 0 001-1v-3"/></svg>','Barbearia',"quickOpenModule('"+evId+"','barber')",'');
     }
     // Karaoke button (if event has karaoke module)
     if(evModules.karaoke&&evId){
