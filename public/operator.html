@@ -7242,7 +7242,7 @@ function renderOrders(){
   var orders=REST.orders.slice().sort(function(a,b){return b.createdAt-a.createdAt});
   var total=0;
   orders.forEach(function(o){
-    if(o.status==='cancelled')return;
+    if(o.status==='cancelled'||o.status==='refunded')return;
     // 'paid' status maps to 'pending' column (paid orders await preparation)
     var effectiveStatus=(o.status==='paid')?'pending':o.status;
     var col=cols[effectiveStatus];
@@ -7260,6 +7260,8 @@ function renderOrders(){
     if(effectiveStatus==='ready'){var isPaid=(o.status==='paid'||o.paymentMethod==='card');var delType=o.deliveryType||'pickup';advBtn='<button class="postit-btn advance" data-next="delivered" onclick="handleDeliverOrder(\''+o.id+'\','+isPaid+',\''+delType+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/></svg> Entregar</button>';}
     var cancelBtn='';
     if(effectiveStatus!=='delivered')cancelBtn='<button class="postit-btn cancel" onclick="advanceOrder(\''+o.id+'\',\'cancelled\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+    var refundBtn='';
+    if(o.stripePaymentIntentId&&(o.status==='paid'||effectiveStatus==='delivered')&&!o.refunded)refundBtn='<button class="postit-btn" style="background:rgba(59,130,246,.15);color:#3b82f6;border:1px solid rgba(59,130,246,.3)" onclick="refundOrder(\''+o.id+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg> Reembolsar</button>';
     var printBtn='<button class="postit-btn print" onclick="printOrder(\''+o.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>';
     var card=document.createElement('div');
     card.className='postit'+(effectiveStatus==='pending'?' urgent':'')+' entering';
@@ -7288,7 +7290,7 @@ function renderOrders(){
         +(o.tipAmount>0?' <span style="font-size:.55rem;color:#22c55e;font-weight:500">+ Gorjeta: R$ '+(o.tipAmount||0).toFixed(2).replace('.',',')+'</span>':'')
         +'<br>R$ '+(o.total||0).toFixed(2).replace('.',',')
       +'</div>'+
-      '<div class="postit-actions">'+advBtn+printBtn+cancelBtn+'</div>';
+      '<div class="postit-actions">'+advBtn+refundBtn+printBtn+cancelBtn+'</div>';
     col.appendChild(card);
     setTimeout(function(){card.classList.remove('entering')},400);
   });
@@ -7297,6 +7299,33 @@ function renderOrders(){
   if($('kcReady'))$('kcReady').textContent=counts.ready;
   if($('kcDelivered'))$('kcDelivered').textContent=counts.delivered;
   if($('kanbanInfo'))$('kanbanInfo').textContent=total+' pedido'+(total!==1?'s':'');
+}
+
+// Refund order — operator refunds a specific order via Stripe
+async function refundOrder(orderId){
+  if(!confirm('Reembolsar este pedido? O valor sera estornado no cartao do cliente.'))return;
+  var reason=prompt('Motivo do reembolso (opcional):','Pedido cancelado pelo estabelecimento');
+  try{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/refund-order',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orderId:orderId,reason:reason||'',operatorId:S.operatorId})
+    });
+    var d=await r.json();
+    if(d.ok){
+      // Update local order
+      var order=REST.orders.find(function(o){return o.id===orderId});
+      if(order){order.refunded=true;order.status='cancelled';order.refundId=d.refund.id}
+      renderOrders();
+      if(REST.activeTab==='dashboard')renderRestDashboard();
+      // Show confirmation
+      var toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(59,130,246,.95);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;white-space:nowrap';
+      toast.textContent='Reembolso de R$'+(d.refund.amount||0).toFixed(2).replace('.',',')+' processado';
+      document.body.appendChild(toast);setTimeout(function(){toast.remove()},5000);
+    }else{
+      alert(d.error||'Erro ao processar reembolso');
+    }
+  }catch(e){alert('Erro de conexao ao processar reembolso')}
 }
 
 function toggleOrdersFullscreen(){
@@ -7431,7 +7460,7 @@ function showTableDetail(tableNum,orders){
 function renderRestDashboard(){
   const stats=$('restStats');
   const totalOrders=REST.orders.length;
-  const activeOrders=REST.orders.filter(o=>o.status!=='cancelled');
+  const activeOrders=REST.orders.filter(o=>o.status!=='cancelled'&&o.status!=='refunded');
   const revenue=activeOrders.reduce((s,o)=>s+(o.total||0),0);
   const revenueProducts=activeOrders.reduce((s,o)=>s+(o.subtotal||o.total||0),0);
   const revenueTips=activeOrders.reduce((s,o)=>s+(o.tipAmount||0),0);
@@ -7442,6 +7471,8 @@ function renderRestDashboard(){
   const ready=REST.orders.filter(o=>o.status==='ready').length;
   const delivered=REST.orders.filter(o=>o.status==='delivered').length;
   const cancelled=REST.orders.filter(o=>o.status==='cancelled').length;
+  const refunded=REST.orders.filter(o=>o.status==='refunded'||o.refunded).length;
+  const refundedAmount=REST.orders.filter(o=>o.refunded).reduce((s,o)=>s+(o.refundAmount||o.total||0),0);
 
   stats.innerHTML=
     '<div class="rest-stat"><div class="rest-stat-val">'+totalOrders+'</div><div class="rest-stat-label">Pedidos</div></div>'+
@@ -7453,7 +7484,9 @@ function renderRestDashboard(){
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#fbbf24">'+pending+'</div><div class="rest-stat-label">Novos</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#3b82f6">'+preparing+'</div><div class="rest-stat-label">Preparando</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#34d399">'+ready+'</div><div class="rest-stat-label">Prontos</div></div>'+
-    '<div class="rest-stat"><div class="rest-stat-val" style="color:#71717a">'+delivered+'</div><div class="rest-stat-label">Entregues</div></div>';
+    '<div class="rest-stat"><div class="rest-stat-val" style="color:#71717a">'+delivered+'</div><div class="rest-stat-label">Entregues</div></div>'+
+    (refunded>0?'<div class="rest-stat"><div class="rest-stat-val" style="color:#3b82f6">'+refunded+'</div><div class="rest-stat-label">Reembolsados</div></div>'+
+    '<div class="rest-stat"><div class="rest-stat-val" style="color:#ef4444">-R$ '+refundedAmount.toFixed(2).replace('.',',')+'</div><div class="rest-stat-label">Devolvido</div></div>':'');
 
   // Top items
   const itemCounts={};
@@ -7508,6 +7541,35 @@ function initRestSocket(){
     document.body.appendChild(t);setTimeout(function(){t.remove()},6000);
     // Auto-refresh financial panel if open
     if($('opFinPanel')&&$('opFinPanel').style.display!=='none')showFinancialPanel();
+  });
+
+  // Dispute/chargeback alert for operators
+  S.socket.on('dispute-alert',function(data){
+    playOrderBeep();playOrderBeep();
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1.5rem';
+    overlay.innerHTML='<div style="background:#7f1d1d;border:2px solid #ef4444;border-radius:20px;padding:1.5rem;max-width:380px;width:100%;text-align:center">'
+      +'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+      +'<div style="font-size:1.1rem;font-weight:800;color:#ef4444;margin:.8rem 0 .3rem">CHARGEBACK RECEBIDO</div>'
+      +'<div style="font-size:1.8rem;font-weight:900;color:#fff;margin-bottom:.5rem">$'+(data.amount||0).toFixed(2)+'</div>'
+      +'<div style="font-size:.75rem;color:rgba(255,255,255,.7);margin-bottom:.3rem">Motivo: '+(data.reason||'Nao informado')+'</div>'
+      +(data.evidenceDueBy?'<div style="font-size:.7rem;color:#fbbf24;margin-bottom:.8rem">Prazo para evidencia: '+data.evidenceDueBy.split('T')[0]+'</div>':'')
+      +'<div style="font-size:.65rem;color:rgba(255,255,255,.5);margin-bottom:1rem">Acesse o Stripe Dashboard para responder a disputa com evidencias.</div>'
+      +'<button onclick="this.closest(\'div[style]\').parentElement.remove()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:#ef4444;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Entendi</button>'
+    +'</div>';
+    document.body.appendChild(overlay);
+  });
+
+  // Order refunded notification for operator
+  S.socket.on('order-refunded',function(data){
+    if(data.eventId!==S.currentEventId)return;
+    var toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(59,130,246,.95);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s;white-space:nowrap';
+    toast.textContent='Pedido reembolsado: R$'+(data.amount||0).toFixed(2).replace('.',',');
+    document.body.appendChild(toast);setTimeout(function(){toast.remove()},5000);
+    // Refresh orders and dashboard
+    loadOrders();
+    if(REST.activeTab==='dashboard')renderRestDashboard();
   });
 }
 

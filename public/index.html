@@ -4822,9 +4822,32 @@ function initSocket(){
   socket.on('tip-received',({amount,from,status})=>{
     if(status==='approved'){
       haptic([100,50,100,50,100]);playSound('connect');
-      showToast('💰 Gorjeta recebida! R$'+amount.toFixed(2).replace('.',',')+' de '+from);
+      showToast('Gorjeta recebida! R$'+amount.toFixed(2).replace('.',',')+' de '+from);
     }else if(status==='pending'||status==='in_process'){
-      showToast('⏳ Gorjeta de R$'+amount.toFixed(2).replace('.',',')+' em processamento.');
+      showToast('Gorjeta de R$'+amount.toFixed(2).replace('.',',')+' em processamento.');
+    }
+  });
+  // Payment failed notification
+  socket.on('payment-failed',function(data){
+    haptic([50,30,50]);
+    var msg='Pagamento nao aprovado';
+    if(data.reason){
+      var reasons={'card_declined':'Cartao recusado pelo banco','insufficient_funds':'Saldo insuficiente','expired_card':'Cartao vencido','incorrect_cvc':'CVV incorreto','processing_error':'Erro de processamento'};
+      msg=reasons[data.reason]||data.reason;
+    }
+    showPaymentAlert('failed',msg,data.amount);
+  });
+  // Refund processed notification
+  socket.on('refund-processed',function(data){
+    haptic([60,40,60]);
+    showPaymentAlert('refund','Reembolso de R$'+(data.amount||0).toFixed(2).replace('.',',')+' processado. O valor sera estornado no seu cartao em ate 10 dias uteis.',data.amount);
+  });
+  // Order refunded by operator
+  socket.on('order-refunded',function(data){
+    haptic([60,40,60]);
+    showPaymentAlert('refund','Seu pedido foi cancelado e o valor de R$'+(data.amount||0).toFixed(2).replace('.',',')+' sera estornado.'+(data.reason?' Motivo: '+data.reason:''),data.amount);
+    if(typeof openOrderHistory==='function'&&$('evOrderHistoryOverlay')&&$('evOrderHistoryOverlay').style.display!=='none'){
+      openOrderHistory();
     }
   });
   // ── Karaoke socket events ──
@@ -5854,8 +5877,8 @@ async function openOrderHistory(){
     el.innerHTML=orders.map(function(o){
       var date=new Date(o.createdAt);
       var dateStr=date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      var statusColors={paid:'#22c55e',pending:'#eab308',preparing:'#3b82f6',ready:'#a855f7',delivered:'#22c55e',cancelled:'#ef4444'};
-      var statusLabels={paid:'Pago',pending:'Pendente',preparing:'Preparando',ready:'Pronto',delivered:'Entregue',cancelled:'Cancelado'};
+      var statusColors={paid:'#22c55e',pending:'#eab308',preparing:'#3b82f6',ready:'#a855f7',delivered:'#22c55e',cancelled:'#ef4444',refunded:'#3b82f6',failed:'#ef4444',partially_refunded:'#f59e0b'};
+      var statusLabels={paid:'Pago',pending:'Pendente',preparing:'Preparando',ready:'Pronto',delivered:'Entregue',cancelled:'Cancelado',refunded:'Reembolsado',failed:'Falhou',partially_refunded:'Reembolso parcial'};
       var sc=statusColors[o.status]||'#eab308';
       var sl=statusLabels[o.status]||o.status;
       return '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:.8rem;margin-bottom:.6rem">'
@@ -5881,6 +5904,9 @@ async function openOrderHistory(){
             +'<div style="font-size:.8rem;font-weight:700;color:#f97316">R$'+(o.total||0).toFixed(2).replace('.',',')+'</div>'
           +'</div>'
         +'</div>'
+        +(o.status==='refunded'?'<div style="text-align:center;padding:.3rem;margin-top:.3rem;background:#3b82f610;border-radius:8px;font-size:.6rem;color:#3b82f6;font-weight:600">Valor estornado'+(o.refundedAt?' em '+new Date(o.refundedAt).toLocaleDateString('pt-BR'):'')+'</div>':'')
+        +(o.status==='failed'?'<div style="text-align:center;padding:.3rem;margin-top:.3rem;background:#ef444410;border-radius:8px;font-size:.6rem;color:#ef4444;font-weight:600">Pagamento nao aprovado'+(o.failReason?' - '+esc(o.failReason):'')+'</div>':'')
+        +((o.status==='paid'||o.status==='delivered')&&o.stripePaymentIntentId&&(Date.now()-(o.createdAt||0))<86400000?'<button onclick="requestRefund(\''+esc(o.tipId||o.id)+'\')" style="width:100%;margin-top:.4rem;padding:.4rem;border-radius:10px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#ef4444;font-size:.6rem;font-weight:600;cursor:pointer;font-family:inherit"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>Solicitar reembolso</button>':'')
       +'</div>';
     }).join('');
   }catch(e){
@@ -5889,6 +5915,41 @@ async function openOrderHistory(){
 }
 
 function closeOrderHistory(){$('evOrderHistoryOverlay').style.display='none'}
+
+// Payment alert overlay (failed, refund, dispute)
+function showPaymentAlert(type,message,amount){
+  var existing=document.querySelector('.payment-alert-overlay');
+  if(existing)existing.remove();
+  var colors={failed:{bg:'#7f1d1d',border:'#ef4444',icon:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',title:'Pagamento nao aprovado'},refund:{bg:'#1e3a5f',border:'#3b82f6',icon:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>',title:'Reembolso processado'}};
+  var c=colors[type]||colors.failed;
+  var overlay=document.createElement('div');
+  overlay.className='payment-alert-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:fadeIn .3s';
+  overlay.innerHTML='<div style="background:'+c.bg+';border:1px solid '+c.border+'40;border-radius:20px;padding:1.5rem;max-width:340px;width:100%;text-align:center">'
+    +'<div style="margin-bottom:1rem">'+c.icon+'</div>'
+    +'<div style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:.5rem">'+c.title+'</div>'
+    +(amount?'<div style="font-size:1.4rem;font-weight:800;color:'+c.border+';margin-bottom:.5rem">R$'+amount.toFixed(2).replace('.',',')+'</div>':'')
+    +'<div style="font-size:.75rem;color:rgba(255,255,255,.7);line-height:1.4;margin-bottom:1.2rem">'+esc(message)+'</div>'
+    +'<button onclick="this.closest(\'.payment-alert-overlay\').remove()" style="width:100%;padding:.7rem;border-radius:14px;border:none;background:'+c.border+';color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit">Entendi</button>'
+  +'</div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){if(overlay.parentElement)overlay.remove()},30000);
+}
+
+// Request refund from order history
+async function requestRefund(tipId){
+  if(!confirm('Solicitar reembolso desta transacao? O valor sera estornado no seu cartao.'))return;
+  try{
+    var r=await fetch('/api/stripe/refund-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipId:tipId,userId:state.userId,reason:'Solicitado pelo usuario'})});
+    var d=await r.json();
+    if(d.ok){
+      showPaymentAlert('refund','Reembolso de R$'+(d.refund.amount||0).toFixed(2).replace('.',',')+' solicitado com sucesso! O valor sera estornado no seu cartao em ate 10 dias uteis.',d.refund.amount);
+      if(typeof openOrderHistory==='function')openOrderHistory();
+    }else{
+      showToast(d.error||'Erro ao solicitar reembolso');
+    }
+  }catch(e){showToast('Erro de conexao ao solicitar reembolso')}
+}
 
 async function submitOrder(method){
   if(!evCart.length)return showToast(t('events.empty_cart_msg'));
