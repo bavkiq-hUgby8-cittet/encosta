@@ -1959,10 +1959,32 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <span style="font-size:.6rem;color:var(--t3)" id="opFinCount">0 transações</span>
     </div>
     <div id="opFinList" style="display:flex;flex-direction:column;gap:.4rem"></div>
-    <div style="margin-top:1.5rem;padding:.8rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:12px">
-      <div style="font-size:.7rem;font-weight:600;color:var(--ac2);margin-bottom:.3rem">Mercado Pago</div>
-      <div style="font-size:.6rem;color:var(--t3);line-height:1.5" id="opMpStatus">Verificando...</div>
-      <button onclick="connectMercadoPago()" style="margin-top:.5rem;padding:.4rem .8rem;background:rgba(0,158,227,.15);border:1px solid rgba(0,158,227,.3);border-radius:8px;color:#009ee3;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer" id="opMpConnectBtn">Conectar Mercado Pago</button>
+    <!-- Payment integrations -->
+    <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:.6rem">
+      <!-- Stripe Connect -->
+      <div style="padding:.8rem;background:rgba(99,91,255,.08);border:1px solid rgba(99,91,255,.2);border-radius:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+          <div style="font-size:.7rem;font-weight:600;color:#635bff">Stripe</div>
+          <span style="font-size:.55rem;padding:.1rem .4rem;border-radius:6px;background:rgba(99,91,255,.1);color:#635bff">USD / Global</span>
+        </div>
+        <div style="font-size:.6rem;color:var(--t3);line-height:1.5" id="opStripeStatus">Verificando...</div>
+        <button onclick="connectStripeAccount()" style="margin-top:.5rem;padding:.4rem .8rem;background:rgba(99,91,255,.15);border:1px solid rgba(99,91,255,.3);border-radius:8px;color:#635bff;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer" id="opStripeConnectBtn">Conectar Stripe</button>
+      </div>
+      <!-- Mercado Pago -->
+      <div style="padding:.8rem;background:rgba(0,158,227,.08);border:1px solid rgba(0,158,227,.2);border-radius:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+          <div style="font-size:.7rem;font-weight:600;color:#009ee3">Mercado Pago</div>
+          <span style="font-size:.55rem;padding:.1rem .4rem;border-radius:6px;background:rgba(0,158,227,.1);color:#009ee3">BRL / PIX</span>
+        </div>
+        <div style="font-size:.6rem;color:var(--t3);line-height:1.5" id="opMpStatus">Verificando...</div>
+        <button onclick="connectMercadoPago()" style="margin-top:.5rem;padding:.4rem .8rem;background:rgba(0,158,227,.15);border:1px solid rgba(0,158,227,.3);border-radius:8px;color:#009ee3;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer" id="opMpConnectBtn">Conectar Mercado Pago</button>
+      </div>
+      <!-- Saiba mais link -->
+      <a href="/partners" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.6rem;background:linear-gradient(135deg,rgba(212,167,69,.08),rgba(212,167,69,.03));border:1px solid rgba(212,167,69,.2);border-radius:10px;text-decoration:none;transition:.2s" onmouseover="this.style.borderColor='rgba(212,167,69,.4)'" onmouseout="this.style.borderColor='rgba(212,167,69,.2)'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4a745" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span style="font-size:.65rem;font-weight:600;color:#d4a745">Saiba mais sobre taxas, prazos e diferenciais</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d4a745" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
     </div>
   </div>
 
@@ -5289,15 +5311,31 @@ async function showFinancialPanel(){
       el.innerHTML='<div style="font-size:.85rem">'+(isReceived?'💰':'💳')+'</div><div style="flex:1"><div style="font-size:.7rem;font-weight:600">'+(isReceived?'De: '+esc(t.payerName):'Para: '+esc(t.receiverName))+'</div><div style="font-size:.55rem;color:var(--t3)">'+dateStr+'</div></div><div style="text-align:right"><div style="font-size:.8rem;font-weight:700;color:'+(isReceived?'var(--ok)':'var(--t1)')+'">R$'+t.amount.toFixed(2).replace('.',',')+'</div><div style="font-size:.55rem;color:'+(statusColors[t.status]||'var(--t3)')+'">'+esc(statusLabels[t.status]||t.status)+'</div></div>';
       list.appendChild(el);
     });
-    // Check MP connection
+    // Check MP and Stripe connection
     try{
       const u=await(await fetch('/api/user/'+S.userId)).json();
+      // Mercado Pago status
       if(u.mpConnected){
-        $('opMpStatus').innerHTML='<span style="color:var(--ok)">✓ Conectado</span> — pagamentos caem direto na sua conta';
+        $('opMpStatus').innerHTML='<span style="color:var(--ok)">Conectado</span> — pagamentos caem direto na sua conta';
         $('opMpConnectBtn').style.display='none';
       }else{
-        $('opMpStatus').textContent='Não conectado — gorjetas ficam retidas até conexão';
+        $('opMpStatus').textContent='Nao conectado — pagamentos ficam retidos ate conexao';
         $('opMpConnectBtn').style.display='';
+      }
+      // Stripe Connect status
+      var stripeEl=$('opStripeStatus');
+      var stripeBtnEl=$('opStripeConnectBtn');
+      if(stripeEl){
+        if(u.stripeConnectId&&u.stripePayoutsEnabled){
+          stripeEl.innerHTML='<span style="color:var(--ok)">Conectado</span> — pagamentos internacionais ativos';
+          if(stripeBtnEl)stripeBtnEl.style.display='none';
+        }else if(u.stripeConnectId){
+          stripeEl.innerHTML='<span style="color:#f59e0b">Pendente</span> — complete o onboarding no Stripe';
+          if(stripeBtnEl){stripeBtnEl.textContent='Completar cadastro';stripeBtnEl.style.display=''}
+        }else{
+          stripeEl.textContent='Nao conectado — conecte para receber em USD e cartoes internacionais';
+          if(stripeBtnEl)stripeBtnEl.style.display='';
+        }
       }
     }catch(e){}
   }catch(e){list.innerHTML='<div style="color:var(--pk);font-size:.7rem;text-align:center;padding:1rem">Erro ao carregar</div>'}
@@ -5305,6 +5343,10 @@ async function showFinancialPanel(){
 
 function connectMercadoPago(){
   window.open('/mp/auth/'+S.userId,'_blank');
+}
+
+function connectStripeAccount(){
+  window.open('/api/stripe/connect-onboard?userId='+S.userId,'_blank');
 }
 
 // ═══ CHAT PANEL ═══

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Touch? Partners — Receive Payments</title>
+<meta name="description" content="Start receiving tips, orders and event payments through Touch?. Compare Stripe vs Mercado Pago fees and connect in minutes.">
+<link rel="icon" href="/favicon.ico">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#111118;--border:rgba(255,255,255,.08);--t1:#f0f0f5;--t2:#a0a0b8;--t3:#6a6a80;--gold:#d4a745;--gold2:#f5c542;--stripe:#635bff;--mp:#009ee3;--ok:#22c55e;--warn:#f59e0b;--fire:#ef4444;--radius:16px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;overflow-x:hidden}
+a{color:var(--gold);text-decoration:none}
+.container{max-width:860px;margin:0 auto;padding:1.5rem 1.2rem 4rem}
+/* Hero */
+.hero{text-align:center;padding:3rem 0 2rem}
+.hero-logo{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--gold),var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.3rem}
+.hero-sub{font-size:1rem;color:var(--t2);max-width:500px;margin:0 auto;line-height:1.6}
+/* Lang toggle */
+.lang-bar{display:flex;justify-content:center;gap:.4rem;margin-bottom:2rem}
+.lang-btn{padding:.35rem .7rem;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--t3);font-size:.7rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.2s}
+.lang-btn.active{background:var(--gold);color:#000;border-color:var(--gold)}
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.2rem}
+.card-title{font-size:.9rem;font-weight:700;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem}
+/* Table */
+.fee-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.75rem;overflow:hidden;border-radius:12px;border:1px solid var(--border)}
+.fee-table th{background:rgba(255,255,255,.04);padding:.65rem .8rem;text-align:left;font-weight:600;color:var(--t2);font-size:.65rem;text-transform:uppercase;letter-spacing:.5px}
+.fee-table td{padding:.6rem .8rem;border-top:1px solid var(--border);color:var(--t1);vertical-align:top}
+.fee-table tr:hover td{background:rgba(255,255,255,.02)}
+.badge-stripe{background:rgba(99,91,255,.15);color:var(--stripe);padding:.15rem .45rem;border-radius:6px;font-size:.6rem;font-weight:700}
+.badge-mp{background:rgba(0,158,227,.15);color:var(--mp);padding:.15rem .45rem;border-radius:6px;font-size:.6rem;font-weight:700}
+.highlight{color:var(--ok);font-weight:700}
+.warn-text{color:var(--warn);font-weight:600}
+/* CTA */
+.cta-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.5rem}
+@media(max-width:500px){.cta-row{grid-template-columns:1fr}}
+.cta-card{border-radius:var(--radius);padding:1.3rem;text-align:center;cursor:pointer;transition:.25s;border:2px solid transparent;position:relative;overflow:hidden}
+.cta-card:hover{transform:translateY(-2px)}
+.cta-stripe{background:linear-gradient(135deg,rgba(99,91,255,.12),rgba(99,91,255,.04));border-color:rgba(99,91,255,.3)}
+.cta-stripe:hover{border-color:var(--stripe);box-shadow:0 8px 32px rgba(99,91,255,.15)}
+.cta-mp{background:linear-gradient(135deg,rgba(0,158,227,.12),rgba(0,158,227,.04));border-color:rgba(0,158,227,.3)}
+.cta-mp:hover{border-color:var(--mp);box-shadow:0 8px 32px rgba(0,158,227,.15)}
+.cta-icon{font-size:1.8rem;margin-bottom:.5rem}
+.cta-name{font-size:1rem;font-weight:700;margin-bottom:.3rem}
+.cta-desc{font-size:.7rem;color:var(--t3);line-height:1.5;margin-bottom:.8rem}
+.cta-btn{display:inline-block;padding:.5rem 1.5rem;border-radius:12px;font-weight:700;font-size:.8rem;border:none;cursor:pointer;font-family:inherit;transition:.2s}
+.cta-btn-stripe{background:var(--stripe);color:#fff}
+.cta-btn-stripe:hover{background:#7c75ff}
+.cta-btn-mp{background:var(--mp);color:#fff}
+.cta-btn-mp:hover{background:#00b4ff}
+/* Sections */
+.section-title{font-size:.8rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.section-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px}
+/* Steps */
+.steps{display:flex;flex-direction:column;gap:.8rem}
+.step{display:flex;gap:.8rem;align-items:flex-start}
+.step-num{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;font-weight:800;font-size:.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-text{font-size:.78rem;color:var(--t2);line-height:1.5;padding-top:3px}
+.step-text b{color:var(--t1)}
+/* FAQ */
+.faq-item{border-bottom:1px solid var(--border);padding:.8rem 0}
+.faq-q{font-size:.78rem;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.faq-a{font-size:.72rem;color:var(--t2);line-height:1.6;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease}
+.faq-item.open .faq-a{max-height:300px;padding-top:.5rem}
+.faq-arrow{transition:transform .3s}
+.faq-item.open .faq-arrow{transform:rotate(180deg)}
+/* Footer */
+.footer{text-align:center;padding:2rem 0;font-size:.65rem;color:var(--t3);border-top:1px solid var(--border);margin-top:2rem}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Language Toggle -->
+  <div class="lang-bar">
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('pt')">PT</button>
+    <button class="lang-btn" onclick="setLang('es')">ES</button>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-logo">Touch?</div>
+    <div class="hero-sub" data-i18n="hero_sub">Start receiving tips, orders and event payments directly in your account. Free to join. No monthly fees.</div>
+  </div>
+
+  <!-- Fee Comparison -->
+  <div class="section-title" data-i18n="section_fees">Fee Comparison</div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="fee-table">
+      <thead>
+        <tr>
+          <th data-i18n="th_feature">Feature</th>
+          <th><span class="badge-stripe">Stripe</span></th>
+          <th><span class="badge-mp">Mercado Pago</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td data-i18n="fee_card">Credit/Debit Card</td>
+          <td>2.99% + $0.30</td>
+          <td>4.99%</td>
+        </tr>
+        <tr>
+          <td data-i18n="fee_pix">PIX</td>
+          <td data-i18n="pix_stripe">Via partner (0.99%)</td>
+          <td class="highlight">0.99%</td>
+        </tr>
+        <tr>
+          <td>Apple Pay / Google Pay</td>
+          <td>2.99% + $0.30</td>
+          <td data-i18n="ap_mp">Not available</td>
+        </tr>
+        <tr>
+          <td data-i18n="fee_payout">Payout to your bank</td>
+          <td class="highlight" data-i18n="payout_stripe">2 business days</td>
+          <td data-i18n="payout_mp">Up to 14 days</td>
+        </tr>
+        <tr>
+          <td data-i18n="fee_chargeback">Chargeback fee</td>
+          <td class="warn-text">$15.00</td>
+          <td class="warn-text" data-i18n="cb_mp">Varies</td>
+        </tr>
+        <tr>
+          <td data-i18n="fee_currency">Currency</td>
+          <td>USD, BRL, EUR +135</td>
+          <td>BRL, ARS, MXN</td>
+        </tr>
+        <tr>
+          <td data-i18n="fee_global">International cards</td>
+          <td class="highlight" data-i18n="global_yes">Yes, worldwide</td>
+          <td data-i18n="global_mp">Latin America only</td>
+        </tr>
+        <tr>
+          <td data-i18n="fee_touch">Touch? platform fee</td>
+          <td colspan="2" style="text-align:center;font-weight:700;color:var(--gold)">10%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Recommendation -->
+  <div class="card" style="background:linear-gradient(135deg,rgba(212,167,69,.06),rgba(212,167,69,.02));border-color:rgba(212,167,69,.2)">
+    <div class="card-title" style="color:var(--gold)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26z"/></svg>
+      <span data-i18n="rec_title">Our recommendation</span>
+    </div>
+    <div style="font-size:.78rem;color:var(--t2);line-height:1.6" data-i18n="rec_body">Connect <b>both gateways</b> for maximum coverage. Stripe handles international cards, Apple Pay, and Google Pay globally. Mercado Pago covers PIX for Brazil at low fees. Your customers choose how to pay — you receive everything in your accounts.</div>
+  </div>
+
+  <!-- How it works -->
+  <div class="section-title" data-i18n="section_how">How it works</div>
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text" data-i18n="step1"><b>Choose a gateway</b> below — Stripe, Mercado Pago, or both.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text" data-i18n="step2"><b>Create your account</b> or log in if you already have one. The integration is automatic.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text" data-i18n="step3"><b>Start receiving!</b> Tips, orders, entries — all payments fall directly into your account.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA Buttons -->
+  <div class="section-title" data-i18n="section_connect">Connect now</div>
+  <div class="cta-row">
+    <div class="cta-card cta-stripe">
+      <div class="cta-icon">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="22" height="16" rx="3" stroke="var(--stripe)" stroke-width="1.5"/><path d="M1 10h22" stroke="var(--stripe)" stroke-width="1.5"/><path d="M6 15h4" stroke="var(--stripe)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="cta-name" style="color:var(--stripe)">Stripe</div>
+      <div class="cta-desc" data-i18n="cta_stripe_desc">Cards, Apple Pay, Google Pay. Worldwide coverage. Payout in 2 days.</div>
+      <div style="display:flex;flex-direction:column;gap:.4rem">
+        <button class="cta-btn cta-btn-stripe" onclick="connectStripe()" data-i18n="cta_stripe_btn">Connect Stripe</button>
+        <a href="https://dashboard.stripe.com/register" target="_blank" class="cta-link" data-i18n="cta_stripe_register" style="font-size:.65rem;color:var(--stripe);text-align:center;margin-top:.2rem">Don't have an account? Sign up free</a>
+      </div>
+    </div>
+    <div class="cta-card cta-mp">
+      <div class="cta-icon">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--mp)" stroke-width="1.5"/><path d="M8 12l2 2 4-4" stroke="var(--mp)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="cta-name" style="color:var(--mp)">Mercado Pago</div>
+      <div class="cta-desc" data-i18n="cta_mp_desc">PIX, cards, boleto. Best rates for Brazil. Millions of users.</div>
+      <div style="display:flex;flex-direction:column;gap:.4rem">
+        <button class="cta-btn cta-btn-mp" onclick="connectMP()" data-i18n="cta_mp_btn">Connect Mercado Pago</button>
+        <a href="https://www.mercadopago.com.br/hub/registration/landing" target="_blank" class="cta-link" data-i18n="cta_mp_register" style="font-size:.65rem;color:var(--mp);text-align:center;margin-top:.2rem">Don't have an account? Sign up free</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual account option -->
+  <div class="card" style="margin-top:1rem;text-align:center;background:linear-gradient(135deg,rgba(255,255,255,.03),rgba(255,255,255,.01))">
+    <div style="font-size:.78rem;font-weight:600;margin-bottom:.4rem" data-i18n="manual_title">Prefer not to integrate right now?</div>
+    <div style="font-size:.68rem;color:var(--t3);line-height:1.5;margin-bottom:.8rem" data-i18n="manual_desc">You can still create your operator account and start managing events, menus, and appointments. Payments will be held until you connect a gateway later. You can always come back here to integrate.</div>
+    <button onclick="goToSignup()" style="padding:.5rem 1.5rem;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--t1);font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit;transition:.2s" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='rgba(255,255,255,.05)'" data-i18n="manual_btn">Create account without integration</button>
+  </div>
+
+  <!-- FAQ -->
+  <div class="section-title" style="margin-top:2rem" data-i18n="section_faq">Frequently asked questions</div>
+  <div class="card" style="padding:.5rem 1rem">
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q"><span data-i18n="faq1_q">Is there a monthly fee?</span><svg class="faq-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="faq-a" data-i18n="faq1_a">No. Touch? is free to join. You only pay the gateway fee per transaction (shown in the table above) plus the 10% Touch? platform fee.</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q"><span data-i18n="faq2_q">Can I use both Stripe and Mercado Pago?</span><svg class="faq-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="faq-a" data-i18n="faq2_a">Yes! We recommend connecting both. Your customers will see all available payment methods and choose the one they prefer.</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q"><span data-i18n="faq3_q">When do I receive my money?</span><svg class="faq-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="faq-a" data-i18n="faq3_a">With Stripe, payouts arrive in 2 business days. With Mercado Pago, it varies between instant (PIX) and up to 14 days depending on the payment method and your account status.</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q"><span data-i18n="faq4_q">What is the 10% Touch? fee?</span><svg class="faq-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="faq-a" data-i18n="faq4_a">Touch? charges a 10% platform fee on each transaction. This covers the app, support, analytics, and all the technology that connects you with your customers. The gateway fee (Stripe or MP) is separate and charged by the payment provider.</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q"><span data-i18n="faq5_q">What about refunds and chargebacks?</span><svg class="faq-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="faq-a" data-i18n="faq5_a">Customers can request a refund within 24 hours. Operators can process refunds from their dashboard. Chargebacks follow each gateway's policy — Stripe charges $15 per dispute, while Mercado Pago varies by case.</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div style="margin-bottom:.5rem"><a href="/" style="font-weight:700;font-size:.8rem">Touch?</a></div>
+    <div data-i18n="footer_text">Questions? Contact us at support@touch-irl.com</div>
+  </div>
+</div>
+
+<script>
+var LANGS={
+  en:{
+    hero_sub:'Start receiving tips, orders and event payments directly in your account. Free to join. No monthly fees.',
+    section_fees:'Fee Comparison',
+    th_feature:'Feature',fee_card:'Credit/Debit Card',fee_pix:'PIX',pix_stripe:'Via partner (0.99%)',ap_mp:'Not available',
+    fee_payout:'Payout to your bank',payout_stripe:'2 business days',payout_mp:'Up to 14 days',
+    fee_chargeback:'Chargeback fee',cb_mp:'Varies',fee_currency:'Currency',
+    fee_global:'International cards',global_yes:'Yes, worldwide',global_mp:'Latin America only',
+    fee_touch:'Touch? platform fee',
+    rec_title:'Our recommendation',
+    rec_body:'Connect <b>both gateways</b> for maximum coverage. Stripe handles international cards, Apple Pay, and Google Pay globally. Mercado Pago covers PIX for Brazil at low fees. Your customers choose how to pay — you receive everything in your accounts.',
+    section_how:'How it works',
+    step1:'<b>Choose a gateway</b> below — Stripe, Mercado Pago, or both.',
+    step2:'<b>Create your account</b> or log in if you already have one. The integration is automatic.',
+    step3:'<b>Start receiving!</b> Tips, orders, entries — all payments fall directly into your account.',
+    section_connect:'Connect now',
+    cta_stripe_desc:'Cards, Apple Pay, Google Pay. Worldwide coverage. Payout in 2 days.',
+    cta_stripe_btn:'Connect Stripe',
+    cta_mp_desc:'PIX, cards, boleto. Best rates for Brazil. Millions of users.',
+    cta_mp_btn:'Connect Mercado Pago',
+    section_faq:'Frequently asked questions',
+    faq1_q:'Is there a monthly fee?',faq1_a:'No. Touch? is free to join. You only pay the gateway fee per transaction (shown in the table above) plus the 10% Touch? platform fee.',
+    faq2_q:'Can I use both Stripe and Mercado Pago?',faq2_a:'Yes! We recommend connecting both. Your customers will see all available payment methods and choose the one they prefer.',
+    faq3_q:'When do I receive my money?',faq3_a:'With Stripe, payouts arrive in 2 business days. With Mercado Pago, it varies between instant (PIX) and up to 14 days depending on the payment method and your account status.',
+    faq4_q:'What is the 10% Touch? fee?',faq4_a:'Touch? charges a 10% platform fee on each transaction. This covers the app, support, analytics, and all the technology that connects you with your customers. The gateway fee (Stripe or MP) is separate and charged by the payment provider.',
+    faq5_q:'What about refunds and chargebacks?',faq5_a:'Customers can request a refund within 24 hours. Operators can process refunds from their dashboard. Chargebacks follow each gateway\'s policy — Stripe charges $15 per dispute, while Mercado Pago varies by case.',
+    cta_stripe_register:'Don\'t have an account? Sign up free',
+    cta_mp_register:'Don\'t have an account? Sign up free',
+    manual_title:'Prefer not to integrate right now?',
+    manual_desc:'You can still create your operator account and start managing events, menus, and appointments. Payments will be held until you connect a gateway later. You can always come back here to integrate.',
+    manual_btn:'Create account without integration',
+    footer_text:'Questions? Contact us at support@touch-irl.com'
+  },
+  pt:{
+    hero_sub:'Comece a receber gorjetas, pedidos e pagamentos de eventos direto na sua conta. Gratis para entrar. Sem mensalidade.',
+    section_fees:'Comparativo de Taxas',
+    th_feature:'Recurso',fee_card:'Cartao de Credito/Debito',fee_pix:'PIX',pix_stripe:'Via parceiro (0,99%)',ap_mp:'Nao disponivel',
+    fee_payout:'Prazo de recebimento',payout_stripe:'2 dias uteis',payout_mp:'Ate 14 dias',
+    fee_chargeback:'Taxa de contestacao',cb_mp:'Variavel',fee_currency:'Moeda',
+    fee_global:'Cartoes internacionais',global_yes:'Sim, mundial',global_mp:'Apenas America Latina',
+    fee_touch:'Taxa plataforma Touch?',
+    rec_title:'Nossa recomendacao',
+    rec_body:'Conecte <b>os dois gateways</b> para cobertura maxima. Stripe aceita cartoes internacionais, Apple Pay e Google Pay no mundo todo. Mercado Pago cobre PIX no Brasil com taxas baixas. Seus clientes escolhem como pagar — voce recebe tudo nas suas contas.',
+    section_how:'Como funciona',
+    step1:'<b>Escolha um gateway</b> abaixo — Stripe, Mercado Pago, ou ambos.',
+    step2:'<b>Crie sua conta</b> ou faca login se ja tiver uma. A integracao e automatica.',
+    step3:'<b>Comece a receber!</b> Gorjetas, pedidos, entradas — todos os pagamentos caem direto na sua conta.',
+    section_connect:'Conectar agora',
+    cta_stripe_desc:'Cartoes, Apple Pay, Google Pay. Cobertura mundial. Receba em 2 dias.',
+    cta_stripe_btn:'Conectar Stripe',
+    cta_mp_desc:'PIX, cartoes, boleto. Melhores taxas para o Brasil. Milhoes de usuarios.',
+    cta_mp_btn:'Conectar Mercado Pago',
+    section_faq:'Perguntas frequentes',
+    faq1_q:'Tem mensalidade?',faq1_a:'Nao. O Touch? e gratis para entrar. Voce so paga a taxa do gateway por transacao (mostrada na tabela acima) mais a taxa de 10% da plataforma Touch?.',
+    faq2_q:'Posso usar os dois, Stripe e Mercado Pago?',faq2_a:'Sim! Recomendamos conectar ambos. Seus clientes verao todos os meios de pagamento disponiveis e escolhem o que preferirem.',
+    faq3_q:'Quando recebo meu dinheiro?',faq3_a:'Com Stripe, o pagamento chega em 2 dias uteis. Com Mercado Pago, varia entre instantaneo (PIX) e ate 14 dias dependendo do metodo de pagamento e status da sua conta.',
+    faq4_q:'O que e a taxa de 10% do Touch??',faq4_a:'O Touch? cobra 10% de taxa de plataforma em cada transacao. Isso cobre o app, suporte, analytics e toda a tecnologia que conecta voce aos seus clientes. A taxa do gateway (Stripe ou MP) e separada e cobrada pelo provedor de pagamento.',
+    faq5_q:'E sobre reembolsos e contestacoes?',faq5_a:'Clientes podem solicitar reembolso em ate 24 horas. Operadores podem processar reembolsos pelo painel. Contestacoes seguem a politica de cada gateway — Stripe cobra $15 por disputa, Mercado Pago varia por caso.',
+    cta_stripe_register:'Nao tem conta? Cadastre-se gratis',
+    cta_mp_register:'Nao tem conta? Cadastre-se gratis',
+    manual_title:'Prefere nao integrar agora?',
+    manual_desc:'Voce ainda pode criar sua conta de operador e comecar a gerenciar eventos, cardapios e agendamentos. Os pagamentos ficam retidos ate voce conectar um gateway depois. Voce pode voltar aqui a qualquer momento para integrar.',
+    manual_btn:'Criar conta sem integracao',
+    footer_text:'Duvidas? Fale conosco em support@touch-irl.com'
+  },
+  es:{
+    hero_sub:'Empieza a recibir propinas, pedidos y pagos de eventos directamente en tu cuenta. Gratis para unirse. Sin cuotas mensuales.',
+    section_fees:'Comparacion de Tarifas',
+    th_feature:'Recurso',fee_card:'Tarjeta de Credito/Debito',fee_pix:'PIX',pix_stripe:'Via socio (0,99%)',ap_mp:'No disponible',
+    fee_payout:'Plazo de recepcion',payout_stripe:'2 dias habiles',payout_mp:'Hasta 14 dias',
+    fee_chargeback:'Tarifa por contracargo',cb_mp:'Variable',fee_currency:'Moneda',
+    fee_global:'Tarjetas internacionales',global_yes:'Si, mundial',global_mp:'Solo America Latina',
+    fee_touch:'Tarifa plataforma Touch?',
+    rec_title:'Nuestra recomendacion',
+    rec_body:'Conecta <b>ambas pasarelas</b> para maxima cobertura. Stripe acepta tarjetas internacionales, Apple Pay y Google Pay en todo el mundo. Mercado Pago cubre PIX en Brasil con tarifas bajas. Tus clientes eligen como pagar — tu recibes todo en tus cuentas.',
+    section_how:'Como funciona',
+    step1:'<b>Elige una pasarela</b> abajo — Stripe, Mercado Pago, o ambas.',
+    step2:'<b>Crea tu cuenta</b> o inicia sesion si ya tienes una. La integracion es automatica.',
+    step3:'<b>Empieza a recibir!</b> Propinas, pedidos, entradas — todos los pagos caen directo en tu cuenta.',
+    section_connect:'Conectar ahora',
+    cta_stripe_desc:'Tarjetas, Apple Pay, Google Pay. Cobertura mundial. Recibe en 2 dias.',
+    cta_stripe_btn:'Conectar Stripe',
+    cta_mp_desc:'PIX, tarjetas, boleto. Mejores tarifas para Brasil. Millones de usuarios.',
+    cta_mp_btn:'Conectar Mercado Pago',
+    section_faq:'Preguntas frecuentes',
+    faq1_q:'Hay cuota mensual?',faq1_a:'No. Touch? es gratis para unirse. Solo pagas la tarifa del gateway por transaccion (mostrada en la tabla arriba) mas la tarifa del 10% de la plataforma Touch?.',
+    faq2_q:'Puedo usar ambos, Stripe y Mercado Pago?',faq2_a:'Si! Recomendamos conectar ambos. Tus clientes veran todos los metodos de pago disponibles y elegiran el que prefieran.',
+    faq3_q:'Cuando recibo mi dinero?',faq3_a:'Con Stripe, el pago llega en 2 dias habiles. Con Mercado Pago, varia entre instantaneo (PIX) y hasta 14 dias segun el metodo de pago y el estado de tu cuenta.',
+    faq4_q:'Que es la tarifa del 10% de Touch??',faq4_a:'Touch? cobra una tarifa de plataforma del 10% en cada transaccion. Esto cubre la app, soporte, analiticas y toda la tecnologia que te conecta con tus clientes. La tarifa del gateway (Stripe o MP) es separada y cobrada por el proveedor de pagos.',
+    faq5_q:'Y sobre reembolsos y contracargos?',faq5_a:'Los clientes pueden solicitar reembolso en 24 horas. Los operadores pueden procesar reembolsos desde su panel. Los contracargos siguen la politica de cada gateway — Stripe cobra $15 por disputa, Mercado Pago varia por caso.',
+    cta_stripe_register:'No tienes cuenta? Registrate gratis',
+    cta_mp_register:'No tienes cuenta? Registrate gratis',
+    manual_title:'Prefieres no integrar ahora?',
+    manual_desc:'Aun puedes crear tu cuenta de operador y empezar a gestionar eventos, menus y citas. Los pagos quedaran retenidos hasta que conectes una pasarela despues. Puedes volver aqui en cualquier momento para integrar.',
+    manual_btn:'Crear cuenta sin integracion',
+    footer_text:'Preguntas? Contactanos en support@touch-irl.com'
+  }
+};
+var currentLang='en';
+function setLang(lang){
+  currentLang=lang;
+  document.querySelectorAll('.lang-btn').forEach(function(b){b.classList.toggle('active',b.textContent.trim().toLowerCase()===lang)});
+  document.documentElement.lang=lang;
+  var t=LANGS[lang]||LANGS.en;
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    var key=el.getAttribute('data-i18n');
+    if(t[key]!==undefined)el.innerHTML=t[key];
+  });
+}
+// Auto-detect language from browser
+(function(){
+  var bl=(navigator.language||'en').toLowerCase();
+  if(bl.startsWith('pt'))setLang('pt');
+  else if(bl.startsWith('es'))setLang('es');
+  else setLang('en');
+})();
+
+// Get userId from URL params (passed from operator panel)
+function getParam(k){return new URLSearchParams(window.location.search).get(k)}
+
+function connectStripe(){
+  var userId=getParam('uid');
+  if(userId){
+    // Direct integration - redirect to Stripe Connect onboarding
+    window.location.href='/api/stripe/connect-onboard?userId='+encodeURIComponent(userId);
+  }else{
+    // No user context - send to Stripe registration
+    window.open('https://dashboard.stripe.com/register','_blank');
+  }
+}
+
+function connectMP(){
+  var userId=getParam('uid');
+  if(userId){
+    // Direct integration - redirect to MP OAuth
+    window.location.href='/mp/auth/'+encodeURIComponent(userId);
+  }else{
+    // No user context - send to MP registration page
+    window.open('https://www.mercadopago.com.br/hub/registration/landing','_blank');
+  }
+}
+
+function goToSignup(){
+  // Send to main app signup flow
+  window.location.href='/?signup=1';
+}
+</script>
+</body>
+</html>

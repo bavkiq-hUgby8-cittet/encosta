@@ -18522,6 +18522,40 @@ app.post('/api/stripe/cancel-subscription', requireAuth, async (req, res) => {
   }
 });
 
+// Stripe Connect — direct redirect to onboarding (for partners page and operator panel)
+app.get('/api/stripe/connect-onboard', async (req, res) => {
+  if (!stripeInstance) return res.redirect('/partners?error=stripe_not_configured');
+  const userId = req.query.userId;
+  const user = db.users[userId];
+  if (!userId || !user) return res.redirect('/partners?error=user_not_found');
+  const baseUrl = process.env.APP_URL || 'https://touch-irl.com';
+  try {
+    let accountId = user.stripeConnectId;
+    if (!accountId) {
+      const account = await stripeInstance.accounts.create({
+        type: 'express',
+        country: user.country || 'BR',
+        email: user.email || undefined,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        metadata: { userId, source: 'touch-partners' }
+      });
+      accountId = account.id;
+      user.stripeConnectId = accountId;
+      saveDB('users');
+    }
+    const link = await stripeInstance.accountLinks.create({
+      account: accountId,
+      refresh_url: baseUrl + '/api/stripe/connect-refresh/' + userId,
+      return_url: baseUrl + '/stripe/connect-result?userId=' + userId,
+      type: 'account_onboarding'
+    });
+    res.redirect(link.url);
+  } catch(e) {
+    console.error('[stripe/connect-onboard] error:', e.message);
+    res.redirect('/partners?error=stripe_error');
+  }
+});
+
 // Stripe Connect — onboarding URL for receivers (prestadores)
 app.get('/api/stripe/connect-url/:userId', async (req, res) => {
   if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
