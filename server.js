@@ -8154,7 +8154,7 @@ function sonicQueueSet(key, entry) {
 // Helper: delete entry from sonicQueue AND freq index
 function sonicQueueDel(key) {
   if (sonicQueue[key] && sonicQueue[key].freq) sonicFreqIndex.delete(sonicQueue[key].freq);
-  sonicQueueDel(key);
+  delete sonicQueue[key];
 }
 
 function findSonicEntryByUserId(userId) {
