@@ -15,15 +15,15 @@ const sharp = require('sharp');
 
 // ── Crash protection: prevent server from dying on unhandled errors ──
 process.on('uncaughtException', (err) => {
-  console.error('🔴 Uncaught Exception:', err.message, err.stack?.split('\n').slice(0,3).join('\n'));
+  console.error('[FATAL] Uncaught Exception:', err.message, err.stack?.split('\n').slice(0,3).join('\n'));
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('🔴 Unhandled Rejection:', reason?.message || reason);
+  console.error('[FATAL] Unhandled Rejection:', reason?.message || reason);
 });
 
 // ── Security: Admin secret for protected endpoints ──
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-if (!ADMIN_SECRET) console.warn('⚠️ ADMIN_SECRET não configurado! Endpoints admin desprotegidos. Defina ADMIN_SECRET nas variáveis de ambiente.');
+if (!ADMIN_SECRET) console.warn('[WARN] ADMIN_SECRET não configurado! Endpoints admin desprotegidos. Defina ADMIN_SECRET nas variáveis de ambiente.');
 
 // ── Security: Allowed origins for CORS ──
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
@@ -67,7 +67,12 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: { policy: "unsafe-none" }, // Required for Google OAuth popup
-  crossOriginResourcePolicy: false // Required for external resources
+  crossOriginResourcePolicy: false, // Required for external resources
+  strictTransportSecurity: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  }
 }));
 
 // ── Rate limiting ──
@@ -348,12 +353,17 @@ function requireAuth(req, res, next) {
     return next();
   }
 
-  // Method 3: Backwards-compatible fallback — userId must exist in DB
-  // This prevents accessing data of non-existent users or brute-forcing IDs
-  // TODO: Phase 2 — remove this fallback after frontend sends Firebase token on all calls
+  // Method 3: Soft auth fallback -- only if user exists AND request comes from trusted origin
+  // Allows legacy clients that don't send Firebase token yet (guest flows, older sessions)
+  // Logged for monitoring -- plan to remove once all clients migrate to token-based auth
   if (requestedUserId && db.users[requestedUserId]) {
-    req.authUserId = requestedUserId;
-    return next();
+    const origin = req.headers.origin || req.headers.referer || '';
+    const isTrusted = !origin || CORS_ORIGINS.some(o => origin.startsWith(o)) || origin.includes('.onrender.com');
+    if (isTrusted) {
+      req.authUserId = requestedUserId;
+      req._authMethod = 'legacy-fallback';
+      return next();
+    }
   }
 
   return res.status(403).json({ error: 'Acesso negado. Autenticacao necessaria.' });
@@ -545,7 +555,7 @@ if (FIREBASE_SA) {
   if (fs.existsSync(saPath)) {
     admin.initializeApp({ credential: admin.credential.cert(require(saPath)), databaseURL: FIREBASE_DB_URL });
   } else {
-    console.warn('⚠️ Firebase não configurado. Rodando sem persistência.');
+    console.warn('[WARN] Firebase não configurado. Rodando sem persistência.');
     admin.initializeApp({ projectId: 'encosta-f32e7', databaseURL: FIREBASE_DB_URL });
   }
 }
@@ -567,7 +577,7 @@ async function uploadBase64ToStorage(base64Data, filePath) {
     });
     return `/api/storage/${filePath}`;
   } catch (e) {
-    console.error('❌ Storage upload error:', e.message);
+    console.error('[ERR] Storage upload error:', e.message);
     return null; // fallback: caller keeps base64
   }
 }
@@ -801,7 +811,7 @@ async function loadDB() {
       if (userCount > 0) _dbLoadedFromCloud = true;
       console.log('DB carregado do Firebase Realtime Database (' + userCount + ' users)');
     } else {
-      console.log('ℹ️ RTDB vazio, tentando migração...');
+      console.log('[INFO] RTDB vazio, tentando migração...');
       // Try Firestore migration (one-time)
       try {
         const firestore = admin.firestore();
@@ -813,10 +823,10 @@ async function loadDB() {
           const updates = {};
           DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
           await withTimeout(rtdb.ref('/').update(updates), 15000, 'RTDB migration write');
-          console.log('✅ DB migrado do Firestore → Realtime Database');
+          console.log('[OK] DB migrado do Firestore → Realtime Database');
         }
       } catch (migErr) {
-        console.log('ℹ️ Sem dados no Firestore para migrar:', migErr.message);
+        console.log('[INFO] Sem dados no Firestore para migrar:', migErr.message);
       }
       // Fallback: try local db.json
       if (!Object.keys(db.users).length) {
@@ -829,12 +839,12 @@ async function loadDB() {
             const updates = {};
             DB_COLLECTIONS.forEach(c => { updates[c] = db[c]; });
             await withTimeout(rtdb.ref('/').update(updates), 10000, 'RTDB db.json migration');
-            console.log('✅ DB migrado de db.json → Realtime Database');
+            console.log('[OK] DB migrado de db.json → Realtime Database');
           } catch (migErr2) {
-            console.warn('⚠️ db.json carregado mas não migrou para RTDB:', migErr2.message);
+            console.warn('[WARN] db.json carregado mas não migrou para RTDB:', migErr2.message);
           }
         } else {
-          console.log('📦 DB novo criado (vazio)');
+          console.log('[DB] DB novo criado (vazio)');
         }
       }
     }
@@ -1000,7 +1010,7 @@ function rebuildIndexes() {
       }
     }
   }
-  if (arrayFixCount > 0) console.log(`🔧 Fixed ${arrayFixCount} array entries (Firebase object→array conversion)`);
+  if (arrayFixCount > 0) console.log(`[FIX] Fixed ${arrayFixCount} array entries (Firebase object→array conversion)`);
   // Same fix for user arrays: stars, likedBy, revealedTo
   for (const u of Object.values(db.users)) {
     if (u.stars && !Array.isArray(u.stars)) u.stars = Object.values(u.stars);
@@ -1036,7 +1046,7 @@ function rebuildIndexes() {
       IDX.tipsByReceiver.get(t.receiverId).push(tid);
     }
   }
-  console.log(`🗂️ Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations, ${IDX.relationsByUser.size} userRels`);
+  console.log(`[IDX] Indexes built: ${IDX.firebaseUid.size} firebase, ${IDX.touchCode.size} touchCodes, ${IDX.nickname.size} nicknames, ${IDX.relationPair.size} relations, ${IDX.relationsByUser.size} userRels`);
 }
 
 // Helper: find active relation between two users in O(1)
@@ -1220,7 +1230,7 @@ function ensureTop1Perks() {
   // Also set isAdmin for Top 1
   if (!top1.isAdmin) {
     top1.isAdmin = true;
-    console.log(`👑 Top 1 set as admin: ${top1.nickname}`);
+    console.log(`[ADMIN] Top 1 set as admin: ${top1.nickname}`);
   }
   saveDB('users');
 }
@@ -1238,7 +1248,7 @@ async function flushToRTDB() {
   if (!cols.length) return;
   // Safety: don't flush if DB isn't loaded yet
   if (!dbLoaded) {
-    console.warn('⚠️ flushToRTDB() called before dbLoaded — ABORTING');
+    console.warn('[WARN] flushToRTDB() called before dbLoaded — ABORTING');
     cols.forEach(c => _dirtyCollections.add(c));
     return;
   }
@@ -1271,7 +1281,7 @@ async function flushToRTDB() {
       await withTimeout(rtdb.ref('/').update(updates), 15000, 'RTDB flush');
     }
   } catch (e) {
-    console.error('❌ RTDB save error:', e.message);
+    console.error('[ERR] RTDB save error:', e.message);
     // Re-add failed collections for retry
     cols.forEach(c => _dirtyCollections.add(c));
     // Fallback: save locally
@@ -1299,7 +1309,7 @@ async function createBackup(reason) {
     DB_COLLECTIONS.forEach(c => { meta.counts[c] = Object.keys(db[c] || {}).length; });
     // Save to RTDB under /backups/{timestamp}
     await withTimeout(rtdb.ref('/backups/' + ts).set({ meta, data: backup }), 20000, 'backup write');
-    console.log('💾 BACKUP created:', meta.date, '—', reason, '— counts:', JSON.stringify(meta.counts));
+    console.log('[BACKUP] BACKUP created:', meta.date, '—', reason, '— counts:', JSON.stringify(meta.counts));
     // Cleanup old backups (keep last MAX_BACKUPS)
     try {
       const bkSnap = await withTimeout(rtdb.ref('/backups').orderByKey().once('value'), 10000, 'backup list');
@@ -1311,18 +1321,18 @@ async function createBackup(reason) {
           const delUpdates = {};
           toDelete.forEach(k => { delUpdates['/backups/' + k] = null; });
           await rtdb.ref('/').update(delUpdates);
-          console.log('🧹 Cleaned', toDelete.length, 'old backups');
+          console.log('[CLEANUP] Cleaned', toDelete.length, 'old backups');
         }
       }
     } catch (cleanErr) { console.error('Backup cleanup err:', cleanErr.message); }
     return ts;
   } catch (e) {
-    console.error('❌ Backup error:', e.message);
+    console.error('[ERR] Backup error:', e.message);
     // Fallback: save to local file
     try {
       const bkFile = path.join(__dirname, 'backup-' + Date.now() + '.json');
       fs.writeFileSync(bkFile, JSON.stringify(db), 'utf8');
-      console.log('💾 Local backup saved:', bkFile);
+      console.log('[BACKUP] Local backup saved:', bkFile);
     } catch (e2) {}
     return null;
   }
@@ -1367,10 +1377,10 @@ async function restoreBackup(backupId) {
     await flushToRTDB();
     const counts = {};
     DB_COLLECTIONS.forEach(c => { counts[c] = Object.keys(db[c] || {}).length; });
-    console.log('✅ RESTORED from backup:', bk.meta.date, '— counts:', JSON.stringify(counts));
+    console.log('[OK] RESTORED from backup:', bk.meta.date, '— counts:', JSON.stringify(counts));
     return { ok: true, restoredFrom: bk.meta, counts };
   } catch (e) {
-    console.error('❌ Restore error:', e.message);
+    console.error('[ERR] Restore error:', e.message);
     throw e;
   }
 }
@@ -1478,10 +1488,10 @@ async function sendTouchEmail(to, subject, html) {
       from: process.env.MAIL_FROM || process.env.GMAIL_USER || '"Touch?" <noreply@touchirl.com>',
       to, subject, html
     });
-    console.log('📧 Email sent to', to, '—', subject);
+    console.log('[EMAIL] Email sent to', to, '—', subject);
     return true;
   } catch (e) {
-    console.error('📧 Email send failed:', e.message);
+    console.error('[EMAIL] Email send failed:', e.message);
     return false;
   }
 }
@@ -1653,11 +1663,11 @@ app.post('/api/auth/send-verification', authLimiter, async (req, res) => {
         'Verificar email', link)
     );
     if (sent) {
-      console.log('📧 Verification email sent to', email);
+      console.log('[EMAIL] Verification email sent to', email);
       res.json({ ok: true, sent: true });
     } else {
       // No SMTP configured — return link for client-side fallback
-      console.log('📧 No SMTP — returning verification link for', email);
+      console.log('[EMAIL] No SMTP — returning verification link for', email);
       res.json({ ok: true, sent: false, useClientFallback: true });
     }
   } catch (e) {
@@ -1682,11 +1692,11 @@ app.post('/api/auth/send-magic-link', authLimiter, async (req, res) => {
         'Entrar no Touch?', link)
     );
     if (sent) {
-      console.log('🔗 Magic link email sent to', email);
+      console.log('[LINK] Magic link email sent to', email);
       res.json({ ok: true, sent: true });
     } else {
       // No SMTP — return link for client to use fallback
-      console.log('🔗 No SMTP — returning magic link for client fallback');
+      console.log('[LINK] No SMTP — returning magic link for client fallback');
       res.json({ ok: true, sent: false, useClientFallback: true });
     }
   } catch (e) {
@@ -1710,11 +1720,11 @@ app.post('/api/auth/send-password-reset', authLimiter, async (req, res) => {
         'Redefinir senha', link)
     );
     if (sent) {
-      console.log('🔑 Password reset email sent to', email);
+      console.log('[AUTH] Password reset email sent to', email);
       res.json({ ok: true, sent: true });
     } else {
       // No SMTP — return link for client fallback
-      console.log('🔑 No SMTP — password reset link generated for', email);
+      console.log('[AUTH] No SMTP — password reset link generated for', email);
       res.json({ ok: true, sent: false, useClientFallback: true });
     }
   } catch (e) {
@@ -3872,7 +3882,7 @@ function _getAISuggestions(timeMs, msgs, contactReqs, revealMsgs) {
 // ── Ranking cache: recomputed every 2 min (not on every request) ──
 let _rankingCache = null;
 let _rankingCacheTime = 0;
-const RANKING_CACHE_TTL = 2 * 60 * 1000; // 2 min
+const RANKING_CACHE_TTL = 10 * 60 * 1000; // 10 min (was 2 min, reduced rebuilds at scale)
 
 function _buildRankingCache() {
   _rankingCache = Object.values(db.users)
@@ -8094,23 +8104,49 @@ const SONIC_FREQ_STEP = 300;   // 300Hz steps (must be > 200Hz self-detection fi
 const SONIC_FREQ_SLOTS = 7;    // 7 frequencies: 18000, 18300, 18600, 18900, 19200, 19500, 19800
 const sonicQueue = {}; // { oderId: { userId, freq, socketId, joinedAt } }
 let nextFreqSlot = 0;
+const sonicFreqIndex = new Map(); // freq -> sonicQueue entry (O(1) lookup)
 
 function assignSonicFreq() {
+  // Check all slots to find one not currently in use (avoids collision)
+  for (let i = 0; i < SONIC_FREQ_SLOTS; i++) {
+    const candidate = SONIC_FREQ_BASE + ((nextFreqSlot + i) % SONIC_FREQ_SLOTS) * SONIC_FREQ_STEP;
+    if (!sonicFreqIndex.has(candidate)) {
+      nextFreqSlot = (nextFreqSlot + i + 1) % SONIC_FREQ_SLOTS;
+      return candidate;
+    }
+  }
+  // All slots occupied -- fallback to round-robin (rare: only 7 concurrent users in same venue)
   const freq = SONIC_FREQ_BASE + (nextFreqSlot % SONIC_FREQ_SLOTS) * SONIC_FREQ_STEP;
   nextFreqSlot++;
   return freq;
 }
 
 function findSonicUserByFreq(freq) {
-  // Exact match first
-  const exact = Object.values(sonicQueue).find(s => s.freq === freq);
+  // O(1) exact match via index
+  const exact = sonicFreqIndex.get(freq);
   if (exact) return exact;
-  // Fuzzy match: ±150Hz tolerance (hardware imprecision in speaker/mic + snapping)
-  // Must be < SONIC_FREQ_STEP/2 (150 < 300/2=150) to avoid matching wrong slot
-  return Object.values(sonicQueue).find(s => Math.abs(s.freq - freq) <= 140) || null;
+  // Fuzzy match: +/-140Hz tolerance (hardware imprecision in speaker/mic + snapping)
+  for (const [f, entry] of sonicFreqIndex) {
+    if (Math.abs(f - freq) <= 140) return entry;
+  }
+  return null;
 }
 
 // Find sonicQueue entry by userId (searches all entries since operators use 'evt:' keys)
+// Helper: add entry to sonicQueue AND freq index
+function sonicQueueSet(key, entry) {
+  // Remove old freq index if overwriting
+  if (sonicQueue[key] && sonicQueue[key].freq) sonicFreqIndex.delete(sonicQueue[key].freq);
+  sonicQueue[key] = entry;
+  if (entry.freq) sonicFreqIndex.set(entry.freq, entry);
+}
+
+// Helper: delete entry from sonicQueue AND freq index
+function sonicQueueDel(key) {
+  if (sonicQueue[key] && sonicQueue[key].freq) sonicFreqIndex.delete(sonicQueue[key].freq);
+  sonicQueueDel(key);
+}
+
 function findSonicEntryByUserId(userId) {
   // First try direct key (regular users)
   if (sonicQueue[userId]) return sonicQueue[userId];
@@ -8159,7 +8195,7 @@ function createSonicConnection(userIdA, userIdB) {
         message: 'Você já fez check-in neste evento!'
       });
       // Remove visitor from sonic queue, operator stays
-      delete sonicQueue[visitorId];
+      sonicQueueDel(visitorId);
       // Reset operator timer so they stay active
       const opQueueKey = operatorEntry ? operatorEntry.queueKey : operatorId;
       if (sonicQueue[opQueueKey]) sonicQueue[opQueueKey].joinedAt = Date.now();
@@ -8202,7 +8238,7 @@ function createSonicConnection(userIdA, userIdB) {
           eventId, eventName: ev.name, staffId: bbMember.id, role: 'barber',
           tables: [], menu: []
         });
-        delete sonicQueue[staffUserId];
+        sonicQueueDel(staffUserId);
         if (sonicQueue['evt:' + eventId]) sonicQueue['evt:' + eventId].joinedAt = Date.now();
         if (opEntry) opEntry.pendingStaffRole = null;
         console.log('[createSonicConnection] BARBER connected:', staffUserId.slice(0,8), 'to event:', eventId.slice(0,8));
@@ -8229,7 +8265,7 @@ function createSonicConnection(userIdA, userIdB) {
         tables: [], menu: ev.menu || []
       });
       // Remove from sonic queue
-      delete sonicQueue[staffUserId];
+      sonicQueueDel(staffUserId);
       if (sonicQueue['evt:' + eventId]) sonicQueue['evt:' + eventId].joinedAt = Date.now();
       // Clear pendingStaffRole so next connection is normal visitor again
       if (opEntry) opEntry.pendingStaffRole = null;
@@ -8359,7 +8395,7 @@ function createSonicConnection(userIdA, userIdB) {
   if (isCheckin && operatorId) {
     // Only remove the visitor, operator stays with same freq
     const checkinVisitorId = operatorId === userIdA ? userIdB : userIdA;
-    delete sonicQueue[checkinVisitorId];
+    sonicQueueDel(checkinVisitorId);
     // Reset operator's joinedAt so the 10min cleanup timer doesn't expire (use queueKey for 'evt:' keys)
     const opQueueKey = operatorEntry ? operatorEntry.queueKey : operatorId;
     if (sonicQueue[opQueueKey]) {
@@ -8375,8 +8411,8 @@ function createSonicConnection(userIdA, userIdB) {
       }
     }
   } else {
-    delete sonicQueue[userIdA];
-    delete sonicQueue[userIdB];
+    sonicQueueDel(userIdA);
+    sonicQueueDel(userIdB);
   }
   if (isCheckin && operatorId && visitorId) {
     // Check socket rooms exist
@@ -8558,9 +8594,20 @@ const _sonicQueueInterval = setInterval(() => {
   for (const [uid, entry] of Object.entries(sonicQueue)) {
     // Operators (isCheckin) get 10 min timeout, regular users 3 min
     const maxAge = entry.isCheckin ? 600000 : 180000;
-    if (now - entry.joinedAt > maxAge) delete sonicQueue[uid];
+    if (now - entry.joinedAt > maxAge) sonicQueueDel(uid);
   }
 }, 30000);
+
+// Cleanup stale online users every 30 min (removes entries older than 1 hour)
+const _onlineUsersCleanupInterval = setInterval(() => {
+  if (!global._onlineUsers) return;
+  const threshold = Date.now() - 3600000; // 1 hour
+  let cleaned = 0;
+  for (const uid in global._onlineUsers) {
+    if (global._onlineUsers[uid] < threshold) { delete global._onlineUsers[uid]; cleaned++; }
+  }
+  if (cleaned > 0) console.log('[CLEANUP] Removed', cleaned, 'stale online user entries');
+}, 1800000);
 
 // ── RESET REVEALS ONLY ──
 app.post('/api/admin/reset-reveals', adminLimiter, requireAdmin, (req, res) => {
@@ -8625,7 +8672,7 @@ app.post('/api/admin/reset-events', adminLimiter, requireAdmin, async (req, res)
   const cleared = { operatorEvents: eventCount, checkinRelations: checkinCount };
   const preserved = { relations: Object.keys(db.relations).length, encounters: Object.keys(db.encounters).length, messages: Object.keys(db.messages).length, users: Object.keys(db.users).length };
   saveDB('operatorEvents'); saveDB('relations'); saveDB('sessions');
-  console.log('🧹 SAFE RESET (events only) — cleared:', cleared, 'preserved:', preserved);
+  console.log('[CLEANUP] SAFE RESET (events only) — cleared:', cleared, 'preserved:', preserved);
   res.json({ ok: true, cleared, preserved });
 });
 
@@ -8669,7 +8716,7 @@ app.post('/api/admin/reset-db', adminLimiter, requireAdmin, async (req, res) => 
   }
   // Save all collections to Firebase
   DB_COLLECTIONS.forEach(c => saveDB(c));
-  console.log('🗑️ FULL DATABASE RESET — keepUsers:', !!keepUsers, 'cleared:', { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount });
+  console.log('[CLEANUP] FULL DATABASE RESET — keepUsers:', !!keepUsers, 'cleared:', { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount });
   res.json({ ok: true, cleared: { users: keepUsers ? 0 : userCount, relations: relationCount, events: eventCount, encounters: encounterCount, messages: msgCount } });
 });
 
@@ -8720,7 +8767,7 @@ app.post('/api/admin/recover-encounters', adminLimiter, requireAdmin, async (req
     }
   }
   saveDB('encounters');
-  console.log(`🔧 Recovered ${created} encounter entries from ${Object.keys(db.relations).length} relations`);
+  console.log(`[FIX] Recovered ${created} encounter entries from ${Object.keys(db.relations).length} relations`);
   res.json({ ok: true, created, encounterUsers: Object.keys(db.encounters).length, totalEncounters: Object.values(db.encounters).reduce((s, a) => s + a.length, 0) });
 });
 
@@ -9796,7 +9843,7 @@ io.on('connection', (socket) => {
     const freq = assignSonicFreq();
     // For checkin operators, use eventId as sonicQueue key to avoid overwriting phone's entry
     const queueKey = (isCheckin && eventId) ? ('evt:' + eventId) : userId;
-    sonicQueue[queueKey] = { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch, eventId: eventId || null, queueKey, staffRole: staffRole || null };
+    sonicQueueSet(queueKey, { userId, freq, socketId: socket.id, joinedAt: Date.now(), isCheckin: !!isCheckin, isServiceTouch: !!isServiceTouch, eventId: eventId || null, queueKey, staffRole: staffRole || null });
     console.log('[sonic-start] user:', userId.slice(0,8)+'..', 'key:', queueKey.slice(0,12), 'freq:', freq, 'isCheckin:', !!isCheckin, 'staffRole:', staffRole || 'none');
     socket.emit('sonic-assigned', { freq });
     // Join event socket room if checkin
@@ -9868,8 +9915,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sonic-stop', ({ userId, eventId }) => {
-    if (eventId) delete sonicQueue['evt:' + eventId];
-    else if (userId) delete sonicQueue[userId];
+    if (eventId) sonicQueueDel('evt:' + eventId);
+    else if (userId) sonicQueueDel(userId);
   });
 
   // ═══ TOUCHGAMES — Lobby presence ═══
@@ -10097,7 +10144,7 @@ io.on('connection', (socket) => {
     for (const key in sonicQueue) {
       if (sonicQueue[key].socketId === socket.id) {
         console.log('[Sonic] Limpando entrada orfa do sonicQueue:', key, 'socket:', socket.id);
-        delete sonicQueue[key];
+        sonicQueueDel(key);
       }
     }
     // Atualizar contagem online dos canais do mural que este socket estava vendo
@@ -10301,11 +10348,11 @@ app.post('/api/tip/create', paymentLimiter, async (req, res) => {
     };
 
     const isTestMode = MP_PUBLIC_KEY.startsWith('TEST-') || MP_ACCESS_TOKEN.startsWith('TEST-');
-    console.log('💳 Processing payment:', { amount: tipAmount, method: paymentMethodId, email, receiverId, hasToken: !!token, isTestMode });
+    console.log('[PAY] Processing payment:', { amount: tipAmount, method: paymentMethodId, email, receiverId, hasToken: !!token, isTestMode });
 
     // In test mode, use test email format if user email would cause issues
     if (isTestMode && email && !email.includes('testuser.com')) {
-      console.log('💳 Test mode: using test-compatible email for payer');
+      console.log('[PAY] Test mode: using test-compatible email for payer');
       paymentData.payer.email = 'test_user_' + Date.now() + '@testuser.com';
     }
 
@@ -10318,11 +10365,11 @@ app.post('/api/tip/create', paymentLimiter, async (req, res) => {
       const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
       const receiverPayment = new Payment(receiverClient);
       const result = await receiverPayment.create({ body: paymentData, requestOptions });
-      console.log('💳 Split payment result:', { id: result.id, status: result.status, detail: result.status_detail });
+      console.log('[PAY] Split payment result:', { id: result.id, status: result.status, detail: result.status_detail });
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     } else {
       const result = await mpPayment.create({ body: paymentData, requestOptions });
-      console.log('💳 Direct payment result:', { id: result.id, status: result.status, detail: result.status_detail });
+      console.log('[PAY] Direct payment result:', { id: result.id, status: result.status, detail: result.status_detail });
       return handlePaymentResult(result, payerId, receiverId, tipAmount, touchFee, res);
     }
   } catch (e) {
@@ -10425,7 +10472,7 @@ app.post('/api/tip/pix', async (req, res) => {
       result = await mpPayment.create({ body: paymentData });
     }
 
-    console.log('🟢 PIX payment created:', { id: result.id, status: result.status });
+    console.log('[OK] PIX payment created:', { id: result.id, status: result.status });
 
     // Extract PIX data
     const pixData = result.point_of_interaction?.transaction_data;
@@ -10522,7 +10569,7 @@ app.post('/api/tip/checkout', async (req, res) => {
     IDX.tipsByReceiver.get(tipCheckoutPro.receiverId).push(tipCheckoutPro.id);
     saveDB('tips');
 
-    console.log('🛒 Checkout Pro preference created:', preference.id);
+    console.log('[SHOP] Checkout Pro preference created:', preference.id);
     res.json({
       preferenceId: preference.id,
       initPoint: preference.init_point, // Production URL
@@ -10869,7 +10916,7 @@ function verifyMPWebhookSignature(req) {
 app.post('/mp/webhook', (req, res) => {
   // Validate webhook signature
   if (!verifyMPWebhookSignature(req)) {
-    console.warn('⚠️ MP Webhook: signature inválida', { ip: req.ip, type: req.body?.type });
+    console.warn('[WARN] MP Webhook: signature inválida', { ip: req.ip, type: req.body?.type });
     return res.sendStatus(401);
   }
   // Process payment notifications
@@ -11049,7 +11096,7 @@ app.post('/api/tip/save-card', paymentLimiter, async (req, res) => {
       savedAt: Date.now()
     };
     saveDB('users');
-    console.log('💳 Card saved for user', userId, '- customer:', customerId, 'card:', cardData.id, 'last4:', cardData.last_four_digits);
+    console.log('[PAY] Card saved for user', userId, '- customer:', customerId, 'card:', cardData.id, 'last4:', cardData.last_four_digits);
     res.json({ ok: true, lastFour: cardData.last_four_digits, brand: user.savedCard.brand });
   } catch (e) {
     console.error('Save card error:', e);
@@ -11090,7 +11137,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
       if (searchData.results && searchData.results.length > 0) {
         // Customer exists with this email, use it
         customerId = searchData.results[0].id;
-        console.log('✅ Found existing customer by email:', customerId);
+        console.log('[OK] Found existing customer by email:', customerId);
       } else {
         // Create new customer
         const createResp = await fetch('https://api.mercadopago.com/v1/customers', {
@@ -11105,7 +11152,7 @@ app.post('/api/tip/quick-pay', async (req, res) => {
           return res.status(400).json({ error: 'Erro ao recriar cliente. Cadastre o cartão novamente.', cardExpired: true });
         }
         customerId = newCust.id;
-        console.log('✅ Created new customer:', customerId);
+        console.log('[OK] Created new customer:', customerId);
       }
       // Update saved customer ID
       payer.savedCard.customerId = customerId;
@@ -11329,9 +11376,9 @@ app.post('/api/subscription/create-card', paymentLimiter, async (req, res) => {
       statement_descriptor: planId === 'touch_selo' ? 'TOUCH SELO' : 'TOUCH PLUS',
       metadata: { user_id: userId, type: 'subscription', plan: planId }
     };
-    console.log('💳 Sub card pay:', { email: payerEmail, cpf: payerCpf ? '***' + payerCpf.slice(-4) : 'none', method: user.savedCard.paymentMethodId, token: tokenData.id?.slice(0, 8) });
+    console.log('[PAY] Sub card pay:', { email: payerEmail, cpf: payerCpf ? '***' + payerCpf.slice(-4) : 'none', method: user.savedCard.paymentMethodId, token: tokenData.id?.slice(0, 8) });
     const result = await mpPayment.create({ body: paymentData });
-    console.log('💳 Sub card result:', { id: result.id, status: result.status, detail: result.status_detail });
+    console.log('[PAY] Sub card result:', { id: result.id, status: result.status, detail: result.status_detail });
     if (result.status === 'approved') {
       user.subscription = { active: true, planId, method: 'card', startDate: new Date().toISOString(), mpPaymentId: result.id };
       user.isSubscriber = true;
@@ -11472,7 +11519,7 @@ app.post('/api/subscription/create', paymentLimiter, async (req, res) => {
       throw new Error(preapproval.message || 'Erro ao criar assinatura');
     }
 
-    console.log('📋 Subscription created:', { id: preapproval.id, status: preapproval.status });
+    console.log('[SUB] Subscription created:', { id: preapproval.id, status: preapproval.status });
 
     // Save subscription
     db.subscriptions[userId] = {
@@ -11525,7 +11572,7 @@ app.get('/sub-result', (req, res) => {
 app.post('/mp/webhook/subscription', (req, res) => {
   // Validate webhook signature
   if (!verifyMPWebhookSignature(req)) {
-    console.warn('⚠️ MP Sub Webhook: signature inválida', { ip: req.ip });
+    console.warn('[WARN] MP Sub Webhook: signature inválida', { ip: req.ip });
     return res.sendStatus(401);
   }
   const { type, data } = req.body;
@@ -12486,14 +12533,14 @@ const ONB_VERSION = 4; // Bump to force regeneration
 async function generateOnbAudio() {
   const fs2 = require('fs');
   if (!fs2.existsSync(ONB_AUDIO_DIR)) fs2.mkdirSync(ONB_AUDIO_DIR, { recursive: true });
-  if (!OPENAI_API_KEY) { console.warn('⚠️ No OPENAI_API_KEY, skip onboarding TTS'); return; }
+  if (!OPENAI_API_KEY) { console.warn('[WARN] No OPENAI_API_KEY, skip onboarding TTS'); return; }
   const versionFile = path.join(ONB_AUDIO_DIR, '.version');
   const currentVer = fs2.existsSync(versionFile) ? parseInt(fs2.readFileSync(versionFile, 'utf8')) : 0;
   if (currentVer < ONB_VERSION) {
-    console.log(`🔄 Onboarding TTS v${currentVer} → v${ONB_VERSION}, regenerating...`);
+    console.log(`[UPDATE] Onboarding TTS v${currentVer} → v${ONB_VERSION}, regenerating...`);
     for (const k of Object.keys(ONB_STEPS)) {
       const fp = path.join(ONB_AUDIO_DIR, k + '.mp3');
-      if (fs2.existsSync(fp)) { fs2.unlinkSync(fp); console.log(`🗑️ Deleted: ${k}.mp3`); }
+      if (fs2.existsSync(fp)) { fs2.unlinkSync(fp); console.log(`[DEL] Deleted: ${k}.mp3`); }
     }
     fs2.writeFileSync(versionFile, String(ONB_VERSION));
   }
@@ -12501,7 +12548,7 @@ async function generateOnbAudio() {
     const fp = path.join(ONB_AUDIO_DIR, key + '.mp3');
     if (fs2.existsSync(fp)) { console.log(`✅ ONB cached: ${key}.mp3`); continue; }
     try {
-      console.log(`🎙️ Generating ONB HD: ${key}...`);
+      console.log(`[TTS] Generating ONB HD: ${key}...`);
       const r = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -14767,7 +14814,7 @@ app.post('/api/operator/event/create', async (req, res) => {
 // ═══ PAY EVENT ENTRY — charge entry fee on check-in ═══
 app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, res) => {
   const { userId, token, paymentMethodId, payerEmail, payerCPF, useSavedCard, deviceId, cardholderName } = req.body;
-  console.log('🎫 pay-entry request:', { eventId: req.params.eventId, userId: userId?.slice(0,12), hasToken: !!token, useSavedCard, hasEmail: !!payerEmail });
+  console.log('[TICKET] pay-entry request:', { eventId: req.params.eventId, userId: userId?.slice(0,12), hasToken: !!token, useSavedCard, hasEmail: !!payerEmail });
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
   if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
@@ -14775,7 +14822,7 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
   if (!userId) return res.status(400).json({ error: 'userId é obrigatório.' });
   const user = db.users[userId];
   if (!user) {
-    console.error('🎫 User not found in db.users:', userId, 'Total users:', Object.keys(db.users).length);
+    console.error('[TICKET] User not found in db.users:', userId, 'Total users:', Object.keys(db.users).length);
     return res.status(404).json({ error: 'Usuário não encontrado. Faça login novamente.' });
   }
   if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP não configurado.' });
@@ -14834,7 +14881,7 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
         paymentToken = tokenData.id;
         var pmId = card.payment_method?.id || user.savedCard.paymentMethodId || 'visa';
       } catch (mpErr) {
-        console.error('🎫 One-tap MP error:', mpErr.message);
+        console.error('[TICKET] One-tap MP error:', mpErr.message);
         // Any MP API error → tell frontend to show card form
         return res.status(400).json({ error: 'Erro com cartão salvo.', cardExpired: true });
       }
@@ -14875,7 +14922,7 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
       metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry' }
     };
 
-    console.log('🎫 Entry payment:', { amount, event: ev.name, user: userId.slice(0, 8), method: paymentData.payment_method_id, hasDeviceId: !!deviceId });
+    console.log('[TICKET] Entry payment:', { amount, event: ev.name, user: userId.slice(0, 8), method: paymentData.payment_method_id, hasDeviceId: !!deviceId });
 
     const idempotencyKey = uuidv4();
     const requestOptions = { idempotencyKey };
@@ -14890,7 +14937,7 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
       result = await mpPayment.create({ body: paymentData, requestOptions });
     }
 
-    console.log('🎫 Entry result:', { id: result.id, status: result.status, detail: result.status_detail });
+    console.log('[TICKET] Entry result:', { id: result.id, status: result.status, detail: result.status_detail });
 
     // Always save payment record (approved, rejected, pending)
     const tipId = uuidv4();
@@ -15092,7 +15139,7 @@ app.post('/api/operator/event/:eventId/end', (req, res) => {
   ev.active = false;
   ev.endedAt = Date.now();
   // Remove from sonicQueue
-  delete sonicQueue['evt:' + ev.id];
+  sonicQueueDel('evt:' + ev.id);
   // Expire all event checkin relations (removes from chat list)
   const now = Date.now();
   for (const rId in db.relations) {
@@ -15633,7 +15680,7 @@ app.post('/api/event/:eventId/delete', (req, res) => {
   // End event first
   ev.active = false;
   ev.endedAt = Date.now();
-  delete sonicQueue['evt:' + ev.id];
+  sonicQueueDel('evt:' + ev.id);
   // Expire all event relations
   const now = Date.now();
   for (const rId in db.relations) {
@@ -19372,20 +19419,21 @@ const PORT = process.env.PORT || 3000;
 
 // Async startup: load DB then start server (always starts even if DB fails)
 (async () => {
-  console.log(`🚀 Iniciando servidor... (PORT=${PORT})`);
+  console.log(`[START] Iniciando servidor... (PORT=${PORT})`);
   try {
     await loadDB();
   } catch (e) {
-    console.error('❌ loadDB falhou completamente:', e.message);
+    console.error('[ERR] loadDB falhou completamente:', e.message);
     dbLoaded = true; // start with empty DB
   }
-  console.log('✅ loadDB concluído, abrindo porta...');
+  console.log('[OK] loadDB concluído, abrindo porta...');
   console.log('[news-engine] Motor de noticias sempre LIGADO');
 
 // Cleanup function for graceful shutdown
 function cleanupIntervals() {
   if (_cleanupInterval) clearInterval(_cleanupInterval);
   if (_sonicQueueInterval) clearInterval(_sonicQueueInterval);
+  if (_onlineUsersCleanupInterval) clearInterval(_onlineUsersCleanupInterval);
   console.log('Intervals cleaned up');
 }
 

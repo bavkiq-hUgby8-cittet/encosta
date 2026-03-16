@@ -7484,12 +7484,21 @@ function getAllowedAccessories(userTier){
   return[]; // free users: no accessories
 }
 
+function safePhotoUrl(url){
+  if(!url||typeof url!=='string')return '';
+  url=url.trim();
+  // Only allow https: and data:image/ URLs -- block javascript:, data:text/html, etc
+  if(/^https:\/\//i.test(url))return url.replace(/["<>]/g,'');
+  if(/^data:image\//i.test(url))return url.replace(/["<>]/g,'');
+  return '';
+}
 function makeAvatar(nick,color,size,photo,verified,accessoryKey){
   size=size||44;
   const sizeClass=size<=30?'verified-badge-sm':size>=60?'verified-badge-lg':'';
   let inner;
-  if(photo&&photo.length>10){
-    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,.1)"><img src="'+photo+'" style="width:100%;height:100%;object-fit:cover;display:block" alt=""></div>';
+  var safePhoto=safePhotoUrl(photo);
+  if(safePhoto&&safePhoto.length>10){
+    inner='<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid rgba(255,255,255,.1)"><img src="'+safePhoto+'" style="width:100%;height:100%;object-fit:cover;display:block" alt=""></div>';
   } else {
     inner='<div style="position:relative;width:'+size+'px;height:'+size+'px;overflow:visible;flex-shrink:0">'
       +'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.1)"><svg viewBox="0 0 100 100" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50" fill="#1a1a2e"/><circle cx="50" cy="38" r="15" fill="#2d2d4a"/><ellipse cx="50" cy="76" rx="24" ry="16" fill="#2d2d4a"/></svg></div>';
