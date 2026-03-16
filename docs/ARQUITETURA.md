@@ -129,11 +129,14 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 - OPENAI_API_KEY -- voz dos 3 assistentes + TTS Radio
 - PPLX_API_KEY -- agentes de noticias do Mural
 
-### Pendentes de verificacao no Render:
-- STRIPE_SECRET_KEY -- pagamentos Stripe US
-- STRIPE_PUBLIC_KEY -- frontend Stripe
-- STRIPE_WEBHOOK_SECRET -- webhook Stripe
-- STRIPE_CONNECT_CLIENT_ID -- Stripe Connect
+### Stripe US (conta ativada 16/03/2026):
+- Conta: Touch IRL LLC, Single-member LLC, Estados Unidos
+- Banco: Mercury Checking vinculada (repasses automaticos)
+- Render usa chaves de TESTE (sk_test_, pk_test_) -- trocar pra live quando for producao:
+- STRIPE_SECRET_KEY -- trocar pra sk_live_ quando for producao
+- STRIPE_PUBLIC_KEY -- trocar pra pk_live_ quando for producao
+- STRIPE_WEBHOOK_SECRET -- criar webhook live quando for producao
+- STRIPE_CONNECT_CLIENT_ID -- configurar Connect live quando for producao
 
 ## FLUXOS DE PAGAMENTO
 

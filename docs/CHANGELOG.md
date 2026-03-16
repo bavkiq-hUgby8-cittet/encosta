@@ -30,11 +30,21 @@ Historico consolidado de todas as sessoes de desenvolvimento.
   - UI completa com abas US/BR/LATAM, campos editaveis por categoria
   - Botao nas 2 areas admin (more-menu e perfil)
 
+### Stripe US ativado:
+- Conta Stripe US criada: Touch IRL LLC, Single-member LLC, Estados Unidos
+- EIN vinculado, representante verificado (passaporte)
+- Mercury Checking ••6278 vinculada como conta de repasses automaticos
+- Categoria: Software (SaaS)
+- Statement descriptor: TOUCH IRL
+- Testes continuam com chaves sk_test_/pk_test_ no Render
+- Para ir pra producao: trocar 3 vars no Render (SECRET, PUBLIC, WEBHOOK)
+
 ### Commits:
 - fcb1037 fix: corrigir 10 gaps criticos no sistema de pagamentos
 - b405d32 feat: pagina partners.html com comparativo taxas Stripe vs MP (3 idiomas)
 - 871e407 feat: sistema de precos regionais centralizado (USD/BRL/LATAM)
 - 6c04959 feat: painel admin para editar tabela de precos (sem tocar no codigo)
+- 09f2d96 docs: atualizar toda documentacao com mudancas da sessao 11
 
 ### Numeros:
 - server.js: ~22825 linhas

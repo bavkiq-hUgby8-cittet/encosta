@@ -38,11 +38,14 @@ Atualizado: 16/03/2026
 
 ### 7. Stripe pagamentos
 - IMPLEMENTADO no codigo, precisa testar fluxo completo em producao
-- Chaves de API pendentes de verificacao no Render:
-  - [ ] STRIPE_SECRET_KEY
-  - [ ] STRIPE_PUBLIC_KEY
-  - [ ] STRIPE_WEBHOOK_SECRET
-  - [ ] STRIPE_CONNECT_CLIENT_ID
+- [x] Conta Stripe US ativada (Single-member LLC, Estados Unidos)
+- [x] Mercury Checking ••6278 vinculada como conta de repasses
+- [x] Repasses automaticos configurados
+- Chaves de API -- TROCAR no Render quando for pra producao:
+  - [ ] STRIPE_SECRET_KEY (trocar sk_test_ por sk_live_)
+  - [ ] STRIPE_PUBLIC_KEY (trocar pk_test_ por pk_live_)
+  - [ ] STRIPE_WEBHOOK_SECRET (criar webhook novo no modo live)
+  - [ ] STRIPE_CONNECT_CLIENT_ID (configurar Stripe Connect no live)
 
 ### 8. Mural + Radio
 - IMPLEMENTADO, precisa monitorar performance com muitos usuarios
