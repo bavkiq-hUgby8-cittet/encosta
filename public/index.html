@@ -3208,12 +3208,11 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <div class="cp-field"><label>Hobbies / Música <span style="font-size:.55rem;color:var(--t3);font-weight:400">(até 2)</span></label>
       <div id="cpHobbiesGrid" class="cp-tag-grid"></div>
     </div>
-    <!-- Veiculo -->
-    <div class="cp-section-title">Veiculo</div>
-    <div class="cp-note" style="margin:-.2rem 0 .5rem;font-size:.6rem;color:var(--t3)">Cadastre sua placa para entrada automatica em estacionamentos</div>
-    <div class="cp-field"><label>Placa do veiculo</label><input type="text" id="cpVehiclePlate" placeholder="Ex: ABC1D23" maxlength="8" style="text-transform:uppercase;font-family:monospace;letter-spacing:.1em" autocomplete="off" autocorrect="off" autocapitalize="characters"></div>
-    <div class="cp-field"><label>Modelo <span style="font-size:.55rem;color:var(--t3);font-weight:400">(opcional)</span></label><input type="text" id="cpVehicleModel" placeholder="Ex: Civic, Corolla, HB20..." maxlength="40"></div>
-    <div class="cp-field"><label>Cor <span style="font-size:.55rem;color:var(--t3);font-weight:400">(opcional)</span></label><input type="text" id="cpVehicleColor" placeholder="Ex: Preto, Branco, Prata..." maxlength="20"></div>
+    <!-- Veiculos -->
+    <div class="cp-section-title">Veiculos</div>
+    <div class="cp-note" style="margin:-.2rem 0 .5rem;font-size:.6rem;color:var(--t3)">Cadastre suas placas para entrada automatica em estacionamentos</div>
+    <div id="cpVehiclesList"></div>
+    <button id="cpAddVehicleBtn" onclick="cpAddVehicleRow()" type="button" style="width:100%;padding:.55rem;border-radius:10px;border:1px dashed rgba(255,255,255,.12);background:rgba(255,255,255,.02);color:var(--t3);font-size:.68rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:.3rem;margin-bottom:.3rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Adicionar veiculo</button>
 
     <!-- Nacionalidade -->
     <div class="cp-section-title">Nacionalidade</div>
@@ -16166,6 +16165,35 @@ async function deleteEncounter(el,timestamp){
 
 // ═══ COMPLETE PROFILE ═══
 let cpPhotoData=null;
+var _cpVehicleIdx=0;
+function cpAddVehicleRow(plate,model,color){
+  plate=plate||'';model=model||'';color=color||'';
+  var list=$('cpVehiclesList');
+  if(!list)return;
+  var idx=_cpVehicleIdx++;
+  var row=document.createElement('div');
+  row.className='cp-vehicle-row';
+  row.id='cpVehicle_'+idx;
+  row.style.cssText='position:relative;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:.6rem .5rem .5rem;margin-bottom:.4rem';
+  row.innerHTML='<button type="button" onclick="this.parentElement.remove()" style="position:absolute;top:6px;right:8px;background:none;border:none;color:rgba(239,68,68,.6);font-size:.65rem;cursor:pointer;padding:2px 4px;font-family:inherit;font-weight:700">remover</button>'
+    +'<div class="cp-field" style="margin-bottom:.3rem"><label style="font-size:.58rem">Placa</label><input type="text" class="cpVPlate" value="'+plate+'" placeholder="ABC1D23" maxlength="8" style="text-transform:uppercase;font-family:monospace;letter-spacing:.1em;font-size:.8rem" autocomplete="off" autocorrect="off" autocapitalize="characters"></div>'
+    +'<div style="display:flex;gap:.4rem"><div class="cp-field" style="flex:1;margin-bottom:0"><label style="font-size:.58rem">Modelo <span style="font-size:.48rem;color:var(--t3);font-weight:400">(opc.)</span></label><input type="text" class="cpVModel" value="'+model+'" placeholder="Civic, HB20..." maxlength="40"></div>'
+    +'<div class="cp-field" style="flex:.6;margin-bottom:0"><label style="font-size:.58rem">Cor <span style="font-size:.48rem;color:var(--t3);font-weight:400">(opc.)</span></label><input type="text" class="cpVColor" value="'+color+'" placeholder="Preto..." maxlength="20"></div></div>';
+  list.appendChild(row);
+}
+function cpCollectVehicles(){
+  var rows=document.querySelectorAll('.cp-vehicle-row');
+  var vehicles=[];
+  rows.forEach(function(r){
+    var plate=(r.querySelector('.cpVPlate')||{}).value||'';
+    plate=plate.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!plate)return;
+    var model=(r.querySelector('.cpVModel')||{}).value||'';
+    var color=(r.querySelector('.cpVColor')||{}).value||'';
+    vehicles.push({plate:plate,model:model.trim(),color:color.trim()});
+  });
+  return vehicles;
+}
 async function openCompleteProfile(){
   haptic([30]);
   showScreen('completeProfile');
@@ -16211,12 +16239,13 @@ async function openCompleteProfile(){
     // Load accessory selector
     state._selectedAccessory=d.avatarAccessory||null;
     renderAccessoryGrid(d.isTop1?'top1':d.isSubscriber?'plus':'free');
-    // Load vehicle data
-    if(d.vehicles&&d.vehicles.length>0){
-      var v=d.vehicles[0];
-      if($('cpVehiclePlate'))$('cpVehiclePlate').value=v.plate||'';
-      if($('cpVehicleModel'))$('cpVehicleModel').value=v.model||'';
-      if($('cpVehicleColor'))$('cpVehicleColor').value=v.color||'';
+    // Load vehicle data — multiple vehicles
+    var vList=$('cpVehiclesList');
+    if(vList){
+      vList.innerHTML='';
+      if(d.vehicles&&d.vehicles.length>0){
+        d.vehicles.forEach(function(v){cpAddVehicleRow(v.plate||'',v.model||'',v.color||'')});
+      }
     }
     // Load profession, sports, hobbies
     if(d.profession)$('cpProfession').value=d.profession;
@@ -16389,9 +16418,7 @@ async function saveCompleteProfile(){
     twitter:$('cpTwitter').value.trim(),
     profilePhoto:cpPhotoData||undefined,
     avatarAccessory:state._selectedAccessory||null,
-    vehiclePlate:$('cpVehiclePlate')?$('cpVehiclePlate').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,''):'',
-    vehicleModel:$('cpVehicleModel')?$('cpVehicleModel').value.trim():'',
-    vehicleColor:$('cpVehicleColor')?$('cpVehicleColor').value.trim():'',
+    vehicles:cpCollectVehicles(),
     country:state.userCountry||null,
     city:$('cpCity')?$('cpCity').value.trim():'',
     privacy:{

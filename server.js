@@ -4645,7 +4645,7 @@ app.get('/api/profile/:userId/from/:viewerId', (req, res) => {
 
 // ── Update full profile ──
 app.post('/api/profile/update', requireAuth, async (req, res) => {
-  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city, vehiclePlate, vehicleModel, vehicleColor } = req.body;
+  const { userId, nickname, realName, phone, instagram, tiktok, twitter, bio, profilePhoto, email, cpf, privacy, avatarAccessory, profession, sports, hobbies, country, city, vehiclePlate, vehicleModel, vehicleColor, vehicles } = req.body;
   if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
   const user = db.users[userId];
   // Nickname change
@@ -4750,39 +4750,49 @@ app.post('/api/profile/update', requireAuth, async (req, res) => {
     }
     user.avatarAccessory = avatarAccessory || null;
   }
-  // Vehicle plate management
-  if (vehiclePlate !== undefined) {
+  // Vehicle management — supports multiple vehicles array or legacy single vehicle
+  if (vehicles !== undefined && Array.isArray(vehicles)) {
+    // New multi-vehicle format from frontend
+    if (!IDX.plate) IDX.plate = new Map();
+    // Remove old plates from index
+    (user.vehicles || []).forEach(v => { if (v.plate) IDX.plate.delete(v.plate); });
+    // Process new vehicles
+    const newVehicles = [];
+    const errors = [];
+    vehicles.forEach(v => {
+      const cleanPlate = (v.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!cleanPlate) return;
+      // Check if plate belongs to another user
+      const existingOwner = IDX.plate.get(cleanPlate);
+      if (existingOwner && existingOwner !== userId) {
+        errors.push('Placa ' + cleanPlate + ' ja vinculada a outra conta');
+        return;
+      }
+      // Keep existing addedAt if vehicle was already saved
+      const existing = (user.vehicles || []).find(ev => ev.plate === cleanPlate);
+      newVehicles.push({ plate: cleanPlate, model: v.model || '', color: v.color || '', addedAt: existing ? existing.addedAt : Date.now() });
+      IDX.plate.set(cleanPlate, userId);
+    });
+    if (errors.length > 0) {
+      return res.status(400).json({ error: errors[0] });
+    }
+    user.vehicles = newVehicles;
+  } else if (vehiclePlate !== undefined) {
+    // Legacy single vehicle format (backward compat)
     const cleanPlate = (vehiclePlate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!user.vehicles) user.vehicles = [];
+    if (!IDX.plate) IDX.plate = new Map();
     if (cleanPlate) {
-      // Check if plate already registered to another user
-      const plateOwner = Object.values(db.users).find(u => u !== user && u.vehicles && u.vehicles.some(v => v.plate === cleanPlate));
-      if (plateOwner) {
+      const plateOwner = IDX.plate.get(cleanPlate);
+      if (plateOwner && plateOwner !== userId) {
         return res.status(400).json({ error: 'Esta placa ja esta vinculada a outra conta.' });
       }
-      // Update or add vehicle
-      const existingIdx = user.vehicles.findIndex(v => v.plate === cleanPlate || user.vehicles.length === 1);
-      const vData = { plate: cleanPlate, model: vehicleModel || '', color: vehicleColor || '', addedAt: Date.now() };
-      if (existingIdx >= 0) {
-        user.vehicles[existingIdx] = vData;
-      } else if (user.vehicles.length === 0) {
-        user.vehicles.push(vData);
-      } else {
-        // Replace primary vehicle (first slot)
-        user.vehicles[0] = vData;
-      }
-      // Index plate -> userId for fast lookup
-      if (!IDX.plate) IDX.plate = new Map();
-      // Remove old plates from index
-      user.vehicles.forEach(v => { if (v.plate !== cleanPlate) IDX.plate.delete(v.plate); });
+      (user.vehicles || []).forEach(v => IDX.plate.delete(v.plate));
+      user.vehicles = [{ plate: cleanPlate, model: vehicleModel || '', color: vehicleColor || '', addedAt: Date.now() }];
       IDX.plate.set(cleanPlate, userId);
     } else {
-      // Clear vehicle
-      if (user.vehicles.length > 0) {
-        if (!IDX.plate) IDX.plate = new Map();
-        user.vehicles.forEach(v => IDX.plate.delete(v.plate));
-        user.vehicles = [];
-      }
+      (user.vehicles || []).forEach(v => IDX.plate.delete(v.plate));
+      user.vehicles = [];
     }
   }
   user.profileComplete = !!(user.realName && (user.profilePhoto || user.photoURL));
@@ -16511,8 +16521,13 @@ app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
     const user = db.users[userId];
     if (!user.vehicles) user.vehicles = [];
     if (!user.vehicles.some(v => v.plate === plateTrimmed)) {
-      user.vehicles.push({ plate: plateTrimmed, model: vehicleModel || '', brand: vehicleBrand || '', color: vehicleColor || '', addedAt: Date.now() });
+      user.vehicles.push({ plate: plateTrimmed, model: vehicleModel || '', color: vehicleColor || '', addedAt: Date.now() });
+      // Update plate index
+      if (!IDX.plate) IDX.plate = new Map();
+      IDX.plate.set(plateTrimmed, userId);
       saveDB('users');
+      // Notify user their vehicle was registered
+      io.to(`user:${userId}`).emit('vehicle-registered', { plate: plateTrimmed, model: vehicleModel || '', color: vehicleColor || '', eventName: ev.name });
     }
   }
   ev.parking.vehicles[plateTrimmed] = {
