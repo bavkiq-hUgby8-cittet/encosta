@@ -850,6 +850,8 @@ async function loadDB() {
     if (Object.keys(db.users).length > 0) {
       createBackup('auto:server-start').catch(e => console.warn('Startup backup failed:', e.message));
     }
+    // Load pricing overrides from Firebase
+    loadPricingFromDB().catch(e => console.warn('Pricing load failed:', e.message));
   } catch (e) {
     console.error('Erro ao carregar DB (tentativa 1):', e.message);
     // RETRY once with longer timeout before giving up
@@ -1920,10 +1922,11 @@ const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
 
 // ══════════════════════════════════════════════════════════════════════
 // TABELA DE PRECOS POR REGIAO
-// Edite AQUI para alterar qualquer preco do app inteiro.
+// Editavel pelo admin panel (GET/POST /api/admin/pricing)
 // O frontend puxa tudo via GET /api/region-config
+// Valores default abaixo; se houver override salvo no Firebase, ele prevalece
 // ══════════════════════════════════════════════════════════════════════
-const PRICING = {
+const PRICING_DEFAULTS = {
   US: {
     currency: 'usd',
     symbol: '$',
@@ -1993,6 +1996,46 @@ const PRICING = {
     starPrice: 100
   }
 };
+// Live pricing (starts as copy of defaults, overridden by Firebase on boot)
+let PRICING = JSON.parse(JSON.stringify(PRICING_DEFAULTS));
+
+// Load pricing overrides from Firebase RTDB
+async function loadPricingFromDB() {
+  try {
+    const snap = await rtdb.ref('/pricingConfig').once('value');
+    const saved = snap.val();
+    if (saved && typeof saved === 'object') {
+      // Deep merge: only override fields that exist in saved
+      for (const region of Object.keys(PRICING_DEFAULTS)) {
+        if (saved[region] && typeof saved[region] === 'object') {
+          for (const key of Object.keys(saved[region])) {
+            if (typeof saved[region][key] === 'object' && !Array.isArray(saved[region][key])) {
+              // Nested object (gifts, barberDefaults) -- merge individually
+              PRICING[region][key] = { ...PRICING_DEFAULTS[region][key], ...saved[region][key] };
+            } else {
+              PRICING[region][key] = saved[region][key];
+            }
+          }
+        }
+      }
+      console.log('Pricing overrides loaded from Firebase');
+    }
+  } catch (e) {
+    console.warn('Could not load pricing from Firebase:', e.message);
+  }
+}
+
+// Save pricing to Firebase RTDB
+async function savePricingToDB() {
+  try {
+    await rtdb.ref('/pricingConfig').set(PRICING);
+    console.log('Pricing saved to Firebase');
+  } catch (e) {
+    console.error('Failed to save pricing to Firebase:', e.message);
+    throw e;
+  }
+}
+
 // Default region (fallback)
 const DEFAULT_REGION = process.env.DEFAULT_REGION || 'US';
 
@@ -8795,6 +8838,88 @@ app.get('/api/admin/events', adminLimiter, requireAdmin, (req, res) => {
     events.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     res.json({ events });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ ADMIN PRICING MANAGEMENT ═══
+// GET: retorna tabela de precos atual (todas as regioes)
+app.get('/api/admin/pricing', adminLimiter, requireAdmin, (req, res) => {
+  res.json({ pricing: PRICING, defaults: PRICING_DEFAULTS });
+});
+
+// POST: atualiza precos de uma ou mais regioes
+app.post('/api/admin/pricing', adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    const { pricing } = req.body;
+    if (!pricing || typeof pricing !== 'object') {
+      return res.status(400).json({ error: 'Campo "pricing" obrigatorio (objeto com regioes).' });
+    }
+    const validRegions = Object.keys(PRICING_DEFAULTS);
+    const validFields = [
+      'plusMonthly', 'seloMonthly', 'tipMin', 'tipMax', 'verifiedBadge',
+      'parkingHourly', 'gymMonthly', 'starPrice'
+    ];
+    const validArrayFields = ['tipSuggestions'];
+    const validObjectFields = ['gifts', 'barberDefaults'];
+    const updated = [];
+    for (const region of Object.keys(pricing)) {
+      if (!validRegions.includes(region)) continue;
+      const changes = pricing[region];
+      if (!changes || typeof changes !== 'object') continue;
+      for (const key of Object.keys(changes)) {
+        const val = changes[key];
+        if (validFields.includes(key)) {
+          const num = parseFloat(val);
+          if (isNaN(num) || num < 0) continue;
+          PRICING[region][key] = num;
+          updated.push(region + '.' + key + '=' + num);
+        } else if (validArrayFields.includes(key) && Array.isArray(val)) {
+          const nums = val.map(Number).filter(n => !isNaN(n) && n > 0);
+          if (nums.length > 0) {
+            PRICING[region][key] = nums;
+            updated.push(region + '.' + key + '=[' + nums.join(',') + ']');
+          }
+        } else if (validObjectFields.includes(key) && typeof val === 'object' && !Array.isArray(val)) {
+          for (const subKey of Object.keys(val)) {
+            const subNum = parseFloat(val[subKey]);
+            if (!isNaN(subNum) && subNum >= 0) {
+              PRICING[region][key][subKey] = subNum;
+              updated.push(region + '.' + key + '.' + subKey + '=' + subNum);
+            }
+          }
+        }
+        // currency, symbol, locale, gateway are not editable via this endpoint (safety)
+      }
+    }
+    if (updated.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo valido para atualizar.' });
+    }
+    await savePricingToDB();
+    console.log('[admin] Pricing updated:', updated.join(', '));
+    res.json({ ok: true, updated, pricing: PRICING });
+  } catch (e) {
+    console.error('[admin] Pricing update error:', e.message);
+    res.status(500).json({ error: 'Erro ao salvar precos: ' + e.message });
+  }
+});
+
+// POST: resetar precos para os defaults
+app.post('/api/admin/pricing/reset', adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    const { region } = req.body;
+    if (region && PRICING_DEFAULTS[region]) {
+      PRICING[region] = JSON.parse(JSON.stringify(PRICING_DEFAULTS[region]));
+    } else {
+      // Reset all
+      Object.keys(PRICING_DEFAULTS).forEach(r => {
+        PRICING[r] = JSON.parse(JSON.stringify(PRICING_DEFAULTS[r]));
+      });
+    }
+    await savePricingToDB();
+    console.log('[admin] Pricing reset to defaults' + (region ? ' for ' + region : ''));
+    res.json({ ok: true, pricing: PRICING });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/api/admin/financial', adminLimiter, requireAdmin, (req, res) => {
