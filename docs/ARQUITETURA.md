@@ -176,6 +176,11 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 26. Admin Pricing Panel: editar todos os precos pelo admin (sem tocar no codigo), persist Firebase
 27. Sistema de reembolsos: admin, operador e usuario (Stripe refund, MP refund, janela 24h)
 28. Receipts em tempo real: notificacoes de pagamento aprovado/falha/reembolso via socket
+29. WiFi Sharing: operador configura SSID/senha, auto-popup apos Touch, QR code para impressao
+30. safePhotoUrl(): sanitizacao de URLs de foto (previne XSS via img src)
+31. sonicFreqIndex: Map indexado para O(1) lookup de frequencias sonicas (era O(n))
+32. HSTS: Strict-Transport-Security com preload habilitado
+33. Online users cleanup: intervalo de 30min remove entradas orfas do _onlineUsers
 
 ## DEPLOY (Render.com)
 

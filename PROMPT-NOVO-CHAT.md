@@ -102,7 +102,8 @@ Eventos tem modulos selecionaveis via checkboxes no Perfil:
 - Igreja (roxo #8b5cf6) -- dizimos, cultos, celulas
 - Barbearia (dourado #d4a745) -- barbeiros, servicos, horarios, agendamento com pagamento antecipado
 - Karaoke (rosa #ec4899) -- YouTube player, fila de cantores, votacao, placar, microfone
-Armazenados em ev.modules = {restaurant: bool, parking: bool, gym: bool, church: bool, barber: bool, karaoke: bool}
+- WiFi (cyan #06b6d4) -- operador configura SSID+senha, cliente recebe auto apos Touch check-in
+Armazenados em ev.modules = {restaurant: bool, parking: bool, gym: bool, church: bool, barber: bool, karaoke: bool, wifi: bool}
 FABs dos modulos so aparecem se o modulo esta ativo.
 
 ### Touch Feedback nos Modulos
@@ -214,6 +215,7 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 | docs/API.md | Documentacao completa das APIs REST |
 | docs/KARAOKE.md | Modulo Karaoke: endpoints, fluxo, YouTube, pontuacao, config |
 | docs/TAXAS-E-PAGAMENTOS.md | Taxas, repasses, prazos, reembolsos, precos regionais, comparativo Stripe/MP |
+| docs/AUDIT-LANCAMENTO.md | Auditoria pre-lancamento: seguranca, performance, fixes aplicados, pendencias |
 
 ## PROMPTS DE AGENTES ESPECIALIZADOS
 
@@ -258,14 +260,15 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - render.yaml: Infrastructure as Code na raiz do repositorio
 - IMPORTANTE: apos cada push, aguardar ~90s para o deploy concluir no Render
 
-## STATUS ATUAL (07/03/2026)
+## STATUS ATUAL (16/03/2026)
 
 - App funcionando em producao (touch-irl.com)
+- AUDITORIA PRE-LANCAMENTO CONCLUIDA (16/03/2026) -- ver docs/AUDIT-LANCAMENTO.md
 - touch irl, LLC em Delaware -- incorporacao em andamento
 - Stripe implementado no codigo (pendente ativar chaves no Render)
 - Dashboard financeiro admin completo (receita, taxas, payouts, prestadores)
 - Painel operacional com glass morphism, modulos, perfil, notificacoes de chat
-- 6 modulos operacionais: Restaurante, Estacionamento, Treinos, Barbearia, Igreja, Karaoke
+- 7 modulos operacionais: Restaurante, Estacionamento, Treinos, Barbearia, Igreja, Karaoke, WiFi
 - Modulo Karaoke COMPLETO: YouTube IFrame Player na TV, busca de musicas via YouTube Data API v3 (proxy server-side), fila em tempo real, votacao por estrelas, aplausos, placar com pontuacao, microfone com visualizador de energia (Web Audio API), auto-avanco, botao YouTube Premium login pra remover ads. Doc completo em docs/KARAOKE.md
 - Modulo Treinos (ex-Academia): renomeado para cobrir CrossFit e qualquer esporte, mural de anuncios com prioridade/validade, WiFi auto-share
 - Modulo Barbearia COMPLETO: agendamento com pagamento antecipado, fluxo aceitar/recusar pelo barbeiro, reembolso em caso de recusa, view completa do barbeiro (agenda/pendentes/historico), conclusao de servico
@@ -314,6 +317,22 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 - POST /api/event/:id/barber/appointment/:aptId/reject -- barbeiro recusa (refund pending)
 - POST /api/event/:id/barber/appointment/:aptId/complete -- marca concluido
 - Socket events: barber-appointment-accepted, barber-appointment-rejected, barber-appointment-completed, barber-appointment-updated
+
+### Modulo WiFi (NOVO - 16/03/2026)
+- Operador configura SSID + senha no painel (operator.html)
+- Gera QR code WiFi padrao (WIFI:T:WPA;S:ssid;P:password;;) para imprimir/exibir no local
+- Apos Touch check-in, cliente recebe popup automatico com:
+  - Senha copiada automaticamente pro clipboard
+  - Botao "Conectar ao WiFi" que abre as configuracoes WiFi do celular (detecta iOS/Android)
+  - Instrucao: "Selecione [nome da rede] e cole a senha"
+- LIMITACAO TECNICA: browsers nao podem conectar automaticamente no WiFi (restricao do SO)
+  - O maximo possivel: auto-copy senha + abrir settings = 2 toques do usuario
+- Endpoints:
+  - POST /api/operator/event/:id/wifi -- operador salva config
+  - GET /api/event/:id/wifi -- cliente obtem credenciais (so se participante)
+  - GET /api/operator/event/:id/wifi -- operador consulta config
+- WiFi data incluido nas respostas de check-in (/api/event/quick-checkin, /api/event/join)
+- Armazenado em ev.wifi = { enabled: bool, ssid: string, password: string }
 
 ## ESTRATEGIA DE LANCAMENTO E MARKETING (MUITO IMPORTANTE)
 

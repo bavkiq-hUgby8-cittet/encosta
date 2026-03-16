@@ -66,6 +66,19 @@ B6. Logs de console com dados sensiveis
 - [x] withTimeout() para operacoes Firebase
 - [x] uncaughtException e unhandledRejection handlers
 
+### AUDITORIA PRE-LANCAMENTO (16/03/2026)
+
+- [x] requireAuth fallback endurecido: verifica origem confiada (CORS_ORIGINS) antes de aceitar userId sem token Firebase
+- [x] HSTS habilitado com preload (maxAge 1 ano, includeSubDomains)
+- [x] safePhotoUrl() no index.html: sanitiza URLs de foto (bloqueia javascript:, data:text/html, etc)
+- [x] npm audit fix: corrigido HIGH no express-rate-limit (bypass IPv4-mapped IPv6)
+- [x] sonicFreqIndex: Map para busca O(1) de frequencias (era O(n) linear scan)
+- [x] assignSonicFreq: evita colisao verificando slots em uso antes de atribuir
+- [x] Ranking cache TTL aumentado de 2min para 10min
+- [x] Online users cleanup interval (remove entradas com mais de 1h a cada 30min)
+- [x] Emojis removidos de todos os console.log/warn/error no server.js
+- [x] sonicQueueSet/sonicQueueDel: helpers que mantêm sonicFreqIndex sincronizado
+
 ## PRIORIDADE DE CORRECAO
 
 ### Imediato (24h):
