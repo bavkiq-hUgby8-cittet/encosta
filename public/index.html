@@ -8758,11 +8758,26 @@ function doReveal(data){
     var evLogo=(them.eventLogo||data.eventLogo||'').replace(/'/g,"\\'");
     const enterEvAction=evId?"showEventView('"+evId+"','"+esc(evName)+"')":"goHome()";
     const guestFlag=state.isGuest?";window._guestNeedsUpgrade=true":"";
+    // Parking data from unified flow
+    const parkData=data.parkingData||null;
+    const hasParkingPrepaid=!!(parkData&&parkData.enabled&&(parkData.mode==='prepaid'||parkData.mode==='both')&&parkData.prepaidCost>0);
+    const parkingCost=hasParkingPrepaid?parkData.prepaidCost:0;
+    const combinedTotal=entryPrice+parkingCost;
+    const autoPlate=parkData?parkData.autoPlate:'';
+    const visitorVehicles=parkData?parkData.visitorVehicles:[];
+    // Store parking data globally for payment flow
+    if(parkData){
+      window._parkingTouchData={eventId:evId,eventName:evName,operatorId:opId,parkingData:parkData,entryPrice:entryPrice,eventLogo:evLogo};
+    }
     // Menu icon
     const _menuIco='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>';
     let h='';
-    // Entry ticket (if has price)
-    if(entryPrice>0){
+    // COMBINED PAYMENT: entry + parking prepaid together
+    if(hasParkingPrepaid&&combinedTotal>0){
+      const totalLabel='R$'+combinedTotal.toFixed(2).replace('.',',');
+      h+=_rvBtn(_rvIco.ticket,'Pagar Tudo '+totalLabel,"showCombinedParkingPayment()",'primary');
+    }else if(entryPrice>0){
+      // Entry only (no parking or postpaid parking)
       const priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
       h+=_rvBtn(_rvIco.ticket,'Pagar '+priceLabel,"showEntryPayment('"+evId+"','"+esc(evName)+"',"+entryPrice+",'"+opId+"','"+evLogo+"')",'primary');
     }
@@ -8770,8 +8785,8 @@ function doReveal(data){
     if(hasMenu&&evId){
       h+=_rvBtn(_menuIco,'Cardapio',"skipEntryPayment('"+evId+"','"+esc(evName)+"','"+opId+"');setTimeout(function(){openEventMenu()},400)",'');
     }
-    // Parking button (if event has parking module) - opens inline parking flow
-    if(evModules.parking&&evId){
+    // Parking button (if event has parking module but NOT prepaid or no vehicle) - manual flow
+    if(evModules.parking&&evId&&!hasParkingPrepaid){
       h+=_rvBtn('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>','Estacionar',"openParkingCheckinFlow('"+evId+"','"+esc(evName)+"','"+opId+"')",'');
     }
     // Gym button (if event has gym module)
@@ -8808,10 +8823,17 @@ function doReveal(data){
       const tipB=iconRow.querySelector('.rv-icon-btn.tip');
       if(tipB){tipB.id='revealTipBtn';tipB.dataset.receiverId=opId}
     }
-    // Show "Entrar" as prominent button below the icon row + entry price
+    // Show "Entrar" as prominent button below the icon row + pricing breakdown
     if(secRow){
       var secH='';
-      if(entryPrice>0){
+      if(hasParkingPrepaid&&combinedTotal>0){
+        // Show breakdown: entry + parking
+        secH+='<div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.12);border-radius:10px;padding:.5rem .6rem;margin:0 .3rem .3rem;font-size:.55rem;color:var(--t3);line-height:1.6">';
+        if(entryPrice>0)secH+='<div style="display:flex;justify-content:space-between"><span>Entrada</span><span style="color:var(--t1)">R$'+entryPrice.toFixed(2).replace('.',',')+'</span></div>';
+        secH+='<div style="display:flex;justify-content:space-between"><span>Estacionamento'+(autoPlate?' ('+esc(autoPlate)+')':'')+'</span><span style="color:var(--t1)">R$'+parkingCost.toFixed(2).replace('.',',')+'</span></div>';
+        secH+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.06);margin-top:.3rem;padding-top:.3rem;font-weight:700;color:#a5b4fc"><span>Total</span><span>R$'+combinedTotal.toFixed(2).replace('.',',')+'</span></div>';
+        secH+='</div>';
+      }else if(entryPrice>0){
         var priceLabel='R$'+entryPrice.toFixed(2).replace('.',',');
         secH+='<div style="font-size:.62rem;color:#fbbf24;text-align:center;padding:.2rem 0;line-height:1.5">Entrada: '+priceLabel+'</div>';
       }
@@ -8876,6 +8898,190 @@ function openTipFromReveal(){
     if(rid) return showTipScreen(rid);
   }
   showToast('Nao foi possivel identificar o destinatario.');
+}
+
+// ═══ COMBINED PARKING + ENTRY PAYMENT ═══
+function showCombinedParkingPayment(){
+  var pd=window._parkingTouchData;
+  if(!pd){showToast('Erro: dados de estacionamento nao encontrados.');return}
+  var evId=pd.eventId,evName=pd.eventName,opId=pd.operatorId,pk=pd.parkingData;
+  var entryPrice=pd.entryPrice||0;
+  var parkingCost=pk.prepaidCost||0;
+  var totalAmount=entryPrice+parkingCost;
+  var vehicles=pk.visitorVehicles||[];
+  var autoPlate=pk.autoPlate||'';
+  var evLogo=pd.eventLogo||'';
+  // Build overlay
+  var ov=document.getElementById('combinedParkPayOverlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='combinedParkPayOverlay';
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:260;background:var(--bg,#0a0a1a);display:flex;flex-direction:column;overflow:hidden';
+    document.body.appendChild(ov);
+  }
+  ov.style.display='';
+  var h='<div style="display:flex;align-items:center;padding:.7rem 1rem;border-bottom:1px solid rgba(59,130,246,.15);gap:.6rem">';
+  h+='<button onclick="closeCombinedParkPay()" style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(59,130,246,.2);background:rgba(59,130,246,.06);color:#3b82f6;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">&#8592;</button>';
+  h+='<div style="flex:1;text-align:center"><div style="font-size:.82rem;font-weight:700;color:#3b82f6">Pagamento</div>';
+  h+='<div style="font-size:.55rem;color:var(--t3)">'+esc(evName)+'</div></div>';
+  h+='<div style="width:34px"></div></div>';
+  h+='<div style="flex:1;overflow-y:auto;padding:1rem;-webkit-overflow-scrolling:touch">';
+  // Event logo
+  if(evLogo){
+    h+='<div style="text-align:center;margin-bottom:.8rem"><div style="width:70px;height:70px;border-radius:16px;overflow:hidden;margin:0 auto;border:2px solid rgba(255,255,255,.1)"><img src="'+esc(evLogo)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentNode.style.display=\'none\'"></div></div>';
+  }
+  // Price breakdown
+  h+='<div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:14px;padding:.8rem;margin-bottom:1rem">';
+  if(entryPrice>0){
+    h+='<div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--t2);padding:.3rem 0"><span>Entrada</span><span style="color:var(--t1);font-weight:600">R$'+entryPrice.toFixed(2).replace('.',',')+'</span></div>';
+  }
+  h+='<div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--t2);padding:.3rem 0"><span>Estacionamento</span><span style="color:var(--t1);font-weight:600">R$'+parkingCost.toFixed(2).replace('.',',')+'</span></div>';
+  // Rate info
+  var rateInfo='';
+  if(pk.pricingMode==='periods'&&pk.periods&&pk.periods.length>0){
+    rateInfo=pk.periods.map(function(p){return p.label+': R$'+Number(p.price||0).toFixed(2)}).join(' | ');
+  }else{
+    rateInfo='R$'+Number(pk.hourlyRate||10).toFixed(2)+'/hora';
+  }
+  h+='<div style="font-size:.5rem;color:var(--t3);padding:.1rem 0">'+rateInfo+'</div>';
+  if(pk.tolerance>0)h+='<div style="font-size:.5rem;color:var(--t3)">Tolerancia: '+pk.tolerance+' min gratis</div>';
+  h+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.08);margin-top:.4rem;padding-top:.4rem;font-size:.85rem;font-weight:800;color:#a5b4fc"><span>Total</span><span>R$'+totalAmount.toFixed(2).replace('.',',')+'</span></div>';
+  h+='</div>';
+  // Vehicle selection
+  h+='<div style="margin-bottom:1rem">';
+  h+='<div style="font-size:.7rem;font-weight:700;color:var(--t1);margin-bottom:.5rem">Veiculo</div>';
+  if(vehicles.length>0){
+    for(var i=0;i<vehicles.length;i++){
+      var v=vehicles[i];
+      var isSelected=v.plate===autoPlate;
+      h+='<label style="display:flex;align-items:center;gap:.6rem;padding:.6rem;background:'+(isSelected?'rgba(52,211,153,.08)':'rgba(255,255,255,.02)')+';border:1.5px solid '+(isSelected?'rgba(52,211,153,.3)':'rgba(255,255,255,.06)')+';border-radius:12px;margin-bottom:.4rem;cursor:pointer">';
+      h+='<input type="radio" name="cpkPlate" value="'+esc(v.plate)+'" '+(isSelected?'checked':'')+' style="accent-color:#34d399;width:16px;height:16px">';
+      h+='<div style="flex:1"><div style="font-size:.82rem;font-weight:800;letter-spacing:.1em;color:var(--t1)">'+esc(v.plate)+'</div>';
+      if(v.model||v.color)h+='<div style="font-size:.5rem;color:var(--t3)">'+esc([v.model,v.color].filter(Boolean).join(' - '))+'</div>';
+      h+='</div></label>';
+    }
+    h+='<div style="text-align:center;margin:.4rem 0"><span style="font-size:.55rem;color:var(--t3);cursor:pointer;text-decoration:underline" onclick="document.getElementById(\'cpkNewPlateSection\').style.display=\'block\'">Usar outra placa</span></div>';
+  }
+  h+='<div id="cpkNewPlateSection" style="display:'+(vehicles.length>0?'none':'block')+'">';
+  h+='<input id="cpkNewPlate" placeholder="ABC1D23" maxlength="10" style="width:100%;padding:.6rem .8rem;background:var(--bg);border:1.5px solid rgba(59,130,246,.2);border-radius:12px;color:var(--t1);font-size:.9rem;font-family:inherit;text-transform:uppercase;outline:none;text-align:center;letter-spacing:.15em;font-weight:700" onfocus="this.style.borderColor=\'#3b82f6\'" onblur="this.style.borderColor=\'rgba(59,130,246,.2)\'">';
+  h+='</div>';
+  h+='</div>';
+  // Payment buttons
+  h+='<div id="cpkPayBtns">';
+  // Saved card one-tap
+  var sc=null;
+  try{sc=JSON.parse(localStorage.getItem('touch_saved_card'))||null}catch(e){}
+  if(sc&&sc.last4){
+    h+='<button id="cpkSavedCardBtn" onclick="cpkPayWithSavedCard()" style="width:100%;padding:.9rem;border-radius:14px;border:none;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;margin-bottom:.5rem;box-shadow:0 4px 15px rgba(59,130,246,.3)">';
+    h+='Pagar R$'+totalAmount.toFixed(2).replace('.',',')+' (****'+esc(sc.last4)+')</button>';
+  }
+  // New card
+  h+='<button onclick="cpkShowCardForm()" style="width:100%;padding:.75rem;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:var(--t1);font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit;margin-bottom:.5rem">';
+  h+='Pagar com cartao</button>';
+  // PIX
+  h+='<button onclick="cpkPayWithPix()" style="width:100%;padding:.75rem;border-radius:14px;border:1px solid rgba(52,211,153,.2);background:rgba(52,211,153,.05);color:#34d399;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit;margin-bottom:.5rem">';
+  h+='Pagar com PIX</button>';
+  // Skip
+  h+='<div style="text-align:center;margin-top:.5rem"><span onclick="closeCombinedParkPay();skipEntryPayment(\''+evId+'\',\''+esc(evName)+'\',\''+opId+'\')" style="font-size:.6rem;color:var(--t3);cursor:pointer;text-decoration:underline">Pagar depois</span></div>';
+  h+='</div>';
+  // Card form placeholder
+  h+='<div id="cpkCardFormArea" style="display:none"></div>';
+  h+='</div>';
+  ov.innerHTML=h;
+}
+function closeCombinedParkPay(){
+  var ov=document.getElementById('combinedParkPayOverlay');
+  if(ov)ov.style.display='none';
+}
+function _cpkGetPlate(){
+  var radios=document.querySelectorAll('input[name="cpkPlate"]');
+  for(var i=0;i<radios.length;i++){if(radios[i].checked)return radios[i].value}
+  var inp=document.getElementById('cpkNewPlate');
+  return inp?(inp.value||'').toUpperCase().replace(/[^A-Z0-9]/g,''):'';
+}
+async function cpkPayWithSavedCard(){
+  var plate=_cpkGetPlate();
+  if(!plate){showToast('Informe a placa do veiculo.');return}
+  var pd=window._parkingTouchData;if(!pd)return;
+  var btn=document.getElementById('cpkSavedCardBtn');
+  if(btn){btn.disabled=true;btn.textContent='Processando...'}
+  try{
+    var r=await fetch('/api/operator/event/'+pd.eventId+'/pay-entry-parking',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,plate:plate,useSavedCard:true})
+    });
+    var d=await r.json();
+    if(d.cardExpired){
+      showToast('Cartao salvo expirou. Use outro metodo.');
+      if(btn){btn.disabled=false;btn.textContent='Tentar novamente'}
+      return;
+    }
+    if(d.error){showToast(d.error);if(btn){btn.disabled=false;btn.textContent='Tentar novamente'}return}
+    if(d.status==='approved'){
+      showToast('Pagamento aprovado! Entrada + Estacionamento');
+      haptic([80,40,80]);
+      closeCombinedParkPay();
+      // Save plate locally
+      _saveParkPlateLocal(plate);
+      // Enter event
+      if(pd.eventId)showEventView(pd.eventId,pd.eventName);
+    }else{
+      showToast('Pagamento '+(d.statusDetail||d.status||'nao aprovado')+'. Tente outro metodo.');
+      if(btn){btn.disabled=false;btn.textContent='Tentar novamente'}
+    }
+  }catch(e){
+    showToast('Erro no pagamento.');
+    if(btn){btn.disabled=false;btn.textContent='Tentar novamente'}
+  }
+}
+async function cpkPayWithPix(){
+  var plate=_cpkGetPlate();
+  if(!plate){showToast('Informe a placa do veiculo.');return}
+  var pd=window._parkingTouchData;if(!pd)return;
+  var email=prompt('Seu email para PIX:','')||'';
+  if(!email){showToast('Email obrigatorio para PIX.');return}
+  var cpf=prompt('Seu CPF (apenas numeros):','')||'';
+  if(!cpf||cpf.replace(/\D/g,'').length<11){showToast('CPF invalido.');return}
+  try{
+    var r=await fetch('/api/operator/event/'+pd.eventId+'/pay-entry-parking-pix',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:state.userId,plate:plate,payerEmail:email,payerCPF:cpf})
+    });
+    var d=await r.json();
+    if(d.error){showToast(d.error);return}
+    // Show PIX QR code
+    var area=document.getElementById('cpkPayBtns');
+    if(area&&d.qrCode){
+      var ph='<div style="text-align:center;padding:1rem">';
+      ph+='<div style="font-size:.75rem;font-weight:700;color:#34d399;margin-bottom:.5rem">PIX gerado!</div>';
+      ph+='<div style="font-size:.55rem;color:var(--t3);margin-bottom:.8rem">Escaneie o QR Code ou copie o codigo</div>';
+      if(d.qrCodeBase64){
+        ph+='<div style="background:#fff;border-radius:12px;padding:.6rem;display:inline-block;margin-bottom:.6rem"><img src="data:image/png;base64,'+d.qrCodeBase64+'" style="width:180px;height:180px"></div>';
+      }
+      ph+='<div style="margin-top:.5rem"><button onclick="navigator.clipboard.writeText(\''+d.qrCode.replace(/'/g,"\\'")+'\');showToast(\'Codigo PIX copiado!\')" style="padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.08);color:#34d399;font-size:.65rem;font-weight:600;cursor:pointer;font-family:inherit">Copiar codigo PIX</button></div>';
+      ph+='<div style="font-size:.5rem;color:var(--t3);margin-top:.5rem">Expira em 30 minutos</div>';
+      ph+='</div>';
+      area.innerHTML=ph;
+      _saveParkPlateLocal(plate);
+    }
+  }catch(e){showToast('Erro ao gerar PIX.')}
+}
+function cpkShowCardForm(){
+  var plate=_cpkGetPlate();
+  if(!plate){showToast('Informe a placa do veiculo.');return}
+  var pd=window._parkingTouchData;if(!pd)return;
+  // Redirect to existing entry payment form with combined endpoint
+  closeCombinedParkPay();
+  showEntryPayment(pd.eventId,pd.eventName,pd.entryPrice+(pd.parkingData.prepaidCost||0),pd.operatorId,pd.eventLogo);
+  // Override the payment endpoint to use combined one
+  window._combinedParkingPlate=plate;
+  window._useCombinedParkingEndpoint=true;
+}
+function _saveParkPlateLocal(plate){
+  try{
+    var saved=JSON.parse(localStorage.getItem('touch_my_vehicles')||'[]');
+    if(saved.indexOf(plate)===-1){saved.push(plate);localStorage.setItem('touch_my_vehicles',JSON.stringify(saved))}
+  }catch(e){}
 }
 
 // ═══ ENTRY PAYMENT — pay to enter operator event ═══
@@ -9228,13 +9434,19 @@ async function payEntryQuick(eventId,eventName,price){
   if(btn){btn.disabled=true;btn.textContent='Processando...'}
   try{
     var saved=JSON.parse(lsGet('touch_savedCard')||'{}');
-    var resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
+    var isCombined=!!window._useCombinedParkingEndpoint;
+    var combinedPlate=window._combinedParkingPlate||'';
+    var endpoint=isCombined?'/api/operator/event/'+eventId+'/pay-entry-parking':'/api/operator/event/'+eventId+'/pay-entry';
+    var bodyData={userId:state.userId,useSavedCard:true,cvv:cvv,payerEmail:state.email,payerCPF:saved.cpf||'',deviceId:getMpDeviceId()};
+    if(isCombined&&combinedPlate)bodyData.plate=combinedPlate;
+    var resp=await fetch(endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,useSavedCard:true,cvv:cvv,payerEmail:state.email,payerCPF:saved.cpf||'',deviceId:getMpDeviceId()})
+      body:JSON.stringify(bodyData)
     });
     var result=await resp.json();
     if(result.error)throw new Error(result.error);
-    showToast('Ingresso pago! Entrada confirmada.');
+    showToast(isCombined?'Entrada + Estacionamento pagos!':'Ingresso pago! Entrada confirmada.');
+    if(isCombined){window._useCombinedParkingEndpoint=false;window._combinedParkingPlate='';_saveParkPlateLocal(combinedPlate)}
     showEventView(eventId,eventName);
   }catch(e){
     showToast(e.message||'Erro no pagamento.');
@@ -9276,9 +9488,14 @@ async function payEntry(eventId,eventName,price){
     });
     if(!tokenResult||!tokenResult.id)throw new Error('Erro ao tokenizar.');
 
-    const resp=await fetch('/api/operator/event/'+eventId+'/pay-entry',{
+    const isCombined2=!!window._useCombinedParkingEndpoint;
+    const combinedPlate2=window._combinedParkingPlate||'';
+    const endpoint2=isCombined2?'/api/operator/event/'+eventId+'/pay-entry-parking':'/api/operator/event/'+eventId+'/pay-entry';
+    const bodyData2={userId:state.userId,token:tokenResult.id,paymentMethodId:pmId,payerEmail:state.email,payerCPF:cpf,deviceId:getMpDeviceId(),cardholderName:holder};
+    if(isCombined2&&combinedPlate2)bodyData2.plate=combinedPlate2;
+    const resp=await fetch(endpoint2,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:state.userId,token:tokenResult.id,paymentMethodId:pmId,payerEmail:state.email,payerCPF:cpf,deviceId:getMpDeviceId(),cardholderName:holder})
+      body:JSON.stringify(bodyData2)
     });
     const result=await resp.json();
     if(result.error)throw new Error(result.error);
@@ -9298,8 +9515,9 @@ async function payEntry(eventId,eventName,price){
     }
 
     if(result.status==='approved'){
-      showToast('Ingresso pago! ✅');
+      showToast(isCombined2?'Entrada + Estacionamento pagos!':'Ingresso pago!');
       haptic([50,30,50,30,50]);
+      if(isCombined2){window._useCombinedParkingEndpoint=false;window._combinedParkingPlate='';_saveParkPlateLocal(combinedPlate2)}
       showEventView(eventId,eventName);
     }else{
       showToast('Pagamento pendente ⏳');

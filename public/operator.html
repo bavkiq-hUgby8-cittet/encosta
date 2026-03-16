@@ -4678,13 +4678,16 @@ function initSocket(){
   S.socket.on('entry-paid',d=>{
     const toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
-    toast.textContent=''+esc(d.nickname)+' pagou ingresso R$'+d.amount.toFixed(2).replace('.',',');
+    var payLabel=d.includesParking
+      ?esc(d.nickname)+' pagou Entrada+Estac. R$'+d.amount.toFixed(2).replace('.',',')+' '+(d.plate?'('+esc(d.plate)+')':'')
+      :esc(d.nickname)+' pagou ingresso R$'+d.amount.toFixed(2).replace('.',',');
+    toast.textContent=payLabel;
     document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),4000);
+    setTimeout(()=>toast.remove(),5000);
     // Update participant badge from "$ Pago?" to "Pago"
     if(d.userId){
       var ci=S.checkins.find(function(c){return c.userId===d.userId});
-      if(ci){ci.paidPresencial=true;ci.entryStatus='paid';}
+      if(ci){ci.paidPresencial=true;ci.entryStatus='paid';if(d.includesParking)ci.parkingPaid=true}
       var wraps=document.querySelectorAll('.op-ci-wrap');
       wraps.forEach(function(w){
         if(w.dataset.userId===d.userId){
@@ -4693,7 +4696,7 @@ function initSocket(){
             var span=document.createElement('span');
             span.className='op-ci-action-btn';
             span.style.cssText='font-size:.48rem;padding:.12rem .3rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px';
-            span.textContent='Pago';
+            span.textContent=d.includesParking?'Entrada+Estac. Pago':'Pago';
             btn.parentNode.replaceChild(span,btn);
           });
         }

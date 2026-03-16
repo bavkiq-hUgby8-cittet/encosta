@@ -8382,6 +8382,60 @@ function createSonicConnection(userIdA, userIdB) {
       userB: { id: 'evt:' + eventId, name: eventObj ? eventObj.name : 'Evento', color: '#60a5fa', profilePhoto: null, photoURL: null, score: 0, stars: 0, sign: null, signInfo: null, isPrestador: false, serviceLabel: '', isEvent: true, eventLogo: eventObj ? proxyStorageUrl(eventObj.eventLogo || null) : null },
       zodiacPhrase: null
     };
+    // ── PARKING DATA: include parking info + visitor vehicles for unified flow ──
+    if (eventObj && eventObj.parking && eventObj.parking.enabled && eventObj.modules && eventObj.modules.parking) {
+      const pk = eventObj.parking;
+      const visitorVehicles = (visitorUser.vehicles || []).map(v => ({ plate: v.plate, model: v.model || '', color: v.color || '' }));
+      let prepaidParkingCost = 0;
+      if (pk.mode === 'prepaid' || pk.mode === 'both') {
+        if (pk.pricingMode === 'periods' && pk.periods && pk.periods.length > 0) {
+          // Use first period price as base prepaid
+          prepaidParkingCost = pk.periods[0].price || 0;
+        } else {
+          prepaidParkingCost = pk.hourlyRate || 10;
+        }
+        if (pk.fixedRate > 0) prepaidParkingCost += pk.fixedRate;
+      }
+      responseData.parkingData = {
+        enabled: true,
+        mode: pk.mode || 'postpaid',
+        pricingMode: pk.pricingMode || 'hourly',
+        hourlyRate: pk.hourlyRate || 10,
+        fixedRate: pk.fixedRate || 0,
+        tolerance: pk.tolerance || 0,
+        periods: pk.periods || [],
+        prepaidCost: prepaidParkingCost,
+        visitorVehicles: visitorVehicles,
+        // Auto-select first vehicle if available
+        autoPlate: visitorVehicles.length > 0 ? visitorVehicles[0].plate : null
+      };
+      // Auto-register first vehicle in parking if visitor has one and mode is prepaid
+      if (visitorVehicles.length > 0 && (pk.mode === 'prepaid' || pk.mode === 'both')) {
+        const autoPlate = visitorVehicles[0].plate;
+        if (!pk.vehicles) pk.vehicles = {};
+        if (!pk.vehicles[autoPlate] || pk.vehicles[autoPlate].status !== 'parked') {
+          pk.vehicles[autoPlate] = {
+            plate: autoPlate,
+            userId: visitorId,
+            nickname: visitorUser.nickname || visitorUser.name || 'Visitante',
+            vehicleModel: visitorVehicles[0].model || '',
+            vehicleColor: visitorVehicles[0].color || '',
+            entryTime: Date.now(),
+            exitTime: null,
+            status: 'parked',
+            paymentMode: 'prepaid',
+            amountPaid: 0,
+            amountDue: prepaidParkingCost,
+            photo: null,
+            notes: 'Auto-registrado via Touch'
+          };
+          saveDB('operatorEvents');
+          console.log('[createSonicConnection] PARKING auto-registered vehicle:', autoPlate, 'for visitor:', visitorId.slice(0, 8));
+          // Notify operator
+          io.emit('parking-vehicle-registered', { eventId: eventObj.id || eventId, plate: autoPlate, nickname: pk.vehicles[autoPlate].nickname, autoRegistered: true });
+        }
+      }
+    }
   } else {
     const sonicPairAll = (db.encounters[userIdA] || []).filter(e => e.with === userIdB);
     const sonicPairEnc = sonicPairAll.length;
@@ -10992,7 +11046,6 @@ app.post('/mp/webhook', (req, res) => {
               ev.paidCheckins = (ev.paidCheckins || 0) + 1;
               if (!ev.participants) ev.participants = [];
               if (!ev.participants.includes(tip.payerId)) ev.participants.push(tip.payerId);
-              // Also save to eventPayments for proper tracking
               if (!db.eventPayments) db.eventPayments = {};
               db.eventPayments[tip.id] = {
                 id: tip.id, payerId: tip.payerId, eventId: ev.id, eventName: ev.name || '',
@@ -11003,7 +11056,6 @@ app.post('/mp/webhook', (req, res) => {
               saveDB('operatorEvents', 'eventPayments');
               io.emit('checkin', { eventId: ev.id, userId: tip.payerId });
               io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId: tip.payerId, amount: tip.amount, eventId: ev.id, status: 'approved', method: 'pix' });
-              // Notify payer of entry payment receipt
               io.to(`user:${tip.payerId}`).emit('payment-receipt', {
                 type: 'entry', amount: tip.amount, status: 'approved',
                 method: 'pix', eventName: ev.name || '',
@@ -11011,6 +11063,41 @@ app.post('/mp/webhook', (req, res) => {
                 timestamp: Date.now()
               });
               console.log('[webhook] Entry PIX approved:', { event: ev.name, userId: tip.payerId });
+            }
+          }
+          // Handle combined entry+parking PIX activation
+          else if (tip.type === 'entry_parking' && tip.eventId) {
+            const ev = db.operatorEvents[tip.eventId];
+            if (ev) {
+              ev.revenue = (ev.revenue || 0) + tip.amount;
+              ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+              if (!ev.participants) ev.participants = [];
+              if (!ev.participants.includes(tip.payerId)) ev.participants.push(tip.payerId);
+              // Mark parking as paid
+              const plate = tip.plate || '';
+              if (plate && ev.parking && ev.parking.vehicles && ev.parking.vehicles[plate]) {
+                ev.parking.vehicles[plate].amountPaid = tip.parkingAmount || 0;
+                ev.parking.vehicles[plate].amountDue = 0;
+                ev.parking.vehicles[plate].status = 'paid';
+                ev.parking.vehicles[plate].paidAt = Date.now();
+                io.emit('parking-payment-received', { eventId: ev.id, plate: plate, amount: tip.parkingAmount || 0, status: 'paid' });
+              }
+              if (!db.eventPayments) db.eventPayments = {};
+              db.eventPayments[tip.id] = {
+                id: tip.id, payerId: tip.payerId, eventId: ev.id, eventName: ev.name || '',
+                amount: tip.amount, fee: tip.fee || 0, receiverId: ev.creatorId, currency: 'brl',
+                mpPaymentId: tip.mpPaymentId, status: 'approved', method: 'pix',
+                type: 'entry_parking', plate: plate, createdAt: tip.createdAt || Date.now()
+              };
+              saveDB('operatorEvents', 'eventPayments');
+              io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId: tip.payerId, amount: tip.amount, eventId: ev.id, status: 'approved', method: 'pix', includesParking: true, plate: plate, nickname: db.users[tip.payerId]?.nickname || '' });
+              io.to(`user:${tip.payerId}`).emit('payment-receipt', {
+                type: 'entry_parking', amount: tip.amount, status: 'approved',
+                method: 'pix', eventName: ev.name || '', plate: plate,
+                transactionId: tip.mpPaymentId || tip.id,
+                timestamp: Date.now()
+              });
+              console.log('[webhook] Entry+Parking PIX approved:', { event: ev.name, userId: tip.payerId, plate: plate });
             }
           }
           // Regular tip
@@ -15132,6 +15219,347 @@ app.post('/api/operator/event/:eventId/pay-entry-checkout', paymentLimiter, asyn
   } catch (e) {
     console.error('[entry-checkout] error:', e.message, e.cause || '');
     res.status(500).json({ error: 'Erro ao criar checkout: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// ═══ PAY ENTRY + PARKING COMBINED — single payment for both ═══
+app.post('/api/operator/event/:eventId/pay-entry-parking', paymentLimiter, async (req, res) => {
+  const { userId, plate, token, paymentMethodId, payerEmail, payerCPF, useSavedCard, deviceId, cardholderName, vehicleModel, vehicleColor } = req.body;
+  console.log('[PARKING-ENTRY] Combined payment request:', { eventId: req.params.eventId, userId: userId?.slice(0, 12), plate, hasToken: !!token, useSavedCard });
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP nao configurado.' });
+
+  const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // Calculate amounts
+  const entryPrice = (ev.entryPrice && ev.entryPrice > 0) ? ev.entryPrice : 0;
+  let parkingCost = 0;
+  if (ev.parking && ev.parking.enabled && plateTrimmed && (ev.parking.mode === 'prepaid' || ev.parking.mode === 'both')) {
+    const pk = ev.parking;
+    if (pk.pricingMode === 'periods' && pk.periods && pk.periods.length > 0) {
+      parkingCost = pk.periods[0].price || 0;
+    } else {
+      parkingCost = pk.hourlyRate || 10;
+    }
+    if (pk.fixedRate > 0) parkingCost += pk.fixedRate;
+  }
+
+  const totalAmount = entryPrice + parkingCost;
+  if (totalAmount <= 0) return res.status(400).json({ error: 'Nenhum valor a cobrar.' });
+
+  const touchFee = Math.round(totalAmount * TOUCH_FEE_PERCENT) / 100;
+  const receiver = db.users[ev.creatorId];
+
+  try {
+    let paymentToken = token;
+
+    // One-tap: create token server-side from saved card
+    if (useSavedCard && user.savedCard?.customerId && user.savedCard?.cardId) {
+      try {
+        let custId = user.savedCard.customerId;
+        const custCheck = await fetch('https://api.mercadopago.com/v1/customers/' + custId, {
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+        });
+        if (!custCheck.ok) {
+          const email = user.email || user.savedCard?.email || 'pagamento@touch-irl.com';
+          const searchResp = await fetch('https://api.mercadopago.com/v1/customers/search?email=' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN } });
+          const searchData = await searchResp.json();
+          if (searchData.results && searchData.results.length > 0) {
+            custId = searchData.results[0].id;
+            user.savedCard.customerId = custId;
+            saveDB('users');
+          } else {
+            delete user.savedCard; saveDB('users');
+            return res.status(400).json({ error: 'Cadastre o cartao novamente.', cardExpired: true });
+          }
+        }
+        const cardsResp = await fetch('https://api.mercadopago.com/v1/customers/' + custId + '/cards', {
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN }
+        });
+        const cards = cardsResp.ok ? await cardsResp.json() : [];
+        if (!Array.isArray(cards) || cards.length === 0) {
+          delete user.savedCard; saveDB('users');
+          return res.status(400).json({ error: 'Cartao salvo expirou.', cardExpired: true });
+        }
+        const card = cards.find(c => c.id === user.savedCard.cardId) || cards[0];
+        const tokenResp = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ card_id: card.id, customer_id: custId })
+        });
+        let tokenData = await tokenResp.json();
+        if (!tokenData.id) {
+          const fb = await fetch('https://api.mercadopago.com/v1/card_tokens', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_id: card.id })
+          });
+          tokenData = await fb.json();
+          if (!tokenData.id) return res.status(400).json({ error: 'Erro ao processar cartao.', cardExpired: true });
+        }
+        paymentToken = tokenData.id;
+        var pmId = card.payment_method?.id || user.savedCard.paymentMethodId || 'visa';
+      } catch (mpErr) {
+        console.error('[PARKING-ENTRY] One-tap MP error:', mpErr.message);
+        return res.status(400).json({ error: 'Erro com cartao salvo.', cardExpired: true });
+      }
+    }
+
+    const payerEmailFinal = payerEmail || user.email || '';
+    const payerCPFFinal = (payerCPF || user.cpf || user.savedCard?.cpf || '').replace(/\D/g, '');
+    const payerName = user.name || user.nickname || 'Visitante';
+
+    // Build description with breakdown
+    let descParts = [];
+    if (entryPrice > 0) descParts.push('Ingresso R$' + entryPrice.toFixed(2));
+    if (parkingCost > 0) descParts.push('Estacionamento R$' + parkingCost.toFixed(2));
+    const description = 'Touch? ' + ev.name + ' - ' + descParts.join(' + ');
+
+    const paymentData = {
+      transaction_amount: totalAmount,
+      token: paymentToken,
+      payment_method_id: pmId || paymentMethodId || 'visa',
+      installments: 1,
+      binary_mode: true,
+      payer: {
+        email: payerEmailFinal,
+        first_name: cardholderName ? cardholderName.split(' ')[0] : payerName.split(' ')[0],
+        last_name: cardholderName ? (cardholderName.split(' ').slice(1).join(' ') || cardholderName.split(' ')[0]) : (payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]),
+        identification: payerCPFFinal ? { type: 'CPF', number: payerCPFFinal } : undefined
+      },
+      additional_info: {
+        items: [{
+          id: ev.id,
+          title: description,
+          description: description,
+          category_id: 'entertainment',
+          quantity: 1,
+          unit_price: totalAmount
+        }],
+        payer: {
+          first_name: cardholderName ? cardholderName.split(' ')[0] : payerName.split(' ')[0],
+          last_name: cardholderName ? (cardholderName.split(' ').slice(1).join(' ') || cardholderName.split(' ')[0]) : (payerName.split(' ').slice(1).join(' ') || payerName.split(' ')[0]),
+          registration_date: user.createdAt ? new Date(user.createdAt).toISOString() : undefined
+        }
+      },
+      description: description,
+      statement_descriptor: 'TOUCH ENTRADA+EST',
+      metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry_parking', plate: plateTrimmed || null, entryAmount: entryPrice, parkingAmount: parkingCost }
+    };
+
+    console.log('[PARKING-ENTRY] Combined payment:', { total: totalAmount, entry: entryPrice, parking: parkingCost, plate: plateTrimmed, event: ev.name });
+
+    const idempotencyKey = uuidv4();
+    const requestOptions = { idempotencyKey };
+
+    let result;
+    if (receiver && receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      const receiverPayment = new Payment(receiverClient);
+      result = await receiverPayment.create({ body: paymentData, requestOptions });
+    } else {
+      result = await mpPayment.create({ body: paymentData, requestOptions });
+    }
+
+    console.log('[PARKING-ENTRY] Result:', { id: result.id, status: result.status, detail: result.status_detail });
+
+    // Save payment record
+    const tipId = uuidv4();
+    const tipRecord = {
+      id: tipId, payerId: userId, receiverId: ev.creatorId,
+      amount: totalAmount, fee: touchFee, mpPaymentId: result.id,
+      status: result.status, statusDetail: result.status_detail,
+      type: 'entry_parking', eventId: ev.id, eventName: ev.name,
+      entryAmount: entryPrice, parkingAmount: parkingCost, plate: plateTrimmed || null,
+      createdAt: Date.now()
+    };
+    db.tips[tipId] = tipRecord;
+    if (!IDX.tipsByPayer.has(userId)) IDX.tipsByPayer.set(userId, []);
+    IDX.tipsByPayer.get(userId).push(tipId);
+    if (!IDX.tipsByReceiver.has(ev.creatorId)) IDX.tipsByReceiver.set(ev.creatorId, []);
+    IDX.tipsByReceiver.get(ev.creatorId).push(tipId);
+
+    if (!db.eventPayments) db.eventPayments = {};
+    db.eventPayments[tipId] = {
+      id: tipId, payerId: userId, eventId: ev.id, eventName: ev.name || '',
+      amount: totalAmount, fee: touchFee, receiverId: ev.creatorId, currency: 'brl',
+      mpPaymentId: result.id, status: result.status, statusDetail: result.status_detail,
+      method: 'mercadopago-card', type: 'entry_parking',
+      entryAmount: entryPrice, parkingAmount: parkingCost, plate: plateTrimmed || null,
+      createdAt: Date.now()
+    };
+
+    if (result.status === 'approved') {
+      // Mark entry as paid
+      if (entryPrice > 0) {
+        ev.revenue = (ev.revenue || 0) + totalAmount;
+        ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+        if (!ev.participants) ev.participants = [];
+        if (!ev.participants.includes(userId)) ev.participants.push(userId);
+      }
+      // Mark parking as paid
+      if (parkingCost > 0 && plateTrimmed && ev.parking && ev.parking.vehicles) {
+        if (!ev.parking.vehicles[plateTrimmed]) {
+          // Register vehicle if not yet registered
+          ev.parking.vehicles[plateTrimmed] = {
+            plate: plateTrimmed,
+            userId: userId,
+            nickname: user.nickname || user.name || 'Visitante',
+            vehicleModel: vehicleModel || '',
+            vehicleColor: vehicleColor || '',
+            entryTime: Date.now(),
+            exitTime: null,
+            status: 'paid',
+            paymentMode: 'prepaid',
+            amountPaid: parkingCost,
+            amountDue: 0,
+            photo: null,
+            notes: 'Pagamento combinado entrada+estacionamento'
+          };
+        } else {
+          ev.parking.vehicles[plateTrimmed].amountPaid = parkingCost;
+          ev.parking.vehicles[plateTrimmed].amountDue = 0;
+          ev.parking.vehicles[plateTrimmed].status = 'paid';
+          ev.parking.vehicles[plateTrimmed].paidAt = Date.now();
+        }
+        // Also save plate to user profile if not there
+        if (!user.vehicles) user.vehicles = [];
+        if (!user.vehicles.some(v => v.plate === plateTrimmed)) {
+          user.vehicles.push({ plate: plateTrimmed, model: vehicleModel || '', color: vehicleColor || '', addedAt: Date.now() });
+          if (!IDX.plate) IDX.plate = new Map();
+          IDX.plate.set(plateTrimmed, userId);
+          saveDB('users');
+        }
+        // Notify parking panel
+        io.emit('parking-payment-received', { eventId: ev.id, plate: plateTrimmed, amount: parkingCost, status: 'paid' });
+      }
+      saveDB('operatorEvents');
+      // Notify operator
+      io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount: totalAmount, eventId: ev.id, nickname: user.nickname || user.name, includesParking: parkingCost > 0, plate: plateTrimmed || null });
+    }
+    saveDB('tips', 'eventPayments');
+
+    res.json({ status: result.status, statusDetail: result.status_detail, mpPaymentId: result.id, entryAmount: entryPrice, parkingAmount: parkingCost, totalAmount, plate: plateTrimmed || null });
+  } catch (e) {
+    console.error('[PARKING-ENTRY] error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro no pagamento: ' + (e.message || 'tente novamente') });
+  }
+});
+
+// ═══ PAY ENTRY + PARKING COMBINED — PIX ═══
+app.post('/api/operator/event/:eventId/pay-entry-parking-pix', paymentLimiter, async (req, res) => {
+  const { userId, plate, payerEmail, payerCPF, vehicleModel, vehicleColor } = req.body;
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  if (!ev.active) return res.status(400).json({ error: 'Evento encerrado.' });
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio.' });
+  const user = db.users[userId];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  if (!MP_ACCESS_TOKEN) return res.status(500).json({ error: 'MP nao configurado.' });
+
+  const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // Calculate amounts
+  const entryPrice = (ev.entryPrice && ev.entryPrice > 0) ? ev.entryPrice : 0;
+  let parkingCost = 0;
+  if (ev.parking && ev.parking.enabled && plateTrimmed && (ev.parking.mode === 'prepaid' || ev.parking.mode === 'both')) {
+    const pk = ev.parking;
+    if (pk.pricingMode === 'periods' && pk.periods && pk.periods.length > 0) {
+      parkingCost = pk.periods[0].price || 0;
+    } else {
+      parkingCost = pk.hourlyRate || 10;
+    }
+    if (pk.fixedRate > 0) parkingCost += pk.fixedRate;
+  }
+
+  const totalAmount = entryPrice + parkingCost;
+  if (totalAmount <= 0) return res.status(400).json({ error: 'Nenhum valor a cobrar.' });
+
+  const touchFee = Math.round(totalAmount * TOUCH_FEE_PERCENT) / 100;
+  const receiver = db.users[ev.creatorId];
+
+  const email = payerEmail || user.email;
+  const cpf = (payerCPF || user.cpf || '').replace(/\D/g, '');
+  if (!email || email.includes('@touch.app')) return res.status(400).json({ error: 'Informe seu email para pagar com PIX.' });
+  if (!cpf || cpf.length < 11) return res.status(400).json({ error: 'CPF obrigatorio para PIX.' });
+
+  let descParts = [];
+  if (entryPrice > 0) descParts.push('Ingresso R$' + entryPrice.toFixed(2));
+  if (parkingCost > 0) descParts.push('Estacionamento R$' + parkingCost.toFixed(2));
+
+  try {
+    const paymentData = {
+      transaction_amount: totalAmount,
+      description: 'Touch? ' + ev.name + ' - ' + descParts.join(' + '),
+      payment_method_id: 'pix',
+      payer: { email, identification: { type: 'CPF', number: cpf } },
+      statement_descriptor: 'TOUCH ENTRADA+EST',
+      metadata: { payer_id: userId, event_id: ev.id, operator_id: ev.creatorId, type: 'entry_parking_pix', plate: plateTrimmed || null, entryAmount: entryPrice, parkingAmount: parkingCost },
+      notification_url: (process.env.APP_URL || 'https://touch-irl.com') + '/mp/webhook'
+    };
+
+    let result;
+    if (receiver && receiver.mpConnected && receiver.mpAccessToken) {
+      paymentData.application_fee = touchFee;
+      const receiverClient = new MercadoPagoConfig({ accessToken: receiver.mpAccessToken });
+      result = await new Payment(receiverClient).create({ body: paymentData });
+    } else {
+      result = await mpPayment.create({ body: paymentData });
+    }
+
+    console.log('[pix-parking-entry] Payment created:', { id: result.id, status: result.status, total: totalAmount, plate: plateTrimmed });
+
+    const pixData = result.point_of_interaction?.transaction_data;
+    const tipId = uuidv4();
+    const tipRecord = {
+      id: tipId, payerId: userId, receiverId: ev.creatorId,
+      amount: totalAmount, fee: touchFee, mpPaymentId: result.id,
+      status: result.status, statusDetail: result.status_detail,
+      method: 'pix', type: 'entry_parking', eventId: ev.id, eventName: ev.name,
+      entryAmount: entryPrice, parkingAmount: parkingCost, plate: plateTrimmed || null,
+      createdAt: Date.now()
+    };
+    db.tips[tipId] = tipRecord;
+    if (!IDX.tipsByPayer.has(userId)) IDX.tipsByPayer.set(userId, []);
+    IDX.tipsByPayer.get(userId).push(tipId);
+    if (!IDX.tipsByReceiver.has(ev.creatorId)) IDX.tipsByReceiver.set(ev.creatorId, []);
+    IDX.tipsByReceiver.get(ev.creatorId).push(tipId);
+    saveDB('tips');
+
+    // Register vehicle as pending payment
+    if (plateTrimmed && ev.parking && ev.parking.enabled) {
+      if (!ev.parking.vehicles) ev.parking.vehicles = {};
+      if (!ev.parking.vehicles[plateTrimmed]) {
+        ev.parking.vehicles[plateTrimmed] = {
+          plate: plateTrimmed, userId, nickname: user.nickname || user.name || 'Visitante',
+          vehicleModel: vehicleModel || '', vehicleColor: vehicleColor || '',
+          entryTime: Date.now(), exitTime: null, status: 'parked',
+          paymentMode: 'prepaid', amountPaid: 0, amountDue: parkingCost,
+          photo: null, notes: 'PIX pendente - entrada+estacionamento'
+        };
+        saveDB('operatorEvents');
+        io.emit('parking-vehicle-registered', { eventId: ev.id, plate: plateTrimmed, nickname: user.nickname || user.name, pendingPayment: true });
+      }
+    }
+
+    io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount: totalAmount, eventId: ev.id, nickname: user.nickname || user.name, status: 'pending', method: 'pix', includesParking: parkingCost > 0 });
+
+    res.json({
+      status: result.status, tipId,
+      qrCode: pixData?.qr_code || '',
+      qrCodeBase64: pixData?.qr_code_base64 || '',
+      ticketUrl: pixData?.ticket_url || '',
+      expiresIn: 30,
+      entryAmount: entryPrice, parkingAmount: parkingCost, totalAmount
+    });
+  } catch (e) {
+    console.error('[pix-parking-entry] error:', e.message, e.cause || '');
+    res.status(500).json({ error: 'Erro ao gerar PIX: ' + (e.message || 'tente novamente') });
   }
 });
 
