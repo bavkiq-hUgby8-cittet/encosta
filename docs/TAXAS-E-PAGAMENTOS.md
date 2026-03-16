@@ -292,9 +292,72 @@ Definir se parceiros recebem daily (mais satisfatorio) ou weekly (menos custo op
 
 ---
 
+## 11. SISTEMA DE REEMBOLSOS (IMPLEMENTADO 16/03/2026)
+
+### Endpoints de Reembolso
+
+| Rota | Metodo | Funcao | Quem usa |
+|------|--------|--------|----------|
+| `POST /api/admin/refund` | Admin | Reembolso total ou parcial de qualquer transacao | Admin |
+| `GET /api/admin/refunds` | Admin | Lista todos os reembolsos | Admin |
+| `GET /api/admin/disputes` | Admin | Lista chargebacks/disputas | Admin |
+| `POST /api/operator/event/:id/refund-order` | Operador | Reembolso de pedido especifico | Dono do evento |
+| `POST /api/stripe/refund-payment` | Usuario | Solicitar reembolso (janela 24h) | Cliente |
+| `POST /api/admin/reconcile-payments` | Admin | Reconcilia pagamentos pendentes com Stripe | Admin |
+
+### Como funciona o reembolso
+
+1. **Admin refund**: Pode reembolsar qualquer transacao por tipId, eventPaymentId ou paymentIntentId. Suporta reembolso parcial (informar amount).
+2. **Operator refund**: Dono do evento pode reembolsar pedidos (ex: pedido errado, cancelamento). Verifica permissao.
+3. **User refund**: Cliente pode pedir reembolso de gorjetas dentro de 24h. Apos 24h, precisa contatar suporte.
+4. **Reconciliation**: Admin pode rodar reconciliacao que verifica pagamentos pendentes (ultimas 48h) diretamente no Stripe e atualiza status.
+
+### Webhook handlers adicionados (16/03/2026)
+
+- `payment_intent.payment_failed` - Marca transacao como falha, notifica usuario
+- `charge.dispute.created` - Registra chargeback, notifica admins
+- `charge.dispute.closed` - Atualiza resultado da disputa (won/lost)
+- `charge.refunded` - Marca transacao como reembolsada
+
+### Protecoes implementadas
+
+- Idempotency keys em todos os PaymentIntents (previne cobranca duplicada)
+- Rate limiting em endpoints de reembolso
+- Verificacao de permissao (admin, operador, ou dono da transacao)
+- Janela de 24h para auto-reembolso pelo usuario
+- Reversao automatica de stats do receiver em reembolso total
+
+---
+
+## 12. COMPARATIVO STRIPE vs MERCADOPAGO (BRASIL)
+
+### Taxas por transacao
+
+| | Stripe (Brasil) | MercadoPago |
+|---|---|---|
+| Cartao credito a vista | 3.99% + R$0.39 | 4.99% |
+| Cartao debito | 3.99% + R$0.39 | 1.99% |
+| PIX | 3.99% + R$0.39 | 0.99% (ou gratis ate R$150) |
+| Boleto | Nao suporta | 3.49% (min R$3.49) |
+| Prazo recebimento | T+2 (cartao), instantaneo (PIX) | T+14 (cartao), instantaneo (PIX) |
+| Antecipacao | 1.09%/mes | 2.99%/mes |
+| Chargeback | R$75 | R$50 |
+
+### Recomendacao
+
+- **EUA**: Stripe (unica opcao viavel, 2.9% + $0.30)
+- **Brasil PIX**: MercadoPago (0.99% vs 3.99% do Stripe = 4x mais barato)
+- **Brasil Cartao**: MercadoPago pra debito (1.99% vs 3.99%), empatado pra credito
+- **Brasil Prazo**: Stripe melhor (T+2 vs T+14 no MP), mas MP tem PIX instantaneo
+- **Conclusao**: Manter os dois gateways. Stripe como primario global, MP como opcao PIX no Brasil.
+
+---
+
 ## FONTES
 
 - Stripe Pricing: https://stripe.com/pricing
+- Stripe Pricing BR: https://stripe.com/br/pricing
+- MercadoPago Taxas: https://www.mercadopago.com.br/costs-section
 - Stripe Payout Schedules: https://support.stripe.com/questions/payout-schedules-faq
 - Stripe Payouts: https://stripe.com/resources/more/payouts-explained
 - Stripe Settlement: https://docs.stripe.com/payments/balances

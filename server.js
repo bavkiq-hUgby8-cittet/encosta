@@ -8850,6 +8850,343 @@ app.get('/api/admin/payouts/history', adminLimiter, requireAdmin, (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════════
+// REFUND SYSTEM — full refund, partial refund, admin + operator
+// ══════════════════════════════════════════════════════════════
+
+// POST /api/admin/refund — Admin initiates refund on any transaction
+app.post('/api/admin/refund', adminLimiter, requireAdmin, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { paymentIntentId, tipId, eventPaymentId, amount, reason } = req.body;
+
+  // Find the payment intent ID from tip or event payment if not directly provided
+  let piId = paymentIntentId;
+  let refundTarget = null;
+  let refundTargetType = null;
+
+  if (tipId && db.tips && db.tips[tipId]) {
+    refundTarget = db.tips[tipId];
+    refundTargetType = 'tip';
+    piId = piId || refundTarget.stripePaymentIntentId;
+  } else if (eventPaymentId && db.eventPayments && db.eventPayments[eventPaymentId]) {
+    refundTarget = db.eventPayments[eventPaymentId];
+    refundTargetType = 'eventPayment';
+    piId = piId || refundTarget.stripePaymentIntentId;
+  } else if (piId) {
+    // Search by paymentIntentId
+    refundTarget = Object.values(db.tips || {}).find(t => t.stripePaymentIntentId === piId);
+    if (refundTarget) { refundTargetType = 'tip'; }
+    else {
+      refundTarget = Object.values(db.eventPayments || {}).find(e => e.stripePaymentIntentId === piId);
+      if (refundTarget) refundTargetType = 'eventPayment';
+    }
+  }
+
+  if (!piId) return res.status(400).json({ error: 'paymentIntentId, tipId ou eventPaymentId obrigatorio' });
+  if (refundTarget && refundTarget.status === 'refunded') return res.status(400).json({ error: 'Transacao ja foi reembolsada' });
+
+  try {
+    const refundData = { payment_intent: piId };
+    // Partial refund: if amount specified, refund only that amount
+    if (amount && amount > 0) {
+      refundData.amount = Math.round(amount * 100);
+    }
+    if (reason) {
+      // Stripe accepts: duplicate, fraudulent, requested_by_customer
+      const validReasons = ['duplicate', 'fraudulent', 'requested_by_customer'];
+      if (validReasons.includes(reason)) refundData.reason = reason;
+    }
+
+    const refund = await stripeInstance.refunds.create(refundData);
+
+    // Update local records
+    if (refundTarget) {
+      const isFullRefund = !amount || amount >= (refundTarget.amount || 0);
+      refundTarget.status = isFullRefund ? 'refunded' : 'partially_refunded';
+      refundTarget.refundId = refund.id;
+      refundTarget.refundAmount = refund.amount / 100;
+      refundTarget.refundReason = reason || 'requested_by_customer';
+      refundTarget.refundedAt = Date.now();
+      refundTarget.refundedBy = req.body.adminId || 'admin';
+
+      // Reverse receiver stats for full refund
+      if (isFullRefund && refundTargetType === 'tip' && refundTarget.receiverId) {
+        const receiver = db.users[refundTarget.receiverId];
+        if (receiver) {
+          receiver.tipsReceived = Math.max(0, (receiver.tipsReceived || 0) - 1);
+          receiver.tipsTotal = Math.max(0, (receiver.tipsTotal || 0) - refundTarget.amount);
+          saveDB('users');
+        }
+      }
+      if (isFullRefund && refundTargetType === 'eventPayment' && refundTarget.eventId) {
+        const ev = db.operatorEvents[refundTarget.eventId];
+        if (ev) {
+          ev.revenue = Math.max(0, (ev.revenue || 0) - refundTarget.amount);
+          ev.paidCheckins = Math.max(0, (ev.paidCheckins || 0) - 1);
+          saveDB('operatorEvents');
+        }
+      }
+      saveDB(refundTargetType === 'tip' ? 'tips' : 'eventPayments');
+    }
+
+    // Save refund record
+    if (!db.refunds) db.refunds = {};
+    db.refunds[refund.id] = {
+      id: refund.id,
+      paymentIntentId: piId,
+      amount: refund.amount / 100,
+      currency: refund.currency,
+      reason: reason || 'requested_by_customer',
+      status: refund.status,
+      targetType: refundTargetType,
+      targetId: refundTarget?.id,
+      createdAt: Date.now(),
+      createdBy: req.body.adminId || 'admin'
+    };
+    saveDB('refunds');
+
+    // Notify payer
+    if (refundTarget?.payerId) {
+      io.to(`user:${refundTarget.payerId}`).emit('refund-processed', {
+        amount: refund.amount / 100, refundId: refund.id, status: refund.status
+      });
+    }
+
+    console.log('[admin/refund] Refund processed:', { refundId: refund.id, amount: refund.amount / 100, pi: piId });
+    res.json({ ok: true, refund: { id: refund.id, amount: refund.amount / 100, status: refund.status } });
+  } catch (e) {
+    console.error('[admin/refund] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/admin/refunds — List all refunds
+app.get('/api/admin/refunds', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const all = Object.values(db.refunds || {}).sort((a, b) => b.createdAt - a.createdAt).slice(0, 200);
+    const total = all.reduce((s, r) => s + (r.amount || 0), 0);
+    res.json({ refunds: all, total, count: all.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/admin/disputes — List all disputes/chargebacks
+app.get('/api/admin/disputes', adminLimiter, requireAdmin, (req, res) => {
+  try {
+    const all = Object.values(db.disputes || {}).sort((a, b) => b.createdAt - a.createdAt);
+    const open = all.filter(d => d.status === 'needs_response' || d.status === 'warning_needs_response');
+    res.json({ disputes: all, open: open.length, total: all.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/operator/event/:eventId/refund-order — Operator refunds a specific order
+app.post('/api/operator/event/:eventId/refund-order', requireAuth, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { eventId } = req.params;
+  const { orderId, reason } = req.body;
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado' });
+
+  // Check if requester is event creator
+  const requesterId = req.body.operatorId || req.headers['x-user-id'];
+  if (ev.creatorId !== requesterId) return res.status(403).json({ error: 'Sem permissao' });
+
+  // Find the order
+  const order = (ev.orders || []).find(o => o.id === orderId);
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado' });
+  if (order.refunded) return res.status(400).json({ error: 'Pedido ja reembolsado' });
+  if (!order.stripePaymentIntentId) return res.status(400).json({ error: 'Pedido sem pagamento Stripe vinculado' });
+
+  try {
+    const refund = await stripeInstance.refunds.create({
+      payment_intent: order.stripePaymentIntentId,
+      reason: 'requested_by_customer'
+    });
+
+    // Mark order as refunded
+    order.refunded = true;
+    order.refundId = refund.id;
+    order.refundAmount = refund.amount / 100;
+    order.refundedAt = Date.now();
+    order.refundReason = reason || 'Cancelado pelo operador';
+    order.status = 'cancelled';
+
+    // Update event revenue
+    ev.revenue = Math.max(0, (ev.revenue || 0) - (order.total || 0));
+    saveDB('operatorEvents');
+
+    // Save refund record
+    if (!db.refunds) db.refunds = {};
+    db.refunds[refund.id] = {
+      id: refund.id, paymentIntentId: order.stripePaymentIntentId,
+      amount: refund.amount / 100, currency: refund.currency,
+      reason: reason || 'Cancelado pelo operador', status: refund.status,
+      targetType: 'order', targetId: orderId, eventId,
+      createdAt: Date.now(), createdBy: requesterId
+    };
+    saveDB('refunds');
+
+    // Notify customer
+    if (order.userId) {
+      io.to(`user:${order.userId}`).emit('order-refunded', {
+        orderId, eventId, amount: refund.amount / 100, reason: reason || 'Cancelado pelo operador'
+      });
+    }
+
+    console.log('[operator/refund-order]', { eventId, orderId, amount: refund.amount / 100 });
+    res.json({ ok: true, refund: { id: refund.id, amount: refund.amount / 100 } });
+  } catch (e) {
+    console.error('[operator/refund-order] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/stripe/refund-payment — User requests refund (within 24h window)
+app.post('/api/stripe/refund-payment', requireAuth, paymentLimiter, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  const { tipId, userId, reason } = req.body;
+  if (!tipId || !userId) return res.status(400).json({ error: 'tipId e userId obrigatorios' });
+
+  const tip = db.tips ? db.tips[tipId] : null;
+  if (!tip) return res.status(404).json({ error: 'Transacao nao encontrada' });
+  if (tip.payerId !== userId) return res.status(403).json({ error: 'Sem permissao para esta transacao' });
+  if (tip.status === 'refunded') return res.status(400).json({ error: 'Ja reembolsado' });
+  if (tip.status !== 'approved') return res.status(400).json({ error: 'Transacao nao esta aprovada' });
+  if (!tip.stripePaymentIntentId) return res.status(400).json({ error: 'Transacao sem Stripe vinculado' });
+
+  // Only allow refund within 24 hours
+  const hoursSincePayment = (Date.now() - (tip.createdAt || 0)) / (1000 * 60 * 60);
+  if (hoursSincePayment > 24) {
+    return res.status(400).json({ error: 'Prazo de 24h para reembolso expirado. Contate o suporte.' });
+  }
+
+  try {
+    const refund = await stripeInstance.refunds.create({
+      payment_intent: tip.stripePaymentIntentId,
+      reason: 'requested_by_customer'
+    });
+
+    tip.status = 'refunded';
+    tip.refundId = refund.id;
+    tip.refundAmount = refund.amount / 100;
+    tip.refundedAt = Date.now();
+    tip.refundReason = reason || 'Solicitado pelo usuario';
+
+    // Reverse receiver stats
+    if (tip.receiverId) {
+      const receiver = db.users[tip.receiverId];
+      if (receiver) {
+        receiver.tipsReceived = Math.max(0, (receiver.tipsReceived || 0) - 1);
+        receiver.tipsTotal = Math.max(0, (receiver.tipsTotal || 0) - tip.amount);
+        saveDB('users');
+      }
+    }
+    saveDB('tips');
+
+    if (!db.refunds) db.refunds = {};
+    db.refunds[refund.id] = {
+      id: refund.id, paymentIntentId: tip.stripePaymentIntentId,
+      amount: refund.amount / 100, currency: refund.currency,
+      reason: reason || 'Solicitado pelo usuario', status: refund.status,
+      targetType: 'tip', targetId: tipId,
+      createdAt: Date.now(), createdBy: userId
+    };
+    saveDB('refunds');
+
+    console.log('[stripe/refund-payment] User refund:', { tipId, amount: refund.amount / 100, userId });
+    res.json({ ok: true, refund: { id: refund.id, amount: refund.amount / 100 } });
+  } catch (e) {
+    console.error('[stripe/refund-payment] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// WEBHOOK RECOVERY — reconcile pending payments with Stripe
+// ══════════════════════════════════════════════════════════════
+
+// POST /api/admin/reconcile-payments — Check pending payments against Stripe
+app.post('/api/admin/reconcile-payments', adminLimiter, requireAdmin, async (req, res) => {
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+
+  const results = { recovered: 0, failed: 0, unchanged: 0, errors: [] };
+  const MAX_AGE_MS = 48 * 60 * 60 * 1000; // Only check payments from last 48h
+  const now = Date.now();
+
+  try {
+    // Check pending tips
+    const pendingTips = Object.values(db.tips || {}).filter(
+      t => t.status === 'pending' && t.stripePaymentIntentId && (now - (t.createdAt || 0)) < MAX_AGE_MS
+    );
+
+    for (const tip of pendingTips) {
+      try {
+        const pi = await stripeInstance.paymentIntents.retrieve(tip.stripePaymentIntentId);
+        if (pi.status === 'succeeded') {
+          tip.status = 'approved';
+          tip.recoveredAt = Date.now();
+          tip.recoverySource = 'admin-reconcile';
+          const receiver = db.users[tip.receiverId];
+          if (receiver) {
+            receiver.tipsReceived = (receiver.tipsReceived || 0) + 1;
+            receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
+          }
+          results.recovered++;
+        } else if (pi.status === 'canceled' || pi.status === 'requires_payment_method') {
+          tip.status = 'failed';
+          tip.failReason = 'Payment ' + pi.status;
+          tip.failedAt = Date.now();
+          results.failed++;
+        } else {
+          results.unchanged++;
+        }
+      } catch (e) {
+        results.errors.push({ tipId: tip.id, error: e.message });
+      }
+    }
+
+    // Check pending event payments
+    const pendingEPs = Object.values(db.eventPayments || {}).filter(
+      e => e.status === 'pending' && e.stripePaymentIntentId && (now - (e.createdAt || 0)) < MAX_AGE_MS
+    );
+
+    for (const ep of pendingEPs) {
+      try {
+        const pi = await stripeInstance.paymentIntents.retrieve(ep.stripePaymentIntentId);
+        if (pi.status === 'succeeded') {
+          ep.status = 'approved';
+          ep.recoveredAt = Date.now();
+          ep.recoverySource = 'admin-reconcile';
+          const ev = db.operatorEvents[ep.eventId];
+          if (ev) {
+            ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+            ev.revenue = (ev.revenue || 0) + ep.amount;
+          }
+          results.recovered++;
+        } else if (pi.status === 'canceled' || pi.status === 'requires_payment_method') {
+          ep.status = 'failed';
+          ep.failReason = 'Payment ' + pi.status;
+          ep.failedAt = Date.now();
+          results.failed++;
+        } else {
+          results.unchanged++;
+        }
+      } catch (e) {
+        results.errors.push({ epId: ep.id, error: e.message });
+      }
+    }
+
+    if (results.recovered > 0 || results.failed > 0) {
+      saveDB('tips', 'eventPayments', 'users', 'operatorEvents');
+    }
+
+    console.log('[admin/reconcile]', results);
+    res.json({ ok: true, ...results, checked: pendingTips.length + pendingEPs.length });
+  } catch (e) {
+    console.error('[admin/reconcile] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Provider: save PIX key / bank info for receiving payouts
 app.post('/api/prestador/:userId/bank-info', requireAuth, (req, res) => {
   const userId = req.params.userId;
@@ -17702,7 +18039,11 @@ app.post('/api/stripe/pay', requireAuth, async (req, res) => {
       intentData.application_fee_amount = fee;
       intentData.transfer_data = { destination: receiver.stripeConnectId };
     }
-    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
+    // Idempotency key prevents duplicate charges on network retry
+    const idempotencyKeyExpress = `pe_${payerId}_${type || 'tip'}_${Math.round(amount * 100)}_${Date.now()}`;
+    const paymentIntent = await stripeInstance.paymentIntents.create(intentData, {
+      idempotencyKey: idempotencyKeyExpress
+    });
     if (paymentIntent.status === 'succeeded') {
       const tipId = uuidv4();
 
@@ -17810,7 +18151,11 @@ app.post('/api/stripe/create-payment-intent', requireAuth, paymentLimiter, async
       intentData.transfer_data = { destination: receiver.stripeConnectId };
     }
 
-    const paymentIntent = await stripeInstance.paymentIntents.create(intentData);
+    // Idempotency key prevents duplicate charges on network retry
+    const idempotencyKey = `pi_${payerId || 'anon'}_${type || 'tip'}_${amountCents}_${Date.now()}`;
+    const paymentIntent = await stripeInstance.paymentIntents.create(intentData, {
+      idempotencyKey
+    });
 
     // Pre-save as pending
     const tipId = uuidv4();
@@ -18239,6 +18584,118 @@ app.post('/api/stripe/webhook', (req, res) => {
       }
       break;
     }
+    case 'payment_intent.payment_failed': {
+      const piFailed = event.data.object;
+      const failReason = piFailed.last_payment_error?.message || 'Unknown error';
+      const failCode = piFailed.last_payment_error?.code || 'unknown';
+      console.warn('[stripe/webhook] Payment FAILED:', { id: piFailed.id, reason: failReason, code: failCode });
+
+      // Mark tip as failed
+      const failedTip = Object.values(db.tips || {}).find(t => t.stripePaymentIntentId === piFailed.id);
+      if (failedTip && failedTip.status === 'pending') {
+        failedTip.status = 'failed';
+        failedTip.failReason = failReason;
+        failedTip.failCode = failCode;
+        failedTip.failedAt = Date.now();
+        io.to(`user:${failedTip.payerId}`).emit('payment-failed', {
+          tipId: failedTip.id, amount: failedTip.amount, reason: failReason
+        });
+        saveDB('tips');
+      }
+
+      // Mark event payment as failed
+      const failedEP = Object.values(db.eventPayments || {}).find(e => e.stripePaymentIntentId === piFailed.id);
+      if (failedEP && failedEP.status === 'pending') {
+        failedEP.status = 'failed';
+        failedEP.failReason = failReason;
+        failedEP.failCode = failCode;
+        failedEP.failedAt = Date.now();
+        io.to(`user:${failedEP.payerId}`).emit('payment-failed', {
+          type: 'entry', eventId: failedEP.eventId, reason: failReason
+        });
+        saveDB('eventPayments');
+      }
+      break;
+    }
+    case 'charge.dispute.created': {
+      const dispute = event.data.object;
+      const disputePI = dispute.payment_intent;
+      console.warn('[stripe/webhook] DISPUTE created:', { id: dispute.id, reason: dispute.reason, amount: dispute.amount, pi: disputePI });
+
+      if (!db.disputes) db.disputes = {};
+      db.disputes[dispute.id] = {
+        id: dispute.id,
+        paymentIntentId: disputePI,
+        amount: dispute.amount / 100,
+        currency: dispute.currency,
+        reason: dispute.reason,
+        status: dispute.status,
+        evidenceDueBy: dispute.evidence_details?.due_by ? new Date(dispute.evidence_details.due_by * 1000).toISOString() : null,
+        createdAt: Date.now()
+      };
+
+      // Find related tip or event payment
+      const disputedTip = Object.values(db.tips || {}).find(t => t.stripePaymentIntentId === disputePI);
+      if (disputedTip) {
+        disputedTip.disputed = true;
+        disputedTip.disputeId = dispute.id;
+        disputedTip.disputeReason = dispute.reason;
+        db.disputes[dispute.id].tipId = disputedTip.id;
+        db.disputes[dispute.id].payerId = disputedTip.payerId;
+        db.disputes[dispute.id].receiverId = disputedTip.receiverId;
+        saveDB('tips');
+      }
+      const disputedEP = Object.values(db.eventPayments || {}).find(e => e.stripePaymentIntentId === disputePI);
+      if (disputedEP) {
+        disputedEP.disputed = true;
+        disputedEP.disputeId = dispute.id;
+        db.disputes[dispute.id].eventPaymentId = disputedEP.id;
+        db.disputes[dispute.id].eventId = disputedEP.eventId;
+        saveDB('eventPayments');
+      }
+
+      // Notify admin via all admin sockets
+      const adminUsers = Object.entries(db.users || {}).filter(([k, v]) => v.isAdmin);
+      adminUsers.forEach(([uid]) => {
+        io.to(`user:${uid}`).emit('dispute-alert', {
+          disputeId: dispute.id, amount: dispute.amount / 100,
+          reason: dispute.reason, evidenceDueBy: db.disputes[dispute.id].evidenceDueBy
+        });
+      });
+      saveDB('disputes');
+      break;
+    }
+    case 'charge.dispute.closed': {
+      const closedDispute = event.data.object;
+      if (db.disputes && db.disputes[closedDispute.id]) {
+        db.disputes[closedDispute.id].status = closedDispute.status;
+        db.disputes[closedDispute.id].closedAt = Date.now();
+        db.disputes[closedDispute.id].outcome = closedDispute.status; // won, lost, warning_closed
+        saveDB('disputes');
+        console.log('[stripe/webhook] Dispute closed:', closedDispute.id, closedDispute.status);
+      }
+      break;
+    }
+    case 'charge.refunded': {
+      const refundedCharge = event.data.object;
+      const refundPI = refundedCharge.payment_intent;
+      console.log('[stripe/webhook] Charge refunded:', { chargeId: refundedCharge.id, pi: refundPI });
+
+      // Update tip/payment status
+      const refundedTip = Object.values(db.tips || {}).find(t => t.stripePaymentIntentId === refundPI);
+      if (refundedTip) {
+        refundedTip.status = 'refunded';
+        refundedTip.refundedAt = Date.now();
+        saveDB('tips');
+      }
+      const refundedEP = Object.values(db.eventPayments || {}).find(e => e.stripePaymentIntentId === refundPI);
+      if (refundedEP) {
+        refundedEP.status = 'refunded';
+        refundedEP.refundedAt = Date.now();
+        saveDB('eventPayments');
+      }
+      break;
+    }
     case 'account.updated': {
       // Stripe Connect account status change
       const acct = event.data.object;
@@ -18251,6 +18708,8 @@ app.post('/api/stripe/webhook', (req, res) => {
       }
       break;
     }
+    default:
+      console.log('[stripe/webhook] Unhandled event type:', event.type);
   }
 
   res.json({ received: true });
