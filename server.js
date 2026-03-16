@@ -8586,6 +8586,33 @@ app.get('/api/admin/dashboard-stats', adminLimiter, requireAdmin, (req, res) => 
       const s = db.subscriptions[uid];
       if (s && (s.status === 'authorized' || s.status === 'active')) subsActive++;
     }
+    // Aggregate event payments (entries)
+    let entryPaymentsTotal = 0, entryPaymentsCount = 0;
+    for (const ep of Object.values(db.eventPayments || {})) {
+      if (ep.status === 'approved') { entryPaymentsTotal += (ep.amount || 0); entryPaymentsCount++; }
+    }
+    // Aggregate order revenue across all operator events
+    let ordersTotal = 0, ordersCount = 0;
+    for (const ev of Object.values(db.operatorEvents || {})) {
+      if (ev.orders && Array.isArray(ev.orders)) {
+        for (const o of ev.orders) {
+          if (o.status === 'paid' || o.status === 'delivered' || o.status === 'ready') {
+            ordersTotal += (o.total || o.subtotal || 0);
+            ordersCount++;
+          }
+        }
+      }
+    }
+    // Aggregate delivery revenue
+    let deliveryTotal = 0, deliveryCount = 0;
+    for (const d of Object.values(db.deliveryOrders || {})) {
+      if (d.status !== 'cancelled' && d.status !== 'refunded') {
+        deliveryTotal += (d.total || d.subtotal || 0);
+        deliveryCount++;
+      }
+    }
+    // Total platform revenue
+    const platformRevenue = tipsTotal + entryPaymentsTotal + ordersTotal + deliveryTotal;
     const seen = new Set();
     [...io.sockets.sockets.values()].forEach(s => { if (s.touchUserId) seen.add(s.touchUserId); });
     const onlineCount = seen.size;
@@ -8597,7 +8624,7 @@ app.get('/api/admin/dashboard-stats', adminLimiter, requireAdmin, (req, res) => 
         growth[day] = (growth[day] || 0) + 1;
       }
     });
-    res.json({ totalUsers, verified, premium, prestadores, admins, totalRelations, totalEncounters, todayEncounters, activeEvents, totalEvents, tipsTotal, tipsCount, subsActive, onlineCount, uptime: process.uptime(), growth });
+    res.json({ totalUsers, verified, premium, prestadores, admins, totalRelations, totalEncounters, todayEncounters, activeEvents, totalEvents, tipsTotal, tipsCount, subsActive, entryPaymentsTotal, entryPaymentsCount, ordersTotal, ordersCount, deliveryTotal, deliveryCount, platformRevenue, onlineCount, uptime: process.uptime(), growth });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -10638,6 +10665,13 @@ app.post('/mp/webhook', (req, res) => {
               }
               console.log('[webhook] Subscription PIX approved:', { userId: sub.userId, plan: sub.planId });
               saveDB('users');
+              // Notify payer of subscription activation receipt
+              io.to(`user:${sub.userId}`).emit('payment-receipt', {
+                type: 'subscription', amount: tip.amount, status: 'approved',
+                method: 'pix', planId: sub.planId,
+                transactionId: tip.mpPaymentId || tip.id,
+                timestamp: Date.now()
+              });
             }
           }
           // Handle event entry PIX activation
@@ -10648,9 +10682,24 @@ app.post('/mp/webhook', (req, res) => {
               ev.paidCheckins = (ev.paidCheckins || 0) + 1;
               if (!ev.participants) ev.participants = [];
               if (!ev.participants.includes(tip.payerId)) ev.participants.push(tip.payerId);
-              saveDB('operatorEvents');
+              // Also save to eventPayments for proper tracking
+              if (!db.eventPayments) db.eventPayments = {};
+              db.eventPayments[tip.id] = {
+                id: tip.id, payerId: tip.payerId, eventId: ev.id, eventName: ev.name || '',
+                amount: tip.amount, fee: tip.fee || 0, receiverId: ev.creatorId, currency: 'brl',
+                mpPaymentId: tip.mpPaymentId, status: 'approved', method: 'pix',
+                type: 'entry', createdAt: tip.createdAt || Date.now()
+              };
+              saveDB('operatorEvents', 'eventPayments');
               io.emit('checkin', { eventId: ev.id, userId: tip.payerId });
               io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId: tip.payerId, amount: tip.amount, eventId: ev.id, status: 'approved', method: 'pix' });
+              // Notify payer of entry payment receipt
+              io.to(`user:${tip.payerId}`).emit('payment-receipt', {
+                type: 'entry', amount: tip.amount, status: 'approved',
+                method: 'pix', eventName: ev.name || '',
+                transactionId: tip.mpPaymentId || tip.id,
+                timestamp: Date.now()
+              });
               console.log('[webhook] Entry PIX approved:', { event: ev.name, userId: tip.payerId });
             }
           }
@@ -10662,6 +10711,15 @@ app.post('/mp/webhook', (req, res) => {
               receiver.tipsTotal = (receiver.tipsTotal || 0) + tip.amount;
             }
             io.to(`user:${tip.receiverId}`).emit('tip-received', { amount: tip.amount, from: db.users[tip.payerId]?.nickname || '?' });
+            // Notify payer that their MP/PIX tip was approved (receipt)
+            io.to(`user:${tip.payerId}`).emit('payment-receipt', {
+              type: 'tip', amount: tip.amount, status: 'approved',
+              method: tip.paymentMethod || 'mercadopago',
+              recipientName: receiver?.nickname || receiver?.name || 'Prestador',
+              transactionId: tip.mpPaymentId || tip.id,
+              timestamp: Date.now()
+            });
+            console.log('[webhook] Regular tip approved via MP:', { payerId: tip.payerId, amount: tip.amount });
           }
         }
         saveDB('tips', 'users');
@@ -14596,13 +14654,24 @@ app.post('/api/operator/event/:eventId/pay-entry', paymentLimiter, async (req, r
     if (!IDX.tipsByReceiver.has(tipEntryCard.receiverId)) IDX.tipsByReceiver.set(tipEntryCard.receiverId, []);
     IDX.tipsByReceiver.get(tipEntryCard.receiverId).push(tipEntryCard.id);
 
+    // Also save to eventPayments for proper tracking and admin refund support
+    if (!db.eventPayments) db.eventPayments = {};
+    db.eventPayments[tipId] = {
+      id: tipId, payerId: userId, eventId: ev.id, eventName: ev.name || '',
+      amount, fee: touchFee, receiverId: ev.creatorId, currency: 'brl',
+      mpPaymentId: result.id, status: result.status, statusDetail: result.status_detail,
+      method: 'mercadopago-card', type: 'entry', createdAt: Date.now()
+    };
+
     if (result.status === 'approved') {
       ev.revenue = (ev.revenue || 0) + amount;
       ev.paidCheckins = (ev.paidCheckins || 0) + 1;
+      if (!ev.participants) ev.participants = [];
+      if (!ev.participants.includes(userId)) ev.participants.push(userId);
       saveDB('operatorEvents');
       io.to(`user:${ev.creatorId}`).emit('entry-paid', { userId, amount, eventId: ev.id, nickname: user.nickname || user.name });
     }
-    saveDB('tips');
+    saveDB('tips', 'eventPayments');
 
     res.json({ status: result.status, statusDetail: result.status_detail, mpPaymentId: result.id });
   } catch (e) {
@@ -15578,19 +15647,53 @@ app.get('/api/delivery/order/:orderId', (req, res) => {
   res.json({ order });
 });
 
-app.post('/api/delivery/order/:orderId/cancel', (req, res) => {
+app.post('/api/delivery/order/:orderId/cancel', async (req, res) => {
   const order = db.deliveryOrders[req.params.orderId];
   if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
   if (['on_the_way', 'delivered'].includes(order.status)) return res.status(400).json({ error: 'Pedido ja esta em entrega ou entregue.' });
   order.status = 'cancelled';
   if (!order.statusHistory) order.statusHistory = [];
   order.statusHistory.push({ status: 'cancelled', timestamp: Date.now() });
+  // Execute refund if payment was made
+  if (order.stripePaymentIntentId && stripeInstance) {
+    try {
+      await stripeInstance.refunds.create({ payment_intent: order.stripePaymentIntentId, reason: 'requested_by_customer' });
+      order.refundStatus = 'refunded';
+      order.refundedAt = Date.now();
+      console.log('[delivery] Stripe refund for cancelled order:', order.id);
+    } catch (refErr) {
+      console.error('[delivery] Stripe refund error:', refErr.message);
+      order.refundStatus = 'refund_failed';
+    }
+  } else if (order.mpPaymentId && MP_ACCESS_TOKEN) {
+    try {
+      const refResp = await fetch('https://api.mercadopago.com/v1/payments/' + order.mpPaymentId + '/refunds', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      if (refResp.ok) {
+        order.refundStatus = 'refunded';
+        order.refundedAt = Date.now();
+        console.log('[delivery] MP refund for cancelled order:', order.id);
+      } else {
+        order.refundStatus = 'refund_failed';
+      }
+    } catch (mpErr) {
+      console.error('[delivery] MP refund error:', mpErr.message);
+      order.refundStatus = 'refund_failed';
+    }
+  }
   saveDB('deliveryOrders');
   // Sync with ev.orders
   _syncDeliveryToEvOrders(order);
   const ev = db.operatorEvents[order.eventId];
-  if (ev) io.to(`user:${ev.creatorId}`).emit('delivery-order-cancelled', { orderId: order.id });
-  res.json({ ok: true });
+  if (ev) io.to(`user:${ev.creatorId}`).emit('delivery-order-cancelled', { orderId: order.id, refundStatus: order.refundStatus || 'no_payment' });
+  // Notify payer about refund
+  if (order.userId) {
+    io.to('user:' + order.userId).emit('order-refunded', { orderId: order.id, amount: order.total || order.subtotal, refundStatus: order.refundStatus || 'no_payment' });
+  }
+  res.json({ ok: true, refundStatus: order.refundStatus || 'no_payment' });
 });
 
 app.post('/api/delivery/order/:orderId/assign-driver', (req, res) => {
@@ -17787,7 +17890,7 @@ app.post('/api/event/:eventId/barber/appointment/:appointmentId/accept', (req, r
 });
 
 // Barber rejects appointment (refund needed)
-app.post('/api/event/:eventId/barber/appointment/:appointmentId/reject', (req, res) => {
+app.post('/api/event/:eventId/barber/appointment/:appointmentId/reject', async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
   const barber = ensureBarber(ev);
@@ -17802,6 +17905,41 @@ app.post('/api/event/:eventId/barber/appointment/:appointmentId/reject', (req, r
   if (member) {
     const slot = (member.slots || []).find(s => s.id === apt.slotId);
     if (slot) { slot.status = 'available'; slot.bookedBy = null; slot.bookedByUserId = null; }
+  }
+  // Execute actual refund if payment exists
+  if (apt.paymentId && apt.paidAt) {
+    try {
+      // Try Stripe refund first (if paymentId looks like pi_)
+      if (apt.paymentId.startsWith('pi_') && stripeInstance) {
+        await stripeInstance.refunds.create({ payment_intent: apt.paymentId, reason: 'requested_by_customer' });
+        apt.refundStatus = 'refunded';
+        apt.refundedAt = Date.now();
+        apt.refundMethod = 'stripe';
+        console.log('[barber] Stripe refund executed for appointment:', apt.id);
+      }
+      // Try MercadoPago refund (numeric paymentId)
+      else if (MP_ACCESS_TOKEN) {
+        const refundResp = await fetch('https://api.mercadopago.com/v1/payments/' + apt.paymentId + '/refunds', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + MP_ACCESS_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (refundResp.ok) {
+          apt.refundStatus = 'refunded';
+          apt.refundedAt = Date.now();
+          apt.refundMethod = 'mercadopago';
+          console.log('[barber] MP refund executed for appointment:', apt.id);
+        } else {
+          console.error('[barber] MP refund failed:', await refundResp.text());
+          apt.refundStatus = 'refund_failed';
+        }
+      }
+    } catch (refundErr) {
+      console.error('[barber] Refund error:', refundErr.message);
+      apt.refundStatus = 'refund_failed';
+    }
+  } else {
+    apt.refundStatus = 'no_payment';
   }
   saveDB('operatorEvents');
   // Notify client about rejection + refund

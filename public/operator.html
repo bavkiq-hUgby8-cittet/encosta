@@ -4026,6 +4026,21 @@ function renderDashboard(){
   var grid=$('opDashGrid');
   if(!grid)return;
   var count=S.checkins?S.checkins.length:0;
+  // Calculate real revenue from all sources
+  var dashRevenue=0, dashOrders=0, dashAppointments=0;
+  // Restaurant orders revenue
+  if(REST&&REST.orders){
+    REST.orders.filter(function(o){return o.status!=='cancelled'&&o.status!=='refunded'}).forEach(function(o){
+      dashRevenue+=(o.total||0); dashOrders++;
+    });
+  }
+  // Entry revenue from event data
+  if(S.currentEvent&&S.currentEvent.revenue){dashRevenue+=S.currentEvent.revenue}
+  // Barber appointments
+  if(typeof BARBER!=='undefined'&&BARBER.appointments){dashAppointments=BARBER.appointments.filter(function(a){return a.status!=='rejected'&&a.status!=='cancelled'}).length;
+    BARBER.appointments.filter(function(a){return a.paidAt&&a.servicePrice}).forEach(function(a){dashRevenue+=Number(a.servicePrice)||0});
+  }
+  var dashRevenueStr='R$ '+dashRevenue.toFixed(2).replace('.',',');
   var html='';
   // Overview KPIs
   html+='<div class="op-dash-card" style="grid-column:1/-1">';
@@ -4034,9 +4049,9 @@ function renderDashboard(){
   html+='<span class="op-dash-card-badge" style="background:rgba(45,212,160,.12);color:var(--ok)">AO VIVO</span></div>';
   html+='<div class="op-dash-kpi-row">';
   html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--ok)">'+count+'</div><div class="op-dash-kpi-label">Check-ins</div></div>';
-  html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--fire)">R$ 0</div><div class="op-dash-kpi-label">Faturamento</div></div>';
-  html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--ac2)">0</div><div class="op-dash-kpi-label">Pedidos</div></div>';
-  html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--warn)">0</div><div class="op-dash-kpi-label">Agendamentos</div></div>';
+  html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--fire)">'+dashRevenueStr+'</div><div class="op-dash-kpi-label">Faturamento</div></div>';
+  html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--ac2)">'+dashOrders+'</div><div class="op-dash-kpi-label">Pedidos</div></div>';
+  html+='<div class="op-dash-kpi"><div class="op-dash-kpi-val" style="color:var(--warn)">'+dashAppointments+'</div><div class="op-dash-kpi-label">Agendamentos</div></div>';
   html+='</div></div>';
   // Module cards
   var modules=['restaurant','parking','gym','church','barber'];
@@ -10111,7 +10126,8 @@ async function loadBarberAppointments(){
       const color=statusColors[a.status]||'#999';
       const dateStr=a.date.split('-').reverse().join('/');
       card.style.cssText='padding:.6rem;border-radius:10px;background:rgba(212,167,69,.04);border:1px solid rgba(212,167,69,.12);margin-bottom:.5rem';
-      var paidBadge=a.paidAt?'<span style="font-size:.45rem;padding:.1rem .3rem;border-radius:4px;background:rgba(34,197,94,.1);color:#22c55e;margin-left:.3rem">PAGO</span>':'';
+      var priceStr=a.servicePrice?'R$ '+Number(a.servicePrice).toFixed(2).replace('.',','):'';
+      var paidBadge=a.paidAt?'<span style="font-size:.45rem;padding:.1rem .3rem;border-radius:4px;background:rgba(34,197,94,.1);color:#22c55e;margin-left:.3rem">PAGO'+(priceStr?' '+priceStr:'')+'</span>':(priceStr?'<span style="font-size:.45rem;padding:.1rem .3rem;border-radius:4px;background:rgba(251,191,36,.1);color:#fbbf24;margin-left:.3rem">'+priceStr+'</span>':'');
       card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">'
         +'<span style="font-weight:700;font-size:.7rem;color:var(--t1)">'+dateStr+' '+a.timeStart+'</span>'
         +'<span style="font-size:.5rem;padding:.1rem .4rem;border-radius:10px;background:rgba(255,255,255,.05);color:'+color+'">'+(statusLabels[a.status]||a.status)+'</span></div>'
