@@ -1917,6 +1917,107 @@ const MP_APP_ID = process.env.MP_APP_ID || '';
 const MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET || '';
 const MP_REDIRECT_URI = process.env.MP_REDIRECT_URI || 'https://touch-irl.com/mp/callback';
 const TOUCH_FEE_PERCENT = parseFloat(process.env.TOUCH_FEE_PERCENT || '10');
+
+// ══════════════════════════════════════════════════════════════════════
+// TABELA DE PRECOS POR REGIAO
+// Edite AQUI para alterar qualquer preco do app inteiro.
+// O frontend puxa tudo via GET /api/region-config
+// ══════════════════════════════════════════════════════════════════════
+const PRICING = {
+  US: {
+    currency: 'usd',
+    symbol: '$',
+    locale: 'en-US',
+    gateway: 'stripe',
+    // Assinaturas
+    plusMonthly: 4.99,
+    seloMonthly: 1.99,
+    // Botoes de gorjeta sugeridos
+    tipSuggestions: [2, 5, 10, 20],
+    tipMin: 1,
+    tipMax: 500,
+    // Presentes digitais
+    gifts: { flowers: 15, breakfast: 12, book: 10, dessert: 5 },
+    // Selo verificado (one-time)
+    verifiedBadge: 9.99,
+    // Barbearia defaults
+    barberDefaults: { cut: 25, beard: 15, combo: 35 },
+    // Estacionamento default por hora
+    parkingHourly: 5,
+    // Academia default mensal
+    gymMonthly: 29.90,
+    // Estrela (pontos)
+    starPrice: 100
+  },
+  BR: {
+    currency: 'brl',
+    symbol: 'R$',
+    locale: 'pt-BR',
+    gateway: 'mercadopago',
+    // Assinaturas
+    plusMonthly: 29.90,
+    seloMonthly: 9.90,
+    // Botoes de gorjeta sugeridos
+    tipSuggestions: [5, 10, 20, 50],
+    tipMin: 1,
+    tipMax: 500,
+    // Presentes digitais
+    gifts: { flowers: 140, breakfast: 100, book: 80, dessert: 40 },
+    // Selo verificado (one-time)
+    verifiedBadge: 100,
+    // Barbearia defaults
+    barberDefaults: { cut: 35, beard: 25, combo: 50 },
+    // Estacionamento default por hora
+    parkingHourly: 10,
+    // Academia default mensal
+    gymMonthly: 99.90,
+    // Estrela (pontos)
+    starPrice: 100
+  },
+  LATAM: {
+    currency: 'usd',
+    symbol: '$',
+    locale: 'es-419',
+    gateway: 'stripe',
+    // Mesmos precos dos EUA por padrao (ajustar se necessario)
+    plusMonthly: 4.99,
+    seloMonthly: 1.99,
+    tipSuggestions: [2, 5, 10, 20],
+    tipMin: 1,
+    tipMax: 500,
+    gifts: { flowers: 15, breakfast: 12, book: 10, dessert: 5 },
+    verifiedBadge: 9.99,
+    barberDefaults: { cut: 25, beard: 15, combo: 35 },
+    parkingHourly: 5,
+    gymMonthly: 29.90,
+    starPrice: 100
+  }
+};
+// Default region (fallback)
+const DEFAULT_REGION = process.env.DEFAULT_REGION || 'US';
+
+// Detect region from request (IP geolocation via Accept-Language + timezone heuristic)
+function detectRegion(req) {
+  // 1. Explicit query param or header (frontend can override)
+  const explicit = req.query.region || req.headers['x-touch-region'];
+  if (explicit && PRICING[explicit.toUpperCase()]) return explicit.toUpperCase();
+  // 2. Check Accept-Language header
+  const lang = (req.headers['accept-language'] || '').toLowerCase();
+  if (lang.startsWith('pt')) return 'BR';
+  if (lang.startsWith('es')) return 'LATAM';
+  // 3. Check timezone header (sent by frontend)
+  const tz = (req.headers['x-touch-timezone'] || '').toLowerCase();
+  if (tz.includes('sao_paulo') || tz.includes('brasilia') || tz.includes('fortaleza') || tz.includes('bahia') || tz.includes('manaus') || tz.includes('belem') || tz.includes('recife')) return 'BR';
+  if (tz.includes('buenos_aires') || tz.includes('santiago') || tz.includes('bogota') || tz.includes('lima') || tz.includes('mexico')) return 'LATAM';
+  // 4. Fallback
+  return DEFAULT_REGION;
+}
+
+// Get pricing for a region
+function getPricing(region) {
+  return PRICING[region] || PRICING[DEFAULT_REGION];
+}
+
 // Stripe Tax: enable for product transactions (orders/delivery) in US
 // Set STRIPE_TAX_ENABLED=true in env to activate (requires Stripe Tax setup in dashboard)
 const STRIPE_TAX_ENABLED = process.env.STRIPE_TAX_ENABLED === 'true';
@@ -1930,6 +2031,33 @@ const mpPayment = new Payment(mpClient);
 // Expose public key for frontend SDK
 app.get('/api/mp-public-key', (req, res) => {
   res.json({ publicKey: MP_PUBLIC_KEY });
+});
+
+// Region config — frontend calls this on load to get currency, prices, etc.
+app.get('/api/region-config', (req, res) => {
+  const region = detectRegion(req);
+  const p = getPricing(region);
+  res.json({
+    region,
+    currency: p.currency,
+    symbol: p.symbol,
+    locale: p.locale,
+    gateway: p.gateway,
+    touchFee: TOUCH_FEE_PERCENT,
+    subscriptions: {
+      plus: { price: p.plusMonthly, label: 'Touch? Plus' },
+      selo: { price: p.seloMonthly, label: 'Selo Verificado' }
+    },
+    tipSuggestions: p.tipSuggestions,
+    tipMin: p.tipMin,
+    tipMax: p.tipMax,
+    gifts: p.gifts,
+    verifiedBadge: p.verifiedBadge,
+    barberDefaults: p.barberDefaults,
+    parkingHourly: p.parkingHourly,
+    gymMonthly: p.gymMonthly,
+    starPrice: p.starPrice
+  });
 });
 
 const SERVICE_TYPES = [

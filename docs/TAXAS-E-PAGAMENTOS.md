@@ -1,6 +1,6 @@
 # Touch? — Taxas, Repasses e Prazos de Pagamento
 
-**Ultima atualizacao:** 2026-03-04
+**Ultima atualizacao:** 2026-03-16
 **Status:** Documento de referencia para agentes e decisoes
 
 ---
@@ -350,6 +350,44 @@ Definir se parceiros recebem daily (mais satisfatorio) ou weekly (menos custo op
 - **Brasil Cartao**: MercadoPago pra debito (1.99% vs 3.99%), empatado pra credito
 - **Brasil Prazo**: Stripe melhor (T+2 vs T+14 no MP), mas MP tem PIX instantaneo
 - **Conclusao**: Manter os dois gateways. Stripe como primario global, MP como opcao PIX no Brasil.
+
+---
+
+## 13. SISTEMA DE PRECOS REGIONAIS
+
+### 13.1 Estrutura
+
+Todos os precos do app estao centralizados na constante `PRICING` no server.js (~linha 1920).
+O frontend carrega os precos via `GET /api/region-config` ao iniciar.
+
+### 13.2 Regioes suportadas
+
+| Regiao | Moeda | Gateway principal | Assinatura Plus | Selo | Gorjetas sugeridas |
+|--------|-------|-------------------|-----------------|------|--------------------|
+| US     | USD   | Stripe            | $4.99/mo        | $1.99/mo | $2, $5, $10, $20 |
+| BR     | BRL   | MercadoPago       | R$29,90/mo      | R$9,90/mo | R$5, R$10, R$20, R$50 |
+| LATAM  | USD   | Stripe            | $4.99/mo        | $1.99/mo | $2, $5, $10, $20 |
+
+### 13.3 Deteccao automatica de regiao
+
+1. Header `X-Touch-Region` (override explicito do frontend)
+2. `Accept-Language` do browser (pt=BR, es=LATAM, default=US)
+3. Header `X-Touch-Timezone` (fusos brasileiros=BR, fusos latinos=LATAM)
+4. Fallback: `DEFAULT_REGION` env var (padrao: US)
+
+### 13.4 Onde editar precos
+
+**Para alterar qualquer preco do app inteiro:**
+Edite a constante `PRICING` no server.js. Busque por "TABELA DE PRECOS POR REGIAO".
+Cada regiao tem: plusMonthly, seloMonthly, tipSuggestions, tipMin, tipMax, gifts, verifiedBadge, barberDefaults, parkingHourly, gymMonthly, starPrice.
+
+O frontend atualiza automaticamente via `applyRegionPricing()`.
+
+### 13.5 Estrutura tributaria
+
+- **LLC (Delaware):** Fatura tudo via Stripe (USD) — mercado global
+- **Entidade brasileira (MEI/ME):** Fatura via MercadoPago (BRL) — mercado domestico
+- Contrato intercompany entre as duas entidades (royalties de licenca de software)
 
 ---
 

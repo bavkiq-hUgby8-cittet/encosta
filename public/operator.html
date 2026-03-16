@@ -3715,8 +3715,23 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
 <script src="/socket.io/socket.io.js"></script>
 <script>
 // ═══ STATE ═══
-const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false,showRealNames:true,hidePhotos:false,currentEventId:null,currentEventName:null};
+const S={userId:null,userName:null,userColor:null,socket:null,checkins:[],requireReveal:false,showRealNames:true,hidePhotos:false,currentEventId:null,currentEventName:null,currentEvent:null};
 let opIsCreateAccount=false;
+
+// ══ REGIONAL PRICING (operator) ══
+var REGION={region:'US',currency:'usd',symbol:'$',locale:'en-US'};
+function formatPrice(amount){
+  if(!amount&&amount!==0)return REGION.symbol+'0.00';
+  if(REGION.currency==='brl')return 'R$ '+Number(amount).toFixed(2).replace('.',',');
+  return '$'+Number(amount).toFixed(2);
+}
+(function loadOpRegion(){
+  var tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone}catch(e){}
+  fetch('/api/region-config',{headers:{'X-Touch-Timezone':tz}})
+    .then(function(r){return r.json()})
+    .then(function(d){if(d&&d.region)REGION=d})
+    .catch(function(){});
+})();
 let homeSonicActive=false,sonicActive=false,sonicMyFreq=0;
 let sonicEmitCtx=null,sonicOsc=null,sonicStream=null,sonicMicCtx=null,sonicAnalyser=null,sonicAnimFrame=null;
 let sonicKeepAlive=null,audioCtx=null;
@@ -3855,7 +3870,7 @@ async function showEventsScreen(){
     }
     if($('opActiveEventsCount'))$('opActiveEventsCount').textContent=activeEvents.length;
     if($('opTotalCheckinsCount'))$('opTotalCheckinsCount').textContent=totalCheckins;
-    if($('opTotalRevenue'))$('opTotalRevenue').textContent='R$'+(totalRevenue.toFixed(2).replace('.',','));
+    if($('opTotalRevenue'))$('opTotalRevenue').textContent=formatPrice(totalRevenue);
   }catch(e){$('opEventList').innerHTML='<div style="color:var(--pk);text-align:center;font-size:.7rem">Erro ao carregar eventos</div>'}
 }
 
@@ -3867,7 +3882,7 @@ function buildEventCard(ev){
   const pCount=(ev.participants||[]).length;
   const statusHtml=ev.active?'<span class="op-event-status active">AO VIVO</span>':'<span class="op-event-status ended">Encerrado</span>';
   const priceStr=ev.entryPrice>0?'R$'+ev.entryPrice.toFixed(2).replace('.',','):'Gratuito';
-  const revStr=ev.revenue>0?'R$'+ev.revenue.toFixed(2).replace('.',','):'--';
+  const revStr=ev.revenue>0?formatPrice(ev.revenue):'--';
   
   let statsHtml='<div class="op-event-stats">';
   statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg> <b>'+pCount+'</b></div>';
@@ -7500,10 +7515,10 @@ function showTableDetail(tableNum,orders){
     html+='<div class="order-card" style="margin-bottom:.3rem">'+
       '<div class="order-head"><span class="order-num">#'+(REST.orders.length-REST.orders.indexOf(o))+'</span><span class="order-status '+o.status+'">'+statusLabel(o.status)+'</span></div>'+
       '<div class="order-items" style="font-size:.65rem">'+o.items.map(it=>it.qty+'× '+esc(it.name)).join(' · ')+'</div>'+
-      '<div style="font-size:.6rem;color:var(--t3);margin-top:.2rem">Produtos: R$ '+(o.subtotal||o.total||0).toFixed(2).replace('.',',')+''
-      +(o.tipAmount>0?' | <span style="color:#22c55e">Gorjeta: R$ '+(o.tipAmount||0).toFixed(2).replace('.',',')+'</span>':'')
+      '<div style="font-size:.6rem;color:var(--t3);margin-top:.2rem">Produtos: '+formatPrice(o.subtotal||o.total||0)+''
+      +(o.tipAmount>0?' | <span style="color:#22c55e">Gorjeta: '+formatPrice(o.tipAmount||0)+'</span>':'')
       +'</div>'
-      +'<div style="font-size:.7rem;font-weight:700;color:#f97316;margin-top:.1rem">Total: R$ '+(o.total||0).toFixed(2).replace('.',',')+'</div></div>';
+      +'<div style="font-size:.7rem;font-weight:700;color:#f97316;margin-top:.1rem">Total: '+formatPrice(o.total||0)+'</div></div>';
   });
   html+='<div style="margin-top:.5rem;padding-top:.3rem;border-top:1px solid rgba(255,255,255,.06)">';
   html+='<div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--t3);margin-bottom:.1rem"><span>Produtos</span><span>R$ '+totalProducts.toFixed(2).replace('.',',')+'</span></div>';
@@ -7533,17 +7548,17 @@ function renderRestDashboard(){
 
   stats.innerHTML=
     '<div class="rest-stat"><div class="rest-stat-val">'+totalOrders+'</div><div class="rest-stat-label">Pedidos</div></div>'+
-    '<div class="rest-stat"><div class="rest-stat-val">R$ '+revenueProducts.toFixed(2).replace('.',',')+'</div><div class="rest-stat-label">Produtos (NF-e)</div></div>'+
-    '<div class="rest-stat"><div class="rest-stat-val" style="color:#22c55e">R$ '+revenueTips.toFixed(2).replace('.',',')+'</div><div class="rest-stat-label">Gorjetas (NF-S)</div></div>'+
-    '<div class="rest-stat"><div class="rest-stat-val">R$ '+revenue.toFixed(2).replace('.',',')+'</div><div class="rest-stat-label">Total Bruto</div></div>'+
-    '<div class="rest-stat"><div class="rest-stat-val">R$ '+avgTicket.toFixed(2).replace('.',',')+'</div><div class="rest-stat-label">Ticket Médio</div></div>'+
+    '<div class="rest-stat"><div class="rest-stat-val">'+formatPrice(revenueProducts)+'</div><div class="rest-stat-label">Produtos (NF-e)</div></div>'+
+    '<div class="rest-stat"><div class="rest-stat-val" style="color:#22c55e">'+formatPrice(revenueTips)+'</div><div class="rest-stat-label">Gorjetas (NF-S)</div></div>'+
+    '<div class="rest-stat"><div class="rest-stat-val">'+formatPrice(revenue)+'</div><div class="rest-stat-label">Total Bruto</div></div>'+
+    '<div class="rest-stat"><div class="rest-stat-val">'+formatPrice(avgTicket)+'</div><div class="rest-stat-label">Ticket Medio</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val">'+attendees+'</div><div class="rest-stat-label">Pessoas no Evento</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#fbbf24">'+pending+'</div><div class="rest-stat-label">Novos</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#3b82f6">'+preparing+'</div><div class="rest-stat-label">Preparando</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#34d399">'+ready+'</div><div class="rest-stat-label">Prontos</div></div>'+
     '<div class="rest-stat"><div class="rest-stat-val" style="color:#71717a">'+delivered+'</div><div class="rest-stat-label">Entregues</div></div>'+
     (refunded>0?'<div class="rest-stat"><div class="rest-stat-val" style="color:#3b82f6">'+refunded+'</div><div class="rest-stat-label">Reembolsados</div></div>'+
-    '<div class="rest-stat"><div class="rest-stat-val" style="color:#ef4444">-R$ '+refundedAmount.toFixed(2).replace('.',',')+'</div><div class="rest-stat-label">Devolvido</div></div>':'');
+    '<div class="rest-stat"><div class="rest-stat-val" style="color:#ef4444">-'+formatPrice(refundedAmount)+'</div><div class="rest-stat-label">Devolvido</div></div>':'');
 
   // Top items
   const itemCounts={};
