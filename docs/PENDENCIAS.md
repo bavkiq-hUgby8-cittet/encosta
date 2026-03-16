@@ -1,6 +1,6 @@
 # PENDENCIAS E TESTES -- Touch?
 
-Atualizado: 27/02/2026
+Atualizado: 16/03/2026
 
 ## ALTA PRIORIDADE
 
@@ -55,6 +55,29 @@ Atualizado: 27/02/2026
 ### 10. Stripe Webhook
 - [ ] Configurar URL: https://touch-irl.com/api/stripe/webhook
 - [ ] Eventos: payment_intent.succeeded, checkout.session.completed, account.updated
+
+### 14. Precos regionais -- testar em producao
+- [x] Sistema implementado (PRICING centralizado, deteccao de regiao, admin panel)
+- [ ] Testar deteccao de regiao com usuario real nos EUA
+- [ ] Testar se admin panel salva/carrega precos corretamente no Firebase
+- [ ] Verificar formatPrice() em todas as telas (index, operator, partners)
+
+### 15. Partners page -- testar integracao
+- [x] Pagina criada com 3 idiomas (EN/PT/ES) e CTAs
+- [ ] Testar Stripe Connect onboarding flow end-to-end
+- [ ] Testar redirect de /partners?uid=xxx pro onboarding
+- [ ] Verificar se MP OAuth redirect funciona em producao
+
+### 16. Reembolsos -- testar em producao
+- [x] Endpoints implementados (admin, operador, usuario)
+- [ ] Testar refund via Stripe em transacao real
+- [ ] Testar janela de 24h para auto-refund do usuario
+- [ ] Verificar webhook de charge.refunded
+
+### 17. Entidade brasileira (MEI/ME)
+- [ ] Abrir entidade brasileira para operar MercadoPago
+- [ ] Contrato intercompany com LLC (royalties)
+- [ ] Configurar MP com CNPJ da entidade brasileira
 
 ## BAIXA PRIORIDADE
 

@@ -1,6 +1,6 @@
 # ARQUITETURA TECNICA -- Touch? (Encosta)
 
-Atualizado: 01/03/2026
+Atualizado: 16/03/2026
 
 ## STACK
 
@@ -18,29 +18,32 @@ Atualizado: 01/03/2026
 
 ## ARQUIVOS PRINCIPAIS
 
-- server.js (~14333 linhas) -- Backend monolito
-- public/index.html (~19960 linhas) -- Frontend SPA (25+ telas)
+- server.js (~22825 linhas) -- Backend monolito
+- public/index.html (~30405 linhas) -- Frontend SPA (25+ telas)
 - public/va-test.html (~1260 linhas) -- Tela de ligacao dos 3 assistentes + Dev Log
 - public/va-admin.html (~501 linhas) -- Painel admin dos assistentes de voz
 - public/admin.html (~989 linhas) -- Painel administrativo (8 abas)
 - public/games/index.html (1909 linhas) -- TouchGames lobby (iframe)
 - public/games/*.html -- 11 jogos individuais
-- public/operator.html -- Painel do operador de eventos
+- public/operator.html (~11514 linhas) -- Painel do operador de eventos
 - public/operator-restaurant.html -- Painel do restaurante
+- public/partners.html (~385 linhas) -- Pagina de onboarding parceiros (3 idiomas: EN/PT/ES)
 - public/site.html -- Landing page
 - public/termos.html -- Termos de uso
 - simulador-estrelas.html -- Simulador da economia de estrelas
 - package.json -- Dependencias
 
-## MAPA DO SERVER.JS (~14333 linhas)
+## MAPA DO SERVER.JS (~22825 linhas)
 
 Linha ~1-150: Imports, seguranca (helmet, rate-limit, CORS, ADMIN_SECRET, vaLimiter)
 Linha ~180-600: Firebase Admin, DB in-memory com dirty tracking, indexes (IDX), top tag calc
 Linha ~600-760: Dirty tracking (saveDB), backup/rollback system
 Linha ~780-1050: Auth (Firebase verify, link accounts, unificacao de contas)
 Linha ~1050-1300: MercadoPago config, phrases bank, zodiac system
-Linha ~1400-1950: Sonic matching, session create/join, streak system, NFC/QR links
-Linha ~1950-4050: REST APIs (user, relations, messages, constellation, stars, gifts, reveals, likes, profile, notifications, events, selfie, horoscope)
+Linha ~1400-1920: Sonic matching, session create/join, streak system, NFC/QR links
+Linha ~1920-2000: TABELA DE PRECOS REGIONAIS (PRICING_DEFAULTS + PRICING dinamico + Firebase persist)
+Linha ~2000-2070: Region detection (detectRegion, getPricing, GET /api/region-config)
+Linha ~2070-4050: REST APIs (user, relations, messages, constellation, stars, gifts, reveals, likes, profile, notifications, events, selfie, horoscope)
 Linha ~4050-5300: Mural system (canais, posts, likes, comments, ask-agent, news-chat, ban, narrate, online)
 Linha ~5300-5400: Doc verification, face enrollment/verify
 Linha ~5400-5700: Admin verify, admin grant-plus, admin events, score breakdown, debug
@@ -48,7 +51,8 @@ Linha ~5700-5850: Location, events (create, join, nearby, encosta-request/accept
 Linha ~5850-6100: Contact requests, horoscope, selfie
 Linha ~6100-6440: Voice Agent base (OpenAI Realtime sessions, notas, acesso)
 Linha ~6440-6690: Admin endpoints (reset, backup, rollback, recover, dashboard-stats, users, toggle-admin, events)
-Linha ~6690-6930: Dashboard Financeiro Admin + Payouts manuais + Bank info prestador
+Linha ~6690-6850: Dashboard Financeiro Admin + Payouts manuais + Bank info prestador
+Linha ~8843-8920: Admin Pricing endpoints (GET/POST /api/admin/pricing, POST /api/admin/pricing/reset)
 Linha ~6930-7000: Status, Firebase diagnostic, force-reload, force-connect
 Linha ~7000-7460: VA tier system (canUseProVA, canUseUltimateVA, sessions Plus/Pro/UltimateDEV)
 Linha ~7460-7570: MercadoPago config (service-types, mp-public-key, prestador register, MP OAuth)
@@ -74,12 +78,14 @@ Linha ~12620-12840: Games endpoints (sessions, invite, temp-chat, results)
 Linha ~12840-13100: Mural extended (Radio Touch play/stop)
 Linha ~13100-13762: Server listen, cleanup, error handling
 
-## MAPA DO INDEX.HTML (~19960 linhas)
+## MAPA DO INDEX.HTML (~30405 linhas)
 
 Linha ~1-400: CSS completo (variaveis, telas, componentes, animacoes)
 Linha ~400-1460: CSS Dev Log panel (tema branco/clean, azul #60a5fa)
 Linha ~1460-2800: HTML das 23+ telas
-Linha ~2800-5600: JavaScript principal (state, socket handlers, API calls)
+Linha ~2800-3750: JavaScript principal (state, socket handlers, API calls)
+Linha ~3750-3830: REGION object, formatPrice(), loadRegionConfig(), applyRegionPricing()
+Linha ~3830-5600: API fetch, funcoes de tela
 Linha ~5600-8000: Funcoes de tela (chat, constellation, profile, events, stars)
 Linha ~8000-8450: Sonic system, swipe-back, notifications, boarding pass
 Linha ~8450-8600: Dev Log global functions
@@ -92,12 +98,20 @@ Linha ~12500-14000: Event handlers, game socket events, Dev Log HTML
 Linha ~14000-14600: VA connect(), DataChannel, SDP exchange
 Linha ~14600-15200: VA tool handlers + Dev Interceptor
 Linha ~15200-15400: Dev Log IIFE
-Linha ~15400-16000: Escriba, cleanup, init
-Linha ~16000-19581: Financial dashboard, prestador UX, payout screens, event payment UI
+Linha ~15400-16000: Escriba, cleanup, init, more-menu
+Linha ~16000-22600: Financial dashboard, prestador UX, payout screens, event payment UI
+Linha ~22617-22845: Admin Financial Panel (showAdminFinancial, payouts, history)
+Linha ~22846-23080: Admin Pricing Panel (showAdminPricing, campos editaveis, save/reset)
+Linha ~23080-30405: Admin Agents panel, restante do app
 
 ## DB COLLECTIONS (Firebase)
 
-users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations, muralPosts, eventPayments, payouts
+users, sessions, relations, messages, encounters, gifts, declarations, events, checkins, tips, streaks, locations, revealRequests, likes, starDonations, operatorEvents, docVerifications, faceData, gameConfig, subscriptions, verifications, faceAccessLog, gameSessions, gameScores, ultimateBank, vaConfig, vaConversations, muralPosts, eventPayments, payouts, customDomains, sitePayments
+
+### Paths separados no Firebase RTDB (fora de DB_COLLECTIONS)
+- /pricingConfig -- Tabela de precos editavel pelo admin (override dos PRICING_DEFAULTS)
+- /backups/{timestamp} -- Backups automaticos do DB
+- /waitlist -- Cadastros da landing page
 
 ## VARIAVEIS DE AMBIENTE (Render)
 
@@ -124,11 +138,13 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 ## FLUXOS DE PAGAMENTO
 
 1. GORJETAS: PIX, cartao novo, cartao salvo one-tap, Checkout Pro MP, Stripe (US)
-2. ASSINATURAS: Touch Plus R$50/mes, Selo R$10/mes
+2. ASSINATURAS: Touch Plus (US $4.99, BR R$29.90), Selo (US $1.99, BR R$9.90) -- precos regionais
 3. ENTRADA EM EVENTOS: Cartao novo ou one-tap, com split para operador via Stripe Connect por evento
 4. PAYOUTS MANUAIS: Admin registra pagamento (PIX/TED/dinheiro) para prestadores sem Stripe/MP
 5. ESTRELAS: Compradas com pontos de jogo (sem dinheiro real)
 6. PRESENTES: Comprados com pontos (sem dinheiro real)
+7. REEMBOLSOS: Admin refund (qualquer tx), Operador refund (pedidos), User refund (gorjetas 24h)
+8. PRECOS REGIONAIS: Centralizados em PRICING, editaveis pelo admin panel, persistidos no Firebase
 
 ## FUNCIONALIDADES IMPLEMENTADAS
 
@@ -155,6 +171,11 @@ users, sessions, relations, messages, encounters, gifts, declarations, events, c
 21. Dashboard financeiro admin: receita bruta, taxas, plataforma, prestadores, payouts
 22. Payout manual: sistema de pagamento para prestadores sem Stripe/MP
 23. Stripe Connect por evento: conta separada para cada evento do operador
+24. Pagina Partners: onboarding de parceiros com comparativo Stripe vs MP (3 idiomas)
+25. Precos regionais: tabela centralizada (US/BR/LATAM), deteccao auto de regiao, frontend dinamico
+26. Admin Pricing Panel: editar todos os precos pelo admin (sem tocar no codigo), persist Firebase
+27. Sistema de reembolsos: admin, operador e usuario (Stripe refund, MP refund, janela 24h)
+28. Receipts em tempo real: notificacoes de pagamento aprovado/falha/reembolso via socket
 
 ## DEPLOY (Render.com)
 

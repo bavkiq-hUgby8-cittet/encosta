@@ -2,6 +2,48 @@
 
 Historico consolidado de todas as sessoes de desenvolvimento.
 
+## Sessao 11 -- 16/03/2026
+
+### Pagamentos: auditoria completa + precos regionais + admin pricing
+
+- Mapeamento de todos os 30 fluxos de pagamento do sistema
+- Correcao de 10 gaps criticos nos pagamentos:
+  - Entry payments salvos em db.tips E db.eventPayments (dual-save)
+  - Barber reject agora executa refund real (Stripe/MP)
+  - Delivery cancel agora executa refund real
+  - MP webhook envia payment-receipt via socket
+  - Admin dashboard agrega entryPayments + orders + delivery
+  - Operator dashboard mostra receita real (era "R$ 0")
+  - Barber PAGO badge mostra valor do pagamento
+- Pagina partners.html: comparativo Stripe vs MP, 3 idiomas (EN/PT/ES), CTAs de integracao
+- Botao "Saiba mais" no painel financeiro do operador com link pra /partners
+- Stripe Connect onboarding flow no operator.html
+- Sistema de precos regionais centralizado (PRICING):
+  - 3 regioes: US (USD/Stripe), BR (BRL/MP), LATAM (USD/Stripe)
+  - Deteccao automatica via Accept-Language + Timezone + header explicito
+  - Frontend dinamico: formatPrice(), data-price, data-tip-suggestion
+  - GET /api/region-config retorna config completa da regiao
+- Admin Pricing Panel:
+  - GET/POST /api/admin/pricing para ler/salvar precos
+  - POST /api/admin/pricing/reset para resetar defaults
+  - Persistencia no Firebase RTDB (/pricingConfig)
+  - UI completa com abas US/BR/LATAM, campos editaveis por categoria
+  - Botao nas 2 areas admin (more-menu e perfil)
+
+### Commits:
+- fcb1037 fix: corrigir 10 gaps criticos no sistema de pagamentos
+- b405d32 feat: pagina partners.html com comparativo taxas Stripe vs MP (3 idiomas)
+- 871e407 feat: sistema de precos regionais centralizado (USD/BRL/LATAM)
+- 6c04959 feat: painel admin para editar tabela de precos (sem tocar no codigo)
+
+### Numeros:
+- server.js: ~22825 linhas
+- index.html: ~30405 linhas
+- operator.html: ~11514 linhas
+- partners.html: ~385 linhas (NOVO)
+
+---
+
 ## Sessao 10 -- 01/03/2026
 
 ### Analise de escala 200k usuarios + sync GitHub

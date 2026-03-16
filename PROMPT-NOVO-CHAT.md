@@ -59,8 +59,8 @@ o celular detecta via ultrassom (~18-22kHz), e cria uma relacao anonima de 24h.
 Podem se revelar, dar estrelas, fazer check-in em eventos, enviar presentes digitais.
 
 Stack: Node.js + Express + Socket.IO + Firebase RTDB
-Frontend: HTML/CSS/JS vanilla SPA (~20k+ linhas)
-Backend: server.js monolito (~14k+ linhas)
+Frontend: HTML/CSS/JS vanilla SPA (~30k+ linhas)
+Backend: server.js monolito (~22k+ linhas)
 Deploy: Render -> touch-irl.com (Cloudflare DNS)
 
 ## FUNCIONALIDADES (20+ features)
@@ -69,7 +69,11 @@ Ultrasom, Chat 24h, Reveal, Constelacao, Eventos, Estrelas, Presentes,
 Boarding Pass, Selfie, Voice Agent 3-Tier, TouchGames (11 jogos),
 Assinaturas (Plus/Selo), Gorjetas (MP + Stripe), Extrato, Swipe-back,
 Restaurante, Mural (9 AI agents), Radio Touch, Stripe Connect, Nacionalidade,
-Karaoke (YouTube IFrame Player + fila + votacao + microfone).
+Karaoke (YouTube IFrame Player + fila + votacao + microfone),
+Pagina de Partners (comparativo taxas Stripe/MP, 3 idiomas),
+Sistema de precos regionais (USD/BRL/LATAM com deteccao automatica),
+Painel admin de precos (editar tabela de precos pelo browser),
+Sistema completo de reembolsos (admin, operador e usuario).
 
 ## SEGURANCA ULTRASSONICA (LEITURA OBRIGATORIA SE MEXER EM AUDIO)
 
@@ -209,6 +213,7 @@ FABs dos modulos so aparecem se o modulo esta ativo.
 | docs/ULTIMATEDEV.md | Documentacao detalhada do Voice Agent UltimateDEV |
 | docs/API.md | Documentacao completa das APIs REST |
 | docs/KARAOKE.md | Modulo Karaoke: endpoints, fluxo, YouTube, pontuacao, config |
+| docs/TAXAS-E-PAGAMENTOS.md | Taxas, repasses, prazos, reembolsos, precos regionais, comparativo Stripe/MP |
 
 ## PROMPTS DE AGENTES ESPECIALIZADOS
 

@@ -377,9 +377,21 @@ O frontend carrega os precos via `GET /api/region-config` ao iniciar.
 
 ### 13.4 Onde editar precos
 
-**Para alterar qualquer preco do app inteiro:**
-Edite a constante `PRICING` no server.js. Busque por "TABELA DE PRECOS POR REGIAO".
+**Opcao 1 -- Pelo admin panel (RECOMENDADO):**
+Abra o app -> menu -> botao "Precos" (roxo, so aparece pra admin).
+Troque entre abas US/BR/LATAM, edite os campos, clique "Salvar alteracoes".
+Precos salvos no Firebase RTDB (/pricingConfig) e aplicados imediatamente.
+Botao "Resetar" volta tudo pro padrao original (PRICING_DEFAULTS no server.js).
+
+**Opcao 2 -- Pelo codigo:**
+Edite a constante `PRICING_DEFAULTS` no server.js (~linha 1926). Busque por "TABELA DE PRECOS POR REGIAO".
 Cada regiao tem: plusMonthly, seloMonthly, tipSuggestions, tipMin, tipMax, gifts, verifiedBadge, barberDefaults, parkingHourly, gymMonthly, starPrice.
+Note: overrides salvos via admin panel prevalecem sobre os defaults do codigo.
+
+**Endpoints admin:**
+- `GET /api/admin/pricing` -- retorna precos atuais + defaults
+- `POST /api/admin/pricing` -- salva alteracoes (body: {pricing: {US: {...}, BR: {...}}})
+- `POST /api/admin/pricing/reset` -- reseta para defaults (body: {region: 'BR'} ou {} para todos)
 
 O frontend atualiza automaticamente via `applyRegionPricing()`.
 
