@@ -15191,6 +15191,10 @@ app.post('/api/operator/event/create', async (req, res) => {
       customDomainStatus: 'none'
     }
   };
+  // Auto-enable sub-module configs when module is selected
+  if (db.operatorEvents[id].modules.parking && db.operatorEvents[id].parking) {
+    db.operatorEvents[id].parking.enabled = true;
+  }
   // Add to index so it shows in operator's event list immediately
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
   IDX.operatorByCreator.get(userId).push(id);
@@ -16057,6 +16061,11 @@ app.post('/api/operator/event/:eventId/update', async (req, res) => {
       wifi: !!modules.wifi,
       charevela: !!modules.charevela
     };
+    // Auto-enable parking config when module is selected
+    if (ev.modules.parking) {
+      if (!ev.parking) ev.parking = { enabled: false, mode: 'postpaid', pricingMode: 'hourly', hourlyRate: 10, fixedRate: 0, maxHours: 24, tolerance: 10, totalSpots: 50, periods: [], vehicles: {} };
+      ev.parking.enabled = true;
+    }
   }
   if (eventLogo && typeof eventLogo === 'string' && eventLogo.startsWith('data:image')) {
     const uploadUrl = await uploadBase64ToStorage(eventLogo, `photos/event-logo/${ev.id}_${Date.now()}.jpg`);
@@ -17311,6 +17320,12 @@ app.get('/api/operator/event/:eventId/parking/plate-lookup/:plate', (req, res) =
 app.post('/api/operator/event/:eventId/parking/manual-entry', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  // Auto-enable parking if module is selected but parking config not enabled
+  if (ev.modules && ev.modules.parking && (!ev.parking || !ev.parking.enabled)) {
+    if (!ev.parking) ev.parking = { enabled: false, mode: 'postpaid', pricingMode: 'hourly', hourlyRate: 10, fixedRate: 0, maxHours: 24, tolerance: 10, totalSpots: 50, periods: [], vehicles: {} };
+    ev.parking.enabled = true;
+    saveDB('operatorEvents');
+  }
   if (!ev.parking || !ev.parking.enabled) return res.status(400).json({ error: 'Estacionamento desativado.' });
   let { plate, nickname, notes, userId, vehicleModel, vehicleBrand, vehicleColor } = req.body;
   const plateTrimmed = (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

@@ -5409,6 +5409,18 @@ function handleNewCheckin(d){
   flashQueue.push(d);
   if(!flashRunning)runNextFlash();
   playBeep();
+  // Auto-stop Touch after parking connection and auto-register vehicle
+  if(_moduleTouchActive==='park'){
+    showModuleTouchSuccess('park',esc(d.nickname||'Visitante')+' conectou!');
+    if(homeSonicActive)stopHomeSonic();
+    // Auto-open parking register with userId pre-linked
+    if(d.userId&&S.currentEventId){
+      showToast('Estacionamento: '+esc(d.nickname||'Visitante')+' conectado! Registre o veiculo.');
+      switchParkTab('register');
+      var nameField=$('parkManualName');
+      if(nameField)nameField.value=d.nickname||'';
+    }
+  }
 }
 function runNextFlash(){
   if(flashQueue.length===0){flashRunning=false;return}
@@ -8336,6 +8348,7 @@ function renderParkVehicles(){
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem">'+
         '<div class="park-vcard-cost">R$ '+cost.toFixed(2).replace('.',',')+'</div>'+
         '<div class="park-vcard-actions">'+
+          '<button class="mod-btn small" style="background:rgba(52,211,153,.15);color:#34d399;border-color:rgba(52,211,153,.3)" onclick="markParkPaidPresencial(\''+esc(v.plate)+'\','+cost.toFixed(2)+')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Pago Maquininha</button>'+
           '<button class="mod-btn primary small" onclick="markParkExit(\''+esc(v.plate)+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Saida</button>'+
           '<button class="mod-btn danger small" onclick="showConfirmModal(\'Remover veiculo?\',function(){removeParkVehicle(\''+esc(v.plate)+'\')})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
         '</div>'+
@@ -8450,6 +8463,23 @@ async function markParkExit(plate){
       }
     }
   }catch(e){console.error('markParkExit:',e)}
+}
+
+async function markParkPaidPresencial(plate,amount){
+  if(!S.currentEventId)return;
+  try{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-payment',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({plate:plate,method:'presencial',amount:amount||0})
+    });
+    var d=await r.json();
+    if(d.ok){
+      showToast('Pagamento registrado: '+plate+' - R$'+(amount||0).toFixed(2).replace('.',','));
+      loadParkVehicles();
+    }else{
+      showToast(d.error||'Erro ao registrar pagamento');
+    }
+  }catch(e){console.error('markParkPaidPresencial:',e);showToast('Erro ao registrar pagamento')}
 }
 
 function showParkReceipt(vehicle,hours,amount){
