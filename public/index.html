@@ -18714,7 +18714,7 @@ function openLocationScreen(){
       myLat=pos.coords.latitude;myLng=pos.coords.longitude;
       onLocationReady('gps');
       if(locWatchId)navigator.geolocation.clearWatch(locWatchId);
-      locWatchId=navigator.geolocation.watchPosition(p=>{myLat=p.coords.latitude;myLng=p.coords.longitude;updateLocationOnServer()},{},{enableHighAccuracy:true,maximumAge:30000});
+      locWatchId=navigator.geolocation.watchPosition(p=>{myLat=p.coords.latitude;myLng=p.coords.longitude;updateLocationOnServer()},function(){},{enableHighAccuracy:true,maximumAge:30000});
     },()=>fetchApproxLocation(),{enableHighAccuracy:true,timeout:8000});
   }else fetchApproxLocation();
 }
@@ -18884,7 +18884,7 @@ function _renderEventForm(){
 
   // Buttons
   html+='<div style="display:flex;gap:.6rem;margin-top:.3rem">';
-  html+='<button type="button" class="bp" style="flex:1" onclick="createEvent()">Criar evento</button>';
+  html+='<button type="button" class="bp" style="flex:1" onclick="submitNewEvent()">Criar evento</button>';
   html+='<button type="button" class="bs" style="flex:1" onclick="loadLocTab()">Cancelar</button>';
   html+='</div>';
   html+='</div>';
@@ -18896,7 +18896,7 @@ function selectRadius(btn,val){
   btn.style.background='var(--ac)';btn.style.color='#fff';btn.style.borderColor='var(--ac)';
   $('evtRadius').value=val;
 }
-async function createEvent(){
+async function submitNewEvent(){
   var name=$('evtName')?$('evtName').value.trim():'';
   var desc=$('evtDesc')?$('evtDesc').value.trim():'';
   var radius=parseInt($('evtRadius')?$('evtRadius').value:'200')||200;
