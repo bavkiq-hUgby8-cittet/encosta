@@ -18821,32 +18821,65 @@ function _renderEventForm(){
   if(!myLat&&navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
       myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+      // Update the GPS status if form is already rendered
+      var gpsEl=document.getElementById('evtGpsStatus');
+      if(gpsEl&&myLat){
+        gpsEl.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> GPS ativo';
+        gpsEl.style.color='var(--ok)';
+      }
     },()=>{},{enableHighAccuracy:true,timeout:5000});
   }
-  let html='<div class="loc-create-form">';
-  html+='<div class="form-title">&#x1F4CD; '+t('location.create_event_title')+'</div>';
-  html+='<div class="form-sub">Crie um ponto de encontro digital em um local físico. Quem estiver por perto poderá entrar e se conectar.</div>';
+  var html='<div class="loc-create-form">';
+  html+='<div style="text-align:center;margin-bottom:1rem">';
+  html+='<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="1.5" style="margin-bottom:.5rem"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  html+='<div style="font-size:1rem;font-weight:700;color:var(--t1)">Criar evento</div>';
+  html+='<div style="font-size:.65rem;color:var(--t3);margin-top:.3rem;line-height:1.4">Evento simples pelo celular. Pessoas por perto podem encontrar e entrar.</div>';
+  html+='</div>';
+
+  // GPS status
   if(myLat){
-    html+='<div style="font-size:.65rem;color:var(--ok);margin-bottom:.6rem;display:flex;align-items:center;gap:.25rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Localização detectada ('+myLat.toFixed(4)+', '+myLng.toFixed(4)+')</div>';
+    html+='<div id="evtGpsStatus" style="font-size:.62rem;color:var(--ok);margin-bottom:.8rem;display:flex;align-items:center;gap:.25rem;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> GPS ativo</div>';
   }else{
-    html+='<div style="font-size:.65rem;color:var(--ac2);margin-bottom:.6rem;display:flex;align-items:center;gap:.25rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Sem GPS — insira as coordenadas manualmente</div>';
+    html+='<div id="evtGpsStatus" style="font-size:.62rem;color:var(--ac2);margin-bottom:.8rem;display:flex;align-items:center;gap:.25rem;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Buscando GPS...</div>';
   }
-  html+='<div class="loc-fg"><label>'+t('location.event_name')+'</label><input type="text" id="evtName" maxlength="60" placeholder="'+t('location.event_name_placeholder')+'"></div>';
-  html+='<div class="loc-fg"><label>'+t('location.event_desc')+'</label><textarea id="evtDesc" maxlength="200" placeholder="'+t('location.event_desc_placeholder')+'"></textarea></div>';
-  html+='<div class="loc-fg"><label>Latitude</label><input type="text" id="evtLat" value="'+(myLat||'')+'" placeholder="-23.550520"></div>';
-  html+='<div class="loc-fg"><label>Longitude</label><input type="text" id="evtLng" value="'+(myLng||'')+'" placeholder="-46.633308"></div>';
-  html+='<div style="font-size:.62rem;color:var(--t3);margin:-.4rem 0 .6rem;line-height:1.4">Dica: busque no Google Maps, clique no local e copie as coordenadas. Se o GPS estiver ativo, as coordenadas são preenchidas automaticamente.</div>';
-  html+='<div class="loc-fg"><label>&#x1F4E1; '+t('location.event_radius')+'</label>';
+
+  // Name
+  html+='<div class="loc-fg"><label>Nome do evento</label><input type="text" id="evtName" maxlength="60" placeholder="Ex: Churrasco do Ramon, Festa na piscina..."></div>';
+
+  // Description (optional)
+  html+='<div class="loc-fg"><label>Descricao <span style="color:var(--t3);font-weight:400">(opcional)</span></label><textarea id="evtDesc" maxlength="200" rows="2" placeholder="Conta um pouco sobre o evento..."></textarea></div>';
+
+  // Accept tips toggle
+  html+='<div style="display:flex;align-items:center;gap:.6rem;padding:.7rem .8rem;background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.12);border-radius:12px;margin-bottom:.8rem;cursor:pointer" onclick="var cb=document.getElementById(\'evtTips\');cb.checked=!cb.checked">';
+  html+='<input type="checkbox" id="evtTips" style="width:18px;height:18px;accent-color:#22c55e" onclick="event.stopPropagation()">';
+  html+='<div style="flex:1"><div style="font-size:.75rem;font-weight:600;color:var(--t1)">Aceitar gorjetas</div><div style="font-size:.58rem;color:var(--t3)">Visitantes podem te dar gorjetas via Touch</div></div>';
+  html+='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>';
+  html+='</div>';
+
+  // Radius selector
+  html+='<div class="loc-fg"><label>Alcance de visibilidade</label>';
   html+='<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.3rem">';
-  ['50','100','200','500','1000'].forEach(r=>{
-    const sel=r==='200'?'background:var(--ac);color:#fff;border-color:var(--ac)':'';
-    html+='<button type="button" class="bs radius-opt" style="font-size:.68rem;padding:.3rem .6rem;'+sel+'" onclick="selectRadius(this,'+r+')">'+r+'m</button>';
+  [['50','50m'],['100','100m'],['200','200m'],['500','500m'],['1000','1km']].forEach(function(r){
+    var sel=r[0]==='200'?'background:var(--ac);color:#fff;border-color:var(--ac)':'';
+    html+='<button type="button" class="bs radius-opt" style="font-size:.68rem;padding:.3rem .6rem;'+sel+'" onclick="selectRadius(this,'+r[0]+')">'+r[1]+'</button>';
   });
   html+='</div><input type="hidden" id="evtRadius" value="200"></div>';
-  html+='<div style="display:flex;gap:.6rem;margin-top:.3rem"><button type="button" class="bp" style="flex:1" onclick="createEvent()">'+t('location.event_create')+'</button><button type="button" class="bs" style="flex:1" onclick="loadLocTab()">'+t('common.cancel')+'</button></div>';
+
+  // Info about modules
+  html+='<div style="padding:.6rem .8rem;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.12);border-radius:12px;margin-bottom:.8rem">';
+  html+='<div style="font-size:.62rem;color:var(--t3);line-height:1.5">';
+  html+='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="2" style="vertical-align:middle;margin-right:3px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
+  html+='Este e um evento simples. Para ativar modulos avancados (cardapio, estacionamento, karaoke, DJ e mais), use o <strong style="color:var(--ac)">Painel do Operador</strong> no computador.';
+  html+='</div></div>';
+
+  // Buttons
+  html+='<div style="display:flex;gap:.6rem;margin-top:.3rem">';
+  html+='<button type="button" class="bp" style="flex:1" onclick="createEvent()">Criar evento</button>';
+  html+='<button type="button" class="bs" style="flex:1" onclick="loadLocTab()">Cancelar</button>';
+  html+='</div>';
   html+='</div>';
   $('locContent').innerHTML=html;
-  setTimeout(()=>{const n=$('evtName');if(n)n.focus()},100);
+  setTimeout(function(){var n=$('evtName');if(n)n.focus()},100);
 }
 function selectRadius(btn,val){
   document.querySelectorAll('.radius-opt').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor=''});
@@ -18854,89 +18887,136 @@ function selectRadius(btn,val){
   $('evtRadius').value=val;
 }
 async function createEvent(){
-  const name=$('evtName')?$('evtName').value.trim():'';
-  const desc=$('evtDesc')?$('evtDesc').value.trim():'';
-  const radius=parseInt($('evtRadius')?$('evtRadius').value:'200')||200;
-  if(!name||name.length<3)return showToast(t('location.event_name_error'));
-  // Use GPS coords or manual input
-  let lat=myLat,lng=myLng;
-  if($('evtLat')){lat=parseFloat($('evtLat').value);lng=parseFloat($('evtLng').value)}
-  if(!lat||!lng||isNaN(lat)||isNaN(lng))return showToast('Coordenadas inválidas.');
+  var name=$('evtName')?$('evtName').value.trim():'';
+  var desc=$('evtDesc')?$('evtDesc').value.trim():'';
+  var radius=parseInt($('evtRadius')?$('evtRadius').value:'200')||200;
+  var acceptsTips=$('evtTips')?$('evtTips').checked:false;
+  if(!name||name.length<3)return showToast('Nome do evento precisa ter pelo menos 3 caracteres.');
+  if(!myLat||!myLng)return showToast('GPS nao disponivel. Ative a localizacao e tente novamente.');
   try{
-    const r=await fetch('/api/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,name,description:desc,lat,lng,radius})});
-    const d=await r.json();
+    var r=await apiFetch('/api/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,name:name,description:desc,lat:myLat,lng:myLng,radius:radius,acceptsTips:acceptsTips})});
+    var d=await r.json();
     if(d.error)return showToast(d.error);
-    showToast(t('location.event_created'));haptic([50,30,50]);
-    const evtId=d.event?d.event.id:d.id;
-    const evtName=name;
-    // Mark this user as the event OPERATOR so sonic-start sends isCheckin
+    showToast('Evento criado!');haptic([50,30,50]);
+    var evtId=d.event?d.event.id:d.id;
+    // Mark this user as the event OPERATOR
     localStorage.setItem('activeEventId',evtId);
-    localStorage.setItem('activeEventName',evtName);
+    localStorage.setItem('activeEventName',name);
     localStorage.setItem('activeEventRole','operator');
-    showFloatingEventBtn(evtId,evtName);
+    showFloatingEventBtn(evtId,name);
     openEventDetail(evtId);
   }catch(e){showToast('Erro ao criar evento.')}
 }
 async function openEventDetail(eventId){
   showScreen('eventDetail');
-  $('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x23F3;</div>'+t('common.loading')+'</div>';
+  $('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon" style="font-size:1.5rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>'+t('common.loading')+'</div>';
   try{
-    const r=await fetch('/api/event/'+eventId);
-    const ev=await r.json();
+    var r=await apiFetch('/api/event/'+eventId);
+    var ev=await r.json();
     if(ev.error){showToast(ev.error);return}
-    // Auto-detect operator: if this user created the event, set role
-    if(ev.creatorId&&ev.creatorId===state.userId){
+    var isCreator=ev.creatorId&&ev.creatorId===state.userId;
+    // Auto-detect operator
+    if(isCreator){
       localStorage.setItem('activeEventId',eventId);
       localStorage.setItem('activeEventName',ev.name||'Evento');
       localStorage.setItem('activeEventRole','operator');
     }
     $('evtDetailTitle').textContent=ev.name;
-    const parts=ev.participantsData||ev.participants||[];
-    const alreadyIn=parts.some(p=>p.id===state.userId);
-    const pCount=parts.length;
-    let html='<div class="evt-detail">';
+    var parts=ev.participantsData||ev.participants||[];
+    var alreadyIn=parts.some(function(p){return p.id===state.userId});
+    var pCount=parts.length;
+    var html='<div class="evt-detail">';
+
+    // Event logo or icon
+    if(ev.eventLogo){
+      html+='<div style="text-align:center;margin-bottom:.8rem"><img src="'+esc(ev.eventLogo)+'" style="width:56px;height:56px;border-radius:14px;object-fit:cover;border:2px solid rgba(255,255,255,.08)"></div>';
+    }
+
     html+='<div class="evt-detail-name">'+esc(ev.name)+'</div>';
-    if(ev.description)html+='<div class="evt-detail-desc">"'+esc(ev.description)+'"</div>';
-    html+='<div style="display:flex;gap:.6rem;align-items:center;font-size:.68rem;color:var(--t3);margin-bottom:.8rem">';
-    html+='<span>&#x1F4E1; '+ev.radius+'m</span>';
-    html+='<span>&#x1F465; '+pCount+' '+t('location.event_people')+'</span>';
+    if(ev.description)html+='<div class="evt-detail-desc" style="font-size:.72rem;color:var(--t3);margin-bottom:.6rem;font-style:italic">"'+esc(ev.description)+'"</div>';
+
+    // Stats row
+    html+='<div style="display:flex;gap:.5rem;align-items:center;font-size:.65rem;color:var(--t3);margin-bottom:.8rem;flex-wrap:wrap">';
+    html+='<span style="display:flex;align-items:center;gap:3px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> '+pCount+' pessoas</span>';
+    html+='<span style="display:flex;align-items:center;gap:3px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 10-16 0c0 3 2.7 7 8 11.7z"/></svg> '+(ev.radius||200)+'m</span>';
+    if(ev.acceptsTips)html+='<span style="display:flex;align-items:center;gap:3px;color:#22c55e"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Gorjetas ativas</span>';
     html+='</div>';
-    // Module cards for this event
-    const evMods=ev.modules||{};
-    const hasAnyMod=evMods.restaurant||evMods.barber||evMods.parking||evMods.gym||evMods.church||ev.acceptsTips;
-    if(hasAnyMod){
-      html+='<div style="margin-bottom:1rem">';
-      html+='<div style="font-size:.68rem;font-weight:600;color:var(--t3);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.08em">Servicos disponiveis</div>';
-      html+='<div style="display:flex;flex-wrap:wrap;gap:.4rem">';
-      if(evMods.restaurant)html+='<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:10px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.2);font-size:.68rem;font-weight:600;color:#f97316"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg> Cardapio</div>';
-      if(evMods.barber)html+='<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:10px;background:rgba(212,167,69,.08);border:1px solid rgba(212,167,69,.2);font-size:.68rem;font-weight:600;color:#d4a745"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M16 8V5a1 1 0 00-1-1H9a1 1 0 00-1 1v3"/><path d="M8 16v3a1 1 0 001 1h6a1 1 0 001-1v-3"/></svg> Barbearia</div>';
-      if(evMods.parking)html+='<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);font-size:.68rem;font-weight:600;color:#3b82f6"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg> Estacionamento</div>';
-      if(evMods.gym)html+='<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:.68rem;font-weight:600;color:#10b981"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6.5 6.5h11M6.5 17.5h11M4 10h16M4 14h16"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/></svg> Academia</div>';
-      if(evMods.church)html+='<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);font-size:.68rem;font-weight:600;color:#8b5cf6"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v8M8 6h8M6 22V10h12v12"/><path d="M10 22v-4a2 2 0 014 0v4"/></svg> Igreja</div>';
-      if(ev.acceptsTips)html+='<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);font-size:.68rem;font-weight:600;color:#22c55e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Gorjeta</div>';
+
+    // Module badges
+    var evMods=ev.modules||{};
+    var modBadges='';
+    if(evMods.restaurant)modBadges+='<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:8px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.15);font-size:.6rem;font-weight:600;color:#f97316">Cardapio</span>';
+    if(evMods.barber)modBadges+='<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:8px;background:rgba(212,167,69,.08);border:1px solid rgba(212,167,69,.15);font-size:.6rem;font-weight:600;color:#d4a745">Barbearia</span>';
+    if(evMods.parking)modBadges+='<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:8px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.15);font-size:.6rem;font-weight:600;color:#3b82f6">Estacionamento</span>';
+    if(evMods.gym)modBadges+='<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:8px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.15);font-size:.6rem;font-weight:600;color:#10b981">Treinos</span>';
+    if(evMods.church)modBadges+='<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:8px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15);font-size:.6rem;font-weight:600;color:#8b5cf6">Igreja</span>';
+    if(evMods.karaoke)modBadges+='<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:8px;background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.15);font-size:.6rem;font-weight:600;color:#ec4899">Karaoke</span>';
+    if(modBadges){
+      html+='<div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.8rem">'+modBadges+'</div>';
+    }
+
+    // ═══ CREATOR MINI-PANEL ═══
+    if(isCreator){
+      html+='<div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:14px;padding:.8rem;margin-bottom:1rem">';
+      html+='<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ac);font-weight:700;margin-bottom:.6rem;display:flex;align-items:center;gap:.3rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Seu evento</div>';
+
+      // Stats cards
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.6rem">';
+      html+='<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:.5rem;text-align:center"><div style="font-size:1.1rem;font-weight:700;color:var(--t1)">'+pCount+'</div><div style="font-size:.52rem;color:var(--t3)">Presentes</div></div>';
+      html+='<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:.5rem;text-align:center"><div style="font-size:1.1rem;font-weight:700;color:var(--t1)">'+(ev.checkinCount||0)+'</div><div style="font-size:.52rem;color:var(--t3)">Check-ins</div></div>';
+      html+='</div>';
+
+      // Share link
+      html+='<div style="margin-bottom:.6rem">';
+      html+='<div style="font-size:.6rem;color:var(--t3);margin-bottom:.3rem">Link de check-in:</div>';
+      html+='<div style="display:flex;gap:.3rem;align-items:center">';
+      html+='<input type="text" readonly value="touch-irl.com/e/'+eventId+'" style="flex:1;padding:.4rem .6rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--t1);font-size:.62rem;font-family:monospace">';
+      html+='<button type="button" class="bs" style="padding:.4rem .6rem;font-size:.6rem;white-space:nowrap" onclick="navigator.clipboard.writeText(\'https://touch-irl.com/e/'+eventId+'\');showToast(\'Link copiado!\')">Copiar</button>';
       html+='</div></div>';
+
+      // Operator panel link
+      html+='<div style="padding:.5rem .7rem;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.06)">';
+      html+='<div style="font-size:.58rem;color:var(--t3);line-height:1.5">';
+      html+='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+      html+='Para gerenciar <strong style="color:var(--ac)">modulos avancados</strong> (cardapio, estacionamento, karaoke, DJ, barbearia e mais), abra <strong style="color:var(--t1)">touch-irl.com/operator</strong> no computador.';
+      html+='</div></div>';
+
+      html+='</div>';
     }
+
+    // Join / Already in
     if(!alreadyIn){
-      html+='<button class="bp" style="font-size:.82rem" onclick="joinEvent(\''+eventId+'\')">&#x1F91D; '+t('location.event_join')+'</button>';
-    }else{
-      html+='<div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--ok);padding:.5rem .7rem;background:rgba(52,211,153,.06);border-radius:10px;border:1px solid rgba(52,211,153,.15)">&#x2714; '+t('location.event_joined')+'</div>';
+      html+='<button class="bp" style="font-size:.82rem;display:flex;align-items:center;justify-content:center;gap:.4rem" onclick="joinEvent(\''+eventId+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg> Entrar no evento</button>';
+    }else if(!isCreator){
+      html+='<div style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--ok);padding:.5rem .7rem;background:rgba(52,211,153,.06);border-radius:10px;border:1px solid rgba(52,211,153,.15)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Voce esta neste evento</div>';
     }
     html+='</div>';
-    html+='<div class="evt-ppl-title">'+t('location.event_participants')+' ('+pCount+')</div>';
+
+    // Participants list
+    html+='<div style="font-size:.7rem;font-weight:600;color:var(--t2);margin:1rem 0 .5rem;padding:0 .2rem">Participantes ('+pCount+')</div>';
     if(pCount>0){
-      parts.forEach(p=>{
-        const color=p.color||nickColor(p.nickname||p.name||'??');
-        const nick=p.nickname||p.name||'?';
-        const isMe=p.id===state.userId;
+      parts.forEach(function(p){
+        var color=p.color||nickColor(p.nickname||p.name||'??');
+        var nick=p.nickname||p.name||'?';
+        var isMe=p.id===state.userId;
         html+='<div class="loc-person">';
         html+=makeAvatar(nick,color,34,p.profilePhoto||null);
-        html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+(isMe?' <span style="font-size:.62rem;color:var(--ok)">('+t('location.event_you')+')</span>':'')+'</div></div>';
-        if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+p.id+'\')">'+t('location.touch_btn')+'</button>';
+        html+='<div class="loc-person-info"><div class="loc-person-nick">'+esc(nick)+(isMe?' <span style="font-size:.6rem;color:var(--ok)">(voce)</span>':'')+'</div>';
+        if(p.score||p.stars){
+          html+='<div style="font-size:.55rem;color:var(--t3)">';
+          if(p.score)html+=p.score+' moedas';
+          if(p.stars)html+=(p.score?' | ':'')+p.stars+' estrelas';
+          html+='</div>';
+        }
+        html+='</div>';
+        if(!isMe&&alreadyIn)html+='<button class="loc-encosta-btn" onclick="encostaAtEvent(\''+eventId+'\',\''+p.id+'\')">Touch</button>';
         html+='</div>';
       });
-    }else html+='<div class="loc-empty"><div class="loc-empty-icon">&#x1F3C3;</div>'+t('location.event_nobody')+'</div>';
+    }else{
+      html+='<div style="text-align:center;padding:1.5rem;color:var(--t3);font-size:.72rem">Ninguem aqui ainda. Compartilhe o link!</div>';
+    }
     $('evtDetailScroll').innerHTML=html;
-  }catch(e){$('evtDetailScroll').innerHTML='<div class="loc-empty"><div class="loc-empty-icon">&#x26A0;</div>'+t('errors.generic_error')+'</div>'}
+  }catch(e){$('evtDetailScroll').innerHTML='<div style="text-align:center;padding:2rem;color:var(--err)">Erro ao carregar evento.</div>'}
 }
 async function joinEvent(eventId){
   try{

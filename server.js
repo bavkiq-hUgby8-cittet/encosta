@@ -7823,30 +7823,38 @@ app.get('/api/connection-request/pending/:userId', (req, res) => {
 
 // Create event (physical location with digital meeting point)
 app.post('/api/event/create', (req, res) => {
-  const { userId, name, description, lat, lng, radius, startsAt, endsAt } = req.body;
-  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuário inválido.' });
-  if (!name || !lat || !lng) return res.status(400).json({ error: 'Nome e localização obrigatórios.' });
+  const { userId, name, description, lat, lng, radius, startsAt, endsAt, acceptsTips } = req.body;
+  if (!userId || !db.users[userId]) return res.status(400).json({ error: 'Usuario invalido.' });
+  if (!name || !lat || !lng) return res.status(400).json({ error: 'Nome e localizacao obrigatorios.' });
   const id = uuidv4();
   const code = 'EVT-' + Math.floor(100 + Math.random() * 900);
   const creator = db.users[userId];
+  const creatorName = creator.nickname || creator.name;
+  const now = Date.now();
+
+  // Create in db.events (for location-based discovery)
   const eventData = {
     id, code, name: name.trim(), description: (description || '').trim(),
     lat, lng, radius: radius || 200,
-    creatorId: userId, creatorName: creator.nickname || creator.name, creatorColor: creator.color,
-    startsAt: startsAt || Date.now(), endsAt: endsAt || (Date.now() + 86400000),
+    creatorId: userId, creatorName, creatorColor: creator.color,
+    startsAt: startsAt || now, endsAt: endsAt || (now + 86400000),
     participants: [userId],
-    createdAt: Date.now()
+    createdAt: now,
+    source: 'mobile' // identifies events created from mobile
   };
   db.events[id] = eventData;
-  // Also create in operatorEvents so sonic checkin system can find it
+
+  // Create unified operatorEvent (same system as operator panel)
   db.operatorEvents[id] = {
     id, name: eventData.name, description: eventData.description,
-    creatorId: userId, creatorName: eventData.creatorName,
+    creatorId: userId, creatorName,
     active: true, participants: [userId], checkinCount: 0,
-    acceptsTips: false, serviceLabel: '',
+    acceptsTips: !!acceptsTips, serviceLabel: '',
     entryPrice: 0, revenue: 0, paidCheckins: 0,
-    createdAt: Date.now(),
-    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false, dj: false, charevela: false },
+    createdAt: now,
+    source: 'mobile', // mobile-created event (simplified, no modules)
+    lat, lng, radius: radius || 200,
+    modules: { restaurant: false, parking: false, gym: false, church: false, barber: false, dj: false, charevela: false, karaoke: false, wifi: false },
     staff: [], menu: [], tables: 0, orders: [],
     parking: { enabled: false, mode: 'postpaid', hourlyRate: 10.00, fixedRate: 0, maxHours: 24, vehicles: {} },
     gym: { enabled: false, config: { maxCapacity: 50, openTime: '06:00', closeTime: '22:00' }, classes: {}, plans: {}, members: {}, workouts: {} },
@@ -7855,11 +7863,11 @@ app.post('/api/event/create', (req, res) => {
     djLive: { enabled: false, broadcasting: false, color: '#ff6b35', bpm: 128, animation: 'pulse', venueFreq: 19200, connectedDevices: {} },
     charevela: { enabled: false, config: { eventName: '', optionA: 'Menino', optionB: 'Menina', colorA: '#3b82f6', colorB: '#ec4899', babyName: '', answer: '', votingOpen: false, revealed: false }, votes: {}, results: { optionA: 0, optionB: 0, total: 0 } }
   };
-  // Add to index so it shows in operator's event list
+
   if (!IDX.operatorByCreator.has(userId)) IDX.operatorByCreator.set(userId, []);
   IDX.operatorByCreator.get(userId).push(id);
   saveDB('events', 'operatorEvents');
-  res.json({ event: eventData });
+  res.json({ event: { ...eventData, acceptsTips: !!acceptsTips } });
 });
 
 // ═══ EVENT QUICK CHECKIN (QR code flow for guests) ═══
@@ -8121,22 +8129,36 @@ app.post('/api/event/join', (req, res) => {
 
 // Get event details + participants
 app.get('/api/event/:eventId', (req, res) => {
-  const ev = db.events[req.params.eventId];
-  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
-  if (!Array.isArray(ev.participants)) ev.participants = [];
-  const participants = ev.participants.map(pid => {
+  const eventId = req.params.eventId;
+  const ev = db.events[eventId];
+  const opEv = db.operatorEvents ? db.operatorEvents[eventId] : null;
+  if (!ev && !opEv) return res.status(404).json({ error: 'Evento nao encontrado.' });
+
+  // Build participants list from whichever source has it
+  const participantIds = (ev && Array.isArray(ev.participants) ? ev.participants : [])
+    .concat(opEv && Array.isArray(opEv.participants) ? opEv.participants : []);
+  const uniqueIds = [...new Set(participantIds)];
+  const participants = uniqueIds.map(pid => {
     const u = db.users[pid];
     return u ? { id: pid, nickname: u.nickname || u.name, color: u.color, profilePhoto: u.profilePhoto || null, photoURL: u.photoURL || null, score: calcScore(pid), stars: (u.stars || []).length, verified: !!u.verified } : null;
   }).filter(Boolean);
-  // Include operator event data (modules, logo, etc) for enriched detail
-  const opEv = db.operatorEvents ? Object.values(db.operatorEvents).find(oe => oe.id === req.params.eventId) : null;
-  const enriched = { ...ev, participantsData: participants };
+
+  // Merge event data (db.events base + operatorEvents enrichment)
+  const enriched = { ...(ev || {}), participantsData: participants };
+  if (!enriched.id) enriched.id = eventId;
   if (opEv) {
     enriched.modules = opEv.modules || {};
     enriched.eventLogo = proxyStorageUrl(opEv.eventLogo || null);
     enriched.acceptsTips = !!opEv.acceptsTips;
     enriched.businessProfile = opEv.businessProfile || null;
+    enriched.source = opEv.source || 'operator';
+    enriched.checkinCount = opEv.checkinCount || 0;
+    enriched.entryPrice = opEv.entryPrice || 0;
+    enriched.active = opEv.active !== false;
+    if (!enriched.name && opEv.name) enriched.name = opEv.name;
+    if (!enriched.description && opEv.description) enriched.description = opEv.description;
     if (!enriched.creatorId && opEv.creatorId) enriched.creatorId = opEv.creatorId;
+    if (!enriched.creatorName && opEv.creatorName) enriched.creatorName = opEv.creatorName;
   }
   res.json(enriched);
 });
