@@ -175,6 +175,30 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .op-event-end-btn{padding:.4rem .8rem;background:rgba(255,61,113,.15);border:1px solid rgba(255,61,113,.3);border-radius:10px;color:var(--pk);font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s}
 .op-event-end-btn:hover{background:rgba(255,61,113,.3)}
 /* Paid tag */
+/* Payment tags */
+.op-ci-pay-tag{font-size:.52rem;font-weight:700;padding:.15rem .4rem;border-radius:6px;letter-spacing:.02em;white-space:nowrap;display:inline-block;border:none;font-family:inherit;cursor:default}
+.op-ci-pay-tag.paid{color:#34d399;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.2)}
+.op-ci-pay-tag.freed{color:#60a5fa;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.2)}
+.op-ci-pay-tag.presencial{color:#fbbf24;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.2)}
+.op-ci-pay-tag.refunded{color:#f87171;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.2)}
+.op-ci-pay-tag.free{color:var(--t3);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.op-ci-pay-tag.pending{color:#fbbf24;background:rgba(251,191,36,.08);border:1px dashed rgba(251,191,36,.3);cursor:pointer;transition:all .2s}
+.op-ci-pay-tag.pending:hover{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.5)}
+/* ID tag */
+.op-ci-id-tag{font-size:.45rem;font-weight:700;padding:.1rem .3rem;border-radius:4px;background:rgba(96,165,250,.12);color:#60a5fa;border:1px solid rgba(96,165,250,.2);margin-left:.3rem;vertical-align:middle}
+/* Detail sections */
+.op-ci-detail-section{padding:.3rem 0}
+.op-ci-detail-title{font-size:.55rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)}
+/* Detail action buttons */
+.op-ci-detail-btn.refund{color:#f87171;border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.08)}
+.op-ci-detail-btn.refund:hover{background:rgba(248,113,113,.15)}
+.op-ci-detail-btn.mark-paid{color:#34d399;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08)}
+.op-ci-detail-btn.mark-paid:hover{background:rgba(52,211,153,.15)}
+.op-ci-detail-btn.remove{color:#f87171;border-color:rgba(248,113,113,.2);background:transparent}
+.op-ci-detail-btn.remove:hover{background:rgba(248,113,113,.1)}
+/* Stars */
+.op-ci-stars{color:#fbbf24;font-size:.55rem;font-weight:600}
+/* Legacy compat */
 .op-ci-paid{font-size:.55rem;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);padding:.1rem .35rem;border-radius:6px;letter-spacing:.02em;white-space:nowrap}
 .op-ci-paid-btn{font-size:.55rem;color:var(--t3);background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.12);border-radius:6px;padding:.1rem .35rem;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap}
 .op-ci-paid-btn:hover{border-color:rgba(16,185,129,.4);color:#10b981;background:rgba(16,185,129,.08)}
@@ -5012,32 +5036,19 @@ function initSocket(){
     if(!S.currentEventId&&$('opEvents')&&$('opEvents').style.display!=='none')showEventsScreen();
   },30000);
   // Entry fee paid notification + update participant badge
-  S.socket.on('entry-paid',d=>{
-    const toast=document.createElement('div');
+  S.socket.on('entry-paid',function(d){
+    var toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s';
     var payLabel=d.includesParking
       ?esc(d.nickname)+' pagou Entrada+Estac. R$'+d.amount.toFixed(2).replace('.',',')+' '+(d.plate?'('+esc(d.plate)+')':'')
       :esc(d.nickname)+' pagou ingresso R$'+d.amount.toFixed(2).replace('.',',');
     toast.textContent=payLabel;
     document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),5000);
-    // Update participant badge from "$ Pago?" to "Pago"
+    setTimeout(function(){toast.remove()},5000);
     if(d.userId){
       var ci=S.checkins.find(function(c){return c.userId===d.userId});
       if(ci){ci.paidPresencial=true;ci.entryStatus='paid';if(d.includesParking)ci.parkingPaid=true}
-      var wraps=document.querySelectorAll('.op-ci-wrap');
-      wraps.forEach(function(w){
-        if(w.dataset.userId===d.userId){
-          var paidBtns=w.querySelectorAll('.op-ci-action-btn.paid, .op-ci-action-btn[onclick*="markPaid"]');
-          paidBtns.forEach(function(btn){
-            var span=document.createElement('span');
-            span.className='op-ci-action-btn';
-            span.style.cssText='font-size:.48rem;padding:.12rem .3rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px';
-            span.textContent=d.includesParking?'Entrada+Estac. Pago':'Pago';
-            btn.parentNode.replaceChild(span,btn);
-          });
-        }
-      });
+      updateParticipantPayTag(d.userId);
     }
   });
   // Chat messages with notification system
@@ -5452,65 +5463,90 @@ async function setEntryStatus(userId,status,btn){
   }catch(e){console.error('[setEntryStatus]',e)}
 }
 
+function buildPaymentTag(d){
+  var es=d.entryStatus||null;
+  var ep=d.entryPrice||0;
+  if(d.paidPresencial||es==='paid'){
+    var label=d.parkingPaid?'Entrada+Estac.':'Pago';
+    return '<span class="op-ci-pay-tag paid">'+label+'</span>';
+  }
+  if(es==='freed')return '<span class="op-ci-pay-tag freed">Liberado</span>';
+  if(es==='presencial')return '<span class="op-ci-pay-tag presencial">Presencial</span>';
+  if(es==='refunded')return '<span class="op-ci-pay-tag refunded">Reembolsado</span>';
+  if(ep>0)return '<button class="op-ci-pay-tag pending" onclick="event.stopPropagation();markPaidPresencial(\''+esc(d.userId||'')+'\',this)">R$'+ep.toFixed(0)+' Pendente</button>';
+  return '<span class="op-ci-pay-tag free">Gratis</span>';
+}
+
 function addCheckinToList(d){
   S.checkins.unshift(d);
   $('opCount').textContent=S.checkins.length;
   $('opListCount').textContent=S.checkins.length;
   $('opEmpty').style.display='none';
-  const sts=$('opStatus');
-  sts.textContent='✓ '+(d.nickname||'Alguém')+' conectou!';
-  setTimeout(()=>{if(homeSonicActive){sts.textContent='Encoste o celular no alto-falante 🔊'}},3000);
-  const list=$('opList');
-  // Wrapper for card + expandable detail
-  const wrap=document.createElement('div');
+  var sts=$('opStatus');
+  sts.textContent=(d.nickname||'Alguem')+' conectou!';
+  setTimeout(function(){if(homeSonicActive){sts.textContent='Encoste o celular no alto-falante'}},3000);
+  var list=$('opList');
+  var wrap=document.createElement('div');
   wrap.dataset.userId=d.userId||'';
   wrap.className='op-ci-wrap';
-  const item=document.createElement('div');item.className='op-checkin-item';
-  const time=new Date(d.timestamp||Date.now());
-  const ts=time.getHours().toString().padStart(2,'0')+':'+time.getMinutes().toString().padStart(2,'0');
-  const col=d.color||nickColor(d.nickname||'?');
-  const realName=d.revealed&&d.revealData&&d.revealData.realName?d.revealData.realName:null;
-  const displayName=realName||d.nickname||'Visitante';
-  const starsText=(d.stars||0)>0?'<span class="op-ci-stars">★ '+(d.stars||0)+'</span>':'';
-  const topBadge=d.topTag?'<span class="op-ci-badge">'+({top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100'}[d.topTag]||'')+'</span>':'';
-  const revBadge=d.revealed?'<span class="op-ci-action-btn revealed" style="font-size:.48rem;padding:.12rem .3rem">✓ ID</span>':'';
-  const es=d.entryStatus||null;
-  const paidBtn=d.paidPresencial||es==='paid'
-    ?'<span class="op-ci-action-btn" style="font-size:.48rem;padding:.12rem .3rem;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.2);border-radius:6px">Pago</span>'
-    :es==='freed'
-    ?'<span class="op-ci-action-btn" style="font-size:.48rem;padding:.12rem .3rem;background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.2);border-radius:6px">Liberado</span>'
-    :es==='presencial'
-    ?'<span class="op-ci-action-btn" style="font-size:.48rem;padding:.12rem .3rem;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.2);border-radius:6px">Presencial</span>'
-    :'<button class="op-ci-action-btn paid" onclick="event.stopPropagation();markPaidPresencial(\''+esc(d.userId||'')+'\',this)" style="font-size:.48rem;padding:.12rem .3rem">$ Pago?</button>';
+  var item=document.createElement('div');item.className='op-checkin-item';
+  var time=new Date(d.timestamp||Date.now());
+  var ts=time.getHours().toString().padStart(2,'0')+':'+time.getMinutes().toString().padStart(2,'0');
+  var col=d.color||nickColor(d.nickname||'?');
+  var realName=d.revealed&&d.revealData&&d.revealData.realName?d.revealData.realName:null;
+  var displayName=realName||d.nickname||'Visitante';
+  var starsText=(d.stars||0)>0?'<span class="op-ci-stars">'+d.stars+'</span>':'';
+  var topBadge=d.topTag?'<span class="op-ci-badge">'+({top1:'TOP 1',top5:'TOP 5',top50:'TOP 50',top100:'TOP 100'}[d.topTag]||'')+'</span>':'';
+  var revBadge=d.revealed?'<span class="op-ci-id-tag">ID</span>':'';
+  var payTag=buildPaymentTag(d);
+
   item.innerHTML=
     '<div class="op-ci-avatar" style="background:'+col+'">'+ini(d.nickname||'?')+'</div>'+
-    '<div class="op-ci-info"><div class="op-ci-name">'+esc(displayName)+'</div>'+
+    '<div class="op-ci-info"><div class="op-ci-name">'+esc(displayName)+revBadge+'</div>'+
     '<div class="op-ci-meta"><span class="op-ci-time">'+ts+'</span>'+starsText+topBadge+'</div></div>'+
-    '<div class="op-ci-actions">'+paidBtn+revBadge+'</div>';
+    '<div class="op-ci-actions">'+payTag+'</div>';
+
   // Expandable detail card
-  const detail=document.createElement('div');detail.className='op-ci-detail';
-  const insta=d.revealed&&d.revealData&&d.revealData.instagram?d.revealData.instagram:'—';
-  const phone=d.revealed&&d.revealData&&d.revealData.phone?d.revealData.phone:'—';
-  const email=d.revealed&&d.revealData&&d.revealData.email?d.revealData.email:'—';
-  const bio=d.revealed&&d.revealData&&d.revealData.bio?d.revealData.bio:'';
+  var detail=document.createElement('div');detail.className='op-ci-detail';
+  var insta=d.revealed&&d.revealData&&d.revealData.instagram?d.revealData.instagram:null;
+  var phone=d.revealed&&d.revealData&&d.revealData.phone?d.revealData.phone:null;
+  var email=d.revealed&&d.revealData&&d.revealData.email?d.revealData.email:null;
+  var bio=d.revealed&&d.revealData&&d.revealData.bio?d.revealData.bio:'';
+  var es=d.entryStatus||null;
+  var isPaid=d.paidPresencial||es==='paid';
+  var ep=d.entryPrice||0;
+
   detail.innerHTML=
+    '<div class="op-ci-detail-section">'+
     '<div class="op-ci-detail-row"><span class="op-ci-detail-label">Nickname</span><span class="op-ci-detail-value">'+esc(d.nickname||'?')+'</span></div>'+
     (realName?'<div class="op-ci-detail-row"><span class="op-ci-detail-label">Nome real</span><span class="op-ci-detail-value">'+esc(realName)+'</span></div>':'')+
-    '<div class="op-ci-detail-row"><span class="op-ci-detail-label">Estrelas</span><span class="op-ci-detail-value">★ '+(d.stars||0)+'</span></div>'+
-    '<div class="op-ci-detail-row"><span class="op-ci-detail-label">Score</span><span class="op-ci-detail-value">'+(d.score||0)+'</span></div>'+
-    (d.revealed?'<div class="op-ci-detail-row"><span class="op-ci-detail-label">Instagram</span><span class="op-ci-detail-value">'+esc(insta)+'</span></div>':'')+
-    (d.revealed?'<div class="op-ci-detail-row"><span class="op-ci-detail-label">Telefone</span><span class="op-ci-detail-value">'+esc(phone)+'</span></div>':'')+
+    '<div class="op-ci-detail-row"><span class="op-ci-detail-label">Estrelas</span><span class="op-ci-detail-value">'+d.stars+'</span></div>'+
+    (insta?'<div class="op-ci-detail-row"><span class="op-ci-detail-label">Instagram</span><span class="op-ci-detail-value">'+esc(insta)+'</span></div>':'')+
+    (phone?'<div class="op-ci-detail-row"><span class="op-ci-detail-label">Telefone</span><span class="op-ci-detail-value">'+esc(phone)+'</span></div>':'')+
     (bio?'<div class="op-ci-detail-row"><span class="op-ci-detail-label">Bio</span><span class="op-ci-detail-value" style="max-width:140px;text-align:right">'+esc(bio)+'</span></div>':'')+
+    '</div>'+
+    '<div class="op-ci-detail-section" style="margin-top:.4rem">'+
+    '<div class="op-ci-detail-title">Financeiro</div>'+
+    '<div class="op-ci-detail-row"><span class="op-ci-detail-label">Entrada</span><span class="op-ci-detail-value">'+(ep>0?(isPaid?'R$'+ep.toFixed(2).replace('.',',')+' (pago)':'R$'+ep.toFixed(2).replace('.',',')+' (pendente)'):'Gratuita')+'</span></div>'+
+    '<div class="op-ci-detail-row" id="ciParkRow_'+esc(d.userId||'')+'"><span class="op-ci-detail-label">Estacionamento</span><span class="op-ci-detail-value">'+(d.parkingPaid?'Pago':'--')+'</span></div>'+
+    '<div class="op-ci-detail-row" id="ciTotalRow_'+esc(d.userId||'')+'"><span class="op-ci-detail-label">Total gasto</span><span class="op-ci-detail-value" style="color:var(--ok);font-weight:700">Carregando...</span></div>'+
+    '</div>'+
     '<div class="op-ci-detail-actions">'+
-    '<button class="op-ci-detail-btn chat" onclick="event.stopPropagation();openChat(S.checkins.find(c=>c.userId===\''+esc(d.userId||'')+'\'))">Chat</button>'+
-    '<button class="op-ci-detail-btn" onclick="event.stopPropagation();removeAttendee(\''+esc(d.userId||'')+'\')">Remover</button>'+
+    '<button class="op-ci-detail-btn chat" onclick="event.stopPropagation();openChat(S.checkins.find(function(c){return c.userId===\''+esc(d.userId||'')+'\';}))">Chat</button>'+
+    (isPaid?'<button class="op-ci-detail-btn refund" onclick="event.stopPropagation();operatorRefund(\''+esc(d.userId||'')+'\')">Reembolsar</button>':'')+
+    (!isPaid&&ep>0?'<button class="op-ci-detail-btn mark-paid" onclick="event.stopPropagation();markPaidPresencial(\''+esc(d.userId||'')+'\',null)">Marcar Pago</button>':'')+
+    '<button class="op-ci-detail-btn remove" onclick="event.stopPropagation();removeAttendee(\''+esc(d.userId||'')+'\')">Remover</button>'+
     '</div>';
-  item.onclick=(e)=>{
+
+  item.onclick=function(e){
     if(e.target.tagName==='BUTTON')return;
-    const isOpen=detail.style.display==='block';
-    // Close all other details
-    document.querySelectorAll('.op-ci-detail').forEach(d=>d.style.display='none');
+    var isOpen=detail.style.display==='block';
+    document.querySelectorAll('.op-ci-detail').forEach(function(d){d.style.display='none'});
     detail.style.display=isOpen?'none':'block';
+    // Load financial details on expand
+    if(!isOpen&&d.userId&&S.eventId){
+      loadParticipantFinancials(d.userId,S.eventId);
+    }
   };
   wrap.appendChild(item);
   wrap.appendChild(detail);
@@ -5908,17 +5944,88 @@ async function loadNewsEngineState(){
     if(sw&&d.enabled)sw.classList.add('on');
   }catch(e){}
 }
-function markPaidPresencial(userId,btn){
-  const ci=S.checkins.find(c=>c.userId===userId);
-  if(ci)ci.paidPresencial=true;
-  // Also mark on canvas node
-  const node=cvNodes.find(n=>n.userId===userId);
+async function markPaidPresencial(userId,btn){
+  var ci=S.checkins.find(function(c){return c.userId===userId});
+  if(ci){ci.paidPresencial=true;ci.entryStatus='paid'}
+  var node=cvNodes.find(function(n){return n.userId===userId});
   if(node)node.paidPresencial=true;
-  // Update button to tag
-  if(btn){
-    const span=document.createElement('span');span.className='op-ci-paid';span.textContent='💵 Pago';
-    btn.parentNode.replaceChild(span,btn);
+  // Persist on server
+  if(S.eventId){
+    try{
+      await fetch('/api/operator/event/'+S.eventId+'/mark-paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,method:'presencial',amount:ci?ci.entryPrice||0:0})});
+    }catch(e){console.error('[markPaid] error:',e)}
   }
+  // Update UI
+  updateParticipantPayTag(userId);
+}
+
+function updateParticipantPayTag(userId){
+  var ci=S.checkins.find(function(c){return c.userId===userId});
+  if(!ci)return;
+  var wraps=document.querySelectorAll('.op-ci-wrap');
+  wraps.forEach(function(w){
+    if(w.dataset.userId===userId){
+      var acts=w.querySelector('.op-ci-actions');
+      if(acts)acts.innerHTML=buildPaymentTag(ci);
+    }
+  });
+}
+
+async function loadParticipantFinancials(userId,eventId){
+  try{
+    var r=await fetch('/api/operator/event/'+eventId+'/participant/'+userId);
+    var d=await r.json();
+    var totalEl=document.getElementById('ciTotalRow_'+userId);
+    if(totalEl){
+      var val=totalEl.querySelector('.op-ci-detail-value');
+      if(val)val.textContent='R$ '+d.totalPaid.toFixed(2).replace('.',',');
+    }
+    var parkEl=document.getElementById('ciParkRow_'+userId);
+    if(parkEl&&d.parking&&d.parking.length>0){
+      var pv=d.parking[0];
+      var parkVal=parkEl.querySelector('.op-ci-detail-value');
+      if(parkVal)parkVal.textContent=pv.status==='paid'?'R$'+(pv.amountPaid||0).toFixed(2).replace('.',',')+' (pago)':pv.status==='parked'?'Estacionado':'--';
+    }
+  }catch(e){console.error('[loadFinancials] error:',e)}
+}
+
+async function operatorRefund(userId){
+  if(!S.eventId)return;
+  var ci=S.checkins.find(function(c){return c.userId===userId});
+  var name=ci?ci.nickname:'este participante';
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.innerHTML='<div style="background:var(--s1);border:1px solid var(--b2);border-radius:16px;padding:1.5rem;max-width:340px;width:100%">'+
+    '<div style="font-size:.85rem;font-weight:700;color:var(--t1);margin-bottom:.8rem">Reembolsar '+esc(name)+'?</div>'+
+    '<div style="font-size:.7rem;color:var(--t2);margin-bottom:1rem;line-height:1.5">O valor da entrada sera devolvido. Se o pagamento foi via cartao/PIX, o reembolso sera processado automaticamente.</div>'+
+    '<div style="display:flex;gap:.5rem">'+
+    '<button id="refundConfirmBtn" style="flex:1;padding:.6rem;background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.3);border-radius:10px;color:#f87171;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer">Confirmar Reembolso</button>'+
+    '<button id="refundCancelBtn" style="flex:1;padding:.6rem;background:rgba(255,255,255,.05);border:1px solid var(--b1);border-radius:10px;color:var(--t2);font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer">Cancelar</button>'+
+    '</div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('refundCancelBtn').onclick=function(){ov.remove()};
+  document.getElementById('refundConfirmBtn').onclick=async function(){
+    this.textContent='Processando...';this.disabled=true;
+    try{
+      var r=await fetch('/api/operator/event/'+S.eventId+'/refund',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,reason:'requested_by_customer'})});
+      var d=await r.json();
+      if(d.ok){
+        if(ci){ci.entryStatus='refunded';ci.paidPresencial=false}
+        updateParticipantPayTag(userId);
+        ov.remove();
+        var toast=document.createElement('div');
+        toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(96,165,250,.9);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999';
+        toast.textContent='Reembolso processado para '+esc(name);
+        document.body.appendChild(toast);
+        setTimeout(function(){toast.remove()},4000);
+      }else{
+        this.textContent='Erro: '+(d.error||'tente novamente');
+        this.disabled=false;
+      }
+    }catch(e){
+      this.textContent='Erro de rede';this.disabled=false;
+    }
+  };
 }
 
 async function loadOperatorSettings(){

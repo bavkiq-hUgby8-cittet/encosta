@@ -8639,7 +8639,9 @@ function createSonicConnection(userIdA, userIdB) {
       topTag: visitorTopTag,
       score: calcScore(visitorId),
       welcomePhrase: (eventId && db.operatorEvents[eventId]) ? (db.operatorEvents[eventId].welcomePhrase || '') : '',
-      moduleWelcome: moduleWelcome
+      moduleWelcome: moduleWelcome,
+      entryStatus: (eventId && db.operatorEvents[eventId] && db.operatorEvents[eventId].attendees && db.operatorEvents[eventId].attendees[visitorId]) ? (db.operatorEvents[eventId].attendees[visitorId].entryStatus || null) : null,
+      entryPrice: (eventId && db.operatorEvents[eventId]) ? (db.operatorEvents[eventId].entryPrice || 0) : 0
     };
     io.to(`user:${operatorId}`).emit('checkin-created', checkinData);
     // Notify event room so phone users see new attendee
@@ -15574,6 +15576,103 @@ app.get('/api/operator/events/:userId', (req, res) => {
   const events = evIds.map(eid => db.operatorEvents[eid]).filter(Boolean);
   events.sort((a, b) => b.createdAt - a.createdAt);
   res.json({ events });
+});
+
+// Mark participant as paid (presencial / cash / pix externo)
+app.post('/api/operator/event/:eventId/mark-paid', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { userId, method, amount } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio' });
+  if (!ev.attendees) ev.attendees = {};
+  if (!ev.attendees[userId]) ev.attendees[userId] = {};
+  ev.attendees[userId].entryStatus = 'paid';
+  ev.attendees[userId].paidMethod = method || 'presencial';
+  ev.attendees[userId].paidAmount = amount || ev.entryPrice || 0;
+  ev.attendees[userId].paidAt = Date.now();
+  saveDB('operatorEvents');
+  io.to('event:' + req.params.eventId).emit('attendee-status-update', { eventId: req.params.eventId, userId, entryStatus: 'paid', method: method || 'presencial' });
+  res.json({ ok: true });
+});
+
+// Get participant payment details
+app.get('/api/operator/event/:eventId/participant/:userId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const uid = req.params.userId;
+  const user = db.users[uid];
+  if (!user) return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  const attendeeData = (ev.attendees && ev.attendees[uid]) || {};
+  // Find payments for this user+event
+  const payments = Object.values(db.eventPayments || {}).filter(p => p.userId === uid && p.eventId === req.params.eventId && p.status === 'paid');
+  const tips = Object.values(db.tips || {}).filter(t => t.senderId === uid && t.eventId === req.params.eventId && t.status === 'paid');
+  // Parking info
+  const parking = ev.parking || {};
+  const parkingVehicles = Object.values(parking.vehicles || {}).filter(v => v.userId === uid);
+  res.json({
+    userId: uid,
+    nickname: user.nickname || user.name,
+    entryStatus: attendeeData.entryStatus || null,
+    paidMethod: attendeeData.paidMethod || null,
+    paidAmount: attendeeData.paidAmount || 0,
+    paidAt: attendeeData.paidAt || null,
+    entryPrice: ev.entryPrice || 0,
+    payments: payments.map(p => ({ id: p.id, amount: p.amount, method: p.method || 'stripe', status: p.status, refunded: !!p.refunded, paidAt: p.paidAt || p.createdAt, stripePaymentIntentId: p.stripePaymentIntentId || null })),
+    tips: tips.map(t => ({ id: t.id, amount: t.amount, status: t.status, paidAt: t.paidAt || t.createdAt })),
+    parking: parkingVehicles.map(v => ({ plate: v.plate, status: v.status, entryTime: v.entryTime, amountPaid: v.amountPaid || 0, amountDue: v.amountDue || 0 })),
+    totalPaid: payments.reduce((s, p) => s + (p.amount || 0), 0) + tips.reduce((s, t) => s + (t.amount || 0), 0) + parkingVehicles.reduce((s, v) => s + (v.amountPaid || 0), 0)
+  });
+});
+
+// Operator refund for entry payment
+app.post('/api/operator/event/:eventId/refund', async (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const { userId, paymentId, reason } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio' });
+
+  // Find the payment
+  const payment = paymentId ? db.eventPayments[paymentId] : Object.values(db.eventPayments || {}).find(p => p.userId === userId && p.eventId === req.params.eventId && p.status === 'paid' && !p.refunded);
+  if (!payment) {
+    // If no stripe payment, just reset entry status (presencial payment)
+    if (ev.attendees && ev.attendees[userId]) {
+      ev.attendees[userId].entryStatus = 'refunded';
+      ev.attendees[userId].refundedAt = Date.now();
+      ev.attendees[userId].refundReason = reason || 'operator_request';
+      saveDB('operatorEvents');
+    }
+    io.to('event:' + req.params.eventId).emit('attendee-status-update', { eventId: req.params.eventId, userId, entryStatus: 'refunded' });
+    return res.json({ ok: true, type: 'presencial_reset' });
+  }
+
+  // Stripe refund
+  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
+  if (!payment.stripePaymentIntentId) return res.status(400).json({ error: 'Sem payment intent para reembolsar' });
+
+  try {
+    const refund = await stripeInstance.refunds.create({ payment_intent: payment.stripePaymentIntentId, reason: 'requested_by_customer' });
+    payment.status = 'refunded';
+    payment.refunded = true;
+    payment.refundId = refund.id;
+    payment.refundAmount = refund.amount / 100;
+    payment.refundedAt = Date.now();
+    payment.refundedBy = 'operator:' + (ev.creatorId || 'unknown');
+    saveDB('eventPayments');
+    // Update event revenue
+    ev.revenue = Math.max(0, (ev.revenue || 0) - payment.amount);
+    ev.paidCheckins = Math.max(0, (ev.paidCheckins || 0) - 1);
+    if (ev.attendees && ev.attendees[userId]) {
+      ev.attendees[userId].entryStatus = 'refunded';
+      ev.attendees[userId].refundedAt = Date.now();
+    }
+    saveDB('operatorEvents');
+    io.to('event:' + req.params.eventId).emit('attendee-status-update', { eventId: req.params.eventId, userId, entryStatus: 'refunded' });
+    io.to('user:' + userId).emit('entry-refunded', { eventId: req.params.eventId, amount: payment.amount, refundId: refund.id });
+    res.json({ ok: true, type: 'stripe_refund', refundId: refund.id, amount: refund.amount / 100 });
+  } catch (e) {
+    console.error('[operator-refund] Stripe error:', e.message);
+    res.status(500).json({ error: 'Erro no reembolso: ' + e.message });
+  }
 });
 
 app.post('/api/operator/event/:eventId/end', (req, res) => {
