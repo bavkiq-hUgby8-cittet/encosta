@@ -18811,12 +18811,22 @@ async function loadNearbyEvents(){
   }catch(e){c.innerHTML='<div style="text-align:center;padding:2rem;color:var(--err)">Erro ao buscar.</div>'}
 }
 function showCreateEvent(){
-  _renderEventForm();
+  try{
+    console.log('[EVENT] showCreateEvent called');
+    _renderEventForm();
+    // Scroll to top of form
+    var scroll=document.getElementById('locScroll');
+    if(scroll)scroll.scrollTop=0;
+  }catch(e){
+    console.error('[EVENT] Error in showCreateEvent:',e);
+    showToast('Erro ao abrir formulario: '+e.message);
+  }
 }
 function showCreateEventManual(){
-  _renderEventForm();
+  showCreateEvent();
 }
 function _renderEventForm(){
+  console.log('[EVENT] _renderEventForm called, locContent exists:',!!document.getElementById('locContent'));
   // Try to get location first if we don't have it
   if(!myLat&&navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
