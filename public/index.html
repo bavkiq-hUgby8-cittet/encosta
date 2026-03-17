@@ -5059,6 +5059,16 @@ function showScreen(id){
     if(_homeNodesAnim){cancelAnimationFrame(_homeNodesAnim);_homeNodesAnim=null}
     if(_homeNodesGyro){window.removeEventListener('deviceorientation',_homeNodesGyro);_homeNodesGyro=null}
   }
+  // Deferred DJ listener restart: only when returning to home after DJ Live exit
+  if(id==='home'&&window._djListenerPendingRestart){
+    window._djListenerPendingRestart=false;
+    setTimeout(function(){
+      if(!DJL.active&&!DJL.listenerActive&&!homeSonicActive&&!sonicActive&&window._micAuthorized&&typeof startDJListener==='function'){
+        console.log('[DJ] Deferred listener restart on home screen');
+        startDJListener();
+      }
+    },3000);
+  }
   // Guest nudge: when leaving chat/reveal, show complete registration modal
   if(state.isGuest&&(id==='home'||id==='history')&&!window._guestAnimating){
     if(window._guestNeedsUpgrade){
@@ -26989,16 +26999,17 @@ function exitDJLive() {
   if (typeof showDJPostLive === 'function') {
     console.log('[DJ] Showing post-live farewell screen');
     showDJPostLive(_exitSessionId, _exitArtistName, _exitDjUserId);
+  } else {
+    // Fallback: go home if post-live screen not available
+    showScreen('home');
   }
 
-  // Restart DJ listener so the phone can detect the DJ again and reconnect
-  // Small delay to let socket leave the room first
-  setTimeout(function() {
-    if (!DJL.active && !DJL.listenerActive && typeof startDJListener === 'function') {
-      console.log('[DJ] Restarting listener after exit for reconnection...');
-      startDJListener();
-    }
-  }, 1000);
+  // DJ listener restart: do NOT request mic immediately on exit.
+  // The user just left DJ Live -- requesting mic again triggers iOS permission popup
+  // and can cause blank screen. Instead, restart listener only when user goes back
+  // to home screen (handled by showScreen('home') flow).
+  // Mark that DJ listener should restart when appropriate
+  window._djListenerPendingRestart = true;
 }
 
 // ═══ DJ LIVE CONNECTION HEALTH ═══
