@@ -4107,6 +4107,50 @@ app.get('/api/notifications/:userId', requireAuth, (req, res) => {
       });
     });
   });
+  // 4b. Stars I gave to others (star-given) — show confirmation that my star was received
+  const sevenDaysAgo = Date.now() - 7 * 86400000;
+  const myDonationIds = IDX.donationsByFrom.get(userId) || [];
+  myDonationIds.forEach(donId => {
+    const don = db.starDonations[donId];
+    if (!don || !don.toUserId || don.toUserId === userId) return;
+    const ts = don.timestamp || 0;
+    if (ts < sevenDaysAgo) return; // only last 7 days
+    const recipient = db.users[don.toUserId];
+    if (!recipient) return;
+    const recipRevealed = isRevealedTo(don.toUserId, user, null);
+    notifs.push({
+      type: 'star-given',
+      fromId: don.toUserId,
+      nickname: recipient.nickname || recipient.name,
+      realName: recipRevealed ? (recipient.realName || null) : null,
+      profilePhoto: recipRevealed ? (recipient.profilePhoto || recipient.photoURL || null) : null,
+      color: recipient.color,
+      avatarAccessory: recipient.avatarAccessory || null,
+      recipientStars: (recipient.stars || []).length,
+      timestamp: ts,
+      seen: ts <= seenAt
+    });
+  });
+  // 4c. People I liked (like-given) — confirmation that my like was registered
+  if (user._likedAt) {
+    Object.entries(user._likedAt).forEach(([targetId, ts]) => {
+      if (ts < sevenDaysAgo) return;
+      const target = db.users[targetId];
+      if (!target) return;
+      const tgtRevealed = isRevealedTo(targetId, user, null);
+      notifs.push({
+        type: 'like-given',
+        fromId: targetId,
+        nickname: target.nickname || target.name,
+        realName: tgtRevealed ? (target.realName || null) : null,
+        profilePhoto: tgtRevealed ? (target.profilePhoto || target.photoURL || null) : null,
+        color: target.color,
+        avatarAccessory: target.avatarAccessory || null,
+        timestamp: ts,
+        seen: ts <= seenAt
+      });
+    });
+  }
   // 5. People who revealed to me (canSee entries)
   Object.entries(user.canSee || {}).forEach(([pid, data]) => {
     const p = db.users[pid];
