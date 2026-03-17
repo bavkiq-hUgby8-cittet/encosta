@@ -5545,8 +5545,8 @@ function addCheckinToList(d){
     document.querySelectorAll('.op-ci-detail').forEach(function(d){d.style.display='none'});
     detail.style.display=isOpen?'none':'block';
     // Load financial details on expand
-    if(!isOpen&&d.userId&&S.eventId){
-      loadParticipantFinancials(d.userId,S.eventId);
+    if(!isOpen&&d.userId&&S.currentEventId){
+      loadParticipantFinancials(d.userId,S.currentEventId);
     }
   };
   wrap.appendChild(item);
@@ -5948,12 +5948,12 @@ async function loadNewsEngineState(){
 async function markPaidPresencial(userId,btn){
   var ci=S.checkins.find(function(c){return c.userId===userId});
   if(ci){ci.paidPresencial=true;ci.entryStatus='paid'}
-  var node=cvNodes.find(function(n){return n.userId===userId});
+  var node=nodes.find(function(n){return n.userId===userId});
   if(node)node.paidPresencial=true;
   // Persist on server
-  if(S.eventId){
+  if(S.currentEventId){
     try{
-      await fetch('/api/operator/event/'+S.eventId+'/mark-paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,method:'presencial',amount:ci?ci.entryPrice||0:0})});
+      await fetch('/api/operator/event/'+S.currentEventId+'/mark-paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,method:'presencial',amount:ci?ci.entryPrice||0:0})});
     }catch(e){console.error('[markPaid] error:',e)}
   }
   // Update UI
@@ -5991,7 +5991,7 @@ async function loadParticipantFinancials(userId,eventId){
 }
 
 async function operatorRefund(userId){
-  if(!S.eventId)return;
+  if(!S.currentEventId)return;
   var ci=S.checkins.find(function(c){return c.userId===userId});
   var name=ci?ci.nickname:'este participante';
   var ov=document.createElement('div');
@@ -6008,7 +6008,7 @@ async function operatorRefund(userId){
   document.getElementById('refundConfirmBtn').onclick=async function(){
     this.textContent='Processando...';this.disabled=true;
     try{
-      var r=await fetch('/api/operator/event/'+S.eventId+'/refund',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,reason:'requested_by_customer'})});
+      var r=await fetch('/api/operator/event/'+S.currentEventId+'/refund',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,reason:'requested_by_customer'})});
       var d=await r.json();
       if(d.ok){
         if(ci){ci.entryStatus='refunded';ci.paidPresencial=false}
