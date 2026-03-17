@@ -18892,11 +18892,36 @@ async function createEvent(){
   var radius=parseInt($('evtRadius')?$('evtRadius').value:'200')||200;
   var acceptsTips=$('evtTips')?$('evtTips').checked:false;
   if(!name||name.length<3)return showToast('Nome do evento precisa ter pelo menos 3 caracteres.');
-  if(!myLat||!myLng)return showToast('GPS nao disponivel. Ative a localizacao e tente novamente.');
+
+  // If GPS not ready, try one more time before giving up
+  if(!myLat||!myLng){
+    if(navigator.geolocation){
+      showToast('Buscando localizacao...');
+      try{
+        var pos=await new Promise(function(resolve,reject){
+          navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:8000});
+        });
+        myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+        var gpsEl=document.getElementById('evtGpsStatus');
+        if(gpsEl){gpsEl.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> GPS ativo';gpsEl.style.color='var(--ok)';}
+      }catch(gpsErr){
+        // Try IP-based location as last resort
+        try{
+          var geoR=await fetch('https://ipapi.co/json/',{signal:AbortSignal.timeout(5000)});
+          var geoD=await geoR.json();
+          if(geoD.latitude&&geoD.longitude){myLat=geoD.latitude;myLng=geoD.longitude;}
+        }catch(e2){}
+      }
+    }
+    if(!myLat||!myLng){
+      return showToast('Nao foi possivel detectar sua localizacao. Verifique as permissoes de GPS.');
+    }
+  }
+
   try{
     var r=await apiFetch('/api/event/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:state.userId,name:name,description:desc,lat:myLat,lng:myLng,radius:radius,acceptsTips:acceptsTips})});
     var d=await r.json();
-    if(d.error)return showToast(d.error);
+    if(!r.ok||d.error)return showToast(d.error||'Erro ao criar evento.');
     showToast('Evento criado!');haptic([50,30,50]);
     var evtId=d.event?d.event.id:d.id;
     // Mark this user as the event OPERATOR
