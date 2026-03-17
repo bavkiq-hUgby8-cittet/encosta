@@ -22197,40 +22197,129 @@ function showCharevelaRevealAnimation(data){
   var label=data.answerLabel||'???';
   var babyName=data.babyName||'';
   var videoSrc=(data.answer==='optionA')?'/reveal-boy-lite.mp4':'/reveal-girl-lite.mp4';
+  console.log('[reveal] starting, video:',videoSrc,'answer:',data.answer);
 
-  // Use native DOM elements (already in HTML, NOT created by JS)
   var ov=document.getElementById('crRevealOv');
   var numEl=document.getElementById('crCountNum');
   var vid=document.getElementById('crRevealVid');
   var nameBox=document.getElementById('crNameBox');
   var closeBtn=document.getElementById('crRevealClose');
+  var unmuteBtn=document.getElementById('crUnmuteBtn');
 
-  // Reset state
+  // Clean up any previous sparkles
+  var oldSparkles=ov.querySelectorAll('[data-sparkle]');
+  for(var s=0;s<oldSparkles.length;s++)oldSparkles[s].remove();
+
+  // Reset all state
   numEl.textContent='5';
   numEl.style.color='#fff';
   numEl.style.display='';
   vid.style.opacity='0';
+  vid.pause();
   nameBox.style.display='none';
   nameBox.innerHTML='';
+  unmuteBtn.style.display='none';
+  ov.style.background='#000';
+  ov.style.flexDirection='';
 
-  // Set video source and start loading
-  vid.src=videoSrc;
+  // CRITICAL: set source and force load
+  vid.src=videoSrc+'?t='+Date.now();
   vid.muted=true;
   vid.load();
+  console.log('[reveal] video load() called');
+
+  // Track video ready state
+  var videoReady=false;
+  var countdownDone=false;
+
+  function onVideoReady(){
+    videoReady=true;
+    console.log('[reveal] video ready (readyState='+vid.readyState+')');
+    if(countdownDone)playVideo();
+  }
+
+  // Listen for video ready - multiple events for compatibility
+  vid.oncanplaythrough=onVideoReady;
+  vid.oncanplay=function(){
+    if(!videoReady)onVideoReady();
+  };
+  // Fallback: if events never fire, check readyState periodically
+  var readyCheck=setInterval(function(){
+    if(vid.readyState>=3){
+      clearInterval(readyCheck);
+      if(!videoReady)onVideoReady();
+    }
+  },200);
+  // Hard timeout: after 8s consider it ready regardless (covers edge cases)
+  setTimeout(function(){
+    clearInterval(readyCheck);
+    if(!videoReady){
+      console.warn('[reveal] video ready timeout, forcing');
+      onVideoReady();
+    }
+  },8000);
+
+  function playVideo(){
+    console.log('[reveal] playing video now');
+    numEl.style.display='none';
+    vid.style.opacity='1';
+    vid.currentTime=0;
+    vid.muted=true;
+    var p=vid.play();
+    if(p&&p.then){
+      p.then(function(){
+        console.log('[reveal] play() resolved OK');
+        // Try unmute
+        try{
+          vid.muted=false;
+          console.log('[reveal] unmuted OK');
+        }catch(e){
+          console.log('[reveal] unmute failed, showing button');
+          unmuteBtn.style.display='block';
+        }
+        // If still muted after setting to false (browser blocked), show unmute btn
+        setTimeout(function(){
+          if(vid.muted){
+            unmuteBtn.style.display='block';
+          }
+        },300);
+      }).catch(function(e){
+        console.warn('[reveal] play() rejected:',e.message);
+        // FALLBACK: try play muted one more time
+        vid.muted=true;
+        vid.play().then(function(){
+          console.log('[reveal] muted retry OK');
+          unmuteBtn.style.display='block';
+        }).catch(function(e2){
+          console.error('[reveal] muted retry also failed:',e2.message);
+          // LAST RESORT: show static fallback (color + name)
+          showRevealFallback(ov,numEl,nameBox,color,label,babyName);
+        });
+      });
+    }
+    if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+  }
+
+  // Unmute button handler
+  unmuteBtn.onclick=function(){
+    vid.muted=false;
+    unmuteBtn.style.display='none';
+  };
 
   // Show overlay
   ov.style.display='flex';
-  ov.style.background='#000';
 
   closeBtn.onclick=function(){
     ov.style.display='none';
     vid.pause();
-    vid.src='';
+    vid.removeAttribute('src');
+    vid.load();
+    clearInterval(readyCheck);
   };
 
   if(navigator.vibrate)navigator.vibrate([200,100,200]);
 
-  // Countdown 5..1 then play
+  // Countdown 5..1
   var c=5;
   var ti=setInterval(function(){
     c--;
@@ -22240,57 +22329,62 @@ function showCharevelaRevealAnimation(data){
       if(navigator.vibrate)navigator.vibrate(c<=2?100:50);
     }else{
       clearInterval(ti);
-      numEl.style.display='none';
-      vid.style.opacity='1';
-      vid.currentTime=0;
-      vid.muted=true;
-      var p=vid.play();
-      if(p&&p.then){
-        p.then(function(){
-          console.log('[reveal] video playing OK');
-          try{vid.muted=false}catch(e){}
-        }).catch(function(e){console.warn('[reveal] play err:',e)});
-      }
-      if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
-
-      // Baby name after video ends - grand finale
-      vid.onended=function(){
-        vid.style.opacity='0';
-        ov.style.background='radial-gradient(circle at 50% 50%,'+color+'55 0%,'+color+'22 40%,#000 80%)';
-        ov.style.flexDirection='column';
-
-        // Sparkle particles
-        var sparkles=[];
-        for(var i=0;i<20;i++){
-          (function(idx){
-            setTimeout(function(){
-              var sp=document.createElement('div');
-              var sz=Math.random()*6+3;
-              sp.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;background:'+color+';border-radius:50%;left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;opacity:0;box-shadow:0 0 '+(sz*3)+'px '+color+',0 0 '+(sz*6)+'px '+color+'80;animation:crSparkle '+(Math.random()*2+2)+'s ease-in-out infinite;z-index:99999';
-              ov.appendChild(sp);
-              sparkles.push(sp);
-            },idx*150);
-          })(i);
-        }
-
-        // Name card
-        setTimeout(function(){
-          nameBox.style.cssText='display:block;text-align:center;padding:2rem 3.5rem;border-radius:20px;background:rgba(0,0,0,.4);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid '+color+'33;box-shadow:0 0 40px '+color+'22,0 8px 32px rgba(0,0,0,.5);animation:crNameIn .8s ease-out forwards;z-index:100000;position:absolute';
-          if(babyName){
-            var h=document.createElement('div');
-            h.textContent=babyName;
-            h.style.cssText='font-size:3.2rem;font-weight:900;color:#fff;text-shadow:0 0 20px '+color+'80,0 0 40px '+color+'40,0 0 80px '+color+'20;letter-spacing:.02em';
-            nameBox.appendChild(h);
-          }
-          var lb=document.createElement('div');
-          lb.textContent=label;
-          lb.style.cssText='font-size:1.1rem;font-weight:700;margin-top:.5rem;color:'+color+';text-transform:uppercase;letter-spacing:.15em;opacity:0;animation:crLabelIn .6s ease-out .4s forwards';
-          nameBox.appendChild(lb);
-          if(navigator.vibrate)navigator.vibrate([100,80,100,80,300]);
-        },400);
-      };
+      countdownDone=true;
+      console.log('[reveal] countdown done, videoReady='+videoReady);
+      if(videoReady)playVideo();
+      // If not ready yet, onVideoReady will call playVideo
     }
   },1000);
+
+  // Baby name after video ends
+  vid.onended=function(){
+    console.log('[reveal] video ended, showing name');
+    unmuteBtn.style.display='none';
+    showRevealName(ov,nameBox,color,label,babyName);
+  };
+}
+
+function showRevealFallback(ov,numEl,nameBox,color,label,babyName){
+  console.log('[reveal] showing fallback (no video)');
+  if(numEl)numEl.style.display='none';
+  ov.style.background='radial-gradient(circle,'+color+'55 0%,'+color+'22 40%,#000 80%)';
+  showRevealName(ov,nameBox,color,label,babyName);
+}
+
+function showRevealName(ov,nameBox,color,label,babyName){
+  var vid=document.getElementById('crRevealVid');
+  if(vid)vid.style.opacity='0';
+  ov.style.background='radial-gradient(circle at 50% 50%,'+color+'55 0%,'+color+'22 40%,#000 80%)';
+  ov.style.flexDirection='column';
+
+  // Sparkle particles
+  for(var i=0;i<20;i++){
+    (function(idx){
+      setTimeout(function(){
+        var sp=document.createElement('div');
+        sp.setAttribute('data-sparkle','1');
+        var sz=Math.random()*6+3;
+        sp.style.cssText='position:absolute;width:'+sz+'px;height:'+sz+'px;background:'+color+';border-radius:50%;left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;opacity:0;box-shadow:0 0 '+(sz*3)+'px '+color+',0 0 '+(sz*6)+'px '+color+'80;animation:crSparkle '+(Math.random()*2+2)+'s ease-in-out infinite;z-index:99999';
+        ov.appendChild(sp);
+      },idx*150);
+    })(i);
+  }
+
+  // Name card
+  setTimeout(function(){
+    nameBox.style.cssText='display:block;text-align:center;padding:2rem 3.5rem;border-radius:20px;background:rgba(0,0,0,.4);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid '+color+'33;box-shadow:0 0 40px '+color+'22,0 8px 32px rgba(0,0,0,.5);animation:crNameIn .8s ease-out forwards;z-index:100000;position:absolute';
+    if(babyName){
+      var h=document.createElement('div');
+      h.textContent=babyName;
+      h.style.cssText='font-size:3.2rem;font-weight:900;color:#fff;text-shadow:0 0 20px '+color+'80,0 0 40px '+color+'40,0 0 80px '+color+'20;letter-spacing:.02em';
+      nameBox.appendChild(h);
+    }
+    var lb=document.createElement('div');
+    lb.textContent=label;
+    lb.style.cssText='font-size:1.1rem;font-weight:700;margin-top:.5rem;color:'+color+';text-transform:uppercase;letter-spacing:.15em;opacity:0;animation:crLabelIn .6s ease-out .4s forwards';
+    nameBox.appendChild(lb);
+    if(navigator.vibrate)navigator.vibrate([100,80,100,80,300]);
+  },400);
 }
 
 function shiftColor(hex,amount){
@@ -30923,10 +31017,11 @@ window.djLiveBannerJoin = function() {
 
 <!-- Reveal video overlay (native in DOM for mobile compatibility) -->
 <div id="crRevealOv" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;align-items:center;justify-content:center">
-  <button id="crRevealClose" style="position:absolute;top:12px;right:12px;z-index:100001;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer">X</button>
+  <button id="crRevealClose" style="position:absolute;top:12px;right:12px;z-index:100002;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer">X</button>
   <div id="crCountNum" style="font-size:10rem;font-weight:900;color:#fff;text-shadow:0 0 60px rgba(255,255,255,.5);z-index:100000;position:absolute">5</div>
-  <video id="crRevealVid" playsinline webkit-playsinline muted preload="none" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0"></video>
+  <video id="crRevealVid" playsinline webkit-playsinline muted preload="auto" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0"></video>
   <div id="crNameBox" style="display:none;text-align:center;padding:2rem 3.5rem;border-radius:20px;z-index:100000;position:absolute"></div>
+  <button id="crUnmuteBtn" style="display:none;position:absolute;bottom:20px;right:20px;z-index:100001;padding:.5rem 1rem;border-radius:20px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.75rem;cursor:pointer;backdrop-filter:blur(8px)">Toque para audio</button>
 </div>
 <style>
 @keyframes crSparkle{0%{opacity:0;transform:scale(0) translateY(0)}30%{opacity:1;transform:scale(1.2)}70%{opacity:.8;transform:scale(1) translateY(-20px)}100%{opacity:0;transform:scale(0) translateY(-40px)}}

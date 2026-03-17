@@ -19206,8 +19206,8 @@ app.post('/api/operator/event/:eventId/charevela/reveal', (req, res) => {
     results: cr.results,
     config: cr.config
   };
+  // Emit to all connected clients (participants + operators)
   io.emit('charevela-reveal', revealData);
-  io.to('event:' + ev.id).emit('charevela-reveal', revealData);
   res.json({ ok: true, reveal: revealData });
 });
 
