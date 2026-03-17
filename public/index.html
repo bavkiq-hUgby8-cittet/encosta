@@ -2419,7 +2419,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
 <div id="home" class="screen">
   <!-- Floating event button (persistent while event active) - positioned below daily counter -->
   <div id="floatingEventBtn" style="display:none;position:absolute;bottom:28%;left:50%;transform:translateX(-50%);z-index:8;padding:.35rem .75rem;background:rgba(96,165,250,.1);backdrop-filter:blur(12px);border:1px solid rgba(96,165,250,.2);border-radius:14px;cursor:pointer;animation:mi .35s ease both;white-space:nowrap" onclick="reopenEventView()">
-    <span style="font-size:.65rem;font-weight:600;color:#60a5fa;display:inline-flex;align-items:center;gap:.3rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> <span id="floatingEventName"></span></span>
+    <span style="font-size:.65rem;font-weight:600;color:#60a5fa;display:inline-flex;align-items:center;gap:.3rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> <span id="floatingEventName"></span><span id="floatingEventVerified" style="display:none"><svg width="12" height="12" viewBox="0 0 24 24" fill="url(#verifiedGrad)"><path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg></span></span>
   </div>
   <!-- DJ Live Banner - visible when a DJ is broadcasting, tap to join directly -->
   <div id="djLiveBanner" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:10;width:calc(100% - 32px);max-width:340px;padding:.6rem .8rem;background:linear-gradient(135deg,rgba(255,107,53,.15),rgba(255,60,100,.12));backdrop-filter:blur(16px);border:1px solid rgba(255,107,53,.35);border-radius:14px;cursor:pointer;animation:mi .35s ease both" onclick="djLiveBannerJoin()">
@@ -3448,7 +3448,7 @@ html,body{height:100%;width:100%;font-family:'Inter',-apple-system,sans-serif;ba
     <button class="chb" onclick="closeEventView()">&#x2190;</button>
     <div style="flex:1;text-align:center">
       <div style="font-size:.75rem;font-weight:700;color:#60a5fa;display:flex;align-items:center;gap:.3rem;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Check-in</div>
-      <div style="font-size:.9rem;font-weight:600" id="evViewName"></div>
+      <div style="font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:.3rem;justify-content:center" id="evViewName"></div><span id="evViewVerified" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="url(#verifiedGrad)"><path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg></span>
     </div>
     <div style="display:flex;align-items:center;gap:.5rem">
       <button id="evQRBtnHeader" onclick="showEventCheckinQR()" style="display:none;padding:.3rem .5rem;border-radius:8px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#818cf8;font-size:.55rem;font-weight:600;font-family:inherit;cursor:pointer;align-items:center;gap:.2rem;white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> QR</button>
@@ -4527,7 +4527,7 @@ function initSocket(){
       localStorage.setItem('activeEventId',d.eventId);
       localStorage.setItem('activeEventName',d.eventName||'Evento');
       if(!localStorage.getItem('activeEventRole'))localStorage.setItem('activeEventRole','visitor');
-      showFloatingEventBtn(d.eventId,d.eventName||'Evento');
+      showFloatingEventBtn(d.eventId,d.eventName||'Evento',d.eventVerified);
     }
   });
 
@@ -4662,8 +4662,8 @@ function initSocket(){
       localStorage.setItem('activeEventId',d.eventId);
       localStorage.setItem('activeEventName',evName);
       if(!localStorage.getItem('activeEventRole'))localStorage.setItem('activeEventRole','visitor');
-      showFloatingEventBtn(d.eventId,evName);
-      if(d.welcomePhrase){showWelcomeBanner(d.welcomePhrase,evName)}
+      showFloatingEventBtn(d.eventId,evName,d.eventVerified);
+      if(d.welcomePhrase){showWelcomeBanner(d.welcomePhrase,evName,d.eventVerified)}
     }
     // Show epic connecting animation with continuous vibration, then reveal
     const co=$('connectingOverlay');
@@ -4704,13 +4704,14 @@ function initSocket(){
     setTimeout(()=>{ updateNotifBadge(); },2000);
   });
   // Welcome banner for branded check-in phrase
-  function showWelcomeBanner(phrase,eventName){
-    const existing=document.querySelector('.welcome-banner');if(existing)existing.remove();
-    const banner=document.createElement('div');banner.className='welcome-banner';
-    banner.innerHTML='<div class="wb-event">'+esc(eventName)+'</div><div class="wb-phrase">'+esc(phrase)+'</div>';
+  function showWelcomeBanner(phrase,eventName,eventVerified){
+    var existing=document.querySelector('.welcome-banner');if(existing)existing.remove();
+    var banner=document.createElement('div');banner.className='welcome-banner';
+    var verifiedHtml=eventVerified?'<svg width="14" height="14" viewBox="0 0 24 24" fill="url(#verifiedGrad)" style="vertical-align:middle;margin-left:4px"><path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5 12 21.04l3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.8 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.34z"/></svg>':'';
+    banner.innerHTML='<div class="wb-event">'+esc(eventName)+verifiedHtml+'</div><div class="wb-phrase">'+esc(phrase)+'</div>';
     document.body.appendChild(banner);
-    setTimeout(()=>banner.classList.add('visible'),50);
-    setTimeout(()=>{banner.classList.remove('visible');setTimeout(()=>banner.remove(),600)},5000);
+    setTimeout(function(){banner.classList.add('visible')},50);
+    setTimeout(function(){banner.classList.remove('visible');setTimeout(function(){banner.remove()},600)},5000);
   }
   socket.on('new-message',({relationId,message})=>{
     if(state.currentRelation?.relationId===relationId){
@@ -5345,6 +5346,7 @@ async function showEventView(eventId,eventName){
   try{
     const r=await fetch('/api/operator/event/'+eventId+'/attendees?userId='+encodeURIComponent(state.userId||''));const d=await r.json();
     $('evViewCount').textContent=(d.attendees||[]).length+' pessoas';
+    var evvb=$('evViewVerified');if(evvb)evvb.style.display=d.verified?'inline':'none';
     (d.attendees||[]).forEach(a=>addEvNode(a,true));
     if(d.quickPhrases&&d.quickPhrases.length>0)setEventQuickPhrases(d.quickPhrases);
     if(d.businessProfile)window._currentEventBizProfile=d.businessProfile;
@@ -5641,9 +5643,10 @@ function closeEventView(){
   goHome();
 }
 
-function showFloatingEventBtn(eventId,eventName){
+function showFloatingEventBtn(eventId,eventName,eventVerified){
   const btn=$('floatingEventBtn');if(!btn)return;
   $('floatingEventName').textContent=eventName;
+  var fev=$('floatingEventVerified');if(fev)fev.style.display=eventVerified?'inline':'none';
   btn.style.display='';
   btn._eventId=eventId;btn._eventName=eventName;
   // Listen for event-ended to auto-hide
