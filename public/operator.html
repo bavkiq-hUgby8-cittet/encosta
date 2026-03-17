@@ -65,6 +65,88 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .op-event-stats{display:flex;gap:.6rem;margin-top:.6rem}
 .op-event-stat{display:flex;align-items:center;gap:.3rem;padding:.3rem .5rem;background:rgba(255,255,255,.03);border-radius:8px;font-size:.6rem;color:var(--t2)}
 .op-event-stat b{color:var(--fire);font-weight:700}
+/* Module grid - new visual */
+.op-mod-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.op-mod-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.7rem;
+  background: var(--s1);
+  border: 1.5px solid var(--b1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.op-mod-item input[type="checkbox"] {
+  display: none;
+}
+.op-mod-item:hover {
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.04);
+}
+.op-mod-item:has(input:checked) {
+  border-color: var(--mc, var(--ac));
+  background: color-mix(in srgb, var(--mc, var(--ac)) 8%, var(--s1));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--mc, var(--ac)) 12%, transparent);
+}
+.op-mod-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--mc) 12%, transparent);
+  color: var(--mc);
+  transition: all 0.2s;
+}
+.op-mod-item:has(input:checked) .op-mod-icon {
+  background: color-mix(in srgb, var(--mc) 20%, transparent);
+}
+.op-mod-text {
+  flex: 1;
+  min-width: 0;
+}
+.op-mod-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.2;
+}
+.op-mod-desc {
+  font-size: 0.55rem;
+  color: var(--t3);
+  line-height: 1.3;
+}
+.op-mod-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: transparent;
+  transition: all 0.2s;
+  background: transparent;
+}
+.op-mod-item:has(input:checked) .op-mod-check {
+  background: var(--mc, var(--ac));
+  border-color: var(--mc, var(--ac));
+  color: #fff;
+}
+@media(max-width:380px){
+  .op-mod-grid{grid-template-columns:1fr}
+}
+
 /* Event type cards grid */
 .op-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.8rem}
 @media(max-width:500px){.op-type-grid{grid-template-columns:repeat(3,1fr)}}
@@ -250,12 +332,11 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 
 .op-stat-card {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.8rem 1.2rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  gap: 0.7rem;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   flex-shrink: 0;
   backdrop-filter: blur(12px);
@@ -264,26 +345,41 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 }
 
 .op-stat-card:hover {
-  background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-2px);
 }
 
+.op-stat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.op-stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .op-stat-label {
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   color: var(--t3);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .op-stat-value {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--ac2), var(--ac));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--t1);
+  line-height: 1;
 }
 
 /* Events section - better spacing */
@@ -445,12 +541,131 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
   border: 1px solid rgba(255, 61, 113, 0.2);
 }
 
+.op-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  margin-right: 4px;
+  animation: opPulse 2s infinite;
+  vertical-align: middle;
+}
+@keyframes opPulse {
+  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.4)}
+  50%{opacity:.7;box-shadow:0 0 0 4px rgba(52,211,153,0)}
+}
+
+/* Metrics row inside event card */
+.op-ev-metrics {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0.5rem 0.6rem;
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+  z-index: 1;
+}
+.op-ev-metric {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--t2);
+  flex: 1;
+  justify-content: center;
+}
+.op-ev-metric span {
+  font-weight: 600;
+}
+.op-ev-metric-rev span {
+  color: var(--ok);
+  font-weight: 700;
+}
+.op-ev-metric-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+/* Module tags */
+.op-ev-mod-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex: 1;
+}
+.op-ev-mod-tag {
+  font-size: 0.55rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mc) 12%, transparent);
+  color: var(--mc);
+  border: 1px solid color-mix(in srgb, var(--mc) 20%, transparent);
+  white-space: nowrap;
+}
+
+/* Card footer */
+.op-ev-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+  z-index: 1;
+}
+.op-ev-enter-hint {
+  font-size: 0.62rem;
+  color: var(--t3);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.op-event-card:hover .op-ev-enter-hint {
+  color: var(--ok2);
+}
+.op-ev-reopen-btn {
+  padding: 0.35rem 0.7rem;
+  background: rgba(52,211,153,0.15);
+  border: 1px solid rgba(52,211,153,0.25);
+  border-radius: 8px;
+  color: #34d399;
+  font-size: 0.62rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.op-ev-reopen-btn:hover {
+  background: rgba(52,211,153,0.25);
+}
+
+/* Type label in meta */
+.op-ev-type-label {
+  padding: 0.1rem 0.4rem;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
 .op-event-meta {
   font-size: 0.65rem;
   color: var(--t3);
   display: flex;
-  gap: 1rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
+  align-items: center;
   position: relative;
   z-index: 1;
 }
@@ -1564,16 +1779,40 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
   <!-- Stats Bar -->
   <div class="op-stats-bar" id="opStatsBar">
     <div class="op-stat-card">
-      <div class="op-stat-label">Eventos Ativos</div>
-      <div class="op-stat-value" id="opActiveEventsCount">0</div>
+      <div class="op-stat-icon" style="background:rgba(99,102,241,.15);color:#818cf8">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </div>
+      <div class="op-stat-info">
+        <div class="op-stat-value" id="opActiveEventsCount">0</div>
+        <div class="op-stat-label">Eventos Ativos</div>
+      </div>
     </div>
     <div class="op-stat-card">
-      <div class="op-stat-label">Total de Check-ins</div>
-      <div class="op-stat-value" id="opTotalCheckinsCount">0</div>
+      <div class="op-stat-icon" style="background:rgba(52,211,153,.15);color:#34d399">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <div class="op-stat-info">
+        <div class="op-stat-value" id="opTotalCheckinsCount">0</div>
+        <div class="op-stat-label">Check-ins</div>
+      </div>
     </div>
     <div class="op-stat-card">
-      <div class="op-stat-label">Receita Acumulada</div>
-      <div class="op-stat-value" id="opTotalRevenue">R$ 0</div>
+      <div class="op-stat-icon" style="background:rgba(255,107,53,.15);color:var(--fire)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      </div>
+      <div class="op-stat-info">
+        <div class="op-stat-value" id="opTotalRevenue">R$ 0</div>
+        <div class="op-stat-label">Receita</div>
+      </div>
+    </div>
+    <div class="op-stat-card">
+      <div class="op-stat-icon" style="background:rgba(251,191,36,.15);color:#fbbf24">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+      </div>
+      <div class="op-stat-info">
+        <div class="op-stat-value" id="opTotalModulesCount">0</div>
+        <div class="op-stat-label">Modulos</div>
+      </div>
     </div>
   </div>
 
@@ -1620,63 +1859,96 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
 
       <!-- Module Selection -->
       <div style="margin-bottom:1rem">
-        <div style="font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.8rem">Modulos Disponiveis</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleRestaurant" checked style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Cardapio</div>
-              <div style="font-size:.6rem;color:var(--t3)">Pedidos, menu</div>
-            </span>
+        <div style="font-size:.65rem;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.5rem">Modulos Disponiveis</div>
+        <div style="font-size:.55rem;color:var(--t3);margin-bottom:.8rem">Selecione os recursos que seu evento vai usar.</div>
+        <div class="op-mod-grid">
+          <label class="op-mod-item" data-color="var(--mod-restaurant)">
+            <input type="checkbox" id="opModuleRestaurant" checked>
+            <div class="op-mod-icon" style="--mc:var(--mod-restaurant)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><path d="M6 1v3M10 1v3M14 1v3"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Cardapio</div>
+              <div class="op-mod-desc">Pedidos, menu</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleParking" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Estacionamento</div>
-              <div style="font-size:.6rem;color:var(--t3)">Vagas, tarifas</div>
-            </span>
+          <label class="op-mod-item" data-color="var(--mod-parking)">
+            <input type="checkbox" id="opModuleParking">
+            <div class="op-mod-icon" style="--mc:var(--mod-parking)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 17V7h4a3 3 0 110 6H9"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Estacionamento</div>
+              <div class="op-mod-desc">Vagas, tarifas</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleGym" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Treinos</div>
-              <div style="font-size:.6rem;color:var(--t3)">CrossFit, academia, esportes</div>
-            </span>
+          <label class="op-mod-item" data-color="var(--mod-gym)">
+            <input type="checkbox" id="opModuleGym">
+            <div class="op-mod-icon" style="--mc:var(--mod-gym)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 6.5h11M6.5 17.5h11"/><path d="M4 10v4M20 10v4M2 11v2M22 11v2"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Treinos</div>
+              <div class="op-mod-desc">CrossFit, academia</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleChurch" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Igreja</div>
-              <div style="font-size:.6rem;color:var(--t3)">Eventos, dizimos</div>
-            </span>
+          <label class="op-mod-item" data-color="var(--mod-church)">
+            <input type="checkbox" id="opModuleChurch">
+            <div class="op-mod-icon" style="--mc:var(--mod-church)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v4M8 6h8M10 6v4l-4 8h12l-4-8V6"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Igreja</div>
+              <div class="op-mod-desc">Eventos, dizimos</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleBarber" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Barbearia</div>
-              <div style="font-size:.6rem;color:var(--t3)">Agendamentos, equipe</div>
-            </span>
+          <label class="op-mod-item" data-color="var(--mod-barber)">
+            <input type="checkbox" id="opModuleBarber">
+            <div class="op-mod-icon" style="--mc:var(--mod-barber)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 21V9M18 21V9"/><path d="M6 15l12-6M6 9l12 6"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Barbearia</div>
+              <div class="op-mod-desc">Agendamentos</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleDj" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">DJ Live</div>
-              <div style="font-size:.6rem;color:var(--t3)">Controle de animacoes em tempo real</div>
-            </span>
+          <label class="op-mod-item" data-color="#e879f9">
+            <input type="checkbox" id="opModuleDj">
+            <div class="op-mod-icon" style="--mc:#e879f9">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">DJ Live</div>
+              <div class="op-mod-desc">Animacoes</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleKaraoke" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Karaoke</div>
-              <div style="font-size:.6rem;color:var(--t3)">Fila, YouTube, votacao</div>
-            </span>
+          <label class="op-mod-item" data-color="#38bdf8">
+            <input type="checkbox" id="opModuleKaraoke">
+            <div class="op-mod-icon" style="--mc:#38bdf8">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Karaoke</div>
+              <div class="op-mod-desc">Fila, votacao</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
-          <label style="display:flex;align-items:center;gap:.6rem;padding:.8rem;background:var(--s1);border:1.5px solid var(--b1);border-radius:12px;cursor:pointer;transition:all .2s">
-            <input type="checkbox" id="opModuleChaRevela" style="width:18px;height:18px;cursor:pointer">
-            <span style="flex:1">
-              <div style="font-size:.75rem;font-weight:600;color:var(--t1)">Cha Revelacao</div>
-              <div style="font-size:.6rem;color:var(--t3)">Votacao, revelacao, animacao</div>
-            </span>
+          <label class="op-mod-item" data-color="#fb7185">
+            <input type="checkbox" id="opModuleChaRevela">
+            <div class="op-mod-icon" style="--mc:#fb7185">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
+            </div>
+            <div class="op-mod-text">
+              <div class="op-mod-name">Cha Revelacao</div>
+              <div class="op-mod-desc">Votacao, revelacao</div>
+            </div>
+            <div class="op-mod-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
           </label>
         </div>
       </div>
@@ -3847,12 +4119,13 @@ async function showEventsScreen(){
     const r=await fetch('/api/operator/events/'+S.userId);const d=await r.json();
     const list=$('opEventList');list.innerHTML='';
     const activeEvents=[];const pastEvents=[];
-    let totalCheckins=0,totalRevenue=0;
+    var totalCheckins=0,totalRevenue=0,totalModules=0;
     if(d.events&&d.events.length>0){
-      d.events.forEach(ev=>{
+      d.events.forEach(function(ev){
         if(ev.active)activeEvents.push(ev);else pastEvents.push(ev);
         totalCheckins+=(ev.participants||[]).length;
         totalRevenue+=(ev.revenue||0);
+        if(ev.modules){Object.keys(ev.modules).forEach(function(k){if(ev.modules[k])totalModules++})}
       });
     }
     if(activeEvents.length>0){
@@ -3868,39 +4141,63 @@ async function showEventsScreen(){
     if($('opActiveEventsCount'))$('opActiveEventsCount').textContent=activeEvents.length;
     if($('opTotalCheckinsCount'))$('opTotalCheckinsCount').textContent=totalCheckins;
     if($('opTotalRevenue'))$('opTotalRevenue').textContent=formatPrice(totalRevenue);
+    if($('opTotalModulesCount'))$('opTotalModulesCount').textContent=totalModules;
   }catch(e){$('opEventList').innerHTML='<div style="color:var(--pk);text-align:center;font-size:.7rem">Erro ao carregar eventos</div>'}
 }
 
 function buildEventCard(ev){
-  const card=document.createElement('div');
+  var card=document.createElement('div');
   card.className='op-event-card'+(ev.active?' active':' ended');
-  const dt=new Date(ev.createdAt);
-  const dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
-  const pCount=(ev.participants||[]).length;
-  const statusHtml=ev.active?'<span class="op-event-status active">AO VIVO</span>':'<span class="op-event-status ended">Encerrado</span>';
-  const priceStr=ev.entryPrice>0?'R$'+ev.entryPrice.toFixed(2).replace('.',','):'Gratuito';
-  const revStr=ev.revenue>0?formatPrice(ev.revenue):'--';
-  
-  let statsHtml='<div class="op-event-stats">';
-  statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg> <b>'+pCount+'</b></div>';
-  if(ev.entryPrice>0)statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg> '+priceStr+'</div>';
-  if(ev.revenue>0)statsHtml+='<div class="op-event-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> <b>'+revStr+'</b></div>';
-  statsHtml+='</div>';
-  
-  let logoHtml='';
+  var dt=new Date(ev.createdAt);
+  var dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+  var pCount=(ev.participants||[]).length;
+  var statusHtml=ev.active?'<span class="op-event-status active"><span class="op-status-dot"></span>AO VIVO</span>':'<span class="op-event-status ended">Encerrado</span>';
+  var priceStr=ev.entryPrice>0?'R$'+ev.entryPrice.toFixed(2).replace('.',','):'Gratuito';
+  var revStr=ev.revenue>0?formatPrice(ev.revenue):'R$ 0';
+
+  // Build module tags
+  var modTags='';
+  var modMap={restaurant:{l:'Cardapio',c:'var(--mod-restaurant)'},parking:{l:'Parking',c:'var(--mod-parking)'},gym:{l:'Treinos',c:'var(--mod-gym)'},church:{l:'Igreja',c:'var(--mod-church)'},barber:{l:'Barbearia',c:'var(--mod-barber)'},dj:{l:'DJ',c:'#e879f9'},karaoke:{l:'Karaoke',c:'#38bdf8'},chaRevela:{l:'Cha Revelacao',c:'#fb7185'}};
+  var modCount=0;
+  if(ev.modules){
+    Object.keys(ev.modules).forEach(function(k){
+      if(ev.modules[k]&&modMap[k]){
+        modTags+='<span class="op-ev-mod-tag" style="--mc:'+modMap[k].c+'">'+modMap[k].l+'</span>';
+        modCount++;
+      }
+    });
+  }
+  if(!modTags)modTags='<span style="font-size:.6rem;color:var(--t3)">Sem modulos</span>';
+
+  var logoHtml='';
   if(ev.eventLogo){
     logoHtml='<div class="op-event-logo"><img src="'+ev.eventLogo+'" alt="Logo"></div>';
   }else{
-    logoHtml='<div class="op-event-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2"/></svg></div>';
+    var typeIcon='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2"/></svg>';
+    if(ev.serviceLabel==='balada')typeIcon='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ac2)" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+    else if(ev.serviceLabel==='restaurante'||ev.serviceLabel==='pizzaria'||ev.serviceLabel==='cafe'||ev.serviceLabel==='sorveteria')typeIcon='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--mod-restaurant)" stroke-width="1.5"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><path d="M6 1v3M10 1v3M14 1v3"/></svg>';
+    else if(ev.serviceLabel==='parking')typeIcon='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--mod-parking)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 17V7h4a3 3 0 110 6H9"/></svg>';
+    else if(ev.serviceLabel==='gym')typeIcon='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--mod-gym)" stroke-width="1.5"><path d="M6.5 6.5h11M6.5 17.5h11"/><path d="M4 10v4M20 10v4M2 11v2M22 11v2"/><path d="M4 10h2v4H4zM18 10h2v4h-2z"/></svg>';
+    logoHtml='<div class="op-event-logo">'+typeIcon+'</div>';
   }
-  
-  let actionBtn='';
+
+  var statsRow='<div class="op-ev-metrics">'
+    +'<div class="op-ev-metric"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg><span>'+pCount+'</span></div>'
+    +'<div class="op-ev-metric-sep"></div>'
+    +'<div class="op-ev-metric"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg><span>'+priceStr+'</span></div>'
+    +'<div class="op-ev-metric-sep"></div>'
+    +'<div class="op-ev-metric op-ev-metric-rev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><span>'+revStr+'</span></div>'
+    +'</div>';
+
+  var actionBtn='';
   if(ev.active){
-    card.onclick=()=>opSelectEvent(ev.id,ev.name);
+    card.onclick=function(){opSelectEvent(ev.id,ev.name)};
+    actionBtn='<div class="op-ev-card-footer"><div class="op-ev-mod-tags">'+modTags+'</div><div class="op-ev-enter-hint">Abrir <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div></div>';
   }else{
-    actionBtn='<button onclick="opReopenEvent(\''+ev.id+'\',\''+esc(ev.name)+'\');event.stopPropagation()" style="padding:.4rem .8rem;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.3);border-radius:8px;color:#34d399;font-size:.65rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s">Reabrir</button>';
+    actionBtn='<div class="op-ev-card-footer"><div class="op-ev-mod-tags">'+modTags+'</div><button onclick="opReopenEvent(\''+ev.id+'\',\''+esc(ev.name)+'\');event.stopPropagation()" class="op-ev-reopen-btn">Reabrir</button></div>';
   }
-  card.innerHTML='<div class="op-event-logo-area">'+logoHtml+'<div class="op-event-info"><div class="op-event-card-top"><div class="op-event-name">'+esc(ev.name)+'</div>'+statusHtml+'</div><div class="op-event-meta"><span>'+dateStr+'</span>'+(ev.serviceLabel?'<span>'+esc(ev.serviceLabel)+'</span>':'')+'</div></div></div>'+statsHtml+(actionBtn?'<div style="margin-top:.8rem">'+actionBtn+'</div>':'');
+
+  card.innerHTML='<div class="op-event-logo-area">'+logoHtml+'<div class="op-event-info"><div class="op-event-card-top"><div class="op-event-name">'+esc(ev.name)+'</div>'+statusHtml+'</div><div class="op-event-meta"><span>'+dateStr+'</span>'+(ev.serviceLabel?'<span class="op-ev-type-label">'+esc(ev.serviceLabel)+'</span>':'')+'</div></div></div>'+statsRow+actionBtn;
   return card;
 }
 function toggleHistory(){
