@@ -7650,11 +7650,175 @@ app.get('/api/nearby/:userId', (req, res) => {
     if (dist <= radius) {
       const u = db.users[uid];
       if (!u) continue;
-      nearby.push({ id: uid, nickname: u.nickname || u.name, color: u.color, score: calcScore(uid), stars: (u.stars || []).length, distance: Math.round(dist), verified: !!u.verified });
+      nearby.push({ id: uid, nickname: u.nickname || u.name, color: u.color, score: calcScore(uid), stars: (u.stars || []).length, distance: Math.round(dist), verified: !!u.verified, profilePhoto: u.profilePhoto || null });
     }
   }
   nearby.sort((a, b) => a.distance - b.distance);
   res.json(nearby);
+});
+
+// ═══ CONNECTION REQUESTS (Explorar ao redor) ═══
+// In-memory store for pending connection requests (no need to persist)
+const connectionRequests = new Map(); // requestId -> { fromId, toId, fromNick, fromColor, fromPhoto, createdAt, status }
+
+app.post('/api/connection-request/send', (req, res) => {
+  const { fromId, toId } = req.body;
+  if (!fromId || !toId) return res.status(400).json({ error: 'IDs obrigatorios.' });
+  if (fromId === toId) return res.status(400).json({ error: 'Voce nao pode se conectar consigo mesmo.' });
+  const fromUser = db.users[fromId];
+  const toUser = db.users[toId];
+  if (!fromUser) return res.status(400).json({ error: 'Usuario remetente invalido.' });
+  if (!toUser) return res.status(400).json({ error: 'Usuario destinatario invalido.' });
+
+  // Check if there is already a pending request between these two
+  for (const [rid, rq] of connectionRequests) {
+    if (rq.status === 'pending' && rq.fromId === fromId && rq.toId === toId) {
+      return res.status(409).json({ error: 'Voce ja enviou um pedido para esta pessoa.' });
+    }
+    if (rq.status === 'pending' && rq.fromId === toId && rq.toId === fromId) {
+      return res.status(409).json({ error: 'Esta pessoa ja te enviou um pedido! Verifique suas notificacoes.' });
+    }
+  }
+
+  // Check if already connected (active relation)
+  const existing = findActiveRelation(fromId, toId);
+  if (existing) return res.status(409).json({ error: 'Voces ja estao conectados!' });
+
+  const requestId = uuidv4();
+  const now = Date.now();
+  const request = {
+    id: requestId,
+    fromId,
+    toId,
+    fromNick: fromUser.nickname || fromUser.name || '?',
+    fromColor: fromUser.color || '#6366f1',
+    fromPhoto: fromUser.profilePhoto || null,
+    fromScore: calcScore(fromId),
+    fromStars: (fromUser.stars || []).length,
+    toNick: toUser.nickname || toUser.name || '?',
+    toColor: toUser.color || '#6366f1',
+    toPhoto: toUser.profilePhoto || null,
+    createdAt: now,
+    status: 'pending' // pending, accepted, rejected, expired
+  };
+  connectionRequests.set(requestId, request);
+
+  // Auto-expire after 2 minutes
+  setTimeout(() => {
+    const rq = connectionRequests.get(requestId);
+    if (rq && rq.status === 'pending') {
+      rq.status = 'expired';
+      io.to('user:' + fromId).emit('connection-request-expired', { requestId });
+      io.to('user:' + toId).emit('connection-request-expired', { requestId });
+      connectionRequests.delete(requestId);
+    }
+  }, 120000);
+
+  // Send socket event to the target user
+  io.to('user:' + toId).emit('connection-request-incoming', {
+    requestId,
+    fromId,
+    fromNick: request.fromNick,
+    fromColor: request.fromColor,
+    fromPhoto: request.fromPhoto,
+    fromScore: request.fromScore,
+    fromStars: request.fromStars
+  });
+
+  // Confirm to sender
+  io.to('user:' + fromId).emit('connection-request-sent', { requestId, toId, toNick: request.toNick });
+
+  res.json({ requestId, status: 'pending' });
+});
+
+app.post('/api/connection-request/respond', (req, res) => {
+  const { requestId, userId, action } = req.body; // action: 'accept' or 'reject'
+  if (!requestId || !userId || !action) return res.status(400).json({ error: 'Dados incompletos.' });
+  const rq = connectionRequests.get(requestId);
+  if (!rq) return res.status(404).json({ error: 'Pedido nao encontrado ou expirado.' });
+  if (rq.toId !== userId) return res.status(403).json({ error: 'Voce nao pode responder a este pedido.' });
+  if (rq.status !== 'pending') return res.status(400).json({ error: 'Este pedido ja foi respondido.' });
+
+  if (action === 'reject') {
+    rq.status = 'rejected';
+    io.to('user:' + rq.fromId).emit('connection-request-rejected', { requestId, byNick: rq.toNick });
+    connectionRequests.delete(requestId);
+    return res.json({ status: 'rejected' });
+  }
+
+  if (action === 'accept') {
+    rq.status = 'accepted';
+    const fromUser = db.users[rq.fromId];
+    const toUser = db.users[rq.toId];
+    if (!fromUser || !toUser) return res.status(400).json({ error: 'Usuario invalido.' });
+
+    // Create the connection (same logic as session/join but for location-based)
+    const now = Date.now();
+    const existing = findActiveRelation(rq.fromId, rq.toId);
+    const userALang = getUserLang(rq.fromId);
+    let relationId, phrase, expiresAt;
+
+    if (existing) {
+      existing.expiresAt = now + 86400000;
+      existing.phrase = smartPhrase(rq.fromId, rq.toId, userALang);
+      existing.renewed = (existing.renewed || 0) + 1;
+      existing.provocations = {};
+      relationId = existing.id; phrase = existing.phrase; expiresAt = existing.expiresAt;
+    } else {
+      phrase = smartPhrase(rq.fromId, rq.toId, userALang);
+      relationId = uuidv4();
+      db.relations[relationId] = { id: relationId, userA: rq.fromId, userB: rq.toId, phrase, createdAt: now, expiresAt: now + 86400000, provocations: {}, renewed: 0, selfie: null };
+      idxAddRelation(relationId, rq.fromId, rq.toId);
+      db.messages[relationId] = [];
+      expiresAt = now + 86400000;
+    }
+
+    // Record encounters
+    const date = new Date(now).toISOString().slice(0, 10);
+    if (!db.encounters[rq.fromId]) db.encounters[rq.fromId] = [];
+    db.encounters[rq.fromId].push({ with: rq.toId, withName: rq.toNick, withColor: rq.toColor, phrase, timestamp: now, date, type: 'nearby', points: 1, chatDurationH: 24, relationId });
+    if (db.encounters[rq.fromId].length > 1000) db.encounters[rq.fromId] = db.encounters[rq.fromId].slice(-1000);
+
+    if (!db.encounters[rq.toId]) db.encounters[rq.toId] = [];
+    db.encounters[rq.toId].push({ with: rq.fromId, withName: rq.fromNick, withColor: rq.fromColor, phrase, timestamp: now, date, type: 'nearby', points: 1, chatDurationH: 24, relationId });
+    if (db.encounters[rq.toId].length > 1000) db.encounters[rq.toId] = db.encounters[rq.toId].slice(-1000);
+
+    awardPoints(rq.fromId, rq.toId, 'physical');
+    awardPoints(rq.toId, rq.fromId, 'physical');
+
+    saveDB('relations', 'messages', 'encounters');
+
+    const responseData = {
+      relationId, phrase, expiresAt,
+      partnerNickname: rq.toNick, partnerColor: rq.toColor, partnerPhoto: rq.toPhoto,
+      partnerId: rq.toId, revealedName: null
+    };
+    const responseDataB = {
+      relationId, phrase, expiresAt,
+      partnerNickname: rq.fromNick, partnerColor: rq.fromColor, partnerPhoto: rq.fromPhoto,
+      partnerId: rq.fromId, revealedName: null
+    };
+
+    io.to('user:' + rq.fromId).emit('connection-request-accepted', { requestId, relationData: responseData });
+    io.to('user:' + rq.toId).emit('connection-request-accepted', { requestId, relationData: responseDataB });
+
+    connectionRequests.delete(requestId);
+    return res.json({ status: 'accepted', relationId, phrase });
+  }
+
+  res.status(400).json({ error: 'Acao invalida. Use accept ou reject.' });
+});
+
+// Get pending incoming requests for a user
+app.get('/api/connection-request/pending/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const pending = [];
+  for (const [rid, rq] of connectionRequests) {
+    if (rq.toId === userId && rq.status === 'pending') {
+      pending.push({ requestId: rq.id, fromId: rq.fromId, fromNick: rq.fromNick, fromColor: rq.fromColor, fromPhoto: rq.fromPhoto, fromScore: rq.fromScore, fromStars: rq.fromStars, createdAt: rq.createdAt });
+    }
+  }
+  res.json(pending);
 });
 
 // Create event (physical location with digital meeting point)
