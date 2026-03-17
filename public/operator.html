@@ -2784,9 +2784,6 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
       <div style="font-size:1.2rem;font-weight:800;color:var(--t1);margin-bottom:.2rem">COMPROVANTE</div>
       <div style="font-size:.65rem;color:var(--t3);margin-bottom:.8rem" id="parkReceiptEventName">Estacionamento</div>
       <div style="border-top:1px dashed var(--b2);border-bottom:1px dashed var(--b2);padding:.6rem 0;margin-bottom:.6rem" id="parkReceiptBody"></div>
-      <div style="display:flex;gap:.3rem;justify-content:center">
-        <button class="mod-btn primary" onclick="closeParkReceipt()">Fechar</button>
-      </div>
     </div>
   </div>
 
@@ -8029,17 +8026,32 @@ function showParkReceipt(vehicle,hours,amount){
     '</div>';
   $('parkReceiptBg').style.display='flex';
 }
-async function parkConfirmManualPayment(plate,amount){
+function parkConfirmManualPayment(plate,amount){
+  if(!S.currentEventId)return;
+  // Show payment method selector modal instead of blocking prompt()
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.innerHTML='<div style="background:#1a1a2e;border:1px solid rgba(59,130,246,.3);border-radius:16px;padding:1.5rem;max-width:300px;width:100%;text-align:center">'
+    +'<div style="font-size:.85rem;font-weight:700;color:#fff;margin-bottom:.3rem">Confirmar Pagamento</div>'
+    +'<div style="font-size:.65rem;color:#888;margin-bottom:1rem">'+esc(plate)+' - R$ '+(amount||0).toFixed(2).replace('.',',')+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:.4rem">'
+    +'<button onclick="parkDoManualPayment(\''+esc(plate)+'\','+amount+',\'dinheiro\',this.closest(\'div[style*=fixed]\')" style="padding:.6rem;background:rgba(34,211,160,.15);border:1px solid rgba(34,211,160,.3);border-radius:10px;color:#2dd4a0;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">Dinheiro</button>'
+    +'<button onclick="parkDoManualPayment(\''+esc(plate)+'\','+amount+',\'pix\',this.closest(\'div[style*=fixed]\')" style="padding:.6rem;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:10px;color:#3b82f6;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">Pix</button>'
+    +'<button onclick="parkDoManualPayment(\''+esc(plate)+'\','+amount+',\'cartao\',this.closest(\'div[style*=fixed]\')" style="padding:.6rem;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.3);border-radius:10px;color:#a855f7;font-weight:600;font-size:.75rem;cursor:pointer;font-family:inherit">Cartao</button>'
+    +'<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:.5rem;background:none;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#888;font-size:.65rem;cursor:pointer;font-family:inherit;margin-top:.2rem">Cancelar</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+}
+async function parkDoManualPayment(plate,amount,method,overlay){
+  if(overlay)overlay.remove();
   if(!S.currentEventId)return;
   try{
-    var method=prompt('Forma de pagamento (dinheiro, pix, cartao):','dinheiro');
-    if(!method)return;
     var r=await fetch('/api/operator/event/'+S.currentEventId+'/parking/manual-payment',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({plate:plate,amount:amount,method:method})
     });
     var d=await r.json();
-    if(d.ok){showToast('Pagamento confirmado!');closeParkReceipt();loadParkVehicles();loadParkHistory()}
+    if(d.ok){showToast('Pagamento confirmado ('+method+')!');closeParkReceipt();loadParkVehicles();loadParkHistory()}
     else showToast(d.error||'Erro');
   }catch(e){showToast('Erro ao confirmar pagamento')}
 }
