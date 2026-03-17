@@ -3439,12 +3439,20 @@ app.post('/api/session/join', (req, res) => {
     const opUser = db.users[sessionOperatorId];
     const revealEntry = isRevealedTo(userId, opUser, sessionEventId);
     const visRevealed = !!revealEntry;
+    const sessionEventObj = sessionEventId ? db.operatorEvents[sessionEventId] : null;
     io.to(`user:${sessionOperatorId}`).emit('checkin-created', {
       userId, nickname: userB.nickname || userB.name, color: userB.color,
       profilePhoto: userB.profilePhoto || userB.photoURL || null,
       timestamp: now, relationId,
       revealed: visRevealed, revealData: visRevealed ? revealEntry : null,
-      eventId: sessionEventId || null
+      eventId: sessionEventId || null,
+      stars: (userB.stars || []).length,
+      topTag: userB.topTag || null,
+      score: calcScore(userId),
+      entryStatus: (sessionEventObj && sessionEventObj.attendees && sessionEventObj.attendees[userId]) ? (sessionEventObj.attendees[userId].entryStatus || null) : null,
+      entryPrice: sessionEventObj ? (sessionEventObj.entryPrice || 0) : 0,
+      welcomePhrase: sessionEventObj ? (sessionEventObj.welcomePhrase || '') : '',
+      eventVerified: !!(sessionEventObj && sessionEventObj.verified)
     });
   }
   // Broadcast to visitor's network: "fulano fez check-in em [Local]"
