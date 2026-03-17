@@ -356,15 +356,20 @@ async function downloadAudio(){
 }
 
 async function loadTemplates(){
+  console.log('[materials] loading templates...');
   try{
     var r=await fetch('/api/operator/materials/templates');
+    console.log('[materials] response status:',r.status);
     if(!r.ok)throw new Error('HTTP '+r.status);
-    templates=await r.json();
-    if(!templates||!templates.length)throw new Error('empty');
+    var text=await r.text();
+    console.log('[materials] response body:',text.substring(0,200));
+    templates=JSON.parse(text);
+    if(!templates||!templates.length)throw new Error('empty response');
+    console.log('[materials] loaded',templates.length,'templates');
     renderTemplates();
   }catch(e){
-    console.error('Templates load error:',e);
-    $('tplGrid').innerHTML='<div style="grid-column:1/-1" class="error-box"><p>'+T[lang].err_tpl+'</p><button class="btn btn-secondary btn-sm" onclick="loadTemplates()">'+T[lang].retry+'</button></div>';
+    console.error('[materials] Templates load error:',e);
+    $('tplGrid').innerHTML='<div style="grid-column:1/-1" class="error-box"><p>'+(T[lang]||T.pt).err_tpl+'</p><p style="font-size:.6rem;color:var(--t3);margin-top:.3rem">'+e.message+'</p><button class="btn btn-secondary btn-sm" onclick="loadTemplates()" style="margin-top:.5rem">'+(T[lang]||T.pt).retry+'</button></div>';
   }
 }
 
