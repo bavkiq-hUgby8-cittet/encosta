@@ -8885,6 +8885,14 @@ function createSonicConnection(userIdA, userIdB) {
     // Notify event room so phone users see new attendee
     if (eventId) {
       io.to('event:' + eventId).emit('event-attendee-joined', checkinData);
+      // Notify TV displays
+      io.to('tv:' + eventId).emit('tv-checkin', {
+        nickname: checkinData.nickname,
+        color: checkinData.color,
+        score: checkinData.score,
+        stars: checkinData.stars,
+        timestamp: Date.now()
+      });
       // Join visitor to event room
       const visitorSockets = io.sockets.adapter.rooms.get(`user:${visitorId}`);
       if (visitorSockets) {
@@ -10049,6 +10057,31 @@ io.on('connection', (socket) => {
     socket.join('event:' + eventId);
   });
 
+  // TV Mode: TV joins pairing room and event room
+  socket.on('tv-register', (data) => {
+    if (!data) return;
+    // Join pairing code room to receive tv-paired event
+    if (data.code && typeof data.code === 'string') {
+      socket.join('tv-pair:' + data.code);
+    }
+    // If already paired, join event room directly
+    if (data.eventId && typeof data.eventId === 'string') {
+      if (db.operatorEvents[data.eventId]) {
+        socket.join('tv:' + data.eventId);
+        socket.join('event:' + data.eventId);
+        socket.tvEventId = data.eventId;
+      }
+    }
+  });
+
+  socket.on('tv-join-event', (eventId) => {
+    if (!eventId || typeof eventId !== 'string') return;
+    if (!db.operatorEvents[eventId]) return;
+    socket.join('tv:' + eventId);
+    socket.join('event:' + eventId);
+    socket.tvEventId = eventId;
+  });
+
   // Mural rooms
   // Mural: join = usuario esta VENDO este canal agora
   // Entra em 2 rooms: mural:X (broadcast de posts) e mural-view:X (presenca/online)
@@ -10739,6 +10772,19 @@ function handlePaymentResult(result, payerId, receiverId, amount, fee, res) {
   saveDB('tips', 'users', 'encounters');
   // Notify receiver via socket
   io.to(`user:${receiverId}`).emit('tip-received', { amount, tipId, from: db.users[payerId]?.nickname || '?', status: result.status });
+  // Notify TV displays for any event the receiver is in
+  if (result.status === 'approved' || result.status === 'pending') {
+    for (const [evId, ev] of Object.entries(db.operatorEvents || {})) {
+      if (ev.creatorId === receiverId || (ev.attendees && ev.attendees[receiverId])) {
+        io.to('tv:' + evId).emit('tv-tip', {
+          nickname: db.users[payerId]?.nickname || '?',
+          amount,
+          timestamp: Date.now()
+        });
+        break;
+      }
+    }
+  }
   res.json({ status: result.status, tipId, statusDetail: result.status_detail });
 }
 
@@ -20817,6 +20863,196 @@ console.log('[RADIO] Radio Touch engine loaded');
 
 // ══════════════════════════════════════════════════════════════
 // DJ LIVE / TOUCH? LIVE ENGINE
+// ══════════════════════════════════════════════════════════════
+// ═══ TV MODE (Smart TV Display) ═══
+// ══════════════════════════════════════════════════════════════
+
+// In-memory store for TV pairing codes
+const tvPairCodes = {};
+// { code: { eventId, userId, createdAt, paired } }
+
+// Route: TV display page
+app.get('/tv', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tv.html')));
+app.get('/tv/pair', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tv.html')));
+
+// POST /api/tv/generate-code -- TV generates a 6-digit pairing code
+app.post('/api/tv/generate-code', (req, res) => {
+  // Generate random 6-digit code
+  let code;
+  let attempts = 0;
+  do {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+    attempts++;
+  } while (tvPairCodes[code] && attempts < 50);
+
+  if (attempts >= 50) return res.status(500).json({ error: 'Could not generate unique code' });
+
+  tvPairCodes[code] = { eventId: null, userId: null, createdAt: Date.now(), paired: false };
+
+  // Auto-expire after 5 minutes
+  setTimeout(() => { delete tvPairCodes[code]; }, 5 * 60 * 1000);
+
+  console.log('[tv] pairing code generated:', code);
+  res.json({ ok: true, code });
+});
+
+// POST /api/tv/pair -- mobile sends eventId + userId to pair with TV
+app.post('/api/tv/pair', express.json(), (req, res) => {
+  const { code, eventId, userId } = req.body;
+  if (!code || !eventId) return res.status(400).json({ error: 'code and eventId required' });
+
+  const entry = tvPairCodes[code];
+  if (!entry) return res.status(404).json({ error: 'Code expired or invalid' });
+  if (entry.paired) return res.status(409).json({ error: 'Code already used' });
+
+  const ev = db.operatorEvents[eventId];
+  if (!ev) return res.status(404).json({ error: 'Event not found' });
+
+  entry.eventId = eventId;
+  entry.userId = userId || null;
+  entry.paired = true;
+
+  // Emit to TV socket waiting on this code
+  io.to('tv-pair:' + code).emit('tv-paired', {
+    eventId,
+    eventName: ev.name || 'Evento',
+    eventLogo: proxyStorageUrl(ev.eventLogo || null)
+  });
+
+  console.log('[tv] paired code:', code, 'to event:', eventId);
+  res.json({ ok: true, eventName: ev.name });
+});
+
+// GET /api/tv/status/:code -- TV polls to check if code was paired
+app.get('/api/tv/status/:code', (req, res) => {
+  const entry = tvPairCodes[req.params.code];
+  if (!entry) return res.json({ paired: false, expired: true });
+  if (!entry.paired) return res.json({ paired: false, expired: false });
+
+  const ev = db.operatorEvents[entry.eventId];
+  res.json({
+    paired: true,
+    eventId: entry.eventId,
+    eventName: ev ? ev.name : 'Evento',
+    eventLogo: ev ? proxyStorageUrl(ev.eventLogo || null) : null
+  });
+});
+
+// GET /api/tv/feed/:eventId -- full data snapshot for TV display
+app.get('/api/tv/feed/:eventId', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Event not found' });
+
+  // Build attendee list with scores
+  const attendees = [];
+  const attendeeMap = ev.attendees || {};
+  for (const [uid, att] of Object.entries(attendeeMap)) {
+    const user = db.users[uid];
+    if (!user) continue;
+    attendees.push({
+      userId: uid,
+      nickname: user.nickname || user.name || '?',
+      color: user.color || '#ff6b35',
+      profilePhoto: user.profilePhoto || user.photoURL || null,
+      score: calcScore(uid),
+      stars: (user.stars || []).length,
+      timestamp: att.joinedAt || att.timestamp || Date.now()
+    });
+  }
+
+  // Sort by score descending for ranking
+  const ranking = [...attendees].sort((a, b) => b.score - a.score).slice(0, 10);
+
+  // Recent activity feed (last 20 events)
+  const feed = [];
+
+  // Add recent checkins
+  for (const a of attendees) {
+    feed.push({
+      type: 'checkin',
+      nickname: a.nickname,
+      color: a.color,
+      timestamp: a.timestamp,
+      text: a.nickname + ' just arrived!'
+    });
+  }
+
+  // Add recent tips for this event's operator
+  if (ev.creatorId) {
+    const opTips = db.tips ? Object.values(db.tips).filter(t =>
+      t.receiverId === ev.creatorId && t.status !== 'rejected' &&
+      (Date.now() - (t.createdAt || 0)) < 24 * 60 * 60 * 1000
+    ) : [];
+    for (const t of opTips) {
+      const payer = db.users[t.payerId];
+      feed.push({
+        type: 'tip',
+        nickname: payer ? (payer.nickname || payer.name || '?') : '?',
+        amount: t.amount,
+        timestamp: t.createdAt || Date.now(),
+        text: (payer ? payer.nickname : 'Someone') + ' tipped $' + (t.amount || 0).toFixed(2) + '!'
+      });
+    }
+  }
+
+  // Sort feed by timestamp descending, limit to 20
+  feed.sort((a, b) => b.timestamp - a.timestamp);
+  const recentFeed = feed.slice(0, 20);
+
+  // Karaoke data
+  const karaoke = ev.karaoke ? {
+    enabled: ev.karaoke.enabled,
+    currentSinger: ev.karaoke.currentSinger || null,
+    queue: (ev.karaoke.queue || []).slice(0, 10),
+    scores: ev.karaoke.scores || {}
+  } : { enabled: false };
+
+  // DJ data
+  const djLive = ev.djLive ? {
+    broadcasting: ev.djLive.broadcasting || false,
+    djName: ev.djLive.djName || ev.djLive.artistName || 'DJ',
+    color: ev.djLive.color || '#ff6b35',
+    bpm: ev.djLive.bpm || 128,
+    animation: ev.djLive.animation || 'pulse'
+  } : { broadcasting: false };
+
+  res.json({
+    eventId: req.params.eventId,
+    eventName: ev.name || 'Evento',
+    eventLogo: proxyStorageUrl(ev.eventLogo || null),
+    welcomePhrase: ev.welcomePhrase || '',
+    active: ev.active !== false,
+    attendeeCount: Object.keys(attendeeMap).length,
+    ranking,
+    feed: recentFeed,
+    karaoke,
+    djLive,
+    modules: {
+      karaoke: !!(ev.modules && ev.modules.karaoke),
+      restaurant: !!(ev.modules && ev.modules.restaurant),
+      parking: !!(ev.modules && ev.modules.parking),
+      barber: !!(ev.modules && ev.modules.barber)
+    }
+  });
+});
+
+// GET /api/operator/events-for-tv/:userId -- list active events for pairing
+app.get('/api/operator/events-for-tv/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const events = [];
+  for (const [eid, ev] of Object.entries(db.operatorEvents || {})) {
+    if (ev.creatorId === userId && ev.active !== false) {
+      events.push({
+        id: eid,
+        name: ev.name || 'Evento',
+        eventLogo: proxyStorageUrl(ev.eventLogo || null),
+        attendeeCount: Object.keys(ev.attendees || {}).length
+      });
+    }
+  }
+  res.json({ events });
+});
+
 // ══════════════════════════════════════════════════════════════
 
 // In-memory store for DJ live sessions

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>Touch? TV</title>
+<style>
+/* ===========================================
+   Touch? TV Mode - Optimized for Smart TVs
+   No heavy animations, no blur, no canvas
+   Target: 1920x1080, older smart TV browsers
+   =========================================== */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#050508;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+
+/* --- Pairing Screen --- */
+#pairScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;width:100vw;background:linear-gradient(135deg,#050508 0%,#0d0d1a 50%,#050508 100%)}
+#pairScreen .logo{font-size:72px;font-weight:800;letter-spacing:-2px;margin-bottom:20px}
+#pairScreen .logo span{color:#ff6b35}
+#pairScreen .subtitle{font-size:28px;color:#888;margin-bottom:60px}
+#qrContainer{background:#fff;padding:24px;border-radius:16px;margin-bottom:40px}
+#qrContainer canvas,#qrContainer img{display:block}
+#pairCode{font-size:48px;font-weight:700;letter-spacing:12px;color:#ff6b35;margin-bottom:20px}
+#pairHint{font-size:22px;color:#666}
+#pairExpiry{font-size:18px;color:#444;margin-top:12px}
+
+/* --- Main TV Display --- */
+#tvMain{display:none;width:100vw;height:100vh;position:relative;background:#050508}
+
+/* Header bar */
+.tv-header{position:absolute;top:0;left:0;right:0;height:80px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;background:rgba(10,10,18,0.95);z-index:10;border-bottom:1px solid rgba(255,107,53,0.15)}
+.tv-header .ev-name{font-size:32px;font-weight:700;letter-spacing:-0.5px}
+.tv-header .ev-count{font-size:24px;color:#ff6b35;font-weight:600}
+.tv-header .ev-count span{color:#888;font-weight:400;margin-right:8px}
+.tv-header .ev-logo{width:52px;height:52px;border-radius:12px;object-fit:cover;margin-right:16px}
+.tv-header .left{display:flex;align-items:center}
+
+/* Tab indicator */
+.tv-tabs{position:absolute;bottom:0;left:0;right:0;height:6px;display:flex;z-index:10}
+.tv-tab-dot{flex:1;background:rgba(255,255,255,0.08);transition:background 0.3s}
+.tv-tab-dot.active{background:#ff6b35}
+
+/* Tab navigation hint */
+.tv-nav-hint{position:absolute;bottom:16px;right:48px;font-size:16px;color:#444;z-index:10}
+
+/* Content area */
+.tv-content{position:absolute;top:80px;bottom:6px;left:0;right:0;overflow:hidden}
+.tv-slide{display:none;width:100%;height:100%;padding:48px}
+.tv-slide.active{display:flex}
+
+/* --- Aba 1: Welcome --- */
+.welcome-slide{flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.welcome-slide .ev-logo-big{width:180px;height:180px;border-radius:24px;object-fit:cover;margin-bottom:32px;border:3px solid rgba(255,107,53,0.3)}
+.welcome-slide .welcome-phrase{font-size:36px;font-weight:300;color:#ccc;margin-bottom:48px;max-width:900px;line-height:1.4}
+.welcome-slide .qr-checkin{background:#fff;padding:16px;border-radius:12px;margin-bottom:24px}
+.welcome-slide .qr-label{font-size:22px;color:#888;margin-bottom:8px}
+.welcome-slide .people-count{font-size:64px;font-weight:800;color:#ff6b35;margin-top:24px}
+.welcome-slide .people-label{font-size:22px;color:#666}
+
+/* --- Aba 2: Ranking --- */
+.ranking-slide{flex-direction:column;padding:48px 80px}
+.ranking-slide h2{font-size:40px;font-weight:700;margin-bottom:32px;color:#ff6b35}
+.ranking-list{flex:1;display:flex;flex-direction:column;gap:8px}
+.ranking-item{display:flex;align-items:center;padding:16px 24px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);transition:background 0.3s}
+.ranking-item.top3{background:rgba(255,107,53,0.08);border-color:rgba(255,107,53,0.15)}
+.ranking-pos{font-size:36px;font-weight:800;width:60px;text-align:center;color:#ff6b35}
+.ranking-item:nth-child(1) .ranking-pos{color:#ffd700}
+.ranking-item:nth-child(2) .ranking-pos{color:#c0c0c0}
+.ranking-item:nth-child(3) .ranking-pos{color:#cd7f32}
+.ranking-avatar{width:48px;height:48px;border-radius:50%;margin:0 20px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;flex-shrink:0}
+.ranking-nick{font-size:28px;font-weight:600;flex:1}
+.ranking-score{font-size:28px;font-weight:700;color:#ff6b35;margin-right:24px}
+.ranking-stars{font-size:22px;color:#ffd700}
+.ranking-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:28px;color:#444}
+
+/* --- Aba 3: Feed --- */
+.feed-slide{flex-direction:column;padding:48px 80px}
+.feed-slide h2{font-size:40px;font-weight:700;margin-bottom:32px;color:#ff6b35}
+.feed-list{flex:1;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.feed-item{display:flex;align-items:center;padding:20px 24px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);opacity:0;transform:translateY(20px);animation:feedIn 0.4s forwards}
+@keyframes feedIn{to{opacity:1;transform:translateY(0)}}
+.feed-icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:20px;flex-shrink:0;font-size:20px}
+.feed-icon.checkin{background:rgba(16,185,129,0.15);color:#10b981}
+.feed-icon.tip{background:rgba(255,107,53,0.15);color:#ff6b35}
+.feed-icon.star{background:rgba(255,215,0,0.15);color:#ffd700}
+.feed-text{font-size:26px;flex:1}
+.feed-text strong{color:#fff;font-weight:600}
+.feed-time{font-size:18px;color:#555;margin-left:16px;flex-shrink:0}
+.feed-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:28px;color:#444}
+
+/* --- Aba 4: Karaoke --- */
+.karaoke-slide{flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.karaoke-slide h2{font-size:40px;font-weight:700;margin-bottom:16px;color:#ec4899}
+.karaoke-now{font-size:48px;font-weight:800;margin-bottom:8px}
+.karaoke-song{font-size:32px;color:#ccc;margin-bottom:48px}
+.karaoke-queue-title{font-size:24px;color:#888;margin-bottom:16px}
+.karaoke-queue{display:flex;flex-direction:column;gap:8px;width:600px}
+.karaoke-queue-item{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-radius:8px;background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.15);font-size:24px}
+.karaoke-queue-pos{font-weight:700;color:#ec4899;margin-right:16px}
+.karaoke-scores{margin-top:32px;display:flex;gap:24px}
+.karaoke-score-card{padding:16px 24px;border-radius:12px;background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.15)}
+.karaoke-score-nick{font-size:22px;font-weight:600}
+.karaoke-score-pts{font-size:28px;font-weight:800;color:#ec4899}
+
+/* --- Aba 5: DJ Live --- */
+.dj-slide{flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.dj-name{font-size:64px;font-weight:800;margin-bottom:16px}
+.dj-bpm{font-size:36px;font-weight:300;margin-bottom:48px}
+.dj-bpm strong{font-weight:700}
+.dj-wave{display:flex;align-items:flex-end;gap:4px;height:120px;margin-bottom:32px}
+.dj-bar{width:6px;border-radius:3px;background:currentColor;animation:djPulse 0.8s ease-in-out infinite alternate}
+@keyframes djPulse{0%{height:20%}100%{height:100%}}
+
+/* --- Utility --- */
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ============ PAIRING SCREEN ============ -->
+<div id="pairScreen">
+  <div class="logo">Touch<span>?</span></div>
+  <div class="subtitle">TV Display Mode</div>
+  <div id="qrContainer"></div>
+  <div id="pairCode">------</div>
+  <div id="pairHint">Scan this QR code with your phone to connect a event</div>
+  <div id="pairExpiry"></div>
+</div>
+
+<!-- ============ MAIN TV DISPLAY ============ -->
+<div id="tvMain">
+  <!-- Header -->
+  <div class="tv-header">
+    <div class="left">
+      <img class="ev-logo hidden" id="tvEvLogo" src="" alt="">
+      <div class="ev-name" id="tvEvName">Event</div>
+    </div>
+    <div class="ev-count"><span>People here:</span> <b id="tvPeopleCount">0</b></div>
+  </div>
+
+  <!-- Content slides -->
+  <div class="tv-content">
+    <!-- Slide 0: Welcome -->
+    <div class="tv-slide welcome-slide active" data-slide="0">
+      <img class="ev-logo-big hidden" id="tvWelcomeLogo" src="" alt="">
+      <div class="welcome-phrase" id="tvWelcomePhrase">Welcome!</div>
+      <div class="qr-label">Scan to join</div>
+      <div class="qr-checkin" id="tvCheckinQR"></div>
+      <div class="people-count" id="tvWelcomeCount">0</div>
+      <div class="people-label">people here</div>
+    </div>
+
+    <!-- Slide 1: Ranking -->
+    <div class="tv-slide ranking-slide" data-slide="1">
+      <h2>Live Ranking</h2>
+      <div class="ranking-list" id="tvRanking">
+        <div class="ranking-empty">No activity yet</div>
+      </div>
+    </div>
+
+    <!-- Slide 2: Feed -->
+    <div class="tv-slide feed-slide" data-slide="2">
+      <h2>Live Activity</h2>
+      <div class="feed-list" id="tvFeed">
+        <div class="feed-empty">Waiting for activity...</div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Karaoke -->
+    <div class="tv-slide karaoke-slide hidden" data-slide="3">
+      <h2>Karaoke Live</h2>
+      <div class="karaoke-now" id="tvKaraokeNow">--</div>
+      <div class="karaoke-song" id="tvKaraokeSong">Waiting for next singer...</div>
+      <div class="karaoke-queue-title">Up Next</div>
+      <div class="karaoke-queue" id="tvKaraokeQueue"></div>
+      <div class="karaoke-scores" id="tvKaraokeScores"></div>
+    </div>
+
+    <!-- Slide 4: DJ Live -->
+    <div class="tv-slide dj-slide hidden" data-slide="4">
+      <div class="dj-name" id="tvDjName">DJ</div>
+      <div class="dj-wave" id="tvDjWave"></div>
+      <div class="dj-bpm">BPM: <strong id="tvDjBpm">128</strong></div>
+    </div>
+  </div>
+
+  <!-- Tab dots -->
+  <div class="tv-tabs" id="tvTabs"></div>
+
+  <!-- Nav hint -->
+  <div class="tv-nav-hint" id="tvNavHint"></div>
+</div>
+
+<!-- QR Code library (lightweight, no dependencies) -->
+<script>
+// Minimal QR Code generator - qrcode-generator (MIT license)
+// Minified inline to avoid external dependency for TV
+var qrcode=function(){var t=function(t,e){var n=t,r=c[e],o=null,a=0,i=null,u=[],f={},l=function(t,e){o=function(t){for(var e=new Array(t),n=0;n<t;n++){e[n]=new Array(t);for(var r=0;r<t;r++)e[n][r]=null}return e}(a=4*n+17);s(0,0);s(a-7,0);s(0,a-7);h();d();p(t,e);n>=7&&g(t);null==i&&(i=v(n,r,u)),m(i,e)},s=function(t,e){for(var n=-1;n<=7;n++)if(!(t+n<=-1||a<=t+n))for(var r=-1;r<=7;r++)e+r<=-1||a<=e+r||(0<=n&&n<=6&&(0==r||6==r)||0<=r&&r<=6&&(0==n||6==n)||2<=n&&n<=4&&2<=r&&r<=4?o[t+n][e+r]=!0:o[t+n][e+r]=!1)},d=function(){for(var t=8;t<a-8;t++)null==o[t][6]&&(o[t][6]=t%2==0),null==o[6][t]&&(o[6][t]=t%2==0)},h=function(){for(var t=e.getPatternPosition(n),r=0;r<t.length;r++)for(var i=0;i<t.length;i++){if(null!=o[t[r]][t[i]])continue;for(var u=-2;u<=2;u++)for(var f=-2;f<=2;f++)-2==u||2==u||-2==f||2==f||0==u&&0==f?o[t[r]+u][t[i]+f]=!0:o[t[r]+u][t[i]+f]=!1}},g=function(t){for(var n=e.getBCHTypeNumber(this.typeNumber),r=0;r<18;r++){var i=!t&&1==(n>>r&1);o[Math.floor(r/3)][r%3+a-8-3]=i,o[r%3+a-8-3][Math.floor(r/3)]=i}},p=function(t,n){for(var r=e.getBCHTypeInfo(r=this.errorCorrectionLevel<<3|n),i=0;i<15;i++){var u=!t&&1==(r>>i&1);i<6?o[i][8]=u:i<8?o[i+1][8]=u:o[a-15+i][8]=u,i<8?o[8][a-i-1]=u:i<9?o[8][15-i-1+1]=u:o[8][15-i-1]=u}o[a-8][8]=!t},m=function(t,e){for(var n=-1,r=a-1,i=7,u=0,f=e.getMaskFunction(this.maskPattern),l=a-1;l>0;l-=2)for(6==l&&l--;;){for(var s=0;s<2;s++)if(null==o[r][l-s]){var c=!1;u<t.length&&(c=1==(t[u]>>>i&1)),f(r,l-s)&&(c=!c),o[r][l-s]=c,-1==--i&&(u++,i=7)}if((r+=n)<0||a<=r){r-=n,n=-n;break}}};f.addData=function(t){var e=new w(t);u.push(e),i=null},f.isDark=function(t,e){if(t<0||a<=t||e<0||a<=e)throw t+","+e;return o[t][e]},f.getModuleCount=function(){return a},f.make=function(){l.call(f,!1,function(){for(var t=0,n=0,o=0;o<8;o++){l.call(f,!0,o);var a=e.getLostPoint(f);(0==o||t>a)&&(t=a,n=o)}return n}.call(this))},f.createImgTag=function(t,e){t=t||2,e=void 0===e?4*t:e;var n=f.getModuleCount()*t+2*e,r='<canvas width="'+n+'" height="'+n+'"></canvas>';return r},f.renderTo2dContext=function(t,e){e=e||2;for(var n=f.getModuleCount(),r=0;r<n;r++)for(var o=0;o<n;o++)t.fillStyle=f.isDark(r,o)?"#000000":"#ffffff",t.fillRect(r*e,o*e,e,e)};return f};t.stringToBytes=function(t){for(var e=[],n=0;n<t.length;n++){var r=t.charCodeAt(n);e.push(255&r)}return e},t.createStringToBytes=function(t,e){};var e={getBCHTypeInfo:function(t){for(var e=t<<10;n(e)-n(1335)>=0;)e^=1335<<n(e)-n(1335);return 21522^(t<<10|e)},getBCHTypeNumber:function(t){for(var e=t<<12;n(e)-n(7973)>=0;)e^=7973<<n(e)-n(7973);return t<<12|e},getPatternPosition:function(t){return r[t-1]},getMaskFunction:function(t){switch(t){case 0:return function(t,e){return(t+e)%2==0};case 1:return function(t){return t%2==0};case 2:return function(t,e){return e%3==0};case 3:return function(t,e){return(t+e)%3==0};case 4:return function(t,e){return(Math.floor(t/2)+Math.floor(e/3))%2==0};case 5:return function(t,e){return t*e%2+t*e%3==0};case 6:return function(t,e){return(t*e%2+t*e%3)%2==0};case 7:return function(t,e){return(t*e%3+(t+e)%2)%2==0};default:throw"bad maskPattern:"+t}},getLostPoint:function(t){for(var e=t.getModuleCount(),n=0,r=0;r<e;r++)for(var o=0;o<e;o++){for(var a=0,i=r-1;i<=r+1;i++)if(!(i<0||e<=i))for(var u=o-1;u<=o+1;u++)u<0||e<=u||i==r&&u==o||(t.isDark(i,u)&&a++);a>5&&(n+=3+a-5)}for(r=0;r<e-1;r++)for(o=0;o<e-1;o++){var f=0;t.isDark(r,o)&&f++,t.isDark(r+1,o)&&f++,t.isDark(r,o+1)&&f++,t.isDark(r+1,o+1)&&f++,0!=f&&4!=f||(n+=3)}for(r=0;r<e;r++)for(o=0;o<e-6;o++)t.isDark(r,o)&&!t.isDark(r,o+1)&&t.isDark(r,o+2)&&t.isDark(r,o+3)&&t.isDark(r,o+4)&&!t.isDark(r,o+5)&&t.isDark(r,o+6)&&(n+=40);for(o=0;o<e;o++)for(r=0;r<e-6;r++)t.isDark(r,o)&&!t.isDark(r+1,o)&&t.isDark(r+2,o)&&t.isDark(r+3,o)&&t.isDark(r+4,o)&&!t.isDark(r+5,o)&&t.isDark(r+6,o)&&(n+=40);var l=0;for(o=0;o<e;o++)for(r=0;r<e;r++)t.isDark(r,o)&&l++;return n+=10*(Math.abs(100*l/e/e-50)/5)}};function n(t){for(var e=0;0!=t;)e++,t>>>=1;return e}var r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],c=[1,0,3,2];function o(t,e){this.totalCount=t,this.dataCount=e}o.RS_BLOCK_TABLE=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],o.getRSBlocks=function(t,e){var n=function(t,e){switch(e){case 0:return o.RS_BLOCK_TABLE[4*(t-1)];case 1:return o.RS_BLOCK_TABLE[4*(t-1)+1];case 2:return o.RS_BLOCK_TABLE[4*(t-1)+2];case 3:return o.RS_BLOCK_TABLE[4*(t-1)+3]}}(t,e);if(void 0==n)throw"bad rs block @ typeNumber:"+t+"/errorCorrectionLevel:"+e;for(var r=n.length/3,a=[],i=0;i<r;i++)for(var u=n[3*i],f=n[3*i+1],l=n[3*i+2],s=0;s<u;s++)a.push(new o(f,l));return a};var a=function(){var t=[],e=0;this.getBuffer=function(){return t},this.getAt=function(e){var n=Math.floor(e/8);return 1==(t[n]>>>7-e%8&1)},this.put=function(t,n){for(var r=0;r<n;r++)this.putBit(1==(t>>>n-r-1&1))},this.getLengthInBits=function(){return e},this.putBit=function(n){var r=Math.floor(e/8);t.length<=r&&t.push(0),n&&(t[r]|=128>>>e%8),e++}};function v(t,n,r){for(var i=1,u=0,f=0,l=o.getRSBlocks(t,n),s=new a,c=0;c<r.length;c++){var d=r[c];s.put(d.getMode(),4),s.put(d.getLength(),e.getLengthInBits(d.getMode(),t)),d.write(s)}for(c=0;c<l.length;c++)f+=l[c].dataCount;if(s.getLengthInBits()>8*f)throw"code length overflow. ("+s.getLengthInBits()+">"+8*f+")";for(s.getLengthInBits()+4<=8*f&&s.put(0,4);s.getLengthInBits()%8!=0;)s.putBit(!1);for(;!(s.getLengthInBits()>=8*f||(s.put(236,8),s.getLengthInBits()>=8*f));)s.put(17,8);return function(t,n){for(var r=0,a=0,i=0,u=new Array(n.length),f=new Array(n.length),l=0;l<n.length;l++){var s=n[l].dataCount,c=n[l].totalCount-s;a=Math.max(a,s),i=Math.max(i,c),u[l]=new Array(s);for(var d=0;d<u[l].length;d++)u[l][d]=255&t.getBuffer()[d+r];r+=s;var h=e.getErrorCorrectPolynomial(c),g=new p(u[l],h.getLength()-1).mod(h);f[l]=new Array(h.getLength()-1);for(d=0;d<f[l].length;d++){var v=d+g.getLength()-f[l].length;f[l][d]=v>=0?g.getAt(v):0}}var m=0;for(l=0;l<n.length;l++)m+=n[l].totalCount;var w=new Array(m),b=0;for(d=0;d<a;d++)for(l=0;l<n.length;l++)d<u[l].length&&(w[b++]=u[l][d]);for(d=0;d<i;d++)for(l=0;l<n.length;l++)d<f[l].length&&(w[b++]=f[l][d]);return w}(s,l)}var p=function(t,e){if(void 0==t.length)throw t.length+"/"+e;for(var n=0;n<t.length&&0==t[n];)n++;this.num=new Array(t.length-n+e);for(var r=0;r<t.length-n;r++)this.num[r]=t[r+n];this.getAt=function(t){return this.num[t]},this.getLength=function(){return this.num.length},this.multiply=function(t){for(var n=new Array(this.getLength()+t.getLength()-1),r=0;r<this.getLength();r++)for(var o=0;o<t.getLength();o++)n[r+o]^=e.gexp(e.glog(this.getAt(r))+e.glog(t.getAt(o)));return new p(n,0)},this.mod=function(t){if(this.getLength()-t.getLength()<0)return this;for(var n=e.glog(this.getAt(0))-e.glog(t.getAt(0)),r=new Array(this.getLength()),o=0;o<this.getLength();o++)r[o]=this.getAt(o);for(o=0;o<t.getLength();o++)r[o]^=e.gexp(e.glog(t.getAt(o))+n);return new p(r,0).mod(t)}};e.getErrorCorrectPolynomial=function(t){for(var n=new p([1],0),r=0;r<t;r++)n=n.multiply(new p([1,e.gexp(r)],0));return n},e.EXP_TABLE=new Array(256),e.LOG_TABLE=new Array(256),function(){for(var t=0;t<8;t++)e.EXP_TABLE[t]=1<<t;for(t=8;t<256;t++)e.EXP_TABLE[t]=e.EXP_TABLE[t-4]^e.EXP_TABLE[t-5]^e.EXP_TABLE[t-6]^e.EXP_TABLE[t-8];for(t=0;t<255;t++)e.LOG_TABLE[e.EXP_TABLE[t]]=t}(),e.glog=function(t){if(t<1)throw"glog("+t+")";return e.LOG_TABLE[t]},e.gexp=function(t){for(;t<0;)t+=255;for(;t>=256;)t-=255;return e.EXP_TABLE[t]},e.getLengthInBits=function(t,e){if(1<=e&&e<10)switch(t){case 4:return 8;case 2:return 9;case 1:return 10;default:throw"mode:"+t}else if(e<27)switch(t){case 4:return 16;case 2:return 11;case 1:return 13;default:throw"mode:"+t}else{if(!(e<41))throw"type:"+e;switch(t){case 4:return 16;case 2:return 13;case 1:return 17;default:throw"mode:"+t}}};var w=function(t){this.mode=4,this.data=t,this.getMode=function(){return this.mode},this.getLength=function(){return this.data.length},this.write=function(e){for(var n=0;n<this.data.length;n++)e.put(this.data.charCodeAt(n),8)}};return t}();
+// Helper to render QR to a container as canvas
+function renderQR(container, text, cellSize) {
+  cellSize = cellSize || 4;
+  var qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  var cnt = qr.getModuleCount();
+  var size = cnt * cellSize;
+  var cvs = document.createElement('canvas');
+  cvs.width = size;
+  cvs.height = size;
+  var ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  qr.renderTo2dContext(ctx, cellSize);
+  container.innerHTML = '';
+  container.appendChild(cvs);
+}
+</script>
+
+<!-- Socket.IO -->
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========================
+  // State
+  // ========================
+  var state = {
+    eventId: null,
+    eventName: '',
+    eventLogo: null,
+    welcomePhrase: '',
+    attendeeCount: 0,
+    ranking: [],
+    feed: [],
+    karaoke: { enabled: false },
+    djLive: { broadcasting: false },
+    modules: {},
+    currentSlide: 0,
+    slides: [],
+    autoRotate: true,
+    autoTimer: null,
+    pairCode: null,
+    socket: null
+  };
+
+  var ROTATE_INTERVAL = 20000; // 20 seconds per slide
+  var PAIR_CHECK_INTERVAL = 3000;
+  var FEED_MAX = 12;
+  var HOST = location.origin;
+
+  // ========================
+  // Init
+  // ========================
+  function init() {
+    // Check localStorage for saved eventId
+    var savedEvent = localStorage.getItem('tv_eventId');
+    if (savedEvent) {
+      // Try to reconnect directly
+      connectToEvent(savedEvent);
+    } else {
+      showPairingScreen();
+    }
+  }
+
+  // ========================
+  // Pairing
+  // ========================
+  function showPairingScreen() {
+    document.getElementById('pairScreen').style.display = 'flex';
+    document.getElementById('tvMain').style.display = 'none';
+    generatePairCode();
+  }
+
+  function generatePairCode() {
+    fetch(HOST + '/api/tv/generate-code', { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.ok) return;
+        state.pairCode = data.code;
+        document.getElementById('pairCode').textContent = data.code;
+
+        // Render QR code
+        var pairUrl = HOST + '/tv/pair?code=' + data.code;
+        renderQR(document.getElementById('qrContainer'), pairUrl, 6);
+
+        // Connect socket for pairing
+        if (!state.socket) {
+          state.socket = io(HOST, { transports: ['websocket', 'polling'] });
+        }
+        state.socket.emit('tv-register', { code: data.code });
+
+        // Listen for pairing
+        state.socket.on('tv-paired', function(d) {
+          if (d.eventId) {
+            localStorage.setItem('tv_eventId', d.eventId);
+            connectToEvent(d.eventId);
+          }
+        });
+
+        // Start expiry countdown
+        startExpiryTimer(5 * 60);
+      })
+      .catch(function() {
+        setTimeout(generatePairCode, 5000);
+      });
+  }
+
+  var expiryInterval = null;
+  function startExpiryTimer(seconds) {
+    if (expiryInterval) clearInterval(expiryInterval);
+    var remaining = seconds;
+    var el = document.getElementById('pairExpiry');
+    expiryInterval = setInterval(function() {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(expiryInterval);
+        el.textContent = 'Code expired. Generating new one...';
+        generatePairCode();
+        return;
+      }
+      var m = Math.floor(remaining / 60);
+      var s = remaining % 60;
+      el.textContent = 'Expires in ' + m + ':' + (s < 10 ? '0' : '') + s;
+    }, 1000);
+  }
+
+  // ========================
+  // Connect to Event
+  // ========================
+  function connectToEvent(eventId) {
+    state.eventId = eventId;
+
+    // Fetch initial data
+    fetch(HOST + '/api/tv/feed/' + eventId)
+      .then(function(r) {
+        if (!r.ok) throw new Error('Event not found');
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data.eventId) throw new Error('Invalid event');
+        updateState(data);
+        showTVDisplay();
+        setupSocket(eventId);
+        startAutoRotate();
+      })
+      .catch(function() {
+        // Event doesn't exist anymore
+        localStorage.removeItem('tv_eventId');
+        showPairingScreen();
+      });
+  }
+
+  function updateState(data) {
+    state.eventName = data.eventName || 'Event';
+    state.eventLogo = data.eventLogo || null;
+    state.welcomePhrase = data.welcomePhrase || 'Welcome!';
+    state.attendeeCount = data.attendeeCount || 0;
+    state.ranking = data.ranking || [];
+    state.feed = data.feed || [];
+    state.karaoke = data.karaoke || { enabled: false };
+    state.djLive = data.djLive || { broadcasting: false };
+    state.modules = data.modules || {};
+  }
+
+  // ========================
+  // Socket Setup
+  // ========================
+  function setupSocket(eventId) {
+    if (!state.socket) {
+      state.socket = io(HOST, { transports: ['websocket', 'polling'] });
+    }
+    state.socket.emit('tv-join-event', eventId);
+
+    // Checkin events
+    state.socket.on('tv-checkin', function(d) {
+      state.attendeeCount++;
+      state.feed.unshift({
+        type: 'checkin',
+        nickname: d.nickname,
+        color: d.color,
+        timestamp: d.timestamp || Date.now(),
+        text: d.nickname + ' just arrived!'
+      });
+      if (state.feed.length > FEED_MAX) state.feed = state.feed.slice(0, FEED_MAX);
+      // Update ranking if needed
+      refreshFeed();
+      renderWelcome();
+      renderFeed();
+    });
+
+    state.socket.on('event-attendee-joined', function(d) {
+      // Also handle the standard event - update count
+      renderWelcome();
+    });
+
+    // Tip events
+    state.socket.on('tv-tip', function(d) {
+      state.feed.unshift({
+        type: 'tip',
+        nickname: d.nickname,
+        amount: d.amount,
+        timestamp: d.timestamp || Date.now(),
+        text: d.nickname + ' tipped $' + (d.amount || 0).toFixed(2) + '!'
+      });
+      if (state.feed.length > FEED_MAX) state.feed = state.feed.slice(0, FEED_MAX);
+      renderFeed();
+    });
+
+    // Karaoke updates
+    state.socket.on('karaoke-update', function(d) {
+      state.karaoke.currentSinger = d.currentSinger || null;
+      state.karaoke.queue = d.queue || [];
+      state.karaoke.scores = d.scores || {};
+      renderKaraoke();
+      buildSlides();
+    });
+
+    // DJ updates (from existing event room)
+    state.socket.on('dj-live-update', function(d) {
+      if (d) {
+        state.djLive.broadcasting = d.broadcasting || false;
+        state.djLive.djName = d.djName || d.artistName || 'DJ';
+        state.djLive.bpm = d.bpm || 128;
+        state.djLive.color = d.color || '#ff6b35';
+      }
+      renderDJ();
+      buildSlides();
+    });
+
+    // Periodic refresh (every 60s fetch full feed)
+    setInterval(function() { refreshFeed(); }, 60000);
+  }
+
+  function refreshFeed() {
+    if (!state.eventId) return;
+    fetch(HOST + '/api/tv/feed/' + state.eventId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        updateState(data);
+        renderAll();
+        buildSlides();
+      })
+      .catch(function() {});
+  }
+
+  // ========================
+  // TV Display
+  // ========================
+  function showTVDisplay() {
+    document.getElementById('pairScreen').style.display = 'none';
+    document.getElementById('tvMain').style.display = 'block';
+    if (expiryInterval) clearInterval(expiryInterval);
+    buildSlides();
+    renderAll();
+  }
+
+  function buildSlides() {
+    var slides = [0, 1, 2]; // Welcome, Ranking, Feed always visible
+
+    // Karaoke slide (3) - only if module active
+    var karaokeSlide = document.querySelector('[data-slide="3"]');
+    if (state.modules.karaoke && state.karaoke.enabled) {
+      karaokeSlide.classList.remove('hidden');
+      if (slides.indexOf(3) === -1) slides.push(3);
+    } else {
+      karaokeSlide.classList.add('hidden');
+      var idx3 = slides.indexOf(3);
+      if (idx3 !== -1) slides.splice(idx3, 1);
+    }
+
+    // DJ slide (4) - only if DJ is broadcasting
+    var djSlide = document.querySelector('[data-slide="4"]');
+    if (state.djLive.broadcasting) {
+      djSlide.classList.remove('hidden');
+      if (slides.indexOf(4) === -1) slides.push(4);
+    } else {
+      djSlide.classList.add('hidden');
+      var idx4 = slides.indexOf(4);
+      if (idx4 !== -1) slides.splice(idx4, 1);
+    }
+
+    state.slides = slides;
+
+    // Build tab dots
+    var tabsEl = document.getElementById('tvTabs');
+    tabsEl.innerHTML = '';
+    for (var i = 0; i < slides.length; i++) {
+      var dot = document.createElement('div');
+      dot.className = 'tv-tab-dot' + (i === state.currentSlide ? ' active' : '');
+      tabsEl.appendChild(dot);
+    }
+
+    // Ensure current slide is valid
+    if (state.currentSlide >= slides.length) {
+      state.currentSlide = 0;
+    }
+    showSlide(state.currentSlide);
+  }
+
+  function showSlide(index) {
+    if (index < 0 || index >= state.slides.length) return;
+    state.currentSlide = index;
+    var allSlides = document.querySelectorAll('.tv-slide');
+    for (var i = 0; i < allSlides.length; i++) {
+      allSlides[i].classList.remove('active');
+    }
+    var targetSlide = state.slides[index];
+    var el = document.querySelector('[data-slide="' + targetSlide + '"]');
+    if (el) el.classList.add('active');
+
+    // Update tab dots
+    var dots = document.querySelectorAll('.tv-tab-dot');
+    for (var j = 0; j < dots.length; j++) {
+      dots[j].className = 'tv-tab-dot' + (j === index ? ' active' : '');
+    }
+  }
+
+  // ========================
+  // Auto Rotate
+  // ========================
+  function startAutoRotate() {
+    stopAutoRotate();
+    state.autoRotate = true;
+    state.autoTimer = setInterval(function() {
+      if (!state.autoRotate) return;
+      var next = (state.currentSlide + 1) % state.slides.length;
+      showSlide(next);
+    }, ROTATE_INTERVAL);
+  }
+
+  function stopAutoRotate() {
+    if (state.autoTimer) clearInterval(state.autoTimer);
+    state.autoTimer = null;
+  }
+
+  // Keyboard navigation (TV remote)
+  var manualTimeout = null;
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'Right') {
+      var next = (state.currentSlide + 1) % state.slides.length;
+      showSlide(next);
+      pauseAutoRotate();
+    } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
+      var prev = (state.currentSlide - 1 + state.slides.length) % state.slides.length;
+      showSlide(prev);
+      pauseAutoRotate();
+    }
+  });
+
+  function pauseAutoRotate() {
+    state.autoRotate = false;
+    if (manualTimeout) clearTimeout(manualTimeout);
+    manualTimeout = setTimeout(function() {
+      state.autoRotate = true;
+    }, 30000);
+  }
+
+  // ========================
+  // Render Functions
+  // ========================
+  function renderAll() {
+    renderHeader();
+    renderWelcome();
+    renderRanking();
+    renderFeed();
+    renderKaraoke();
+    renderDJ();
+  }
+
+  function renderHeader() {
+    document.getElementById('tvEvName').textContent = state.eventName;
+    document.getElementById('tvPeopleCount').textContent = state.attendeeCount;
+
+    var logoEl = document.getElementById('tvEvLogo');
+    if (state.eventLogo) {
+      logoEl.src = state.eventLogo;
+      logoEl.classList.remove('hidden');
+    } else {
+      logoEl.classList.add('hidden');
+    }
+  }
+
+  function renderWelcome() {
+    document.getElementById('tvWelcomePhrase').textContent = state.welcomePhrase || 'Welcome!';
+    document.getElementById('tvWelcomeCount').textContent = state.attendeeCount;
+
+    var wLogo = document.getElementById('tvWelcomeLogo');
+    if (state.eventLogo) {
+      wLogo.src = state.eventLogo;
+      wLogo.classList.remove('hidden');
+    } else {
+      wLogo.classList.add('hidden');
+    }
+
+    // Render checkin QR
+    if (state.eventId) {
+      renderQR(document.getElementById('tvCheckinQR'), HOST + '/e/' + state.eventId, 5);
+    }
+  }
+
+  function renderRanking() {
+    var container = document.getElementById('tvRanking');
+    if (!state.ranking || state.ranking.length === 0) {
+      container.innerHTML = '<div class="ranking-empty">No activity yet</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < state.ranking.length && i < 10; i++) {
+      var r = state.ranking[i];
+      var isTop3 = i < 3 ? ' top3' : '';
+      var initial = (r.nickname || '?').charAt(0).toUpperCase();
+      var color = r.color || '#ff6b35';
+      var starsStr = '';
+      if (r.stars > 0) {
+        for (var s = 0; s < Math.min(r.stars, 5); s++) starsStr += '*';
+      }
+      html += '<div class="ranking-item' + isTop3 + '">'
+        + '<div class="ranking-pos">#' + (i + 1) + '</div>'
+        + '<div class="ranking-avatar" style="background:' + color + '">' + initial + '</div>'
+        + '<div class="ranking-nick">' + escHtml(r.nickname || '?') + '</div>'
+        + '<div class="ranking-score">' + Math.round(r.score || 0) + ' coins</div>'
+        + (starsStr ? '<div class="ranking-stars">' + starsStr + '</div>' : '')
+        + '</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function renderFeed() {
+    var container = document.getElementById('tvFeed');
+    if (!state.feed || state.feed.length === 0) {
+      container.innerHTML = '<div class="feed-empty">Waiting for activity...</div>';
+      return;
+    }
+    var html = '';
+    var items = state.feed.slice(0, FEED_MAX);
+    for (var i = 0; i < items.length; i++) {
+      var f = items[i];
+      var iconClass = f.type || 'checkin';
+      var iconSVG = '';
+      if (iconClass === 'checkin') {
+        iconSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      } else if (iconClass === 'tip') {
+        iconSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+      } else {
+        iconSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+      }
+      var timeStr = formatTime(f.timestamp);
+      html += '<div class="feed-item" style="animation-delay:' + (i * 0.05) + 's">'
+        + '<div class="feed-icon ' + iconClass + '">' + iconSVG + '</div>'
+        + '<div class="feed-text">' + escHtml(f.text || '') + '</div>'
+        + '<div class="feed-time">' + timeStr + '</div>'
+        + '</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function renderKaraoke() {
+    if (!state.karaoke.enabled) return;
+
+    var now = state.karaoke.currentSinger;
+    if (now) {
+      document.getElementById('tvKaraokeNow').textContent = escHtml(now.nickname || now.name || '?');
+      document.getElementById('tvKaraokeSong').textContent = escHtml(now.songTitle || now.song || 'Singing...');
+    } else {
+      document.getElementById('tvKaraokeNow').textContent = '--';
+      document.getElementById('tvKaraokeSong').textContent = 'Waiting for next singer...';
+    }
+
+    // Queue
+    var queueEl = document.getElementById('tvKaraokeQueue');
+    var queue = state.karaoke.queue || [];
+    var html = '';
+    for (var i = 0; i < Math.min(queue.length, 5); i++) {
+      var q = queue[i];
+      html += '<div class="karaoke-queue-item">'
+        + '<span class="karaoke-queue-pos">' + (i + 1) + '</span>'
+        + '<span>' + escHtml(q.nickname || q.name || '?') + '</span>'
+        + '<span style="color:#888">' + escHtml(q.songTitle || q.song || '') + '</span>'
+        + '</div>';
+    }
+    queueEl.innerHTML = html;
+
+    // Scores (top 5)
+    var scoresEl = document.getElementById('tvKaraokeScores');
+    var scores = state.karaoke.scores || {};
+    var scoreArr = [];
+    for (var uid in scores) {
+      if (scores.hasOwnProperty(uid)) {
+        scoreArr.push({ uid: uid, score: scores[uid].total || scores[uid] || 0, nick: scores[uid].nickname || uid.slice(0, 6) });
+      }
+    }
+    scoreArr.sort(function(a, b) { return b.score - a.score; });
+    var shtml = '';
+    for (var j = 0; j < Math.min(scoreArr.length, 5); j++) {
+      shtml += '<div class="karaoke-score-card">'
+        + '<div class="karaoke-score-nick">' + escHtml(scoreArr[j].nick) + '</div>'
+        + '<div class="karaoke-score-pts">' + scoreArr[j].score + ' pts</div>'
+        + '</div>';
+    }
+    scoresEl.innerHTML = shtml;
+  }
+
+  function renderDJ() {
+    if (!state.djLive.broadcasting) return;
+
+    var color = state.djLive.color || '#ff6b35';
+    document.getElementById('tvDjName').textContent = state.djLive.djName || 'DJ';
+    document.getElementById('tvDjName').style.color = color;
+    document.getElementById('tvDjBpm').textContent = state.djLive.bpm || 128;
+
+    // Render simple wave bars (lightweight, no canvas)
+    var waveEl = document.getElementById('tvDjWave');
+    if (waveEl.children.length === 0) {
+      var html = '';
+      for (var i = 0; i < 40; i++) {
+        var delay = (i * 0.05).toFixed(2);
+        html += '<div class="dj-bar" style="color:' + color + ';animation-delay:' + delay + 's;height:' + (20 + Math.random() * 80) + '%"></div>';
+      }
+      waveEl.innerHTML = html;
+    }
+  }
+
+  // ========================
+  // Helpers
+  // ========================
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var now = new Date();
+    var diff = now - d;
+    if (diff < 60000) return 'now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return d.toLocaleDateString();
+  }
+
+  // ========================
+  // Start
+  // ========================
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // Check if this is the pairing page opened on mobile
+  if (location.pathname === '/tv/pair' && location.search) {
+    var params = new URLSearchParams(location.search);
+    var pairCodeFromUrl = params.get('code');
+    if (pairCodeFromUrl) {
+      showMobilePairingUI(pairCodeFromUrl);
+    }
+  }
+
+  function showMobilePairingUI(code) {
+    // Replace the entire page with mobile pairing UI
+    document.body.innerHTML = '<div id="mobilePair" style="min-height:100vh;background:#050508;color:#fff;font-family:-apple-system,sans-serif;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center">'
+      + '<div style="font-size:32px;font-weight:800;margin-bottom:8px">Touch<span style="color:#ff6b35">?</span></div>'
+      + '<div style="font-size:16px;color:#888;margin-bottom:32px">Pair TV Display</div>'
+      + '<div id="mpLoading" style="color:#888">Loading your events...</div>'
+      + '<div id="mpEvents" style="width:100%;max-width:400px"></div>'
+      + '<div id="mpStatus" style="margin-top:24px;font-size:14px;color:#666"></div>'
+      + '</div>';
+
+    // Need userId - check localStorage
+    var userId = localStorage.getItem('touchUserId') || localStorage.getItem('userId');
+    if (!userId) {
+      document.getElementById('mpLoading').textContent = 'Please log in to the Touch? app first, then scan again.';
+      return;
+    }
+
+    // Fetch operator events
+    fetch(HOST + '/api/operator/events-for-tv/' + userId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('mpLoading').style.display = 'none';
+        var events = data.events || [];
+        if (events.length === 0) {
+          document.getElementById('mpEvents').innerHTML = '<div style="text-align:center;color:#888;padding:24px">No active events found. Create an event first in the operator panel.</div>';
+          return;
+        }
+        var html = '<div style="font-size:14px;color:#888;margin-bottom:16px;text-align:center">Select an event to display on the TV:</div>';
+        for (var i = 0; i < events.length; i++) {
+          var ev = events[i];
+          html += '<button onclick="pairEvent(\'' + ev.id + '\')" style="display:flex;align-items:center;width:100%;padding:16px;margin-bottom:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:18px;cursor:pointer;text-align:left">';
+          if (ev.eventLogo) {
+            html += '<img src="' + ev.eventLogo + '" style="width:44px;height:44px;border-radius:8px;margin-right:12px;object-fit:cover" onerror="this.style.display=\'none\'">';
+          }
+          html += '<div><div style="font-weight:600">' + escHtml(ev.name) + '</div><div style="font-size:14px;color:#888">' + (ev.attendeeCount || 0) + ' people</div></div>';
+          html += '</button>';
+        }
+        document.getElementById('mpEvents').innerHTML = html;
+      })
+      .catch(function() {
+        document.getElementById('mpLoading').textContent = 'Error loading events. Please try again.';
+      });
+
+    // Global function for button clicks
+    window.pairEvent = function(eventId) {
+      var statusEl = document.getElementById('mpStatus');
+      statusEl.textContent = 'Connecting TV...';
+      statusEl.style.color = '#ff6b35';
+
+      fetch(HOST + '/api/tv/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code, eventId: eventId, userId: userId })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            statusEl.innerHTML = '<div style="color:#10b981;font-size:18px;font-weight:600">TV Connected!</div><div style="color:#888;margin-top:8px">The TV is now showing: ' + escHtml(data.eventName || 'your event') + '</div><div style="color:#555;margin-top:16px">You can close this page.</div>';
+            document.getElementById('mpEvents').style.display = 'none';
+          } else {
+            statusEl.textContent = data.error || 'Error pairing. Try again.';
+            statusEl.style.color = '#ef4444';
+          }
+        })
+        .catch(function() {
+          statusEl.textContent = 'Connection error. Please try again.';
+          statusEl.style.color = '#ef4444';
+        });
+    };
+  }
+
+})();
+</script>
+</body>
+</html>
