@@ -26304,17 +26304,21 @@ function showDJPostLive(sessionId, artistName, djUserId) {
   var artistEl = document.getElementById('djPostArtistName');
   if (artistEl) artistEl.textContent = artistName || 'DJ Live';
 
-  // Reset UI
+  // Reset UI (null-safe)
   var video = document.getElementById('djPostSelfieVideo');
   var canvas = document.getElementById('djPostSelfieCanvas');
   var placeholder = document.getElementById('djPostSelfiePlaceholder');
   if (video) video.style.display = 'none';
   if (canvas) canvas.style.display = 'none';
   if (placeholder) placeholder.style.display = 'block';
-  document.getElementById('djPostSelfieBtn').style.display = 'flex';
-  document.getElementById('djPostDownloadBtn').style.display = 'none';
-  document.getElementById('djPostRetakeBtn').style.display = 'none';
-  document.getElementById('djPostTipConfirm').style.display = 'none';
+  var selfieBtn = document.getElementById('djPostSelfieBtn');
+  if (selfieBtn) selfieBtn.style.display = 'flex';
+  var dlBtn = document.getElementById('djPostDownloadBtn');
+  if (dlBtn) dlBtn.style.display = 'none';
+  var retakeBtn = document.getElementById('djPostRetakeBtn');
+  if (retakeBtn) retakeBtn.style.display = 'none';
+  var tipConfirm = document.getElementById('djPostTipConfirm');
+  if (tipConfirm) tipConfirm.style.display = 'none';
   // Reset tip buttons
   var btns = document.querySelectorAll('.djpost-tip-btn');
   for (var i = 0; i < btns.length; i++) {
@@ -26997,12 +27001,16 @@ function exitDJLive() {
   // Clear connection health
   djLiveConnHealthStop();
 
-  // Show post-live farewell screen instead of just going home
-  if (typeof showDJPostLive === 'function') {
-    console.log('[DJ] Showing post-live farewell screen');
-    showDJPostLive(_exitSessionId, _exitArtistName, _exitDjUserId);
-  } else {
-    // Fallback: go home if post-live screen not available
+  // Show post-live farewell screen, with fallback to home
+  try {
+    if (typeof showDJPostLive === 'function' && document.getElementById('djPostLive')) {
+      console.log('[DJ] Showing post-live farewell screen');
+      showDJPostLive(_exitSessionId, _exitArtistName, _exitDjUserId);
+    } else {
+      showScreen('home');
+    }
+  } catch(e) {
+    console.warn('[DJ] Post-live screen error, going home:', e);
     showScreen('home');
   }
 
