@@ -3406,6 +3406,8 @@ app.post('/api/session/join', (req, res) => {
       operatorId: sessionOperatorId || null,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (sessionEventObj && sessionEventObj.entryPrice > 0) ? sessionEventObj.entryPrice : 0,
+      welcomePhrase: sessionEventObj ? (sessionEventObj.welcomePhrase || '') : '',
+      eventVerified: !!(sessionEventObj && sessionEventObj.verified),
       eventModules: sessionEventObj ? getActiveModules(sessionEventObj) : null,
       acceptsTips: sessionEventObj ? !!sessionEventObj.acceptsTips : false,
       wifiData: (sessionEventObj && sessionEventObj.wifi && sessionEventObj.wifi.enabled && sessionEventObj.wifi.ssid) ? { ssid: sessionEventObj.wifi.ssid, password: sessionEventObj.wifi.password } : null,
@@ -8450,6 +8452,9 @@ function createSonicConnection(userIdA, userIdB) {
       requireReveal: !!opRequireReveal,
       operatorName: operatorUser ? (operatorUser.nickname || operatorUser.name) : null,
       entryPrice: (eventObj && eventObj.entryPrice > 0) ? eventObj.entryPrice : 0,
+      welcomePhrase: eventObj ? (eventObj.welcomePhrase || '') : '',
+      eventVerified: !!(eventObj && eventObj.verified),
+      eventLogo: eventObj ? (eventObj.eventLogo || null) : null,
       userA: { id: userA.id, name: userA.nickname || userA.name, color: userA.color, profilePhoto: userA.profilePhoto || null, photoURL: userA.photoURL || null, score: calcScore(userA.id), stars: (userA.stars || []).length, sign: signA, signInfo: signA ? ZODIAC_INFO[signA] : null, isPrestador: !!userA.isPrestador, serviceLabel: userA.serviceLabel || '', accessory: userA.avatarAccessory || null },
       userB: { id: userB.id, name: userB.nickname || userB.name, color: userB.color, profilePhoto: userB.profilePhoto || null, photoURL: userB.photoURL || null, score: calcScore(userB.id), stars: (userB.stars || []).length, sign: signB, signInfo: signB ? ZODIAC_INFO[signB] : null, isPrestador: !!userB.isPrestador, serviceLabel: userB.serviceLabel || '', accessory: userB.avatarAccessory || null },
       zodiacPhrase

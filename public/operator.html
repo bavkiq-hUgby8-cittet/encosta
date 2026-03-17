@@ -541,6 +541,37 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
   border: 1px solid rgba(255, 61, 113, 0.2);
 }
 
+/* Verified badge */
+.op-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.1));
+  color: #60a5fa;
+  border: 1px solid rgba(59,130,246,0.25);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.op-verified-badge svg {
+  flex-shrink: 0;
+}
+.op-hero-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #60a5fa;
+  margin-top: 0.2rem;
+}
+.op-hero-verified svg {
+  flex-shrink: 0;
+}
+
 .op-status-dot {
   display: inline-block;
   width: 6px;
@@ -1764,6 +1795,10 @@ input[type="checkbox"]:checked + div + div + .profile-mod-check::after{content:'
         <div class="op-hero-text">
           <h2 id="opEvUserName">Operador</h2>
           <p>Bem-vindo de volta ao Touch?</p>
+          <div class="op-hero-verified" id="opHeroVerified" style="display:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 13.14 2 8.27l6.91-1.01L12 1z"/></svg>
+            Operador Verificado
+          </div>
         </div>
       </div>
       <button class="op-hero-logoff" onclick="opLogoff()" title="Sair">
@@ -4111,6 +4146,9 @@ async function showEventsScreen(){
   const avEl=$('opEvAvatar');const nameEl=$('opEvUserName');
   if(avEl){avEl.style.background=S.userColor||'var(--fire)';avEl.textContent=ini(S.userName||'O')}
   if(nameEl)nameEl.textContent=S.userName||'Operador';
+  // Show verified badge in hero if operator has verified events
+  var heroVerEl=$('opHeroVerified');
+  if(heroVerEl)heroVerEl.style.display='none';
   $('opEventList').innerHTML='<div style="text-align:center;color:var(--t3);font-size:.7rem;padding:1rem">Carregando...</div>';
   const pastSection=$('opPastSection');const pastList=$('opPastList');
   if(pastSection)pastSection.style.display='none';
@@ -4142,6 +4180,10 @@ async function showEventsScreen(){
     if($('opTotalCheckinsCount'))$('opTotalCheckinsCount').textContent=totalCheckins;
     if($('opTotalRevenue'))$('opTotalRevenue').textContent=formatPrice(totalRevenue);
     if($('opTotalModulesCount'))$('opTotalModulesCount').textContent=totalModules;
+    // Show verified badge in hero
+    var hasVerified=d.events&&d.events.some(function(e){return e.verified});
+    var hvEl=$('opHeroVerified');
+    if(hvEl)hvEl.style.display=hasVerified?'flex':'none';
   }catch(e){$('opEventList').innerHTML='<div style="color:var(--pk);text-align:center;font-size:.7rem">Erro ao carregar eventos</div>'}
 }
 
@@ -4152,6 +4194,7 @@ function buildEventCard(ev){
   var dateStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
   var pCount=(ev.participants||[]).length;
   var statusHtml=ev.active?'<span class="op-event-status active"><span class="op-status-dot"></span>AO VIVO</span>':'<span class="op-event-status ended">Encerrado</span>';
+  var verifiedBadge=ev.verified?'<span class="op-verified-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>Verificado</span>':'';
   var priceStr=ev.entryPrice>0?'R$'+ev.entryPrice.toFixed(2).replace('.',','):'Gratuito';
   var revStr=ev.revenue>0?formatPrice(ev.revenue):'R$ 0';
 
@@ -4197,7 +4240,7 @@ function buildEventCard(ev){
     actionBtn='<div class="op-ev-card-footer"><div class="op-ev-mod-tags">'+modTags+'</div><button onclick="opReopenEvent(\''+ev.id+'\',\''+esc(ev.name)+'\');event.stopPropagation()" class="op-ev-reopen-btn">Reabrir</button></div>';
   }
 
-  card.innerHTML='<div class="op-event-logo-area">'+logoHtml+'<div class="op-event-info"><div class="op-event-card-top"><div class="op-event-name">'+esc(ev.name)+'</div>'+statusHtml+'</div><div class="op-event-meta"><span>'+dateStr+'</span>'+(ev.serviceLabel?'<span class="op-ev-type-label">'+esc(ev.serviceLabel)+'</span>':'')+'</div></div></div>'+statsRow+actionBtn;
+  card.innerHTML='<div class="op-event-logo-area">'+logoHtml+'<div class="op-event-info"><div class="op-event-card-top"><div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap"><div class="op-event-name">'+esc(ev.name)+'</div>'+verifiedBadge+'</div>'+statusHtml+'</div><div class="op-event-meta"><span>'+dateStr+'</span>'+(ev.serviceLabel?'<span class="op-ev-type-label">'+esc(ev.serviceLabel)+'</span>':'')+'</div></div></div>'+statsRow+actionBtn;
   return card;
 }
 function toggleHistory(){
