@@ -279,11 +279,12 @@ function init(){
   if(!eventId){eventId=localStorage.getItem('currentEventId')}
   if(!userId){userId=localStorage.getItem('opId')}
   if(!eventId){
-    toast(T[lang].err_auth,'error');
+    toast((T[lang]||T.pt).err_auth,'error');
     setTimeout(function(){window.location.href='/operator.html'},2000);
     return;
   }
-  lang=localStorage.getItem('touch_lang')||'pt';
+  var storedLang=localStorage.getItem('touch_lang')||'pt';
+  lang=(T[storedLang]?storedLang:'pt');
   setLang(lang);
   loadQR();
   loadTemplates();
@@ -321,7 +322,7 @@ async function loadQR(){
     $('qrUrl').textContent='touch-irl.com/e/'+slug;
   }catch(e){
     console.error('QR load error:',e);
-    $('qrPreview').innerHTML='<p style="color:var(--error);font-size:.72rem">'+T[lang].err_qr+'</p>';
+    $('qrPreview').innerHTML='<p style="color:var(--error);font-size:.72rem">'+(T[lang]||T.pt).err_qr+'</p>';
   }
 }
 
@@ -335,8 +336,8 @@ async function downloadQR(size){
     a.href=URL.createObjectURL(blob);
     a.download='touch-qrcode-'+size+'.'+(size==='svg'?'svg':'png');
     document.body.appendChild(a);a.click();document.body.removeChild(a);
-    toast(T[lang].ok_dl,'success');
-  }catch(e){toast(T[lang].err_dl,'error')}
+    toast((T[lang]||T.pt).ok_dl,'success');
+  }catch(e){toast((T[lang]||T.pt).err_dl,'error')}
   finally{btn.classList.remove('loading');btn.disabled=false}
 }
 
@@ -350,8 +351,8 @@ async function downloadAudio(){
     a.href=URL.createObjectURL(blob);
     a.download='touch-audio-ultrassonico.mp3';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
-    toast(T[lang].ok_dl,'success');
-  }catch(e){toast(T[lang].err_dl,'error')}
+    toast((T[lang]||T.pt).ok_dl,'success');
+  }catch(e){toast((T[lang]||T.pt).err_dl,'error')}
   finally{btn.classList.remove('loading');btn.disabled=false}
 }
 
@@ -376,6 +377,7 @@ async function loadTemplates(){
 function renderTemplates(){
   var grid=$('tplGrid');
   if(!templates.length)return;
+  var L=T[lang]||T.pt;
   grid.innerHTML=templates.map(function(t){
     var name=lang==='en'?(t.nameEn||t.name):lang==='es'?(t.nameEs||t.name):t.name;
     var desc=lang==='en'?(t.descriptionEn||t.description):lang==='es'?(t.descriptionEs||t.description):t.description;
@@ -388,8 +390,8 @@ function renderTemplates(){
       +'<div class="tpl-name">'+name+'</div>'
       +'<div class="tpl-desc">'+desc+'</div>'
       +'<div class="tpl-actions">'
-      +'<button class="btn btn-primary btn-sm" onclick="downloadTpl(\''+t.id+'\')">'+T[lang].tpl_dl+'</button>'
-      +'<button class="btn btn-secondary btn-sm" onclick="previewTpl(\''+t.file+'\')">'+T[lang].tpl_preview+'</button>'
+      +'<button class="btn btn-primary btn-sm" onclick="downloadTpl(\''+t.id+'\')">'+L.tpl_dl+'</button>'
+      +'<button class="btn btn-secondary btn-sm" onclick="previewTpl(\''+t.file+'\')">'+L.tpl_preview+'</button>'
       +'</div></div></div>';
   }).join('');
 }
@@ -404,8 +406,8 @@ async function downloadTpl(id){
     a.href=URL.createObjectURL(blob);
     a.download='touch-'+id+'.png';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
-    toast(T[lang].ok_dl,'success');
-  }catch(e){toast(T[lang].err_dl,'error')}
+    toast((T[lang]||T.pt).ok_dl,'success');
+  }catch(e){toast((T[lang]||T.pt).err_dl,'error')}
   finally{btn.classList.remove('loading');btn.disabled=false}
 }
 
@@ -424,8 +426,8 @@ async function downloadKit(){
       document.body.appendChild(a);a.click();document.body.removeChild(a);
       await new Promise(function(ok){setTimeout(ok,500)});
     }
-    toast(T[lang].ok_dl,'success');
-  }catch(e){toast(T[lang].err_dl,'error')}
+    toast((T[lang]||T.pt).ok_dl,'success');
+  }catch(e){toast((T[lang]||T.pt).err_dl,'error')}
   finally{btn.classList.remove('loading');btn.disabled=false}
 }
 
