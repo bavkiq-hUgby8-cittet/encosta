@@ -21199,8 +21199,8 @@ app.post('/api/dj/start-event', (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   // Tier limits
-  const tierLimits = { free: 10, basic: 500, pro: 5000, arena: 99999 };
-  const maxDevices = tierLimits[tier] || 10;
+  const tierLimits = { free: 5, starter: 50, basic: 500, pro: 5000, arena: 99999 };
+  const maxDevices = tierLimits[tier] || 5;
 
   // Store event info in djSessions
   if (!djSessions[sessionId]) {

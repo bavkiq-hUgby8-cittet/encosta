@@ -2140,6 +2140,14 @@ window.toggleBroadcast = function() {
 };
 
 function startBroadcast() {
+  // Block if session expired (paid tiers with 12h limit)
+  if (DJ.sessionDuration && DJ.sessionStartedAt) {
+    var remaining = DJ.sessionDuration - (Date.now() - DJ.sessionStartedAt);
+    if (remaining <= 0) {
+      showToast('Sessao expirada. Faca um novo pagamento para continuar.');
+      return;
+    }
+  }
   DJ.broadcasting = true;
   DJ.sessionStartTime = Date.now();
   var btn = document.getElementById('activateBtn');
