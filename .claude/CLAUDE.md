@@ -3,6 +3,7 @@ SEMPRE rode git pull origin main ANTES de editar qualquer arquivo — o agente D
 sempre commit e push depois de cada tarefa.
 Use Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com> nos commits.
 ZERO emojis no codigo.
+NUNCA commitar tokens, API keys, secrets ou credenciais no repositorio. Tudo via process.env e .env (que ja esta no .gitignore). Se precisar de uma chave nova, adiciona no .env.example sem o valor real.
 Leia PROMPT-NOVO-CHAT.md na raiz do projeto ANTES de qualquer coisa — ele tem todo o contexto.
 
 ## CONTEXTO RAPIDO (pra nao ter que ler tudo se ja conhece o projeto)
