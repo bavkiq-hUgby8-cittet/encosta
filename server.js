@@ -8882,6 +8882,18 @@ function createSonicConnection(userIdA, userIdB) {
       entryPrice: (eventId && db.operatorEvents[eventId]) ? (db.operatorEvents[eventId].entryPrice || 0) : 0
     };
     io.to(`user:${operatorId}`).emit('checkin-created', checkinData);
+
+    // Notify DJ session if live
+    if (eventId) {
+      const ev = db.operatorEvents[eventId];
+      if (ev && ev.djLive && ev.djLive.broadcasting && ev.djLive.sessionId) {
+        const deviceCount = ev.djLive.connectedDevices ? Object.keys(ev.djLive.connectedDevices).length : 0;
+        io.to('dj-ctrl:' + ev.djLive.sessionId).emit('dj-device-count-update', {
+          count: deviceCount + 1
+        });
+      }
+    }
+
     // Notify event room so phone users see new attendee
     if (eventId) {
       io.to('event:' + eventId).emit('event-attendee-joined', checkinData);

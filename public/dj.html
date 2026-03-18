@@ -298,11 +298,24 @@ body.embedded .dj-main { padding-top: .5rem !important; }
     gap: .5rem;
   }
   .dj-console-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.3fr 0.7fr;
     gap: .5rem;
+    grid-template-areas:
+      "stage zones"
+      "venueMap zones"
+      "controls controls";
   }
   .dj-console-full {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-area: stage;
+  }
+  #zonesDrawer {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+  #venueMapDrawer {
+    grid-column: 1;
+    grid-area: venueMap;
   }
   .dj-console-grid .dj-drawer {
     margin-bottom: 0;
@@ -634,19 +647,23 @@ body.embedded .dj-main { padding-top: .5rem !important; }
       <div class="dj-tier-cards">
         <div class="dj-tier-card selected" data-tier="free" onclick="selectTier('free')">
           <div class="dj-tier-price free">FREE</div>
-          <div class="dj-tier-cap">Up to 10 people</div>
+          <div class="dj-tier-cap">Up to 5</div>
+        </div>
+        <div class="dj-tier-card" data-tier="starter" onclick="selectTier('starter')">
+          <div class="dj-tier-price">$50</div>
+          <div class="dj-tier-cap">Up to 50</div>
         </div>
         <div class="dj-tier-card" data-tier="basic" onclick="selectTier('basic')">
           <div class="dj-tier-price">$100</div>
-          <div class="dj-tier-cap">11 - 500 people</div>
+          <div class="dj-tier-cap">Up to 500</div>
         </div>
         <div class="dj-tier-card" data-tier="pro" onclick="selectTier('pro')">
-          <div class="dj-tier-price">$1,000</div>
-          <div class="dj-tier-cap">501 - 5,000 people</div>
+          <div class="dj-tier-price">$500</div>
+          <div class="dj-tier-cap">Up to 5,000</div>
         </div>
         <div class="dj-tier-card" data-tier="arena" onclick="selectTier('arena')">
-          <div class="dj-tier-price">$2,000</div>
-          <div class="dj-tier-cap">5,000+ people</div>
+          <div class="dj-tier-price">$1,000</div>
+          <div class="dj-tier-cap">5,000+</div>
         </div>
       </div>
     </div>
@@ -956,6 +973,33 @@ body.embedded .dj-main { padding-top: .5rem !important; }
     </div>
   </div>
 
+  <!-- ZONES PANEL (Right Side) -->
+  <div class="dj-drawer" id="zonesDrawer" style="border:1px solid rgba(45,212,160,.2);background:rgba(45,212,160,.03);border-radius:var(--radius)">
+    <div class="dj-drawer-header" onclick="toggleDrawer('zonesDrawer')" style="background:rgba(45,212,160,.08);border-bottom:1px solid rgba(45,212,160,.2)">
+      <div class="dj-drawer-header-label" style="color:#2dd4a0;font-weight:700">
+        Zones
+      </div>
+      <div class="dj-drawer-toggle open" id="zonesToggle"></div>
+    </div>
+    <div class="dj-drawer-content open" style="background:rgba(45,212,160,.03)">
+      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.5rem">Divide audience into color groups</div>
+      <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem">
+        <button class="dj-bpm-btn" onclick="setZones(1)">1</button>
+        <button class="dj-bpm-btn" onclick="setZones(2)">2</button>
+        <button class="dj-bpm-btn active" onclick="setZones(4)">4</button>
+        <button class="dj-bpm-btn" onclick="setZones(6)">6</button>
+        <button class="dj-bpm-btn" onclick="setZones(8)">8</button>
+        <span style="font-size:.6rem;color:var(--t3)">zones</span>
+      </div>
+      <div style="display:flex;gap:.3rem;margin-bottom:.4rem">
+        <button class="dj-bpm-btn active" id="zoneModeAlternate" onclick="setZoneMode('alternate')" style="font-size:.55rem;padding:4px 8px;flex:1" title="Zones alternate: 1-2-1-2">Alternate</button>
+        <button class="dj-bpm-btn" id="zoneModeHalf" onclick="setZoneMode('half')" style="font-size:.55rem;padding:4px 8px;flex:1" title="Split by position: left half / right half">Half Split</button>
+      </div>
+      <div style="font-size:.55rem;color:var(--t3);margin-bottom:.3rem;font-weight:600;text-transform:uppercase">Zone Preview</div>
+      <div id="zonePreview" style="display:flex;gap:2px;height:24px;border-radius:var(--radius);overflow:hidden;background:rgba(0,0,0,.2)"></div>
+    </div>
+  </div>
+
   <!-- COLORS & BPM DRAWER -->
   <div class="dj-drawer" id="colorBpmDrawer">
     <div class="dj-drawer-header" onclick="toggleDrawer('colorBpmDrawer')">
@@ -1236,32 +1280,6 @@ body.embedded .dj-main { padding-top: .5rem !important; }
   <!-- SECONDARY FEATURES ROW -->
   <div class="dj-console-full" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
 
-  <!-- ZONES DRAWER -->
-  <div class="dj-drawer" id="zonesDrawer">
-    <div class="dj-drawer-header" onclick="toggleDrawer('zonesDrawer')">
-      <div class="dj-drawer-header-label">
-        Zones
-      </div>
-      <div class="dj-drawer-toggle" id="zonesToggle"></div>
-    </div>
-    <div class="dj-drawer-content collapsed">
-      <div style="font-size:.65rem;color:var(--t3);margin-bottom:.4rem">Divide the audience into color groups</div>
-      <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
-        <button class="dj-bpm-btn" onclick="setZones(1)">1</button>
-        <button class="dj-bpm-btn" onclick="setZones(2)">2</button>
-        <button class="dj-bpm-btn active" onclick="setZones(4)">4</button>
-        <button class="dj-bpm-btn" onclick="setZones(6)">6</button>
-        <button class="dj-bpm-btn" onclick="setZones(8)">8</button>
-        <span style="font-size:.6rem;color:var(--t3);margin-left:.4rem">zones</span>
-      </div>
-      <div style="display:flex;gap:.3rem;margin-top:.4rem">
-        <button class="dj-bpm-btn active" id="zoneModeAlternate" onclick="setZoneMode('alternate')" style="font-size:.55rem;padding:4px 8px" title="Zones alternate: 1-2-1-2">Alternate</button>
-        <button class="dj-bpm-btn" id="zoneModeHalf" onclick="setZoneMode('half')" style="font-size:.55rem;padding:4px 8px" title="Split by position: left half / right half">Half Split</button>
-      </div>
-      <div id="zonePreview" style="display:flex;gap:2px;margin-top:.5rem;height:20px;border-radius:var(--radius);overflow:hidden"></div>
-    </div>
-  </div>
-
   <!-- POSITION CALIBRATION DRAWER -->
   <div class="dj-drawer" id="calibrationDrawer">
     <div class="dj-drawer-header" onclick="toggleDrawer('calibrationDrawer')">
@@ -1403,10 +1421,11 @@ var PLUS_ANIMATIONS = [
 
 // Tier config
 var TIER_CONFIG = {
-  free: { maxDevices: 10, price: 0, label: 'Free' },
-  basic: { maxDevices: 500, price: 100, label: '$100' },
-  pro: { maxDevices: 5000, price: 1000, label: '$1,000' },
-  arena: { maxDevices: 99999, price: 2000, label: '$2,000+' }
+  free:    { maxDevices: 5,     price: 0,    label: 'Free',   duration: 0 },
+  starter: { maxDevices: 50,    price: 50,   label: '$50',    duration: 12 },
+  basic:   { maxDevices: 500,   price: 100,  label: '$100',   duration: 12 },
+  pro:     { maxDevices: 5000,  price: 500,  label: '$500',   duration: 12 },
+  arena:   { maxDevices: 99999, price: 1000, label: '$1,000', duration: 12 }
 };
 
 // ---- Firebase Init ----
@@ -1815,21 +1834,47 @@ window.startDJSession = function() {
   if (!name) { errEl.textContent = 'Session name is required'; return; }
   errEl.textContent = '';
 
+  var selectedTier = DJ_PROFILE.selectedTier || 'free';
+  var tierConfig = TIER_CONFIG[selectedTier];
+
+  if (!tierConfig) {
+    errEl.textContent = 'Invalid tier selected';
+    return;
+  }
+
+  if (selectedTier !== 'free') {
+    showPaymentModal(selectedTier, tierConfig, function(success) {
+      if (success) {
+        continueSessionStart(name, freq);
+      }
+    });
+  } else {
+    continueSessionStart(name, freq);
+  }
+};
+
+window.continueSessionStart = function(name, freq) {
   DJ.sessionId = 'dj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
   DJ.sessionName = name;
   DJ.artistName = DJ_PROFILE.nickname || 'DJ';
   DJ.venueFreq = freq;
+  var selectedTier = DJ_PROFILE.selectedTier || 'free';
+  var tierConfig = TIER_CONFIG[selectedTier];
+
+  if (selectedTier !== 'free') {
+    DJ.sessionStartedAt = Date.now();
+    DJ.sessionDuration = (tierConfig.duration || 12) * 60 * 60 * 1000;
+  }
 
   localStorage.setItem('dj_session', JSON.stringify({
     sessionId: DJ.sessionId,
     sessionName: DJ.sessionName,
     artistName: DJ.artistName,
     venueFreq: DJ.venueFreq,
-    tier: DJ_PROFILE.selectedTier,
+    tier: selectedTier,
     logoDataUrl: DJ.logoDataUrl || null
   }));
 
-  // Notify server about event tier
   if (DJ_PROFILE.userId) {
     fetch('/api/dj/start-event', {
       method: 'POST',
@@ -1838,7 +1883,7 @@ window.startDJSession = function() {
         userId: DJ_PROFILE.userId,
         sessionId: DJ.sessionId,
         sessionName: DJ.sessionName,
-        tier: DJ_PROFILE.selectedTier
+        tier: selectedTier
       })
     }).catch(function(e) { console.warn('[DJ] start-event error:', e); });
   }
@@ -1846,6 +1891,9 @@ window.startDJSession = function() {
   showPanel();
   connectSocket();
   applyPlusLocks();
+  if (selectedTier !== 'free') {
+    startDJTimer();
+  }
 };
 
 function showPanel() {
@@ -1939,6 +1987,11 @@ function connectSocket() {
       };
       _syncRealDevicesToVenueMap();
     }
+  });
+
+  socket.on('dj-device-count-update', function(d) {
+    DJ.deviceCount = d.count || 0;
+    _updateLiveCount();
   });
 
   // Audience device left
@@ -8054,6 +8107,77 @@ init = function() {
     };
 
 })();
+
+window.showPaymentModal = function(tier, tierConfig, callback) {
+  var amount = tierConfig.price;
+  var label = tierConfig.label;
+
+  var modalHtml = '<div class="dj-payment-modal" id="djPaymentModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:10000">' +
+    '<div style="background:#1a1a1a;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:2rem;max-width:400px;text-align:center;color:#fff;font-family:Inter,sans-serif">' +
+    '<h2 style="margin:0 0 1rem 0;font-size:1.5rem">Confirm Payment</h2>' +
+    '<p style="margin:0 0 1.5rem 0;color:#aaa;font-size:.9rem">Activate ' + label + ' tier for 12 hours</p>' +
+    '<div style="background:rgba(255,255,255,.05);padding:1rem;border-radius:8px;margin-bottom:1.5rem">' +
+    '<div style="font-size:2rem;font-weight:bold;color:#ff6b35">' + label + '</div>' +
+    '<div style="font-size:.85rem;color:#999">12 hours from activation</div>' +
+    '</div>' +
+    '<button onclick="processPayment(\'' + tier + '\', ' + amount + ', function() { var m = document.getElementById(\'djPaymentModal\'); if (m) m.remove(); ' + (callback ? callback.toString().replace(/^function\s*\(\s*\w+\s*\)\s*{/, '').slice(0, -1) : 'null') + '; })" style="width:100%;padding:.8rem;background:var(--ac);border:none;border-radius:8px;color:#fff;font-weight:bold;font-size:.9rem;cursor:pointer;margin-bottom:.5rem">Pay with Stripe (Coming Soon)</button>' +
+    '<button onclick="var m = document.getElementById(\'djPaymentModal\'); if (m) m.remove(); if (window.djPaymentCallback) window.djPaymentCallback(false);" style="width:100%;padding:.8rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:.9rem;cursor:pointer">Cancel</button>' +
+    '</div>' +
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  window.djPaymentCallback = callback;
+};
+
+window.processPayment = function(tier, amount, callback) {
+  console.log('[DJ] Payment: ' + amount + ' for tier ' + tier + ' (integration coming soon)');
+  if (callback) callback(true);
+};
+
+window.startDJTimer = function() {
+  if (!document.getElementById('djTimerDisplay')) {
+    var timerEl = '<div id="djTimerDisplay" style="position:fixed;top:4rem;right:1rem;background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.3);border-radius:8px;padding:.5rem .8rem;color:#ff6b35;font-family:var(--font-display);font-size:.8rem;font-weight:bold;z-index:100">11:45:32 restante</div>';
+    document.body.insertAdjacentHTML('beforeend', timerEl);
+  }
+  updateDJTimer();
+  if (window.djTimerInterval) clearInterval(window.djTimerInterval);
+  window.djTimerInterval = setInterval(updateDJTimer, 1000);
+};
+
+window.updateDJTimer = function() {
+  var timerEl = document.getElementById('djTimerDisplay');
+  if (!timerEl) return;
+
+  var now = Date.now();
+  var elapsed = now - (DJ.sessionStartedAt || now);
+  var remaining = Math.max(0, (DJ.sessionDuration || 0) - elapsed);
+
+  if (remaining <= 0) {
+    timerEl.textContent = 'Sessao expirada';
+    timerEl.style.background = 'rgba(255,40,40,.1)';
+    timerEl.style.borderColor = 'rgba(255,60,60,.3)';
+    timerEl.style.color = '#ff4444';
+    if (DJ.broadcasting) {
+      stopBroadcast();
+      showToast('Session time expired. Broadcast stopped.');
+    }
+    if (window.djTimerInterval) clearInterval(window.djTimerInterval);
+    return;
+  }
+
+  var hours = Math.floor(remaining / (60 * 60 * 1000));
+  var minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+  var seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+
+  var timeStr = (hours > 0 ? hours + ':' : '') + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+  timerEl.textContent = timeStr + ' restante';
+
+  if (remaining < (60 * 60 * 1000)) {
+    timerEl.style.background = 'rgba(255,200,0,.1)';
+    timerEl.style.borderColor = 'rgba(255,200,0,.3)';
+    timerEl.style.color = '#ffc832';
+  }
+};
 </script>
 </body>
 </html>
