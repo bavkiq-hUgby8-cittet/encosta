@@ -199,20 +199,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:1.5rem">
       <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
-        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Conquista (2)</div>
-        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Automaticas. 100 conexoes = 1a. 500 conexoes = 2a. Ninguem tira de voce.</div>
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Conex\u00f5es (3)</div>
+        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Autom\u00e1ticas e permanentes. 100 conex\u00f5es = 1\u00aa. 500 = 2\u00aa. 1.000 = 3\u00aa. Ningu\u00e9m tira de voc\u00ea.</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
-        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Permanente (1)</div>
-        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">1.000 conexoes. Fica no perfil pra sempre. Pouquissimas pessoas no mundo tem.</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
-        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Temporarias (5)</div>
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--gold)">Tempor\u00e1rias (5)</div>
         <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Compra com score, ganha em evento, recebe de amigo. Duram 30 dias e somem.</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem">
-        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--wg)">Reconhecimento (2)</div>
-        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Ouro branco. Passadas entre profissionais. A mais rara do ecossistema.</div>
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:var(--wg)">Profissional (2)</div>
+        <div style="font-size:.75rem;color:var(--t2);line-height:1.7">Ouro branco. Trocadas entre profissionais que usam o Touch? no trabalho.</div>
       </div>
     </div>
   </div>
@@ -250,7 +246,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     <!-- BONUS POR ESTRELAS -->
     <div style="margin-top:1.5rem;padding:1.5rem;background:linear-gradient(135deg,rgba(255,215,0,.04),rgba(255,215,0,.01));border:1px solid var(--gold-dim);border-radius:14px" data-guide="bonus">
       <div style="font-size:.85rem;font-weight:800;color:var(--gold);margin-bottom:.6rem">Bonus: estrelas do outro multiplicam seu score</div>
-      <div style="font-size:.78rem;color:var(--t2);line-height:1.8;margin-bottom:1rem">Quando voce conecta com alguem que tem estrelas, o multiplicador e <b style="color:var(--t1)">igual ao numero de estrelas</b> da pessoa. 1 estrela = 1x. 5 estrelas = 5x. <b style="color:var(--gold)">10 estrelas = 10x!</b></div>
+      <div style="font-size:.78rem;color:var(--t2);line-height:1.8;margin-bottom:1rem">Quando voc\u00ea conecta com algu\u00e9m que tem estrelas, seu score recebe um <b style="color:var(--t1)">multiplicador</b>. 2 estrelas = 1.1x. 5 estrelas = 1.4x. <b style="color:var(--gold)">10 estrelas = 2x!</b> Mais estrelas = mais boost.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" id="bonusTable"></div>
       <div style="margin-top:1rem;padding:.8rem;background:rgba(255,255,255,.02);border-radius:10px;font-size:.72rem;color:var(--t2);line-height:1.7;text-align:center">
         <b style="color:var(--gold)">Pessoas com estrelas viram imas sociais</b> -- todo mundo quer estar perto delas porque ganham mais score. Quem ja tem estrelas tambem recebe o bonus do outro lado. Ciclo virtuoso.
@@ -374,9 +370,9 @@ function fmt(n) {
 // ============================================================
 function initShowcase() {
   const slots = [
-    { svg: SGOLD, name: 'Conquista 1' },
-    { svg: SGOLD, name: 'Conquista 2' },
-    { svg: SGOLD, name: 'Permanente' },
+    { svg: SGOLD, name: '100' },
+    { svg: SGOLD, name: '500' },
+    { svg: SGOLD, name: '1.000' },
     { svg: SGOLD, name: 'Temp. 1' },
     { svg: SGOLD, name: 'Temp. 2' },
     { svg: SGOLD, name: 'Temp. 3' },
@@ -418,7 +414,8 @@ function initBonus() {
   const baseNew = 5;
   let html = '';
   for (let s = 0; s <= 10; s++) {
-    const mult = s === 0 ? 1 : s; // 0 stars = 1x, N stars = Nx
+    const mults = [1, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2];
+    const mult = mults[s]; // 0=1x, 1=1x, 2=1.1x ... 10=2x
     const val = baseNew * mult;
     html += '<div class="bonus-card' + (s === 0 ? ' bc-zero' : '') + '">' +
       '<div class="bc-stars">' + s + ' estr.</div>' +
@@ -734,7 +731,7 @@ const GUIDE_STEPS = [
   {
     target: '[data-guide="bonus"]',
     title: 'Bonus de Estrelas',
-    text: 'Esse e o detalhe que muda tudo: o multiplicador de score e <span class="highlight">igual ao numero de estrelas</span> da outra pessoa. 1 estrela = 1x. 5 estrelas = 5x. <span class="highlight">10 estrelas = 10x!</span> Uma conexao base de 5 score vira 50 com alguem de 10 estrelas. Isso transforma quem tem estrelas em <span class="highlight">imas sociais</span> -- todo mundo quer estar perto deles.'
+    text: 'Esse \u00e9 o detalhe que muda tudo: quando voc\u00ea conecta com algu\u00e9m que tem estrelas, seu score ganha um <span class="highlight">multiplicador</span>. 2 estrelas = 1.1x. 5 estrelas = 1.4x. <span class="highlight">10 estrelas = 2x!</span> Isso transforma quem tem estrelas em <span class="highlight">\u00edm\u00e3s sociais</span> -- todo mundo quer estar perto deles.'
   },
   {
     target: '[data-guide="4"]',
