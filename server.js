@@ -8888,7 +8888,8 @@ function createSonicConnection(userIdA, userIdB) {
       const ev = db.operatorEvents[eventId];
       if (ev && ev.djLive && ev.djLive.broadcasting && ev.djLive.sessionId) {
         const deviceCount = ev.djLive.connectedDevices ? Object.keys(ev.djLive.connectedDevices).length : 0;
-        io.to('dj-ctrl:' + ev.djLive.sessionId).emit('dj-device-count-update', {
+        io.to('dj-ctrl:' + ev.djLive.sessionId).emit('dj-device-count', {
+          sessionId: ev.djLive.sessionId,
           count: deviceCount + 1
         });
       }

@@ -1725,6 +1725,7 @@ var EMBEDDED = (function() {
   return {
     active: params.get('embedded') === 'true',
     eventId: params.get('eventId') || null,
+    userId: params.get('userId') || null,
     token: params.get('token') || null
   };
 })();
@@ -1796,6 +1797,11 @@ function init() {
         DJ.artistName = DJ_PROFILE.nickname || s.artistName || 'DJ';
         DJ.venueFreq = s.venueFreq || 19200;
         DJ_PROFILE.selectedTier = s.tier || 'free';
+        // Restore timer state for paid tiers
+        if (s.tier !== 'free' && s.sessionStartedAt && s.sessionDuration) {
+          DJ.sessionStartedAt = s.sessionStartedAt;
+          DJ.sessionDuration = s.sessionDuration;
+        }
         // Restore logo
         if (s.logoDataUrl) {
           DJ.logoDataUrl = s.logoDataUrl;
@@ -1810,6 +1816,9 @@ function init() {
         connectSocket();
         updateProfileBar();
         applyPlusLocks();
+        if (DJ_PROFILE.selectedTier !== 'free' && DJ.sessionStartedAt) {
+          startDJTimer();
+        }
         return;
       }
     } catch(e) {}
@@ -1866,14 +1875,19 @@ window.continueSessionStart = function(name, freq) {
     DJ.sessionDuration = (tierConfig.duration || 12) * 60 * 60 * 1000;
   }
 
-  localStorage.setItem('dj_session', JSON.stringify({
+  var sessionData = {
     sessionId: DJ.sessionId,
     sessionName: DJ.sessionName,
     artistName: DJ.artistName,
     venueFreq: DJ.venueFreq,
     tier: selectedTier,
     logoDataUrl: DJ.logoDataUrl || null
-  }));
+  };
+  if (selectedTier !== 'free') {
+    sessionData.sessionStartedAt = DJ.sessionStartedAt;
+    sessionData.sessionDuration = DJ.sessionDuration;
+  }
+  localStorage.setItem('dj_session', JSON.stringify(sessionData));
 
   if (DJ_PROFILE.userId) {
     fetch('/api/dj/start-event', {
@@ -1907,12 +1921,17 @@ function connectSocket() {
   socket.on('connect', function() {
     updateStatus('connected');
     // Register as DJ session
-    socket.emit('dj-session-create', {
+    var createData = {
       sessionId: DJ.sessionId,
       sessionName: DJ.sessionName,
       artistName: DJ.artistName,
       venueFreq: DJ.venueFreq
-    });
+    };
+    if (EMBEDDED.active) {
+      if (EMBEDDED.eventId) createData.eventId = EMBEDDED.eventId;
+      if (EMBEDDED.userId) createData.userId = EMBEDDED.userId;
+    }
+    socket.emit('dj-session-create', createData);
     // If was broadcasting before reconnect (e.g. server restarted), re-sync state
     if (DJ.broadcasting) {
       console.log('[DJ] Reconnected while broadcasting -- re-syncing broadcast state to server');
@@ -8128,13 +8147,32 @@ window.showPaymentModal = function(tier, tierConfig, callback) {
     '<div style="font-size:2rem;font-weight:bold;color:#ff6b35">' + label + '</div>' +
     '<div style="font-size:.85rem;color:#999">12 hours from activation</div>' +
     '</div>' +
-    '<button onclick="processPayment(\'' + tier + '\', ' + amount + ', function() { var m = document.getElementById(\'djPaymentModal\'); if (m) m.remove(); ' + (callback ? callback.toString().replace(/^function\s*\(\s*\w+\s*\)\s*{/, '').slice(0, -1) : 'null') + '; })" style="width:100%;padding:.8rem;background:var(--ac);border:none;border-radius:8px;color:#fff;font-weight:bold;font-size:.9rem;cursor:pointer;margin-bottom:.5rem">Pay with Stripe (Coming Soon)</button>' +
-    '<button onclick="var m = document.getElementById(\'djPaymentModal\'); if (m) m.remove(); if (window.djPaymentCallback) window.djPaymentCallback(false);" style="width:100%;padding:.8rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:.9rem;cursor:pointer">Cancel</button>' +
+    '<button id="djPaymentConfirm" style="width:100%;padding:.8rem;background:var(--ac);border:none;border-radius:8px;color:#fff;font-weight:bold;font-size:.9rem;cursor:pointer;margin-bottom:.5rem">Pay with Stripe (Coming Soon)</button>' +
+    '<button id="djPaymentCancel" style="width:100%;padding:.8rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:.9rem;cursor:pointer">Cancel</button>' +
     '</div>' +
     '</div>';
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   window.djPaymentCallback = callback;
+  
+  var confirmBtn = document.getElementById('djPaymentConfirm');
+  var cancelBtn = document.getElementById('djPaymentCancel');
+  
+  if (confirmBtn) {
+    confirmBtn.onclick = function() {
+      var m = document.getElementById('djPaymentModal');
+      if (m) m.remove();
+      if (window.djPaymentCallback) window.djPaymentCallback(true);
+    };
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.onclick = function() {
+      var m = document.getElementById('djPaymentModal');
+      if (m) m.remove();
+      if (window.djPaymentCallback) window.djPaymentCallback(false);
+    };
+  }
 };
 
 window.processPayment = function(tier, amount, callback) {
