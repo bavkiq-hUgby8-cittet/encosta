@@ -21125,16 +21125,25 @@ app.get('/api/tv/feed/:eventId', (req, res) => {
 app.get('/api/operator/events-for-tv/:userId', (req, res) => {
   const userId = req.params.userId;
   const events = [];
+  const now = Date.now();
+  const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
   for (const [eid, ev] of Object.entries(db.operatorEvents || {})) {
-    if (ev.creatorId === userId && ev.active !== false) {
-      events.push({
-        id: eid,
-        name: ev.name || 'Evento',
-        eventLogo: proxyStorageUrl(ev.eventLogo || null),
-        attendeeCount: Object.keys(ev.attendees || {}).length
-      });
-    }
+    if (ev.creatorId !== userId) continue;
+    if (ev.active === false) continue;
+    // Skip stale events (older than 30 days with 0 attendees)
+    const createdAt = ev.createdAt || ev.timestamp || 0;
+    const age = now - createdAt;
+    const attendeeCount = Object.keys(ev.attendees || {}).length;
+    if (age > MAX_AGE && attendeeCount === 0) continue;
+    events.push({
+      id: eid,
+      name: ev.name || 'Evento',
+      eventLogo: proxyStorageUrl(ev.eventLogo || null),
+      attendeeCount,
+      createdAt
+    });
   }
+  events.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   res.json({ events });
 });
 

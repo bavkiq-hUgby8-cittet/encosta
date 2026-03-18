@@ -792,19 +792,29 @@ function renderQR(container, text, size) {
         document.getElementById('mpLoading').style.display = 'none';
         var events = data.events || [];
         if (events.length === 0) {
-          document.getElementById('mpEvents').innerHTML = '<div style="text-align:center;color:#888;padding:24px">No active events found. Create an event first in the operator panel.</div>';
+          document.getElementById('mpEvents').innerHTML = '<div style="text-align:center;padding:24px">'
+            + '<div style="color:#888;margin-bottom:16px">No active events found.</div>'
+            + '<a href="/operator" style="display:inline-block;padding:12px 28px;background:#ff6b35;color:#fff;border-radius:10px;text-decoration:none;font-size:15px;font-weight:600">Open Operator Panel</a>'
+            + '<div style="color:#555;font-size:13px;margin-top:12px">Create an event first, then scan again.</div>'
+            + '</div>';
           return;
         }
         var html = '<div style="font-size:14px;color:#888;margin-bottom:16px;text-align:center">Select an event to display on the TV:</div>';
         for (var i = 0; i < events.length; i++) {
           var ev = events[i];
+          var dateStr = '';
+          if (ev.createdAt) {
+            var d = new Date(ev.createdAt);
+            dateStr = d.toLocaleDateString() + ' ';
+          }
           html += '<button onclick="pairEvent(\'' + ev.id + '\')" style="display:flex;align-items:center;width:100%;padding:16px;margin-bottom:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:18px;cursor:pointer;text-align:left">';
           if (ev.eventLogo) {
             html += '<img src="' + ev.eventLogo + '" style="width:44px;height:44px;border-radius:8px;margin-right:12px;object-fit:cover" onerror="this.style.display=\'none\'">';
           }
-          html += '<div><div style="font-weight:600">' + escHtml(ev.name) + '</div><div style="font-size:14px;color:#888">' + (ev.attendeeCount || 0) + ' people</div></div>';
+          html += '<div><div style="font-weight:600">' + escHtml(ev.name) + '</div><div style="font-size:13px;color:#888">' + dateStr + (ev.attendeeCount || 0) + ' people</div></div>';
           html += '</button>';
         }
+        html += '<div style="text-align:center;margin-top:8px"><a href="/operator" style="color:#ff6b35;font-size:14px;text-decoration:none">+ Create new event</a></div>';
         document.getElementById('mpEvents').innerHTML = html;
       })
       .catch(function() {
