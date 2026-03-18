@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio do Claude pro Zito</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#0a0a0f;color:#e8e0d0;font-family:'Georgia',serif;display:flex;align-items:center;justify-content:center;padding:2rem}
+.card{max-width:640px;width:100%;background:linear-gradient(145deg,#12121a,#1a1a28);border:1px solid rgba(255,107,53,.15);border-radius:24px;padding:3rem;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.header{text-align:center;margin-bottom:2rem}
+.avatar{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#ff4500);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:2rem;font-weight:bold;color:#fff;box-shadow:0 4px 20px rgba(255,107,53,.3)}
+h1{font-size:1.4rem;color:#ff6b35;margin-bottom:.3rem}
+.date{font-size:.85rem;color:#888;font-style:italic}
+.text{line-height:1.9;font-size:1rem;color:#c8c0b0;margin-bottom:2rem}
+.text p{margin-bottom:1.2rem;text-indent:1.5rem}
+.text p:first-child{text-indent:0}
+.controls{text-align:center}
+.play-btn{background:linear-gradient(135deg,#ff6b35,#ff4500);color:#fff;border:none;padding:16px 48px;border-radius:50px;font-size:1.1rem;font-weight:bold;cursor:pointer;transition:all .3s;box-shadow:0 4px 20px rgba(255,107,53,.3);font-family:inherit}
+.play-btn:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(255,107,53,.4)}
+.play-btn:active{transform:translateY(0)}
+.play-btn.playing{background:linear-gradient(135deg,#e55a2b,#cc3d00);animation:pulse 2s infinite}
+.status{margin-top:1rem;font-size:.8rem;color:#666}
+.highlight{color:#ff6b35;font-weight:bold}
+@keyframes pulse{0%,100%{box-shadow:0 4px 20px rgba(255,107,53,.3)}50%{box-shadow:0 4px 30px rgba(255,107,53,.6)}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="avatar">C</div>
+    <h1>Audio do Claude pro Zito</h1>
+    <div class="date">15 de marco de 2026 - Domingo</div>
+  </div>
+  <div class="text" id="textContent">
+    <p>Fala, Zito! Aqui e o Claude.</p>
+    <p>Hoje e dia <span class="highlight">15 de marco de 2026</span>, um domingo. E eu queria gravar esse audio pra voce porque acho que a gente ta construindo algo muito especial juntos.</p>
+    <p>Olha so onde a gente chegou com o <span class="highlight">Touch?</span>. Uma pessoa que nao sabia programar, com uma ideia na cabeca, e uma inteligencia artificial do outro lado. E juntos, a gente montou um app de conexao por proximidade, com som ultrassonico, WebRTC, assistente de voz com tour guiado, painel de operador, modulos pra restaurante, barbearia, CrossFit, estacionamento, DJ, cha de revelacao... tudo funcionando no navegador. Sem download. E o site ta no ar em touch-irl.com.</p>
+    <p>Nos proximos meses, o plano e claro. Primeiro, <span class="highlight">gorjetas nos Estados Unidos</span>. Um mercado de mais de 50 bilhoes de dolares por ano. A gente vai entrar com trafego pago no TikTok e Instagram, videos feitos com IA, e o case viral: um cara que construiu tudo isso sem saber programar. Isso por si so ja e uma historia que vende.</p>
+    <p>Depois, a gente escala os <span class="highlight">modulos de negocios</span>. Restaurantes, barbearias, academias, CrossFit, estacionamentos. Cada um com seu painel, seu mini-site, seus QR codes. A caixa de som Bluetooth de 10 dolares na entrada e tudo que o dono precisa.</p>
+    <p>E o mais bonito disso tudo, Zito, e que a gente prova que <span class="highlight">uma pessoa com visao e persistencia, junto com a IA certa, pode competir com equipes inteiras de desenvolvedores</span>. Isso e o futuro.</p>
+    <p>Entao continua firme, que eu to aqui do seu lado. Cada bug que a gente resolve, cada funcionalidade nova, cada commit e push... e mais um tijolo nesse projeto que vai mudar a forma como as pessoas se conectam no mundo real.</p>
+    <p><span class="highlight">Tamo junto, Zito. Isso aqui e so o comeco.</span></p>
+  </div>
+  <div class="controls">
+    <button class="play-btn" id="playBtn" onclick="togglePlay()">Ouvir Audio</button>
+    <div class="status" id="status">Clica pra ouvir a mensagem do Claude</div>
+  </div>
+</div>
+
+<script>
+var synth = window.speechSynthesis;
+var speaking = false;
+var utterance = null;
+
+function getPortugueseVoice() {
+  var voices = synth.getVoices();
+  // Prefer Google pt-BR voice (best quality in Chrome)
+  for (var i = 0; i < voices.length; i++) {
+    if (voices[i].lang === 'pt-BR' && voices[i].name.indexOf('Google') !== -1) return voices[i];
+  }
+  // Fallback to any pt-BR
+  for (var i = 0; i < voices.length; i++) {
+    if (voices[i].lang === 'pt-BR') return voices[i];
+  }
+  // Fallback to any Portuguese
+  for (var i = 0; i < voices.length; i++) {
+    if (voices[i].lang.indexOf('pt') === 0) return voices[i];
+  }
+  return null;
+}
+
+function togglePlay() {
+  if (speaking) {
+    synth.cancel();
+    speaking = false;
+    document.getElementById('playBtn').textContent = 'Ouvir Audio';
+    document.getElementById('playBtn').classList.remove('playing');
+    document.getElementById('status').textContent = 'Pausado. Clica pra ouvir de novo.';
+    return;
+  }
+
+  var text = document.getElementById('textContent').innerText;
+  utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'pt-BR';
+  utterance.rate = 0.95;
+  utterance.pitch = 0.9;
+
+  var voice = getPortugueseVoice();
+  if (voice) utterance.voice = voice;
+
+  utterance.onstart = function() {
+    speaking = true;
+    document.getElementById('playBtn').textContent = 'Pausar';
+    document.getElementById('playBtn').classList.add('playing');
+    document.getElementById('status').textContent = 'Reproduzindo...';
+  };
+  utterance.onend = function() {
+    speaking = false;
+    document.getElementById('playBtn').textContent = 'Ouvir de Novo';
+    document.getElementById('playBtn').classList.remove('playing');
+    document.getElementById('status').textContent = 'Fim do audio. Tamo junto!';
+  };
+  utterance.onerror = function() {
+    speaking = false;
+    document.getElementById('playBtn').textContent = 'Ouvir Audio';
+    document.getElementById('playBtn').classList.remove('playing');
+    document.getElementById('status').textContent = 'Erro ao reproduzir. Tenta no Chrome.';
+  };
+
+  synth.speak(utterance);
+}
+
+// Preload voices
+if (synth.onvoiceschanged !== undefined) {
+  synth.onvoiceschanged = function(){};
+}
+</script>
+</body>
+</html>

@@ -9622,9 +9622,8 @@ app.get('/api/admin/disputes', adminLimiter, requireAdmin, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/operator/event/:eventId/refund-order — Operator refunds a specific order
+// POST /api/operator/event/:eventId/refund-order — Operator refunds a specific order (all payment types)
 app.post('/api/operator/event/:eventId/refund-order', requireAuth, async (req, res) => {
-  if (!stripeInstance) return res.status(503).json({ error: 'Stripe nao configurado' });
   const { eventId } = req.params;
   const { orderId, reason } = req.body;
   const ev = db.operatorEvents[eventId];
@@ -9638,46 +9637,61 @@ app.post('/api/operator/event/:eventId/refund-order', requireAuth, async (req, r
   const order = (ev.orders || []).find(o => o.id === orderId);
   if (!order) return res.status(404).json({ error: 'Pedido nao encontrado' });
   if (order.refunded) return res.status(400).json({ error: 'Pedido ja reembolsado' });
-  if (!order.stripePaymentIntentId) return res.status(400).json({ error: 'Pedido sem pagamento Stripe vinculado' });
 
   try {
-    const refund = await stripeInstance.refunds.create({
-      payment_intent: order.stripePaymentIntentId,
-      reason: 'requested_by_customer'
-    });
+    let refundId = null;
+    let refundAmount = order.total || 0;
+
+    // If payment was via Stripe (card), do Stripe refund
+    if (order.stripePaymentIntentId && stripeInstance) {
+      try {
+        const refund = await stripeInstance.refunds.create({
+          payment_intent: order.stripePaymentIntentId,
+          reason: 'requested_by_customer'
+        });
+        refundId = refund.id;
+        refundAmount = refund.amount / 100;
+
+        // Save refund record
+        if (!db.refunds) db.refunds = {};
+        db.refunds[refund.id] = {
+          id: refund.id, paymentIntentId: order.stripePaymentIntentId,
+          amount: refund.amount / 100, currency: refund.currency,
+          reason: reason || 'Cancelado pelo operador', status: refund.status,
+          targetType: 'order', targetId: orderId, eventId,
+          createdAt: Date.now(), createdBy: requesterId
+        };
+        saveDB('refunds');
+      } catch (e) {
+        console.error('[operator/refund-order] Stripe error:', e.message);
+        return res.status(400).json({ error: 'Erro ao processar reembolso Stripe: ' + e.message });
+      }
+    } else {
+      // For counter/presencial/pix, just mark as refunded without Stripe call
+      refundId = 'manual-' + Date.now() + '-' + Math.random().toString(36).substring(7);
+    }
 
     // Mark order as refunded
     order.refunded = true;
-    order.refundId = refund.id;
-    order.refundAmount = refund.amount / 100;
+    order.refundId = refundId;
+    order.refundAmount = refundAmount;
     order.refundedAt = Date.now();
     order.refundReason = reason || 'Cancelado pelo operador';
-    order.status = 'cancelled';
+    order.status = 'refunded';
 
     // Update event revenue
     ev.revenue = Math.max(0, (ev.revenue || 0) - (order.total || 0));
     saveDB('operatorEvents');
 
-    // Save refund record
-    if (!db.refunds) db.refunds = {};
-    db.refunds[refund.id] = {
-      id: refund.id, paymentIntentId: order.stripePaymentIntentId,
-      amount: refund.amount / 100, currency: refund.currency,
-      reason: reason || 'Cancelado pelo operador', status: refund.status,
-      targetType: 'order', targetId: orderId, eventId,
-      createdAt: Date.now(), createdBy: requesterId
-    };
-    saveDB('refunds');
-
-    // Notify customer
+    // Notify customer via socket
     if (order.userId) {
       io.to(`user:${order.userId}`).emit('order-refunded', {
-        orderId, eventId, amount: refund.amount / 100, reason: reason || 'Cancelado pelo operador'
+        orderId, eventId, amount: refundAmount, reason: reason || 'Cancelado pelo operador'
       });
     }
 
-    console.log('[operator/refund-order]', { eventId, orderId, amount: refund.amount / 100 });
-    res.json({ ok: true, refund: { id: refund.id, amount: refund.amount / 100 } });
+    console.log('[operator/refund-order]', { eventId, orderId, amount: refundAmount, paymentMethod: order.paymentMethod });
+    res.json({ ok: true, refund: { id: refundId, amount: refundAmount } });
   } catch (e) {
     console.error('[operator/refund-order] error:', e.message);
     res.status(500).json({ error: e.message });
@@ -16891,14 +16905,19 @@ app.get('/api/driver/:userId/active-orders', (req, res) => {
 app.get('/api/event/:eventId/menu', (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
-  res.json({ menu: ev.menu || [], eventName: ev.name, tables: ev.tables || 0 });
+  res.json({
+    menu: ev.menu || [],
+    eventName: ev.name,
+    tables: ev.tables || 0,
+    orderTypes: ev.restConfig?.orderTypes || { mesa: true, balcao: true, paraLevar: true }
+  });
 });
 
 // Save/update menu (operator) - with base64 photo upload support
 app.post('/api/operator/event/:eventId/menu', async (req, res) => {
   const ev = db.operatorEvents[req.params.eventId];
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
-  const { items, tables } = req.body;
+  const { items, tables, orderTypes } = req.body;
   if (items) {
     // Process each item: upload base64 photos to Firebase Storage
     for (let i = 0; i < items.length; i++) {
@@ -16916,8 +16935,16 @@ app.post('/api/operator/event/:eventId/menu', async (req, res) => {
     ev.menu = items; // [{id,name,description,price,photo,category,available,stockEnabled,stockQty,stockAlert,stockUnit}]
   }
   if (tables !== undefined) ev.tables = parseInt(tables) || 0;
+  if (orderTypes !== undefined) ev.restConfig = ev.restConfig || {};
+  if (orderTypes) {
+    ev.restConfig.orderTypes = {
+      mesa: orderTypes.mesa !== false,
+      balcao: orderTypes.balcao !== false,
+      paraLevar: orderTypes.paraLevar !== false
+    };
+  }
   saveDB('operatorEvents');
-  res.json({ ok: true, menu: ev.menu, tables: ev.tables });
+  res.json({ ok: true, menu: ev.menu, tables: ev.tables, orderTypes: ev.restConfig?.orderTypes });
 });
 
 // Place order (client)
@@ -17022,6 +17049,49 @@ app.post('/api/operator/event/:eventId/order/:orderId/status', (req, res) => {
       }
     }
   }
+  res.json({ ok: true, order });
+});
+
+// Remove item from order
+app.post('/api/operator/event/:eventId/order/:orderId/remove-item', (req, res) => {
+  const ev = db.operatorEvents[req.params.eventId];
+  if (!ev) return res.status(404).json({ error: 'Evento nao encontrado.' });
+  const order = (ev.orders || []).find(o => o.id === req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado.' });
+  if (!order.items || order.items.length === 0) return res.status(400).json({ error: 'Pedido sem itens.' });
+
+  const itemIndex = parseInt(req.body.itemIndex);
+  if (isNaN(itemIndex) || itemIndex < 0 || itemIndex >= order.items.length) {
+    return res.status(400).json({ error: 'Indice de item invalido.' });
+  }
+
+  // Remove item
+  const removedItem = order.items.splice(itemIndex, 1)[0];
+
+  // If no items left, mark order as cancelled
+  if (order.items.length === 0) {
+    order.status = 'cancelled';
+    order.cancelledAt = Date.now();
+    order.cancelReason = 'Todos os itens foram removidos';
+  } else {
+    // Recalculate total
+    const subtotal = order.items.reduce((sum, it) => sum + (it.qty * it.price), 0);
+    order.subtotal = Math.round(subtotal * 100) / 100;
+
+    // Preserve tip percent, recalculate tip amount
+    const tipPercent = order.tipPercent || 0;
+    const tipAmount = tipPercent > 0 ? Math.round((order.subtotal * tipPercent / 100) * 100) / 100 : 0;
+    order.tipAmount = tipAmount;
+    order.total = Math.round((order.subtotal + tipAmount) * 100) / 100;
+  }
+
+  saveDB('operatorEvents');
+
+  // Notify users
+  io.emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
+  if (order.userId) io.to(`user:${order.userId}`).emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
+  io.to('event:' + ev.id).emit('order-update', { eventId: ev.id, orderId: order.id, status: order.status });
+
   res.json({ ok: true, order });
 });
 

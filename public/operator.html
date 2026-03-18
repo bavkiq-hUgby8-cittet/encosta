@@ -8032,7 +8032,7 @@ function renderOrders(){
     var num=REST.orders.length-REST.orders.indexOf(o);
     var dt=new Date(o.createdAt);
     var time=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    var itemsHtml=o.items.map(function(it){return '<div class="pi-row"><span>'+it.qty+'x '+esc(it.name)+'</span><span class="pi-price">R$ '+(it.price*it.qty).toFixed(2).replace('.',',')+'</span></div>'}).join('');
+    var itemsHtml=o.items.map(function(it,idx){return '<div class="pi-row" style="display:flex;justify-content:space-between;align-items:center;gap:.3rem"><span>'+it.qty+'x '+esc(it.name)+'</span><span style="display:flex;gap:.2rem;align-items:center"><span class="pi-price">R$ '+(it.price*it.qty).toFixed(2).replace('.',',')+'</span><button class="postit-btn" style="padding:0;width:16px;height:16px;min-width:16px;border:none;background:transparent;color:rgba(255,100,100,.6);cursor:pointer;font-size:.6rem" onclick="removeOrderItem(\''+o.id+'\','+idx+')" title="Remover item"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></span></div>'}).join('');
     var payIcon=o.paymentMethod==='card'?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
     var payLabel=o.paymentMethod==='card'?'Cartao':'Balcao';
     var advBtn='';
@@ -8111,6 +8111,38 @@ async function refundOrder(orderId){
       alert(d.error||'Erro ao processar reembolso');
     }
   }catch(e){alert('Erro de conexao ao processar reembolso')}
+}
+
+// Remove item from order
+async function removeOrderItem(orderId,itemIdx){
+  var order=REST.orders.find(function(o){return o.id===orderId});
+  if(!order||!order.items||itemIdx<0||itemIdx>=order.items.length)return;
+  var item=order.items[itemIdx];
+  if(!confirm('Remover '+item.qty+'x '+item.name+' do pedido? O total sera recalculado.'))return;
+  try{
+    var r=await fetch('/api/operator/event/'+S.currentEventId+'/order/'+orderId+'/remove-item',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({itemIndex:itemIdx})
+    });
+    if(r.ok){
+      var d=await r.json();
+      // Update local order
+      order.items=d.order.items;
+      order.subtotal=d.order.subtotal;
+      order.total=d.order.total;
+      order.tipAmount=d.order.tipAmount||0;
+      renderOrders();
+      if(REST.activeTab==='tables')renderTables();
+      // Show confirmation
+      var toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(34,197,94,.95);color:#fff;padding:.5rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;z-index:9999';
+      toast.textContent='Item removido. Novo total: R$ '+order.total.toFixed(2).replace('.',',');
+      document.body.appendChild(toast);setTimeout(function(){toast.remove()},5000);
+    }else{
+      var d=await r.json();
+      alert(d.error||'Erro ao remover item');
+    }
+  }catch(e){alert('Erro de conexao')}
 }
 
 var _kanbanZoom=0; // 0=normal, 1=lg, 2=xl
