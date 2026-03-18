@@ -2573,14 +2573,46 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   function resetAuto(){ clearInterval(autoInterval); startAuto(); }
   startAuto();
 
-  // Touch/swipe support
-  var touchStartX = 0;
-  track.addEventListener('touchstart', function(e){ touchStartX = e.touches[0].clientX; clearInterval(autoInterval); }, {passive:true});
-  track.addEventListener('touchend', function(e){
-    var diff = touchStartX - e.changedTouches[0].clientX;
-    if(Math.abs(diff) > 40){ diff > 0 ? next() : prev(); }
+  // Drag support (touch + mouse)
+  var dragStartX=0,dragCurrentX=0,isDragging=false,dragBasePos=0;
+
+  function onDragStart(x){
+    isDragging=true;dragStartX=x;dragCurrentX=x;dragBasePos=scrollPos;
+    track.style.transition='none';clearInterval(autoInterval);
+  }
+  function onDragMove(x){
+    if(!isDragging)return;
+    dragCurrentX=x;
+    var dx=dragStartX-dragCurrentX;
+    var maxScroll=track.scrollWidth-track.parentElement.offsetWidth;
+    var newPos=Math.max(0,Math.min(dragBasePos+dx,maxScroll));
+    track.style.transform='translateX(-'+newPos+'px)';
+  }
+  function onDragEnd(){
+    if(!isDragging)return;
+    isDragging=false;
+    track.style.transition='transform .5s cubic-bezier(.25,.46,.45,.94)';
+    var diff=dragStartX-dragCurrentX;
+    if(Math.abs(diff)>40){
+      getSlideWidth();
+      var slides=Math.round(Math.abs(diff)/slideW)||1;
+      for(var i=0;i<slides;i++){diff>0?next():prev()}
+    }else{scrollTo(scrollPos)}
     startAuto();
-  }, {passive:true});
+  }
+
+  // Touch events
+  track.addEventListener('touchstart',function(e){onDragStart(e.touches[0].clientX)},{passive:true});
+  track.addEventListener('touchmove',function(e){onDragMove(e.touches[0].clientX)},{passive:true});
+  track.addEventListener('touchend',onDragEnd,{passive:true});
+
+  // Mouse events (desktop drag)
+  track.addEventListener('mousedown',function(e){e.preventDefault();onDragStart(e.clientX)});
+  window.addEventListener('mousemove',function(e){if(isDragging){e.preventDefault();onDragMove(e.clientX)}});
+  window.addEventListener('mouseup',onDragEnd);
+  track.style.cursor='grab';
+  track.addEventListener('mousedown',function(){track.style.cursor='grabbing'});
+  window.addEventListener('mouseup',function(){track.style.cursor='grab'});
 })();
 
 // ═══ TOUCH? ASSISTANT — Logic (Text + OpenAI Realtime Voice + Guided Tour) ═══
