@@ -1082,7 +1082,17 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--t1);min-heigh
 .op-fab.active{background:rgba(124,106,239,.15);border-color:rgba(124,106,239,.3);color:var(--ac3)}
 .op-fab.danger{color:rgba(255,80,80,.6)}
 .op-fab.danger:hover{color:#ff6b6b;border-color:rgba(255,80,80,.25);background:rgba(255,80,80,.1)}
-@media(max-width:768px){.op-fab-cascade{top:auto;bottom:calc(38vh + 80px);right:10px}.op-fab{width:40px;height:40px;border-radius:12px}.op-fab svg{width:18px;height:18px}}
+.op-fab .badge{display:none;position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.5rem;font-weight:700;align-items:center;justify-content:center;padding:0 3px;animation:badgePulse 2s ease-in-out infinite}
+@keyframes badgePulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(239,68,68,.6)}50%{transform:scale(1.15);box-shadow:0 0 0 6px rgba(239,68,68,0)}}
+.op-fab.has-notif{border-color:rgba(239,68,68,.4)!important;animation:fabGlow 2s ease-in-out infinite}
+@keyframes fabGlow{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}50%{box-shadow:0 0 8px 2px rgba(239,68,68,.25)}}
+@media(max-width:768px){
+.op-fab-cascade{top:60px;bottom:auto;right:8px;left:auto;flex-direction:row;flex-wrap:wrap;gap:5px;max-width:110px;justify-content:flex-end;align-items:flex-start}
+.op-fab{width:34px;height:34px;border-radius:10px;font-size:.7rem}
+.op-fab svg{width:15px;height:15px}
+.op-fab span:not(.op-fab-label):not(.badge){font-size:.7rem!important}
+.op-fab-label{display:none!important}
+}
 /* ═══ RAFFLE / SORTEIO MODAL ═══ */
 .op-raffle-modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(8px)}
 .op-raffle-modal.open{display:flex}
@@ -7936,14 +7946,17 @@ async function populateTestChurch(){
 
 // ── Orders rendering ──
 function updateOrderBadges(){
-  const pending=REST.orders.filter(o=>o.status==='pending'||o.status==='paid'||o.status==='preparing').length;
-  const badge1=$('ordersBadge');const badge2=$('fabOrdersBadge');
+  var pending=REST.orders.filter(function(o){return o.status==='pending'||o.status==='paid'||o.status==='preparing'}).length;
+  var badge1=$('ordersBadge');var badge2=$('fabOrdersBadge');
+  var fabBtn=$('fabRestaurant');
   if(pending>0){
     if(badge1){badge1.style.display='inline-flex';badge1.textContent=pending}
     if(badge2){badge2.style.display='inline-flex';badge2.textContent=pending}
+    if(fabBtn)fabBtn.classList.add('has-notif');
   }else{
     if(badge1)badge1.style.display='none';
     if(badge2)badge2.style.display='none';
+    if(fabBtn)fabBtn.classList.remove('has-notif');
   }
 }
 
