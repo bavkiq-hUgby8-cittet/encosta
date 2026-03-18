@@ -2316,6 +2316,11 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
 /* ── Chat Window ── */
 .ta-win{position:fixed;bottom:96px;right:24px;z-index:9998;width:380px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 140px);background:#0a0a12;border:1px solid rgba(255,107,53,.15);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(20px) scale(.95);pointer-events:none;transition:opacity .3s,transform .3s;box-shadow:0 12px 50px rgba(0,0,0,.6),0 0 0 1px rgba(255,107,53,.08)}
 .ta-win.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.ta-win.tour-mini{height:auto!important;max-height:none!important}
+.ta-win.tour-mini .ta-msgs{max-height:120px!important;min-height:60px!important;overflow-y:auto}
+.ta-win.tour-mini .ta-input-area{display:none!important}
+.ta-win.tour-mini .ta-suggestions{display:none!important}
+.ta-win.tour-mini .ta-voice-bar{display:none!important}
 
 /* ── Header ── */
 .ta-head{background:linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,60,110,.06));padding:16px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
@@ -2667,11 +2672,13 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   var tourSections = {
     b2c: [
       { signal: 'HERO', selector: '.hero', fallback: 'body' },
+      { signal: 'AUDIENCE_B2C', selector: '#audience' },
       { signal: 'USE_CASES', selector: '.usecase-section' },
       { signal: 'TIPPING', selector: '#tipping' },
       { signal: 'CONNECT', selector: '#stars', fallback: '.stars-section' }
     ],
     b2b: [
+      { signal: 'AUDIENCE_B2B', selector: '#audience' },
       { signal: 'BUSINESS', selector: '#business' },
       { signal: 'SETUP', selector: '#setup' }
     ]
@@ -2759,6 +2766,9 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     if(step.signal === 'USE_CASES'){
       startUsecaseCarousel();
     }
+    // Switch audience tab when entering AUDIENCE step
+    if(step.signal === 'AUDIENCE_B2C' && typeof switchAudTab === 'function') switchAudTab('b2c');
+    if(step.signal === 'AUDIENCE_B2B' && typeof switchAudTab === 'function') switchAudTab('b2b');
 
     tourStepIndex++;
 
@@ -2787,6 +2797,8 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     if(tourOverlay){ tourOverlay.classList.remove('active'); setTimeout(function(){ if(tourOverlay && tourOverlay.parentNode) tourOverlay.parentNode.removeChild(tourOverlay); tourOverlay = null; }, 500); }
     // End voice call too if active
     if(inVoiceCall) endVoiceCall();
+    // Restore chat window from mini mode
+    win.classList.remove('tour-mini');
     // Show tour fab button again
     var tf = document.getElementById('tourFab');
     if(tf) tf.classList.remove('hidden');
@@ -2799,36 +2811,46 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
   var textTourNarration = {
     b2c: {
       HERO: {
-        pt: 'Bem-vindo ao Touch?! Aqui dois celulares se aproximam tela contra tela e uma conex\u00e3o nasce pelo som ultrass\u00f4nico. Sem download, sem QR code, sem bluetooth. S\u00f3 aproximar!',
-        en: 'Welcome to Touch?! Here two phones come close screen-to-screen and a connection is born through ultrasonic sound. No download, no QR code, no bluetooth. Just bring them close!',
-        es: '\u00a1Bienvenido a Touch?! Aqu\u00ed dos celulares se acercan pantalla contra pantalla y nace una conexi\u00f3n por sonido ultras\u00f3nico. Sin descarga, sin QR, sin bluetooth. \u00a1Solo acercarlos!'
+        pt: 'Bem-vindo ao Touch? -- a rede social do mundo real! Dois celulares se aproximam tela contra tela e uma conexao nasce pelo som ultrassonico. Sem download, direto no navegador. IRL de verdade!',
+        en: 'Welcome to Touch? -- the social network for IRL! Two phones come close screen-to-screen and a connection is born through ultrasonic sound. No download, works in your browser. Real life connections!',
+        es: 'Bienvenido a Touch? -- la red social del mundo real! Dos celulares se acercan pantalla contra pantalla y nace una conexion por sonido ultrasonico. Sin descarga, en tu navegador. Conexiones de verdad!'
+      },
+      AUDIENCE_B2C: {
+        pt: 'Olha que incrivel: cada pessoa que voce encontra vira uma estrela na sua constelacao. Quanto mais voces se conectam, mais perto ela orbita. Parou de se ver? A estrela se afasta. E um mapa vivo da sua vida social real!',
+        en: 'Check this out: every person you meet becomes a star in your constellation. The more you connect, the closer they orbit. Stop meeting? They drift away. It is a living map of your real social life!',
+        es: 'Mira que increible: cada persona que conoces se convierte en una estrella en tu constelacion. Cuanto mas se conectan, mas cerca orbita. Dejaron de verse? Se aleja. Es un mapa vivo de tu vida social real!'
       },
       USE_CASES: {
-        pt: 'O Touch? funciona em diversos cen\u00e1rios: CrossFit, bares, festivais, estacionamentos, ch\u00e1 de revela\u00e7\u00e3o, food trucks, shows com DJ... Qualquer lugar onde pessoas se encontram!',
-        en: 'Touch? works in many scenarios: CrossFit, bars, festivals, parking lots, gender reveals, food trucks, DJ shows... Anywhere people meet!',
-        es: '\u00a1Touch? funciona en muchos escenarios: CrossFit, bares, festivales, estacionamientos, revelaci\u00f3n de g\u00e9nero, food trucks, shows con DJ... Donde sea que la gente se encuentre!'
+        pt: 'E o Touch? funciona em mil cenarios: gorjetas, check-in em academias e CrossFit, festivais, food trucks, shows com DJ, cha de revelacao... Qualquer lugar onde pessoas se encontram de verdade!',
+        en: 'And Touch? works in a thousand scenarios: tipping, gym and CrossFit check-ins, festivals, food trucks, DJ shows, gender reveals... Anywhere people meet in real life!',
+        es: 'Y Touch? funciona en mil escenarios: propinas, check-in en gimnasios y CrossFit, festivales, food trucks, shows con DJ, revelacion de genero... Donde sea que la gente se encuentre de verdad!'
       },
       TIPPING: {
-        pt: 'Gorjetas digitais! Aproxime o celular do guardador de carro, do barman, do personal trainer... e d\u00ea uma gorjeta sem dinheiro f\u00edsico. R\u00e1pido, f\u00e1cil e com taxas transparentes.',
-        en: 'Digital tipping! Bring your phone close to a valet, bartender, personal trainer... and tip without cash. Fast, easy, with transparent fees.',
-        es: '\u00a1Propinas digitales! Acerca tu celular al cuidacoches, al bartender, al entrenador personal... y da propina sin efectivo. R\u00e1pido, f\u00e1cil y con comisiones transparentes.'
+        pt: 'Gorjetas digitais! Seu barman fez um drink incrivel? O manobrista estacionou seu carro? Encosta o celular, escolhe o valor, pronto. Dois segundos, zero fricao. Esse mercado nos EUA e de $50 bilhoes por ano!',
+        en: 'Digital tipping! Your bartender made an amazing drink? The valet parked your car? Touch your phone, choose the amount, done. Two seconds, zero friction. This market in the US is $50 billion a year!',
+        es: 'Propinas digitales! Tu bartender hizo un drink increible? El valet estaciono tu auto? Toca tu celular, elige el monto, listo. Dos segundos, cero friccion. Este mercado en EEUU es de $50 mil millones al ano!'
       },
       CONNECT: {
-        pt: 'Cada pessoa que voc\u00ea encontra vira uma estrela na sua constela\u00e7\u00e3o. Um mapa visual da sua vida social de verdade. S\u00f3 conex\u00f5es reais. E isso! Se ficou curioso, vai l\u00e1 em touch-irl.com e experimenta!',
-        en: 'Each person you meet becomes a star in your constellation. A visual map of your real social life. Only real connections. That is it! If you are curious, head to touch-irl.com and try it out!',
-        es: 'Cada persona que conoces se convierte en una estrella en tu constelaci\u00f3n. Un mapa visual de tu vida social real. Solo conexiones reales. \u00a1Eso es todo! Si te dio curiosidad, ve a touch-irl.com y pru\u00e9balo!'
+        pt: 'E no final, tudo e sobre conexao. Sua constelacao, suas estrelas, suas historias reais. Touch? e a rede social do IRL. Se ficou curioso, experimenta agora em touch-irl.com!',
+        en: 'And in the end, it is all about connection. Your constellation, your stars, your real stories. Touch? is the social network for IRL. Curious? Try it now at touch-irl.com!',
+        es: 'Y al final, todo es sobre conexion. Tu constelacion, tus estrellas, tus historias reales. Touch? es la red social del IRL. Curioso? Pruebalo ahora en touch-irl.com!'
       }
     },
     b2b: {
+      AUDIENCE_B2B: {
+        pt: 'Para empresas, o Touch? e revolucionario. Uma caixinha de som bluetooth de R$50 no balcao substitui maquininhas, catracas e sistemas caros. O cliente encosta o celular e tudo acontece!',
+        en: 'For businesses, Touch? is revolutionary. A $10 bluetooth speaker on your counter replaces card readers, turnstiles and expensive systems. The customer touches their phone and everything happens!',
+        es: 'Para empresas, Touch? es revolucionario. Un parlante bluetooth de $10 en tu mostrador reemplaza lectores de tarjetas, torniquetes y sistemas caros. El cliente toca su celular y todo sucede!'
+      },
       BUSINESS: {
-        pt: 'Funciona para qualquer neg\u00f3cio presencial: restaurantes, bares, barbearias, academias, CrossFit, estacionamentos, guardadores, eventos, DJs, food trucks, ch\u00e1s de revela\u00e7\u00e3o. Cada um recebe m\u00f3dulos espec\u00edficos no painel do operador.',
-        en: 'Works for any in-person business: restaurants, bars, barbershops, gyms, CrossFit, parking, valets, events, DJs, food trucks, gender reveals. Each gets specific modules in the operator dashboard.',
-        es: 'Funciona para cualquier negocio presencial: restaurantes, bares, barber\u00edas, gimnasios, CrossFit, estacionamientos, valet, eventos, DJs, food trucks, revelaciones de g\u00e9nero. Cada uno recibe m\u00f3dulos espec\u00edficos en el panel del operador.'
+        pt: 'Funciona pra qualquer negocio presencial: restaurantes, bares, barbearias, academias, CrossFit, estacionamentos, eventos, DJs, food trucks, cha de revelacao. Cada um recebe modulos especificos no painel.',
+        en: 'Works for any in-person business: restaurants, bars, barbershops, gyms, CrossFit, parking, events, DJs, food trucks, gender reveals. Each gets specific modules in the operator dashboard.',
+        es: 'Funciona para cualquier negocio presencial: restaurantes, bares, barberias, gimnasios, CrossFit, estacionamientos, eventos, DJs, food trucks, revelaciones de genero. Cada uno recibe modulos especificos.'
       },
       SETUP: {
-        pt: 'A configura\u00e7\u00e3o \u00e9 super r\u00e1pida, leva s\u00f3 2 minutos. Coloca o alto-falante Bluetooth na entrada, um QR code ali, e pronto. Clientes encostam o celular e conectam em 1 segundo. No painel do operador, voc\u00ea gerencia tudo num s\u00f3 lugar. Restaurantes ganham card\u00e1pios digitais e um kanban pra cozinha. WiFi autom\u00e1tico pros clientes. Tudo administrado num painel \u00fanico.',
-        en: 'Setup takes just 2 minutes. Place the Bluetooth speaker at the entrance, a QR code there, and done. Customers touch their phone and connect in 1 second. In the operator dashboard, you manage everything in one place. Restaurants get digital menus and a kitchen kanban. Automatic WiFi for customers. All managed in a single dashboard.',
-        es: 'La configuraci\u00f3n es s\u00faper r\u00e1pida, solo 2 minutos. Coloca el altavoz Bluetooth en la entrada, un c\u00f3digo QR ah\u00ed, y listo. Los clientes acercan el celular y conectan en 1 segundo. En el panel del operador, gestionas todo en un solo lugar. Restaurantes obtienen men\u00fas digitales y un kanban de cocina. WiFi autom\u00e1tico para clientes. Todo administrado en un panel \u00fanico.'
+        pt: 'A configuracao leva 2 minutos. Coloca a caixinha bluetooth na entrada, um QR ali, e pronto. No painel, voce gerencia tudo: check-ins, pedidos, pagamentos, cardapio digital, WiFi automatico. Tudo num so lugar!',
+        en: 'Setup takes 2 minutes. Place the speaker at the entrance, a QR code there, done. In the dashboard you manage everything: check-ins, orders, payments, digital menu, automatic WiFi. All in one place!',
+        es: 'La configuracion toma 2 minutos. Coloca el parlante en la entrada, un QR ahi, listo. En el panel gestionas todo: check-ins, pedidos, pagos, menu digital, WiFi automatico. Todo en un solo lugar!'
       }
     }
   };
@@ -2837,6 +2859,9 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     tourMode = mode;
     inTour = true;
     tourStepIndex = 0;
+
+    // Minimize chat window so user can see the animations
+    win.classList.add('tour-mini');
 
     // Create overlay if not already there
     if(!tourOverlay){
@@ -2892,6 +2917,9 @@ document.querySelectorAll('.btn-main, .nav-cta').forEach(function(btn){
     if(step.signal === 'USE_CASES'){
       startUsecaseCarousel();
     }
+    // Switch audience tab when entering AUDIENCE step
+    if(step.signal === 'AUDIENCE_B2C' && typeof switchAudTab === 'function') switchAudTab('b2c');
+    if(step.signal === 'AUDIENCE_B2B' && typeof switchAudTab === 'function') switchAudTab('b2b');
 
     // Show narration text
     var narration = textTourNarration[mode] && textTourNarration[mode][step.signal];
