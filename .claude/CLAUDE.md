@@ -1,40 +1,33 @@
-eu nao sei programar entao faca tudo, pense em tudo... subir repositorio no github e tudo..
-SEMPRE rode git pull origin main ANTES de editar qualquer arquivo — o agente DEV no Render tambem faz commits e sem pull voce sobrescreve o trabalho dele.
-sempre commit e push depois de cada tarefa.
-Use Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com> nos commits.
-ZERO emojis no codigo.
-NUNCA commitar tokens, API keys, secrets ou credenciais no repositorio. Tudo via process.env e .env (que ja esta no .gitignore). Se precisar de uma chave nova, adiciona no .env.example sem o valor real.
-Leia PROMPT-NOVO-CHAT.md na raiz do projeto ANTES de qualquer coisa — ele tem todo o contexto.
+# REPOSITORIO DESCONTINUADO -- NAO FAZER COMMITS AQUI
 
-## CONTEXTO RAPIDO (pra nao ter que ler tudo se ja conhece o projeto)
+## PARE. LEIA ISTO ANTES DE QUALQUER COISA.
 
-Touch? e um app de conexao por proximidade usando som ultrassonico.
-Dois celulares se aproximam TELA CONTRA TELA (screen-to-screen), os speakers conversam, e uma conexao nasce.
-Funciona no browser (sem download). Stack: Node.js + Express + Socket.IO + Firebase.
-Deploy: Render (touch-irl.com via Cloudflare).
+Este repositorio (encosta) foi DESCONTINUADO em marco de 2026.
+Todo o desenvolvimento agora acontece no repositorio NOVO: touch2.0
 
-## POSICAO DOS CELULARES (TODO AGENTE PRECISA SABER)
+REPOSITORIO ATIVO: github.com/bavkiq-hUgby8-cittet/touch2.0
+ESTE REPO (encosta): SOMENTE LEITURA. NAO COMMITAR. NAO EDITAR. NAO FAZER PUSH.
 
-Os celulares ficam COM AS TELAS VIRADAS UMA PARA A OUTRA (screen-to-screen).
-Cada pessoa segura na vertical, tela apontando pro celular do outro.
-Costas dos celulares viradas pra fora. Alto-falantes na parte de baixo.
-Como se os celulares estivessem "se olhando". NAO e topo-com-topo.
+## O QUE FAZER
 
-## ESTRATEGIA DE LANCAMENTO
+1. NAO faca nenhuma alteracao neste repositorio
+2. Informe o usuario (Ramon) que este repo esta descontinuado
+3. Peca para ele abrir a pasta touch2.0 no Desktop
+4. Se precisar clonar: git clone https://github.com/bavkiq-hUgby8-cittet/touch2.0.git
+5. Toda documentacao atualizada esta no touch2.0 (CLAUDE.md, PROMPT-NOVO-CHAT.md, docs/)
 
-- Lancamento nos EUA primeiro (100% remoto, Ramon mora no Brasil)
-- Foco inicial: gorjetas digitais ($50B+/ano mercado)
-- Marketing: 100% IA (videos Veo 3, imagens Gemini, textos Claude)
-- 3 idiomas: EN, PT, ES
-- Trafego pago: TikTok 60%, Instagram 30%, YouTube 10%
-- Case viral: "1 pessoa que nao sabe programar + IA = app de pagamentos em 20 dias"
-- Cadastro: nickname + nascimento + email + senha (18+ obrigatorio)
+## POR QUE MUDOU
 
-## ARQUIVOS IMPORTANTES DE ESTRATEGIA
+- Este repo (encosta) tinha 2GB+ no .git por causa de videos antigos no historico
+- Deploy no Render demorava 15+ minutos
+- O touch2.0 tem ~92MB e deploy em 1-2 minutos
+- O codigo e o mesmo, so o repositorio git que e novo e limpo
 
-- PROMPT-NOVO-CHAT.md -- contexto COMPLETO do projeto e estrategia
-- PROMPTS-VEO3-BATCH1.md -- 16 prompts de video pro Veo 3
-- PROMPTS-IMAGENS-GEMINI.md -- 12 prompts de imagem pro Gemini
-- GTM-GORJETA-USA.docx -- go-to-market tipping nos EUA
-- docs/ARQUITETURA.md -- mapa tecnico completo
-- docs/SEGURANCA.md -- auditoria de seguranca
+## REGRAS (CONTINUAM AS MESMAS NO TOUCH2.0)
+
+- eu nao sei programar entao faca tudo
+- SEMPRE git pull origin main ANTES de editar
+- sempre commit e push depois de cada tarefa
+- Use Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+- ZERO emojis no codigo
+- NUNCA commitar tokens, API keys, secrets ou credenciais
